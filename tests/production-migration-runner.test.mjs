@@ -191,7 +191,7 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     assert.match(
       workflow,
-      /Verify exact Conversation and Message authority-preparation migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-authority-preparation-reviewed[\s\S]{0,220}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}audit:rls-conversation-message-authority-release[\s\S]{0,220}Verify Notification activation proof equivalence[\s\S]{0,180}audit:rls-notification-activation-release[\s\S]{0,220}Verify Notification FORCE release bytes[\s\S]{0,180}audit:rls-notification-force-release[\s\S]{0,300}Generate Prisma client/,
+      /Verify exact Conversation and Message initial RLS activation migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-activation-reviewed[\s\S]{0,220}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}audit:rls-conversation-message-authority-release[\s\S]{0,220}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}audit:rls-conversation-message-activation-release[\s\S]{0,220}Verify Notification activation proof equivalence[\s\S]{0,180}audit:rls-notification-activation-release[\s\S]{0,220}Verify Notification FORCE release bytes[\s\S]{0,180}audit:rls-notification-force-release[\s\S]{0,300}Generate Prisma client/,
     );
     assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);

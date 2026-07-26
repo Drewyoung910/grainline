@@ -45,12 +45,14 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify exact Conversation and Message authority-preparation migration tree
+      - name: Verify exact Conversation and Message initial RLS activation migration tree
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-authority-preparation-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: conversation-message-activation-reviewed
       - name: Verify Conversation and Message authority proof equivalence
         run: npm run audit:rls-conversation-message-authority-release
+      - name: Verify Conversation and Message activation proof equivalence
+        run: npm run audit:rls-conversation-message-activation-release
       - name: Verify Notification activation proof equivalence
         run: npm run audit:rls-notification-activation-release
       - name: Verify Notification FORCE release bytes

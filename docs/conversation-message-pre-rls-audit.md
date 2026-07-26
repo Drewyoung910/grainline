@@ -3,8 +3,10 @@
 Opened 2026-07-22; updated 2026-07-26. Status: the compatible application,
 additive schema/index pair and reviewed invariant/data-normalization migrations
 are live. The actual pooled production runtime role passed a rollback-only
-postflight. Conversation/Message RLS remains disabled with zero policies; no
-Conversation or Message policy or authority SQL has been applied.
+postflight. The reviewed 25-function authority preparation and compatible
+application conversion are live. Conversation/Message RLS remains disabled
+with zero policies and old table CRUD; no Conversation or Message policy or
+table-grant activation has been applied.
 
 The authenticated RLS-off compatibility proof passed at exact deployed release
 `650d1dd8`, operator `11adbeda`, and CI run `30192400811`. It proved
@@ -19,6 +21,15 @@ counter was removed, recovery state is absent, and direct email/notification
 side effects were zero. Earlier failed attempts remain retained evidence and
 all also cleaned up fully; none changed RLS, grants or ordinary production
 data.
+
+The initial activation is now packaged locally but is not merged, applied or
+live. Migration `20260726073000_enable_conversation_message_rls` is an
+explicit `ENABLE` plus `NO FORCE` release with one participant-or-reported-
+staff SELECT policy per table and direct runtime SELECT only. Its exact
+candidate/release bytes, migration tree, grant audit, provisioning convergence
+and rollback proof are guarded. Fresh PostgreSQL 16 CI, Extra-High review,
+protected production migration and authenticated post-activation proof remain
+required.
 
 ## Why this gate exists
 
@@ -263,8 +274,9 @@ is necessary but not sufficient.
    state, reported-thread state and archive/timestamp aggregates without
    retaining bodies or identifiers.
 4. Extra High has accepted the invariant-preparation SQL and its PostgreSQL
-   concurrency claims only. Policy/function SQL, grant narrowing, initial RLS
-   activation and FORCE remain a separate Extra-High review and release.
+   concurrency claims only. Fixed authority functions are now live after their
+   separate review. Initial policy SQL, grant narrowing and FORCE remain
+   separate Extra-High review and release boundaries.
 
 This audit pattern is required for each later sensitive group, with scope
 adapted to that group's actors and provider/background workflows.

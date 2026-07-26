@@ -63,7 +63,7 @@ function sqlFunctionDefinition(source, functionName) {
 }
 
 describe("Conversation and Message recipient RLS draft", () => {
-  it("promotes the recipient catalog while keeping policies outside migrations", () => {
+  it("promotes the recipient catalog and exact initial policies separately", () => {
     const migrationSql = fs
       .readdirSync("prisma/migrations", { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
@@ -79,7 +79,7 @@ describe("Conversation and Message recipient RLS draft", () => {
       assert.match(authorityPreparationSql, new RegExp(`public\\.${functionName}\\(`));
       assert.match(contract, new RegExp(`\\b${functionName}\\b`));
     }
-    assert.doesNotMatch(
+    assert.match(
       migrationSql,
       /CREATE POLICY grainline_(?:conversation|message)_participant_or_reported_select/,
     );
@@ -189,7 +189,10 @@ describe("Conversation and Message recipient RLS draft", () => {
       pkg.scripts["audit:rls-conversation-message-recipient"],
       "node scripts/conversation-message-recipient-rls-proof.mjs",
     );
-    assert.match(ci, /Prove Conversation and Message recipient RLS draft in ephemeral PostgreSQL/);
+    assert.match(
+      ci,
+      /Prove activated Conversation and Message authority in ephemeral PostgreSQL/,
+    );
     assert.match(ci, /CONVERSATION_MESSAGE_RECIPIENT_RLS_PROOF_DATABASE_URL/);
     assert.match(proof, /refuses a non-loopback database/);
     assert.match(proof, /requires grainline_ci/);

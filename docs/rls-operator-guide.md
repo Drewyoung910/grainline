@@ -51,6 +51,12 @@ RLS-off compatibility postflight passed at operator `11adbeda` after fresh CI
 It left zero fixture/session/token/cache/rate-limit residue and zero direct
 email/notification side effects. This does not authorize RLS/table-grant
 activation or FORCE. Reverify live state before repeating these claims.
+Initial Conversation/Message activation is currently only a local release
+package: migration `20260726073000_enable_conversation_message_rls` enables
+RLS without FORCE, installs exactly two SELECT policies, and narrows both
+tables to runtime SELECT. It is not merged, applied or live until fresh
+PostgreSQL 16 CI, Extra-High review, protected migration and post-activation
+proof all pass.
 
 ## Tool map
 
@@ -67,6 +73,9 @@ activation or FORCE. Reverify live state before repeating these claims.
 | `scripts/verify-conversation-message-authority-release.mjs` | Pins the promoted 25-function migration and proves its executable body matches the accepted disposable candidate. | The migration is merged, applied, or RLS is active. |
 | `scripts/conversation-message-authority-production-postflight.mjs` | Read-only proof through the exact pooled production runtime after functions-only migration: release binding, 25 function ACLs, six private-core denials, old CRUD retained, and RLS/policies still off. | Application conversion, table-grant activation, RLS, or FORCE is complete. |
 | `scripts/conversation-message-compatibility-production-postflight.mjs` | Authenticated RLS-off proof of the deployed Conversation/Message authority conversion using the retained operational Clerk canary and an exact synthetic fixture. It proves inbox/thread/list/unread/read behavior, foreign denial, cleanup, and zero notification/email side effects. | Conversation/Message RLS, grant narrowing, FORCE, or the later post-activation proof is complete. |
+| `scripts/stage-conversation-message-activation-migration.mjs` | Byte-pins the accepted two-policy source and builds the exact disposable initial-activation candidate with predecessor and postflight catalog guards. | Production is authorized or changed. |
+| `scripts/verify-conversation-message-activation-release.mjs` | Pins the promoted activation bytes and proves the executable body equals the generated disposable candidate. | PostgreSQL behavior, runtime authentication, or production activation is proven. |
+| `scripts/conversation-message-activation-rollback-proof.mjs` | Loopback-only proof that initial activation can be disabled, old CRUD restored, fixed functions retained, and the exact initial activation restored with zero fixture residue. | A production rollback was performed or FORCE is safe. |
 
 ## Deploy-phase lifecycle
 
@@ -89,6 +98,7 @@ Current values:
 | `conversation-message-invariants-reviewed` | Conversation/Message invariants and body-search index, with RLS still off |
 | `conversation-message-legacy-cleanup-reviewed` | At most one fully source-bound legacy custom-order-link context repair, with RLS still off |
 | `conversation-message-authority-preparation-reviewed` | Promoted fixed authority functions and exact ACLs while old runtime table CRUD and RLS-off compatibility remain |
+| `conversation-message-activation-reviewed` | Initial paired Conversation/Message ENABLE plus explicit NO FORCE, exact SELECT policies, and runtime SELECT-only table grants |
 
 The phase is not a feature flag. It is exact-artifact human authorization and
 must fail when migration bytes or order change.

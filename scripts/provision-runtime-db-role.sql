@@ -381,6 +381,96 @@ REVOKE INSERT, UPDATE, DELETE ON TABLE public."Notification" FROM :"runtime_role
 GRANT UPDATE (read) ON TABLE public."Notification" TO :"runtime_role";
 \endif
 
+-- Conversation and Message retain ordinary CRUD until their compatible
+-- fixed-function application is live and the exact paired SELECT policies are
+-- installed. Once activation is complete, every provisioning rerun must
+-- converge both tables back to direct SELECT only. Partial or unexpected
+-- catalog state fails closed instead of restoring broad writes.
+WITH table_state AS (
+  SELECT
+    c.relname,
+    c.relrowsecurity,
+    c.relforcerowsecurity,
+    COUNT(p.oid)::integer AS policy_count,
+    COUNT(p.oid) FILTER (
+      WHERE p.polcmd = 'r'
+        AND p.polpermissive
+        AND p.polroles = ARRAY[
+          (SELECT oid FROM pg_roles WHERE rolname = :'runtime_role')
+        ]::oid[]
+        AND p.polqual IS NOT NULL
+        AND p.polwithcheck IS NULL
+        AND (
+          (
+            c.relname = 'Conversation'
+            AND p.polname =
+              'grainline_conversation_participant_or_reported_select'
+          )
+          OR (
+            c.relname = 'Message'
+            AND p.polname =
+              'grainline_message_participant_or_reported_select'
+          )
+        )
+    )::integer AS expected_policy_count
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  LEFT JOIN pg_policy p ON p.polrelid = c.oid
+  WHERE n.nspname = 'public'
+    AND c.relname IN ('Conversation', 'Message')
+    AND c.relkind IN ('r', 'p')
+  GROUP BY c.relname, c.relrowsecurity, c.relforcerowsecurity
+), conversation_message_activation AS (
+  SELECT
+    COUNT(*) = 2 AS table_catalog_complete,
+    COUNT(*) = 2
+      AND bool_and(
+        relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 1
+        AND expected_policy_count = 1
+      ) AS active,
+    COUNT(*) = 2
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor,
+    COALESCE(
+      bool_or(relrowsecurity OR relforcerowsecurity OR policy_count > 0),
+      false
+    ) AS started
+  FROM table_state
+), failure AS (
+  SELECT
+    'Conversation/Message RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+  FROM conversation_message_activation
+  WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE(
+    (SELECT active FROM conversation_message_activation),
+    false
+  ) AS conversation_message_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+\quit 1
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :conversation_message_rls_active
+REVOKE INSERT, UPDATE, DELETE ON TABLE
+  public."Conversation",
+  public."Message"
+FROM :"runtime_role";
+\endif
+
 GRANT USAGE ON TYPE
   public."BlogAuthorType",
   public."BlogPostStatus",
@@ -507,11 +597,11 @@ GRANT EXECUTE ON FUNCTION public.grainline_notification_prune_unread_batch() TO 
 \endif
 \unset notification_rls_active
 
--- Conversation/Message authority preparation is additive and may be absent
--- before its reviewed migration. When present, converge all function ACLs:
+-- Conversation/Message authority preparation may be absent before its
+-- reviewed migration. When present, converge all function ACLs:
 -- six generic helper cores stay owner-only and the 19 fixed projections /
--- operations are runtime-callable. No table privilege or RLS change belongs
--- to this block.
+-- operations are runtime-callable. Paired table-grant convergence is handled
+-- above once exact RLS activation is detected.
 WITH conversation_message_authority(function_signature) AS (
   VALUES
     ('public."grainline_conversation_staff_report_visible"(text)'),
@@ -615,6 +705,7 @@ SELECT format(
   FROM conversation_message_public_authority
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
+\unset conversation_message_rls_active
 
 WITH saved_search_rpc(function_signature) AS (
   VALUES

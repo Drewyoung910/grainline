@@ -18,6 +18,7 @@ const {
   REQUIRED_SEQUENCE_PRIVILEGES,
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
+  CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES,
   NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
   NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES,
   NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
@@ -28,6 +29,8 @@ const {
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
+  collectConversationPolicyIssues,
+  collectMessagePolicyIssues,
   collectNotificationFunctionIssues,
   collectNotificationPolicyIssues,
   collectTablePrivilegeAllowlistIssues,
@@ -368,10 +371,13 @@ describe("database grant inventory guardrails", () => {
     );
   });
 
-  it("derives exact SavedSearch and Notification table/column grants by activation state", () => {
+  it("derives exact activated table and column grants by RLS state", () => {
     const releaseZeroInventory = { rlsPolicyTables: [] };
     const phaseAInventory = { rlsPolicyTables: ["SavedSearch"] };
     const notificationInventory = { rlsPolicyTables: ["SavedSearch", "Notification"] };
+    const conversationMessageInventory = {
+      rlsPolicyTables: ["SavedSearch", "Notification", "Conversation", "Message"],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -399,6 +405,24 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       requiredRuntimeColumnPrivileges("Notification", notificationInventory),
       NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        "Conversation",
+        conversationMessageInventory,
+      ),
+      CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges("Message", conversationMessageInventory),
+      CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES,
+    );
+    assert.deepEqual(
+      requiredRuntimeColumnPrivileges(
+        "Conversation",
+        conversationMessageInventory,
+      ),
+      [],
     );
 
     const exactPhaseARow = {
@@ -500,6 +524,53 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       collectNotificationPolicyIssues(
         exactRows.map((row) => ({ ...row, rls_forced: true })),
+        runtimeRole,
+      ).join("\n"),
+      /must keep FORCE ROW LEVEL SECURITY disabled/,
+    );
+  });
+
+  it("pins exact initial Conversation and Message SELECT policies without FORCE", () => {
+    const runtimeRole = "grainline_app_runtime";
+    const common = {
+      rls_enabled: true,
+      rls_forced: false,
+      policy_command: "r",
+      policy_permissive: true,
+      policy_roles: [runtimeRole],
+      check_expression: null,
+    };
+    const conversationRows = [{
+      ...common,
+      policy_name: "grainline_conversation_participant_or_reported_select",
+      using_expression:
+        `((NULLIF(current_setting('app.user_id'::text, true), ''::text) = ANY (ARRAY["userAId", "userBId"])) OR grainline_conversation_staff_report_visible(id))`,
+    }];
+    const messageRows = [{
+      ...common,
+      policy_name: "grainline_message_participant_or_reported_select",
+      using_expression:
+        `((NULLIF(current_setting('app.user_id'::text, true), ''::text) = ANY (ARRAY["senderId", "recipientId"])) OR grainline_conversation_staff_report_visible("conversationId"))`,
+    }];
+
+    assert.deepEqual(
+      collectConversationPolicyIssues(conversationRows, runtimeRole),
+      [],
+    );
+    assert.deepEqual(collectMessagePolicyIssues(messageRows, runtimeRole), []);
+    assert.match(
+      collectMessagePolicyIssues(
+        messageRows.map((row) => ({
+          ...row,
+          policy_roles: ["PUBLIC"],
+        })),
+        runtimeRole,
+      ).join("\n"),
+      /expected only grainline_app_runtime/,
+    );
+    assert.match(
+      collectConversationPolicyIssues(
+        conversationRows.map((row) => ({ ...row, rls_forced: true })),
         runtimeRole,
       ).join("\n"),
       /must keep FORCE ROW LEVEL SECURITY disabled/,
@@ -657,7 +728,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      32 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      34 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -689,6 +760,10 @@ describe("database grant inventory guardrails", () => {
       }
     }
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, []);
+    assert.deepEqual(
+      inventory.rlsPolicyTables,
+      ["Conversation", "Message", "Notification", "SavedSearch"],
+    );
     assert.deepEqual(inventory.rlsForceTables, ["Notification", "SavedSearch"]);
   });
 
@@ -1427,7 +1502,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 9);
+    assert.equal(guardResultCount, 10);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -1505,6 +1580,20 @@ describe("database grant inventory guardrails", () => {
     assert.ok(commitIndex > notificationNarrowIndex);
     assert.match(provision, /Notification RLS is partially or unexpectedly configured/);
     assert.match(provision, /GRANT UPDATE \(read\) ON TABLE public\."Notification"/);
+    const conversationGrantIndex = provision.indexOf('public."Conversation",');
+    const messageGrantIndex = provision.indexOf('public."Message",');
+    const conversationMessageNarrowIndex = provision.indexOf(
+      "REVOKE INSERT, UPDATE, DELETE ON TABLE\n  public.\"Conversation\",\n  public.\"Message\"",
+    );
+    assert.ok(conversationGrantIndex > beginIndex);
+    assert.ok(messageGrantIndex > beginIndex);
+    assert.ok(conversationMessageNarrowIndex > conversationGrantIndex);
+    assert.ok(conversationMessageNarrowIndex > messageGrantIndex);
+    assert.ok(commitIndex > conversationMessageNarrowIndex);
+    assert.match(
+      provision,
+      /Conversation\/Message RLS is partially or unexpectedly configured/,
+    );
     assert.equal(
       (provision.match(/^REVOKE ALL ON FUNCTION public\.grainline_notification_(?!preferences_valid)/gm) ?? []).length,
       25,
