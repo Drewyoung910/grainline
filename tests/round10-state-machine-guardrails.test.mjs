@@ -143,6 +143,10 @@ describe("Round 10 state-machine guardrails", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
 
     assert.match(autoClose, /const STALE_DISCUSSION_DAYS = 30/);
+    assert.match(autoClose, /const sellerResponseCutoff = new Date\(\)/);
+    assert.match(autoClose, /status: "OPEN",[\s\S]*sellerRespondBy: \{ lt: sellerResponseCutoff \}/);
+    assert.doesNotMatch(autoClose, /openCutoff/);
+    assert.doesNotMatch(autoClose, /14\+ days past sellerRespondBy/);
     assert.match(autoClose, /status: "IN_DISCUSSION", updatedAt: \{ lt: discussionCutoff \}/);
     assert.match(autoClose, /staleDiscussionEscalated\+\+/);
     assert.match(escalate, /status: "IN_DISCUSSION", escalateUnlocksAt: \{ lt: now \}/);
@@ -164,9 +168,12 @@ describe("Round 10 state-machine guardrails", () => {
     assert.match(fallback, /description\.trim\(\)/);
     assert.match(fallback, /Case summary/);
     assert.match(webhook, /description: caseAction\.description/);
-    assert.match(adminCase, /caseRecord\.messages\.length === 0 \? \(\s*<CaseInitialSummary description=\{caseRecord\.description\} \/>/s);
-    assert.match(sellerCase, /activeCase\.messages\.length === 0 \? \(\s*<div className="bg-white px-4 py-3">\s*<CaseInitialSummary description=\{activeCase\.description\} \/>/s);
-    assert.match(buyerCase, /activeCase\.messages\.length === 0 \? \(\s*<div className="bg-white px-4 py-3">\s*<CaseInitialSummary description=\{activeCase\.description\} \/>/s);
+    for (const page of [adminCase, sellerCase, buyerCase]) {
+      assert.match(page, /caseMessageHistory(?:!)?\.messages\.length === 0/);
+    }
+    assert.match(adminCase, /<CaseInitialSummary description=\{caseRecord\.description\} \/>/);
+    assert.match(sellerCase, /<CaseInitialSummary description=\{activeCase\.description\} \/>/);
+    assert.match(buyerCase, /<CaseInitialSummary description=\{activeCase\.description\} \/>/);
   });
 
   it("coordinates label/manual shipping, admin approval fanout, and mark-resolved notifications", () => {

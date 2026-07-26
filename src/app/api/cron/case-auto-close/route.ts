@@ -145,13 +145,19 @@ export async function GET(req: Request) {
       if (batch === CASE_AUTO_CLOSE_MAX_BATCHES - 1) stalePendingCloseHasMore = true;
     }
 
-    // Escalate OPEN cases where seller never responded (14+ days past sellerRespondBy)
-    const openCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    // Escalate OPEN cases after the seller's documented 48-hour response
+    // deadline. The daily cron can run after the exact instant, but must not
+    // add another grace window that contradicts the public case contract.
+    const sellerResponseCutoff = new Date();
     async function escalateOpenCase(c: CaseAutoCloseRecord) {
       try {
         const updated = await prisma.$transaction(async (tx) => {
           const result = await tx.case.updateMany({
-            where: { id: c.id, status: "OPEN", sellerRespondBy: { lt: openCutoff } },
+            where: {
+              id: c.id,
+              status: "OPEN",
+              sellerRespondBy: { lt: sellerResponseCutoff },
+            },
             data: { status: "UNDER_REVIEW" },
           });
           if (result.count === 0) return false;
@@ -168,7 +174,7 @@ export async function GET(req: Request) {
               previousStatus: "OPEN",
               newStatus: "UNDER_REVIEW",
               orderId: c.orderId,
-              cutoff: openCutoff.toISOString(),
+              cutoff: sellerResponseCutoff.toISOString(),
             },
           });
           return auditLogId;
@@ -217,7 +223,7 @@ export async function GET(req: Request) {
       const abandonedOpenCases = await prisma.case.findMany({
         where: {
           status: "OPEN",
-          sellerRespondBy: { lt: openCutoff },
+          sellerRespondBy: { lt: sellerResponseCutoff },
           ...(checkedOpenCaseIds.size ? { id: { notIn: [...checkedOpenCaseIds] } } : {}),
         },
         orderBy: [{ sellerRespondBy: "asc" }, { id: "asc" }],

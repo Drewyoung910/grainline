@@ -1,6 +1,6 @@
 # Case and CaseMessage RLS Plan
 
-Opened 2026-07-26. Current phase: pre-policy audit and compatibility design.
+Opened 2026-07-26. Current phase: Phase 1A compatible product work.
 Production Case/CaseMessage RLS remains off.
 
 The behavior findings and 69-reference source baseline live in
@@ -44,11 +44,13 @@ This phase remains compatible with the current broad runtime grants and RLS-off
 tables.
 
 1. Add stable `(caseId, createdAt, id)` history order/index and bounded older
-   history for buyer, seller and staff; keep export complete through paging.
+   history for buyer, seller and staff. Keep the separate account export
+   complete through its dedicated participant projection rather than
+   truncating legal export data.
 2. Align the scheduled non-response transition with the chosen 48-hour public
    contract.
-3. Decide Case evidence attachments explicitly before the authority schema is
-   frozen.
+3. Carry the accepted first-party Case evidence attachment requirement into
+   the reviewed compatible schema design.
 
 Exit: focused product tests, TypeScript, lint and the full unit suite are green.
 No RLS behavior has changed.
@@ -64,13 +66,16 @@ authority catalog and PostgreSQL proof.
 
 1. Add durable CaseMessage author kind and render it instead of mutable current
    User role.
-2. Deliver staff Case decisions to the seller with source-derived seller copy
+2. Add the exact `(caseId, createdAt, id)` history index and the first-party
+   `CaseMessageAttachment` model with parent visibility, verified upload
+   ownership, export, deletion and retention behavior.
+3. Deliver staff Case decisions to the seller with source-derived seller copy
    through the existing fixed Notification boundary.
-3. Make Case creation, participant escalation and staff resolution audit
+4. Make Case creation, participant escalation and staff resolution audit
    evidence atomic with the database state transition.
-4. Establish the shared Order-lock protocol for Case creation and conflicting
+5. Establish the shared Order-lock protocol for Case creation and conflicting
    label/fulfillment/refund transitions.
-5. Serialize replies on the Case row and use a post-lock timestamp.
+6. Serialize replies on the Case row and use a post-lock timestamp.
 
 Exit: focused product/security tests, TypeScript, lint and the full unit suite
 are green. No RLS behavior has changed.

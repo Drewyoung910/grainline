@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import OpenCaseForm from "@/components/OpenCaseForm";
 import CaseReplyBox from "@/components/CaseReplyBox";
 import CaseInitialSummary from "@/components/CaseInitialSummary";
+import CaseMessageHistoryNav from "@/components/CaseMessageHistoryNav";
 import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import LocalDate from "@/components/LocalDate";
@@ -32,6 +33,7 @@ import { isRecordedRefundId } from "@/lib/refundLockState";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
+import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -91,10 +93,12 @@ const REASON_LABELS: Record<string, string> = {
 
 export default async function BuyerOrderDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ caseBefore?: string | string[] }>;
 }) {
-  const { id } = await params;
+  const [{ id }, { caseBefore }] = await Promise.all([params, searchParams]);
 
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/orders");
@@ -120,12 +124,6 @@ export default async function BuyerOrderDetailPage({
         include: {
           buyer: { select: { id: true, banned: true, deletedAt: true } },
           seller: { select: { id: true, banned: true, deletedAt: true } },
-          messages: {
-            include: {
-              author: { select: { name: true, role: true } },
-            },
-            orderBy: { createdAt: "asc" },
-          },
         },
       },
       paymentEvents: {
@@ -163,6 +161,9 @@ export default async function BuyerOrderDetailPage({
     .map((item) => item.listing.processingTimeMaxDays)
     .filter((value): value is number => typeof value === "number");
   const activeCase = order.case;
+  const caseMessageHistory = activeCase
+    ? await findCaseMessageHistoryPage(activeCase.id, caseBefore)
+    : null;
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
   const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId || !!externalRefund;
@@ -496,7 +497,7 @@ export default async function BuyerOrderDetailPage({
       )}
 
       {/* ── Case section ── */}
-      {activeCase ? (
+      {activeCase && caseMessageHistory ? (
         <section className="card-section space-y-0">
           <div className="flex items-center gap-3 border-b border-neutral-100 bg-white px-4 py-3">
             <div className="text-sm font-semibold">Case</div>
@@ -506,13 +507,17 @@ export default async function BuyerOrderDetailPage({
             </div>
           </div>
 
-          {activeCase.messages.length === 0 ? (
+          {caseMessageHistory.messages.length === 0 ? (
             <div className="bg-white px-4 py-3">
-              <CaseInitialSummary description={activeCase.description} />
+              {caseMessageHistory.isHistoricalPage ? (
+                <p className="text-sm text-neutral-500">No older messages found.</p>
+              ) : (
+                <CaseInitialSummary description={activeCase.description} />
+              )}
             </div>
           ) : (
             <ul className="divide-y divide-neutral-100 bg-white">
-              {activeCase.messages.map((msg) => (
+              {caseMessageHistory.messages.map((msg) => (
                 <li key={msg.id} className="px-4 py-3 space-y-1">
                   <div className="flex items-center gap-2 text-xs text-neutral-500">
                     <span className="font-medium text-neutral-700">
@@ -526,8 +531,13 @@ export default async function BuyerOrderDetailPage({
               ))}
             </ul>
           )}
+          <CaseMessageHistoryNav
+            baseHref={`/dashboard/orders/${order.id}`}
+            olderCursor={caseMessageHistory.olderCursor}
+            isHistoricalPage={caseMessageHistory.isHistoricalPage}
+          />
 
-          {caseOpen && (
+          {caseOpen && !caseMessageHistory.isHistoricalPage && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4">
               {caseReplyUnavailableMessage ? (
                 <p className="text-sm text-neutral-600">{caseReplyUnavailableMessage}</p>
@@ -539,7 +549,8 @@ export default async function BuyerOrderDetailPage({
 
           {(activeCase.status === "IN_DISCUSSION" ||
             activeCase.status === "PENDING_CLOSE" ||
-            (activeCase.status === "OPEN" && escalateAvailable)) && (
+            (activeCase.status === "OPEN" && escalateAvailable)) &&
+            !caseMessageHistory.isHistoricalPage && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
               {activeCase.buyerMarkedResolved && !activeCase.sellerMarkedResolved ? (
                 <p className="text-sm text-neutral-500">

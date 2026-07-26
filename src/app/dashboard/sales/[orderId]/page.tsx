@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import LabelSection from "@/components/LabelSection";
 import CaseReplyBox from "@/components/CaseReplyBox";
 import CaseInitialSummary from "@/components/CaseInitialSummary";
+import CaseMessageHistoryNav from "@/components/CaseMessageHistoryNav";
 import CaseEscalateButton from "@/components/CaseEscalateButton";
 import CaseMarkResolvedButton from "@/components/CaseMarkResolvedButton";
 import SellerRefundPanel from "@/components/SellerRefundPanel";
@@ -31,6 +32,7 @@ import {
 } from "@/lib/orderReviewHolds";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import type { Metadata } from "next";
+import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -75,10 +77,12 @@ function fmtTimeRemaining(deadline: Date, now: Date): string {
 
 export default async function SellerOrderDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orderId: string }>;
+  searchParams: Promise<{ caseBefore?: string | string[] }>;
 }) {
-  const { orderId } = await params;
+  const [{ orderId }, { caseBefore }] = await Promise.all([params, searchParams]);
 
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/sales");
@@ -111,12 +115,6 @@ export default async function SellerOrderDetailPage({
         include: {
           buyer: { select: { id: true, banned: true, deletedAt: true } },
           seller: { select: { id: true, banned: true, deletedAt: true } },
-          messages: {
-            include: {
-              author: { select: { id: true, name: true } },
-            },
-            orderBy: { createdAt: "asc" },
-          },
         },
       },
       paymentEvents: {
@@ -165,6 +163,9 @@ export default async function SellerOrderDetailPage({
     .filter((value): value is number => typeof value === "number");
 
   const activeCase = order.case;
+  const caseMessageHistory = activeCase
+    ? await findCaseMessageHistoryPage(activeCase.id, caseBefore)
+    : null;
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const now = new Date();
   const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
@@ -358,17 +359,21 @@ export default async function SellerOrderDetailPage({
         )}
 
       {/* ── Case thread ── */}
-      {activeCase && (
+      {activeCase && caseMessageHistory && (
         <section className="card-section">
           <div className="border-b border-neutral-100 bg-white px-4 py-3 text-sm font-semibold">Case thread</div>
 
-          {activeCase.messages.length === 0 ? (
+          {caseMessageHistory.messages.length === 0 ? (
             <div className="bg-white px-4 py-3">
-              <CaseInitialSummary description={activeCase.description} />
+              {caseMessageHistory.isHistoricalPage ? (
+                <p className="text-sm text-neutral-500">No older messages found.</p>
+              ) : (
+                <CaseInitialSummary description={activeCase.description} />
+              )}
             </div>
           ) : (
             <ul className="divide-y divide-neutral-100 bg-white">
-              {activeCase.messages.map((msg) => {
+              {caseMessageHistory.messages.map((msg) => {
                 const label = msgLabel(msg.author.id);
                 const isMe = label === "You (Seller)";
                 return (
@@ -394,10 +399,16 @@ export default async function SellerOrderDetailPage({
               })}
             </ul>
           )}
+          <CaseMessageHistoryNav
+            baseHref={`/dashboard/sales/${order.id}`}
+            olderCursor={caseMessageHistory.olderCursor}
+            isHistoricalPage={caseMessageHistory.isHistoricalPage}
+          />
 
           {(activeCase.status === "OPEN" ||
             activeCase.status === "IN_DISCUSSION" ||
-            activeCase.status === "PENDING_CLOSE") && (
+            activeCase.status === "PENDING_CLOSE") &&
+            !caseMessageHistory.isHistoricalPage && (
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-4">
               {caseReplyUnavailableMessage ? (
                 <p className="text-sm text-neutral-600">{caseReplyUnavailableMessage}</p>
@@ -410,7 +421,8 @@ export default async function SellerOrderDetailPage({
           {(activeCase.status === "IN_DISCUSSION" ||
             activeCase.status === "PENDING_CLOSE" ||
             (activeCase.status === "OPEN" &&
-              caseEscalationAvailable(activeCase.status, activeCase.escalateUnlocksAt, now, caseReplyUnavailableReason != null))) && (() => {
+              caseEscalationAvailable(activeCase.status, activeCase.escalateUnlocksAt, now, caseReplyUnavailableReason != null))) &&
+            !caseMessageHistory.isHistoricalPage && (() => {
             const escalateAvailable = caseEscalationAvailable(
               activeCase.status,
               activeCase.escalateUnlocksAt,

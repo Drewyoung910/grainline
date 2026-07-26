@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import CaseResolutionPanel from "@/components/CaseResolutionPanel";
 import CaseReplyBox from "@/components/CaseReplyBox";
 import CaseInitialSummary from "@/components/CaseInitialSummary";
+import CaseMessageHistoryNav from "@/components/CaseMessageHistoryNav";
 import LocalDate from "@/components/LocalDate";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
@@ -12,6 +13,7 @@ import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { refundMayRestoreStock } from "@/lib/refundRouteState";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import type { CaseStatus } from "@prisma/client";
+import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -81,11 +83,13 @@ function fmtDeadline(deadline: Date | null): { suffix: string; overdue: boolean 
 
 export default async function AdminCaseDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ caseBefore?: string | string[] }>;
 }) {
   await requireAdminPageAccess();
-  const { id } = await params;
+  const [{ id }, { caseBefore }] = await Promise.all([params, searchParams]);
 
   const caseRecord = await prisma.case.findUnique({
     where: { id },
@@ -116,16 +120,14 @@ export default async function AdminCaseDetailPage({
       },
       buyer: { select: { id: true, name: true, email: true } },
       seller: { select: { id: true, name: true, email: true } },
-      messages: {
-        include: {
-          author: { select: { id: true, name: true, email: true, role: true } },
-        },
-        orderBy: { createdAt: "asc" },
-      },
     },
   });
 
   if (!caseRecord) notFound();
+  const caseMessageHistory = await findCaseMessageHistoryPage(
+    caseRecord.id,
+    caseBefore,
+  );
 
   const currency = caseRecord.order.currency ?? DEFAULT_CURRENCY;
   const isActive =
@@ -252,11 +254,15 @@ export default async function AdminCaseDetailPage({
 
       {/* Message thread */}
       <Section title="Case Thread">
-        {caseRecord.messages.length === 0 ? (
-          <CaseInitialSummary description={caseRecord.description} />
+        {caseMessageHistory.messages.length === 0 ? (
+          caseMessageHistory.isHistoricalPage ? (
+            <p className="text-sm text-neutral-500">No older messages found.</p>
+          ) : (
+            <CaseInitialSummary description={caseRecord.description} />
+          )
         ) : (
           <ul className="divide-y divide-neutral-100 -my-1">
-            {caseRecord.messages.map((msg) => {
+            {caseMessageHistory.messages.map((msg) => {
               const label = msgLabel(msg.author.id, msg.author.role);
               return (
                 <li key={msg.id} className="py-3 space-y-1">
@@ -273,7 +279,7 @@ export default async function AdminCaseDetailPage({
                       {label}
                     </span>
                     <span>·</span>
-                    <span>{msg.author.name ?? msg.author.email}</span>
+                    <span>{msg.author.name ?? "Participant"}</span>
                     <span>·</span>
                     <span>{msg.createdAt.toLocaleString("en-US")}</span>
                   </div>
@@ -283,8 +289,13 @@ export default async function AdminCaseDetailPage({
             })}
           </ul>
         )}
+        <CaseMessageHistoryNav
+          baseHref={`/admin/cases/${caseRecord.id}`}
+          olderCursor={caseMessageHistory.olderCursor}
+          isHistoricalPage={caseMessageHistory.isHistoricalPage}
+        />
 
-        {isActive && (
+        {isActive && !caseMessageHistory.isHistoricalPage && (
           <div className="mt-4 border-t border-neutral-100 pt-4">
             <p className="text-xs font-medium text-neutral-500 mb-2">
               Reply as Grainline Staff
@@ -295,7 +306,7 @@ export default async function AdminCaseDetailPage({
       </Section>
 
       {/* Resolution */}
-      {isActive && (
+      {isActive && !caseMessageHistory.isHistoricalPage && (
         <Section title="Resolve Case">
           <p className="text-sm text-neutral-600 mb-4">
             Resolving will close the case. Full and partial refunds are processed immediately via
