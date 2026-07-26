@@ -57,6 +57,13 @@ test("compatibility postflight covers authenticated owner and foreign routes", (
   assert.match(script, /Invalid message cursor/);
 });
 
+test("compatibility postflight pins the middleware-owned unauthenticated API shape", () => {
+  assert.match(script, /unauthenticated\.status !== 401/);
+  assert.match(script, /unauthenticated\.body\.error !== "Unauthorized"/);
+  assert.match(script, /Object\.hasOwn\(unauthenticated\.body, "ok"\)/);
+  assert.doesNotMatch(script, /unauthenticated\.body\.ok !== false/);
+});
+
 test("compatibility postflight records a sanitized stage before every route assertion", () => {
   const routeStages = [
     "route-unauthenticated-list",

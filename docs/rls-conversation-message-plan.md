@@ -299,8 +299,18 @@ The direct runtime table query with no context must return zero rows.
    held the production alias. The operator must use the bounded authenticated
    Vercel deployment and alias APIs instead of a captured CLI subprocess, and
    that revision requires its own fresh CI before the next live route attempt.
-   RLS, grants and production rows remain unchanged; a fresh exact-head CI and
-   authenticated live pass are still required before activation.**
+   Fresh CI `30191960504` passed at API-verifier head `fd81c5b6`. The next live
+   attempt then failed closed at the newly exact
+   `route-unauthenticated-list` stage. Cleanup and the idempotent cleanup rerun
+   both removed every exact row, session, token, cache key and rate-limit
+   counter with zero direct email/notification side effects. A separate
+   unauthenticated production probe confirmed the deployed endpoint correctly
+   returns middleware-owned `401 {"error":"Unauthorized"}` with private
+   no-store and cookie-vary headers; the operator had incorrectly expected the
+   route-local `{ok:false}` body that middleware never reaches. Pin that exact
+   middleware response shape before retrying. RLS, grants and ordinary
+   production rows remain unchanged; a fresh exact-head CI and authenticated
+   live pass are still required before activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the

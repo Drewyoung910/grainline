@@ -769,7 +769,11 @@ async function exerciseRoutes(token, fixture, setStage) {
   const foreignConversationId = encodeURIComponent(fixture.conversationIds[1]);
   setStage("route-unauthenticated-list");
   const unauthenticated = await fetchJson(`/api/messages/${ownConversationId}/list`);
-  if (unauthenticated.status !== 401 || unauthenticated.body.ok !== false) {
+  if (
+    unauthenticated.status !== 401
+    || unauthenticated.body.error !== "Unauthorized"
+    || Object.hasOwn(unauthenticated.body, "ok")
+  ) {
     throw new Error("unauthenticated message list did not deny access");
   }
 
