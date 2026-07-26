@@ -60,6 +60,7 @@ FORCE. Reverify live state before repeating these claims.
 | `scripts/conversation-message-invariant-proof.mjs` | Loopback PostgreSQL 16 proof for constraints, private trigger ACLs, valid runtime writes, forged-route denial, and lock races. | Production was touched, production is proven, or RLS is active. |
 | `scripts/verify-conversation-message-authority-release.mjs` | Pins the promoted 25-function migration and proves its executable body matches the accepted disposable candidate. | The migration is merged, applied, or RLS is active. |
 | `scripts/conversation-message-authority-production-postflight.mjs` | Read-only proof through the exact pooled production runtime after functions-only migration: release binding, 25 function ACLs, six private-core denials, old CRUD retained, and RLS/policies still off. | Application conversion, table-grant activation, RLS, or FORCE is complete. |
+| `scripts/conversation-message-compatibility-production-postflight.mjs` | Authenticated RLS-off proof of the deployed Conversation/Message authority conversion using the retained operational Clerk canary and an exact synthetic fixture. It proves inbox/thread/list/unread/read behavior, foreign denial, cleanup, and zero notification/email side effects. | Conversation/Message RLS, grant narrowing, FORCE, or the later post-activation proof is complete. |
 
 ## Deploy-phase lifecycle
 

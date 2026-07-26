@@ -266,8 +266,14 @@ The direct runtime table query with no context must return zero rows.
    is live. The authority RPC/helper conversion candidate now has zero direct
    protected-table accesses and passes TypeScript, focused lint and the full
    2,007-test suite (2,004 pass, 3 intentional skips). Checkpoint push, fresh CI
-   PostgreSQL proof and Extra-High authority review are complete. Merge and a
-   compatibility deployment/postflight remain before database activation.**
+   PostgreSQL proof and Extra-High authority review are complete. PR 50 merged
+   as exact main `650d1dd818ac3694f7fd6da9954aaf053786cc40` after final
+   PR-head run `30190097435` and post-merge main run `30190239983` passed.
+   Exact Production deployment `dpl_C1rXvRMMJetR25Na4X5yHSa91HpM` is READY,
+   aliased to `thegrainline.com`, and returned `{"ok":true}` from
+   `/api/health` after the runtime-role build guard passed. RLS and grants
+   remain at the preparation posture. The authenticated RLS-off compatibility
+   postflight remains before database activation.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the
