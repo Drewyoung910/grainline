@@ -13,6 +13,7 @@
     "ops:notification-legacy-inspect": "node scripts/notification-legacy-inspect.mjs",
     "ops:conversation-message-legacy-inspect": "node scripts/conversation-message-legacy-inspect.mjs",
     "ops:conversation-message-invariant-postflight": "node scripts/conversation-message-invariant-production-postflight.mjs",
+    "ops:conversation-message-authority-postflight": "node scripts/conversation-message-authority-production-postflight.mjs",
     "ops:verify-db-separation": "node scripts/runtime-db-credential-separation-postflight.mjs",
     "ops:converge-local-runtime-db": "node scripts/converge-local-runtime-db-env.mjs",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.mjs",
