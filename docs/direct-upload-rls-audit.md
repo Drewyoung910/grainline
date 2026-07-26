@@ -27,6 +27,13 @@ server-side actor resolution and exact call-site guards remain load-bearing.
 The database boundary removes arbitrary table CRUD, enumeration, target
 selection and status rewriting; it is containment, not independent identity.
 
+The cleanup worker is intentionally different: leasing eligible objects must
+return cross-user object keys. Those lease/complete/fail operations must move
+to a dedicated NOBYPASSRLS worker role and connection before DirectUpload
+activation. Ordinary `grainline_app_runtime` must lose EXECUTE on all three.
+Until then, the compatible preparation retains the existing runtime authority
+and does not claim containment from a stolen runtime credential.
+
 Arbitrary application-runtime compromise with R2 credentials also remains able
 to access objects permitted by those credentials. Database RLS cannot solve
 that provider-secret threat. Separate bucket scope, credential rotation,
@@ -45,7 +52,7 @@ no-public-domain proof and object audit telemetry remain required.
 | Read private Case evidence | Case attachment route reads lifecycle by key | Exact Case attachment read operation; no client key |
 | Claim public durable references | Listing, SellerProfile, Review, BlogPost, CommissionRequest, SellerBroadcast and legacy Message writers call generic claim helpers | Family-specific reference operations that prove the exact durable field/row and owner |
 | Claim private Case evidence | Case message route calls generic key claim then directly links `claimedById` | One atomic CaseMessage/attachment/reference operation |
-| Clean abandoned uploads | Cleanup cron calls `processExpiredDirectUploadBatch()` | Fixed worker lease/complete/fail operations returning only an eligible batch |
+| Clean abandoned uploads | Cleanup cron calls `processExpiredDirectUploadBatch()` | Fixed lease/complete/fail operations returning only an eligible batch; grant them to a dedicated cleanup-worker role, not ordinary request runtime, at activation |
 | Account export | Account export directly lists every column | Fixed actor export projection with no key, URL, internal target id or raw error |
 | Account deletion | Deletion reads rows and deletes public lifecycle rows directly | Fixed source-aware release/deletion operation; retained Case evidence remains referenced |
 | Runtime provisioning | `scripts/provision-runtime-db-role.sql` grants SELECT/INSERT/UPDATE/DELETE | Activation must revoke all table access and grant only reviewed functions |
@@ -191,6 +198,25 @@ sharing one URL, stale claimed rows, expired cleanup rows, private attachment
 mismatches and invalid state coherence. Inspection returns aggregate counts
 only: never keys, URLs, user ids, source ids, message bodies or raw errors.
 
+### DU-A12: cleanup authority is broader than ordinary request authority
+
+The cleanup lease must return a bounded cross-user batch containing object
+keys, while complete/fail mutate service-owned lifecycle state. The cron route
+is protected by `verifyCronRequest()`, but the current database grant is still
+held by the ordinary request runtime role. A stolen runtime database credential
+could therefore invoke the worker operations directly, lease eligible rows and
+enumerate their keys even without the cron secret.
+
+Preparation may retain that grant only because DirectUpload still has its old
+full runtime CRUD authority and RLS remains off. Activation must create a
+dedicated NOBYPASSRLS cleanup-worker role/connection, grant it only
+lease/complete/fail EXECUTE, and revoke those three functions from
+`grainline_app_runtime`. The production grant audit and pooled postflight must
+prove both sides. The unused future
+`grainline_direct_upload_record_private_message` grant must also be absent from
+ordinary-runtime activation until CM-A20's compatible application release
+actually consumes it.
+
 ## Proposed compatible schema
 
 Add `DirectUploadReference`:
@@ -284,7 +310,9 @@ their own reviewed mutation and residue proof.
 7. **Reference backfill/repair:** separately approved from exact counts with
    backup, rollback and residue proof. Unknown rows remain fail-closed.
 8. **Activation:** ENABLE plus FORCE RLS, revoke all runtime table privileges,
-   grant only reviewed functions and validate accepted invariants.
+   grant only reviewed actor operations, move cleanup lease/complete/fail to
+   the dedicated worker role, withhold the unused private-message recorder,
+   and validate accepted invariants.
 9. **Postflight:** prove no-context/direct CRUD denial, actor/source isolation,
    public shared references, private exclusivity, release/cleanup fencing,
    sanitized export and exact grants under the pooled runtime role.

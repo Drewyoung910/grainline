@@ -131,9 +131,15 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /Add `DirectUploadReference`/);
     assert.match(audit, /unique foreign key to the exact\s+`DirectUpload` row/);
     assert.match(audit, /stolen `grainline_app_runtime` credential can impersonate/);
+    assert.match(audit, /dedicated NOBYPASSRLS worker role and connection/);
+    assert.match(audit, /Ordinary `grainline_app_runtime` must lose EXECUTE on all three/);
+    assert.match(audit, /record_private_message` grant must also be absent/);
     assert.match(audit, /Aggregate legacy inspection/);
     assert.match(audit, /Switch to Extra High\s+before editing schema/);
     assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
+    assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
     assert.match(strategy, /CM-A21 execution contract/);
+    assert.match(strategy, /run `30225445722`/);
+    assert.match(strategy, /Withhold the unused future\s+private-message recorder/);
   });
 });

@@ -137,7 +137,10 @@ Public media needs a normalized multi-reference ledger because seller-owned
 images may validly appear in more than one Listing/Profile/Blog/Broadcast
 source; private Case/Message objects stay single-reference. The target posture
 is FORCE RLS with no direct runtime table access and only fixed
-record/verify/reference/release/cleanup/export operations. Refactor private
+record/verify/reference/release/export operations. Cleanup lease/complete/fail
+must use a dedicated NOBYPASSRLS worker role rather than the ordinary request
+runtime because the worker necessarily receives bounded cross-user object
+keys. Refactor private
 attachment children to reference the lifecycle row rather than duplicate its
 key. Production promotion waits for aggregate legacy inspection, reference
 backfill, exact PostgreSQL proof and pooled-runtime postflight.
@@ -149,9 +152,13 @@ releases references through database triggers, and Listing/Review mutation
 paths defer object deletion to the fenced cleanup worker after the last
 reference. This is still compatible preparation only: DirectUpload RLS remains
 off and its old table grants remain until the reviewed activation/drain split.
-Do not promote this checkpoint until the live PostgreSQL authority/concurrency
-proof, aggregate legacy classification/backfill, rollback and pooled-runtime
-postflight gates are complete.
+The exact preparation tree passed PostgreSQL 16.14 authority/concurrency proof
+in run `30225445722`; retain that evidence without treating it as activation.
+Do not promote this checkpoint until aggregate legacy
+classification/backfill, the dedicated cleanup-worker role, rollback and
+pooled-runtime postflight gates are complete. Withhold the unused future
+private-message recorder from ordinary-runtime activation until CM-A20's
+compatible application release consumes it.
 
 ### Messaging architecture decision (2026-07-22)
 
