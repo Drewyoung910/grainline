@@ -37,30 +37,15 @@ catalog/ACL, 19 callable functions, six private-core denials, RLS/FORCE off,
 zero policies and legacy table CRUD retained. Sanitized mode-0600 evidence
 SHA-256 is
 `fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
-Application conversion is complete in the isolated candidate but is not yet
-deployed; the first bounded checkpoint converted
-list polling, stream polling, mark-read and unread count through four exact
-authority functions, and the second converted account export plus message/thread
-report validation. The third converted custom-order participant, pair and
-latest-request reads. The fourth moved the read-only start-page pair lookup and
-explicit conversation start behind fixed authority. The fifth converted
-custom-order request and commission-interest writes and removed the now-unused
-app-side conversation get/create helper. The sixth converted
-custom-order-ready, including exact replay evidence and post-commit
-Notification healing. Direct protected-table access is now reduced from 53 to
-26. The seventh converted seller response metrics to the aggregate-only
-function, reducing the surface to 23. The eighth moved deletion-time attachment
-discovery and Message redaction behind the participant export projection and
-fixed account-deletion authority function, reducing the surface to 18. The
-ninth moved inbox visibility, search, latest-message selection, unread grouping
-and keyset bounds into one participant projection, reducing the surface to 16.
-The tenth moved initial participant/reported-staff thread metadata and the
-latest 200-message window behind bounded projections, reducing the surface to
-14 without changing long-thread chronology. The eleventh moved ordinary text
-and attachment writes, source-Message email claims and participant-side
-archive state behind the installed fixed functions, preserving upload claims
-inside the read-committed write transaction and reducing the machine inventory
-to zero direct protected-table operations or raw references.
+Application conversion is complete and live at exact main
+`650d1dd818ac3694f7fd6da9954aaf053786cc40` on Production deployment
+`dpl_C1rXvRMMJetR25Na4X5yHSa91HpM`. Eleven bounded authority checkpoints moved
+list/stream polling, unread/read state, inbox and thread rendering, reporting,
+export/deletion, custom-order and commission flows, ordinary sends, archive
+state, seller metrics and email claims behind the installed fixed functions.
+The machine inventory is now zero direct protected-table operations or raw
+references while upload claims remain inside the read-committed write
+transaction.
 Pull-request CI run `30189704185` passed the complete PostgreSQL 16
 invariant/legacy/functions-only/recipient-RLS proof, TypeScript, lint, 2,007
 tests, dependency audit and production build at `03af5bae`. The subsequent
@@ -68,9 +53,15 @@ set-level Extra-High review found no new database-authority bypass and added a
 fail-closed wrapper hardening checkpoint: actor relationship, bounded
 identifiers, finite timestamps, and generated-identifier equality for new
 rows. Fresh reviewed-head run `30189982915` passed the same complete gate at
-`a27e99d3`. The application-authority Extra-High gate is complete with no open
-findings; merge and the RLS-off compatibility deployment/postflight remain
-separate boundaries.
+`a27e99d3`. The application-authority Extra-High gate completed with no open
+findings. PR 50 merged the reviewed app conversion; exact PR-head CI
+`30190097435` and main CI `30190239983` passed before the pinned Production
+deployment. The authenticated RLS-off compatibility postflight subsequently
+passed at operator `11adbeda` after exact CI `30192400811`. It proved all
+owner/foreign API and page behavior, mutation/origin boundaries, database
+postconditions and exact cleanup with zero direct email/notification side
+effects. Sanitized mode-`0600` evidence SHA-256 is
+`f3ad7589ca0e8069c3093199235aa1a3cb45a2a684caf0a077ba1974d3f2bde7`.
 Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective
@@ -266,8 +257,70 @@ The direct runtime table query with no context must return zero rows.
    is live. The authority RPC/helper conversion candidate now has zero direct
    protected-table accesses and passes TypeScript, focused lint and the full
    2,007-test suite (2,004 pass, 3 intentional skips). Checkpoint push, fresh CI
-   PostgreSQL proof and Extra-High authority review are complete. Merge and a
-   compatibility deployment/postflight remain before database activation.**
+   PostgreSQL proof and Extra-High authority review are complete. PR 50 merged
+   as exact main `650d1dd818ac3694f7fd6da9954aaf053786cc40` after final
+   PR-head run `30190097435` and post-merge main run `30190239983` passed.
+   Exact Production deployment `dpl_C1rXvRMMJetR25Na4X5yHSa91HpM` is READY,
+   aliased to `thegrainline.com`, and returned `{"ok":true}` from
+   `/api/health` after the runtime-role build guard passed. RLS and grants
+   remain at the preparation posture. The authenticated RLS-off compatibility
+   postflight remains before database activation. The first operator run at
+   `16bddf5a` is retained failed evidence: PostgreSQL `42883` rejected
+   schema-qualified multi-array `pg_catalog.unnest(...)` while seeding the
+   synthetic users. The operator revoked/removed every token, session, cache,
+   rate-limit counter and exact fixture row, and the idempotent cleanup rerun
+   passed. Production application, RLS and grants were unchanged. The corrected
+   candidate uses bare multi-array `unnest(...)`, extends the source-wide
+   special-form guard, and passed fresh CI run `30191084346`. A second live
+   attempt at corrected operator `bb0cafa2` passed fixture seeding and Clerk
+   session creation, then failed closed inside the authenticated-route group.
+   Its sanitized mode-`0600` evidence records no SQLSTATE, zero direct
+   email/notification side effects, and successful removal of every fixture
+   row, session, token, cache key and rate-limit counter; the exact idempotent
+   cleanup rerun also passed and removed recovery state. The broad route-stage
+   label was insufficient to identify the assertion, and bounded historical
+   Vercel log retrieval did not return a usable aggregate. The next operator
+   revision therefore records one sanitized stage per route assertion before
+   any further live attempt. Fresh CI run `30191537681` passed at diagnostic
+   head `ee716ae1`. Two subsequent preflight-only launches then stopped before
+   recovery state, fixture creation or Clerk session creation because Vercel
+   CLI 57's `inspect` process timed out when its output was captured by the
+   operator, even though direct inspection and the read-only Vercel API both
+   confirmed the exact deployment was READY, Production, project-bound and
+   held the production alias. The operator must use the bounded authenticated
+   Vercel deployment and alias APIs instead of a captured CLI subprocess, and
+   that revision requires its own fresh CI before the next live route attempt.
+   Fresh CI `30191960504` passed at API-verifier head `fd81c5b6`. The next live
+   attempt then failed closed at the newly exact
+   `route-unauthenticated-list` stage. Cleanup and the idempotent cleanup rerun
+   both removed every exact row, session, token, cache key and rate-limit
+   counter with zero direct email/notification side effects. A separate
+   unauthenticated production probe confirmed the deployed endpoint correctly
+   returns middleware-owned `401 {"error":"Unauthorized"}` with private
+   no-store and cookie-vary headers; the operator had incorrectly expected the
+   route-local `{ok:false}` body that middleware never reaches. Pin that exact
+   middleware response shape before retrying. RLS, grants and ordinary
+   production rows remain unchanged; a fresh exact-head CI and authenticated
+   live pass are still required before activation. Exact denial-contract head
+   `1f8c39e6` passed fresh CI `30192170855`; its live attempt advanced through
+   unauthenticated denial, unread count, own and foreign API isolation, cursor
+   validation, inbox rendering and the owner thread page, then failed closed
+   at `route-foreign-thread-page`. Cleanup and the idempotent cleanup rerun
+   again removed every exact side effect. The page calls `notFound()` when the
+   fixed recipient projection returns no conversation. Next App Router
+   intentionally returns 200 for streamed not-found responses and 404 for
+   non-streamed responses, so the operator must accept only those two transport
+   statuses while requiring Grainline's exact not-found UI and absence of every
+   own/foreign synthetic message marker. This is a semantic isolation proof,
+   not a relaxed access check. Exact semantic-denial head `11adbeda` passed
+   fresh CI `30192400811` and the complete live postflight. The final result
+   was unauthenticated 401, foreign list 403, foreign streamed not-found 200,
+   cross-origin read mutation 403, own list/read and inbox/thread 200, unread
+   count 1→0, exact database postconditions, and complete cleanup. Sanitized
+   mode-`0600` evidence SHA-256 is
+   `f3ad7589ca0e8069c3093199235aa1a3cb45a2a684caf0a077ba1974d3f2bde7`;
+   recovery state is absent. RLS/FORCE remain off with zero policies and legacy
+   CRUD retained. The RLS-off compatibility gate is complete.**
 6. Disposable PostgreSQL proof: policies/grants, every read/write family,
    direct denial, staff report resolution, account/block/archive races,
    deletion/export/metrics, rollback and legacy handling. **Complete for the

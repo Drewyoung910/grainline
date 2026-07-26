@@ -1,10 +1,24 @@
 # Conversation and Message Pre-RLS Audit
 
-Opened 2026-07-22; updated 2026-07-25. Status: the compatible application,
+Opened 2026-07-22; updated 2026-07-26. Status: the compatible application,
 additive schema/index pair and reviewed invariant/data-normalization migrations
 are live. The actual pooled production runtime role passed a rollback-only
 postflight. Conversation/Message RLS remains disabled with zero policies; no
 Conversation or Message policy or authority SQL has been applied.
+
+The authenticated RLS-off compatibility proof passed at exact deployed release
+`650d1dd8`, operator `11adbeda`, and CI run `30192400811`. It proved
+middleware-owned unauthenticated denial; owner and foreign list isolation;
+cursor validation; inbox, owner-thread and streamed not-found rendering;
+cross-origin mutation denial; owner mark-read; unread-count transition; direct
+database postconditions; and exact cleanup. Sanitized mode-`0600` evidence
+SHA-256 is
+`f3ad7589ca0e8069c3093199235aa1a3cb45a2a684caf0a077ba1974d3f2bde7`.
+Every synthetic row, Clerk session/token, exact cache key and rate-limit
+counter was removed, recovery state is absent, and direct email/notification
+side effects were zero. Earlier failed attempts remain retained evidence and
+all also cleaned up fully; none changed RLS, grants or ordinary production
+data.
 
 ## Why this gate exists
 
