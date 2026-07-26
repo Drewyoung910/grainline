@@ -84,7 +84,7 @@ export const CONVERSATION_RLS_POLICIES = Object.freeze({
   grainline_conversation_participant_or_reported_select: Object.freeze({
     command: "r",
     usingExpression:
-      `(NULLIF(current_setting('app.user_id', true), '') = ANY (ARRAY["userAId", "userBId"])) OR grainline_conversation_staff_report_visible(id)`,
+      `((NULLIF(current_setting('app.user_id', true), '') = "userAId") OR (NULLIF(current_setting('app.user_id', true), '') = "userBId")) OR grainline_conversation_staff_report_visible(id)`,
     checkExpression: null,
   }),
 });
@@ -93,7 +93,7 @@ export const MESSAGE_RLS_POLICIES = Object.freeze({
   grainline_message_participant_or_reported_select: Object.freeze({
     command: "r",
     usingExpression:
-      `(NULLIF(current_setting('app.user_id', true), '') = ANY (ARRAY["senderId", "recipientId"])) OR grainline_conversation_staff_report_visible("conversationId")`,
+      `((NULLIF(current_setting('app.user_id', true), '') = "senderId") OR (NULLIF(current_setting('app.user_id', true), '') = "recipientId")) OR grainline_conversation_staff_report_visible("conversationId")`,
     checkExpression: null,
   }),
 });

@@ -544,13 +544,13 @@ describe("database grant inventory guardrails", () => {
       ...common,
       policy_name: "grainline_conversation_participant_or_reported_select",
       using_expression:
-        `((NULLIF(current_setting('app.user_id'::text, true), ''::text) = ANY (ARRAY["userAId", "userBId"])) OR grainline_conversation_staff_report_visible(id))`,
+        `(((NULLIF(current_setting('app.user_id'::text, true), ''::text) = "userAId") OR (NULLIF(current_setting('app.user_id'::text, true), ''::text) = "userBId")) OR grainline_conversation_staff_report_visible(id))`,
     }];
     const messageRows = [{
       ...common,
       policy_name: "grainline_message_participant_or_reported_select",
       using_expression:
-        `((NULLIF(current_setting('app.user_id'::text, true), ''::text) = ANY (ARRAY["senderId", "recipientId"])) OR grainline_conversation_staff_report_visible("conversationId"))`,
+        `(((NULLIF(current_setting('app.user_id'::text, true), ''::text) = "senderId") OR (NULLIF(current_setting('app.user_id'::text, true), ''::text) = "recipientId")) OR grainline_conversation_staff_report_visible("conversationId"))`,
     }];
 
     assert.deepEqual(
@@ -558,6 +558,17 @@ describe("database grant inventory guardrails", () => {
       [],
     );
     assert.deepEqual(collectMessagePolicyIssues(messageRows, runtimeRole), []);
+    assert.match(
+      collectConversationPolicyIssues(
+        conversationRows.map((row) => ({
+          ...row,
+          using_expression:
+            `(NULLIF(current_setting('app.user_id'::text, true), ''::text) = ANY (ARRAY["userAId", "userBId"])) OR grainline_conversation_staff_report_visible(id)`,
+        })),
+        runtimeRole,
+      ).join("\n"),
+      /unexpected USING expression: actual=.*ANY.*expected=.*userAId/,
+    );
     assert.match(
       collectMessagePolicyIssues(
         messageRows.map((row) => ({
