@@ -148,6 +148,10 @@ describe("Conversation and Message FORCE release artifact", () => {
     );
     assert.match(
       workflow,
+      /Prove runtime-role provisioning refusals exit nonzero[\s\S]*runtime_role=ci -v migration_role=ci[\s\S]*runtime-role provisioning unexpectedly accepted the migration owner as runtime/,
+    );
+    assert.match(
+      workflow,
       /npm run audit:rls-conversation-message-force-rollback/,
     );
     assert.match(

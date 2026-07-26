@@ -59,6 +59,12 @@ jobs:
         run: npm run audit:rls-conversation-message-force-release
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
+      - name: Prove runtime-role provisioning refusals exit nonzero
+        run: |
+          if psql "$DIRECT_URL" -v runtime_role=ci -v migration_role=ci -f scripts/provision-runtime-db-role.sql; then
+            echo "runtime-role provisioning unexpectedly accepted the migration owner as runtime"
+            exit 1
+          fi
       - name: Apply current migrations including Conversation and Message FORCE
         run: npx prisma migrate deploy
       - name: Converge production-style runtime grants
