@@ -30,7 +30,10 @@ describe("case route observability follow-ups", () => {
       route,
       /duplicateCandidates\.find\(\(candidate\) =>\s*attachmentKeysMatch\(candidate\.attachments, attachmentKeys\)/s,
     );
-    assert.match(route, /if \(messageResult\.duplicate\) \{\s*return privateJson\(messageResult\.message, \{ status: 200 \}\)/s);
+    assert.match(
+      route,
+      /if \(messageResult\.duplicate\) \{\s*return privateJson\(caseMessageResponse\(messageResult\.message\), \{\s*status: 200,/s,
+    );
     assert.ok(transactionStart !== -1 && notificationStart !== -1 && transactionStart < notificationStart);
   });
 

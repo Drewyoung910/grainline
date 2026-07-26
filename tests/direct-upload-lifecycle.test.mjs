@@ -118,6 +118,35 @@ describe("direct upload lifecycle", () => {
     assert.match(verifier, /uploadContentTypeMatches\(head\.ContentType, lifecycle\.contentType\)/);
   });
 
+  it("never rebinds a claimed upload to a different record type or record id", () => {
+    const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const claimStart = lifecycle.indexOf("export async function claimDirectUploadForKey");
+    const batchClaimStart = lifecycle.indexOf(
+      "export async function claimDirectUploadsForUrls",
+      claimStart,
+    );
+    const claimBlock = lifecycle.slice(claimStart, batchClaimStart);
+
+    assert.match(claimBlock, /claimedByType: true/);
+    assert.match(
+      claimBlock,
+      /existing\.claimedByType !== claimedByType[\s\S]*throw new DirectUploadClaimError/,
+    );
+    assert.match(
+      claimBlock,
+      /existing\.claimedById !== claimedById[\s\S]*throw new DirectUploadClaimError/,
+    );
+    assert.match(
+      claimBlock,
+      /status: DIRECT_UPLOAD_STATUS\.CLAIMED,[\s\S]*claimedByType,[\s\S]*claimedById: null/,
+    );
+    assert.match(claimBlock, /if \(linked\.count !== 1\)/);
+    assert.match(
+      claimBlock,
+      /current\.claimedByType !== claimedByType[\s\S]*current\.claimedById !== claimedById/,
+    );
+  });
+
   it("claims newly persisted uploaded media so cleanup only deletes abandoned rows", () => {
     const checked = [
       ["src/app/dashboard/listings/new/page.tsx", /claimedByType: "Listing"/],

@@ -177,6 +177,7 @@ export async function claimDirectUploadForKey({
       endpoint: true,
       storageClass: true,
       status: true,
+      claimedByType: true,
       claimedById: true,
     },
   });
@@ -190,11 +191,48 @@ export async function claimDirectUploadForKey({
   }
 
   if (existing.status === DIRECT_UPLOAD_STATUS.CLAIMED) {
-    if (claimedById && !existing.claimedById) {
-      await client.directUpload.updateMany({
-        where: { id: existing.id, status: DIRECT_UPLOAD_STATUS.CLAIMED, claimedById: null },
+    if (existing.claimedByType !== claimedByType) {
+      throw new DirectUploadClaimError(
+        "Attachment upload has already been claimed by another record.",
+      );
+    }
+    if (existing.claimedById) {
+      if (existing.claimedById !== claimedById) {
+        throw new DirectUploadClaimError(
+          "Attachment upload has already been claimed by another record.",
+        );
+      }
+      return { tracked: true, claimed: true };
+    }
+    if (claimedById) {
+      const linked = await client.directUpload.updateMany({
+        where: {
+          id: existing.id,
+          status: DIRECT_UPLOAD_STATUS.CLAIMED,
+          claimedByType,
+          claimedById: null,
+        },
         data: { claimedById },
       });
+      if (linked.count !== 1) {
+        const current = await client.directUpload.findUnique({
+          where: { key },
+          select: {
+            status: true,
+            claimedByType: true,
+            claimedById: true,
+          },
+        });
+        if (
+          current?.status !== DIRECT_UPLOAD_STATUS.CLAIMED
+          || current.claimedByType !== claimedByType
+          || current.claimedById !== claimedById
+        ) {
+          throw new DirectUploadClaimError(
+            "Attachment upload has already been claimed by another record.",
+          );
+        }
+      }
     }
     return { tracked: true, claimed: true };
   }

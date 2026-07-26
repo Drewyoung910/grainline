@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -13,6 +14,27 @@ const {
 } = await import("../src/lib/refundLockState.ts");
 
 describe("refund lock state", () => {
+  it("timestamps contended refund reservations after the database lock wait", () => {
+    const routes = [
+      "src/app/api/cases/[id]/resolve/route.ts",
+      "src/app/api/stripe/webhook/route.ts",
+    ];
+
+    for (const route of routes) {
+      const text = readFileSync(route, "utf8");
+      assert.match(
+        text,
+        /"sellerRefundLockedAt" = pg_catalog\.clock_timestamp\(\)/,
+        route,
+      );
+      assert.doesNotMatch(
+        text,
+        /"sellerRefundLockedAt" = \$\{new Date\(\)\}/,
+        route,
+      );
+    }
+  });
+
   it("keeps the stale lock window longer than normal Stripe refund latency", () => {
     assert.equal(REFUND_LOCK_STALE_MS, 15 * 60 * 1000);
   });

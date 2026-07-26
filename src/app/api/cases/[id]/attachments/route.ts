@@ -134,14 +134,15 @@ export async function POST(
   const isParty =
     me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
   const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
+  const actsAsStaff = isStaff && !isParty;
   if (!isParty && !isStaff) {
     return privateJson({ error: "Forbidden." }, { status: 403 });
   }
-  if (!isParty && isStaff) {
+  if (actsAsStaff) {
     const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
     if (pinResponse) return pinResponse;
   }
-  if (!canCreateCaseMessageForStatus(caseRecord.status, { isStaff })) {
+  if (!canCreateCaseMessageForStatus(caseRecord.status, { isStaff: actsAsStaff })) {
     return privateJson({ error: "This case is closed." }, { status: 400 });
   }
 

@@ -31,6 +31,10 @@ describe("private CaseMessage evidence", () => {
     assert.match(migration, /CHECK \("storageClass" IN \('PUBLIC', 'PRIVATE'\)\)/);
     assert.match(
       migration,
+      /"storageClass" = 'PUBLIC' AND "publicUrl" IS NOT NULL[\s\S]*"storageClass" = 'PRIVATE' AND "publicUrl" IS NULL/,
+    );
+    assert.match(
+      migration,
       /CHECK \("contentType" IN \('image\/jpeg', 'image\/png', 'image\/webp'\)\)/,
     );
     assert.match(migration, /CHECK \("byteSize" > 0 AND "byteSize" <= 8388608\)/);
@@ -80,6 +84,11 @@ describe("private CaseMessage evidence", () => {
     }
     assert.match(uploadRoute, /uploadFileSignatureMatches/);
     assert.match(uploadRoute, /stripMetadata/);
+    assert.match(uploadRoute, /const actsAsStaff = isStaff && !isParty/);
+    assert.match(
+      uploadRoute,
+      /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff: actsAsStaff \}\)/,
+    );
     assert.match(readRoute, /caseMessage: \{ caseId: id \}/);
     assert.match(readRoute, /CASE_EVIDENCE_SIGNED_URL_TTL_SECONDS = 60/);
     assert.match(readRoute, /"Cache-Control": "private, no-store, max-age=0"/);
@@ -106,9 +115,46 @@ describe("private CaseMessage evidence", () => {
     );
     assert.match(route, /attachmentKeysMatch/);
     assert.match(lifecycle, /existing\.storageClass !== storageClass/);
+    assert.match(lifecycle, /existing\.claimedByType !== claimedByType/);
+    assert.match(lifecycle, /existing\.claimedById !== claimedById/);
     assert.match(
       lifecycle,
       /deleteR2ObjectByStorageClass\(row\.key, row\.storageClass\)/,
+    );
+  });
+
+  it("keeps private object keys server-side and serializes locked reads", () => {
+    const route = source("src/app/api/cases/[id]/messages/route.ts");
+    const transactionStart = route.indexOf(
+      "const messageResult = await prisma.$transaction",
+    );
+    const transactionEnd = route.indexOf(
+      "if (messageResult.duplicate)",
+      transactionStart,
+    );
+    const transaction = route.slice(transactionStart, transactionEnd);
+
+    assert.match(
+      route,
+      /function caseMessageResponse<[\s\S]*attachments: attachments\.map/,
+    );
+    assert.match(
+      route,
+      /return privateJson\(caseMessageResponse\(claimedRetry\), \{ status: 200 \}\)/,
+    );
+    assert.match(
+      route,
+      /return privateJson\(caseMessageResponse\(message\), \{ status: 201 \}\)/,
+    );
+    assert.doesNotMatch(
+      route,
+      /return privateJson\((?:claimedRetry|messageResult\.message|message),/,
+    );
+    assert.doesNotMatch(transaction, /Promise\.all/);
+    assert.ok(
+      transaction.indexOf("const lockedCase = await tx.case.findUnique") <
+        transaction.indexOf("const lockedActor = await tx.user.findUnique"),
+      "locked Case and current actor reads must remain sequential",
     );
   });
 
@@ -127,6 +173,10 @@ describe("private CaseMessage evidence", () => {
     assert.match(
       deletion,
       /Private Case evidence is retained with the dispute\/order record/,
+    );
+    assert.match(
+      deletion,
+      /directUpload\.deleteMany\(\{\s*where: \{ userId: user\.id, storageClass: "PUBLIC" \}/s,
     );
     assert.match(plan, /PDFs remain prohibited/);
     assert.match(plan, /future Case retention purge must[\s\S]*private-object deletion/);

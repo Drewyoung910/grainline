@@ -63,7 +63,7 @@ describe("account deletion media cleanup scoping", () => {
     const collect = deletion.slice(collectStart, collectEnd);
     const collectCall = deletion.indexOf("const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId)");
     const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls)");
-    const deleteRows = deletion.indexOf("await tx.directUpload.deleteMany({ where: { userId: user.id } })");
+    const deleteRows = deletion.indexOf("await tx.directUpload.deleteMany({");
 
     assert.match(deletion, /"sellerProfile" \| "reviewPhoto" \| "commissionRequest" \| "blogPost" \| "directUpload" \| "\$queryRaw"/);
     assert.match(collect, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
@@ -80,6 +80,14 @@ describe("account deletion media cleanup scoping", () => {
     );
     assert.ok(collectCall >= 0, "account deletion must collect media URLs");
     assert.ok(enqueueCall > collectCall, "media deletion side effects must be enqueued after collection");
-    assert.ok(deleteRows > enqueueCall, "DirectUpload rows should be deleted only after durable media cleanup side effects are queued");
+    assert.ok(deleteRows > enqueueCall, "public DirectUpload rows should be deleted only after durable media cleanup side effects are queued");
+    assert.match(
+      deletion,
+      /tx\.directUpload\.deleteMany\(\{\s*where: \{ userId: user\.id, storageClass: "PUBLIC" \}/s,
+    );
+    assert.doesNotMatch(
+      deletion,
+      /tx\.directUpload\.deleteMany\(\{\s*where: \{ userId: user\.id \}\s*\}\)/s,
+    );
   });
 });

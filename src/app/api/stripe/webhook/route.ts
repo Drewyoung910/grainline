@@ -1188,7 +1188,7 @@ export async function POST(req: Request) {
           const lockResult: number = await prisma.$executeRaw`
             UPDATE "Order"
             SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
-                "sellerRefundLockedAt" = ${new Date()},
+                "sellerRefundLockedAt" = pg_catalog.clock_timestamp(),
                 "reviewNeeded" = true,
                 "reviewNote" = ${`${reviewPrefix} Automatic refund is being processed because the maker account was not eligible to accept this order.`}
             WHERE id = ${input.orderId}

@@ -229,7 +229,7 @@ export async function POST(
       const lockResult: number = await prisma.$executeRaw`
         UPDATE "Order"
         SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
-            "sellerRefundLockedAt" = ${new Date()}
+            "sellerRefundLockedAt" = pg_catalog.clock_timestamp()
         WHERE id = ${caseRecord.orderId}
           AND "sellerRefundId" IS NULL
           AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")

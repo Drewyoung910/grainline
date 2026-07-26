@@ -1444,7 +1444,13 @@ export async function anonymizeUserAccount(
     ]);
     const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId);
     await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls);
-    await tx.directUpload.deleteMany({ where: { userId: user.id } });
+    // Public account media is queued above and its lifecycle rows can be
+    // removed. Private Case evidence is retained with the dispute record, so
+    // keep its lifecycle row: authenticated reads require that claimed row,
+    // while unclaimed private uploads still expire through lifecycle cleanup.
+    await tx.directUpload.deleteMany({
+      where: { userId: user.id, storageClass: "PUBLIC" },
+    });
 
     await tx.adminAuditLog.create({
       data: {

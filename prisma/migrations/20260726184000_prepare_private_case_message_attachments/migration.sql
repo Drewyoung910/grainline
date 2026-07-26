@@ -11,7 +11,12 @@ ALTER TABLE "DirectUpload"
 
 ALTER TABLE "DirectUpload"
   ADD CONSTRAINT "DirectUpload_storageClass_check"
-  CHECK ("storageClass" IN ('PUBLIC', 'PRIVATE'));
+  CHECK ("storageClass" IN ('PUBLIC', 'PRIVATE')),
+  ADD CONSTRAINT "DirectUpload_storageClass_publicUrl_check"
+  CHECK (
+    ("storageClass" = 'PUBLIC' AND "publicUrl" IS NOT NULL)
+    OR ("storageClass" = 'PRIVATE' AND "publicUrl" IS NULL)
+  );
 
 CREATE TABLE "CaseMessageAttachment" (
   "id" TEXT NOT NULL,

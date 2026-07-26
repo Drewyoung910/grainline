@@ -80,6 +80,31 @@ function attachmentKeysMatch(
   return actual.every((key, index) => key === expected[index]);
 }
 
+type CaseMessageResponseAttachment = {
+  id: string;
+  objectKey: string;
+  contentType: string;
+  byteSize: number;
+  createdAt: Date;
+};
+
+function caseMessageResponse<
+  T extends { attachments: readonly CaseMessageResponseAttachment[] },
+>(message: T): Omit<T, "attachments"> & {
+  attachments: Array<Omit<CaseMessageResponseAttachment, "objectKey">>;
+} {
+  const { attachments, ...messageFields } = message;
+  return {
+    ...messageFields,
+    attachments: attachments.map((attachment) => ({
+      id: attachment.id,
+      contentType: attachment.contentType,
+      byteSize: attachment.byteSize,
+      createdAt: attachment.createdAt,
+    })),
+  };
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -180,7 +205,13 @@ export async function POST(
         take: 5,
         include: {
           attachments: {
-            select: { objectKey: true },
+            select: {
+              id: true,
+              objectKey: true,
+              contentType: true,
+              byteSize: true,
+              createdAt: true,
+            },
           },
         },
       });
@@ -188,7 +219,7 @@ export async function POST(
         attachmentKeysMatch(candidate.attachments, attachmentKeys),
       );
       if (claimedRetry) {
-        return privateJson(claimedRetry, { status: 200 });
+        return privateJson(caseMessageResponse(claimedRetry), { status: 200 });
       }
     }
 
@@ -240,22 +271,20 @@ export async function POST(
       if (!caseExists) {
         throw new CaseMessageRouteError("Case not found.", 404);
       }
-      const [lockedCase, lockedActor] = await Promise.all([
-        tx.case.findUnique({
-          where: { id },
-          include: {
-            buyer: { select: { id: true, banned: true, deletedAt: true } },
-            seller: { select: { id: true, banned: true, deletedAt: true } },
-          },
-        }),
-        tx.user.findUnique({
-          where: { id: me.id },
-          select: { id: true, role: true, banned: true, deletedAt: true },
-        }),
-      ]);
+      const lockedCase = await tx.case.findUnique({
+        where: { id },
+        include: {
+          buyer: { select: { id: true, banned: true, deletedAt: true } },
+          seller: { select: { id: true, banned: true, deletedAt: true } },
+        },
+      });
       if (!lockedCase) {
         throw new CaseMessageRouteError("Case not found.", 404);
       }
+      const lockedActor = await tx.user.findUnique({
+        where: { id: me.id },
+        select: { id: true, role: true, banned: true, deletedAt: true },
+      });
       if (!lockedActor || lockedActor.banned || lockedActor.deletedAt) {
         throw new CaseMessageRouteError(
           "Your account cannot send case messages.",
@@ -312,7 +341,13 @@ export async function POST(
         take: 5,
         include: {
           attachments: {
-            select: { objectKey: true },
+            select: {
+              id: true,
+              objectKey: true,
+              contentType: true,
+              byteSize: true,
+              createdAt: true,
+            },
           },
         },
       });
@@ -430,7 +465,9 @@ export async function POST(
       };
     });
     if (messageResult.duplicate) {
-      return privateJson(messageResult.message, { status: 200 });
+      return privateJson(caseMessageResponse(messageResult.message), {
+        status: 200,
+      });
     }
     const message = messageResult.message;
     const committedCaseRecord = messageResult.caseRecord;
@@ -607,7 +644,7 @@ export async function POST(
       }
     }
 
-    return privateJson(message, { status: 201 });
+    return privateJson(caseMessageResponse(message), { status: 201 });
   } catch (err) {
     if (err instanceof CaseMessageRouteError) {
       return privateJson({ error: err.message }, { status: err.status });
