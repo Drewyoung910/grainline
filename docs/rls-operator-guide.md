@@ -27,17 +27,23 @@ At this review date SavedSearch and Notification have production `ENABLE` plus
 `FORCE ROW LEVEL SECURITY`. Conversation/Message compatibility, invariants,
 legacy cleanup, fixed-function authority, application conversion and initial
 RLS activation are also live and accepted. Its FORCE-only hardening is live
-but remains acceptance-pending until the actual pooled-runtime postflight
-passes. PR 54 merged reviewed head `774b90bd` as exact main `f23ac2da`;
+and accepted. PR 54 merged reviewed head `774b90bd` as exact main `f23ac2da`;
 post-merge CI `30207676377`, dedicated Conversation/Message proof
 `30207676399`, and Notification FORCE regression `30207676375` passed.
 Protected migration run `30207825683` applied
 `20260726140000_force_conversation_message_rls`, SHA-256
 `c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`,
 under phase `conversation-message-force-reviewed`; migration status and the
-final owner-side exact grant/RLS audit passed. Reverify live state and complete
-the pinned `--post-force` pooled-runtime operator before calling this group
-fully accepted.
+final owner-side exact grant/RLS audit passed. Exact operator `16550228` passed
+CI `30208409732` and the pinned `--post-force` proof through the real pooled
+runtime and authenticated Production routes. Sanitized mode-`0600` evidence
+SHA-256 is
+`72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e`.
+The first operator invocation stopped before credentials, providers or database
+work because the isolated worktree lacked its local Vercel project binding;
+no recovery state or evidence was created. After copying the exact reviewed
+regular-file binding, the accepted run completed with zero residue. Reverify
+live state before repeating these claims.
 
 Role provisioning must fail through a SQL exception under `ON_ERROR_STOP`.
 Do not use `\quit 1`: the current GitHub psql client warns that the argument is

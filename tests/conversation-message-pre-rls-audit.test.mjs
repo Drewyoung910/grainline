@@ -226,7 +226,7 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     );
     assert.match(
       audit,
-      /FORCE[\s\S]*live in production[\s\S]*acceptance-pending[\s\S]*actual pooled-runtime[\s\S]*--post-force/,
+      /FORCE is live in production\.[\s\S]*actual\s+pooled-runtime\s+`--post-force`[\s\S]*72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e/,
     );
   });
 });

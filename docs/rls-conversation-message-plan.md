@@ -1,11 +1,10 @@
 # Conversation and Message RLS Plan
 
-Status: initial Conversation/Message RLS activation is accepted in production,
-and the separate FORCE-only hardening is live but remains acceptance-pending
-until its actual pooled-runtime postflight passes. Both tables have RLS enabled
-and forced, exactly one reviewed SELECT policy each, direct runtime SELECT
-only, and all writes behind the fixed authority functions. Notification Bucket
-B is complete in production. The earlier preparation SQL passed
+Status: Conversation/Message RLS and its separate FORCE-only hardening are live
+and accepted in production. Both tables have RLS enabled and forced, exactly
+one reviewed SELECT policy each, direct runtime SELECT only, and all writes
+behind the fixed authority functions. Notification Bucket B is complete in
+production. The earlier preparation SQL passed
 disposable PostgreSQL proof, Extra-High review and an actual pooled
 production-runtime rollback-only postflight. The complete authority-policy
 draft passed Extra-High review,
@@ -109,9 +108,18 @@ merged reviewed head `774b90bd` as exact main `f23ac2da`. Post-merge CI
 Notification FORCE regression `30207676375` passed. Protected run
 `30207825683` then applied
 `20260726140000_force_conversation_message_rls`; migration status and the
-final owner-side exact policy/grant audit passed. Production is now forced,
-but the release remains acceptance-pending until the separately pinned actual
-pooled-runtime `--post-force` operator passes and proves cleanup.
+final owner-side exact policy/grant audit passed. Exact operator `16550228`
+passed CI `30208409732`, then the separately pinned actual pooled-runtime
+`--post-force` run proved the exact migration checksum/completion, forced
+catalog, policies/grants, non-owner NOBYPASS identity, zero rows without
+context, direct DML denial, participant/foreign route isolation and unread
+transition `1 -> 0`. It removed every exact fixture, Clerk session/token,
+cache key and rate-limit counter, created no Clerk user, Notification or email,
+and left no recovery state. Sanitized mode-`0600` evidence SHA-256 is
+`72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e`.
+The first invocation at the same operator head stopped before loading
+credentials or touching provider/database state because the isolated worktree
+lacked `.vercel/project.json`; it produced no evidence or recovery state.
 
 The first dedicated PostgreSQL run `30206869755` is retained failed evidence.
 It stopped inside the FORCE preflight before either `ALTER TABLE` because the
@@ -425,10 +433,11 @@ The direct runtime table query with no context must return zero rows.
    production run `30194195844`, owner audit and pooled/authenticated operator
    `f474e761` all passed with exact cleanup and zero direct side effects.
 9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.
-   **Migration complete, acceptance pending:** exact main `f23ac2da` and
-   protected run `30207825683` forced both tables with unchanged policies,
-   grants, functions and rows. The pinned actual pooled-runtime `--post-force`
-   operator remains required.
+   **Complete:** exact main `f23ac2da` and protected run `30207825683` forced
+   both tables with unchanged policies, grants, functions and rows. Operator
+   `16550228` and CI `30208409732` then passed the exact pooled-runtime,
+   authenticated-route and cleanup proof; evidence SHA-256 is
+   `72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e`.
 
 Background jobs and old/new Vercel coexistence still exist pre-launch, so the
 compatible app and database activation remain separate. A failed Preview with

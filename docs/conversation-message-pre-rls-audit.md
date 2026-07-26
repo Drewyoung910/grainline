@@ -7,8 +7,8 @@ Conversation/Message RLS activation are live. The actual pooled production
 runtime passed both the earlier rollback-only preparation postflight and the
 authenticated post-activation proof. Both tables now have RLS enabled and
 forced, exactly one reviewed SELECT policy each and direct runtime SELECT only.
-The FORCE migration and owner-side audit are green; acceptance remains pending
-only on the separately pinned actual pooled-runtime postflight.
+The FORCE migration, owner-side audit and separately pinned actual
+pooled-runtime postflight are green and accepted.
 
 The authenticated RLS-off compatibility proof passed at exact deployed release
 `650d1dd8`, operator `11adbeda`, and CI run `30192400811`. It proved
@@ -53,8 +53,17 @@ post-merge CI `30207676377`, dedicated Conversation/Message FORCE proof
 Protected run `30207825683` applied
 `20260726140000_force_conversation_message_rls`; migration status and the
 final owner-side exact grant/RLS audit passed. FORCE is live in production.
-The rollout remains acceptance-pending until the pinned actual pooled-runtime
-`--post-force` operator passes with exact cleanup and sanitized evidence.
+Exact operator `16550228` passed CI `30208409732`, then its pinned actual
+pooled-runtime `--post-force` run proved exact migration checksum/completion,
+forced catalog state, exact policies/grants, non-owner NOBYPASS identity, zero
+no-context rows, direct DML denial, participant/foreign route behavior and the
+unread transition. Cleanup removed every fixture, Clerk session/token, cache
+key and rate-limit counter; no Clerk user, Notification, email, recovery state
+or retained identifier remains. Sanitized mode-`0600` evidence SHA-256 is
+`72aa2e27cb121e1cb5e30736f4a6fecca4b80db3e7f30ba6a8f20c9b889a6a5e`.
+The first invocation stopped before credentials, providers or database work
+because the isolated worktree lacked its local Vercel project binding; it
+created no evidence or recovery state.
 
 Dedicated PostgreSQL run `30206869755` is retained failed evidence. The exact
 policy-deparse preflight rejected both otherwise matching policies because its
@@ -317,8 +326,8 @@ is necessary but not sufficient.
 4. Extra High accepted the invariant-preparation SQL, fixed authority
    functions, initial policy SQL and grant narrowing in their separate
    releases. Initial activation is live and accepted. The separate FORCE
-   artifact passed its later Extra-High review and production migration gate;
-   its actual pooled-runtime postflight remains the final acceptance item.
+   artifact passed its later Extra-High review, production migration gate and
+   actual pooled-runtime postflight.
 
 This audit pattern is required for each later sensitive group, with scope
 adapted to that group's actors and provider/background workflows.
