@@ -115,8 +115,22 @@ workflow. It refuses non-loopback targets and any database other than
 Case versus label/fulfillment/delivery-confirmation/refund, different-body and
 seller-first replies, pending-close reply versus a resolution mark, and seller
 reply versus cron escalation. The harness and its static contracts are green
-locally; this paragraph does not claim the database proof passed until a
-successful workflow run is retained and reviewed.
+locally.
+
+Accepted disposable database proof: exact branch head
+`00c175fbae1421f69f39d78fb9a22fec071916f5`, GitHub Actions run
+`30216625774`, applied the complete guarded migration tree to PostgreSQL
+16.14, converged the production-style runtime grants, passed migration status
+and the final grant/RLS catalog audit, then completed all 14 two-session
+orderings. Every check observed a PostgreSQL `transactionid` lock wait; the
+harness reported `status=passed`, `persistentStagingChanged=false` and
+`productionChanged=false`, and the service container was destroyed. The first
+run, `30215504361`, is retained failed evidence: Prisma rejected the mixed
+three-statement concurrent-index migration with PostgreSQL `25001` before the
+race harness ran. Commit `4ede31b7` repaired the unapplied branch-only tree by
+keeping `CREATE INDEX CONCURRENTLY` alone and moving the two ordinary drops to
+`20260726183600_drop_legacy_case_message_history_indexes`; it did not weaken or
+skip migration deployment.
 
 Private evidence contract:
 
