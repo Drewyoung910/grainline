@@ -981,6 +981,39 @@ export function requiredRuntimeColumnPrivileges(tableName, inventory) {
     : [];
 }
 
+export function collectPolicylessServiceRlsIssues(rows, inventory) {
+  const issues = [];
+  const rowByTable = new Map(
+    (Array.isArray(rows) ? rows : []).map((row) => [row.table_name, row]),
+  );
+  for (const tableName of POLICYLESS_SERVICE_RLS_TABLES) {
+    if (!(inventory?.tables ?? []).includes(tableName)) continue;
+    const row = rowByTable.get(tableName);
+    if (!row) {
+      issues.push(
+        `service-only table ${tableName} must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies`,
+      );
+      continue;
+    }
+    if (!row.rls_enabled) {
+      issues.push(
+        `service-only table ${tableName} must have ROW LEVEL SECURITY enabled`,
+      );
+    }
+    if (!row.rls_forced) {
+      issues.push(
+        `service-only table ${tableName} must have FORCE ROW LEVEL SECURITY enabled`,
+      );
+    }
+    if (Number(row.policy_count) !== 0) {
+      issues.push(
+        `service-only table ${tableName} must retain zero policies`,
+      );
+    }
+  }
+  return issues;
+}
+
 function missingItems(expected, actual) {
   const actualSet = new Set(actual);
   return expected.filter((item) => !actualSet.has(item));
@@ -1570,6 +1603,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       );
     }
   }
+  issues.push(
+    ...collectPolicylessServiceRlsIssues(rlsPolicyResult.rows, inventory),
+  );
 
   if (expectedRlsPolicyTables.has("SavedSearch")) {
     issues.push(

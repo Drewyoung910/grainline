@@ -38,6 +38,7 @@ const {
   collectMessagePolicyIssues,
   collectNotificationFunctionIssues,
   collectNotificationPolicyIssues,
+  collectPolicylessServiceRlsIssues,
   collectTablePrivilegeAllowlistIssues,
   defaultPrivilegeRequirements,
   deriveGrantInventory,
@@ -495,6 +496,39 @@ describe("database grant inventory guardrails", () => {
         "table Notification runtime role has unexpected table privileges: INSERT",
         "table Notification runtime role is missing column privileges: read:UPDATE",
         "table Notification runtime role has unexpected column privileges: title:UPDATE",
+      ],
+    );
+  });
+
+  it("pins the policyless DirectUpload service ledger to ENABLE plus FORCE", () => {
+    const inventory = { tables: ["DirectUpload", "DirectUploadReference"] };
+    const exact = [{
+      table_name: "DirectUploadReference",
+      rls_enabled: true,
+      rls_forced: true,
+      policy_count: 0,
+    }];
+    assert.deepEqual(collectPolicylessServiceRlsIssues(exact, inventory), []);
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues([], inventory),
+      [
+        "service-only table DirectUploadReference must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
+      ],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [{
+          table_name: "DirectUploadReference",
+          rls_enabled: false,
+          rls_forced: false,
+          policy_count: 1,
+        }],
+        inventory,
+      ),
+      [
+        "service-only table DirectUploadReference must have ROW LEVEL SECURITY enabled",
+        "service-only table DirectUploadReference must have FORCE ROW LEVEL SECURITY enabled",
+        "service-only table DirectUploadReference must retain zero policies",
       ],
     );
   });

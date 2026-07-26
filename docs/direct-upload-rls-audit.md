@@ -468,6 +468,30 @@ teaches provisioning to converge the same ACLs, and updates the schema-wide
 inventory from 59 to 60 models. Do not reinterpret this stopped run as
 authority evidence; the actual proof did not execute.
 
+The corrected exact-tree execution, GitHub Actions run `30224847389` (job
+`89853249938`) at commit `f7dcce32`, passed on PostgreSQL 16.14. It passed the
+full migration tree, production-style runtime-role convergence, the global
+grant/RLS audit, static harness contracts and all five live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `stable_swap_lock_order`;
+4. `multi_source_reuse_and_delete_release`; and
+5. `reference_cleanup_winner_orderings`.
+
+The runtime-role denial probes produced the expected database errors for
+DirectUploadReference table access, generic sync execution, null actor,
+forged key ownership and foreign Listing source authority. The result recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the CI service
+database and every disposable fixture were destroyed with the job. This is
+accepted disposable-engine authority/concurrency evidence for the compatible
+preparation stack, not activation evidence and not a production catalog claim.
+The post-proof Extra-High review also hardened the global drift audit: accepting
+this intentionally policyless service ledger may not suppress verification of
+its posture. The audit now independently requires DirectUploadReference to
+retain ENABLE plus FORCE, zero policies and zero runtime table privileges; a
+missing catalog row or loss of either RLS flag fails closed.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
