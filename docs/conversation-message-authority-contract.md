@@ -21,6 +21,12 @@ policies. Sanitized mode-0600 evidence is
 `conversation-message-authority-production-postflight-70770bed92db778bb2a6c61b592433cb7508578f.json`
 with SHA-256
 `fa11589253cafbd87f16a9442dc2fd57afc136263cc1ac89b93219ebbede295d`.
+The first evidence-head run `30186399393` at `b534d083` remains failed
+evidence: its static recipient contract still required the authority migration
+to be unapplied after production had correctly advanced. Commit `a78f7c02`
+replaced that obsolete assertion with exact production-run, function-count,
+private-denial and RLS-off boundary assertions; fresh run `30186511914` passed
+all gates.
 The first exact generated-candidate run, `30184548860` at `037f654c`, proved
 the migration, functions-only compatibility, exact catalog/grants and complete
 recipient/RLS race suite in PostgreSQL 16. It remains failed evidence overall:
