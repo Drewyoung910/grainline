@@ -14,9 +14,9 @@ describe("Notification RLS activation completeness gate", () => {
   it("inventories all emission paths and reaches exact creation-authority coverage", () => {
     const result = notificationActivationReadiness();
 
-    assert.equal(result.expectedCount, 54);
-    assert.equal(result.totalCount, 54);
-    assert.equal(result.coveredCount, 54);
+    assert.equal(result.expectedCount, 55);
+    assert.equal(result.totalCount, 55);
+    assert.equal(result.coveredCount, 55);
     assert.equal(result.uncoveredCount, 0);
     assert.equal(result.unresolvedCalls.length, 0);
     assert.equal(result.ready, true);
@@ -73,7 +73,7 @@ describe("Notification RLS activation completeness gate", () => {
     }
   });
 
-  it("exits zero only for the exact reviewed 54-path contract", () => {
+  it("exits zero only for the exact reviewed 55-path contract", () => {
     const result = spawnSync(process.execPath, ["scripts/notification-rls-activation-readiness.mjs"], {
       cwd: process.cwd(),
       encoding: "utf8",
@@ -82,7 +82,7 @@ describe("Notification RLS activation completeness gate", () => {
     assert.equal(result.status, 0);
     assert.equal(result.stderr, "");
     assert.match(result.stdout, /"ready": true/);
-    assert.match(result.stdout, /"coveredCount": 54/);
+    assert.match(result.stdout, /"coveredCount": 55/);
     assert.match(result.stdout, /"uncoveredCount": 0/);
   });
 });

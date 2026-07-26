@@ -74,7 +74,7 @@ Notification RPC's owner, SECURITY mode, `search_path`, overload count, and
 direct non-grantable runtime/PUBLIC ACL. These are activation artifacts, not
 evidence that the current drafts are ready to migrate; their live PostgreSQL
 behavior still has to be exercised with the final migration.
-All 54 creation paths, exact account cleanup, exact admin source cleanup, and
+All 55 creation paths, exact account cleanup, exact admin source cleanup, and
 retention cron are wired to these draft functions in the isolated branch. Admin cleanup
 uses only exact source RPCs, and account deletion uses only recipient plus
 `relatedUserId` cleanup for Notification. Existing pre-authority rows are not
@@ -138,12 +138,12 @@ by the same transaction. The audit-backed paths validate recorded transition
 metadata instead of mutable current status, so a legitimate later case change
 does not silently suppress an already-committed event.
 
-Creation-authority classification is now complete. All 54 emission paths now carry reviewed creation authority:
+Creation-authority classification is now complete. All 55 emission paths now carry reviewed creation authority:
 a non-null source pair and dispatch through one of ten reviewed creation
 families or the dedicated back-in-stock claim. The 26 family-dispatched source
 types validated by database joins, plus the dedicated back-in-stock operation,
 still require PostgreSQL parse/apply and provider performance evidence before
-promotion. This 54/54 result does not select the recipient read architecture,
+promotion. This 55/55 result does not select the recipient read architecture,
 complete guarded legacy inspection plus the atomic activation-purge artifact,
 prove block races in PostgreSQL, or prove live isolation.
 
@@ -892,11 +892,11 @@ Bucket B means `Notification` only. It does not include `StockNotification`,
 `Case`, or `CaseMessage`. Those retain separate coverage-matrix groups and
 production releases.
 
-The 2026-07-19 source snapshot contains 51 direct `createNotification` calls
-across 29 caller files: 50 object-literal calls plus the fulfillment route's
+The refreshed source snapshot contains 52 direct `createNotification` calls
+across 29 caller files: 51 object-literal calls plus the fulfillment route's
 typed wrapper call. That wrapper serves three distinct fulfillment payloads,
 and back-in-stock uses one dedicated owner-backed claim, so the authority
-inventory contains 54 distinct emission paths. All 54 are currently
+inventory contains 55 distinct emission paths. All 55 are currently
 authority-bound and none are source-less. This broad fanout surface is the main
 reason the table cannot receive a copied SavedSearch owner-only policy; the
 completed source inventory does not remove its asymmetric service-authority
@@ -911,7 +911,7 @@ requirements.
 | Retention cron | Delete old read and unread rows globally in bounded batches | Parameter-free or tightly bounded owner RPC using server time and code-pinned retention windows; no general runtime `DELETE` |
 | Account deletion | Delete the departing user's rows and related-user residue across other recipients | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion; do not grant direct table `DELETE`. The prelaunch activation transaction removes pre-authority rows before this invariant becomes mandatory |
 | Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup only; no title/body/link matching remains in runtime code |
-| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 54 emission paths dispatch through ten reviewed family wrappers or the dedicated back-in-stock claim; the gate also requires the corresponding SQL function, revoke, and runtime grant |
+| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 55 emission paths dispatch through ten reviewed family wrappers or the dedicated back-in-stock claim; the gate also requires the corresponding SQL function, revoke, and runtime grant |
 
 Current access files are deliberately pinned by test. There are no remaining
 direct Prisma Notification owner reads or updates outside the RPC helper:
@@ -999,7 +999,7 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
 ### B2 - Production activation
 
 - Require Phase B and runtime credential separation already live and healthy.
-- Run `npm run audit:rls-notification-readiness` and require an exact 54/54
+- Run `npm run audit:rls-notification-readiness` and require an exact 55/55
   result. The AST-backed gate fails on count drift, dynamic/unrecognized helper
   calls, missing source pairs, source constants not dispatched by a reviewed
   service family, or a missing SQL wrapper/revoke/runtime grant. Its current
@@ -1022,7 +1022,7 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
 - Existing pre-authority Notification rows still require the guarded aggregate
   inspection and an atomic activation-transaction purge. The purge must not run
   if real users begin relying on notifications; that change requires a backfill.
-- Creation authority and owner-derived payload callsite coverage are 54/54.
+- Creation authority and owner-derived payload callsite coverage are 55/55.
   PostgreSQL 16 run `29893071538` at exact source
   `187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` passed disposable-database
   parse/apply, catalog/grant, own/foreign/direct-denial, every granted creation

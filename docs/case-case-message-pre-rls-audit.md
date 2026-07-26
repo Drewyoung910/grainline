@@ -28,8 +28,8 @@ surface with the TypeScript AST. The initial baseline is:
 - 69 total protected references across 25 source files.
 
 The Phase 1B private-evidence draft expands the scanner to
-`CaseMessageAttachment` and currently records 45 direct operations, 26 nested
-relation references and 10 raw SQL references: 81 total protected references
+`CaseMessageAttachment` and currently records 46 direct operations, 26 nested
+relation references and 10 raw SQL references: 82 total protected references
 across 28 source files. The original 69-reference baseline remains above as
 historical evidence; the generated current inventory, not either prose count,
 is the activation completeness gate.
@@ -126,8 +126,8 @@ the table is ready.
 | CC-A10 | Medium | Case is a predicate inside Order label, fulfillment, delivery, PII retention and seller-quality operations. Enabling RLS without converting these hidden relation/raw references would make active Cases invisible to context-free jobs or incorrectly permit an Order transition. | Pin every relation/raw reference in the inventory and replace it with a reviewed participant or fixed service predicate before activation. Keep the Order table's own later RLS release separate. |
 | CC-A11 | Accepted launch requirement | Damage/not-as-described disputes have no evidence attachment model even though the Terms say staff review photos. The existing generic Message upload path persists publicly reachable R2 URLs, which is not an acceptable confidentiality boundary for dispute evidence. Adding sensitive evidence after Case RLS would also require another parent-scoped authority and retention rollout. | Include a private-object-backed `CaseMessageAttachment` image model in the tightly coupled Case group before policy SQL. Process and verify images, persist an opaque object key rather than a public URL, retrieve only after Case participant/staff authorization through a short-lived signed path, inherit parent Case visibility, and define export/deletion/retention behavior. PDF evidence remains prohibited until a reviewed malware-scan/quarantine pipeline exists. |
 | CC-A12 | Deliberate later product work | The queue has no staff assignment/SLA ownership and the contractual one-time re-review is handled by email, not an in-product appeal state. These do not need broader participant table authority. | Keep them outside initial Case RLS unless the product decision changes. Record the trigger: add assignment/SLA when multiple staff share the queue; add an appeal record only with a reviewed legal/retention workflow. |
-| CC-A13 | High/Product | Staff resolution notifies/emails the buyer only. The seller receives no Case decision notice even when a staff refund changes seller financial state. The live Notification Case-source function also permits staff-resolution recipients only when the recipient is the buyer. | Add source-derived seller decision copy and delivery, with a narrowly reviewed extension to the existing Notification function. Prove both participants receive the correct non-buyer-centric result and no foreign recipient is possible. |
-| CC-A14 | High/Audit | Transition audit atomicity is inconsistent. Participant mark-resolved and cron actions write audit evidence in the same transaction, but Case creation writes its user audit after Case commit, staff resolution writes a best-effort admin audit after commit, and participant escalation writes no durable actor event. | Make every authority-changing transition write durable actor/source evidence atomically with the Case mutation. Preserve Stripe orphan reconciliation when a refund has already left the database boundary. |
+| CC-A13 | High/Product | Staff resolution notified/emailed the buyer only. The seller received no Case decision notice even when a staff refund changed seller financial state. The live Notification Case-source function permits staff-resolution recipients only when the recipient is the buyer. | Resolved in the isolated compatible branch without widening that function: create a fixed-copy staff `CaseMessage` atomically with resolution, then use the existing source-validating CaseMessage Notification family to derive the seller, route, copy and replay identity. |
+| CC-A14 | High/Audit | Transition audit atomicity was inconsistent. Participant mark-resolved and cron actions write audit evidence in the same transaction. Staff resolution is now fixed on the isolated branch, but Case creation still writes its user audit after Case commit and participant escalation writes no durable actor event. | Make the remaining authority-changing transitions write durable actor/source evidence atomically with the Case mutation. Preserve Stripe orphan reconciliation when a refund has already left the database boundary. |
 
 CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
 a separate non-public R2 bucket, never the generic public message uploader.
@@ -138,6 +138,15 @@ and account export. The private Cloudflare bucket and application environment
 do not exist merely because this code exists; production evidence upload stays
 blocked until bucket privacy, least-privilege object access, authenticated
 signed read, foreign denial and cleanup are proven.
+
+CC-A13 and the staff-resolution portion of CC-A14 (2026-07-26): the isolated
+branch co-commits a bounded, fixed-copy `STAFF` CaseMessage and a strict
+`AdminAuditLog` with the successful Case resolution. The seller notice uses
+that message through the existing live CaseMessage Notification family, so the
+database revalidates the staff author, exact parent Case, seller recipient,
+canonical sales route and replay identity. No new Notification function or
+grant is introduced. The 55/55 callsite gate prevents this added path from
+escaping the permanent authority inventory.
 
 ## Preliminary RLS shape, not approved SQL
 

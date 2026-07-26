@@ -1,7 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-const { caseResolutionCopy } = await import("../src/lib/caseResolutionCopy.ts");
+const {
+  caseResolutionCopy,
+  caseResolutionSellerMessage,
+} = await import("../src/lib/caseResolutionCopy.ts");
 
 describe("case resolution copy", () => {
   it("uses distinct buyer-facing copy for full refunds", () => {
@@ -44,5 +47,20 @@ describe("case resolution copy", () => {
     assert.equal(copy.body, "The case has been reviewed and dismissed.");
     assert.equal(copy.emailSubject, "Your case was dismissed");
     assert.equal(copy.refunding, false);
+  });
+
+  it("uses seller-facing decision copy without implying the seller received the refund", () => {
+    assert.equal(
+      caseResolutionSellerMessage("REFUND_FULL", 12_345, "usd"),
+      "Grainline resolved this case with a full refund to the buyer.",
+    );
+    assert.equal(
+      caseResolutionSellerMessage("REFUND_PARTIAL", 12_345, "usd"),
+      "Grainline resolved this case with a partial refund of $123.45 to the buyer.",
+    );
+    assert.equal(
+      caseResolutionSellerMessage("DISMISSED", null, "usd"),
+      "Grainline reviewed this case and dismissed it.",
+    );
   });
 });

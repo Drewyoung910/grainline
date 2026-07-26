@@ -48,3 +48,24 @@ export function caseResolutionCopy(
     refunding: false,
   };
 }
+
+export function caseResolutionSellerMessage(
+  resolution: CaseResolutionKind | string,
+  refundAmountCents?: number | null,
+  currency?: string | null,
+) {
+  if (resolution === "REFUND_FULL") {
+    return "Grainline resolved this case with a full refund to the buyer.";
+  }
+
+  if (resolution === "REFUND_PARTIAL") {
+    const amount = hasPositiveRefundAmount(refundAmountCents)
+      ? formatCaseRefundAmount(refundAmountCents, currency)
+      : null;
+    return amount
+      ? `Grainline resolved this case with a partial refund of ${amount} to the buyer.`
+      : "Grainline resolved this case with a partial refund to the buyer.";
+  }
+
+  return "Grainline reviewed this case and dismissed it.";
+}

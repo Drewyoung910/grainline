@@ -109,7 +109,8 @@ now concentrated in several hotspots:
   lines) are high-change, cross-domain orchestration files that deserve staged
   extraction after the current RLS release rather than an incidental rewrite
   during it.
-- Notification creation historically spans 54 emission paths. The Bucket B
+- Notification creation originally spanned 54 emission paths and now spans 55
+  after the compatible Case seller-decision addition. The Bucket B
   family wrappers and completeness gate control that distribution, but future
   notification types must enter through the same source-bound registry.
 - Notification and Conversation/Message were deliberately released through

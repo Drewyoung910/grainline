@@ -16,7 +16,11 @@ import {
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
 import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
-import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
+import {
+  caseResolutionCopy,
+  caseResolutionSellerMessage,
+} from "@/lib/caseResolutionCopy";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
@@ -333,6 +337,11 @@ export async function POST(
     ]
       .filter(Boolean)
       .join(" ");
+    const sellerResolutionMessage = caseResolutionSellerMessage(
+      resolution,
+      persistedRefundAmountCents,
+      caseRecord.order.currency,
+    );
 
     const stockRestores =
       resolution === "REFUND_FULL" && refundMayRestoreStock(caseRecord.order)
@@ -343,6 +352,7 @@ export async function POST(
     const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
 
     let updatedCase;
+    let resolutionMessageId: string;
     let stockStatusRestoredCount = 0;
     try {
       const caseWrite = await prisma.$transaction(async (tx) => {
@@ -383,6 +393,32 @@ export async function POST(
         if (caseUpdate.count === 0) {
           throw new Error("CASE_RESOLUTION_CONFLICT");
         }
+
+        const resolutionMessage = await tx.caseMessage.create({
+          data: {
+            caseId: id,
+            authorId: me.id,
+            authorKind: "STAFF",
+            body: sellerResolutionMessage,
+          },
+          select: { id: true },
+        });
+
+        await logAdminActionOrThrow({
+          client: tx,
+          adminId: me.id,
+          action: "RESOLVE_CASE",
+          targetType: "CASE",
+          targetId: id,
+          reason: `${resolution}${persistedRefundAmountDisplay ? ` (${persistedRefundAmountDisplay})` : ""}`,
+          metadata: {
+            orderId: caseRecord.orderId,
+            resolution,
+            refundAmountCents: persistedRefundAmountCents,
+            stripeRefundId,
+            resolutionMessageId: resolutionMessage.id,
+          },
+        });
 
         if (refunding) {
           const orderUpdate = await tx.order.updateMany({
@@ -453,9 +489,14 @@ export async function POST(
           where: { id },
           include: { messages: true, order: true },
         });
-        return { updatedCase, stockStatusRestoredCount: restoredActiveListingCount };
+        return {
+          updatedCase,
+          resolutionMessageId: resolutionMessage.id,
+          stockStatusRestoredCount: restoredActiveListingCount,
+        };
       });
       updatedCase = caseWrite.updatedCase;
+      resolutionMessageId = caseWrite.resolutionMessageId;
       stockStatusRestoredCount = caseWrite.stockStatusRestoredCount;
     } catch (txErr) {
       if (stripeRefundId) {
@@ -601,6 +642,32 @@ export async function POST(
       }
     }
 
+    if (caseRecord.sellerId) {
+      try {
+        await createNotification({
+          userId: caseRecord.sellerId,
+          type: "CASE_MESSAGE",
+          title: "Grainline resolved a case",
+          body: sellerResolutionMessage,
+          link: `/dashboard/sales/${caseRecord.orderId}`,
+          relatedUserId: me.id,
+          sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE,
+          sourceId: resolutionMessageId,
+        });
+      } catch (notificationError) {
+        Sentry.captureException(notificationError, {
+          level: "warning",
+          tags: { source: "case_seller_resolution_notification" },
+          extra: {
+            caseId: id,
+            orderId: caseRecord.orderId,
+            sellerId: caseRecord.sellerId,
+            resolution,
+          },
+        });
+      }
+    }
+
     try {
       const emailPreferenceKey = refunding ? "EMAIL_REFUND_ISSUED" : "EMAIL_CASE_RESOLVED";
       if (caseRecord.buyerId && await shouldSendEmail(caseRecord.buyerId, emailPreferenceKey)) {
@@ -622,25 +689,6 @@ export async function POST(
       Sentry.captureException(emailError, {
         level: "warning",
         tags: { source: "case_resolved_email" },
-        extra: { caseId: id, orderId: caseRecord.orderId, resolution },
-      });
-    }
-
-    // Audit log
-    try {
-      const { logAdminAction } = await import("@/lib/audit");
-      await logAdminAction({
-        adminId: me.id,
-        action: "RESOLVE_CASE",
-        targetType: "CASE",
-        targetId: id,
-        reason: `${resolution}${persistedRefundAmountDisplay ? ` (${persistedRefundAmountDisplay})` : ""}`,
-        metadata: { resolution, refundAmountCents: persistedRefundAmountCents, stripeRefundId },
-      });
-    } catch (auditError) {
-      Sentry.captureException(auditError, {
-        level: "warning",
-        tags: { source: "case_resolve_audit_log" },
         extra: { caseId: id, orderId: caseRecord.orderId, resolution },
       });
     }

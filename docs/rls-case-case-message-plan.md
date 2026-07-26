@@ -16,9 +16,9 @@ audit tables.
 
 Fixed Case operations may validate those durable source tables. That does not
 move the source table into this activation or authorize broad writes to it.
-The existing live Notification function may receive a narrowly reviewed
-Case-decision extension for the missing seller notice, but Notification policy,
-grants and unrelated families remain unchanged.
+The missing seller decision notice reuses the existing live, already-proven
+staff-`CaseMessage` Notification source family. No Notification function,
+policy, or grant change is needed.
 
 The older feasibility sequence placed Case after Order because of these joins.
 The current program deliberately audits Case first: it is a narrower private
@@ -72,7 +72,12 @@ authority catalog and PostgreSQL proof.
    ownership, authenticated retrieval, export, deletion and retention
    behavior. Do not persist a public evidence URL.
 3. Deliver staff Case decisions to the seller with source-derived seller copy
-   through the existing fixed Notification boundary.
+   through the existing fixed Notification boundary. Implemented on the
+   isolated branch: resolution creates a fixed-copy staff `CaseMessage` and
+   `AdminAuditLog` in the same transaction as the Case transition, then the
+   existing case-message family validates and derives the seller notification.
+   The permanent Notification callsite gate intentionally moved from 54/54 to
+   55/55.
 4. Make Case creation, participant escalation and staff resolution audit
    evidence atomic with the database state transition.
 5. Establish the shared Order-lock protocol for Case creation and conflicting
@@ -172,7 +177,7 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 ## Phase 4: compatible application conversion
 
 - Deploy fixed functions while retaining old direct grants.
-- Convert every current protected reference to its explicit destination (81 in
+- Convert every current protected reference to its explicit destination (82 in
   the Phase 1B snapshot; the exact scanner gate controls later drift).
 - Keep an exact zero-direct-access inventory gate.
 - Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,

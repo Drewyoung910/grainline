@@ -402,7 +402,7 @@ policies, and legacy table CRUD; the RPC application deploys and is verified;
 only then may a locked activation migration purge pre-authority rows, install
 the policies, enable initial `NO FORCE`, and narrow table grants. Keep three
 evidence layers distinct:
-the AST gate covers all 54 application emission paths; disposable PostgreSQL
+the AST gate covers all 55 application emission paths; disposable PostgreSQL
 run `29893071538` at exact source
 `187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` executes all 26 family-dispatched
 private-core source-validation branches plus the dedicated back-in-stock claim
@@ -417,7 +417,8 @@ do not retroactively count the earlier draft run as that proof.
 
 Extra-high review accepts the current source-derived shared create function and
 split migration topology for continued proof, not production activation. The
-54/54 callsite result and 59-case live result validate the architecture, the
+original 54/54 callsite result, current 55/55 result, and 59-case live result
+validate the architecture, the
 granted boundary, every top-level private-core source branch, every successful
 source/type pair, and the security-relevant action/recipient variants.
 The latest isolated PostgreSQL proof is green and also passes catalog/grant,
@@ -494,10 +495,10 @@ order relationships.
 
 Production activation also has a permanent completeness gate:
 `npm run audit:rls-notification-readiness`. It inventories the real TypeScript
-emission paths, requires the exact 54-path contract, and fails on dynamic calls,
+emission paths, requires the exact 55-path contract, and fails on dynamic calls,
 missing source pairs, or source constants that do not dispatch through a
 reviewed service family whose draft SQL function, `PUBLIC` execute revoke, and
-runtime grant are present. Its current 54/54 result passes the
+runtime grant are present. Its current 55/55 result passes the
 creation-authority gate; ordinary tests retain the exact count and authority
 surface tripwires so new or dynamic paths cannot disappear silently. This green
 gate is only one activation prerequisite.

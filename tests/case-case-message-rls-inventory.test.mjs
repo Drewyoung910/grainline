@@ -51,6 +51,7 @@ const EXPECTED_BASELINE = {
   "src/app/api/cases/[id]/resolve/route.ts": {
     "Case.findUnique": 2,
     "Case.updateMany": 1,
+    "CaseMessage.create": 1,
     "Case.findUniqueOrThrow": 1,
     "CaseMessage.relation-reference": 1,
   },
@@ -120,7 +121,7 @@ describe("Case and CaseMessage RLS inventory", () => {
   const inventory = collectCaseCaseMessageAccess();
 
   it("pins every current direct, relation, and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 45);
+    assert.equal(inventory.ormCalls.length, 46);
     assert.equal(inventory.relationReferences.length, 26);
     assert.equal(inventory.rawSqlReferences.length, 10);
     assert.deepEqual(
@@ -141,7 +142,7 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /69 total protected references across 25 source files/);
     assert.match(
       audit,
-      /81 total protected references\s+across 28 source files/,
+      /82 total protected references\s+across 28 source files/,
     );
     assert.match(audit, /durable source-derived author kind/);
     assert.match(audit, /shared by Case creation and conflicting Order transitions/);
