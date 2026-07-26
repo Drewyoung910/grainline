@@ -26,9 +26,9 @@ Current Conversation/Message production boundary:
 - A separate FORCE-only candidate exists on
   `agent/conversation-message-force-20260726`, but is not live. Its migration is
   `20260726140000_force_conversation_message_rls` at SHA-256
-  `ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f`,
+  `c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`,
   guarded by `conversation-message-force-reviewed` and migration-tree SHA-256
-  `89befe7599c71f734f45b29c964ebc037119ca5def04d95c22687fc92e1ce716`.
+  `0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672`.
   Do not call FORCE complete before fresh PostgreSQL CI, Extra-High review,
   exact-main protected migration and a pooled-runtime postflight.
 
@@ -569,9 +569,9 @@ Production migration rules:
 - The separate FORCE candidate is guarded as
   `SAVED_SEARCH_RLS_DEPLOY_PHASE=conversation-message-force-reviewed`. It adds
   only `20260726140000_force_conversation_message_rls`, with migration SHA-256
-  `ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f`
+  `c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`
   and exact migration-tree SHA-256
-  `89befe7599c71f734f45b29c964ebc037119ca5def04d95c22687fc92e1ce716`.
+  `0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672`.
   The SQL takes bounded locks, requires the exact live policy/grant/role
   predecessor and zero other owner sessions, changes only the two FORCE flags,
   then rechecks the catalog. Use

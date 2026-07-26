@@ -10,7 +10,7 @@ export const CONVERSATION_MESSAGE_FORCE_RELEASE = Object.freeze({
   }),
   force: Object.freeze({
     migrationName: "20260726140000_force_conversation_message_rls",
-    sha256: "ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f",
+    sha256: "c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35",
   }),
 });
 

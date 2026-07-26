@@ -121,12 +121,12 @@ BEGIN
         (
           'Conversation'::text,
           'grainline_conversation_participant_or_reported_select'::text,
-          '((NULLIF(current_setting(''app.user_id'', true), '''') = "userAId") OR (NULLIF(current_setting(''app.user_id'', true), '''') = "userBId")) OR grainline_conversation_staff_report_visible(id)'::text
+          '(((NULLIF(current_setting(''app.user_id'', true), '''') = "userAId") OR (NULLIF(current_setting(''app.user_id'', true), '''') = "userBId")) OR grainline_conversation_staff_report_visible(id))'::text
         ),
         (
           'Message'::text,
           'grainline_message_participant_or_reported_select'::text,
-          '((NULLIF(current_setting(''app.user_id'', true), '''') = "senderId") OR (NULLIF(current_setting(''app.user_id'', true), '''') = "recipientId")) OR grainline_conversation_staff_report_visible("conversationId")'::text
+          '(((NULLIF(current_setting(''app.user_id'', true), '''') = "senderId") OR (NULLIF(current_setting(''app.user_id'', true), '''') = "recipientId")) OR grainline_conversation_staff_report_visible("conversationId"))'::text
         )
       ) AS expected_value(table_name, policy_name, using_expression)
   LOOP

@@ -92,10 +92,10 @@ FORCE remains a later separate release.
 The FORCE-only candidate is isolated on
 `agent/conversation-message-force-20260726`. It adds only
 `20260726140000_force_conversation_message_rls` at SHA-256
-`ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f`
+`c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`
 after the accepted activation baseline, and the exact reviewed migration-tree
 SHA-256 is
-`89befe7599c71f734f45b29c964ebc037119ca5def04d95c22687fc92e1ce716`.
+`0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672`.
 The migration changes only the two `relforcerowsecurity` flags. It requires the
 exact owner/runtime posture, zero other owner sessions, owner-held
 `ENABLE`/`NO FORCE`, one exact SELECT policy per table, SELECT-only runtime
@@ -106,6 +106,14 @@ exact FORCE restoration proof plus a dedicated PostgreSQL 16 workflow. This
 candidate does not change production and remains blocked on fresh CI,
 Extra-High SQL/authority acceptance, an exact-main protected migration and a
 pooled-runtime postflight.
+
+The first dedicated PostgreSQL run `30206869755` is retained failed evidence.
+It stopped inside the FORCE preflight before either `ALTER TABLE` because the
+exact policy deparse expectation omitted PostgreSQL's outermost parenthesis
+pair; Prisma surfaced only the resulting aborted transaction. A read-only live
+catalog comparison confirmed the same exact deparse shape on both tables. The
+correction pins the full server-deparsed expression instead of relaxing the
+comparison. Production was unchanged.
 
 ## Security objective
 

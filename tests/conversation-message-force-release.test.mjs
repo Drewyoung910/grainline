@@ -47,7 +47,7 @@ describe("Conversation and Message FORCE release artifact", () => {
         "d4ba421be0f66c5acbc331f9c70939846b0f9675ff5ae026c09735760d92811a",
       forceMigration: "20260726140000_force_conversation_message_rls",
       forceSha256:
-        "ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f",
+        "c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35",
       forceOnlyHardening: true,
       forcedTables: ["Conversation", "Message"],
     });

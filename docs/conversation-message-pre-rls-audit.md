@@ -39,15 +39,22 @@ FORCE is intentionally still pending as a separate release.
 The separate FORCE-only candidate is now durably specified on
 `agent/conversation-message-force-20260726` as migration
 `20260726140000_force_conversation_message_rls`, SHA-256
-`ba7408ede5a63f9cc10531f2598cb0b1187441d7157dc600d5518cd327dcf42f`.
+`c7f6bbb65c1b0b05c43c2ad450235523587de16f4c8b5ca3289bbff28df33a35`.
 It changes no policy, grant, function or row and fails closed unless the exact
 accepted activation catalog, owner/runtime role posture and owner-session drain
 are present. Its exact reviewed migration-tree SHA-256 is
-`89befe7599c71f734f45b29c964ebc037119ca5def04d95c22687fc92e1ce716`.
+`0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672`.
 The local static release and rollback contracts pass; fresh disposable
 PostgreSQL 16 proof, Extra-High set-level review, merge, protected production
 migration and actual pooled-runtime postflight remain required. FORCE is still
 off in production at this checkpoint.
+
+Dedicated PostgreSQL run `30206869755` is retained failed evidence. The exact
+policy-deparse preflight rejected both otherwise matching policies because its
+expected expression omitted PostgreSQL's outermost parenthesis pair. A
+read-only pooled-production catalog comparison exposed the precise shape; the
+candidate now pins that full shape and does not weaken expression validation.
+The failure occurred before FORCE and changed no production state.
 
 ## Why this gate exists
 
