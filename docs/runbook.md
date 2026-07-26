@@ -1,12 +1,28 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-07-25
+Last updated: 2026-07-26
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
 For a plain-English map of RLS operators, deploy phases, common fail-closed
 errors, evidence locations, and safe operation without agent context, read
 `docs/rls-operator-guide.md` before preparing or dispatching an RLS migration.
+
+Current Conversation/Message production boundary:
+
+- Initial RLS activation is live from exact main `448d5233` and protected
+  migration run `30194195844`; FORCE remains off.
+- `Conversation` and `Message` each have one reviewed SELECT policy and the
+  runtime role has direct SELECT only. Writes use fixed authority functions.
+- The authenticated pooled-runtime postflight command is
+  `npm run ops:conversation-message-activation-postflight`. It is pinned to
+  operator branch `agent/conversation-message-postactivation-20260726`,
+  Production deployment `dpl_C1rXvRMMJetR25Na4X5yHSa91HpM`, and retained
+  operational canary identity.
+- Do not rerun the operator after its release/deployment binding becomes stale.
+  A rerun creates bounded synthetic rows and a short Clerk session, then
+  requires exact cleanup; if it fails, use its retained private recovery state
+  and exact `--cleanup --post-activation` mode before any new attempt.
 
 ## Incident Triage
 

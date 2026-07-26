@@ -1,10 +1,13 @@
 # Conversation and Message RLS Plan
 
-Status: compatibility and invariant-preparation releases are live. The
-preparation SQL passed disposable PostgreSQL proof, Extra-High review and an
-actual pooled production-runtime rollback-only postflight. Notification Bucket
-B is complete in production. Conversation/Message RLS remains disabled with
-zero policies. The complete authority-policy draft passed Extra-High review,
+Status: initial Conversation/Message RLS activation is live and accepted in
+production; FORCE remains a later separate release. Both tables have RLS
+enabled without FORCE, exactly one reviewed SELECT policy each, direct runtime
+SELECT only, and all writes behind the fixed authority functions. Notification
+Bucket B is complete in production. The earlier preparation SQL passed
+disposable PostgreSQL proof, Extra-High review and an actual pooled
+production-runtime rollback-only postflight. The complete authority-policy
+draft passed Extra-High review,
 disposable PostgreSQL 16 proof and full CI at `7a7654c3` in run `30180610380`;
 the first protected aggregate-only production inspection passed safely at
 exact main `aa487bfb` in run `30181030719` and found one legacy custom-order
@@ -62,16 +65,29 @@ owner/foreign API and page behavior, mutation/origin boundaries, database
 postconditions and exact cleanup with zero direct email/notification side
 effects. Sanitized mode-`0600` evidence SHA-256 is
 `f3ad7589ca0e8069c3093199235aa1a3cb45a2a684caf0a077ba1974d3f2bde7`.
-The initial `ENABLE` plus explicit `NO FORCE` activation is now packaged but
-not merged, applied or live. Candidate migration
-`20260726073000_enable_conversation_message_rls` is byte-pinned to the accepted
-policy source and installs exactly one SELECT policy on each table, revokes
-direct runtime writes, and retains direct SELECT. It has a separate
-candidate-to-release equivalence verifier, exact migration-tree phase,
-provisioning convergence, exact live grant/policy audit, and a loopback
-rollback proof that restores old-application CRUD without dropping policies or
-functions. Fresh PostgreSQL 16 CI and the final Extra-High activation review
-remain required before merge. FORCE remains a later separate release.
+The initial `ENABLE` plus explicit `NO FORCE` activation is complete. PR 52
+merged exact reviewed head `390dd70d` as main `448d5233`; PR CI
+`30193830373` and fresh main CI `30194063246` passed the byte-equivalence,
+PostgreSQL 16 migration, grant convergence, exact catalog audit, rollback,
+14-check authority/race/isolation proof, TypeScript, lint, full test,
+dependency-audit and production-build gates. Protected production run
+`30194195844` applied
+`20260726073000_enable_conversation_message_rls` at SHA-256
+`d4ba421be0f66c5acbc331f9c70939846b0f9675ff5ae026c09735760d92811a`;
+158 migrations were current and the final owner-side audit passed with four
+RLS policy tables overall.
+
+The subsequent live postflight at operator `f474e761` used the actual pooled
+`grainline_app_runtime` and authenticated Production deployment
+`dpl_C1rXvRMMJetR25Na4X5yHSa91HpM`. It proved the runtime is non-owner and
+NOBYPASSRLS, exact policy expressions and SELECT-only grants, zero protected
+rows without transaction-local user context, direct INSERT/UPDATE/DELETE
+denial with SQLSTATE `42501`, participant and foreign route isolation, unread
+transition `1 -> 0`, and exact cleanup. It created no Clerk user, email or
+Notification and left no fixture, session, recovery, cache or rate-limit
+residue. Sanitized mode-`0600` evidence SHA-256 is
+`1f38671673e8040b222fcb620f8875c94cd47684969d423e6f260fc7a520e141`.
+FORCE remains a later separate release.
 
 ## Security objective
 
@@ -105,8 +121,8 @@ in `docs/conversation-message-authority-inventory.md`.
 
 Important architecture findings at this boundary:
 
-- Direct table grants are currently broad because this group is not yet RLS
-  protected. They must not survive activation.
+- Direct table grants were broad before activation. Production now retains
+  direct SELECT only; INSERT, UPDATE and DELETE are denied to runtime.
 - Message foreign keys do not prove that sender and recipient are the opposing
   participants in the referenced Conversation.
 - Custom-order request, commission interest and custom-order-ready now commit
@@ -355,16 +371,16 @@ The direct runtime table query with no context must return zero rows.
    other authority-invalid counts as zero.**
 8. Initial `ENABLE`/explicit `NO FORCE` activation with exact two-table policy
    and grant guard, followed by runtime and authenticated route postflight.
-   Packaged, not live: migration
-   `20260726073000_enable_conversation_message_rls` has exactly two
+   **Complete:** migration
+   `20260726073000_enable_conversation_message_rls` installed exactly two
    participant-or-reported-staff SELECT policies, direct runtime SELECT only,
    no write policies, an exact 25-function predecessor/ACL preflight,
    transaction/advisory/table locks, exact postflight catalog checks, a new
    `conversation-message-activation-reviewed` tree phase, provisioning
    convergence, release byte-equivalence verification, and a reversible
-   loopback rollback proof. Fresh CI, Extra-High set review, protected
-   production migration and authenticated post-activation evidence remain
-   gates.
+   loopback rollback proof. PR/head/main CI, Extra-High set review, protected
+   production run `30194195844`, owner audit and pooled/authenticated operator
+   `f474e761` all passed with exact cleanup and zero direct side effects.
 9. Separate `FORCE ROW LEVEL SECURITY` hardening and fresh postflight.
 
 Background jobs and old/new Vercel coexistence still exist pre-launch, so the
