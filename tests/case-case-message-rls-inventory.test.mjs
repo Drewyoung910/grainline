@@ -9,7 +9,6 @@ import {
 const EXPECTED_BASELINE = {
   "src/app/admin/cases/[id]/page.tsx": {
     "Case.findUnique": 1,
-    "CaseMessage.relation-reference": 1,
   },
   "src/app/admin/cases/page.tsx": {
     "Case.count": 1,
@@ -78,6 +77,9 @@ const EXPECTED_BASELINE = {
     "Case.raw-sql-reference": 4,
   },
   "src/lib/metrics.ts": { "Case.count": 1 },
+  "src/lib/caseMessageHistory.ts": {
+    "CaseMessage.findMany": 1,
+  },
   "src/app/admin/orders/[id]/page.tsx": {
     "Case.relation-reference": 1,
   },
@@ -94,11 +96,9 @@ const EXPECTED_BASELINE = {
   },
   "src/app/dashboard/orders/[id]/page.tsx": {
     "Case.relation-reference": 1,
-    "CaseMessage.relation-reference": 1,
   },
   "src/app/dashboard/sales/[orderId]/page.tsx": {
     "Case.relation-reference": 1,
-    "CaseMessage.relation-reference": 1,
   },
   "src/lib/orderPiiRetention.ts": {
     "Case.raw-sql-reference": 1,
@@ -109,8 +109,8 @@ describe("Case and CaseMessage RLS inventory", () => {
   const inventory = collectCaseCaseMessageAccess();
 
   it("pins every current direct, relation, and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 41);
-    assert.equal(inventory.relationReferences.length, 18);
+    assert.equal(inventory.ormCalls.length, 42);
+    assert.equal(inventory.relationReferences.length, 15);
     assert.equal(inventory.rawSqlReferences.length, 10);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
@@ -132,6 +132,9 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /shared by Case creation and conflicting Order transitions/);
     assert.match(audit, /bounded `\(createdAt,id\)` keyset history/);
     assert.match(audit, /scheduled transition must use the expired `sellerRespondBy` boundary/);
+    assert.match(audit, /Include a private-object-backed `CaseMessageAttachment` image model/);
+    assert.match(audit, /persist an opaque object key rather than a public URL/);
+    assert.match(audit, /PDF evidence remains prohibited/);
     assert.match(audit, /no policy\/grant SQL is drafted until an Extra-High authority review starts/);
     assert.match(plan, /Switch back to Extra High before Phase 1B/);
     assert.match(plan, /Convert all 69 protected references/);

@@ -85,6 +85,15 @@ Message are complete; their retained record is
 `docs/conversation-message-pre-rls-audit.md`. The active Case/CaseMessage record
 is `docs/case-case-message-pre-rls-audit.md`.
 
+Case photo evidence is a launch requirement, not a later generic messaging
+feature. Before Case policy SQL, add private-object-backed processed image
+evidence tied to CaseMessage, with server-verified object ownership/metadata,
+authenticated short-lived retrieval, and explicit participant visibility,
+export, deletion, and retention behavior. Do not use the public R2 message
+attachment path, accept arbitrary external URLs, or activate the attachment
+table separately from its parent Case boundary. PDF evidence remains prohibited
+until a reviewed malware-scan/quarantine pipeline exists.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a
