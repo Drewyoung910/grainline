@@ -173,6 +173,13 @@ general concurrency boundary. If fresh authority would newly classify the
 caller as non-party staff, the write also fails unless that request already
 completed the session-bound staff PIN check.
 
+PostgreSQL proof scaffold boundary (2026-07-26): the isolated branch has a
+loopback- and `grainline_ci`-only PostgreSQL 16 harness for 14 explicit
+two-session winner orderings. Each check must observe the second connection in
+a PostgreSQL `Lock` wait; all fixtures are synthetic and deleted in `finally`.
+The local static harness contracts pass, but CC-A03/CC-A04 remain open until the
+branch workflow itself is green and its bounded output is retained.
+
 ## Preliminary RLS shape, not approved SQL
 
 - `Case` SELECT should be visible to its current buyer, seller and current

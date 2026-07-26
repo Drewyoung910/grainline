@@ -96,6 +96,17 @@ authority catalog and PostgreSQL proof.
    and CaseMessage `createdAt`. The duplicate advisory lock remains a separate
    replay guard. Two-session reply/cron proof remains required.
 
+Disposable proof boundary (2026-07-26): the isolated branch includes
+`scripts/case-lifecycle-postgres-proof.mjs` and a branch-scoped PostgreSQL 16
+workflow. It refuses non-loopback targets and any database other than
+`grainline_ci`, uses separate named clients, requires an observed PostgreSQL
+`Lock` wait, cleans every synthetic row, and exercises 14 winner orderings:
+Case versus label/fulfillment/delivery-confirmation/refund, different-body and
+seller-first replies, pending-close reply versus a resolution mark, and seller
+reply versus cron escalation. The harness and its static contracts are green
+locally; this paragraph does not claim the database proof passed until a
+successful workflow run is retained and reviewed.
+
 Private evidence contract:
 
 - Only processed JPEG, PNG and WebP images are accepted, with metadata stripped

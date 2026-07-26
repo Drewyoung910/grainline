@@ -29,6 +29,7 @@
     "audit:rls-notification-readiness": "node scripts/notification-rls-activation-readiness.mjs",
     "audit:rls-conversation-message-inventory": "node scripts/conversation-message-rls-inventory.mjs",
     "audit:rls-case-case-message-inventory": "node scripts/case-case-message-rls-inventory.mjs",
+    "audit:rls-case-lifecycle-races": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/case-lifecycle-postgres-proof.mjs",
     "audit:rls-conversation-message-invariants": "node scripts/conversation-message-invariant-proof.mjs",
     "audit:rls-conversation-message-legacy-cleanup": "node scripts/conversation-message-legacy-cleanup-proof.mjs",
     "audit:rls-conversation-message-recipient": "node scripts/conversation-message-recipient-rls-proof.mjs",
