@@ -2,6 +2,10 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import {
+  DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES,
+  DIRECT_UPLOAD_RUNTIME_FUNCTION_NAMES,
+} from "./direct-upload-authority-catalog.mjs";
 
 const { Client } = pg;
 
@@ -36,41 +40,8 @@ const uploads = Object.freeze({
 });
 const legacyUrl = "https://legacy.invalid/direct-upload-authority-proof.webp";
 
-const runtimeFunctions = Object.freeze([
-  "grainline_direct_upload_record_processed_public",
-  "grainline_direct_upload_record_presigned_public",
-  "grainline_direct_upload_record_private_case",
-  "grainline_direct_upload_record_private_message",
-  "grainline_direct_upload_verify_public",
-  "grainline_direct_upload_owned_lookup",
-  "grainline_direct_upload_reference_case_attachment",
-  "grainline_direct_upload_case_attachment_read",
-  "grainline_direct_upload_cleanup_lease",
-  "grainline_direct_upload_cleanup_complete",
-  "grainline_direct_upload_cleanup_fail",
-  "grainline_direct_upload_export",
-  "grainline_direct_upload_account_public_urls",
-  "grainline_direct_upload_release_for_account",
-  "grainline_direct_upload_sync_listing",
-  "grainline_direct_upload_sync_seller_profile",
-  "grainline_direct_upload_sync_review",
-  "grainline_direct_upload_sync_blog_post",
-  "grainline_direct_upload_sync_commission_request",
-  "grainline_direct_upload_sync_seller_broadcast",
-  "grainline_direct_upload_sync_legacy_message",
-]);
-
-const privateFunctions = Object.freeze([
-  "grainline_direct_upload_actor_valid",
-  "grainline_direct_upload_utc_now",
-  "grainline_direct_upload_record_core",
-  "grainline_direct_upload_reference_core",
-  "grainline_direct_upload_release_core",
-  "grainline_direct_upload_sync_public_core",
-  "grainline_direct_upload_message_url_core",
-  "grainline_direct_upload_release_source_core",
-  "grainline_direct_upload_source_delete_trigger",
-]);
+const runtimeFunctions = DIRECT_UPLOAD_RUNTIME_FUNCTION_NAMES;
+const privateFunctions = DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES;
 
 function safeError(error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -316,7 +287,14 @@ async function catalogProof(owner) {
       runtimeFunctions.includes(row.proname),
       `${row.proname} has the wrong runtime EXECUTE posture`,
     );
-    if (!["grainline_direct_upload_utc_now", "grainline_direct_upload_message_url_core"].includes(row.proname)) {
+    if (
+      ![
+        "grainline_direct_upload_identity_immutable",
+        "grainline_direct_upload_message_url_core",
+        "grainline_direct_upload_status_transition",
+        "grainline_direct_upload_utc_now",
+      ].includes(row.proname)
+    ) {
       assert.equal(row.prosecdef, true, `${row.proname} must be SECURITY DEFINER`);
     }
   }

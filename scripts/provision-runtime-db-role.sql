@@ -569,6 +569,139 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- DirectUploadReference is an owner-operated ledger behind fixed functions.
+-- It intentionally has FORCE RLS with zero policies and no runtime/PUBLIC
+-- table authority. Keep the compatible DirectUpload table grants separate.
+SELECT format(
+  'REVOKE ALL ON TABLE public."DirectUploadReference" FROM PUBLIC, %I',
+  :'runtime_role'
+)
+WHERE to_regclass('public."DirectUploadReference"') IS NOT NULL;
+\gexec
+
+-- DirectUpload preparation may be absent before its reviewed migrations.
+-- When present, converge every function to zero PUBLIC authority, revoke all
+-- direct runtime authority, then re-grant only the 21 fixed operations.
+WITH direct_upload_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_direct_upload_actor_valid"(text)', false),
+    ('public."grainline_direct_upload_identity_immutable"()', false),
+    ('public."grainline_direct_upload_message_url_core"(text, text)', false),
+    ('public."grainline_direct_upload_record_core"(text, text, text, text, text, integer, text, text, text)', false),
+    ('public."grainline_direct_upload_reference_core"(text, text, text)', false),
+    ('public."grainline_direct_upload_reference_guard"()', false),
+    ('public."grainline_direct_upload_release_core"(text, text, text, text)', false),
+    ('public."grainline_direct_upload_release_source_core"(text[], text, text)', false),
+    ('public."grainline_direct_upload_source_delete_trigger"()', false),
+    ('public."grainline_direct_upload_status_transition"()', false),
+    ('public."grainline_direct_upload_sync_public_core"(text, text, text, text[], text[])', false),
+    ('public."grainline_direct_upload_utc_now"()', false),
+    ('public."grainline_direct_upload_record_processed_public"(text, text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_presigned_public"(text, text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_private_case"(text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_private_message"(text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_verify_public"(text, text, text)', true),
+    ('public."grainline_direct_upload_owned_lookup"(text, text)', true),
+    ('public."grainline_direct_upload_reference_case_attachment"(text, text)', true),
+    ('public."grainline_direct_upload_case_attachment_read"(text, text, text)', true),
+    ('public."grainline_direct_upload_cleanup_lease"(integer)', true),
+    ('public."grainline_direct_upload_cleanup_complete"(text, text)', true),
+    ('public."grainline_direct_upload_cleanup_fail"(text, text, text)', true),
+    ('public."grainline_direct_upload_export"(text)', true),
+    ('public."grainline_direct_upload_account_public_urls"(text)', true),
+    ('public."grainline_direct_upload_release_for_account"(text)', true),
+    ('public."grainline_direct_upload_sync_listing"(text, text)', true),
+    ('public."grainline_direct_upload_sync_seller_profile"(text, text)', true),
+    ('public."grainline_direct_upload_sync_review"(text, text)', true),
+    ('public."grainline_direct_upload_sync_blog_post"(text, text)', true),
+    ('public."grainline_direct_upload_sync_commission_request"(text, text)', true),
+    ('public."grainline_direct_upload_sync_seller_broadcast"(text, text)', true),
+    ('public."grainline_direct_upload_sync_legacy_message"(text, text)', true)
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM direct_upload_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH direct_upload_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_direct_upload_actor_valid"(text)', false),
+    ('public."grainline_direct_upload_identity_immutable"()', false),
+    ('public."grainline_direct_upload_message_url_core"(text, text)', false),
+    ('public."grainline_direct_upload_record_core"(text, text, text, text, text, integer, text, text, text)', false),
+    ('public."grainline_direct_upload_reference_core"(text, text, text)', false),
+    ('public."grainline_direct_upload_reference_guard"()', false),
+    ('public."grainline_direct_upload_release_core"(text, text, text, text)', false),
+    ('public."grainline_direct_upload_release_source_core"(text[], text, text)', false),
+    ('public."grainline_direct_upload_source_delete_trigger"()', false),
+    ('public."grainline_direct_upload_status_transition"()', false),
+    ('public."grainline_direct_upload_sync_public_core"(text, text, text, text[], text[])', false),
+    ('public."grainline_direct_upload_utc_now"()', false),
+    ('public."grainline_direct_upload_record_processed_public"(text, text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_presigned_public"(text, text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_private_case"(text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_private_message"(text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_verify_public"(text, text, text)', true),
+    ('public."grainline_direct_upload_owned_lookup"(text, text)', true),
+    ('public."grainline_direct_upload_reference_case_attachment"(text, text)', true),
+    ('public."grainline_direct_upload_case_attachment_read"(text, text, text)', true),
+    ('public."grainline_direct_upload_cleanup_lease"(integer)', true),
+    ('public."grainline_direct_upload_cleanup_complete"(text, text)', true),
+    ('public."grainline_direct_upload_cleanup_fail"(text, text, text)', true),
+    ('public."grainline_direct_upload_export"(text)', true),
+    ('public."grainline_direct_upload_account_public_urls"(text)', true),
+    ('public."grainline_direct_upload_release_for_account"(text)', true),
+    ('public."grainline_direct_upload_sync_listing"(text, text)', true),
+    ('public."grainline_direct_upload_sync_seller_profile"(text, text)', true),
+    ('public."grainline_direct_upload_sync_review"(text, text)', true),
+    ('public."grainline_direct_upload_sync_blog_post"(text, text)', true),
+    ('public."grainline_direct_upload_sync_commission_request"(text, text)', true),
+    ('public."grainline_direct_upload_sync_seller_broadcast"(text, text)', true),
+    ('public."grainline_direct_upload_sync_legacy_message"(text, text)', true)
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM direct_upload_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH direct_upload_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_direct_upload_record_processed_public"(text, text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_presigned_public"(text, text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_private_case"(text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_record_private_message"(text, text, text, text, integer)', true),
+    ('public."grainline_direct_upload_verify_public"(text, text, text)', true),
+    ('public."grainline_direct_upload_owned_lookup"(text, text)', true),
+    ('public."grainline_direct_upload_reference_case_attachment"(text, text)', true),
+    ('public."grainline_direct_upload_case_attachment_read"(text, text, text)', true),
+    ('public."grainline_direct_upload_cleanup_lease"(integer)', true),
+    ('public."grainline_direct_upload_cleanup_complete"(text, text)', true),
+    ('public."grainline_direct_upload_cleanup_fail"(text, text, text)', true),
+    ('public."grainline_direct_upload_export"(text)', true),
+    ('public."grainline_direct_upload_account_public_urls"(text)', true),
+    ('public."grainline_direct_upload_release_for_account"(text)', true),
+    ('public."grainline_direct_upload_sync_listing"(text, text)', true),
+    ('public."grainline_direct_upload_sync_seller_profile"(text, text)', true),
+    ('public."grainline_direct_upload_sync_review"(text, text)', true),
+    ('public."grainline_direct_upload_sync_blog_post"(text, text)', true),
+    ('public."grainline_direct_upload_sync_commission_request"(text, text)', true),
+    ('public."grainline_direct_upload_sync_seller_broadcast"(text, text)', true),
+    ('public."grainline_direct_upload_sync_legacy_message"(text, text)', true)
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM direct_upload_authority
+ WHERE runtime_execute
+   AND to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- These RPCs are introduced by a migration that runs after first-time role
 -- provisioning. Skip them when they do not exist yet; their migration applies
 -- the same least-privilege grants, and later provisioning runs converge drift.

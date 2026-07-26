@@ -103,7 +103,7 @@ behavior is backed by an unusually broad regression/evidence suite. The code is
 not an unstructured mess, but it is a large modular monolith whose complexity is
 now concentrated in several hotspots:
 
-- 114 API route files and 59 Prisma models create a broad authorization and
+- 114 API route files and 60 Prisma models create a broad authorization and
   lifecycle surface.
 - The Stripe webhook (2,717 lines) and account-deletion coordinator (2,007
   lines) are high-change, cross-domain orchestration files that deserve staged

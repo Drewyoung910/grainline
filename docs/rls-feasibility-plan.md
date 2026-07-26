@@ -206,7 +206,7 @@ Order/payment/shipping as its own later activation.
 ## Prototype Candidate Matrix
 
 This is an architecture excerpt for early activation order. See
-`docs/rls-coverage-matrix.md` for the required disposition of all 59 Prisma
+`docs/rls-coverage-matrix.md` for the required disposition of all 60 Prisma
 models.
 
 | Table | Current app-layer owner model | RLS difficulty | Prototype decision |

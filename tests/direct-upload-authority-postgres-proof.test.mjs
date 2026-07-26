@@ -50,7 +50,7 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
   });
 
   it("pins fixed authority, zero generic authority and exact compatibility posture", () => {
-    assert.match(proof, /runtimeFunctions = Object\.freeze/);
+    assert.match(proof, /runtimeFunctions = DIRECT_UPLOAD_RUNTIME_FUNCTION_NAMES/);
     assert.match(proof, /runtimeFunctions\.length \+ privateFunctions\.length/);
     assert.match(proof, /DirectUploadReference[\s\S]*runtime_crud: false/);
     assert.match(proof, /DirectUpload[\s\S]*relrowsecurity: false/);

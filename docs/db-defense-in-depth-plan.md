@@ -161,14 +161,17 @@ Staging implementation checklist:
   Release-0 artifact and its audit still expect CRUD while RLS is off; do not
   substitute the combined Phase-A provisioning artifact into that release.
 - Source-derived grant inventory as of this plan update:
-  - 59 Prisma model tables need runtime table DML grants;
+  - 60 Prisma model tables exist. 59 need runtime table DML grants;
+    `DirectUploadReference` is deliberately service-only, receives no runtime
+    table privileges, and is reached only through fixed reviewed functions;
   - 21 Prisma enum types need runtime `USAGE`, currently covered only if live
     DB type privileges still match Postgres defaults or explicit grants exist;
-  - 3 custom `grainline_*` functions are source-tracked: the `User`
-    notification preference check constraint
-    (`grainline_notification_preferences_valid`) plus the two pre-RLS
-    SavedSearch owner RPCs (`grainline_saved_search_list` and
-    `grainline_saved_search_delete_one`);
+  - 90 custom `grainline_*` functions are source-tracked across preferences,
+    SavedSearch, Notification, Conversation/Message and DirectUpload. The
+    preference catalog includes `grainline_notification_preferences_valid`.
+    The
+    DirectUpload catalog explicitly distinguishes 21 runtime-callable fixed
+    operations from 12 runtime-private generic/trigger functions;
   - 1 source-derived extension is required by runtime search SQL: `pg_trgm`.
     Provisioning grants runtime `EXECUTE` on that extension's functions
     explicitly so a future `PUBLIC` function lockdown does not break

@@ -456,6 +456,18 @@ The scaffold is not evidence of a pass until the workflow runs successfully.
 It uses only disposable `example.invalid` fixtures, removes them in `finally`,
 and records that neither persistent staging nor production changed.
 
+The first workflow execution, GitHub Actions run `30224585194`, applied the
+entire migration tree, converged the runtime role, and then stopped at the
+global grant audit before fixtures ran. The audit still assumed that every
+Prisma table required CRUD and every `grainline_*` function required runtime
+EXECUTE. That old assumption correctly failed against the new least-privilege
+shape: `DirectUploadReference` has zero table grants and 12 generic/trigger
+functions are runtime-private. The correction keeps the audit hard while
+classifying exactly that one service-only table and those 12 functions,
+teaches provisioning to converge the same ACLs, and updates the schema-wide
+inventory from 59 to 60 models. Do not reinterpret this stopped run as
+authority evidence; the actual proof did not execute.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
