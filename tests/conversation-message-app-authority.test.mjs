@@ -58,6 +58,22 @@ describe("Conversation and Message application authority conversion", () => {
     }
   });
 
+  it("routes initial participant or reported-staff thread reads through bounded projections", () => {
+    const helper = source("src/lib/conversationMessageAuthority.ts");
+    const page = source("src/app/messages/[id]/page.tsx");
+    const renderStart = page.indexOf("const conversation = await getActorConversation(me.id, id)");
+    const renderEnd = page.indexOf("// --- Server actions", renderStart);
+    const render = page.slice(renderStart, renderEnd);
+
+    assert.ok(renderStart >= 0);
+    assert.match(render, /listLatestActorMessages\(me\.id, conversation, 201\)/);
+    assert.match(render, /const messages = messageRows\.slice\(-200\)/);
+    assert.doesNotMatch(render, /prisma\.(?:conversation|message)\./);
+    assert.match(helper, /new Date\(conversation\.updatedAt\.getTime\(\) \+ 1\)/);
+    assert.match(helper, /direction: "before"/);
+    assert.match(helper, /return rows\.reverse\(\)/);
+  });
+
   it("moves unread counting behind the visible-thread recipient projection", () => {
     const route = source("src/app/api/messages/unread-count/route.ts");
     const helper = source("src/lib/conversationMessageAuthority.ts");

@@ -432,6 +432,45 @@ export async function listActorMessages(
   return rows.map((row) => validateMessageRow(row, conversationId));
 }
 
+export async function listLatestActorMessages(
+  userId: string,
+  conversation: Pick<ActorConversation, "id" | "updatedAt">,
+  limit: number,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<ActorMessage[]> {
+  if (
+    !Number.isSafeInteger(limit)
+    || limit < 1
+    || limit > 201
+    || !(conversation.updatedAt instanceof Date)
+    || !Number.isFinite(conversation.updatedAt.getTime())
+    || conversation.updatedAt.getTime() >= 8_640_000_000_000_000
+  ) {
+    throw new TypeError("latest message recipient RPC input is invalid");
+  }
+
+  // The fixed before-page projection is newest-first and requires a complete
+  // cursor. Conversation.updatedAt is kept monotonic with Message.createdAt by
+  // the insert trigger; one millisecond makes the bound exclusive even when
+  // the newest message and conversation share the same timestamp. The
+  // conversation id is only the required tie-break value because every
+  // included message timestamp is strictly below this upper bound.
+  const rows = await listActorMessages(
+    userId,
+    conversation.id,
+    {
+      direction: "before",
+      cursor: {
+        createdAt: new Date(conversation.updatedAt.getTime() + 1),
+        id: conversation.id,
+      },
+      limit,
+    },
+    db,
+  );
+  return rows.reverse();
+}
+
 export async function countActorUnreadMessages(
   userId: string,
   db: ConversationMessageAuthorityClient = prisma,

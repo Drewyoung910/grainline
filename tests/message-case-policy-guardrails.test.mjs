@@ -89,9 +89,9 @@ describe("message and case policy guardrails", () => {
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
     );
 
-    assert.match(threadPage, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\],\s*take: 201/);
+    assert.match(threadPage, /listLatestActorMessages\(me\.id, conversation, 201\)/);
     assert.match(threadPage, /const hasMoreMessagesBefore = messageRows\.length > 200/);
-    assert.match(threadPage, /const messages = messageRows\.slice\(0, 200\)\.reverse\(\)/);
+    assert.match(threadPage, /const messages = messageRows\.slice\(-200\)/);
     assert.match(threadPage, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
     assert.match(customOrderRequest, /sendActorCustomOrderRequest\(input\)/);
     assert.match(customFunction, /message_sent_at := pg_catalog\.timezone\('UTC', pg_catalog\.clock_timestamp\(\)\)/);

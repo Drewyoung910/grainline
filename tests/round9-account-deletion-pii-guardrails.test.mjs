@@ -140,9 +140,9 @@ describe("Round 9 account deletion PII guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const threadPage = source("src/app/messages/[id]/page.tsx");
     const inboxPage = source("src/app/messages/page.tsx");
-    const threadRenderQueryStart = threadPage.indexOf("const convo = await prisma.conversation.findFirst");
+    const threadRenderQueryStart = threadPage.indexOf("const conversation = await getActorConversation(me.id, id)");
     const threadRenderQueryEnd = threadPage.indexOf("  // --- Server actions", threadRenderQueryStart);
-    assert.ok(threadRenderQueryStart > -1, "thread page must keep a conversation render query");
+    assert.ok(threadRenderQueryStart > -1, "thread page must keep an actor-scoped conversation render projection");
     assert.ok(threadRenderQueryEnd > threadRenderQueryStart, "thread render query must stay bounded before side effects");
     const threadRenderQuery = threadPage.slice(
       threadRenderQueryStart,

@@ -147,7 +147,10 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     const schema = source("prisma/schema.prisma");
     const migration = source("prisma/migrations/20260722190000_prepare_conversation_message_scale_indexes/migration.sql");
 
-    assert.match(page, /take: 201/);
+    assert.match(page, /listLatestActorMessages\(me\.id, conversation, 201\)/);
+    assert.match(authority, /direction: "before"/);
+    assert.match(authority, /new Date\(conversation\.updatedAt\.getTime\(\) \+ 1\)/);
+    assert.match(authority, /return rows\.reverse\(\)/);
     assert.match(page, /initialHasMoreBefore=\{hasMoreMessagesBefore\}/);
     assert.match(thread, /Load earlier messages/);
     assert.match(thread, /appendCursorParams\(url, cursor, "before"\)/);

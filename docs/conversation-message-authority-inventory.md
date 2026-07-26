@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 14 direct Prisma Conversation or Message operations;
+- 12 direct Prisma Conversation or Message operations;
 - 2 raw SQL table references;
-- 16 remaining protected-table access points across 2 files.
+- 14 remaining protected-table access points across 2 files.
 
 The first application conversion checkpoint removed all seven direct
 Conversation/Message operations from list polling, stream polling, mark-read
@@ -82,6 +82,15 @@ and per-thread unread counts before the 51-row cap. The typed wrapper validates
 participants, actor-specific archive state, listing/message projection shape,
 timestamps and non-negative safe unread counts. Seller profile display-name
 and avatar enrichment remains a separate unprotected-table query.
+
+The tenth checkpoint converted initial thread rendering. Conversation metadata
+uses the participant/reported-staff projection before separately loading the
+two retained User rows and optional Listing display context. The latest-message
+window uses the monotonic Conversation timestamp plus one millisecond as a
+strict upper cursor for the fixed newest-first before-page projection, reverses
+the bounded result for chronological display and drops only the oldest overflow
+row. This preserves the latest-200 long-thread behavior rather than accidentally
+rendering the oldest 200 through the projection's no-cursor mode.
 
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
@@ -162,7 +171,7 @@ This inventory is complete only when every protected access (55 in the original
 baseline, 53 after compatible refactors, 37 after the first four authority
 conversion checkpoints, 30 after the first structured writes, 26 after
 custom-order-ready, 23 after seller metrics, 18 after account deletion, 16
-after inbox conversion) has an explicit
+after inbox conversion, 14 after initial thread rendering) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

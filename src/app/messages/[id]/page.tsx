@@ -36,6 +36,10 @@ import {
   lockConversationParticipantPair,
 } from "@/lib/conversationStartAccess";
 import { canAttachConversationContextListing } from "@/lib/conversationStartState";
+import {
+  getActorConversation,
+  listLatestActorMessages,
+} from "@/lib/conversationMessageAuthority";
 
 export default async function ThreadPage({
   params,
@@ -60,12 +64,19 @@ export default async function ThreadPage({
     : null;
   const canStaffReviewThread = !!reportedThread;
 
-  const convo = await prisma.conversation.findFirst({
-    where: canStaffReviewThread ? { id } : { id, OR: [{ userAId: me.id }, { userBId: me.id }] },
-    include: {
-      userA: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
-      userB: { select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true } },
-      contextListing: {
+  const conversation = await getActorConversation(me.id, id);
+  if (!conversation) return notFound();
+  const conversationUsers = await prisma.user.findMany({
+    where: { id: { in: [conversation.userAId, conversation.userBId] } },
+    select: { id: true, name: true, imageUrl: true, banned: true, deletedAt: true },
+  });
+  const userById = new Map(conversationUsers.map((user) => [user.id, user]));
+  const userA = userById.get(conversation.userAId);
+  const userB = userById.get(conversation.userBId);
+  if (!userA || !userB) return notFound();
+  const contextListing = conversation.contextListingId
+    ? await prisma.listing.findUnique({
+        where: { id: conversation.contextListingId },
         select: {
           id: true,
           title: true,
@@ -85,10 +96,14 @@ export default async function ThreadPage({
           },
           photos: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
         },
-      },
-    },
-  });
-  if (!convo) return notFound();
+      })
+    : null;
+  const convo = {
+    ...conversation,
+    userA,
+    userB,
+    contextListing,
+  };
   const isParticipant = convo.userAId === me.id || convo.userBId === me.id;
   const isStaffReviewMode = canStaffReviewThread && !isParticipant;
 
@@ -162,23 +177,9 @@ export default async function ThreadPage({
     ? publicSellerPath(otherSellerProfile.id, otherSellerProfile.displayName)
     : null;
 
-  const messageRows = await prisma.message.findMany({
-    where: { conversationId: convo.id },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: 201,
-    select: {
-      id: true,
-      senderId: true,
-      recipientId: true,
-      body: true,
-      kind: true,
-      contextListing: { select: { id: true, title: true } },
-      createdAt: true,
-      readAt: true,
-    },
-  });
+  const messageRows = await listLatestActorMessages(me.id, conversation, 201);
   const hasMoreMessagesBefore = messageRows.length > 200;
-  const messages = messageRows.slice(0, 200).reverse();
+  const messages = messageRows.slice(-200);
 
   // --- Server actions --------------------------------------------------------
   async function sendMessage(_prev: unknown, formData: FormData) {

@@ -53,6 +53,9 @@ discovery and Message redaction behind the participant export projection and
 fixed account-deletion authority function, reducing the surface to 18. The
 ninth moved inbox visibility, search, latest-message selection, unread grouping
 and keyset bounds into one participant projection, reducing the surface to 16.
+The tenth moved initial participant/reported-staff thread metadata and the
+latest 200-message window behind bounded projections, reducing the surface to
+14 without changing long-thread chronology.
 Policy/table-grant activation and FORCE remain later separate releases.
 
 ## Security objective
@@ -74,9 +77,9 @@ separate from Notification, Order/payment/shipping and Case/CaseMessage.
 The original machine inventory recorded 50 direct ORM operations and 5 raw SQL
 table references. Compatible audit refactors left 45 direct ORM operations and
 8 raw SQL references across 17 runtime files (53 total protected access
-points). The first nine authority checkpoints removed thirty-seven direct
-operations, so 14 ORM operations plus 2 raw references remain across 2 runtime
-files (16 total).
+points). The first ten authority checkpoints removed thirty-nine direct
+operations, so 12 ORM operations plus 2 raw references remain across 2 runtime
+files (14 total).
 The surface includes the user inbox and
 thread, list and stream polling, unread counts, per-recipient mark-read,
 archive state, first-response metrics, email throttling, account export,
@@ -210,10 +213,11 @@ The direct runtime table query with no context must return zero rows.
 ## Compatibility and rollout sequence
 
 1. Inventory and pin every current access path. **Complete: original 55-path
-   migration baseline; current authority-conversion surface is 16 protected
+   migration baseline; current authority-conversion surface is 14 protected
    accesses after converting polling/read, privacy, report-target,
    custom-order reads, conversation start and all three structured write
-   families, aggregate seller response metrics, account deletion and inbox.**
+   families, aggregate seller response metrics, account deletion, inbox and
+   initial thread rendering.**
 2. Complete `docs/conversation-message-pre-rls-audit.md` and fix its activation
    blockers before authority SQL. **Complete for the preparation boundary:
    app findings fixed; invariant proof, Extra-High review, protected production

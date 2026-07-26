@@ -39,10 +39,12 @@ describe("custom-order and staff-thread audit follow-ups", () => {
 
   it("lets staff view reported message threads without becoming a participant", () => {
     const threadPage = source("src/app/messages/[id]/page.tsx");
+    const recipientSql = source("docs/rls-drafts/conversation-message-recipient-access.sql");
 
     assert.match(threadPage, /const isStaff = me\.role === "ADMIN" \|\| me\.role === "EMPLOYEE"/);
     assert.match(threadPage, /targetType: "MESSAGE_THREAD", targetId: id, resolved: false/);
-    assert.match(threadPage, /where: canStaffReviewThread \? \{ id \} : \{ id, OR: \[\{ userAId: me\.id \}, \{ userBId: me\.id \}\] \}/);
+    assert.match(threadPage, /getActorConversation\(me\.id, id\)/);
+    assert.match(recipientSql, /public\.grainline_conversation_staff_report_visible\(conversation\.id\)/);
     assert.match(threadPage, /const isStaffReviewMode = canStaffReviewThread && !isParticipant/);
     assert.match(threadPage, /\{isParticipant && <MarkReadClient id=\{id\} \/>\}/);
     assert.match(threadPage, /isParticipant && !otherUnavailableReason/);
