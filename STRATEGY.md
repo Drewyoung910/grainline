@@ -45,13 +45,14 @@ but not as one migration or production activation. Preserve the established
 meaning of Bucket B as `Notification` so historical rollout evidence stays
 unambiguous. Prepare shared inventories and infrastructure across later tables
 where useful, then activate independently reviewed, tightly coupled groups.
-`Notification` is complete; `Conversation` + `Message` is the next approved
-group. `Cart` + `CartItem`; `SavedBlogPost`; aggregate/fanout tables; the
-order/payment/shipping group; and `Case` +
-`CaseMessage`. Each group must be independently deployable, observable, and
-reversible before the next group begins. Never combine notification fanout,
-messaging, checkout/payment, fulfillment, and dispute policy activation into a
-single release.
+`Notification` and `Conversation` + `Message` are complete in production
+through FORCE and actual pooled-runtime proof. `Case` + `CaseMessage` is the
+active, separately approved pre-policy audit. `Cart` + `CartItem`;
+`SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
+remain later independent groups. Each group must be independently deployable,
+observable, and reversible before the next group begins. Never combine
+notification fanout, messaging, checkout/payment, fulfillment, and dispute
+policy activation into a single release.
 
 Conversation and Message may be designed and activated together because
 Message visibility and write validity depend on its parent Conversation. Pin
@@ -79,8 +80,10 @@ Before drafting RLS for each sensitive group, complete a table-specific
 behavior and security audit. Confirm current product semantics, actor
 authorization, integrity constraints, provider/background operations,
 retention/export/deletion, concurrency, indexes and test coverage; fix
-load-bearing defects first so policies do not encode them. For Conversation and
-Message the active record is `docs/conversation-message-pre-rls-audit.md`.
+load-bearing defects first so policies do not encode them. Conversation and
+Message are complete; their retained record is
+`docs/conversation-message-pre-rls-audit.md`. The active Case/CaseMessage record
+is `docs/case-case-message-pre-rls-audit.md`.
 
 ### Messaging architecture decision (2026-07-22)
 
@@ -562,8 +565,9 @@ Sanitized mode-0600 evidence
 `notification-production-postflight-213f2f1d0369.json` has SHA-256
 `637d85180b6b78f0e3edd9da911dcf906f8edcd9eaaf3a4888c5ae432b592bad` and
 retains no raw identifier or credential. Bucket B is complete; retain the
-protected preactivation backup through the rollback window and treat
-Conversation plus Message as the next separate sensitive-data group.
+protected preactivation backup through the rollback window. Conversation plus
+Message subsequently completed as the next separate production group;
+Case/CaseMessage is now the active pre-policy audit.
 
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped

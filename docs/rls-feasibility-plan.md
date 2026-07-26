@@ -178,6 +178,12 @@ rollout phase B (`FORCE`) is still part of Bucket A; it is not Bucket B.
 
 ## Prototype Sequence
 
+This is the original prototype ordering, not the current rollout queue.
+SavedSearch, Notification, and Conversation/Message have since completed.
+`docs/rls-case-case-message-plan.md` records the deliberate current decision to
+audit Case/CaseMessage next as a separate narrow boundary while keeping
+Order/payment/shipping as its own later activation.
+
 1. **SavedSearch**: owner column is direct (`SavedSearch.userId`). Prototype
    current-user `SELECT`/`INSERT`/`DELETE` first as the lowest-risk real-table
    adoption proof, including the existing account-deletion transaction.
