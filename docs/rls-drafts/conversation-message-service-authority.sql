@@ -1,6 +1,6 @@
--- DRAFT ONLY. Fixed Conversation/Message write authority for disposable proof.
--- Do not promote until every structured family, cleanup path, race and caller
--- conversion is complete.
+-- REVIEWED SOURCE FOR FUNCTIONS-ONLY PREPARATION. Every structured family,
+-- cleanup path, and race must pass before promotion. Compatible caller
+-- conversion follows installation and precedes RLS/table-grant activation.
 --
 -- Private cores are owner-only. The runtime role receives EXECUTE only on the
 -- fixed public wrappers listed at the end; it never receives direct table DML.

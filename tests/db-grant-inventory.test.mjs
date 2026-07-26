@@ -5,6 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import pg from "pg";
+import {
+  CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+  CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
+} from "../scripts/conversation-message-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const {
@@ -23,6 +27,7 @@ const {
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
+  collectConversationMessageFunctionIssues,
   collectNotificationFunctionIssues,
   collectNotificationPolicyIssues,
   collectTablePrivilegeAllowlistIssues,
@@ -551,8 +556,84 @@ describe("database grant inventory guardrails", () => {
     assert.match(issues, /unexpected Notification RPC grainline_notification_unreviewed/);
   });
 
+  it("pins Conversation/Message authority signatures, modes, owners, and ACLs", () => {
+    const runtimeRole = "grainline_app_runtime";
+    const migrationRole = "grainline_migration_owner";
+    const exactRows = CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map(
+      (entry) => ({
+        function_name: entry.name,
+        args: entry.signature,
+        argument_types: entry.signature,
+        owner_name: migrationRole,
+        security_definer: entry.securityDefiner,
+        leakproof: false,
+        volatility: entry.volatility,
+        parallel_safety: entry.parallelSafety,
+        function_kind: "f",
+        language_name: entry.language,
+        function_config: ["search_path=pg_catalog"],
+        execute_priv: entry.runtimeExecute,
+        public_execute: false,
+        runtime_direct_execute: entry.runtimeExecute,
+        runtime_execute_grantable: false,
+        other_role_execute: [],
+      }),
+    );
+
+    assert.deepEqual(
+      collectConversationMessageFunctionIssues(
+        exactRows,
+        runtimeRole,
+        migrationRole,
+      ),
+      [],
+    );
+    const drifted = exactRows.map((row) => (
+      row.function_name === "grainline_conversation_lock_pair_core"
+        ? {
+            ...row,
+            public_execute: true,
+            runtime_direct_execute: true,
+            execute_priv: true,
+          }
+        : row
+    ));
+    const issues = collectConversationMessageFunctionIssues(
+      [
+        ...drifted,
+        { ...exactRows[0] },
+        {
+          ...exactRows[0],
+          function_name: "grainline_conversation_unreviewed",
+        },
+      ],
+      runtimeRole,
+      migrationRole,
+    ).join("\n");
+    assert.match(
+      issues,
+      /grainline_conversation_lock_pair_core.*must revoke EXECUTE from PUBLIC/,
+    );
+    assert.match(
+      issues,
+      /grainline_conversation_lock_pair_core.*must remain runtime-ungranted/,
+    );
+    assert.match(
+      issues,
+      /grainline_conversation_staff_report_visible must have exactly one overload/,
+    );
+    assert.match(
+      issues,
+      /unexpected Conversation\/Message RPC grainline_conversation_unreviewed/,
+    );
+  });
+
   it("derives the current runtime grant surface from schema and migrations", () => {
     const inventory = deriveGrantInventory();
+    const conversationMessageAuthorityPrepared =
+      CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.every(
+        (entry) => inventory.functions.includes(entry.name),
+      );
 
     assert.equal(inventory.tables.length, 58);
     assert.equal(inventory.enums.length, 20);
@@ -566,12 +647,18 @@ describe("database grant inventory guardrails", () => {
       "grainline_notification_preferences_valid",
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
+      ...(conversationMessageAuthorityPrepared
+        ? CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name)
+        : []),
     ].sort((left, right) => left.localeCompare(right)));
     assert.deepEqual(inventory.extensions, ["pg_trgm"]);
     assert.deepEqual(inventory.sequenceSqlReferences, []);
     assert.deepEqual(inventory.autoincrementFields, []);
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
-    assert.equal(inventory.publicRevokes.length, 32);
+    assert.equal(
+      inventory.publicRevokes.length,
+      32 + (conversationMessageAuthorityPrepared ? 25 : 0),
+    );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
     ));
@@ -589,6 +676,17 @@ describe("database grant inventory guardrails", () => {
         true,
         `${functionName} must revoke PUBLIC execution in the preparation migration`,
       );
+    }
+    if (conversationMessageAuthorityPrepared) {
+      for (const { name } of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
+        assert.equal(
+          inventory.publicRevokes.some((statement) => (
+            statement.includes(`public.${name}(`)
+          )),
+          true,
+          `${name} must revoke PUBLIC execution in the preparation migration`,
+        );
+      }
     }
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, []);
     assert.deepEqual(inventory.rlsForceTables, ["Notification", "SavedSearch"]);
@@ -1364,8 +1462,31 @@ describe("database grant inventory guardrails", () => {
     for (const functionName of RUNTIME_PRIVATE_FUNCTIONS.filter(
       (name) => name !== "grainline_notification_create_core",
     )) {
-      assert.match(provision, new RegExp(`public\\."${functionName}"\\(\\)`));
+      assert.match(
+        provision,
+        new RegExp(`public\\."${functionName}"\\(`),
+      );
     }
+    for (const functionName of CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES) {
+      assert.doesNotMatch(
+        provision,
+        new RegExp(
+          `GRANT EXECUTE ON FUNCTION public\\."${functionName}"\\(`,
+        ),
+      );
+    }
+    const conversationMessagePublicCatalog = provision.match(
+      /WITH conversation_message_public_authority\(function_signature\) AS \(\s+VALUES([\s\S]*?)\n\)\nSELECT format/,
+    );
+    assert.ok(conversationMessagePublicCatalog);
+    assert.equal(
+      (
+        conversationMessagePublicCatalog[1].match(
+          /\('public\."grainline_[^"]+"\(/g,
+        ) ?? []
+      ).length,
+      19,
+    );
     const savedSearchGrantIndex = provision.indexOf('public."SavedSearch",');
     const savedSearchUpdateRevokeIndex = provision.indexOf(
       'REVOKE UPDATE ON TABLE public."SavedSearch" FROM :"runtime_role"',

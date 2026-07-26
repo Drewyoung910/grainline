@@ -11,6 +11,10 @@ import {
   parseCanonicalPostgresDatabaseName,
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
+import {
+  CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
+  CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
+} from "./conversation-message-authority-catalog.mjs";
 
 const { Client } = pg;
 
@@ -134,6 +138,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_message_participants_match_conversation",
   "grainline_message_route_immutable",
   "grainline_message_maintain_thread_state",
+  ...CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
   ...NOTIFICATION_PRIVATE_RPC_FUNCTIONS,
 ]);
 
@@ -646,6 +651,130 @@ export function collectNotificationFunctionIssues(rows, runtimeRole, migrationRo
       issues.push(`unexpected Notification RPC ${row.function_name}(${row.args ?? "unknown"})`);
     }
   }
+  return issues;
+}
+
+export function collectConversationMessageFunctionIssues(
+  rows,
+  runtimeRole,
+  migrationRole,
+) {
+  const issues = [];
+  const functionRows = Array.isArray(rows) ? rows : [];
+  const expectedNames = new Set(
+    CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
+  );
+
+  for (const expected of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
+    const namedRows = functionRows.filter(
+      (row) => row.function_name === expected.name,
+    );
+    if (namedRows.length === 0) {
+      issues.push(
+        `missing expected Conversation/Message RPC ${expected.name}`,
+      );
+      continue;
+    }
+    if (namedRows.length !== 1) {
+      issues.push(
+        `Conversation/Message RPC ${expected.name} must have exactly one overload`,
+      );
+      continue;
+    }
+
+    const row = namedRows[0];
+    const label = `${expected.name}(${row.argument_types ?? row.args ?? "unknown"})`;
+    const actualArgumentTypes = typeof row.argument_types === "string"
+      ? row.argument_types.replace(/\s*,\s*/g, ",")
+      : row.argument_types;
+    const expectedArgumentTypes = expected.signature.replace(/\s*,\s*/g, ",");
+    if (actualArgumentTypes !== expectedArgumentTypes) {
+      issues.push(
+        `${label} has argument types ${row.argument_types ?? "unknown"}, expected ${expected.signature}`,
+      );
+    }
+    if (row.owner_name !== migrationRole) {
+      issues.push(
+        `${label} owned by ${row.owner_name ?? "unknown"}, expected ${migrationRole}`,
+      );
+    }
+    if (row.owner_name === runtimeRole) {
+      issues.push(`runtime role owns Conversation/Message RPC ${label}`);
+    }
+    if (Boolean(row.security_definer) !== expected.securityDefiner) {
+      issues.push(
+        `${label} must be ${expected.securityDefiner ? "SECURITY DEFINER" : "SECURITY INVOKER"}`,
+      );
+    }
+    if (row.leakproof) issues.push(`${label} must not be LEAKPROOF`);
+    if (row.volatility !== expected.volatility) {
+      issues.push(
+        `${label} has volatility ${row.volatility ?? "unknown"}, expected ${expected.volatility}`,
+      );
+    }
+    if (row.parallel_safety !== expected.parallelSafety) {
+      issues.push(
+        `${label} has parallel safety ${row.parallel_safety ?? "unknown"}, expected ${expected.parallelSafety}`,
+      );
+    }
+    if (row.function_kind !== "f") {
+      issues.push(`${label} must be an ordinary function`);
+    }
+    if (row.language_name !== expected.language) {
+      issues.push(
+        `${label} uses ${row.language_name ?? "unknown"}, expected ${expected.language}`,
+      );
+    }
+    const functionConfig = Array.isArray(row.function_config)
+      ? row.function_config.map(String).sort()
+      : [];
+    if (
+      functionConfig.length !== 1
+      || functionConfig[0] !== "search_path=pg_catalog"
+    ) {
+      issues.push(`${label} must set only search_path=pg_catalog`);
+    }
+    if (row.public_execute) {
+      issues.push(`${label} must revoke EXECUTE from PUBLIC`);
+    }
+    if (row.runtime_execute_grantable) {
+      issues.push(`${label} runtime EXECUTE must not be grantable`);
+    }
+    if (
+      Array.isArray(row.other_role_execute)
+      && row.other_role_execute.length > 0
+    ) {
+      issues.push(
+        `${label} grants EXECUTE to unexpected roles: ${row.other_role_execute.join(", ")}`,
+      );
+    }
+    if (Boolean(row.runtime_direct_execute) !== expected.runtimeExecute) {
+      issues.push(
+        expected.runtimeExecute
+          ? `${label} runtime role must have direct EXECUTE`
+          : `${label} must remain runtime-ungranted`,
+      );
+    }
+    if (
+      Object.hasOwn(row, "execute_priv")
+      && Boolean(row.execute_priv) !== expected.runtimeExecute
+    ) {
+      issues.push(
+        expected.runtimeExecute
+          ? `${label} runtime role lacks effective EXECUTE`
+          : `${label} runtime role must not have effective EXECUTE`,
+      );
+    }
+  }
+
+  for (const row of functionRows) {
+    if (!expectedNames.has(row.function_name)) {
+      issues.push(
+        `unexpected Conversation/Message RPC ${row.function_name}(${row.argument_types ?? row.args ?? "unknown"})`,
+      );
+    }
+  }
+
   return issues;
 }
 
@@ -1520,6 +1649,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     `SELECT
         p.proname AS function_name,
         pg_get_function_identity_arguments(p.oid) AS args,
+        pg_catalog.oidvectortypes(p.proargtypes) AS argument_types,
         pg_get_userbyid(p.proowner) AS owner_name,
         has_function_privilege($1, p.oid, 'EXECUTE') AS execute_priv,
         p.prosecdef AS security_definer,
@@ -1605,6 +1735,25 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     issues.push(
       ...collectNotificationFunctionIssues(
         functionResult.rows.filter((row) => notificationFunctionNames.has(row.function_name)),
+        runtimeRole,
+        migrationRole,
+      ),
+    );
+  }
+
+  const conversationMessageFunctionNames = new Set(
+    CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
+  );
+  if (
+    [...conversationMessageFunctionNames].every(
+      (name) => inventory.functions.includes(name),
+    )
+  ) {
+    issues.push(
+      ...collectConversationMessageFunctionIssues(
+        functionResult.rows.filter(
+          (row) => conversationMessageFunctionNames.has(row.function_name),
+        ),
         runtimeRole,
         migrationRole,
       ),

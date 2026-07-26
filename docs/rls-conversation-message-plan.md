@@ -16,7 +16,13 @@ in production: protected migration `30183709885` applied exact main
 `ac1f519e`, and read-only postflight `30183765803` returned zero missing,
 repairable, unrepairable, invalid and duplicate custom-link sources with every
 other anomaly count zero. Functions-only promotion is next. No authority
-function or policy has been applied to a persistent database.
+function or policy has been applied to a persistent database. The exact
+functions-only disposable candidate is
+`20260726022500_prepare_conversation_message_authority` at SHA-256
+`9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`.
+It contains 25 functions/function ACLs, no RLS, policies or table-grant
+changes, and still awaits its fresh candidate-aligned CI proof before
+promotion.
 
 ## Security objective
 

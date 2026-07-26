@@ -29,7 +29,12 @@ and invariant/search-index migrations are live. Their actual pooled-runtime
 postflight passed. Conversation/Message RLS is still disabled with zero
 policies; the exactly classified one-row legacy custom-link cleanup and its
 zero-count aggregate postflight are complete in production. Functions-only
-authority promotion is next. Reverify live state before repeating these claims.
+authority promotion is next. Its disposable candidate is byte-pinned as
+`20260726022500_prepare_conversation_message_authority` with SHA-256
+`9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`;
+it must pass the loopback functions-only compatibility/catalog proof before
+promotion and does not authorize RLS or table-grant activation. Reverify live
+state before repeating these claims.
 
 ## Tool map
 

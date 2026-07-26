@@ -2,10 +2,15 @@
 
 Opened 2026-07-25. Status: the complete recipient/fixed-service authority
 catalog passed disposable PostgreSQL and full CI at `7a7654c3` in run
-`30180610380` on `codex/rls-conversation-message-authority-20260725`. The SQL
-remains a disposable draft: it is not a Prisma migration, is not applied to any
-persistent database and does not authorize activation. The live production
-boundary remains RLS disabled with zero Conversation/Message policies.
+`30180610380`. The exact 25-function, functions-only candidate is now generated
+from byte-pinned sources as
+`20260726022500_prepare_conversation_message_authority`, disposable SHA-256
+`9b56eb4c0e25e5de5266998f29a19fb0c7173c49f2b83266f3223542c7feeb07`.
+It is not yet a promoted release and is not applied to any persistent database.
+Candidate CI must prove old direct CRUD, new fixed calls, exact ACL/catalog
+state, RLS disabled and zero policies before the executable bytes may be
+promoted. The live production boundary remains RLS disabled with zero
+Conversation/Message policies.
 
 ## Invariants shared by every public database operation
 
@@ -182,6 +187,17 @@ uploaded artifact `8626401695` with zip SHA-256
 `e0b4a321c0c5e3c82c14127983eb9d059b2087c3867acc307a08f10b9f57a569`.
 Functions-only authority promotion is now the next gate; this evidence does not
 authorize policy/grant activation.
+
+The candidate builder refuses source-byte drift and extracts only the function
+definitions and function ACLs from
+`conversation-message-recipient-access.sql` and
+`conversation-message-service-authority.sql`. It rejects any Conversation or
+Message table `ALTER`, policy, table grant or table revoke in those sources.
+The disposable migration adds a role/RLS/policy/invariant-trigger preflight and
+an exact 25-signature, owner, security mode, volatility, parallel-safety,
+`search_path` and ACL postflight. Its CI staging target is loopback
+`grainline_ci` only; this checkpoint changes neither production nor persistent
+staging.
 
 ## Cross-group dependencies to retain
 

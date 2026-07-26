@@ -108,6 +108,20 @@ jobs:
         run: npx prisma migrate status
       - name: Audit final runtime grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Stage exact disposable Conversation and Message authority migration
+        run: npm run audit:rls-conversation-message-authority-candidate -- --stage
+        env:
+          CONVERSATION_MESSAGE_AUTHORITY_STAGING_ACK: I_ACKNOWLEDGE_LOOPBACK_CONVERSATION_MESSAGE_AUTHORITY_STAGING
+      - name: Apply exact disposable Conversation and Message authority migration
+        run: npx prisma migrate deploy
+      - name: Prove functions-only Conversation and Message compatibility
+        run: npm run audit:rls-conversation-message-authority-preparation
+        env:
+          CONVERSATION_MESSAGE_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Verify disposable authority migration status
+        run: npx prisma migrate status
+      - name: Audit functions-only Conversation and Message grants
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove Conversation and Message recipient RLS draft in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-recipient
         env:
