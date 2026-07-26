@@ -76,6 +76,19 @@ export type CreatedActorCommissionInterest = {
   created: boolean;
 };
 
+export type SentActorCustomOrderReady = {
+  messageId: string;
+  conversationId: string;
+  sellerUserId: string;
+  buyerUserId: string;
+  listingId: string;
+  listingTitle: string;
+  priceCents: number;
+  currency: string;
+  sellerName: string | null;
+  created: boolean;
+};
+
 type ConversationRpcRow = ActorConversation;
 
 type MessageRpcRow = {
@@ -512,6 +525,48 @@ export async function createActorCommissionInterest(
     || typeof row.created !== "boolean"
   ) {
     throw new TypeError("commission-interest write RPC returned an invalid row");
+  }
+  return row;
+}
+
+export async function sendActorCustomOrderReady(
+  sellerUserId: string,
+  listingId: string,
+  db: ConversationMessageAuthorityClient = prisma,
+): Promise<SentActorCustomOrderReady> {
+  const actorId = normalizeDbUserContextUserId(sellerUserId);
+  if (!isBoundedAuthorityId(listingId)) {
+    throw new TypeError("custom-order-ready write RPC input is invalid");
+  }
+  const rows = await db.$queryRaw<SentActorCustomOrderReady[]>`
+    SELECT *
+      FROM public.grainline_message_send_custom_order_ready(
+        ${randomUUID()}::text,
+        ${actorId}::text,
+        ${listingId}::text
+      )
+  `;
+  const row = rows[0];
+  if (
+    rows.length !== 1
+    || typeof row.messageId !== "string"
+    || !isBoundedAuthorityId(row.messageId)
+    || typeof row.conversationId !== "string"
+    || !isBoundedAuthorityId(row.conversationId)
+    || row.sellerUserId !== actorId
+    || typeof row.buyerUserId !== "string"
+    || !isBoundedAuthorityId(row.buyerUserId)
+    || row.buyerUserId === actorId
+    || row.listingId !== listingId
+    || typeof row.listingTitle !== "string"
+    || !Number.isSafeInteger(row.priceCents)
+    || row.priceCents < 0
+    || typeof row.currency !== "string"
+    || row.currency.length !== 3
+    || !isNullableString(row.sellerName)
+    || typeof row.created !== "boolean"
+  ) {
+    throw new TypeError("custom-order-ready write RPC returned an invalid row");
   }
   return row;
 }

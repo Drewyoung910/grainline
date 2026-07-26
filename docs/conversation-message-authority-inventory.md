@@ -10,9 +10,9 @@ active from this work.
 TypeScript tree. The audited baseline was 50 direct Prisma operations plus 5
 raw SQL references. After the first compatible audit fixes it currently finds:
 
-- 22 direct Prisma Conversation or Message operations;
-- 8 raw SQL table references;
-- 30 remaining protected-table access points across 6 files.
+- 19 direct Prisma Conversation or Message operations;
+- 7 raw SQL table references;
+- 26 remaining protected-table access points across 5 files.
 
 The first application conversion checkpoint removed all seven direct
 Conversation/Message operations from list polling, stream polling, mark-read
@@ -51,6 +51,14 @@ transaction. Removing the last consumers also removed the obsolete app-side
 conversation get/create helper rather than retaining dead migration
 scaffolding.
 
+The sixth checkpoint converted custom-order-ready. The app still accepts only
+the durable Listing id, resolves the seller identity without reading
+Conversation or Message, then invokes the fixed source-bound function. That
+function revalidates the private reservation, seller eligibility, participant
+pair, exact conversation and full existing-message evidence under the
+listing-scoped replay lock. A replay cannot create another message; it can
+idempotently heal a post-commit Notification failure without resending email.
+
 The test `tests/conversation-message-rls-inventory.test.mjs` pins the count and
 the exact per-file/model/operation summary. A new access path must therefore be
 classified here instead of silently inheriting broad runtime authority. The
@@ -84,7 +92,7 @@ will intentionally fall as the design is implemented.
 | `src/app/messages/new/page.tsx` and `src/lib/conversationStartAccess.ts` | Read-only start prompt plus explicit canonical conversation create/get and optional context listing | Start page/action converted; only the ordinary-send participant/listing/Conversation locks remain temporarily |
 | `src/app/api/messages/custom-order-request/route.ts` and `src/lib/customOrderRequestAccess.ts` | Custom-request conversation/message creation | Converted: one fixed database operation revalidates the participant/block/seller/listing sources and derives the structured message |
 | `src/app/api/commission/[id]/interest/route.ts` and `src/lib/commissionInterestMessageAccess.ts` | CommissionInterest, conversation and system-message transaction | Converted: one source-bound statement co-commits CommissionInterest, conversation, structured message and interested count |
-| `src/lib/customOrderReadyLink.ts` and its seller/admin callers | Deduplicated ready-link message | Listing-derived custom-order-ready operation |
+| `src/lib/customOrderReadyLink.ts` and its seller/admin callers | Deduplicated ready-link message | Converted: Listing-derived operation owns participant/source validation, exact replay evidence and message creation |
 | `src/app/dashboard/listings/custom/page.tsx` and buyer order detail | Participant lookup and latest custom request | Converted: bounded participant, pair and latest-request projections |
 | `src/app/api/account/export/route.ts` | Sent and received message export | Converted: one participant export RPC, split into stable sent/received payload collections |
 | `src/app/api/users/[id]/report/route.ts` | Message/thread report target validation | Converted: one participant existence RPC |
@@ -128,7 +136,8 @@ will intentionally fall as the design is implemented.
 
 This inventory is complete only when every protected access (55 in the original
 baseline, 53 after compatible refactors, 37 after the first four authority
-conversion checkpoints, 30 after structured writes) has an explicit
+conversion checkpoints, 30 after the first structured writes, 26 after
+custom-order-ready) has an explicit
 destination, direct runtime INSERT/UPDATE/DELETE is removed, the compatible app
 passes before and after RLS, and PostgreSQL proof covers participant isolation,
 reported-staff access, structured write families, block/account races, archive

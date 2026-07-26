@@ -79,6 +79,10 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
     );
+    const readyFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_account_deletion_email_key_core"),
+    );
 
     assert.match(access, /export async function lockConversationForMessageWrite/);
     assert.match(access, /FOR UPDATE/);
@@ -86,15 +90,14 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
     assert.match(commission, /createActorCommissionInterest\(input\)/);
     assert.match(authority, /public\.grainline_message_send_custom_request/);
     assert.match(authority, /public\.grainline_message_create_commission_interest/);
-    for (const writer of [customFunction, commissionFunction]) {
+    assert.match(authority, /public\.grainline_message_send_custom_order_ready/);
+    for (const writer of [customFunction, commissionFunction, readyFunction]) {
       assert.match(writer, /FOR UPDATE/);
       assert.match(writer, /message_sent_at := pg_catalog\.timezone\('UTC', pg_catalog\.clock_timestamp\(\)\)/);
       assert.match(writer, /INSERT INTO public\."Message"/);
     }
-    assert.match(ready, /FOR SHARE OF listing, seller/);
-    assert.match(ready, /lockConversationForMessageWrite\(tx, pair, source\.conversationId\)/);
-    assert.match(ready, /createdAt: messageSentAt/);
-    assert.match(ready, /updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null/);
+    assert.match(ready, /sendActorCustomOrderReady\(/);
+    assert.doesNotMatch(ready, /prisma\.(?:conversation|message)\./);
     assert.match(thread, /kind: "file"/);
   });
 
@@ -187,7 +190,11 @@ describe("Conversation and Message pre-RLS audit guardrails", () => {
       source("src/lib/conversationMessageAuthority.ts"),
       /\$\{input\.listingId\}::text/,
     );
-    assert.match(readyAccess, /contextListingId: source\.listingId/);
+    assert.match(readyAccess, /sendActorCustomOrderReady\(/);
+    assert.match(
+      source("docs/rls-drafts/conversation-message-service-authority.sql"),
+      /"contextListingId"[\s\S]*source_listing\.id/,
+    );
     assert.match(schema, /contextListing\s+Listing\?\s+@relation\("MessageContextListing"/);
     assert.match(contextMigration, /ADD COLUMN "contextListingId" TEXT/);
     assert.match(contextMigration, /Message_contextListingId_fkey/);

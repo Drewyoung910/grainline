@@ -1,5 +1,6 @@
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { startActorConversation } from "@/lib/conversationMessageAuthority";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 
 export type LockedConversationParticipantPair = {
   ok: true;
@@ -141,11 +142,8 @@ export async function startConversationForUser(
     );
     return { ok: true, ...conversation };
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError
-      && error.code === "P2010"
-    ) {
-      const sqlState = error.meta?.code;
+    const sqlState = getPrismaRawSqlState(error);
+    if (sqlState !== null) {
       if (sqlState === "22023") {
         return { ok: false, error: "invalid_participants" };
       }

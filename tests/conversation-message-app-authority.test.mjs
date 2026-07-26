@@ -107,10 +107,11 @@ describe("Conversation and Message application authority conversion", () => {
     assert.doesNotMatch(newMessage, /prisma\.conversation\./);
   });
 
-  it("routes structured custom-request and commission writes through fixed source-bound functions", () => {
+  it("routes structured message writes through fixed source-bound functions", () => {
     const helper = source("src/lib/conversationMessageAuthority.ts");
     const customAccess = source("src/lib/customOrderRequestAccess.ts");
     const commissionAccess = source("src/lib/commissionInterestMessageAccess.ts");
+    const readyAccess = source("src/lib/customOrderReadyLink.ts");
     const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
     const customFunction = serviceSql.slice(
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_request"),
@@ -120,21 +121,29 @@ describe("Conversation and Message application authority conversion", () => {
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_create_commission_interest"),
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
     );
+    const readyFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_account_deletion_email_key_core"),
+    );
 
     assert.match(helper, /public\.grainline_message_send_custom_request/);
     assert.match(helper, /public\.grainline_message_create_commission_interest/);
+    assert.match(helper, /public\.grainline_message_send_custom_order_ready/);
     assert.match(customAccess, /sendActorCustomOrderRequest\(input\)/);
     assert.match(commissionAccess, /createActorCommissionInterest\(input\)/);
+    assert.match(readyAccess, /sendActorCustomOrderReady\(/);
     assert.doesNotMatch(customAccess, /prisma\.(?:conversation|message)\./);
     assert.doesNotMatch(commissionAccess, /prisma\.(?:conversation|message)\./);
+    assert.doesNotMatch(readyAccess, /prisma\.(?:conversation|message)\./);
 
-    for (const sql of [customFunction, commissionFunction]) {
+    for (const sql of [customFunction, commissionFunction, readyFunction]) {
       assert.match(sql, /transaction_isolation'\) <> 'read committed'/);
       assert.match(sql, /grainline_conversation_lock_pair_core/);
-      assert.match(sql, /grainline_conversation_get_or_create_core/);
       assert.match(sql, /FOR UPDATE/);
       assert.match(sql, /INSERT INTO public\."Message"/);
     }
+    assert.match(customFunction, /grainline_conversation_get_or_create_core/);
+    assert.match(commissionFunction, /grainline_conversation_get_or_create_core/);
     assert.match(customFunction, /listing\."sellerId" = seller_profile_id/);
     assert.match(customFunction, /listing\."isPrivate" = false/);
     assert.match(customFunction, /'timelineLabel'/);
@@ -144,5 +153,9 @@ describe("Conversation and Message application authority conversion", () => {
     assert.match(commissionFunction, /'commission_interest_card',\s*true/);
     assert.match(commissionFunction, /created := false/);
     assert.match(commissionFunction, /existing_message\.message_count <> 1/);
+    assert.match(readyFunction, /listing\."reservedForUserId" = initial_source\.buyer_user_id/);
+    assert.match(readyFunction, /listing\."customOrderConversationId" = initial_source\.conversation_id/);
+    assert.match(readyFunction, /existing_message\.message_count <> 1/);
+    assert.match(readyFunction, /created := false/);
   });
 });

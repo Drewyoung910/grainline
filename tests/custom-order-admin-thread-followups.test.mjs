@@ -9,23 +9,28 @@ function source(path) {
 describe("custom-order and staff-thread audit follow-ups", () => {
   it("sends custom-order ready links from both immediate and admin approval paths", () => {
     const helper = source("src/lib/customOrderReadyLink.ts");
+    const authority = source("src/lib/conversationMessageAuthority.ts");
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const readyFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_account_deletion_email_key_core"),
+    );
     const customPage = source("src/app/dashboard/listings/custom/page.tsx");
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
 
-    assert.match(helper, /kind: "custom_order_link"/);
     assert.match(helper, /dedupScope: source\.listingId/);
     assert.match(helper, /sendCustomOrderReady/);
-    assert.match(helper, /pg_advisory_xact_lock/);
-    assert.match(helper, /hashtext\(\$\{listingId\}\)/);
+    assert.match(helper, /sendActorCustomOrderReady\(/);
+    assert.match(authority, /public\.grainline_message_send_custom_order_ready/);
+    assert.match(readyFunction, /pg_catalog\.pg_advisory_xact_lock\(\s*913349/);
+    assert.match(readyFunction, /pg_catalog\.hashtext\(p_listing_id\)/);
     assert.match(helper, /sendCustomOrderReadyLink\(\{ listingId \}: \{ listingId: string \}\)/);
     assert.doesNotMatch(helper, /conversationId,\s*sellerUserId,\s*buyerUserId,\s*sellerName,\s*listing,/);
-    assert.match(helper, /listing\."reservedForUserId" = \$\{initial\.reservedForUserId\}/);
-    assert.match(helper, /listing\."customOrderConversationId" = \$\{initial\.customOrderConversationId\}/);
-    assert.ok(
-      helper.indexOf("const existingLinkMessage = await tx.message.findFirst") <
-        helper.indexOf("await tx.message.create"),
-      "custom order ready link duplicate check must run inside the locked transaction before message create",
-    );
+    assert.match(readyFunction, /listing\."reservedForUserId" = initial_source\.buyer_user_id/);
+    assert.match(readyFunction, /listing\."customOrderConversationId" = initial_source\.conversation_id/);
+    assert.match(readyFunction, /existing_message\.message_count <> 1/);
+    assert.match(readyFunction, /'custom_order_link',\s*true,\s*message_sent_at/);
+    assert.match(helper, /existing valid message heals a prior post-commit notification failure/);
     assert.match(customPage, /sendCustomOrderReadyLink\(\{\s*listingId: created\.id,\s*\}\)/);
     assert.match(adminReview, /listing\.customOrderConversationId && listing\.reservedForUserId/);
     assert.equal((adminReview.match(/sendCustomOrderReadyLink\(\{\s*listingId:/g) ?? []).length, 2);

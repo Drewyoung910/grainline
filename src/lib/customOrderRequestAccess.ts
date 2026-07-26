@@ -1,7 +1,7 @@
-import { Prisma } from "@prisma/client";
 import {
   sendActorCustomOrderRequest,
 } from "@/lib/conversationMessageAuthority";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 
 type CreateCustomOrderRequestInput = {
   buyerUserId: string;
@@ -31,11 +31,8 @@ export async function createCustomOrderRequestMessage(
       const request = await sendActorCustomOrderRequest(input);
       return { ok: true, ...request };
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError
-        && error.code === "P2010"
-      ) {
-        const sqlState = error.meta?.code;
+      const sqlState = getPrismaRawSqlState(error);
+      if (sqlState !== null) {
         if (sqlState === "40001" && attempt === 0) continue;
         if (sqlState === "22023" || sqlState === "42501") {
           // The route performs friendly prechecks. Collapse transaction-local

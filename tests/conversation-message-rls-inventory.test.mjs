@@ -29,12 +29,6 @@ const EXPECTED_BASELINE = {
   "src/lib/conversationStartAccess.ts": {
     "Conversation.raw-sql-reference": 1,
   },
-  "src/lib/customOrderReadyLink.ts": {
-    "Message.findFirst": 1,
-    "Message.create": 1,
-    "Conversation.update": 1,
-    "Conversation.raw-sql-reference": 1,
-  },
   "src/lib/metrics.ts": {
     "Conversation.raw-sql-reference": 1,
     "Message.raw-sql-reference": 2,
@@ -45,8 +39,8 @@ describe("Conversation and Message RLS inventory", () => {
   const inventory = collectConversationMessageAccess();
 
   it("pins every current direct ORM and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 22);
-    assert.equal(inventory.rawSqlReferences.length, 8);
+    assert.equal(inventory.ormCalls.length, 19);
+    assert.equal(inventory.rawSqlReferences.length, 7);
     assert.deepEqual(summarizeConversationMessageAccess(inventory), EXPECTED_BASELINE);
   });
 

@@ -9,33 +9,31 @@ function source(path) {
 describe("message and case policy guardrails", () => {
   it("revalidates custom-order ready links against conversation and block policy", () => {
     const helper = source("src/lib/customOrderReadyLink.ts");
-    const policyCheck = helper.indexOf("const sources = await tx.$queryRaw");
-    const listingSourceLock = helper.indexOf("FOR SHARE OF listing, seller");
-    const conversationLock = helper.indexOf(
-      "lockConversationForMessageWrite(tx, pair, source.conversationId)",
+    const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const readyFunction = serviceSql.slice(
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_send_custom_order_ready"),
+      serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_account_deletion_email_key_core"),
     );
-    const messageCreate = helper.indexOf("await tx.message.create");
+    const pairLock = readyFunction.indexOf("grainline_conversation_lock_pair_core");
+    const listingSourceLock = readyFunction.indexOf("FOR SHARE OF listing, seller");
+    const conversationLock = readyFunction.indexOf('FROM public."Conversation" AS conversation');
+    const messageCreate = readyFunction.indexOf('INSERT INTO public."Message"');
 
-    assert.ok(policyCheck > -1, "ready-link helper must load the Listing/Conversation source inside the lock");
-    assert.ok(listingSourceLock > policyCheck, "ready-link source rows must lock inside the source query");
+    assert.ok(pairLock > -1, "ready-link authority must lock and validate the participant pair");
+    assert.ok(listingSourceLock > pairLock, "ready-link source rows must lock after the participant pair");
     assert.ok(
       conversationLock > listingSourceLock,
       "ready-link Conversation lock must follow Listing/Seller source locks",
     );
     assert.ok(messageCreate > conversationLock, "ready-link message must be created after policy locks");
-    assert.match(helper, /lockConversationParticipantPair\(/);
-    assert.match(helper, /source\.sellerUserId === source\.buyerUserId/);
-    assert.match(helper, /listing\.status = 'ACTIVE'/);
-    assert.match(helper, /listing\."isPrivate" = true/);
-    assert.match(helper, /seller\."chargesEnabled" = true/);
-    assert.match(helper, /seller\."stripeAccountId" IS NOT NULL/);
-    assert.match(helper, /seller\."vacationMode" = false/);
-    assert.match(helper, /isSystemMessage: true/);
-    assert.match(helper, /FOR SHARE OF listing, seller/);
-    assert.match(helper, /lockConversationForMessageWrite\(tx, pair, source\.conversationId\)/);
-    assert.doesNotMatch(helper, /FOR SHARE OF listing, seller,\s*conversation/);
-    assert.match(helper, /createdAt: messageSentAt/);
-    assert.match(helper, /data: \{ updatedAt: messageSentAt, archivedAAt: null, archivedBAt: null \}/);
+    assert.match(helper, /sendActorCustomOrderReady\(/);
+    assert.match(readyFunction, /listing\.status = 'ACTIVE'/);
+    assert.match(readyFunction, /listing\."isPrivate" = true/);
+    assert.match(readyFunction, /seller\."chargesEnabled" = true/);
+    assert.match(readyFunction, /seller\."stripeAccountId" IS NOT NULL/);
+    assert.match(readyFunction, /seller\."vacationMode" = false/);
+    assert.match(readyFunction, /"contextListingId"/);
+    assert.match(readyFunction, /'custom_order_link',\s*true,\s*message_sent_at/);
   });
 
   it("reopens pending-close cases before accepting a new party message", () => {

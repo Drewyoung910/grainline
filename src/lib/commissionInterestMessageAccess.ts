@@ -1,7 +1,7 @@
-import { Prisma } from "@prisma/client";
 import {
   createActorCommissionInterest,
 } from "@/lib/conversationMessageAuthority";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 
 type CommissionInterestMessageResult =
   | {
@@ -54,11 +54,8 @@ export async function createCommissionInterestMessage(input: {
             commissionInterestId: null,
           };
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError
-        && error.code === "P2010"
-      ) {
-        const sqlState = error.meta?.code;
+      const sqlState = getPrismaRawSqlState(error);
+      if (sqlState !== null) {
         if (sqlState === "40001" && attempt === 0) continue;
         if (sqlState === "22023" || sqlState === "42501") {
           // Friendly route prechecks handle the common cases. The authority
