@@ -98,14 +98,15 @@ authority catalog and PostgreSQL proof.
    label/fulfillment/refund transitions. Implemented compatibly: Case creation
    locks and re-reads the exact Order; label, fulfillment, buyer delivery
    confirmation and seller-refund reservations take that same Order lock before
-   their fresh conflict checks. Two-session PostgreSQL proof for both winner
-   orderings remains required.
+   their fresh conflict checks. The exact-head two-session PostgreSQL proof
+   described below accepted both winner orderings.
 6. Serialize replies on the Case row and use a post-lock timestamp.
    Implemented compatibly: different-body replies now take the same parent
    Case lock, re-read Case/actor authority, and use one PostgreSQL
    `clock_timestamp()` for Case `updatedAt`, discussion clocks, upload claims
    and CaseMessage `createdAt`. The duplicate advisory lock remains a separate
-   replay guard. Two-session reply/cron proof remains required.
+   replay guard. The exact-head two-session proof described below accepted the
+   reply/cron, reply/staff and resolution-mark races.
 
 Disposable proof boundary (2026-07-26): the isolated branch includes
 `scripts/case-lifecycle-postgres-proof.mjs` and a branch-scoped PostgreSQL 16
@@ -138,6 +139,17 @@ the final grant/RLS catalog audit, then passed all 21 orderings with a real
 `transactionid` wait observed for each. The bounded result reported
 `status=passed`, `persistentStagingChanged=false` and
 `productionChanged=false`; the service container and network were destroyed.
+The migration bytes then changed during the final authority review, so that
+run was not reused as acceptance for the current tree. Exact hardening head
+`4dc57266c18abf7ee4d4a8a700bcd2a52d0f3185` passed dedicated GitHub Actions
+run `30218521286`: the complete migration tree applied to disposable
+PostgreSQL, production-style runtime grants converged, migration status and
+the final grant/RLS catalog audit passed, and all 21 winner orderings again
+observed real PostgreSQL lock waits. Exact-head general CI run `30218522907`
+also passed the compatibility-tree guards, ephemeral database proofs,
+TypeScript, lint, 2,089-test suite, high-severity dependency audit and
+production build. These runs changed no persistent staging or production
+database.
 The earlier failed run, `30215504361`, is
 retained evidence: Prisma rejected the mixed
 three-statement concurrent-index migration with PostgreSQL `25001` before the
@@ -155,14 +167,21 @@ Private evidence contract:
   content metadata; no public URL is persisted.
 - Upload ownership is recorded in `DirectUpload`, then claimed atomically with
   the parent `CaseMessage`. Unclaimed objects use the existing retryable
-  lifecycle cleanup, selecting the private bucket by stored storage class.
+  lifecycle cleanup, selecting the private bucket by stored storage class. An
+  already-claimed upload cannot be rebound to a different record type or
+  record id, and the database requires public uploads to have a public URL
+  while private uploads must not have one.
 - Buyer, seller and PIN-verified staff retrieve evidence only through the exact
   parent Case route, which returns a 60-second signed read with no-store and
-  no-referrer headers. Foreign users receive no object URL.
+  no-referrer headers. Foreign users receive no object URL, and Case-message
+  creation/retry responses return attachment metadata without the private
+  object key.
 - Interactive history and account export include bounded attachment metadata.
   Binary evidence remains available through the authenticated Case route and
   is retained with the dispute/order record; it is not erased merely because a
-  participant account is anonymized. Any future Case retention purge must
+  participant account is anonymized. Account deletion therefore removes
+  lifecycle rows only for public uploads; retaining the private lifecycle row
+  is required for authenticated evidence reads. Any future Case retention purge must
   enqueue private-object deletion before deleting attachment rows.
 - The private bucket/env/grant/signed-read/foreign-denial smoke is a deployment
   prerequisite. Code presence is not evidence that the bucket is private.
@@ -189,6 +208,34 @@ production deployment from `main` is disabled; verify that invariant, apply the
 guarded nullable/additive compatibility migrations, run the production
 postflight, then deliberately promote the application that selects/writes the
 new fields. Never deploy the application ahead of its schema.
+
+Final Extra-High compatibility review (2026-07-26) also closed six defects
+before release packaging:
+
+- claimed uploads are now immutable to another source type/id, including the
+  concurrent link race;
+- private object keys are stripped from every new, duplicate and retry
+  Case-message response;
+- locked Case and actor reads are sequential inside the interactive
+  transaction;
+- a staff user who is also a Case party receives participant semantics on both
+  upload and message paths;
+- contended staff/webhook refund reservations use database
+  `clock_timestamp()` after the Order-lock wait rather than a stale
+  request-time JavaScript timestamp; and
+- account anonymization preserves claimed private-evidence lifecycle rows
+  while continuing to delete public-media lifecycle rows and expire unclaimed
+  private uploads through normal cleanup.
+
+The Git-integrated Vercel Preview for documentation head `9f8b0f26` created
+deployment `dpl_EM6Sr1c1BV1LZrXE43tKPamaszDG` and failed before compilation at
+the existing runtime database isolation guard with `DATABASE_URL_SHAPE`. That
+is the expected fail-closed result for the inherited, unreviewed shared
+Preview database configuration. The guard was not weakened, no migration ran,
+and the red Preview is not a production or Case-proof failure. A later
+authenticated private-bucket smoke must use a deliberately isolated reviewed
+Preview/database pairing; this branch does not authorize or claim that
+provider proof.
 
 ## Phase 2: legacy inspection and invariant preparation
 

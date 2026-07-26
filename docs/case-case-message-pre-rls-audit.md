@@ -141,6 +141,15 @@ do not exist merely because this code exists; production evidence upload stays
 blocked until bucket privacy, least-privilege object access, authenticated
 signed read, foreign denial and cleanup are proven.
 
+The final compatible review made the storage boundary fail closed across the
+whole lifecycle: a claimed `DirectUpload` cannot be rebound to another source
+type/id; public rows require a public URL and private rows prohibit one;
+message creation/retry responses strip the private object key; and account
+anonymization retains claimed private lifecycle rows because authenticated
+evidence reads still depend on them. Unclaimed private uploads remain covered
+by retryable lifecycle cleanup. These are compatible application/schema
+protections, not provider proof or final RLS authority.
+
 CC-A13 and the staff-resolution portion of CC-A14 (2026-07-26): the isolated
 branch co-commits a bounded, fixed-copy `STAFF` CaseMessage and a strict
 `AdminAuditLog` with the successful Case resolution. The seller notice uses
@@ -191,6 +200,15 @@ checks observed a `transactionid` wait; the bounded result reported
 `productionChanged=false`, then the service container and network were
 destroyed. This closes the compatible CC-A03/CC-A04/CC-A15 proof checkpoint;
 the later invariant and fixed-function gates remain separate.
+
+Because the final authority review changed the compatibility migration bytes,
+the current acceptance was rerun rather than inherited. Exact head
+`4dc57266c18abf7ee4d4a8a700bcd2a52d0f3185` passed dedicated run
+`30218521286` with the full migration tree, production-style grants,
+migration/catalog audits and all 21 real-wait winner orderings. General CI run
+`30218522907` passed the database guards and proofs, TypeScript, lint, all
+2,089 tests, the high-severity dependency audit and production build. No
+persistent staging or production database was used or changed.
 
 ## Preliminary RLS shape, not approved SQL
 
