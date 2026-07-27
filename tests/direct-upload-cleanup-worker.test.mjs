@@ -420,7 +420,39 @@ describe("isolated DirectUpload cleanup worker", () => {
       provision,
       /cleanup role DirectUpload function authority is not exact/,
     );
+    assert.match(
+      provision,
+      /WHEN class\.relkind IN \('r', 'p'\) THEN[\s\S]*has_table_privilege/,
+    );
+    assert.match(
+      provision,
+      /WHEN class\.relkind = 'S' THEN[\s\S]*has_sequence_privilege/,
+    );
     assert.match(provision, /\bBEGIN;/);
     assert.match(provision, /\bCOMMIT;/);
+  });
+
+  it("kind-guards catalog privilege helpers against planner reordering", () => {
+    const worker = source("scripts/direct-upload-cleanup-worker.mjs");
+    const proof = source(
+      "scripts/direct-upload-authority-postgres-proof.mjs",
+    );
+
+    assert.match(
+      worker,
+      /WHEN class\.relkind IN \('r', 'p'\) THEN[\s\S]*has_table_privilege/,
+    );
+    assert.match(
+      worker,
+      /WHEN class\.relkind = 'S' THEN[\s\S]*has_sequence_privilege/,
+    );
+    assert.match(
+      proof,
+      /WHEN class\.relkind IN \('r', 'p'\) THEN[\s\S]*has_table_privilege/,
+    );
+    assert.doesNotMatch(
+      `${worker}\n${proof}\n${source("scripts/provision-direct-upload-cleanup-role.sql")}`,
+      /AND\s+pg_catalog\.has_(?:table|sequence)_privilege/,
+    );
   });
 });

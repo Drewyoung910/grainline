@@ -281,11 +281,18 @@ WITH table_authority AS (
       ON namespace.oid = class.relnamespace
    WHERE namespace.nspname = 'public'
      AND class.relkind IN ('r', 'p')
-     AND pg_catalog.has_table_privilege(
-       :'cleanup_role',
-       class.oid,
-       'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
-     )
+     AND CASE
+       -- PostgreSQL may reorder WHERE predicates. Keep the catalog-kind
+       -- check inside CASE so privilege helpers never receive a TOAST/index
+       -- relation before the relkind filter has logically run.
+       WHEN class.relkind IN ('r', 'p') THEN
+         pg_catalog.has_table_privilege(
+           :'cleanup_role',
+           class.oid,
+           'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+         )
+       ELSE false
+     END
 ), sequence_authority AS (
   SELECT class.relname
     FROM pg_catalog.pg_class AS class
@@ -293,11 +300,15 @@ WITH table_authority AS (
       ON namespace.oid = class.relnamespace
    WHERE namespace.nspname = 'public'
      AND class.relkind = 'S'
-     AND pg_catalog.has_sequence_privilege(
-       :'cleanup_role',
-       class.oid,
-       'USAGE,SELECT,UPDATE'
-     )
+     AND CASE
+       WHEN class.relkind = 'S' THEN
+         pg_catalog.has_sequence_privilege(
+           :'cleanup_role',
+           class.oid,
+           'USAGE,SELECT,UPDATE'
+         )
+       ELSE false
+     END
 ), direct_upload_function_authority AS (
   SELECT procedure.proname
     FROM pg_catalog.pg_proc AS procedure

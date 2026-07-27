@@ -445,11 +445,15 @@ async function catalogProof(owner) {
           ON namespace.oid = class.relnamespace
        WHERE namespace.nspname = 'public'
          AND class.relkind IN ('r', 'p')
-         AND pg_catalog.has_table_privilege(
-           $1,
-           class.oid,
-           'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
-         )
+         AND CASE
+           WHEN class.relkind IN ('r', 'p') THEN
+             pg_catalog.has_table_privilege(
+               $1,
+               class.oid,
+               'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+             )
+           ELSE false
+         END
        ORDER BY class.relname
     `,
     [CLEANUP_ROLE],

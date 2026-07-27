@@ -786,6 +786,19 @@ provider object has been created or changed. The current Vercel cron remains
 the compatible pre-activation owner of cleanup until the later activation
 release deliberately transfers that responsibility.
 
+The scaffold's first disposable PostgreSQL execution, GitHub Actions run
+`30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
+tree and reached cleanup-role convergence, including the three intended
+function grants. Its final authority verifier then failed with
+`"pg_toast_16388" is not a sequence`. PostgreSQL had reordered a
+`has_sequence_privilege` predicate ahead of the adjacent `relkind = 'S'`
+filter, so the verifier passed a TOAST relation to the sequence-only helper.
+This was a catalog-verifier defect, not accepted activation evidence; the
+service database was disposable and no persistent staging or production state
+was addressed. The corrected verifier and runtime worker keep each relation
+kind check inside a `CASE` expression before calling the type-specific
+privilege helper. A fresh exact-commit PostgreSQL proof is required.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory

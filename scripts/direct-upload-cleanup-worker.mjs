@@ -446,9 +446,15 @@ export async function readDirectUploadCleanupAuthority(client) {
        ON namespace.oid = class.relnamespace
      WHERE namespace.nspname = 'public'
        AND class.relkind IN ('r', 'p')
-       AND pg_catalog.has_table_privilege(
-         current_user, class.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
-       )
+       AND CASE
+         WHEN class.relkind IN ('r', 'p') THEN
+           pg_catalog.has_table_privilege(
+             current_user,
+             class.oid,
+             'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+           )
+         ELSE false
+       END
      ORDER BY class.relname`,
   );
   const sequencePrivileges = await client.query(
@@ -458,9 +464,13 @@ export async function readDirectUploadCleanupAuthority(client) {
        ON namespace.oid = class.relnamespace
      WHERE namespace.nspname = 'public'
        AND class.relkind = 'S'
-       AND pg_catalog.has_sequence_privilege(
-         current_user, class.oid, 'USAGE,SELECT,UPDATE'
-       )
+       AND CASE
+         WHEN class.relkind = 'S' THEN
+           pg_catalog.has_sequence_privilege(
+             current_user, class.oid, 'USAGE,SELECT,UPDATE'
+           )
+         ELSE false
+       END
      ORDER BY class.relname`,
   );
   const rlsTables = await client.query(
