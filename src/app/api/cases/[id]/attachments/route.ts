@@ -10,6 +10,7 @@ import {
   CASE_EVIDENCE_UPLOAD_ENDPOINT,
   MAX_CASE_MESSAGE_ATTACHMENTS,
 } from "@/lib/caseEvidence";
+import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
 import { canCreateCaseMessageForStatus } from "@/lib/caseMessagingState";
 import { prisma } from "@/lib/db";
 import { recordDirectUploadVerified } from "@/lib/directUploadLifecycle";
@@ -89,6 +90,10 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!caseEvidenceAttachmentsEnabled()) {
+    return privateJson({ error: "Not found." }, { status: 404 });
+  }
+
   const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
   if (crossOriginRejection) {
     return privateJson({ error: "Forbidden" }, { status: 403 });

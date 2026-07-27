@@ -3,6 +3,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { auth } from "@clerk/nextjs/server";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
+import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
 import { prisma } from "@/lib/db";
 import { readDirectUploadCaseAttachment } from "@/lib/directUploadLifecycle";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
@@ -26,6 +27,10 @@ export async function GET(
     params: Promise<{ id: string; attachmentId: string }>;
   },
 ) {
+  if (!caseEvidenceAttachmentsEnabled()) {
+    return privateJson({ error: "Not found." }, { status: 404 });
+  }
+
   const { id, attachmentId } = await params;
   const { userId, sessionId } = await auth();
   if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });

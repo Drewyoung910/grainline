@@ -211,4 +211,37 @@ describe("private CaseMessage evidence", () => {
     assert.match(plan, /future Case retention purge must[\s\S]*private-object deletion/);
     assert.match(plan, /Code presence is not evidence that the bucket is private/);
   });
+
+  it("keeps the private Case path fail-closed until its release gate is explicit", () => {
+    const release = source("src/lib/caseEvidenceRelease.ts");
+    const uploadRoute = source("src/app/api/cases/[id]/attachments/route.ts");
+    const readRoute = source(
+      "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts",
+    );
+    const messageRoute = source("src/app/api/cases/[id]/messages/route.ts");
+    const reply = source("src/components/CaseReplyBox.tsx");
+    const pages = [
+      source("src/app/dashboard/orders/[id]/page.tsx"),
+      source("src/app/dashboard/sales/[orderId]/page.tsx"),
+      source("src/app/admin/cases/[id]/page.tsx"),
+    ];
+
+    assert.match(
+      release,
+      /CASE_EVIDENCE_ATTACHMENTS_ENABLED_ENV[\s\S]*=== "true"/,
+    );
+    assert.match(uploadRoute, /if \(!caseEvidenceAttachmentsEnabled\(\)\)/);
+    assert.match(readRoute, /if \(!caseEvidenceAttachmentsEnabled\(\)\)/);
+    assert.match(
+      messageRoute,
+      /attachmentKeys\.length > 0[\s\S]*!caseEvidenceAttachmentsEnabled\(\)/,
+    );
+    assert.match(reply, /attachmentsEnabled[\s\S]*Evidence images/);
+    for (const page of pages) {
+      assert.match(
+        page,
+        /attachmentsEnabled=\{caseEvidenceAttachmentsEnabled\(\)\}/,
+      );
+    }
+  });
 });

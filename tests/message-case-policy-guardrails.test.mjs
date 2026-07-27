@@ -211,7 +211,10 @@ describe("message and case policy guardrails", () => {
       assert.match(page, /buyer: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/);
       assert.match(page, /seller: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/);
       assert.match(page, /caseReplyUnavailableMessage \? \(/);
-      assert.match(page, /<CaseReplyBox caseId=\{activeCase\.id\} \/>/);
+      assert.match(
+        page,
+        /<CaseReplyBox[\s\S]*caseId=\{activeCase\.id\}[\s\S]*attachmentsEnabled=\{caseEvidenceAttachmentsEnabled\(\)\}[\s\S]*\/>/,
+      );
     }
   });
 

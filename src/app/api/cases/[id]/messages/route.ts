@@ -35,6 +35,7 @@ import {
   MAX_CASE_MESSAGE_ATTACHMENTS,
   verifyPrivateCaseEvidenceForPersistence,
 } from "@/lib/caseEvidence";
+import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
 import {
   DirectUploadClaimError,
   referenceDirectUploadCaseAttachment,
@@ -153,6 +154,15 @@ export async function POST(
     }
     const messageBody = sanitizeRichText(parsed.body.trim());
     const attachmentKeys = [...new Set(parsed.attachmentKeys)];
+    if (
+      attachmentKeys.length > 0
+      && !caseEvidenceAttachmentsEnabled()
+    ) {
+      return privateJson(
+        { error: "Case evidence attachments are not available." },
+        { status: 400 },
+      );
+    }
     if (attachmentKeys.length !== parsed.attachmentKeys.length) {
       return privateJson(
         { error: "Duplicate case evidence uploads are not allowed." },

@@ -94,6 +94,16 @@ attachment path, accept arbitrary external URLs, or activate the attachment
 table separately from its parent Case boundary. PDF evidence remains prohibited
 until a reviewed malware-scan/quarantine pipeline exists.
 
+Keep the private Case path fail-closed during its compatibility rollout.
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED` is absent or exact `false` while the
+schema/fixed-operation app deploys and drains. Only the exact lowercase `true`
+may be promoted after DirectUpload activation and pooled-runtime postflight,
+private-bucket isolation/credential proof, and authenticated
+participant/staff-versus-foreign-user route smoke all pass. This breaks the
+otherwise circular dependency between deploying compatible code before RLS
+activation and withholding sensitive private-object access until that boundary
+is proven.
+
 The Case evidence review exposed a separate pre-launch privacy requirement:
 ordinary Message attachment bytes currently use public R2 bearer URLs even
 though their Message rows and attachment references are protected by FORCE

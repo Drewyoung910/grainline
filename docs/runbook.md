@@ -82,6 +82,13 @@ Pre-launch Cloudflare R2 upload smoke:
   public/custom domain, the application credential has only required object
   access, an authenticated Case participant/staff request can obtain a
   60-second signed read, and an unrelated user receives no object URL.
+- Keep `CASE_EVIDENCE_ATTACHMENTS_ENABLED` absent or exactly `false` through
+  the compatible schema/application deployment and DirectUpload activation.
+  Only set it to exact lowercase `true` after the DirectUpload pooled-runtime
+  postflight and the private-bucket/authenticated-route proof pass. A missing,
+  differently cased or otherwise malformed value fails closed: upload/read
+  routes return 404, message writes reject attachment keys, and the reply UI
+  omits the evidence picker.
 - This smoke test does not replace Cloudflare dashboard or CLI evidence for
   CORS settings, bucket policy, bucket-level object-size defenses, or public
   ListBucket posture. Keep those provider records with the launch evidence.

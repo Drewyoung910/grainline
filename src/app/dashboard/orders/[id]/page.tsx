@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import OpenCaseForm from "@/components/OpenCaseForm";
 import CaseReplyBox from "@/components/CaseReplyBox";
+import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
 import CaseInitialSummary from "@/components/CaseInitialSummary";
 import CaseMessageHistoryNav from "@/components/CaseMessageHistoryNav";
 import CaseEscalateButton from "@/components/CaseEscalateButton";
@@ -555,7 +556,10 @@ export default async function BuyerOrderDetailPage({
               {caseReplyUnavailableMessage ? (
                 <p className="text-sm text-neutral-600">{caseReplyUnavailableMessage}</p>
               ) : (
-                <CaseReplyBox caseId={activeCase.id} />
+                <CaseReplyBox
+                  caseId={activeCase.id}
+                  attachmentsEnabled={caseEvidenceAttachmentsEnabled()}
+                />
               )}
             </div>
           )}

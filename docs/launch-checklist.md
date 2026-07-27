@@ -35,6 +35,9 @@ Confirm production and preview values in Vercel:
 - `CLOUDFLARE_R2_SECRET_ACCESS_KEY`
 - `CLOUDFLARE_R2_BUCKET_NAME`
 - `CLOUDFLARE_R2_PRIVATE_BUCKET_NAME` (private Case evidence; no public/custom domain)
+- `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` until DirectUpload activation,
+  pooled-runtime postflight, private-bucket proof and authenticated Case
+  evidence smoke all pass; promote only the exact lowercase `true` afterward.
 - `CLOUDFLARE_R2_PUBLIC_URL`
 - `SHIPPO_API_KEY`
 - `SHIPPING_RATE_SECRET`
