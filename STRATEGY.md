@@ -221,6 +221,28 @@ and failure notifications are proven. This architecture is scaffolded only;
 no role, credential, provider environment, schedule or production state has
 changed.
 
+The compatibility-key retirement and DirectUpload activation candidates are
+now saved on a further isolated stack, still unapplied outside disposable CI.
+The retirement boundary drops only the duplicate Case attachment key after
+exact legacy/reference proof; the disabled app persists only
+`directUploadId`. Activation retains zero policies and zero direct table
+authority, partitions the 35 reviewed functions as 17 runtime / 3 cleanup /
+15 private, and withholds the unused private-message recorder. A
+database-first compatibility rollback is part of the activation gate and
+restores the exact activated state afterward without recreating the retired
+duplicate key.
+
+The first combined disposable run (`30232279615`, commit `af4d0f8e`) stopped
+fail-closed while applying activation after retirement; Prisma surfaced only
+the secondary aborted-transaction message. It is not activation evidence and
+changed no persistent environment. Preserve the failed record and require a
+fresh PostgreSQL 16 run with exact statement diagnostics, live activated
+authority, rollback and zero-residue restoration before promotion. This does
+not change production sequencing: compatible disabled app and drain,
+aggregate-only production inspection, separately approved repair/backfill,
+provider/worker proof, activation, pooled-runtime postflight, then a separate
+Case private-evidence release.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

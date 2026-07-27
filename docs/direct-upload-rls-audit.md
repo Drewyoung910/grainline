@@ -821,6 +821,50 @@ disposable engine. It does not activate the worker, create provider
 credentials, prove R2 deletion, inspect production legacy data, apply
 DirectUpload RLS activation or change any persistent environment.
 
+### Compatibility-key retirement and activation proof
+
+The next isolated stack retires the duplicate
+`CaseMessageAttachment.objectKey` only after exact equality/reference/status
+preflight and keeps `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false`. The disabled
+application writes only the authoritative `directUploadId`; it no longer
+carries the private object key in the persistence result. The disposable
+retirement candidate validates the six staged DirectUpload constraints,
+replaces the attachment binding trigger with id-derived validation and changes
+no RLS flag or grant. The following activation candidate requires the exact
+clean predecessor, then makes both `DirectUpload` and
+`DirectUploadReference` policyless ENABLE plus FORCE service tables with zero
+direct runtime/worker table authority. Its exact function partition is 17
+ordinary-runtime, 3 isolated cleanup-worker and 15 private functions; the
+unused private-message recorder remains withheld.
+
+The same disposable workflow also contains two separate live gates:
+
+- activated authority proves exact function identities, owners, source hashes,
+  modes and ACLs; direct table denial for both roles; fixed public/Case
+  operations; foreign-source denial; retired Case attachment identity; and a
+  fenced cleanup lease/complete flow; and
+- database-first rollback disables DirectUpload RLS before restoring the old
+  runtime CRUD/four compatibility functions, executes old-app direct CRUD,
+  then restores both FORCE tables and the exact 17/3 function partition with
+  zero fixture residue. The retired duplicate key is deliberately not
+  recreated; the rollback target is the drained compatible app, not an ancient
+  pre-drain deployment.
+
+The first clean PostgreSQL 16.14 execution, GitHub Actions run `30232279615`
+(job `89873270366`) at commit `af4d0f8e`, passed the current 166 migrations,
+runtime/cleanup-role convergence, global pre-activation grant/RLS audit,
+static contracts, compatible authority proof and both candidate generators.
+The retirement candidate applied, but Prisma reported the activation
+transaction only as `current transaction is aborted`, without the original
+statement error. This is failed activation evidence: no activation,
+rollback or post-activation authority claim is accepted from that run. The
+database was the disposable loopback CI service; it changed neither persistent
+staging nor production. The workflow now executes each generated candidate
+with `psql --echo-errors -v ON_ERROR_STOP=1` and records the exact successful
+bytes in Prisma's disposable ledger afterward, so the next run retains the
+load-bearing PostgreSQL diagnostic instead of Prisma's secondary transaction
+error.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory

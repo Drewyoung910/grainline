@@ -106,8 +106,26 @@ jobs:
         env:
           DIRECT_UPLOAD_ACTIVATION_STAGING_ACK: I_ACKNOWLEDGE_LOOPBACK_DIRECT_UPLOAD_ACTIVATION_STAGING
         run: node scripts/stage-direct-upload-activation-migration.mjs --stage
-      - name: Apply disposable retirement and activation candidates
-        run: npx prisma migrate deploy
+      - name: Apply disposable retirement candidate with exact SQL diagnostics
+        run: >-
+          psql "$DIRECT_URL"
+          --echo-errors
+          -v ON_ERROR_STOP=1
+          -f prisma/migrations/20260726190000_retire_direct_upload_compatibility_key/migration.sql
+      - name: Record disposable retirement migration in Prisma ledger
+        run: >-
+          npx prisma migrate resolve
+          --applied 20260726190000_retire_direct_upload_compatibility_key
+      - name: Apply disposable activation candidate with exact SQL diagnostics
+        run: >-
+          psql "$DIRECT_URL"
+          --echo-errors
+          -v ON_ERROR_STOP=1
+          -f prisma/migrations/20260726190500_enable_direct_upload_rls/migration.sql
+      - name: Record disposable activation migration in Prisma ledger
+        run: >-
+          npx prisma migrate resolve
+          --applied 20260726190500_enable_direct_upload_rls
       - name: Reconverge activated runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
       - name: Reconverge activated cleanup-worker grants

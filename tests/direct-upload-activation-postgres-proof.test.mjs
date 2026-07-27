@@ -93,7 +93,7 @@ describe("DirectUpload activated PostgreSQL proof harness", () => {
     assert.match(workflow, /image: postgres:16/);
     assert.match(
       workflow,
-      /Stage disposable compatibility-key retirement[\s\S]*Stage disposable DirectUpload RLS activation[\s\S]*Apply disposable retirement and activation candidates/,
+      /Stage disposable compatibility-key retirement[\s\S]*Stage disposable DirectUpload RLS activation[\s\S]*Apply disposable retirement candidate with exact SQL diagnostics[\s\S]*Record disposable retirement migration in Prisma ledger[\s\S]*Apply disposable activation candidate with exact SQL diagnostics[\s\S]*Record disposable activation migration in Prisma ledger/,
     );
     assert.match(
       workflow,
