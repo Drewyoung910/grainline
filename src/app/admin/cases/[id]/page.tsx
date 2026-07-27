@@ -4,6 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import CaseResolutionPanel from "@/components/CaseResolutionPanel";
 import CaseReplyBox from "@/components/CaseReplyBox";
+import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
 import CaseInitialSummary from "@/components/CaseInitialSummary";
 import CaseMessageHistoryNav from "@/components/CaseMessageHistoryNav";
 import LocalDate from "@/components/LocalDate";
@@ -306,7 +307,10 @@ export default async function AdminCaseDetailPage({
             <p className="text-xs font-medium text-neutral-500 mb-2">
               Reply as Grainline Staff
             </p>
-            <CaseReplyBox caseId={caseRecord.id} />
+            <CaseReplyBox
+              caseId={caseRecord.id}
+              attachmentsEnabled={caseEvidenceAttachmentsEnabled()}
+            />
           </div>
         )}
       </Section>

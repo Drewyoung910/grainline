@@ -18,7 +18,13 @@ type PendingEvidence = {
   error: string | null;
 };
 
-export default function CaseReplyBox({ caseId }: { caseId: string }) {
+export default function CaseReplyBox({
+  caseId,
+  attachmentsEnabled,
+}: {
+  caseId: string;
+  attachmentsEnabled: boolean;
+}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [body, setBody] = useState("");
@@ -132,64 +138,68 @@ export default function CaseReplyBox({ caseId }: { caseId: string }) {
         className="w-full rounded border px-3 py-2 text-sm"
         disabled={loading || isUploading}
       />
-      <div className="space-y-2">
-        <label className="block text-xs font-medium text-neutral-700">
-          Evidence images
-          <span className="ml-1 font-normal text-neutral-500">
-            (optional, up to {MAX_CASE_MESSAGE_ATTACHMENTS}; JPEG, PNG, or WebP)
-          </span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            disabled={
-              loading
-              || isUploading
-              || evidence.length >= MAX_CASE_MESSAGE_ATTACHMENTS
-            }
-            onChange={(event) => {
-              void uploadEvidence(Array.from(event.target.files ?? []));
-            }}
-            className="mt-1 block w-full text-xs text-neutral-600 file:mr-3 file:rounded-md file:border file:border-neutral-200 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-neutral-700"
-          />
-        </label>
-        {evidence.length > 0 && (
-          <ul className="space-y-1">
-            {evidence.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-start justify-between gap-3 rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-neutral-700">{item.name}</p>
-                  <p
-                    className={
-                      item.error ? "text-red-600" : "text-neutral-500"
-                    }
-                  >
-                    {item.uploading
-                      ? "Uploading securely…"
-                      : item.error ?? "Ready to send"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setEvidence((current) =>
-                      current.filter((candidate) => candidate.id !== item.id),
-                    )
-                  }
-                  disabled={loading || item.uploading}
-                  className="shrink-0 border border-neutral-200 bg-white px-2 py-1 text-neutral-600 disabled:opacity-50"
+      {attachmentsEnabled && (
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-neutral-700">
+            Evidence images
+            <span className="ml-1 font-normal text-neutral-500">
+              (optional, up to {MAX_CASE_MESSAGE_ATTACHMENTS}; JPEG, PNG, or WebP)
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              disabled={
+                loading
+                || isUploading
+                || evidence.length >= MAX_CASE_MESSAGE_ATTACHMENTS
+              }
+              onChange={(event) => {
+                void uploadEvidence(Array.from(event.target.files ?? []));
+              }}
+              className="mt-1 block w-full text-xs text-neutral-600 file:mr-3 file:rounded-md file:border file:border-neutral-200 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-neutral-700"
+            />
+          </label>
+          {evidence.length > 0 && (
+            <ul className="space-y-1">
+              {evidence.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-start justify-between gap-3 rounded-md border border-neutral-200 bg-white px-3 py-2 text-xs"
                 >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-neutral-700">{item.name}</p>
+                    <p
+                      className={
+                        item.error ? "text-red-600" : "text-neutral-500"
+                      }
+                    >
+                      {item.uploading
+                        ? "Uploading securely…"
+                        : item.error ?? "Ready to send"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEvidence((current) =>
+                        current.filter((candidate) =>
+                          candidate.id !== item.id
+                        ),
+                      )
+                    }
+                    disabled={loading || item.uploading}
+                    className="shrink-0 border border-neutral-200 bg-white px-2 py-1 text-neutral-600 disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         type="submit"

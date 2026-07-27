@@ -185,6 +185,10 @@ Private evidence contract:
   enqueue private-object deletion before deleting attachment rows.
 - The private bucket/env/grant/signed-read/foreign-denial smoke is a deployment
   prerequisite. Code presence is not evidence that the bucket is private.
+- `CASE_EVIDENCE_ATTACHMENTS_ENABLED` remains absent or exactly `false` for the
+  compatibility deployment. The API and UI fail closed until DirectUpload
+  activation/postflight and the private-bucket/authenticated-route smoke pass;
+  only then may the exact lowercase value `true` be promoted.
 
 The fixed-operation pattern does not authenticate a human caller by itself.
 `grainline_app_runtime` can supply transaction context or function actor
