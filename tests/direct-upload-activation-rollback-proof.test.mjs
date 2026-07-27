@@ -51,6 +51,7 @@ describe("DirectUpload activation rollback proof", () => {
   });
 
   it("restores both FORCE tables and the exact 17/3 function partition", () => {
+    assert.match(proof, /oidvectortypes\(procedure\.proargtypes\)/);
     assert.match(
       proof,
       /ALTER TABLE public\."DirectUpload" ENABLE ROW LEVEL SECURITY/,

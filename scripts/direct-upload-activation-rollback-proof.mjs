@@ -173,7 +173,7 @@ async function assertFunctionCatalog(owner, { rollback }) {
   const result = await owner.query(
     `SELECT
        procedure.proname,
-       pg_catalog.pg_get_function_identity_arguments(procedure.oid)
+       pg_catalog.oidvectortypes(procedure.proargtypes)
          AS identity_arguments,
        pg_catalog.has_function_privilege(
          $1, procedure.oid, 'EXECUTE'

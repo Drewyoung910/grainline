@@ -50,7 +50,7 @@ describe("DirectUpload activated PostgreSQL proof harness", () => {
 
   it("proves exact activated catalog, source, identities and ACLs", () => {
     assert.match(proof, /functions\.rows\.length, 35/);
-    assert.match(proof, /pg_get_function_identity_arguments/);
+    assert.match(proof, /oidvectortypes\(procedure\.proargtypes\)/);
     assert.match(proof, /row\.identity_arguments, expected\.identityArguments/);
     assert.match(proof, /owner_is_proof_role/);
     assert.match(proof, /source hash drifted/);

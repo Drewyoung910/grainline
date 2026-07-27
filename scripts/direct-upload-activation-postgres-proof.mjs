@@ -255,7 +255,7 @@ async function catalogProof(owner) {
   const functions = await owner.query(
      `SELECT
        procedure.proname,
-       pg_catalog.pg_get_function_identity_arguments(procedure.oid)
+       pg_catalog.oidvectortypes(procedure.proargtypes)
          AS identity_arguments,
        procedure.prosecdef,
        procedure.proleakproof,

@@ -263,6 +263,13 @@ disposable candidates. Keep that source-inventory contract before staging;
 post-staging, run only state-independent harness contracts. The run remains
 failed evidence because live activated authority and rollback did not execute.
 
+Run `30232827314` reached live activated catalog proof after every preceding
+gate passed, then stopped because its identity comparison used PostgreSQL's
+named-argument display against a type-only callable catalog. Use
+`oidvectortypes(proargtypes)` in both live proofs; do not weaken the exact
+identity comparison. Behavioral authority and rollback still require a fresh
+pass.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

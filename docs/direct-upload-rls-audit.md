@@ -904,6 +904,18 @@ error. The post-staging step now retains only harness contracts that are
 state-independent. This run did not execute the live activated authority or
 rollback scripts and therefore remains failed evidence.
 
+Run `30232827314` (job `89874779664`) at commit `3b58888c` passed every
+migration, role convergence, pre/post-activation global audit, exact status and
+static contract, then entered the live activated authority proof. Its first
+function-identity comparison stopped on PostgreSQL representation:
+`pg_get_function_identity_arguments()` returned named arguments such as
+`p_user_id text`, while the callable catalog intentionally stores type-only
+signatures such as `text` for `to_regprocedure`. No authority mismatch was
+reported. Both live activation and rollback proofs now use
+`oidvectortypes(proargtypes)`, PostgreSQL's exact type-only representation.
+The run did not reach behavioral authority or rollback checks, so it remains
+failed disposable evidence.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
