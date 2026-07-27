@@ -595,6 +595,25 @@ correction verifies that the specifically referenced upload is absent from the
 lease batch and moves the already-proven released fixture outside the later
 test's clock window.
 
+The corrected exact-tree execution, GitHub Actions run `30226543504` (job
+`89857578571`) at commit `6c1dba12`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified migration
+status, passed the global grant/RLS audit and static contracts, then passed all
+six live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`; and
+6. `reference_cleanup_winner_orderings`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable service database and fixtures were
+destroyed with the job. This is the accepted disposable-engine evidence for the
+amended compatible preparation tree. It is not DirectUpload activation
+evidence, provider-bucket evidence or a production catalog claim.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory

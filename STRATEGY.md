@@ -160,7 +160,12 @@ and validate `directUploadId` for old writers, dual-write from the new app, and
 create/release normalized references through triggers. After compatible app
 deployment and old-instance drain, separately prove equality and drop the
 duplicate key before DirectUpload activation. The amended exact tree requires a
-fresh disposable PostgreSQL proof.
+fresh disposable PostgreSQL proof. That proof is now accepted at exact commit
+`6c1dba12`: PostgreSQL 16.14 run `30226543504` applied all 166 migrations and
+passed the global grant/RLS audit plus six authority/concurrency checks,
+including old/new Case attachment binding and release. It recorded no
+persistent-staging or production change. Treat it as compatible-preparation
+evidence only, not activation.
 
 Do not promote this checkpoint until aggregate legacy
 classification/backfill, the dedicated cleanup-worker role, rollback and
