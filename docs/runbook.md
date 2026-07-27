@@ -37,6 +37,27 @@ Current Conversation/Message production boundary:
   accept paired NO-FORCE or paired FORCE activation, but must reject a mixed
   FORCE pair before converging grants.
 
+Prepared DirectUpload production postflight:
+
+- The compatible DirectUpload schema/application release is not live merely
+  because its branch or disposable PostgreSQL proof is green.
+- After a separately approved exact-main additive migration, run
+  `npm run ops:direct-upload-preparation-postflight` from that exact clean
+  release commit with the pooled production `DATABASE_URL` and:
+  - `DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_CONFIRM=verify-production-direct-upload-preparation-read-only`
+  - `DIRECT_UPLOAD_PREPARATION_RELEASE_COMMIT=<exact-40-character-main-sha>`
+  - `DIRECT_UPLOAD_PREPARATION_MAIN_CI_RUN_ID=<exact-green-main-ci-run-id>`
+  - `DIRECT_UPLOAD_PREPARATION_MIGRATION_RUN_ID=<exact-protected-migration-run-id>`
+  - `DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_EVIDENCE_PATH=<private-directory>/direct-upload-preparation-production-postflight-<exact-40-character-main-sha>.json`
+- Keep owner/direct URLs and every aliased PostgreSQL URL absent. The operator
+  is read-only, uses no synthetic production rows, and writes a fresh
+  mode-0600 artifact.
+- This proves only the compatible database boundary. Separately verify the
+  deployed application and exact
+  `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` value before the compatibility
+  deploy; do not enable private Case evidence until DirectUpload activation,
+  private-bucket proof and authenticated route smoke all pass.
+
 ## Incident Triage
 
 1. Check `/api/health` for anonymous uptime status.

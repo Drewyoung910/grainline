@@ -18,6 +18,7 @@
     "ops:conversation-message-compatibility-postflight": "node scripts/conversation-message-compatibility-production-postflight.mjs",
     "ops:conversation-message-activation-postflight": "node scripts/conversation-message-compatibility-production-postflight.mjs --post-activation",
     "ops:conversation-message-force-postflight": "node scripts/conversation-message-compatibility-production-postflight.mjs --post-force",
+    "ops:direct-upload-preparation-postflight": "node scripts/direct-upload-preparation-production-postflight.mjs",
     "ops:verify-db-separation": "node scripts/runtime-db-credential-separation-postflight.mjs",
     "ops:converge-local-runtime-db": "node scripts/converge-local-runtime-db-env.mjs",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.mjs",

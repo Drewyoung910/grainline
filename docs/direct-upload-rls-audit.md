@@ -645,6 +645,42 @@ disposable-engine authority, concurrency and application-skew evidence for the
 current compatible preparation tree. It is not DirectUpload activation
 evidence, provider-bucket evidence or a production catalog claim.
 
+### Production preparation postflight scaffold
+
+`scripts/direct-upload-preparation-production-postflight.mjs` is the
+read-only pooled-runtime proof for the additive preparation release. It is
+deliberately separate from the owner migration workflow and rejects every
+owner/direct/aliased database credential. The operator requires:
+
+- the exact clean release commit;
+- the reviewed pooled `grainline_app_runtime` production identity;
+- exact positive general-CI and protected-migration run ids;
+- an explicit confirmation phrase; and
+- a fresh, commit-bound evidence path.
+
+It verifies the compatible pre-activation boundary rather than pretending
+activation has occurred:
+
+- `DirectUpload` still has RLS off, zero policies and legacy runtime CRUD for
+  old-application coexistence;
+- `DirectUploadReference` has ENABLE plus FORCE, zero policies and no runtime
+  table authority;
+- the temporary Case `objectKey` plus `directUploadId` columns and deferred
+  commit-time reference trigger are installed;
+- all 35 reviewed DirectUpload functions retain exact runtime/PUBLIC ACL,
+  owner and pinned-search-path posture;
+- direct reference-ledger access and the generic source core fail with
+  `42501`; and
+- invalid-actor fixed lookup/read operations return no rows.
+
+The live database transaction is `READ ONLY`, creates no fixture rows and
+writes only a fresh mode-0600 local JSON artifact. This database postflight
+does **not** verify the Vercel deployment, the
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` environment value, the private R2
+bucket, authenticated routes, legacy data, cleanup-worker separation or
+DirectUpload activation. Those remain explicit later gates rather than
+caller-supplied claims embedded in this evidence.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory

@@ -187,9 +187,12 @@ authority/concurrency checks passed, including both full old/new writer
 transactions. It recorded no persistent-staging or production change. Treat
 this as compatible-preparation evidence only, not DirectUpload activation.
 
-Do not promote this checkpoint until aggregate legacy
-classification/backfill, the dedicated cleanup-worker role, rollback and
-pooled-runtime postflight gates are complete. Withhold the unused future
+Do not activate DirectUpload or enable either private-object surface until
+aggregate legacy classification/backfill, the dedicated cleanup-worker role,
+rollback and pooled-runtime postflight gates are complete. The compatible
+schema/application checkpoint may be promoted first only with
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED=false`; that disabled release is what makes
+the required old/new application drain possible. Withhold the unused future
 private-message recorder from ordinary-runtime activation until CM-A20's
 compatible application release consumes it.
 
