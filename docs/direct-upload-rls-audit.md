@@ -916,6 +916,34 @@ reported. Both live activation and rollback proofs now use
 The run did not reach behavioral authority or rollback checks, so it remains
 failed disposable evidence.
 
+The corrected exact-stack execution, GitHub Actions run `30232923132` (job
+`89875033710`) at commit `7de1b836`, passed on PostgreSQL 16.14. It applied the
+current 166 migrations, proved compatible authority, then staged and applied
+the two disposable retirement/activation candidates (168 total), reconverged
+both least-privilege roles, passed the activated global grant/RLS audit, and
+verified exact migration status. The live activated proof passed four checks:
+
+1. `activated_catalog_source_and_acl`;
+2. `runtime_and_worker_direct_denial`;
+3. `runtime_fixed_authority_and_retired_case_key`; and
+4. `isolated_cleanup_lease_fence`.
+
+The separate database-first rollback proof passed old-application direct CRUD
+compatibility, exact function-partition restoration, exact ENABLE plus FORCE
+restoration on both policyless service tables, preserved retirement of
+`objectKey`, and left zero fixture residue. Both proof payloads recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the disposable
+database and candidates were destroyed with the job.
+
+This accepts the retirement/activation SQL shape, catalog/source/ACL partition,
+fixed runtime behavior, isolated worker fencing and reversible database-first
+compatibility path on the disposable engine. It does **not** promote either
+candidate into the committed migration tree, inspect or repair production
+legacy rows, create the production cleanup role/provider credentials, prove R2
+deletion, deploy the compatible app, complete an old-instance drain, activate
+production RLS, or enable either private-object feature. Those remain separate
+reviewed gates.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory

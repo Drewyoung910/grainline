@@ -270,6 +270,17 @@ named-argument display against a type-only callable catalog. Use
 identity comparison. Behavioral authority and rollback still require a fresh
 pass.
 
+Exact commit `7de1b836` passed the complete disposable CM-A21
+retirement/activation program in PostgreSQL 16.14 run `30232923132` (job
+`89875033710`): 166 committed plus 2 staged migrations, compatible and
+activated global audits, exact 17/3/15 function partition, direct table
+denials, fixed runtime behavior, cleanup lease fencing, database-first
+old-app-compatible rollback and exact activation restoration. Both proof
+payloads recorded no persistent-staging or production change. Treat this as
+accepted disposable-engine evidence only; all production/provider/legacy
+inspection and feature-release gates above remain mandatory and separately
+approved.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a
