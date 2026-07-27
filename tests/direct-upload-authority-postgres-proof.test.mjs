@@ -51,6 +51,12 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
 
   it("pins fixed authority, zero generic authority and exact compatibility posture", () => {
     assert.match(proof, /runtimeFunctions = DIRECT_UPLOAD_RUNTIME_FUNCTION_NAMES/);
+    assert.match(proof, /CLEANUP_ROLE = "grainline_direct_upload_cleanup"/);
+    assert.match(proof, /cleanupExecuteNames/);
+    assert.match(
+      proof,
+      /must remain runtime-compatible during preparation/,
+    );
     assert.match(proof, /runtimeFunctions\.length \+ privateFunctions\.length/);
     assert.match(proof, /DirectUploadReference[\s\S]*runtime_crud: false/);
     assert.match(proof, /DirectUpload[\s\S]*relrowsecurity: false/);
@@ -95,9 +101,17 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
       workflow,
       /agent\/direct-upload-rls-preparation-20260726/,
     );
+    assert.match(
+      workflow,
+      /agent\/direct-upload-rls-activation-20260726/,
+    );
     assert.match(workflow, /image: postgres:16/);
     assert.match(workflow, /POSTGRES_DB: grainline_ci/);
     assert.match(workflow, /npx prisma migrate deploy/);
+    assert.match(
+      workflow,
+      /provision-direct-upload-cleanup-role\.sql/,
+    );
     assert.match(workflow, /npm run audit:rls-direct-upload-authority/);
     assert.equal(
       packageJson.scripts["audit:rls-direct-upload-authority"],

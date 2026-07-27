@@ -245,6 +245,50 @@ key behind ordinary runtime table access; either the compatibility column is
 gone first or the parent attachment table has independently activated,
 parent-derived RLS. The planned sequence uses the narrower first option.
 
+### DU-A14: a second database URL cannot share the application environment
+
+The reviewed Vercel runtime guard rejects every PostgreSQL URL outside
+`DATABASE_URL`. That is load-bearing: adding
+`DIRECT_UPLOAD_CLEANUP_DATABASE_URL` to the main Vercel project would both fail
+the build and place the supposedly isolated worker credential in the same
+environment as every ordinary request handler. Application compromise able to
+read environment variables could then recover the worker credential, defeating
+the separation from `grainline_app_runtime`.
+
+The accepted cleanup topology is therefore external to the application
+project:
+
+- a separate protected GitHub environment named
+  `Production DirectUpload Cleanup`;
+- one direct Neon connection authenticating only as
+  `grainline_direct_upload_cleanup`;
+- one R2 credential restricted to the exact public and private cleanup
+  buckets, with no application upload credential in the job;
+- an hourly, non-overlapping main-branch workflow that can only call the three
+  fenced cleanup functions and `DeleteObject`;
+- a maximum of 10 batches of 20 rows per run, with no bucket listing;
+- exact source, database digest, endpoint, role, RLS, table-denial and function
+  ACL checks before the first lease; and
+- mode-`0600` evidence containing only counts, bounded error-code
+  distributions and hashes of provider identifiers.
+
+`scripts/provision-direct-upload-cleanup-role.sql` deliberately creates no role
+and sets no password. The externally managed LOGIN must exist first; the
+operator only converges its attributes, memberships and grants. The worker
+refuses to run until both lifecycle tables have ENABLE plus FORCE RLS with zero
+policies, the worker has zero table/sequence authority, ordinary runtime has
+lost cleanup EXECUTE, and the unused private-message recorder remains
+runtime-inaccessible.
+
+GitHub schedule delay is acceptable for abandoned-object garbage collection:
+it can delay deletion but cannot authorize a live object or customer action.
+It is not a substitute for monitoring. Before activation, verify protected
+environment review rules, failed-workflow notifications and one disposable
+provider smoke with complete object/database cleanup. At activation, remove
+the Vercel cleanup schedule so two providers do not own the same operational
+job. Do not put the cleanup URL into Vercel or weaken
+`guard:runtime-db-env`.
+
 ## Proposed compatible schema
 
 Add `DirectUploadReference`:
@@ -379,8 +423,9 @@ deployed and old instances have drained.
    backup, rollback and residue proof. Unknown rows remain fail-closed.
 8. **Activation:** ENABLE plus FORCE RLS, revoke all runtime table privileges,
    grant only reviewed actor operations, move cleanup lease/complete/fail to
-   the dedicated worker role, withhold the unused private-message recorder,
-   and validate accepted invariants.
+   the externally isolated worker role, remove the Vercel cleanup schedule,
+   withhold the unused private-message recorder, and validate accepted
+   invariants.
 9. **Postflight:** prove no-context/direct CRUD denial, actor/source isolation,
    public shared references, private exclusivity, release/cleanup fencing,
    sanitized export and exact grants under the pooled runtime role.
@@ -716,6 +761,30 @@ does **not** verify the Vercel deployment, the
 bucket, authenticated routes, legacy data, cleanup-worker separation or
 DirectUpload activation. Those remain explicit later gates rather than
 caller-supplied claims embedded in this evidence.
+
+### Cleanup-worker activation scaffold
+
+The isolated activation-design branch adds:
+
+- `scripts/direct-upload-activation-catalog.mjs`, which partitions all 35
+  reviewed functions into 17 ordinary-runtime, 3 cleanup-worker and 15 private
+  functions;
+- `scripts/direct-upload-function-source-catalog.mjs`, which derives the exact
+  final `pg_proc.prosrc` SHA-256 for every reviewed function from the immutable
+  migration history and makes source drift a worker/proof failure;
+- `scripts/provision-direct-upload-cleanup-role.sql`, which converges an
+  externally created NOBYPASSRLS/NOINHERIT LOGIN without handling its password;
+- `scripts/direct-upload-cleanup-worker.mjs`, which refuses every non-main,
+  shared-credential, pooled/wrong-endpoint, unforced-RLS, table-authorized or
+  ACL-drifted execution; and
+- `.github/workflows/direct-upload-cleanup.yml`, which references only the
+  separate protected cleanup environment.
+
+This is saved scaffolding, not a live worker. No cleanup role, GitHub
+environment, database credential, R2 credential, schedule, migration or
+provider object has been created or changed. The current Vercel cron remains
+the compatible pre-activation owner of cleanup until the later activation
+release deliberately transfers that responsibility.
 
 ## Exit
 

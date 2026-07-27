@@ -205,6 +205,22 @@ production change. This proves the count query executes against the compatible
 schema; it does not classify production and does not authorize backfill,
 constraint validation, object mutation or activation.
 
+The cleanup credential must not be added to the main Vercel project. The
+existing runtime isolation guard intentionally rejects every PostgreSQL URL
+outside `DATABASE_URL`, and co-locating a worker URL would expose it to the
+same application-compromise boundary it is meant to escape. The accepted
+activation design uses a separate protected GitHub environment,
+`Production DirectUpload Cleanup`, with the dedicated direct Neon worker URL
+and a cleanup-only R2 credential scoped to the two exact buckets. The scheduled
+job is bounded, non-overlapping, does no bucket listing, verifies FORCE/ACL
+posture before leasing, and retains only sanitized mode-0600 count/hash
+evidence. Provisioning creates no role or password; the external LOGIN and
+secrets require their own reviewed provider step. Remove the Vercel cleanup
+schedule only in the activation release, after the external worker boundary
+and failure notifications are proven. This architecture is scaffolded only;
+no role, credential, provider environment, schedule or production state has
+changed.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a
