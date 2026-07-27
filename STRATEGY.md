@@ -250,6 +250,13 @@ RLS flags, so PostgreSQL's transaction rollback prevented any partial state.
 The syntax and class-specific regression contract are corrected; the run
 remains failed evidence and a fresh exact PostgreSQL pass is mandatory.
 
+Run `30232549766` subsequently proved the corrected activation SQL applies and
+both roles reconverge, but the global audit stopped on its older expectation
+that all four compatibility/cleanup functions stay runtime-executable. Keep
+the least-privilege design; the audit now derives the activated private set
+from the exact 35-function catalog. This run also remains failed disposable
+evidence and does not satisfy the live-authority or rollback gate.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

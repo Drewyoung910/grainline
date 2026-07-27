@@ -46,6 +46,7 @@ const {
   policylessServiceRlsTableNames,
   requiredRuntimeColumnPrivileges,
   requiredRuntimeTablePrivileges,
+  runtimePrivateFunctionNames,
   formatSavedSearchCatalogEvidence,
   normalizeSavedSearchCatalogState,
   parseGrantAuditDatabaseIdentity,
@@ -417,6 +418,29 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       policylessServiceRlsTableNames(directUploadActivationInventory),
       ["DirectUploadReference", "DirectUpload"],
+    );
+    const activatedPrivateFunctions = runtimePrivateFunctionNames(
+      directUploadActivationInventory,
+    );
+    assert.equal(
+      activatedPrivateFunctions.includes(
+        "grainline_direct_upload_record_private_message",
+      ),
+      true,
+    );
+    for (const cleanupFunction of [
+      "grainline_direct_upload_cleanup_lease",
+      "grainline_direct_upload_cleanup_complete",
+      "grainline_direct_upload_cleanup_fail",
+    ]) {
+      assert.equal(activatedPrivateFunctions.includes(cleanupFunction), true);
+    }
+    assert.deepEqual(
+      runtimePrivateFunctionNames({
+        rlsForceTables: ["DirectUploadReference"],
+        rlsPolicyTables: [],
+      }),
+      [...RUNTIME_PRIVATE_FUNCTIONS],
     );
     assert.deepEqual(
       requiredRuntimeTablePrivileges(

@@ -879,6 +879,19 @@ production. The correction closes both predicates independently and adds a
 class-specific static regression assertion. A fresh full run is still required
 before any activation/rollback evidence is accepted.
 
+The corrected candidate then applied completely in GitHub Actions run
+`30232549766` (job `89874007172`) at commit `9c54af1f`; both runtime and cleanup
+role provisioners also reconverged the activated state. The following global
+grant audit correctly stopped because its source-derived generic function
+rule still expected the three cleanup functions and the unused private-message
+recorder to remain executable by the ordinary runtime. This was stale audit
+classification, not an activation or provisioning failure. Restoring those
+grants would violate the reviewed separation, so the audit now derives the
+activated runtime-private set from the exact function catalog and requires
+those four functions to remain withheld. The run did not reach live activated
+authority or rollback proof, remains failed evidence, and used only the
+disposable CI database.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
