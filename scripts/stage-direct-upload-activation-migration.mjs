@@ -580,6 +580,7 @@ BEGIN
              pg_catalog.format('public.%I', checked_table.table_name),
              'TRIGGER'
            )
+  )
      OR EXISTS (
        SELECT 1
          FROM pg_catalog.pg_class AS class

@@ -243,6 +243,13 @@ aggregate-only production inspection, separately approved repair/backfill,
 provider/worker proof, activation, pooled-runtime postflight, then a separate
 Case private-evidence release.
 
+Diagnostic run `30232434982` exposed the underlying failure as one missing
+parenthesis between two activation postflight ACL predicates. The activation
+transaction had reached its final audit after applying its revokes, grants and
+RLS flags, so PostgreSQL's transaction rollback prevented any partial state.
+The syntax and class-specific regression contract are corrected; the run
+remains failed evidence and a fresh exact PostgreSQL pass is mandatory.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

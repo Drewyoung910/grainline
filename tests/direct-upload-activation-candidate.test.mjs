@@ -119,6 +119,10 @@ describe("DirectUpload activation candidate", () => {
       migration,
       /DirectUpload activation retained column authority/,
     );
+    assert.match(
+      migration,
+      /'TRIGGER'\n\s+\)\n\s+\)\n\s+OR EXISTS \(\n\s+SELECT 1\n\s+FROM pg_catalog\.pg_class AS class/,
+    );
   });
 
   it("grants runtime 17 functions, worker 3, and withholds risky operations", () => {

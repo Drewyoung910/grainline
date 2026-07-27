@@ -865,6 +865,20 @@ bytes in Prisma's disposable ledger afterward, so the next run retains the
 load-bearing PostgreSQL diagnostic instead of Prisma's secondary transaction
 error.
 
+The diagnostic rerun, GitHub Actions run `30232434982` (job `89873695544`)
+at commit `6cbf2681`, again passed preparation and retirement, then exposed the
+original activation error exactly. Activation completed preflight, all
+function/table revokes and grants, and both tables' ENABLE plus FORCE
+statements inside its transaction; the final table-ACL postflight failed to
+parse because the newly strengthened per-privilege/runtime-worker query did
+not close its first `EXISTS` before the separate `PUBLIC` ACL `EXISTS`.
+PostgreSQL rolled the entire activation transaction back. This was a generated
+postflight syntax defect, not a passed or partially committed activation, and
+the disposable service database changed neither persistent staging nor
+production. The correction closes both predicates independently and adds a
+class-specific static regression assertion. A fresh full run is still required
+before any activation/rollback evidence is accepted.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
