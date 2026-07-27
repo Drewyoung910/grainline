@@ -281,6 +281,12 @@ accepted disposable-engine evidence only; all production/provider/legacy
 inspection and feature-release gates above remain mandatory and separately
 approved.
 
+Final proof commit `6449d722` passed PostgreSQL 16.14 run `30233243581` (job
+`89875935635`) after adding explicit foreign Case-attachment denial and
+post-rollback `objectKey`-absence checks. Use this as the accepted disposable
+proof head. It strengthens evidence only and does not change any production
+gate or authorize promotion.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

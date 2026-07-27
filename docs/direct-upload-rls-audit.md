@@ -944,6 +944,18 @@ deletion, deploy the compatible app, complete an old-instance drain, activate
 production RLS, or enable either private-object feature. Those remain separate
 reviewed gates.
 
+The final Extra-High authority review added two explicit assertions that the
+accepted run had only implied: a third, non-participant user receives no Case
+attachment-read row, and the rollback postflight re-queries the catalog to
+prove `CaseMessageAttachment.objectKey` remains absent after exact activation
+restoration. GitHub Actions run `30233243581` (job `89875935635`) at exact
+commit `6449d722` repeated the complete PostgreSQL 16.14 program and passed
+every gate, including both strengthened checks. It recorded the same four
+activated proof groups and successful database-first rollback/restoration with
+no persistent-staging or production change. This is the current accepted
+disposable-engine proof head; it supersedes `7de1b836` only by adding those
+assertions, not by changing the authority design.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
