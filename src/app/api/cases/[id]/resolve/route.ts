@@ -16,7 +16,11 @@ import {
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
 import { blockingRefundOrLatestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
-import { caseResolutionCopy } from "@/lib/caseResolutionCopy";
+import {
+  caseResolutionCopy,
+  caseResolutionSellerMessage,
+} from "@/lib/caseResolutionCopy";
+import { logAdminActionOrThrow } from "@/lib/audit";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
@@ -41,6 +45,11 @@ import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
+import {
+  databaseClockTimestamp,
+  lockCaseForLifecycle,
+  lockOrderForCaseLifecycle,
+} from "@/lib/caseLifecycleLocks";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
@@ -220,7 +229,7 @@ export async function POST(
       const lockResult: number = await prisma.$executeRaw`
         UPDATE "Order"
         SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
-            "sellerRefundLockedAt" = ${new Date()}
+            "sellerRefundLockedAt" = pg_catalog.clock_timestamp()
         WHERE id = ${caseRecord.orderId}
           AND "sellerRefundId" IS NULL
           AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
@@ -265,6 +274,30 @@ export async function POST(
         return privateJson(
           { error: "Case status changed before this refund could be issued. Refresh and try again." },
           { status: HTTP_STATUS.CONFLICT },
+        );
+      }
+      const currentStaff = await prisma.user.findUnique({
+        where: { id: me.id },
+        select: { role: true, banned: true, deletedAt: true },
+      });
+      if (
+        !currentStaff
+        || currentStaff.banned
+        || currentStaff.deletedAt
+        || (
+          currentStaff.role !== "EMPLOYEE"
+          && currentStaff.role !== "ADMIN"
+        )
+      ) {
+        await releaseCaseRefundLock().catch((dbError) => {
+          Sentry.captureException(dbError, {
+            tags: { source: "case_refund_lock_release_failed" },
+            extra: { caseId: id, orderId: caseRecord.orderId },
+          });
+        });
+        return privateJson(
+          { error: "Your staff authority changed. Refresh and try again." },
+          { status: HTTP_STATUS.FORBIDDEN },
         );
       }
 
@@ -321,18 +354,14 @@ export async function POST(
       }
     }
 
-    const now = new Date();
     const persistedRefundAmountDisplay = persistedRefundAmountCents
       ? formatCurrencyCents(persistedRefundAmountCents, caseRecord.order.currency)
       : null;
-    const resolutionNote = [
-      `Case resolved: ${resolution}`,
-      persistedRefundAmountDisplay ? `(refund: ${persistedRefundAmountDisplay})` : null,
-      refundNote,
-      `by ${me.name ?? me.email} at ${now.toISOString()}`,
-    ]
-      .filter(Boolean)
-      .join(" ");
+    const sellerResolutionMessage = caseResolutionSellerMessage(
+      resolution,
+      persistedRefundAmountCents,
+      caseRecord.order.currency,
+    );
 
     const stockRestores =
       resolution === "REFUND_FULL" && refundMayRestoreStock(caseRecord.order)
@@ -343,9 +372,69 @@ export async function POST(
     const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
 
     let updatedCase;
+    let resolutionMessageId: string;
     let stockStatusRestoredCount = 0;
     try {
       const caseWrite = await prisma.$transaction(async (tx) => {
+        const orderExists = await lockOrderForCaseLifecycle(
+          tx,
+          caseRecord.orderId,
+        );
+        if (!orderExists) {
+          throw new Error("CASE_RESOLUTION_CONFLICT");
+        }
+        const caseExists = await lockCaseForLifecycle(tx, id);
+        if (!caseExists) {
+          throw new Error("CASE_RESOLUTION_CONFLICT");
+        }
+        const lockedCase = await tx.case.findUnique({
+          where: { id },
+          select: {
+            orderId: true,
+            buyerId: true,
+            sellerId: true,
+            status: true,
+            resolvedAt: true,
+          },
+        });
+        const lockedActor = await tx.user.findUnique({
+          where: { id: me.id },
+          select: { role: true, banned: true, deletedAt: true },
+        });
+        if (
+          !lockedCase
+          || lockedCase.orderId !== caseRecord.orderId
+          || lockedCase.buyerId !== caseRecord.buyerId
+          || lockedCase.sellerId !== caseRecord.sellerId
+          || lockedCase.resolvedAt
+          || lockedCase.status === "RESOLVED"
+          || lockedCase.status === "CLOSED"
+        ) {
+          throw new Error("CASE_RESOLUTION_CONFLICT");
+        }
+        if (
+          !lockedActor
+          || lockedActor.banned
+          || lockedActor.deletedAt
+          || (
+            lockedActor.role !== "EMPLOYEE"
+            && lockedActor.role !== "ADMIN"
+          )
+        ) {
+          throw new Error("CASE_RESOLUTION_AUTHORITY_CHANGED");
+        }
+        const transitionAt = await databaseClockTimestamp(tx);
+        const resolutionNote = [
+          `Case resolved: ${resolution}`,
+          persistedRefundAmountDisplay
+            ? `(refund: ${persistedRefundAmountDisplay})`
+            : null,
+          refundNote,
+          `by ${me.name ?? me.email} at ${transitionAt.toISOString()}`,
+        ]
+          .filter(Boolean)
+          .join(" ");
+
         if (!refunding) {
           const orderResolutionGuard = await tx.order.updateMany({
             where: {
@@ -376,13 +465,42 @@ export async function POST(
             resolution,
             refundAmountCents: persistedRefundAmountCents,
             stripeRefundId,
-            resolvedAt: now,
+            resolvedAt: transitionAt,
             resolvedById: me.id,
+            updatedAt: transitionAt,
           },
         });
         if (caseUpdate.count === 0) {
           throw new Error("CASE_RESOLUTION_CONFLICT");
         }
+
+        const resolutionMessage = await tx.caseMessage.create({
+          data: {
+            caseId: id,
+            authorId: me.id,
+            authorKind: "STAFF",
+            body: sellerResolutionMessage,
+            createdAt: transitionAt,
+          },
+          select: { id: true },
+        });
+
+        await logAdminActionOrThrow({
+          client: tx,
+          adminId: me.id,
+          action: "RESOLVE_CASE",
+          targetType: "CASE",
+          targetId: id,
+          reason: `${resolution}${persistedRefundAmountDisplay ? ` (${persistedRefundAmountDisplay})` : ""}`,
+          metadata: {
+            orderId: caseRecord.orderId,
+            resolution,
+            refundAmountCents: persistedRefundAmountCents,
+            stripeRefundId,
+            resolutionMessageId: resolutionMessage.id,
+            at: transitionAt.toISOString(),
+          },
+        });
 
         if (refunding) {
           const orderUpdate = await tx.order.updateMany({
@@ -453,9 +571,14 @@ export async function POST(
           where: { id },
           include: { messages: true, order: true },
         });
-        return { updatedCase, stockStatusRestoredCount: restoredActiveListingCount };
+        return {
+          updatedCase,
+          resolutionMessageId: resolutionMessage.id,
+          stockStatusRestoredCount: restoredActiveListingCount,
+        };
       });
       updatedCase = caseWrite.updatedCase;
+      resolutionMessageId = caseWrite.resolutionMessageId;
       stockStatusRestoredCount = caseWrite.stockStatusRestoredCount;
     } catch (txErr) {
       if (stripeRefundId) {
@@ -550,6 +673,23 @@ export async function POST(
           { status: HTTP_STATUS.CONFLICT },
         );
       }
+      if (
+        txErr instanceof Error
+        && txErr.message === "CASE_RESOLUTION_AUTHORITY_CHANGED"
+      ) {
+        return privateJson(
+          {
+            error: stripeRefundId
+              ? "Stripe accepted the refund, but staff authority changed before the case transition. Staff must reconcile this order."
+              : "Your staff authority changed. Refresh and try again.",
+          },
+          {
+            status: stripeRefundId
+              ? HTTP_STATUS.CONFLICT
+              : HTTP_STATUS.FORBIDDEN,
+          },
+        );
+      }
       if (txErr instanceof Error && txErr.message === "CASE_RESOLUTION_REFUND_IN_PROGRESS") {
         return privateJson(
           { error: "A refund is already being processed for this order. Refresh and try again." },
@@ -601,6 +741,32 @@ export async function POST(
       }
     }
 
+    if (caseRecord.sellerId) {
+      try {
+        await createNotification({
+          userId: caseRecord.sellerId,
+          type: "CASE_MESSAGE",
+          title: "Grainline resolved a case",
+          body: sellerResolutionMessage,
+          link: `/dashboard/sales/${caseRecord.orderId}`,
+          relatedUserId: me.id,
+          sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE,
+          sourceId: resolutionMessageId,
+        });
+      } catch (notificationError) {
+        Sentry.captureException(notificationError, {
+          level: "warning",
+          tags: { source: "case_seller_resolution_notification" },
+          extra: {
+            caseId: id,
+            orderId: caseRecord.orderId,
+            sellerId: caseRecord.sellerId,
+            resolution,
+          },
+        });
+      }
+    }
+
     try {
       const emailPreferenceKey = refunding ? "EMAIL_REFUND_ISSUED" : "EMAIL_CASE_RESOLVED";
       if (caseRecord.buyerId && await shouldSendEmail(caseRecord.buyerId, emailPreferenceKey)) {
@@ -622,25 +788,6 @@ export async function POST(
       Sentry.captureException(emailError, {
         level: "warning",
         tags: { source: "case_resolved_email" },
-        extra: { caseId: id, orderId: caseRecord.orderId, resolution },
-      });
-    }
-
-    // Audit log
-    try {
-      const { logAdminAction } = await import("@/lib/audit");
-      await logAdminAction({
-        adminId: me.id,
-        action: "RESOLVE_CASE",
-        targetType: "CASE",
-        targetId: id,
-        reason: `${resolution}${persistedRefundAmountDisplay ? ` (${persistedRefundAmountDisplay})` : ""}`,
-        metadata: { resolution, refundAmountCents: persistedRefundAmountCents, stripeRefundId },
-      });
-    } catch (auditError) {
-      Sentry.captureException(auditError, {
-        level: "warning",
-        tags: { source: "case_resolve_audit_log" },
         extra: { caseId: id, orderId: caseRecord.orderId, resolution },
       });
     }

@@ -5,7 +5,7 @@ Last updated: 2026-07-26
 ## Purpose And Scope
 
 This is the schema-complete disposition ledger for Grainline's site-wide
-database isolation program. Snapshot scope: 58 Prisma models.
+database isolation program. Snapshot scope: 59 Prisma models.
 
 `SavedSearch`, `Notification`, `Conversation`, and `Message` are the four
 tables in this snapshot with production RLS. Every other row is **not active
@@ -55,7 +55,7 @@ completed alternative.
 | `Favorite` | `BLOCKED_DESIGN` | Aggregate and fanout | Owner save history plus cross-user ranking and seller analytics | Denormalize or explicitly serve public aggregates before owner-scoped reads |
 | `Review` | `BLOCKED_DESIGN` | Review and UGC | Public review, reviewer content, seller reply and staff moderation | Actor-specific read and write rules that preserve public approved content and moderation |
 | `Conversation` | `RLS_LIVE_FORCE` | Conversation and message | Private participant thread state; two participants, exact reported-staff exception and deletion flows | ENABLE plus FORCE, one participant/reported-staff SELECT policy, SELECT-only runtime grant and fixed write authority are live. Retain protected run `30207825683`, actual pooled-runtime postflight and `docs/rls-conversation-message-plan.md` |
-| `Message` | `RLS_LIVE_FORCE` | Conversation and message | Private message bodies and attachments; sender, recipient, exact reported-staff exception and structured service messages | ENABLE plus FORCE, one parent-derived SELECT policy, SELECT-only runtime grant and fixed write authority are live with the Conversation release and retained pooled-runtime proof |
+| `Message` | `RLS_LIVE_FORCE` | Conversation and message | Private message bodies and attachment references; sender, recipient, exact reported-staff exception and structured service messages. Ordinary attachment bytes currently remain public bearer-link objects outside PostgreSQL | ENABLE plus FORCE, one parent-derived SELECT policy, SELECT-only runtime grant and fixed write authority are live with the Conversation release and retained pooled-runtime proof. CM-A20 separately requires private object storage, participant-authorized reads and legacy-object classification before claiming byte confidentiality |
 | `ReviewPhoto` | `BLOCKED_DESIGN` | Review and UGC | Review media; public readers, reviewer and moderation cleanup | Parent review visibility and author-control policy |
 | `ReviewVote` | `BLOCKED_DESIGN` | Review and UGC | User vote history plus public helpful counts | Preserve aggregate counts while restricting per-user rows and writes |
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
@@ -71,6 +71,7 @@ completed alternative.
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
 | `Case` | `BLOCKED_DESIGN` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Active pre-RLS audit is pinned at 69 protected references in `docs/case-case-message-pre-rls-audit.md`; close party/order invariants, transition races, deadline semantics and service destinations before policy SQL |
 | `CaseMessage` | `BLOCKED_DESIGN` | Case and case message | Private dispute discussion; buyer, seller and staff | Active audit requires durable source-derived author kind, parent authority, bounded keyset history and locked timestamp/state transitions before policy SQL |
+| `CaseMessageAttachment` | `BLOCKED_DESIGN` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Keep opaque keys in a non-public bucket; prove verified ownership, parent-scoped signed reads, lifecycle cleanup/export/retention and parent-dependent authority before policy SQL |
 | `SavedSearch` | `RLS_LIVE_PHASE_B` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Phase B FORCE is live; retain exact policies, grants, canary, rollback, and maintenance proof |
 | `StockNotification` | `PLANNED_RLS` | Stock notification | Direct user subscription with listing-wide notification fanout and cleanup | Owner reads and writes plus explicit service fanout and listing cleanup path; do not fold silently into Bucket B |
 | `MakerVerification` | `BLOCKED_DESIGN` | Verification | Seller application evidence and staff review notes; applicant, employee and admin | Applicant projection, staff review path, decision writes and notification side effects |

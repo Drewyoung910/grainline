@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { deleteR2ObjectByKey } from "@/lib/r2";
+import { deleteR2ObjectByStorageClass } from "@/lib/r2";
 import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
 import { firstPartyMediaKey } from "@/lib/urlValidation";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -31,6 +31,7 @@ export async function recordDirectUploadPresigned({
   publicUrl,
   contentType,
   expectedSize,
+  storageClass = "PUBLIC",
   now = new Date(),
 }: {
   key: string;
@@ -39,6 +40,7 @@ export async function recordDirectUploadPresigned({
   publicUrl: string;
   contentType: string;
   expectedSize: number;
+  storageClass?: "PUBLIC" | "PRIVATE";
   now?: Date;
 }) {
   await prisma.directUpload.create({
@@ -49,6 +51,7 @@ export async function recordDirectUploadPresigned({
       publicUrl,
       contentType,
       expectedSize,
+      storageClass,
       status: DIRECT_UPLOAD_STATUS.PRESIGNED,
       cleanupAfter: directUploadPresignedCleanupAfter(now),
     },
@@ -62,14 +65,16 @@ export async function recordDirectUploadVerified({
   publicUrl,
   contentType,
   expectedSize,
+  storageClass = "PUBLIC",
   now = new Date(),
 }: {
   key: string;
   endpoint: string;
   userId: string;
-  publicUrl: string;
+  publicUrl: string | null;
   contentType: string;
   expectedSize: number;
+  storageClass?: "PUBLIC" | "PRIVATE";
   now?: Date;
 }) {
   await prisma.directUpload.create({
@@ -80,6 +85,7 @@ export async function recordDirectUploadVerified({
       publicUrl,
       contentType,
       expectedSize,
+      storageClass,
       status: DIRECT_UPLOAD_STATUS.VERIFIED,
       verifiedAt: now,
       cleanupAfter: directUploadVerifiedCleanupAfter(now),
@@ -133,26 +139,100 @@ export async function claimDirectUploadForUrl({
   const key = firstPartyMediaKey(url);
   if (!key) return { tracked: false, claimed: false };
 
+  return claimDirectUploadForKey({
+    client,
+    key,
+    userId,
+    storageClass: "PUBLIC",
+    claimedByType,
+    claimedById,
+    now,
+  });
+}
+
+export async function claimDirectUploadForKey({
+  client = prisma,
+  key,
+  userId,
+  endpoint,
+  storageClass,
+  claimedByType,
+  claimedById = null,
+  now = new Date(),
+}: {
+  client?: DirectUploadClient;
+  key: string;
+  userId: string;
+  endpoint?: string;
+  storageClass: "PUBLIC" | "PRIVATE";
+  claimedByType: string;
+  claimedById?: string | null;
+  now?: Date;
+}) {
   const existing = await client.directUpload.findUnique({
     where: { key },
     select: {
       id: true,
       userId: true,
+      endpoint: true,
+      storageClass: true,
       status: true,
+      claimedByType: true,
       claimedById: true,
     },
   });
   if (!existing) return { tracked: false, claimed: false };
-  if (existing.userId !== userId) {
+  if (
+    existing.userId !== userId
+    || existing.storageClass !== storageClass
+    || (endpoint && existing.endpoint !== endpoint)
+  ) {
     throw new DirectUploadClaimError("Attachment upload is not valid for this account.");
   }
 
   if (existing.status === DIRECT_UPLOAD_STATUS.CLAIMED) {
-    if (claimedById && !existing.claimedById) {
-      await client.directUpload.updateMany({
-        where: { id: existing.id, status: DIRECT_UPLOAD_STATUS.CLAIMED, claimedById: null },
+    if (existing.claimedByType !== claimedByType) {
+      throw new DirectUploadClaimError(
+        "Attachment upload has already been claimed by another record.",
+      );
+    }
+    if (existing.claimedById) {
+      if (existing.claimedById !== claimedById) {
+        throw new DirectUploadClaimError(
+          "Attachment upload has already been claimed by another record.",
+        );
+      }
+      return { tracked: true, claimed: true };
+    }
+    if (claimedById) {
+      const linked = await client.directUpload.updateMany({
+        where: {
+          id: existing.id,
+          status: DIRECT_UPLOAD_STATUS.CLAIMED,
+          claimedByType,
+          claimedById: null,
+        },
         data: { claimedById },
       });
+      if (linked.count !== 1) {
+        const current = await client.directUpload.findUnique({
+          where: { key },
+          select: {
+            status: true,
+            claimedByType: true,
+            claimedById: true,
+          },
+        });
+        if (
+          current?.status !== DIRECT_UPLOAD_STATUS.CLAIMED
+          || current.claimedByType !== claimedByType
+          || current.claimedById !== claimedById
+        ) {
+          throw new DirectUploadClaimError(
+            "Attachment upload has already been claimed by another record.",
+          );
+        }
+      }
     }
     return { tracked: true, claimed: true };
   }
@@ -227,6 +307,7 @@ export async function processExpiredDirectUploadBatch({
     select: {
       id: true,
       key: true,
+      storageClass: true,
       status: true,
       attempts: true,
       cleanupAfter: true,
@@ -257,7 +338,7 @@ export async function processExpiredDirectUploadBatch({
     }
 
     try {
-      await deleteR2ObjectByKey(row.key);
+      await deleteR2ObjectByStorageClass(row.key, row.storageClass);
       await prisma.directUpload.update({
         where: { id: row.id },
         data: {

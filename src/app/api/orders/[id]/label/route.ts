@@ -55,6 +55,7 @@ import {
   safeProviderShippingCents,
 } from "@/lib/shippingQuoteState";
 import { normalizeCurrencyCode } from "@/lib/money";
+import { lockOrderForCaseLifecycle } from "@/lib/caseLifecycleLocks";
 
 const LabelSchema = z.object({
   rateObjectId: z.string().min(1).optional().nullable(),
@@ -527,29 +528,33 @@ export async function POST(
     // Atomic double-check to prevent concurrent label purchases. We set the
     // terminal label status before Shippo purchase so retries cannot buy a
     // second label if Shippo succeeds but a later DB write fails.
-    const labelLockResult: number = await prisma.$executeRaw`
-      UPDATE "Order" SET "labelStatus" = 'PURCHASED'::"LabelStatus"
-      WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
-        AND "fulfillmentStatus" = 'PENDING'::"FulfillmentStatus"
-        AND "sellerRefundId" IS NULL
-        AND "sellerRefundLockedAt" IS NULL
-        AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
-        AND NOT EXISTS (
-          SELECT 1 FROM "Case" c
-          WHERE c."orderId" = "Order".id
-            AND c."status"::text IN (${Prisma.join([...ACTIVE_CASE_STATUSES])})
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM "OrderPaymentEvent" ope
-          WHERE ope."orderId" = "Order".id
-            AND ope."eventType" = 'REFUND'
-            AND (
-              ope."status" IS NULL
-              OR lower(ope."status") NOT IN (${Prisma.join(NON_BLOCKING_REFUND_LEDGER_STATUSES)})
-            )
-        )
-        AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
-    `;
+    const labelLockResult = await prisma.$transaction(async (tx) => {
+      const orderExists = await lockOrderForCaseLifecycle(tx, order.id);
+      if (!orderExists) return 0;
+      return tx.$executeRaw`
+        UPDATE "Order" SET "labelStatus" = 'PURCHASED'::"LabelStatus"
+        WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
+          AND "fulfillmentStatus" = 'PENDING'::"FulfillmentStatus"
+          AND "sellerRefundId" IS NULL
+          AND "sellerRefundLockedAt" IS NULL
+          AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
+          AND NOT EXISTS (
+            SELECT 1 FROM "Case" c
+            WHERE c."orderId" = "Order".id
+              AND c."status"::text IN (${Prisma.join([...ACTIVE_CASE_STATUSES])})
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM "OrderPaymentEvent" ope
+            WHERE ope."orderId" = "Order".id
+              AND ope."eventType" = 'REFUND'
+              AND (
+                ope."status" IS NULL
+                OR lower(ope."status") NOT IN (${Prisma.join(NON_BLOCKING_REFUND_LEDGER_STATUSES)})
+              )
+          )
+          AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+      `;
+    });
     if (labelLockResult === 0) {
       return privateJson(
         { error: "Label already purchased or order status changed." },

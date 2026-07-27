@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export const EXPECTED_NOTIFICATION_EMISSION_PATHS = 54;
+export const EXPECTED_NOTIFICATION_EMISSION_PATHS = 55;
 
 const FAMILY_SQL_FUNCTION_BY_SOURCE_KEY = {
   BLOG_COMMENT: "grainline_notification_create_source_fanout",

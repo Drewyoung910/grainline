@@ -15,6 +15,10 @@ import {
   latestOpenDisputeLedgerExistsSql,
 } from "@/lib/refundLedgerSql";
 import {
+  databaseClockTimestamp,
+  lockOrderForCaseLifecycle,
+} from "@/lib/caseLifecycleLocks";
+import {
   assertKnownContentLengthUnder,
   isInvalidContentLengthError,
   isMissingContentLengthError,
@@ -322,28 +326,32 @@ export async function POST(
       const labelStatusSql = action === "shipped"
         ? Prisma.sql`AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")`
         : Prisma.empty;
-      const mutationSql =
-        action === "ready_for_pickup"
-          ? Prisma.sql`
-              "fulfillmentMethod" = 'PICKUP'::"FulfillmentMethod",
-              "fulfillmentStatus" = 'READY_FOR_PICKUP'::"FulfillmentStatus",
-              "pickupReadyAt" = ${now}
-            `
-          : action === "picked_up"
+      const transition = await prisma.$transaction(async (tx) => {
+        const orderExists = await lockOrderForCaseLifecycle(tx, id);
+        if (!orderExists) {
+          return { count: 0, auditLogId: null as string | null };
+        }
+        const transitionAt = await databaseClockTimestamp(tx);
+        const mutationSql =
+          action === "ready_for_pickup"
             ? Prisma.sql`
                 "fulfillmentMethod" = 'PICKUP'::"FulfillmentMethod",
-                "fulfillmentStatus" = 'PICKED_UP'::"FulfillmentStatus",
-                "pickedUpAt" = ${now}
+                "fulfillmentStatus" = 'READY_FOR_PICKUP'::"FulfillmentStatus",
+                "pickupReadyAt" = ${transitionAt}
               `
-            : Prisma.sql`
-                "fulfillmentMethod" = 'SHIPPING'::"FulfillmentMethod",
-                "fulfillmentStatus" = 'SHIPPED'::"FulfillmentStatus",
-                "shippedAt" = ${now},
-                "trackingCarrier" = ${data.trackingCarrier as string},
-                "trackingNumber" = ${data.trackingNumber as string}
-              `;
-
-      const transition = await prisma.$transaction(async (tx) => {
+            : action === "picked_up"
+              ? Prisma.sql`
+                  "fulfillmentMethod" = 'PICKUP'::"FulfillmentMethod",
+                  "fulfillmentStatus" = 'PICKED_UP'::"FulfillmentStatus",
+                  "pickedUpAt" = ${transitionAt}
+                `
+              : Prisma.sql`
+                  "fulfillmentMethod" = 'SHIPPING'::"FulfillmentMethod",
+                  "fulfillmentStatus" = 'SHIPPED'::"FulfillmentStatus",
+                  "shippedAt" = ${transitionAt},
+                  "trackingCarrier" = ${data.trackingCarrier as string},
+                  "trackingNumber" = ${data.trackingNumber as string}
+                `;
         const count = await tx.$executeRaw`
           UPDATE "Order"
           SET ${mutationSql}

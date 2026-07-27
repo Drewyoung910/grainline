@@ -985,7 +985,11 @@ async function collectAccountDeletionMediaUrls(
     if (post.videoUrl) urls.add(post.videoUrl);
     markdownImageUrls(post.body).forEach((url) => urls.add(url));
   });
-  directUploads.forEach((upload) => urls.add(upload.publicUrl));
+  // Private Case evidence is retained with the dispute/order record and has no
+  // public URL. Only account-owned public media enters this deletion queue.
+  directUploads.forEach((upload) => {
+    if (upload.publicUrl) urls.add(upload.publicUrl);
+  });
 
   return accountDeletionMediaUrlsForCleanup(urls, clerkUserId);
 }
@@ -1440,7 +1444,13 @@ export async function anonymizeUserAccount(
     ]);
     const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId);
     await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls);
-    await tx.directUpload.deleteMany({ where: { userId: user.id } });
+    // Public account media is queued above and its lifecycle rows can be
+    // removed. Private Case evidence is retained with the dispute record, so
+    // keep its lifecycle row: authenticated reads require that claimed row,
+    // while unclaimed private uploads still expire through lifecycle cleanup.
+    await tx.directUpload.deleteMany({
+      where: { userId: user.id, storageClass: "PUBLIC" },
+    });
 
     await tx.adminAuditLog.create({
       data: {

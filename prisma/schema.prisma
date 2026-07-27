@@ -98,6 +98,7 @@ model User {
   casesAsSeller Case[]        @relation("CasesBySeller")
   casesResolved Case[]        @relation("CasesResolvedBy")
   caseMessages  CaseMessage[] @relation("CaseMessages")
+  caseMessageAttachments CaseMessageAttachment[] @relation("CaseMessageAttachments")
 
   savedSearches      SavedSearch[]
   stockNotifications StockNotification[]
@@ -878,6 +879,12 @@ enum CaseResolution {
   DISMISSED
 }
 
+enum CaseMessageAuthorKind {
+  BUYER
+  SELLER
+  STAFF
+}
+
 model Case {
   id                   String          @id @default(cuid())
   orderId              String          @unique
@@ -911,17 +918,35 @@ model Case {
 }
 
 model CaseMessage {
-  id        String   @id @default(cuid())
-  caseId    String
-  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
-  body      String   @db.VarChar(5000)
-  createdAt DateTime @default(now())
+  id         String                 @id @default(cuid())
+  caseId     String
+  case       Case                   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User                   @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
+  authorKind CaseMessageAuthorKind?
+  body       String                 @db.VarChar(5000)
+  createdAt  DateTime               @default(now())
+  attachments CaseMessageAttachment[]
 
-  @@index([caseId])
-  @@index([caseId, createdAt])
+  @@index([caseId, createdAt, id])
   @@index([authorId])
+}
+
+model CaseMessageAttachment {
+  id            String      @id @default(cuid())
+  caseMessageId String
+  caseMessage   CaseMessage @relation(fields: [caseMessageId], references: [id], onDelete: Cascade)
+  uploaderId    String
+  uploader      User        @relation("CaseMessageAttachments", fields: [uploaderId], references: [id], onDelete: Restrict)
+  // Opaque key in the non-public Case evidence bucket. Never persist a public
+  // URL for dispute evidence.
+  objectKey     String      @unique @db.VarChar(500)
+  contentType   String      @db.VarChar(100)
+  byteSize      Int
+  createdAt     DateTime    @default(now())
+
+  @@index([caseMessageId, createdAt, id])
+  @@index([uploaderId])
 }
 
 model SavedSearch {
@@ -1150,7 +1175,8 @@ model DirectUpload {
   key           String    @unique @db.VarChar(500)
   endpoint      String    @db.VarChar(40)
   userId        String    @db.VarChar(191)
-  publicUrl     String    @db.VarChar(2048)
+  publicUrl     String?   @db.VarChar(2048)
+  storageClass  String    @default("PUBLIC") @db.VarChar(20)
   contentType   String    @db.VarChar(100)
   expectedSize  Int
   status        String    @default("PRESIGNED") @db.VarChar(20)

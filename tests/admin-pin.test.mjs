@@ -211,14 +211,19 @@ describe("admin PIN cookie secret configuration", () => {
 
     assert.match(messages, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
     assert.match(messages, /const \{ userId, sessionId \} = await auth\(\)/);
-    assert.match(messages, /if \(!isParty && isStaff\) \{/);
+    assert.match(messages, /const isNonPartyStaff = isStaff && !isParty/);
+    assert.match(messages, /if \(isNonPartyStaff\) \{/);
     assert.match(messages, /requireStaffAdminPinForApi\(req, userId, sessionId\)/);
+    assert.match(messages, /const nonPartyStaffPinVerified = isNonPartyStaff/);
+    assert.match(messages, /lockedActsAsStaff && !nonPartyStaffPinVerified/);
     assert.ok(
       messages.indexOf("if (!isParty && !isStaff)") <
-        messages.indexOf("if (!isParty && isStaff)") &&
-        messages.indexOf("if (!isParty && isStaff)") <
-          messages.indexOf("if (!canCreateCaseMessageForStatus"),
-      "only staff non-party case messages should require the admin PIN before message creation",
+        messages.indexOf("if (isNonPartyStaff)") &&
+        messages.indexOf("if (isNonPartyStaff)") <
+          messages.indexOf("for (const key of attachmentKeys)") &&
+        messages.indexOf("if (isNonPartyStaff)") <
+          messages.indexOf("const messageResult = await prisma.$transaction"),
+      "only staff non-party case messages should require the admin PIN before evidence reads and message creation",
     );
   });
 });

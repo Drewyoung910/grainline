@@ -27,6 +27,13 @@ surface with the TypeScript AST. The initial baseline is:
 - 10 raw SQL references;
 - 69 total protected references across 25 source files.
 
+The Phase 1B private-evidence and lifecycle-integrity draft expands the scanner
+to `CaseMessageAttachment` and currently records 46 direct operations, 25
+nested relation references and 12 raw SQL references: 83 total protected references
+across 29 source files. The original 69-reference baseline remains above as
+historical evidence; the generated current inventory, not either prose count,
+is the activation completeness gate.
+
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
 reference still needs an actor, purpose and migration destination.
@@ -94,8 +101,9 @@ the table is ready.
 - Staff refund resolution has a payment lock, Stripe idempotency keys, stale
   lock recovery, local payment evidence and explicit orphan/ambiguous outcome
   handling.
-- Case reply creation uses a transaction, status compare-and-swap and a bounded
-  duplicate window.
+- Case reply creation locks and re-reads the parent Case, uses one post-lock
+  database timestamp for Case/message state, and retains a bounded,
+  attachment-aware duplicate window.
 - Cron state changes and participant resolution marks create durable audit
   evidence in the same database transaction.
 - Existing indexes cover participant lookup, status/creation queues,
@@ -107,20 +115,100 @@ the table is ready.
 
 | ID | Severity | Finding | Required before RLS |
 |---|---|---|---|
-| CC-A01 | High | Foreign keys prove that Case buyer/seller/order ids exist, but not that the buyer owns the Order, that the seller owns every Order item, or that buyer and seller differ. A compromised internal caller can create a structurally valid cross-user Case. | Inspect legacy rows. Make every creation family derive buyer/seller from the locked Order and add a new-row database invariant/trigger for the relationship. Reject self-party Cases. |
+| CC-A01 | High | Foreign keys prove that Case buyer/seller/order ids exist, but not that the buyer owns the Order, that the seller owns every Order item, or that buyer and seller differ. The isolated compatible route now derives both parties from the locked Order, verifies every item has the same seller and rejects self-party Cases, but direct database writes are not yet protected. | Inspect legacy rows and add a new-row database invariant/trigger for the relationship before direct runtime Case creation is revoked. |
 | CC-A02 | High | `CaseMessage.authorId` is not constrained to a Case participant or current staff member. The UI also labels historical messages from the author's mutable current `User.role`, so promotion/demotion can relabel old participant or staff speech. | Add durable source-derived author kind (`BUYER`, `SELLER`, `STAFF`, and only if needed `SYSTEM`), inspect/backfill legacy rows, enforce it on insert and render the snapshot rather than current role. |
-| CC-A03 | High | Case creation checks Order/refund/case state and later inserts without locking the Order. It can race label purchase, fulfillment, delivery confirmation or a seller/staff refund and leave a combination each route intended to prevent. A foreign-key check does not provide the needed business serialization. | Establish one Order-row lock order shared by Case creation and conflicting Order transitions. Recheck eligibility after the lock and prove both race orderings in PostgreSQL. |
-| CC-A04 | High | Reply deduplication serializes only identical `(case, author, body)` attempts. Different concurrent replies can update the same Case with timestamps derived before lock wait, and CaseMessage uses an implicit database timestamp. This can regress inactivity ordering or produce commit/order disagreement. | Lock the exact Case before final authority/state derivation; use one post-lock database timestamp for CaseMessage and Case `updatedAt`; prove different-body, seller-first-reply, pending-close and cron races. |
+| CC-A03 | High | Case creation previously checked Order/refund/case state and later inserted without locking the Order. The isolated compatible branch now uses one exact Order-row lock protocol for Case creation, label purchase, fulfillment, buyer delivery confirmation and seller-refund reservations, with fresh checks after lock acquisition. | Prove both race orderings in PostgreSQL, retain the protocol in the fixed database operations, and cover any additional conflicting transition found by the final inventory review. |
+| CC-A04 | High | Reply deduplication previously serialized only identical `(case, author, body)` attempts. The isolated compatible branch now serializes every reply on the parent Case and shares one post-lock PostgreSQL timestamp across Case/message state. | Prove different-body, seller-first-reply, pending-close and cron race orderings in PostgreSQL, then preserve the same lock/timestamp rule in the fixed write operation. |
 | CC-A05 | Medium/Scale | Buyer, seller and admin detail pages load the entire CaseMessage history ordered only by `createdAt`. Account export intentionally includes every participant Case/message as part of a much broader per-account export. Long disputes can create unbounded interactive query, render and payload cost, and equal timestamps lack a stable tie-breaker. | Use bounded `(createdAt,id)` keyset history for interactive pages and add a `(caseId,createdAt,id)` index. Keep account export complete through a dedicated participant projection; do not truncate legal export data. Move the whole-account export to an async streamed artifact if production evidence shows either a 10-second generation time or a 25 MiB uncompressed payload for one account. |
 | CC-A06 | High/Product | Public and email copy gives the seller 48 hours to respond. The scheduled job does not escalate an `OPEN` Case when `sellerRespondBy` expires; it waits until that deadline is another 14 days old. Parties normally cannot escalate `OPEN` because it has no discussion unlock timestamp. The separate bulk route that uses the deadline is not scheduled. | Choose and document the actual policy. The current public 48-hour contract implies the scheduled transition must use the expired `sellerRespondBy` boundary, with idempotent audit/notification proof. |
 | CC-A07 | High | The database has only a non-negative refund check. It does not enforce coherent lifecycle fields: active versus terminal resolution data, resolved timestamps/actor, discussion/unlock timestamps, resolution marks, or refund fields matching resolution type. | Inspect legacy combinations, define the state invariant, repair only classified rows, then add checks/triggers and prove every valid transition plus forged-state rejection. |
-| CC-A08 | Expected gap | The runtime still has 69 direct/relation/raw protected references. Participant RLS alone would break context-free cron/webhook/metrics/retention flows, while permissive service policies would recreate broad authority. | Convert all references to explicit participant, staff, webhook, cron, lifecycle or aggregate destinations. Revoke direct runtime INSERT/UPDATE/DELETE before activation and keep no-context reads denied. |
-| CC-A09 | High | Reply authorization, account state and staff role are checked before the transaction, not re-derived after locking the Case and relevant users. Role/party/account changes can race the final write. | Fixed write functions must derive the author and current authority after ordered Case/User locks. Caller input may include user-authored body only; recipient, author kind, status side effects and event identity are database-derived. |
+| CC-A08 | Expected gap | The original audit found 69 direct/relation/raw protected references; the current Phase 1B scanner pins 83 after private evidence and compatible lifecycle work. Participant RLS alone would break context-free cron/webhook/metrics/retention flows, while permissive service policies would recreate broad authority. | Convert all current references to explicit participant, staff, webhook, cron, lifecycle or aggregate destinations. Revoke direct runtime INSERT/UPDATE/DELETE before activation and keep no-context reads denied. |
+| CC-A09 | High | The isolated reply route now re-reads the Case and actor role/account state after the Case lock, treats a staff user who is also a party as that party, and derives author kind/status effects from the fresh rows. It does not yet provide a database function boundary against a caller holding the runtime credential, nor a final shared Case/User lock order. | Fixed write functions must derive the author and current authority after the reviewed lock order. Caller input may include user-authored body only; recipient, author kind, status side effects and event identity are database-derived. |
 | CC-A10 | Medium | Case is a predicate inside Order label, fulfillment, delivery, PII retention and seller-quality operations. Enabling RLS without converting these hidden relation/raw references would make active Cases invisible to context-free jobs or incorrectly permit an Order transition. | Pin every relation/raw reference in the inventory and replace it with a reviewed participant or fixed service predicate before activation. Keep the Order table's own later RLS release separate. |
 | CC-A11 | Accepted launch requirement | Damage/not-as-described disputes have no evidence attachment model even though the Terms say staff review photos. The existing generic Message upload path persists publicly reachable R2 URLs, which is not an acceptable confidentiality boundary for dispute evidence. Adding sensitive evidence after Case RLS would also require another parent-scoped authority and retention rollout. | Include a private-object-backed `CaseMessageAttachment` image model in the tightly coupled Case group before policy SQL. Process and verify images, persist an opaque object key rather than a public URL, retrieve only after Case participant/staff authorization through a short-lived signed path, inherit parent Case visibility, and define export/deletion/retention behavior. PDF evidence remains prohibited until a reviewed malware-scan/quarantine pipeline exists. |
 | CC-A12 | Deliberate later product work | The queue has no staff assignment/SLA ownership and the contractual one-time re-review is handled by email, not an in-product appeal state. These do not need broader participant table authority. | Keep them outside initial Case RLS unless the product decision changes. Record the trigger: add assignment/SLA when multiple staff share the queue; add an appeal record only with a reviewed legal/retention workflow. |
-| CC-A13 | High/Product | Staff resolution notifies/emails the buyer only. The seller receives no Case decision notice even when a staff refund changes seller financial state. The live Notification Case-source function also permits staff-resolution recipients only when the recipient is the buyer. | Add source-derived seller decision copy and delivery, with a narrowly reviewed extension to the existing Notification function. Prove both participants receive the correct non-buyer-centric result and no foreign recipient is possible. |
-| CC-A14 | High/Audit | Transition audit atomicity is inconsistent. Participant mark-resolved and cron actions write audit evidence in the same transaction, but Case creation writes its user audit after Case commit, staff resolution writes a best-effort admin audit after commit, and participant escalation writes no durable actor event. | Make every authority-changing transition write durable actor/source evidence atomically with the Case mutation. Preserve Stripe orphan reconciliation when a refund has already left the database boundary. |
+| CC-A13 | High/Product | Staff resolution notified/emailed the buyer only. The seller received no Case decision notice even when a staff refund changed seller financial state. The live Notification Case-source function permits staff-resolution recipients only when the recipient is the buyer. | Resolved in the isolated compatible branch without widening that function: create a fixed-copy staff `CaseMessage` atomically with resolution, then use the existing source-validating CaseMessage Notification family to derive the seller, route, copy and replay identity. |
+| CC-A14 | High/Audit | Transition audit atomicity was inconsistent. The isolated compatible branch now co-commits strict human audit evidence for Case creation, participant escalation and staff resolution; participant mark-resolved and cron transitions already did so. | Preserve these pairings in fixed database operations and preserve Stripe orphan reconciliation when a refund has already left the database boundary. |
+| CC-A15 | High/Concurrency | Review of the first green 14-ordering proof found that three harness paths were stronger than their real routes: participant mark-resolved and bulk cron used post-wait database clocks while the application used pre-wait JavaScript timestamps, and staff resolution was not contended against replies. A waiting mutation could therefore commit a regressed Case timestamp or an older staff resolution message. | Keep participant mark-resolved and staff resolution on the reviewed Order-then-Case lock order, derive transition/audit/message time after the locks from PostgreSQL, make bulk cron use per-row PostgreSQL time, and accept only an exact-head disposable run of the expanded 21-ordering harness. The later fixed-function review still owns the final shared Case/User authority-lock design. |
+
+CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
+a separate non-public R2 bucket, never the generic public message uploader.
+It records opaque keys in `CaseMessageAttachment`, atomically claims verified
+upload ownership with the message, retrieves only through a participant/staff
+authorization route and includes attachment metadata in interactive history
+and account export. The private Cloudflare bucket and application environment
+do not exist merely because this code exists; production evidence upload stays
+blocked until bucket privacy, least-privilege object access, authenticated
+signed read, foreign denial and cleanup are proven.
+
+The final compatible review made the storage boundary fail closed across the
+whole lifecycle: a claimed `DirectUpload` cannot be rebound to another source
+type/id; public rows require a public URL and private rows prohibit one;
+message creation/retry responses strip the private object key; and account
+anonymization retains claimed private lifecycle rows because authenticated
+evidence reads still depend on them. Unclaimed private uploads remain covered
+by retryable lifecycle cleanup. These are compatible application/schema
+protections, not provider proof or final RLS authority.
+
+CC-A13 and the staff-resolution portion of CC-A14 (2026-07-26): the isolated
+branch co-commits a bounded, fixed-copy `STAFF` CaseMessage and a strict
+`AdminAuditLog` with the successful Case resolution. The seller notice uses
+that message through the existing live CaseMessage Notification family, so the
+database revalidates the staff author, exact parent Case, seller recipient,
+canonical sales route and replay identity. No new Notification function or
+grant is introduced. The 55/55 callsite gate prevents this added path from
+escaping the permanent authority inventory.
+
+CC-A01/CC-A03/CC-A14 compatible boundary (2026-07-26): Case creation now takes
+the exact Order row `FOR UPDATE`, re-reads eligibility after the lock, derives
+the buyer from the Order, requires every Order item to resolve to one distinct
+seller, then co-commits the Case, opening buyer message and strict actor audit.
+Label purchase, fulfillment transitions, buyer delivery confirmation and
+seller-refund reservation take the same Order lock before their conflict
+predicates. Single-Case escalation locks and re-reads the Case, takes a
+post-lock timestamp, and co-commits either the participant audit or staff/cron
+system audit. These are compatible application protections; disposable
+two-session PostgreSQL proof and later database invariant/fixed-function
+enforcement remain required before Case RLS.
+
+CC-A04/CC-A09 compatible boundary (2026-07-26): each reply locks the exact Case,
+then re-reads the Case parties, status, actor role and actor account state.
+Non-party staff authority stays distinct from participant authority, so a
+staff account that is itself the buyer or seller cannot use the staff-only
+`UNDER_REVIEW` path. After lock acquisition, one database
+`clock_timestamp()` supplies Case `updatedAt`, discussion/escalation clocks,
+private-upload claim time and CaseMessage `createdAt`. The body/attachment hash
+advisory lock remains only the idempotent-retry guard; it is no longer the
+general concurrency boundary. If fresh authority would newly classify the
+caller as non-party staff, the write also fails unless that request already
+completed the session-bound staff PIN check.
+
+PostgreSQL proof scaffold boundary (2026-07-26): the isolated branch has a
+loopback- and `grainline_ci`-only PostgreSQL 16 harness. The first accepted run
+proved 14 explicit two-session winner orderings, but the later CC-A15 review
+showed that its mark-resolved, cron and staff-resolution coverage was not
+fidelity-complete. The candidate harness now has 21 orderings, adding
+mark-resolved versus refund reservation, mark-resolved versus staff dismissal,
+reply versus staff dismissal and an eligible discussion reply versus bulk
+cron. Each check must observe the second connection in a PostgreSQL `Lock`
+wait; all fixtures are synthetic and deleted in `finally`. Exact code head
+`9f4079fe2f6667f14e63943f9a9eee22f350f46b` passed GitHub Actions run
+`30217588001` against PostgreSQL 16.14 after the complete 163-migration tree,
+production-style runtime grants and final grant/RLS catalog audit. All 21
+checks observed a `transactionid` wait; the bounded result reported
+`status=passed`, `persistentStagingChanged=false` and
+`productionChanged=false`, then the service container and network were
+destroyed. This closes the compatible CC-A03/CC-A04/CC-A15 proof checkpoint;
+the later invariant and fixed-function gates remain separate.
+
+Because the final authority review changed the compatibility migration bytes,
+the current acceptance was rerun rather than inherited. Exact head
+`4dc57266c18abf7ee4d4a8a700bcd2a52d0f3185` passed dedicated run
+`30218521286` with the full migration tree, production-style grants,
+migration/catalog audits and all 21 real-wait winner orderings. General CI run
+`30218522907` passed the database guards and proofs, TypeScript, lint, all
+2,089 tests, the high-severity dependency audit and production build. No
+persistent staging or production database was used or changed.
 
 ## Preliminary RLS shape, not approved SQL
 
@@ -167,7 +255,7 @@ SQL only when:
 
 - the 69-reference baseline is pinned by tests;
 - every reference has an actor and destination;
-- CC-A01 through CC-A10 and CC-A13 through CC-A14 are fixed or have an accepted
+- CC-A01 through CC-A10 and CC-A13 through CC-A15 are fixed or have an accepted
   proof-backed design;
 - the accepted CC-A11 attachment requirement is implemented and proven;
 - legacy-data inspection queries exist and are read-only by default;
@@ -188,7 +276,9 @@ The reader is correct with the existing `(caseId, createdAt)` index and uses
 is grouped with Phase 1B's reviewed compatible schema migration so the
 protected migration-tree guard is updated once rather than bypassed.
 
-CC-A05's interactive-read portion and CC-A06's 48-hour query correction are
-implemented on `agent/case-compatible-product-20260726`; they are not production
-claims until that branch merges and its release is verified. CC-A05's exact
-index remains in the immediately following Phase 1B compatible migration.
+CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
+to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B
+compatible migration adds the exact index and a nullable durable author-kind
+column. Nullable is deliberate until the protected aggregate-only inspection
+classifies every legacy message; every new application creation path must set
+the source-derived kind meanwhile.

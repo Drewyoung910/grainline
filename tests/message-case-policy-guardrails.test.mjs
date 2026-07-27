@@ -41,9 +41,12 @@ describe("message and case policy guardrails", () => {
 
     assert.match(route, /caseMessageStatusTransition/);
     assert.match(route, /statusTransition === "party_reopened_pending_close"/);
-    assert.match(route, /caseUpdates\.status = "IN_DISCUSSION"/);
-    assert.match(route, /caseUpdates\.buyerMarkedResolved = false/);
-    assert.match(route, /caseUpdates\.sellerMarkedResolved = false/);
+    assert.match(
+      route,
+      /statusTransition === "party_reopened_pending_close"[\s\S]{0,180}status: "IN_DISCUSSION" as const/,
+    );
+    assert.match(route, /buyerMarkedResolved: false/);
+    assert.match(route, /sellerMarkedResolved: false/);
   });
 
   it("keeps blocked and archived conversations out of visible unread counts before caps", () => {
@@ -206,7 +209,10 @@ describe("message and case policy guardrails", () => {
       assert.match(page, /buyer: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/);
       assert.match(page, /seller: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/);
       assert.match(page, /caseReplyUnavailableMessage \? \(/);
-      assert.match(page, /<CaseReplyBox caseId=\{activeCase\.id\} \/>/);
+      assert.match(
+        page,
+        /<CaseReplyBox[\s\S]*caseId=\{activeCase\.id\}[\s\S]*attachmentsEnabled=\{caseEvidenceAttachmentsEnabled\(\)\}[\s\S]*\/>/,
+      );
     }
   });
 

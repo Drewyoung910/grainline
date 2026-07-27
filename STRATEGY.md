@@ -94,6 +94,38 @@ attachment path, accept arbitrary external URLs, or activate the attachment
 table separately from its parent Case boundary. PDF evidence remains prohibited
 until a reviewed malware-scan/quarantine pipeline exists.
 
+Keep the private Case path fail-closed during its compatibility rollout.
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED` is absent or exact `false` while the
+schema/fixed-operation app deploys and drains. Only the exact lowercase `true`
+may be promoted after DirectUpload activation and pooled-runtime postflight,
+private-bucket isolation/credential proof, and authenticated
+participant/staff-versus-foreign-user route smoke all pass. This breaks the
+otherwise circular dependency between deploying compatible code before RLS
+activation and withholding sensitive private-object access until that boundary
+is proven.
+
+The Case evidence review exposed a separate pre-launch privacy requirement:
+ordinary Message attachment bytes currently use public R2 bearer URLs even
+though their Message rows and attachment references are protected by FORCE
+RLS. Complete the current Case lifecycle proof checkpoint first, then run a
+separately reviewed Message private-object compatibility and legacy
+classification pass before Case policy activation. Reuse private-bucket
+primitives where appropriate, but do not bundle ordinary Message attachment
+authority, legacy object mutation or proof claims into the Case activation.
+Keep new private direct-message uploads image-only unless malware scanning and
+quarantine for PDFs are explicitly designed and proven.
+
+For the active Case lifecycle checkpoint, proof fidelity is part of the gate:
+the first accepted 14-ordering PostgreSQL run remains valid only for its modeled
+subset because its mark-resolved/cron helpers used stronger post-lock time
+semantics than the corresponding application routes and did not contend staff
+resolution against replies. Exact code head `9f4079fe` passed all 21 corrected
+two-session orderings in disposable PostgreSQL 16.14 run `30217588001`, using
+the real refund sentinel, Order-then-Case locks and post-wait PostgreSQL
+timestamps. Preserve that expanded proof as the compatible-integrity baseline;
+later database invariants and fixed RLS authority still require their own
+review and proof.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a
@@ -402,7 +434,7 @@ policies, and legacy table CRUD; the RPC application deploys and is verified;
 only then may a locked activation migration purge pre-authority rows, install
 the policies, enable initial `NO FORCE`, and narrow table grants. Keep three
 evidence layers distinct:
-the AST gate covers all 54 application emission paths; disposable PostgreSQL
+the AST gate covers all 55 application emission paths; disposable PostgreSQL
 run `29893071538` at exact source
 `187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` executes all 26 family-dispatched
 private-core source-validation branches plus the dedicated back-in-stock claim
@@ -417,7 +449,8 @@ do not retroactively count the earlier draft run as that proof.
 
 Extra-high review accepts the current source-derived shared create function and
 split migration topology for continued proof, not production activation. The
-54/54 callsite result and 59-case live result validate the architecture, the
+original 54/54 callsite result, current 55/55 result, and 59-case live result
+validate the architecture, the
 granted boundary, every top-level private-core source branch, every successful
 source/type pair, and the security-relevant action/recipient variants.
 The latest isolated PostgreSQL proof is green and also passes catalog/grant,
@@ -494,10 +527,10 @@ order relationships.
 
 Production activation also has a permanent completeness gate:
 `npm run audit:rls-notification-readiness`. It inventories the real TypeScript
-emission paths, requires the exact 54-path contract, and fails on dynamic calls,
+emission paths, requires the exact 55-path contract, and fails on dynamic calls,
 missing source pairs, or source constants that do not dispatch through a
 reviewed service family whose draft SQL function, `PUBLIC` execute revoke, and
-runtime grant are present. Its current 54/54 result passes the
+runtime grant are present. Its current 55/55 result passes the
 creation-authority gate; ordinary tests retain the exact count and authority
 surface tripwires so new or dynamic paths cannot disappear silently. This green
 gate is only one activation prerequisite.

@@ -118,6 +118,35 @@ describe("direct upload lifecycle", () => {
     assert.match(verifier, /uploadContentTypeMatches\(head\.ContentType, lifecycle\.contentType\)/);
   });
 
+  it("never rebinds a claimed upload to a different record type or record id", () => {
+    const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const claimStart = lifecycle.indexOf("export async function claimDirectUploadForKey");
+    const batchClaimStart = lifecycle.indexOf(
+      "export async function claimDirectUploadsForUrls",
+      claimStart,
+    );
+    const claimBlock = lifecycle.slice(claimStart, batchClaimStart);
+
+    assert.match(claimBlock, /claimedByType: true/);
+    assert.match(
+      claimBlock,
+      /existing\.claimedByType !== claimedByType[\s\S]*throw new DirectUploadClaimError/,
+    );
+    assert.match(
+      claimBlock,
+      /existing\.claimedById !== claimedById[\s\S]*throw new DirectUploadClaimError/,
+    );
+    assert.match(
+      claimBlock,
+      /status: DIRECT_UPLOAD_STATUS\.CLAIMED,[\s\S]*claimedByType,[\s\S]*claimedById: null/,
+    );
+    assert.match(claimBlock, /if \(linked\.count !== 1\)/);
+    assert.match(
+      claimBlock,
+      /current\.claimedByType !== claimedByType[\s\S]*current\.claimedById !== claimedById/,
+    );
+  });
+
   it("claims newly persisted uploaded media so cleanup only deletes abandoned rows", () => {
     const checked = [
       ["src/app/dashboard/listings/new/page.tsx", /claimedByType: "Listing"/],
@@ -167,12 +196,17 @@ describe("direct upload lifecycle", () => {
     const vercel = source("vercel.json");
 
     assert.match(lifecycle, /processExpiredDirectUploadBatch/);
-    assert.match(lifecycle, /deleteR2ObjectByKey\(row\.key\)/);
+    assert.match(
+      lifecycle,
+      /deleteR2ObjectByStorageClass\(row\.key, row\.storageClass\)/,
+    );
     assert.doesNotMatch(lifecycle, /ListObjects/);
     assert.match(lifecycle, /failures\.push\(/);
     assert.match(lifecycle, /complete: rows\.length < take/);
 
     assert.match(r2, /export async function deleteR2ObjectByKey/);
+    assert.match(r2, /export async function deletePrivateR2ObjectByKey/);
+    assert.match(r2, /storageClass === "PRIVATE"/);
     assert.match(route, /verifyCronRequest/);
     assert.match(route, /withSentryCronMonitor\("direct-upload-cleanup", \{ value: "50 \* \* \* \*"/);
     assert.match(route, /processExpiredDirectUploadBatch/);

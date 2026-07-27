@@ -232,6 +232,34 @@ export async function logUserAuditAction({
   })
 }
 
+export async function logUserAuditActionOrThrow({
+  client,
+  actorId,
+  action,
+  targetType,
+  targetId,
+  reason,
+  metadata = {},
+}: {
+  client?: AdminAuditLogClient
+  actorId: string
+  action: string
+  targetType: string
+  targetId: string
+  reason?: string
+  metadata?: Record<string, unknown>
+}): Promise<string> {
+  return logAdminActionOrThrow({
+    client,
+    adminId: actorId,
+    action,
+    targetType,
+    targetId,
+    reason,
+    metadata: { ...metadata, actorKind: 'user' },
+  })
+}
+
 export async function undoAdminAction({
   logId,
   adminId,

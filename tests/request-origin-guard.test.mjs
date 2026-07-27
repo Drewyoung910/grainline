@@ -87,7 +87,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "prisma.order.findUnique",
-      "prisma.order.updateMany",
+      "tx.order.updateMany",
     ]);
     assertGuardBefore("src/app/api/orders/[id]/refund/route.ts", [
       "await auth()",
@@ -116,7 +116,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.order.findUnique",
+      "tx.order.findUnique",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/messages/route.ts", [
       "await auth()",
@@ -127,7 +127,7 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/cases/[id]/escalate/route.ts", [
       "verifyCronRequest(req)",
       "await auth()",
-      "prisma.case.findUnique",
+      "tx.case.findUnique",
       "tx.case.updateMany",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/mark-resolved/route.ts", [

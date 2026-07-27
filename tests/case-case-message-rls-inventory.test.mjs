@@ -23,24 +23,36 @@ const EXPECTED_BASELINE = {
   "src/app/api/account/export/route.ts": {
     "Case.findMany": 1,
     "CaseMessage.relation-reference": 1,
+    "CaseMessageAttachment.relation-reference": 1,
+  },
+  "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts": {
+    "CaseMessageAttachment.findFirst": 1,
+    "CaseMessage.relation-reference": 2,
+    "Case.relation-reference": 1,
+  },
+  "src/app/api/cases/[id]/attachments/route.ts": {
+    "Case.findUnique": 1,
   },
   "src/app/api/cases/[id]/escalate/route.ts": {
-    "Case.updateMany": 3,
     "Case.findUnique": 1,
+    "Case.updateMany": 1,
+    "Case.raw-sql-reference": 1,
   },
   "src/app/api/cases/[id]/mark-resolved/route.ts": {
-    "Case.findUnique": 1,
+    "Case.findUnique": 2,
     "Case.raw-sql-reference": 1,
   },
   "src/app/api/cases/[id]/messages/route.ts": {
-    "Case.findUnique": 1,
-    "CaseMessage.findFirst": 2,
-    "Case.updateMany": 1,
+    "Case.findUnique": 2,
+    "CaseMessage.findMany": 2,
+    "Case.update": 1,
     "CaseMessage.create": 1,
+    "CaseMessageAttachment.relation-reference": 5,
   },
   "src/app/api/cases/[id]/resolve/route.ts": {
-    "Case.findUnique": 2,
+    "Case.findUnique": 3,
     "Case.updateMany": 1,
+    "CaseMessage.create": 1,
     "Case.findUniqueOrThrow": 1,
     "CaseMessage.relation-reference": 1,
   },
@@ -79,6 +91,10 @@ const EXPECTED_BASELINE = {
   "src/lib/metrics.ts": { "Case.count": 1 },
   "src/lib/caseMessageHistory.ts": {
     "CaseMessage.findMany": 1,
+    "CaseMessageAttachment.relation-reference": 1,
+  },
+  "src/lib/caseLifecycleLocks.ts": {
+    "Case.raw-sql-reference": 1,
   },
   "src/app/admin/orders/[id]/page.tsx": {
     "Case.relation-reference": 1,
@@ -109,9 +125,9 @@ describe("Case and CaseMessage RLS inventory", () => {
   const inventory = collectCaseCaseMessageAccess();
 
   it("pins every current direct, relation, and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 42);
-    assert.equal(inventory.relationReferences.length, 15);
-    assert.equal(inventory.rawSqlReferences.length, 10);
+    assert.equal(inventory.ormCalls.length, 46);
+    assert.equal(inventory.relationReferences.length, 25);
+    assert.equal(inventory.rawSqlReferences.length, 12);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
       EXPECTED_BASELINE,
@@ -128,8 +144,12 @@ describe("Case and CaseMessage RLS inventory", () => {
       "utf8",
     );
     assert.match(audit, /69 total protected references across 25 source files/);
+    assert.match(
+      audit,
+      /83 total protected references\s+across 29 source files/,
+    );
     assert.match(audit, /durable source-derived author kind/);
-    assert.match(audit, /shared by Case creation and conflicting Order transitions/);
+    assert.match(audit, /same Order lock before (?:their|its) conflict\s+predicates/);
     assert.match(audit, /bounded `\(createdAt,id\)` keyset history/);
     assert.match(audit, /scheduled transition must use the expired `sellerRespondBy` boundary/);
     assert.match(audit, /Include a private-object-backed `CaseMessageAttachment` image model/);
@@ -137,7 +157,7 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /PDF evidence remains prohibited/);
     assert.match(audit, /no policy\/grant SQL is drafted until an Extra-High authority review starts/);
     assert.match(plan, /Switch back to Extra High before Phase 1B/);
-    assert.match(plan, /Convert all 69 protected references/);
+    assert.match(plan, /Convert every current protected reference/);
     assert.match(plan, /must not activate with Order/);
     assert.match(plan, /FORCE-only migration that changes no row, policy, grant/);
 

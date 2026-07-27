@@ -22,15 +22,32 @@ describe("case route observability follow-ups", () => {
 
     assert.match(route, /CASE_MESSAGE_DEDUP_WINDOW_MS = 30_000/);
     assert.match(route, /pg_advisory_xact_lock\(hashtext/);
-    assert.match(route, /caseMessage\.findFirst\(\{\s*where: \{\s*caseId: id,\s*authorId: me\.id,\s*body: messageBody,\s*createdAt: \{ gte: duplicateCutoff \}/s);
-    assert.match(route, /if \(messageResult\.duplicate\) \{\s*return privateJson\(messageResult\.message, \{ status: 200 \}\)/s);
+    assert.match(
+      route,
+      /caseMessage\.findMany\(\{\s*where: \{\s*caseId: id,\s*authorId: lockedActor\.id,\s*body: messageBody,\s*createdAt: \{ gte: duplicateCutoff \}/s,
+    );
+    assert.match(
+      route,
+      /duplicateCandidates\.find\(\(candidate\) =>\s*attachmentKeysMatch\(candidate\.attachments, attachmentKeys\)/s,
+    );
+    assert.match(
+      route,
+      /if \(messageResult\.duplicate\) \{\s*return privateJson\(caseMessageResponse\(messageResult\.message\), \{\s*status: 200,/s,
+    );
     assert.ok(transactionStart !== -1 && notificationStart !== -1 && transactionStart < notificationStart);
   });
 
   it("keeps under-review case messages staff-only at the API boundary", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
 
-    assert.match(route, /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff \}\)/);
+    assert.match(
+      route,
+      /lockedActsAsStaff = lockedIsStaff && !lockedIsParty/,
+    );
+    assert.match(
+      route,
+      /canCreateCaseMessageForStatus\(lockedCase\.status, \{\s*isStaff: lockedActsAsStaff/s,
+    );
   });
 
   it("renders admin case deadlines with client-local dates", () => {
@@ -41,14 +58,27 @@ describe("case route observability follow-ups", () => {
     assert.doesNotMatch(page, /deadline\.toLocaleString/);
   });
 
-  it("captures case resolve email, audit, and refund-remediation failures", () => {
+  it("co-commits case resolution history and staff audit before notification side effects", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const transactionStart = route.indexOf("const caseWrite = await prisma.$transaction");
+    const resolutionMessage = route.indexOf("const resolutionMessage = await tx.caseMessage.create");
+    const auditWrite = route.indexOf("await logAdminActionOrThrow");
+    const sellerNotification = route.indexOf("source: \"case_seller_resolution_notification\"");
 
     assert.match(route, /source: "case_resolved_email"/);
-    assert.match(route, /source: "case_resolve_audit_log"/);
+    assert.match(route, /authorKind: "STAFF"/);
+    assert.match(route, /action: "RESOLVE_CASE"/);
+    assert.match(route, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/);
     assert.match(route, /source: "case_refund_orphaned_review_update_failed"/);
     assert.match(route, /source: "case_refund_lock_release_failed"/);
     assert.doesNotMatch(route, /catch\s*\{\s*\/\* non-fatal \*\/\s*\}/);
     assert.doesNotMatch(route, /\.catch\(\(\) => \{\}\)/);
+    assert.ok(
+      transactionStart >= 0
+        && resolutionMessage > transactionStart
+        && auditWrite > resolutionMessage
+        && sellerNotification > auditWrite,
+      "resolution message and audit must commit before seller notification",
+    );
   });
 });

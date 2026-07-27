@@ -16,6 +16,11 @@ import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { logAdminActionOrThrow } from "@/lib/audit";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import {
+  databaseClockTimestamp,
+  lockCaseForLifecycle,
+  lockOrderForCaseLifecycle,
+} from "@/lib/caseLifecycleLocks";
 
 export const runtime = "nodejs";
 
@@ -106,8 +111,51 @@ export async function POST(
       return privateJson({ error: "Case is not in an active state." }, { status: 400 });
     }
 
-    const now = new Date();
     const result = await prisma.$transaction(async (tx) => {
+      const orderExists = await lockOrderForCaseLifecycle(
+        tx,
+        caseRecord.orderId,
+      );
+      if (!orderExists) return { outcome: "changed" as const };
+      const caseExists = await lockCaseForLifecycle(tx, id);
+      if (!caseExists) return { outcome: "changed" as const };
+
+      const lockedCase = await tx.case.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          status: true,
+          buyerId: true,
+          sellerId: true,
+          orderId: true,
+          buyerMarkedResolved: true,
+          sellerMarkedResolved: true,
+        },
+      });
+      const lockedOrder = await tx.order.findUnique({
+        where: { id: caseRecord.orderId },
+        select: { sellerRefundId: true },
+      });
+      if (
+        !lockedCase
+        || !lockedOrder
+        || lockedCase.orderId !== caseRecord.orderId
+      ) {
+        return { outcome: "changed" as const };
+      }
+      const lockedIsBuyer = me.id === lockedCase.buyerId;
+      const lockedIsSeller = me.id === lockedCase.sellerId;
+      if (!lockedIsBuyer && !lockedIsSeller) {
+        return { outcome: "forbidden" as const };
+      }
+      if (!isResolvableCaseStatus(lockedCase.status)) {
+        return { outcome: "changed" as const };
+      }
+      if (lockedOrder.sellerRefundId) {
+        return { outcome: "refund_conflict" as const };
+      }
+
+      const transitionAt = await databaseClockTimestamp(tx);
       const updatedRows = await tx.$queryRaw<Array<{
         id: string;
         status: string;
@@ -139,7 +187,7 @@ export async function POST(
               (CASE WHEN "buyerId" = ${me.id} THEN true ELSE "buyerMarkedResolved" END)
               AND
               (CASE WHEN "sellerId" = ${me.id} THEN true ELSE "sellerMarkedResolved" END)
-            THEN COALESCE("resolvedAt", ${now})
+            THEN COALESCE("resolvedAt", ${transitionAt})
             ELSE "resolvedAt"
           END,
           "resolvedById" = CASE
@@ -150,15 +198,15 @@ export async function POST(
             THEN COALESCE("resolvedById", ${me.id})
             ELSE "resolvedById"
           END,
-          "updatedAt" = ${now}
+          "updatedAt" = ${transitionAt}
         WHERE
           id = ${id}
           AND ("buyerId" = ${me.id} OR "sellerId" = ${me.id})
-          AND "status" IN ('OPEN'::"CaseStatus", 'IN_DISCUSSION'::"CaseStatus", 'PENDING_CLOSE'::"CaseStatus")
+          AND "status" = ${lockedCase.status}::"CaseStatus"
         RETURNING id, status::text AS status, "buyerMarkedResolved", "sellerMarkedResolved"
       `;
       const updated = updatedRows[0];
-      if (!updated) return null;
+      if (!updated) return { outcome: "changed" as const };
       const auditLogId = await logAdminActionOrThrow({
         client: tx,
         adminId: me.id,
@@ -167,27 +215,45 @@ export async function POST(
         targetId: id,
         metadata: {
           actorKind: "user",
-          orderId: caseRecord.orderId,
+          orderId: lockedCase.orderId,
           status: updated.status,
+          at: transitionAt.toISOString(),
         },
       });
-      return { updated, auditLogId };
+      return {
+        outcome: "updated" as const,
+        updated,
+        auditLogId,
+        caseRecord: lockedCase,
+      };
     });
-    if (!result) {
+    if (result.outcome === "forbidden") {
+      return privateJson({ error: "Forbidden." }, { status: 403 });
+    }
+    if (result.outcome === "refund_conflict") {
+      return privateJson(
+        {
+          error:
+            "This order has refund activity that must be reconciled before changing the case.",
+        },
+        { status: 409 },
+      );
+    }
+    if (result.outcome !== "updated") {
       return privateJson(
         { error: "Case status changed before this resolution could be saved. Refresh and try again." },
         { status: 409 },
       );
     }
-    const { updated, auditLogId } = result;
+    const { updated, auditLogId, caseRecord: committedCase } = result;
 
     const message = caseResolutionMessage(updated.status);
     await notifyCounterpartyOfResolutionMark({
-      caseId: caseRecord.id,
-      orderId: caseRecord.orderId,
+      caseId: committedCase.id,
+      orderId: committedCase.orderId,
       actorId: me.id,
-      buyerId: caseRecord.buyerId,
-      sellerId: caseRecord.sellerId,
+      buyerId: committedCase.buyerId,
+      sellerId: committedCase.sellerId,
       status: updated.status,
       authoritySourceId: auditLogId,
     });
