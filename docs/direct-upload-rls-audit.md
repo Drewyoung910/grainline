@@ -631,6 +631,20 @@ dual-write-plus-explicit-reference transaction. That amended tree requires
 another exact PostgreSQL proof. Its reviewed full-tree fingerprint is
 `61bd54f8f1a3b6c627fe6c895be65e30aa09c906ab732a42e94d021d8018ce74`.
 
+The corrected exact-tree execution, GitHub Actions run `30226904740` (job
+`89858487348`) at commit `ce4a914b`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified migration
+status, passed the global grant/RLS audit and static contracts, then passed all
+six live checks listed above. In particular,
+`case_attachment_compatibility_and_lifecycle` now commits both the exact legacy
+claim-insert-null-guarded-link transaction and the new
+dual-write-plus-explicit-reference transaction. The result recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the disposable
+database and fixtures were destroyed with the job. This is the accepted
+disposable-engine authority, concurrency and application-skew evidence for the
+current compatible preparation tree. It is not DirectUpload activation
+evidence, provider-bucket evidence or a production catalog claim.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory

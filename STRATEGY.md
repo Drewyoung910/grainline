@@ -170,7 +170,12 @@ the Case route fills legacy `claimedById` after its attachment insert; the
 insert reference trigger therefore must be deferred until transaction commit,
 not immediate. The corrected harness executes that full old transaction and
 the new dual-write transaction. This supersedes the run for release
-compatibility and requires one more exact disposable proof.
+compatibility. The corrected exact tree passed GitHub Actions run `30226904740`
+(job `89858487348`) at commit `ce4a914b` on PostgreSQL 16.14: all 166
+migrations, runtime-grant convergence, global grant/RLS audit and all six live
+authority/concurrency checks passed, including both full old/new writer
+transactions. It recorded no persistent-staging or production change. Treat
+this as compatible-preparation evidence only, not DirectUpload activation.
 
 Do not promote this checkpoint until aggregate legacy
 classification/backfill, the dedicated cleanup-worker role, rollback and
