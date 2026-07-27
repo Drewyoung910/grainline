@@ -939,9 +939,6 @@ model CaseMessageAttachment {
   caseMessage    CaseMessage  @relation(fields: [caseMessageId], references: [id], onDelete: Cascade)
   uploaderId     String
   uploader       User         @relation("CaseMessageAttachments", fields: [uploaderId], references: [id], onDelete: Restrict)
-  // Compatibility-only duplicate for the pre-reference application. Drop
-  // after old deployment drain and exact legacy backfill proof.
-  objectKey      String       @unique @db.VarChar(500)
   directUploadId String       @unique
   directUpload   DirectUpload @relation(fields: [directUploadId], references: [id], onDelete: Restrict)
   contentType    String       @db.VarChar(100)

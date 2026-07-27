@@ -5,6 +5,7 @@ on:
     branches:
       - agent/direct-upload-rls-preparation-20260726
       - agent/direct-upload-rls-activation-20260726
+      - agent/direct-upload-object-key-retirement-20260726
     paths:
       - .github/workflows/direct-upload-authority-postgres-proof.yml
       - package.json
@@ -12,6 +13,8 @@ on:
       - prisma/**
       - scripts/audit-runtime-db-grants.mjs
       - scripts/direct-upload-activation-catalog.mjs
+      - scripts/direct-upload-activation-postgres-proof.mjs
+      - scripts/direct-upload-activation-rollback-proof.mjs
       - scripts/direct-upload-authority-catalog.mjs
       - scripts/direct-upload-authority-postgres-proof.mjs
       - scripts/direct-upload-cleanup-worker.mjs
@@ -20,10 +23,19 @@ on:
       - scripts/prepare-ci-rls-runtime-role.sql
       - scripts/provision-direct-upload-cleanup-role.sql
       - scripts/provision-runtime-db-role.sql
+      - scripts/stage-direct-upload-activation-migration.mjs
+      - scripts/stage-direct-upload-retirement-migration.mjs
+      - src/app/api/cases/**/messages/route.ts
+      - src/lib/caseEvidence.ts
+      - tests/case-message-private-evidence.test.mjs
       - tests/db-grant-inventory.test.mjs
+      - tests/direct-upload-activation-candidate.test.mjs
+      - tests/direct-upload-activation-postgres-proof.test.mjs
+      - tests/direct-upload-activation-rollback-proof.test.mjs
       - tests/direct-upload-authority-postgres-proof.test.mjs
       - tests/direct-upload-cleanup-worker.test.mjs
       - tests/direct-upload-legacy-inspect.test.mjs
+      - tests/direct-upload-retirement-candidate.test.mjs
   workflow_dispatch:
 
 permissions:
@@ -50,6 +62,8 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_AUTHORITY_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_ACTIVATION_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -70,7 +84,45 @@ jobs:
         run: npx prisma migrate status
       - name: Audit final runtime grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Run static proof-harness contracts
-        run: node --test tests/direct-upload-authority-postgres-proof.test.mjs
-      - name: Prove DirectUpload fixed authority in disposable PostgreSQL
+      - name: Run pre-activation static proof contracts
+        run: >-
+          node --test
+          tests/case-message-private-evidence.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/direct-upload-activation-candidate.test.mjs
+          tests/direct-upload-activation-postgres-proof.test.mjs
+          tests/direct-upload-activation-rollback-proof.test.mjs
+          tests/direct-upload-authority-postgres-proof.test.mjs
+          tests/direct-upload-cleanup-worker.test.mjs
+          tests/direct-upload-legacy-inspect.test.mjs
+          tests/direct-upload-retirement-candidate.test.mjs
+      - name: Prove compatible DirectUpload fixed authority
         run: npm run audit:rls-direct-upload-authority
+      - name: Stage disposable compatibility-key retirement
+        env:
+          DIRECT_UPLOAD_RETIREMENT_STAGING_ACK: I_ACKNOWLEDGE_LOOPBACK_DIRECT_UPLOAD_RETIREMENT_STAGING
+        run: node scripts/stage-direct-upload-retirement-migration.mjs --stage
+      - name: Stage disposable DirectUpload RLS activation
+        env:
+          DIRECT_UPLOAD_ACTIVATION_STAGING_ACK: I_ACKNOWLEDGE_LOOPBACK_DIRECT_UPLOAD_ACTIVATION_STAGING
+        run: node scripts/stage-direct-upload-activation-migration.mjs --stage
+      - name: Apply disposable retirement and activation candidates
+        run: npx prisma migrate deploy
+      - name: Reconverge activated runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Reconverge activated cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Audit activated runtime grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Verify disposable migration status
+        run: npx prisma migrate status
+      - name: Run activated proof-harness contracts
+        run: >-
+          node --test
+          tests/db-grant-inventory.test.mjs
+          tests/direct-upload-activation-postgres-proof.test.mjs
+          tests/direct-upload-activation-rollback-proof.test.mjs
+      - name: Prove activated DirectUpload authority
+        run: npm run audit:rls-direct-upload-activation
+      - name: Prove database-first activation rollback and exact restoration
+        run: npm run audit:rls-direct-upload-activation-rollback

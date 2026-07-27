@@ -177,6 +177,17 @@ const POLICYLESS_SERVICE_RLS_TABLE_NAME_SET = new Set(
   POLICYLESS_SERVICE_RLS_TABLES,
 );
 
+export function directUploadRlsActivationExpected(inventory) {
+  return (inventory?.rlsForceTables ?? []).includes("DirectUpload")
+    && !(inventory?.rlsPolicyTables ?? []).includes("DirectUpload");
+}
+
+export function policylessServiceRlsTableNames(inventory) {
+  return directUploadRlsActivationExpected(inventory)
+    ? [...POLICYLESS_SERVICE_RLS_TABLES, "DirectUpload"]
+    : [...POLICYLESS_SERVICE_RLS_TABLES];
+}
+
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
@@ -956,7 +967,13 @@ export function defaultPrivilegeRequirements(inventory) {
 
 export function requiredRuntimeTablePrivileges(tableName, inventory) {
   const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
-  if (RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)) {
+  if (
+    RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)
+    || (
+      tableName === "DirectUpload"
+      && directUploadRlsActivationExpected(inventory)
+    )
+  ) {
     return [];
   }
   if (
@@ -986,7 +1003,7 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
   const rowByTable = new Map(
     (Array.isArray(rows) ? rows : []).map((row) => [row.table_name, row]),
   );
-  for (const tableName of POLICYLESS_SERVICE_RLS_TABLES) {
+  for (const tableName of policylessServiceRlsTableNames(inventory)) {
     if (!(inventory?.tables ?? []).includes(tableName)) continue;
     const row = rowByTable.get(tableName);
     if (!row) {
@@ -1583,7 +1600,11 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       );
     }
     const policylessServiceTable =
-      POLICYLESS_SERVICE_RLS_TABLE_NAME_SET.has(row.table_name);
+      POLICYLESS_SERVICE_RLS_TABLE_NAME_SET.has(row.table_name)
+      || (
+        row.table_name === "DirectUpload"
+        && directUploadRlsActivationExpected(inventory)
+      );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(
         `table ${row.table_name} has ROW LEVEL SECURITY enabled but zero policies`,
