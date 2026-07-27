@@ -6,6 +6,10 @@ import {
   DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES,
   DIRECT_UPLOAD_RUNTIME_FUNCTION_NAMES,
 } from "./direct-upload-authority-catalog.mjs";
+import {
+  DIRECT_UPLOAD_LEGACY_COUNTS_SQL,
+  normalizeDirectUploadLegacyResult,
+} from "./direct-upload-legacy-inspect.mjs";
 
 const { Client } = pg;
 
@@ -1007,6 +1011,21 @@ async function cleanupConcurrencyProof(databaseUrl, observer, owner, runtime, up
   );
 }
 
+async function aggregateLegacyInspectionQueryProof(owner) {
+  const result = await owner.query(
+    DIRECT_UPLOAD_LEGACY_COUNTS_SQL,
+    ["https://proof.invalid"],
+  );
+  const { counts } = normalizeDirectUploadLegacyResult(result.rows[0]);
+  assert.equal(counts.caseAttachmentCount, 1);
+  assert.equal(counts.caseAttachmentKeyIdMismatchCount, 0);
+  assert.equal(counts.caseAttachmentMetadataMismatchCount, 0);
+  assert.equal(counts.caseAttachmentMissingActiveReferenceCount, 0);
+  assert.equal(counts.caseAttachmentDuplicateActiveReferenceCount, 0);
+  assert.equal(counts.unrepairableLifecycleRowCount, 0);
+  assert.ok(counts.firstPartyDurableSourceUrlCount >= 1);
+}
+
 export async function runProof(env = process.env) {
   const { databaseUrl } = parseProofConfig(env);
   const owner = await connect(databaseUrl, `${PREFIX}-owner`);
@@ -1026,7 +1045,9 @@ export async function runProof(env = process.env) {
     checks.push("multi_source_reuse_and_delete_release");
     await cleanupConcurrencyProof(databaseUrl, owner, owner, runtime, uploadA);
     checks.push("reference_cleanup_winner_orderings");
-    assert.equal(checks.length, 6);
+    await aggregateLegacyInspectionQueryProof(owner);
+    checks.push("aggregate_only_legacy_query");
+    assert.equal(checks.length, 7);
     return {
       ok: true,
       database: DATABASE_NAME,

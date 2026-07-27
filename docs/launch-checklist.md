@@ -171,6 +171,12 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
   use only reveal-based recovery after an ambiguous reset and never issue a
   blind second reset. Do not activate Bucket B until that postflight is
   retained.
+- Before the DirectUpload aggregate-only inspection, set the GitHub
+  reviewer-protected `Production` variable `CLOUDFLARE_R2_PUBLIC_URL` to the
+  same credential-free HTTPS public base used by the production application.
+  The manual inspection workflow fails closed if it is absent or malformed
+  and retains only its SHA-256; it never treats a workflow-dispatch input as
+  authority to widen the reviewed first-party origin.
 - `npx dotenv-cli -e .env -- npx prisma migrate status`
 - `GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=neondb_owner npm run audit:db-grants -- --require-direct-url` only after migration/status, so this retained second audit covers the final catalog, verifies the raw `pg_proc.prosrc` SHA-256 fingerprints for both owner RPCs, and proves runtime DML was revoked from `_prisma_migrations` and every other untracked public table. The guarded migration command has already run the same audit before the build; this explicit rerun is the post-status retained release record. For Release 0, retain explicit live-catalog evidence that `public."SavedSearch"` has `relrowsecurity=false`, `relforcerowsecurity=false`, and zero policies before application traffic is promoted. Run from a clean checkout of the exact release commit so untracked migration files cannot change the source-derived audit inventory.
 - A future branch may substitute `MIGRATION_DB_ROLE=grainline_migration_owner` only after catalog evidence proves that dedicated role actually owns every tracked app object; it is not the owner for this rollout.

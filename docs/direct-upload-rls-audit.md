@@ -324,6 +324,34 @@ Inspection stops after counts. Reference backfill, constraint validation,
 object deletion, URL rewrite, key migration and endpoint retirement each need
 their own reviewed mutation and residue proof.
 
+The reusable inspector is now scaffolded in
+`scripts/direct-upload-legacy-inspect.mjs` and the protected,
+production-serialized manual workflow is
+`.github/workflows/direct-upload-legacy-inspection.yml`. It refuses anything
+except the exact clean dispatched main commit, reviewed direct production
+owner URL/digest and the explicit
+`compatible-app-drained-private-surfaces-disabled` prerequisite. The current
+public R2 base comes from the protected GitHub Production variable
+`CLOUDFLARE_R2_PUBLIC_URL`; the artifact retains only its SHA-256.
+
+The single repeatable-read, read-only transaction returns fixed aggregate
+counts for lifecycle/reference coherence, source ownership, public/private
+exclusivity, Case key/id/reference binding, cleanup eligibility, stale leases,
+first-party and UploadThing/UTFS legacy populations, backfillable versus
+untracked durable URLs and the legacy `listingVideo`, `messageFile`,
+`messageAny` and future-private endpoint populations. Fixed categorical
+distributions cover endpoint, storage class, status, content type, claim type,
+and source-family/provider-origin buckets. Unknown database values are folded
+into `UNKNOWN`/`UNKNOWN_EXTERNAL`; no raw value, key, URL, row id, user id or
+message body enters the evidence.
+
+The exact aggregate SQL is also executed inside the disposable DirectUpload
+PostgreSQL harness. Until that fresh seven-check workflow is green, this
+inspector remains saved scaffolding rather than accepted executable evidence.
+Even after a green run, dispatching it against production requires separate
+read-only authorization after the compatible application is deployed and old
+instances have drained.
+
 ## Release sequence
 
 1. **High audit:** complete this source/actor/endpoint inventory and static

@@ -1,0 +1,57 @@
+name: DirectUpload Legacy Inspection
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character main commit after compatible app drain
+        required: true
+        type: string
+      confirmation:
+        description: Type inspect-prelaunch-direct-upload-legacy-state
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Aggregate-only production DirectUpload inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    env:
+      CLOUDFLARE_R2_PUBLIC_URL: ${{ vars.CLOUDFLARE_R2_PUBLIC_URL }}
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      MIGRATION_DB_ROLE: neondb_owner
+      DIRECT_UPLOAD_LEGACY_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      DIRECT_UPLOAD_LEGACY_INSPECT_CONFIRM: ${{ inputs.confirmation }}
+      DIRECT_UPLOAD_LEGACY_PREREQUISITES_CONFIRMED: compatible-app-drained-private-surfaces-disabled
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Inspect aggregate DirectUpload legacy state in a read-only transaction
+        run: npm run ops:direct-upload-legacy-inspect
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_LEGACY_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-legacy-inspection-${{ inputs.release_commit }}.json
+      - name: Upload sanitized aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-upload-legacy-inspection-${{ github.sha }}
+          path: ${{ runner.temp }}/direct-upload-legacy-inspection-${{ github.sha }}.json
+          if-no-files-found: error
+          retention-days: 30

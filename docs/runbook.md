@@ -57,6 +57,21 @@ Prepared DirectUpload production postflight:
   `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` value before the compatibility
   deploy; do not enable private Case evidence until DirectUpload activation,
   private-bucket proof and authenticated route smoke all pass.
+- After the compatible application is proven deployed with private surfaces
+  disabled and every old instance has drained, separately authorize and
+  manually dispatch
+  `.github/workflows/direct-upload-legacy-inspection.yml` from the exact clean
+  main commit. Supply the same 40-character commit and type
+  `inspect-prelaunch-direct-upload-legacy-state`.
+- The protected GitHub `Production` environment must provide
+  `PRODUCTION_MIGRATION_DIRECT_URL`,
+  `PRODUCTION_MIGRATION_DIRECT_URL_SHA256`, and the reviewed public variable
+  `CLOUDFLARE_R2_PUBLIC_URL`. The inspector hashes the public base in evidence
+  and exports only aggregate counts plus fixed categorical distributions.
+- Stop after inspection. Unexpected counts do not authorize repair;
+  reference backfill, constraint validation, object copy/delete, URL rewrite,
+  endpoint retirement and any unrepairable row decision each require their
+  own reviewed change and residue proof.
 
 ## Incident Triage
 
