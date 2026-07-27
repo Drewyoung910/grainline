@@ -892,6 +892,18 @@ those four functions to remain withheld. The run did not reach live activated
 authority or rollback proof, remains failed evidence, and used only the
 disposable CI database.
 
+Run `30232738558` (job `89874534822`) at commit `0adc668b` then passed the
+activated global grant/RLS audit and exact migration status. Its duplicate
+post-staging static step failed because the schema-source inventory contract
+correctly pins the committed tree's 95 revokes, while the two intentionally
+staged disposable candidates raise that temporary working-tree count to 131.
+The same contract had already passed before staging, and the live activated
+audit had just passed; rerunning that committed-tree cardinality assertion
+after mutating the disposable migration directory was a workflow-ordering
+error. The post-staging step now retains only harness contracts that are
+state-independent. This run did not execute the live activated authority or
+rollback scripts and therefore remains failed evidence.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory

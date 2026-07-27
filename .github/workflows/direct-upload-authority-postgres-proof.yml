@@ -137,7 +137,6 @@ jobs:
       - name: Run activated proof-harness contracts
         run: >-
           node --test
-          tests/db-grant-inventory.test.mjs
           tests/direct-upload-activation-postgres-proof.test.mjs
           tests/direct-upload-activation-rollback-proof.test.mjs
       - name: Prove activated DirectUpload authority

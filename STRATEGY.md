@@ -257,6 +257,12 @@ the least-privilege design; the audit now derives the activated private set
 from the exact 35-function catalog. This run also remains failed disposable
 evidence and does not satisfy the live-authority or rollback gate.
 
+Run `30232738558` passed the activated global audit and migration status but
+then reran an unstaged-tree cardinality test after intentionally adding both
+disposable candidates. Keep that source-inventory contract before staging;
+post-staging, run only state-independent harness contracts. The run remains
+failed evidence because live activated authority and rollback did not execute.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a
