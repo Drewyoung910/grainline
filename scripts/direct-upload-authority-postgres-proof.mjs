@@ -569,6 +569,14 @@ async function caseAttachmentCompatibilityProof(owner, runtime) {
       releaseReason: "SOURCE_DELETED",
     },
   ]);
+  await owner.query(
+    `
+      UPDATE public."DirectUpload"
+         SET "cleanupAfter" = CURRENT_TIMESTAMP + interval '1 day'
+       WHERE id = $1
+    `,
+    [oldUploadId],
+  );
 }
 
 async function recordUpload(runtime, upload) {
@@ -855,7 +863,11 @@ async function cleanupConcurrencyProof(databaseUrl, observer, owner, runtime, up
     const skippedLease = await cleanupSecond.query(
       `SELECT * FROM public.grainline_direct_upload_cleanup_lease(20)`,
     );
-    assert.deepEqual(skippedLease.rows, []);
+    assert.equal(
+      skippedLease.rows.some((row) => row.id === uploadA),
+      false,
+      "cleanup leased the upload while reference creation held its row lock",
+    );
     await referenceFirst.query("COMMIT");
   } catch (error) {
     await referenceFirst.query("ROLLBACK").catch(() => {});

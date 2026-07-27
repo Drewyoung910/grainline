@@ -582,6 +582,19 @@ preparation can be accepted. The Extra-High-reviewed amended full-tree
 fingerprint is
 `90290c0c88ecf0270acf832605126100fa6f24505496989754ab5d6d01274324`.
 
+The first execution of that amended tree, GitHub Actions run `30226471869`
+(job `89857383277`) at commit `34711980`, applied all 166 migrations and passed
+runtime-role convergence, migration status, the global grant/RLS audit and
+static contracts. The live harness then failed because its older cleanup
+concurrency check asserted that the entire service-wide lease batch was empty.
+The new Case lifecycle check had correctly released an unrelated private
+fixture, so PostgreSQL legitimately leased that row. This was a proof-isolation
+defect, not an authority or migration failure; both databases were disposable
+and the workflow changed no persistent staging or production state. The
+correction verifies that the specifically referenced upload is absent from the
+lease batch and moves the already-proven released fixture outside the later
+test's clock window.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
