@@ -156,7 +156,7 @@ describe("DirectUpload fixed-authority preparation", () => {
     );
     assert.match(
       migration,
-      /AFTER INSERT ON public\."CaseMessageAttachment"[\s\S]*BEFORE DELETE ON public\."CaseMessageAttachment"/,
+      /CREATE CONSTRAINT TRIGGER[\s\S]*AFTER INSERT ON public\."CaseMessageAttachment"[\s\S]*DEFERRABLE INITIALLY DEFERRED[\s\S]*BEFORE DELETE ON public\."CaseMessageAttachment"/,
     );
     assert.match(
       migration,

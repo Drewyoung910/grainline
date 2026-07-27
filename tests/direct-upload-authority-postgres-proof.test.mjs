@@ -60,6 +60,10 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
     assert.match(proof, /untracked: 1/);
     assert.match(proof, /activeReferenceCount\(owner, uploadA\), 1/);
     assert.match(proof, /case_attachment_compatibility_and_lifecycle/);
+    assert.match(proof, /const oldClaim = await runtime\.query/);
+    assert.match(proof, /const oldLink = await runtime\.query/);
+    assert.match(proof, /assert\.equal\(oldLink\.rowCount, 1\)/);
+    assert.match(proof, /const newReference = await runtime\.query/);
     assert.match(proof, /mismatched Case attachment key and DirectUpload id/);
     assert.match(proof, /mutable Case attachment parent/);
     assert.match(proof, /grainline_direct_upload_case_attachment_read/);

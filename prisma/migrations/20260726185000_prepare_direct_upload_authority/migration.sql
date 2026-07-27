@@ -885,8 +885,10 @@ REVOKE ALL ON FUNCTION
   public.grainline_direct_upload_case_attachment_reference_trigger()
   FROM PUBLIC, grainline_app_runtime;
 
-CREATE TRIGGER grainline_direct_upload_reference_case_attachment_insert
+CREATE CONSTRAINT TRIGGER
+  grainline_direct_upload_reference_case_attachment_insert
 AFTER INSERT ON public."CaseMessageAttachment"
+DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW EXECUTE FUNCTION
   public.grainline_direct_upload_case_attachment_reference_trigger();
 

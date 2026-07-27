@@ -165,7 +165,12 @@ fresh disposable PostgreSQL proof. That proof is now accepted at exact commit
 passed the global grant/RLS audit plus six authority/concurrency checks,
 including old/new Case attachment binding and release. It recorded no
 persistent-staging or production change. Treat it as compatible-preparation
-evidence only, not activation.
+evidence only, not activation. A subsequent exact-old-writer review found that
+the Case route fills legacy `claimedById` after its attachment insert; the
+insert reference trigger therefore must be deferred until transaction commit,
+not immediate. The corrected harness executes that full old transaction and
+the new dual-write transaction. This supersedes the run for release
+compatibility and requires one more exact disposable proof.
 
 Do not promote this checkpoint until aggregate legacy
 classification/backfill, the dedicated cleanup-worker role, rollback and

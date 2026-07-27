@@ -401,21 +401,55 @@ async function recordPrivateCaseUpload(runtime, upload) {
 async function caseAttachmentCompatibilityProof(owner, runtime) {
   const oldUploadId = await recordPrivateCaseUpload(runtime, uploads.privateA);
 
-  await runtime.query(
-    `
-      INSERT INTO public."CaseMessageAttachment" (
-        id, "caseMessageId", "uploaderId", "objectKey",
-        "contentType", "byteSize", "createdAt"
-      )
-      VALUES ($1, $2, $3, $4, 'image/webp', 2048, CURRENT_TIMESTAMP)
-    `,
-    [
-      ids.caseAttachmentOld,
-      ids.caseMessageA,
-      ids.owner,
-      uploads.privateA.key,
-    ],
-  );
+  await runtime.query("BEGIN");
+  try {
+    const oldClaim = await runtime.query(
+      `
+        UPDATE public."DirectUpload"
+           SET status = 'CLAIMED',
+               "claimedAt" = CURRENT_TIMESTAMP,
+               "claimedByType" = 'CASE_MESSAGE_ATTACHMENT',
+               "claimedById" = NULL,
+               "cleanupAfter" = NULL,
+               "lastError" = NULL
+         WHERE id = $1
+           AND status = 'VERIFIED'
+      `,
+      [oldUploadId],
+    );
+    assert.equal(oldClaim.rowCount, 1);
+    await runtime.query(
+      `
+        INSERT INTO public."CaseMessageAttachment" (
+          id, "caseMessageId", "uploaderId", "objectKey",
+          "contentType", "byteSize", "createdAt"
+        )
+        VALUES ($1, $2, $3, $4, 'image/webp', 2048, CURRENT_TIMESTAMP)
+      `,
+      [
+        ids.caseAttachmentOld,
+        ids.caseMessageA,
+        ids.owner,
+        uploads.privateA.key,
+      ],
+    );
+    const oldLink = await runtime.query(
+      `
+        UPDATE public."DirectUpload"
+           SET "claimedById" = $2
+         WHERE id = $1
+           AND status = 'CLAIMED'
+           AND "claimedByType" = 'CASE_MESSAGE_ATTACHMENT'
+           AND "claimedById" IS NULL
+      `,
+      [oldUploadId, ids.caseAttachmentOld],
+    );
+    assert.equal(oldLink.rowCount, 1);
+    await runtime.query("COMMIT");
+  } catch (error) {
+    await runtime.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 
   const oldBinding = await owner.query(
     `
@@ -509,22 +543,38 @@ async function caseAttachmentCompatibilityProof(owner, runtime) {
     "mismatched Case attachment key and DirectUpload id",
   );
 
-  await runtime.query(
-    `
-      INSERT INTO public."CaseMessageAttachment" (
-        id, "caseMessageId", "uploaderId", "objectKey", "directUploadId",
-        "contentType", "byteSize", "createdAt"
-      )
-      VALUES ($1, $2, $3, $4, $5, 'image/webp', 2048, CURRENT_TIMESTAMP)
-    `,
-    [
-      ids.caseAttachmentNew,
-      ids.caseMessageB,
-      ids.owner,
-      uploads.privateB.key,
-      newUploadId,
-    ],
-  );
+  await runtime.query("BEGIN");
+  try {
+    await runtime.query(
+      `
+        INSERT INTO public."CaseMessageAttachment" (
+          id, "caseMessageId", "uploaderId", "objectKey", "directUploadId",
+          "contentType", "byteSize", "createdAt"
+        )
+        VALUES ($1, $2, $3, $4, $5, 'image/webp', 2048, CURRENT_TIMESTAMP)
+      `,
+      [
+        ids.caseAttachmentNew,
+        ids.caseMessageB,
+        ids.owner,
+        uploads.privateB.key,
+        newUploadId,
+      ],
+    );
+    const newReference = await runtime.query(
+      `
+        SELECT public.grainline_direct_upload_reference_case_attachment(
+          $1, $2
+        ) AS referenced
+      `,
+      [ids.owner, ids.caseAttachmentNew],
+    );
+    assert.equal(newReference.rows[0]?.referenced, true);
+    await runtime.query("COMMIT");
+  } catch (error) {
+    await runtime.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
   assert.equal(await activeReferenceCount(owner, newUploadId), 1);
 
   await expectSqlState(

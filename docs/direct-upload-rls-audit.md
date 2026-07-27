@@ -229,10 +229,14 @@ Preparation must instead retain the compatibility column, add and exactly
 backfill `directUploadId`, and install a private database binding trigger. The
 trigger derives the id for an old writer and rejects any caller-provided
 key/id/uploader/content/size mismatch. It locks the lifecycle row against the
-cleanup worker and makes attachment identity immutable. A second private trigger
-creates the exclusive normalized reference on insert and releases it on delete,
-so old and new writers have the same lifecycle behavior. New application code
-dual-writes both columns and its explicit reference call remains idempotent.
+cleanup worker and makes attachment identity immutable. A second private,
+deferred constraint trigger creates the exclusive normalized reference at
+transaction commit and releases it on delete. Deferral is required because the
+old Case writer claims the upload, inserts the attachment, then fills the
+legacy `claimedById` in the same transaction; an immediate trigger would fill
+that legacy field first and make the old writer roll back. New application code
+dual-writes both columns and performs an immediate explicit reference call; the
+deferred commit-time replay remains idempotent.
 
 After the compatible application is deployed and every older instance has
 drained, a separate reviewed cleanup migration must prove exact agreement and
@@ -578,8 +582,8 @@ the additive dual-column/binding-trigger protocol in DU-A13 and adds automatic
 Case reference insert/delete maintenance. Therefore run `30225445722` remains
 useful prior authority/concurrency evidence but is explicitly superseded for
 release; the amended exact tree requires a fresh PostgreSQL run before its
-preparation can be accepted. The Extra-High-reviewed amended full-tree
-fingerprint is
+preparation can be accepted. The first Extra-High-reviewed amended full-tree
+fingerprint was
 `90290c0c88ecf0270acf832605126100fa6f24505496989754ab5d6d01274324`.
 
 The first execution of that amended tree, GitHub Actions run `30226471869`
@@ -613,6 +617,19 @@ The result recorded `persistentStagingChanged=false` and
 destroyed with the job. This is the accepted disposable-engine evidence for the
 amended compatible preparation tree. It is not DirectUpload activation
 evidence, provider-bucket evidence or a production catalog claim.
+
+The following deployment-packaging review then compared the database triggers
+against the exact old Phase 1B Case route rather than only its final insert. It
+found that the old route updates legacy `claimedById` after attachment creation
+inside one transaction. The immediate insert trigger in the proven tree had
+already populated that field, so the old route's exact null-guarded update would
+return zero and roll back. Run `30226543504` remains valid for its six modeled
+checks but is superseded for release compatibility. The corrected trigger is
+`DEFERRABLE INITIALLY DEFERRED`, and the live harness now executes both the
+exact old claim-insert-link transaction and the new
+dual-write-plus-explicit-reference transaction. That amended tree requires
+another exact PostgreSQL proof. Its reviewed full-tree fingerprint is
+`61bd54f8f1a3b6c627fe6c895be65e30aa09c906ab732a42e94d021d8018ce74`.
 
 ## Exit
 
