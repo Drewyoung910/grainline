@@ -346,11 +346,19 @@ into `UNKNOWN`/`UNKNOWN_EXTERNAL`; no raw value, key, URL, row id, user id or
 message body enters the evidence.
 
 The exact aggregate SQL is also executed inside the disposable DirectUpload
-PostgreSQL harness. Until that fresh seven-check workflow is green, this
-inspector remains saved scaffolding rather than accepted executable evidence.
-Even after a green run, dispatching it against production requires separate
-read-only authorization after the compatible application is deployed and old
-instances have drained.
+PostgreSQL harness. GitHub Actions run `30228466175` (job `89862786290`) at
+commit `c748758e` passed on PostgreSQL 16.14: all 166 migrations,
+production-style runtime grant convergence, migration status, the global
+grant/RLS audit, static contracts and seven live checks passed. The seventh
+check, `aggregate_only_legacy_query`, executed the full inspector SQL against
+the disposable fixture population and preserved the expected Case/reference
+invariants. The run recorded `persistentStagingChanged=false` and
+`productionChanged=false`.
+
+This accepts the query as executable disposable-engine evidence, not as a
+production data classification. Dispatching it against production still
+requires separate read-only authorization after the compatible application is
+deployed and old instances have drained.
 
 ## Release sequence
 

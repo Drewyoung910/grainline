@@ -196,6 +196,15 @@ the required old/new application drain possible. Withhold the unused future
 private-message recorder from ordinary-runtime activation until CM-A20's
 compatible application release consumes it.
 
+The DirectUpload aggregate-only legacy inspector and its protected serialized
+workflow are now saved. Exact disposable PostgreSQL 16.14 run `30228466175`
+(job `89862786290`) at `c748758e` passed all migrations, grant convergence,
+global catalog audit, the six retained authority/concurrency checks and the
+seventh `aggregate_only_legacy_query` check, with no persistent-staging or
+production change. This proves the count query executes against the compatible
+schema; it does not classify production and does not authorize backfill,
+constraint validation, object mutation or activation.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a
