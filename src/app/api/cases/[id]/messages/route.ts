@@ -407,6 +407,7 @@ export async function POST(
           attachments: {
             create: verifiedAttachments.map((attachment) => ({
               uploaderId: lockedActor.id,
+              objectKey: attachment.objectKey,
               directUploadId: attachment.directUploadId,
               contentType: attachment.contentType,
               byteSize: attachment.byteSize,

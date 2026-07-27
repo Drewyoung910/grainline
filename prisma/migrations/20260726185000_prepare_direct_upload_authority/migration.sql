@@ -99,6 +99,7 @@ BEGIN
        'grainline_direct_upload_reference_core',
        'grainline_direct_upload_release_core',
        'grainline_direct_upload_reference_case_attachment',
+       'grainline_direct_upload_case_attachment_reference_trigger',
        'grainline_direct_upload_case_attachment_read',
        'grainline_direct_upload_cleanup_lease',
        'grainline_direct_upload_cleanup_complete',
@@ -843,6 +844,78 @@ BEGIN
 END;
 $grainline_direct_upload_reference_case_attachment$;
 
+CREATE OR REPLACE FUNCTION
+  public.grainline_direct_upload_case_attachment_reference_trigger()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_direct_upload_case_attachment_reference_trigger$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NOT public.grainline_direct_upload_reference_case_attachment(
+      NEW."uploaderId",
+      NEW.id
+    ) THEN
+      RAISE EXCEPTION
+        'CaseMessageAttachment reference could not be established'
+        USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    PERFORM public.grainline_direct_upload_release_core(
+      OLD."directUploadId",
+      'CASE_MESSAGE_ATTACHMENT',
+      OLD.id,
+      'SOURCE_DELETED'
+    );
+    RETURN OLD;
+  END IF;
+
+  RAISE EXCEPTION
+    'Unexpected CaseMessageAttachment reference trigger operation: %',
+    TG_OP
+    USING ERRCODE = '0A000';
+END;
+$grainline_direct_upload_case_attachment_reference_trigger$;
+
+REVOKE ALL ON FUNCTION
+  public.grainline_direct_upload_case_attachment_reference_trigger()
+  FROM PUBLIC, grainline_app_runtime;
+
+CREATE TRIGGER grainline_direct_upload_reference_case_attachment_insert
+AFTER INSERT ON public."CaseMessageAttachment"
+FOR EACH ROW EXECUTE FUNCTION
+  public.grainline_direct_upload_case_attachment_reference_trigger();
+
+CREATE TRIGGER grainline_direct_upload_release_case_attachment_delete
+BEFORE DELETE ON public."CaseMessageAttachment"
+FOR EACH ROW EXECUTE FUNCTION
+  public.grainline_direct_upload_case_attachment_reference_trigger();
+
+DO $grainline_direct_upload_case_attachment_reference_backfill$
+DECLARE
+  attachment record;
+BEGIN
+  FOR attachment IN
+    SELECT row.id, row."uploaderId"
+      FROM public."CaseMessageAttachment" AS row
+     ORDER BY row.id
+  LOOP
+    IF NOT public.grainline_direct_upload_reference_case_attachment(
+      attachment."uploaderId",
+      attachment.id
+    ) THEN
+      RAISE EXCEPTION
+        'Existing CaseMessageAttachment reference could not be established: %',
+        attachment.id;
+    END IF;
+  END LOOP;
+END
+$grainline_direct_upload_case_attachment_reference_backfill$;
+
 CREATE OR REPLACE FUNCTION public.grainline_direct_upload_case_attachment_read(
   p_user_id text,
   p_case_id text,
@@ -1217,6 +1290,9 @@ REVOKE ALL ON FUNCTION
   public.grainline_direct_upload_reference_case_attachment(text, text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
+  public.grainline_direct_upload_case_attachment_reference_trigger()
+  FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
   public.grainline_direct_upload_case_attachment_read(text, text, text)
   FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
@@ -1347,7 +1423,8 @@ BEGIN
        'grainline_direct_upload_utc_now',
        'grainline_direct_upload_record_core',
        'grainline_direct_upload_reference_core',
-       'grainline_direct_upload_release_core'
+       'grainline_direct_upload_release_core',
+       'grainline_direct_upload_case_attachment_reference_trigger'
      );
   IF private_core_grant_count <> 0 THEN
     RAISE EXCEPTION

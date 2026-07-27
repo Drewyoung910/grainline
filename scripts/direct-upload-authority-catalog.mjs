@@ -1,5 +1,13 @@
 export const DIRECT_UPLOAD_AUTHORITY_FUNCTIONS = Object.freeze([
   { name: "grainline_direct_upload_actor_valid", runtimeExecute: false },
+  {
+    name: "grainline_direct_upload_case_attachment_bind",
+    runtimeExecute: false,
+  },
+  {
+    name: "grainline_direct_upload_case_attachment_reference_trigger",
+    runtimeExecute: false,
+  },
   { name: "grainline_direct_upload_identity_immutable", runtimeExecute: false },
   { name: "grainline_direct_upload_message_url_core", runtimeExecute: false },
   { name: "grainline_direct_upload_record_core", runtimeExecute: false },

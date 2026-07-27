@@ -103,35 +103,118 @@ ALTER TABLE public."DirectUpload"
     OR ("cleanupLeaseId" IS NOT NULL AND "cleanupLeaseAt" IS NOT NULL)
   ) NOT VALID;
 
--- The reviewed Case evidence migration originally stored an opaque object key.
--- It has not been activated in production. Preserve those sealed bytes and
--- fail closed if any environment unexpectedly contains evidence rows rather
--- than silently rewriting or discarding them during the lifecycle binding.
-DO $grainline_case_attachment_empty$
+-- Preserve the reviewed Case evidence migration and support old/new
+-- application coexistence. Old code writes objectKey; new code dual-writes
+-- objectKey plus directUploadId. The trigger derives the id for old writes and
+-- rejects any key/id/owner/metadata mismatch.
+ALTER TABLE public."CaseMessageAttachment"
+  ADD COLUMN "directUploadId" TEXT;
+
+UPDATE public."CaseMessageAttachment" AS attachment
+   SET "directUploadId" = upload.id
+  FROM public."DirectUpload" AS upload
+ WHERE upload.key = attachment."objectKey"
+   AND upload."userId" = attachment."uploaderId"
+   AND upload.endpoint = 'caseEvidenceImage'
+   AND upload."storageClass" = 'PRIVATE'
+   AND upload."publicUrl" IS NULL
+   AND upload."contentType" = attachment."contentType"
+   AND upload."expectedSize" = attachment."byteSize"
+   AND upload.status IN ('VERIFIED', 'CLAIMED');
+
+DO $grainline_case_attachment_backfill$
 BEGIN
   IF EXISTS (
     SELECT 1
-      FROM public."CaseMessageAttachment"
-     LIMIT 1
+      FROM public."CaseMessageAttachment" AS attachment
+     WHERE attachment."directUploadId" IS NULL
   ) THEN
     RAISE EXCEPTION
-      'DirectUpload reference preparation requires an empty CaseMessageAttachment table';
+      'CaseMessageAttachment contains an unbindable DirectUpload source';
   END IF;
 END
-$grainline_case_attachment_empty$;
+$grainline_case_attachment_backfill$;
 
 ALTER TABLE public."CaseMessageAttachment"
-  DROP CONSTRAINT "CaseMessageAttachment_objectKey_key",
-  DROP CONSTRAINT "CaseMessageAttachment_objectKey_check",
-  DROP COLUMN "objectKey",
-  ADD COLUMN "directUploadId" TEXT NOT NULL;
-
-ALTER TABLE public."CaseMessageAttachment"
+  ALTER COLUMN "directUploadId" SET NOT NULL,
   ADD CONSTRAINT "CaseMessageAttachment_directUploadId_key"
     UNIQUE ("directUploadId"),
   ADD CONSTRAINT "CaseMessageAttachment_directUploadId_fkey"
     FOREIGN KEY ("directUploadId") REFERENCES public."DirectUpload"(id)
     ON DELETE RESTRICT ON UPDATE CASCADE;
+
+CREATE OR REPLACE FUNCTION
+  public.grainline_direct_upload_case_attachment_bind()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_direct_upload_case_attachment_bind$
+DECLARE
+  upload record;
+BEGIN
+  IF TG_OP = 'UPDATE'
+     AND (
+       NEW.id IS DISTINCT FROM OLD.id
+       OR NEW."caseMessageId" IS DISTINCT FROM OLD."caseMessageId"
+       OR NEW."uploaderId" IS DISTINCT FROM OLD."uploaderId"
+       OR NEW."objectKey" IS DISTINCT FROM OLD."objectKey"
+       OR NEW."directUploadId" IS DISTINCT FROM OLD."directUploadId"
+       OR NEW."contentType" IS DISTINCT FROM OLD."contentType"
+       OR NEW."byteSize" IS DISTINCT FROM OLD."byteSize"
+       OR NEW."createdAt" IS DISTINCT FROM OLD."createdAt"
+     ) THEN
+    RAISE EXCEPTION 'CaseMessageAttachment identity fields are immutable'
+      USING ERRCODE = '23514';
+  END IF;
+
+  SELECT
+    candidate.id,
+    candidate.key,
+    candidate."userId",
+    candidate.endpoint,
+    candidate."storageClass",
+    candidate."publicUrl",
+    candidate."contentType",
+    candidate."expectedSize",
+    candidate.status
+    INTO upload
+   FROM public."DirectUpload" AS candidate
+   WHERE candidate.key = NEW."objectKey"
+   FOR UPDATE;
+
+  IF NOT FOUND
+     OR (
+       NEW."directUploadId" IS NOT NULL
+       AND NEW."directUploadId" IS DISTINCT FROM upload.id
+     )
+     OR upload."userId" IS DISTINCT FROM NEW."uploaderId"
+     OR upload.endpoint IS DISTINCT FROM 'caseEvidenceImage'
+     OR upload."storageClass" IS DISTINCT FROM 'PRIVATE'
+     OR upload."publicUrl" IS NOT NULL
+     OR upload."contentType" IS DISTINCT FROM NEW."contentType"
+     OR upload."expectedSize" IS DISTINCT FROM NEW."byteSize"
+     OR upload.status NOT IN ('VERIFIED', 'CLAIMED') THEN
+    RAISE EXCEPTION 'CaseMessageAttachment DirectUpload binding is invalid'
+      USING ERRCODE = '23514';
+  END IF;
+
+  NEW."directUploadId" := upload.id;
+  RETURN NEW;
+END;
+$grainline_direct_upload_case_attachment_bind$;
+
+REVOKE ALL ON FUNCTION
+  public.grainline_direct_upload_case_attachment_bind()
+  FROM PUBLIC, grainline_app_runtime;
+
+CREATE TRIGGER grainline_direct_upload_case_attachment_bind
+BEFORE INSERT OR UPDATE
+ON public."CaseMessageAttachment"
+FOR EACH ROW EXECUTE FUNCTION
+  public.grainline_direct_upload_case_attachment_bind();
 
 CREATE TABLE public."DirectUploadReference" (
   id TEXT NOT NULL,

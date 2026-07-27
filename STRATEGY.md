@@ -152,8 +152,16 @@ releases references through database triggers, and Listing/Review mutation
 paths defer object deletion to the fenced cleanup worker after the last
 reference. This is still compatible preparation only: DirectUpload RLS remains
 off and its old table grants remain until the reviewed activation/drain split.
-The exact preparation tree passed PostgreSQL 16.14 authority/concurrency proof
-in run `30225445722`; retain that evidence without treating it as activation.
+The earlier exact preparation tree passed PostgreSQL 16.14
+authority/concurrency proof in run `30225445722`; retain that evidence without
+treating it as activation. A later Extra-High review correctly superseded it:
+the Case child conversion must retain `objectKey` temporarily, database-derive
+and validate `directUploadId` for old writers, dual-write from the new app, and
+create/release normalized references through triggers. After compatible app
+deployment and old-instance drain, separately prove equality and drop the
+duplicate key before DirectUpload activation. The amended exact tree requires a
+fresh disposable PostgreSQL proof.
+
 Do not promote this checkpoint until aggregate legacy
 classification/backfill, the dedicated cleanup-worker role, rollback and
 pooled-runtime postflight gates are complete. Withhold the unused future

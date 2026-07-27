@@ -133,13 +133,18 @@ the table is ready.
 
 CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
 a separate non-public R2 bucket, never the generic public message uploader.
-It records opaque keys in `CaseMessageAttachment`, atomically claims verified
-upload ownership with the message, retrieves only through a participant/staff
-authorization route and includes attachment metadata in interactive history
-and account export. The private Cloudflare bucket and application environment
-do not exist merely because this code exists; production evidence upload stays
-blocked until bucket privacy, least-privilege object access, authenticated
-signed read, foreign denial and cleanup are proven.
+Its first compatible writer records an opaque key in
+`CaseMessageAttachment`; the later DirectUpload preparation temporarily
+dual-stores that key with a database-bound `directUploadId` so old and new
+deployments can overlap safely. The duplicate key must be proven equal and
+dropped after drain, before DirectUpload activation. Upload ownership is
+claimed atomically with the message, retrieval remains behind a
+participant/staff authorization route, and only attachment metadata enters
+interactive history and account export. The private Cloudflare bucket and
+application environment do not exist merely because this code exists;
+production evidence upload stays blocked until bucket privacy, least-privilege
+object access, authenticated signed read, foreign denial and cleanup are
+proven.
 
 The final compatible review made the storage boundary fail closed across the
 whole lifecycle: a claimed `DirectUpload` cannot be rebound to another source

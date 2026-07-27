@@ -217,6 +217,30 @@ prove both sides. The unused future
 ordinary-runtime activation until CM-A20's compatible application release
 actually consumes it.
 
+### DU-A13: private Case child conversion must survive old/new app overlap
+
+The first reference-ledger draft treated the unapplied Case evidence table as
+empty and replaced `objectKey` with `directUploadId` in one migration. That is
+fail-closed for unexpected rows but not deployment-compatible: an old
+application instance would continue inserting `objectKey` after the migration
+and fail against the new shape.
+
+Preparation must instead retain the compatibility column, add and exactly
+backfill `directUploadId`, and install a private database binding trigger. The
+trigger derives the id for an old writer and rejects any caller-provided
+key/id/uploader/content/size mismatch. It locks the lifecycle row against the
+cleanup worker and makes attachment identity immutable. A second private trigger
+creates the exclusive normalized reference on insert and releases it on delete,
+so old and new writers have the same lifecycle behavior. New application code
+dual-writes both columns and its explicit reference call remains idempotent.
+
+After the compatible application is deployed and every older instance has
+drained, a separate reviewed cleanup migration must prove exact agreement and
+drop `objectKey`. DirectUpload activation may not retain this duplicate private
+key behind ordinary runtime table access; either the compatibility column is
+gone first or the parent attachment table has independently activated,
+parent-derived RLS. The planned sequence uses the narrower first option.
+
 ## Proposed compatible schema
 
 Add `DirectUploadReference`:
@@ -237,9 +261,13 @@ grants. Fixed family functions insert/release rows only after locking the
 lifecycle and validating the exact durable source. A trigger rejects a
 reference whose exclusivity does not match PUBLIC/PRIVATE storage.
 
-Refactor the unapplied `CaseMessageAttachment` and planned
-`MessageAttachment` to store unique `directUploadId` foreign keys, not object
-keys. Child metadata remains source-derived and database-constrained.
+The compatible `CaseMessageAttachment` transition temporarily stores both its
+legacy `objectKey` and unique `directUploadId`; the database derives and proves
+their equality for old writers while the new application dual-writes them.
+After old deployment drain, drop the duplicate key. The planned
+`MessageAttachment` starts directly with a unique `directUploadId` foreign key
+and never needs the legacy duplicate. Child metadata remains source-derived and
+database-constrained.
 
 Keep legacy `claimedByType`/`claimedById` during coexistence only. Preparation
 functions dual-write them where compatible. After old deployment drain and
@@ -342,9 +370,8 @@ Disposable PostgreSQL must prove:
 ### Reference-ledger schema checkpoint
 
 The first local-only checkpoint adds
-`20260726184500_prepare_direct_upload_reference_ledger` and refactors the
-unapplied Case compatibility schema to reference `DirectUpload.id` rather than
-duplicating its private object key.
+`20260726184500_prepare_direct_upload_reference_ledger` and begins the
+deployment-compatible Case child transition to `DirectUpload.id`.
 
 The preparation migration deliberately leaves `DirectUpload` RLS disabled and
 keeps its old runtime grants for old-application compatibility. It creates
@@ -357,7 +384,8 @@ runtime/PUBLIC table privileges from birth. It also adds:
 - cleanup lease columns for later attempt fencing;
 - immutable lifecycle identity and bounded status-transition triggers;
 - active reference identity and private-exclusivity partial unique indexes;
-  and
+  a locked Case attachment key/id binding trigger for old/new application
+  coexistence; and
 - a trigger that derives reference exclusivity from the locked lifecycle row
   instead of accepting the caller's value.
 
@@ -367,13 +395,15 @@ inspection and live PostgreSQL proof remain open.
 
 The exact reviewed bytes of
 `20260726184000_prepare_private_case_message_attachments` remain immutable.
-`20260726184500_prepare_direct_upload_reference_ledger` performs the durable
-`objectKey` to `directUploadId` shape transition and fails closed unless
-`CaseMessageAttachment` is empty. Production has not received the earlier
-Case compatibility migration; its absence and the empty-table prerequisite
-must still be re-proven before applying this stack. The private Case object key
-remains a server-only transient value while an attachment is being verified;
-it is not duplicated in the final durable child row.
+`20260726184500_prepare_direct_upload_reference_ledger` adds and exactly
+backfills `directUploadId` while retaining `objectKey` for old-application
+compatibility. A locked SECURITY DEFINER trigger derives the id for old writes,
+validates dual writes, and rejects attachment identity mutation. The authority
+migration then creates/releases normalized references automatically for both
+writer versions and backfills any rows created between the two migrations.
+Production has not received the earlier Case compatibility migration. The
+duplicate key is a temporary transition field and must be removed after the
+compatible app drains, before DirectUpload activation.
 
 ### Fixed lifecycle/core authority checkpoint
 
@@ -530,11 +560,10 @@ During final release-guard packaging, the guard then correctly exposed that the
 previously sealed Case migration had been amended by the first reference-ledger
 checkpoint. Commit `6697a0f3` restored
 `20260726184000_prepare_private_case_message_attachments` byte-for-byte to its
-reviewed `b3e3d18f...` tree and moved the `objectKey` to `directUploadId`
-transition into `20260726184500_prepare_direct_upload_reference_ledger`. The
-transition refuses any nonempty `CaseMessageAttachment` table instead of
-silently rewriting or dropping evidence. The current reviewed full-tree
-fingerprint is
+reviewed `b3e3d18f...` tree and moved its then-empty-only `objectKey` to
+`directUploadId` transition into
+`20260726184500_prepare_direct_upload_reference_ledger`. The reviewed full-tree
+fingerprint at that checkpoint was
 `8eb9896ac024b73daf368593e57fc485bd2b651b8e4b4b37a8cb66b31c1fe7bc`.
 
 The fresh exact-tree execution, GitHub Actions run `30225445722` (job
@@ -542,10 +571,16 @@ The fresh exact-tree execution, GitHub Actions run `30225445722` (job
 166 migrations, converged the production-style runtime role, verified
 migration status, passed the global grant/RLS audit and static contracts, then
 passed all five live authority/concurrency checks listed above. It recorded
-`persistentStagingChanged=false` and `productionChanged=false`. This is the
-accepted disposable-engine evidence for the current preparation tree; the
-earlier green runs remain useful failure-history and audit-hardening evidence
-but are not substitutes for this final tree.
+`persistentStagingChanged=false` and `productionChanged=false`. The subsequent
+Extra-High deployment-skew review found that its empty-only shape replacement
+would reject old-application writes after migration. The preparation now uses
+the additive dual-column/binding-trigger protocol in DU-A13 and adds automatic
+Case reference insert/delete maintenance. Therefore run `30225445722` remains
+useful prior authority/concurrency evidence but is explicitly superseded for
+release; the amended exact tree requires a fresh PostgreSQL run before its
+preparation can be accepted. The Extra-High-reviewed amended full-tree
+fingerprint is
+`90290c0c88ecf0270acf832605126100fa6f24505496989754ab5d6d01274324`.
 
 ## Exit
 

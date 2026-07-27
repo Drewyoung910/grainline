@@ -23,11 +23,19 @@ const ids = Object.freeze({
   photoB: `${PREFIX}-photo-b`,
   legacyPhoto: `${PREFIX}-legacy-photo`,
   broadcast: `${PREFIX}-broadcast`,
+  order: `${PREFIX}-order`,
+  case: `${PREFIX}-case`,
+  caseMessageA: `${PREFIX}-case-message-a`,
+  caseMessageB: `${PREFIX}-case-message-b`,
+  caseAttachmentOld: `${PREFIX}-case-attachment-old`,
+  caseAttachmentNew: `${PREFIX}-case-attachment-new`,
 });
 const actorSegments = Object.freeze({
   owner: "clerk-direct-upload-authority-proof-owner",
   outsider: "clerk-direct-upload-authority-proof-outsider",
+  stranger: "clerk-direct-upload-authority-proof-stranger",
 });
+const strangerId = `${PREFIX}-stranger`;
 const uploads = Object.freeze({
   a: {
     key: `listingImage/${actorSegments.owner}/a.webp`,
@@ -36,6 +44,12 @@ const uploads = Object.freeze({
   b: {
     key: `listingImage/${actorSegments.owner}/b.webp`,
     url: `https://proof.invalid/listingImage/${actorSegments.owner}/b.webp`,
+  },
+  privateA: {
+    key: `caseEvidenceImage/${actorSegments.owner}/${ids.case}/old.webp`,
+  },
+  privateB: {
+    key: `caseEvidenceImage/${actorSegments.owner}/${ids.case}/new.webp`,
   },
 });
 const legacyUrl = "https://legacy.invalid/direct-upload-authority-proof.webp";
@@ -122,6 +136,18 @@ async function waitForLock(observer, applicationName) {
 
 async function cleanupFixtures(owner) {
   await owner.query(
+    `DELETE FROM public."CaseMessageAttachment" WHERE id LIKE '${PREFIX}-%'`,
+  );
+  await owner.query(
+    `DELETE FROM public."CaseMessage" WHERE id LIKE '${PREFIX}-%'`,
+  );
+  await owner.query(
+    `DELETE FROM public."Case" WHERE id LIKE '${PREFIX}-%'`,
+  );
+  await owner.query(
+    `DELETE FROM public."Order" WHERE id LIKE '${PREFIX}-%'`,
+  );
+  await owner.query(
     `DELETE FROM public."Photo" WHERE id LIKE '${PREFIX}-%'`,
   );
   await owner.query(
@@ -137,21 +163,21 @@ async function cleanupFixtures(owner) {
           OR "directUploadId" IN (
             SELECT id
               FROM public."DirectUpload"
-             WHERE "userId" IN ($1, $2)
+             WHERE "userId" IN ($1, $2, $3)
           )
     `,
-    [ids.owner, ids.outsider],
+    [ids.owner, ids.outsider, strangerId],
   );
   await owner.query(
-    `DELETE FROM public."DirectUpload" WHERE "userId" IN ($1, $2)`,
-    [ids.owner, ids.outsider],
+    `DELETE FROM public."DirectUpload" WHERE "userId" IN ($1, $2, $3)`,
+    [ids.owner, ids.outsider, strangerId],
   );
   await owner.query(
     `DELETE FROM public."SellerProfile" WHERE id LIKE '${PREFIX}-%'`,
   );
   await owner.query(
-    `DELETE FROM public."User" WHERE id IN ($1, $2)`,
-    [ids.owner, ids.outsider],
+    `DELETE FROM public."User" WHERE id IN ($1, $2, $3)`,
+    [ids.owner, ids.outsider, strangerId],
   );
 }
 
@@ -164,7 +190,8 @@ async function seedFixtures(owner) {
       )
       VALUES
         ($1, $2, $3, 'DirectUpload Proof Owner', 'USER', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ($4, $5, $6, 'DirectUpload Proof Outsider', 'USER', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ($4, $5, $6, 'DirectUpload Proof Outsider', 'USER', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ($7, $8, $9, 'DirectUpload Proof Stranger', 'USER', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `,
     [
       ids.owner,
@@ -173,6 +200,9 @@ async function seedFixtures(owner) {
       ids.outsider,
       actorSegments.outsider,
       `${PREFIX}-outsider@example.invalid`,
+      strangerId,
+      actorSegments.stranger,
+      `${PREFIX}-stranger@example.invalid`,
     ],
   );
   await owner.query(
@@ -199,6 +229,39 @@ async function seedFixtures(owner) {
          1000, 'IN_STOCK', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `,
     [ids.listingA, ids.listingB, ids.ownerSeller],
+  );
+  await owner.query(
+    `
+      INSERT INTO public."Order" (id, "buyerId")
+      VALUES ($1, $2)
+    `,
+    [ids.order, ids.owner],
+  );
+  await owner.query(
+    `
+      INSERT INTO public."Case" (
+        id, "orderId", "buyerId", "sellerId", reason, description,
+        "sellerRespondBy", "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, $3, $4, 'DAMAGED', 'Disposable DirectUpload proof Case.',
+        CURRENT_TIMESTAMP + interval '2 days',
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      )
+    `,
+    [ids.case, ids.order, ids.owner, ids.outsider],
+  );
+  await owner.query(
+    `
+      INSERT INTO public."CaseMessage" (
+        id, "caseId", "authorId", "authorKind", body, "createdAt"
+      )
+      VALUES
+        ($1, $3, $4, 'BUYER', 'Old-app compatibility proof.', CURRENT_TIMESTAMP),
+        ($2, $3, $4, 'BUYER', 'New-app compatibility proof.', CURRENT_TIMESTAMP)
+    `,
+    [ids.caseMessageA, ids.caseMessageB, ids.case, ids.owner],
   );
 }
 
@@ -312,12 +375,199 @@ async function catalogProof(owner) {
   `);
   assert.deepEqual(triggers.rows, [
     { relname: "BlogPost", tgname: "grainline_direct_upload_release_blog_post_delete" },
+    { relname: "CaseMessageAttachment", tgname: "grainline_direct_upload_release_case_attachment_delete" },
     { relname: "CommissionRequest", tgname: "grainline_direct_upload_release_commission_request_delete" },
     { relname: "Listing", tgname: "grainline_direct_upload_release_listing_delete" },
     { relname: "Message", tgname: "grainline_direct_upload_release_legacy_message_delete" },
     { relname: "Review", tgname: "grainline_direct_upload_release_review_delete" },
     { relname: "SellerBroadcast", tgname: "grainline_direct_upload_release_seller_broadcast_delete" },
     { relname: "SellerProfile", tgname: "grainline_direct_upload_release_seller_profile_delete" },
+  ]);
+}
+
+async function recordPrivateCaseUpload(runtime, upload) {
+  const result = await runtime.query(
+    `
+      SELECT public.grainline_direct_upload_record_private_case(
+        $1, $2, $3, 'image/webp', 2048
+      ) AS id
+    `,
+    [ids.owner, ids.case, upload.key],
+  );
+  assert.equal(typeof result.rows[0]?.id, "string");
+  return result.rows[0].id;
+}
+
+async function caseAttachmentCompatibilityProof(owner, runtime) {
+  const oldUploadId = await recordPrivateCaseUpload(runtime, uploads.privateA);
+
+  await runtime.query(
+    `
+      INSERT INTO public."CaseMessageAttachment" (
+        id, "caseMessageId", "uploaderId", "objectKey",
+        "contentType", "byteSize", "createdAt"
+      )
+      VALUES ($1, $2, $3, $4, 'image/webp', 2048, CURRENT_TIMESTAMP)
+    `,
+    [
+      ids.caseAttachmentOld,
+      ids.caseMessageA,
+      ids.owner,
+      uploads.privateA.key,
+    ],
+  );
+
+  const oldBinding = await owner.query(
+    `
+      SELECT
+        attachment."objectKey",
+        attachment."directUploadId",
+        upload.status,
+        upload."cleanupAfter" IS NULL AS cleanup_cancelled,
+        reference.exclusive,
+        reference."releasedAt"
+      FROM public."CaseMessageAttachment" AS attachment
+      JOIN public."DirectUpload" AS upload
+        ON upload.id = attachment."directUploadId"
+      JOIN public."DirectUploadReference" AS reference
+        ON reference."directUploadId" = upload.id
+       AND reference."sourceType" = 'CASE_MESSAGE_ATTACHMENT'
+       AND reference."sourceId" = attachment.id
+      WHERE attachment.id = $1
+    `,
+    [ids.caseAttachmentOld],
+  );
+  assert.deepEqual(oldBinding.rows, [
+    {
+      objectKey: uploads.privateA.key,
+      directUploadId: oldUploadId,
+      status: "CLAIMED",
+      cleanup_cancelled: true,
+      exclusive: true,
+      releasedAt: null,
+    },
+  ]);
+
+  const replay = await runtime.query(
+    `
+      SELECT public.grainline_direct_upload_reference_case_attachment(
+        $1, $2
+      ) AS referenced
+    `,
+    [ids.owner, ids.caseAttachmentOld],
+  );
+  assert.equal(replay.rows[0]?.referenced, true);
+  assert.equal(await activeReferenceCount(owner, oldUploadId), 1);
+
+  const ownerRead = await runtime.query(
+    `
+      SELECT *
+      FROM public.grainline_direct_upload_case_attachment_read($1, $2, $3)
+    `,
+    [ids.owner, ids.case, ids.caseAttachmentOld],
+  );
+  assert.deepEqual(ownerRead.rows, [
+    { key: uploads.privateA.key, contentType: "image/webp" },
+  ]);
+  const sellerRead = await runtime.query(
+    `
+      SELECT *
+      FROM public.grainline_direct_upload_case_attachment_read($1, $2, $3)
+    `,
+    [ids.outsider, ids.case, ids.caseAttachmentOld],
+  );
+  assert.deepEqual(sellerRead.rows, ownerRead.rows);
+  const strangerRead = await runtime.query(
+    `
+      SELECT *
+      FROM public.grainline_direct_upload_case_attachment_read($1, $2, $3)
+    `,
+    [strangerId, ids.case, ids.caseAttachmentOld],
+  );
+  assert.deepEqual(strangerRead.rows, []);
+
+  const newUploadId = await recordPrivateCaseUpload(runtime, uploads.privateB);
+  await expectSqlState(
+    () =>
+      runtime.query(
+        `
+          INSERT INTO public."CaseMessageAttachment" (
+            id, "caseMessageId", "uploaderId", "objectKey", "directUploadId",
+            "contentType", "byteSize", "createdAt"
+          )
+          VALUES ($1, $2, $3, $4, $5, 'image/webp', 2048, CURRENT_TIMESTAMP)
+        `,
+        [
+          `${ids.caseAttachmentNew}-mismatch`,
+          ids.caseMessageB,
+          ids.owner,
+          uploads.privateB.key,
+          oldUploadId,
+        ],
+      ),
+    "23514",
+    "mismatched Case attachment key and DirectUpload id",
+  );
+
+  await runtime.query(
+    `
+      INSERT INTO public."CaseMessageAttachment" (
+        id, "caseMessageId", "uploaderId", "objectKey", "directUploadId",
+        "contentType", "byteSize", "createdAt"
+      )
+      VALUES ($1, $2, $3, $4, $5, 'image/webp', 2048, CURRENT_TIMESTAMP)
+    `,
+    [
+      ids.caseAttachmentNew,
+      ids.caseMessageB,
+      ids.owner,
+      uploads.privateB.key,
+      newUploadId,
+    ],
+  );
+  assert.equal(await activeReferenceCount(owner, newUploadId), 1);
+
+  await expectSqlState(
+    () =>
+      runtime.query(
+        `
+          UPDATE public."CaseMessageAttachment"
+             SET "caseMessageId" = $2
+           WHERE id = $1
+        `,
+        [ids.caseAttachmentNew, ids.caseMessageA],
+      ),
+    "23514",
+    "mutable Case attachment parent",
+  );
+
+  await runtime.query(
+    `DELETE FROM public."CaseMessageAttachment" WHERE id = $1`,
+    [ids.caseAttachmentOld],
+  );
+  const released = await owner.query(
+    `
+      SELECT
+        upload.status,
+        upload."cleanupAfter" IS NOT NULL AS cleanup_ready,
+        reference."releasedAt" IS NOT NULL AS released,
+        reference."releaseReason"
+      FROM public."DirectUpload" AS upload
+      JOIN public."DirectUploadReference" AS reference
+        ON reference."directUploadId" = upload.id
+       AND reference."sourceType" = 'CASE_MESSAGE_ATTACHMENT'
+       AND reference."sourceId" = $2
+      WHERE upload.id = $1
+    `,
+    [oldUploadId, ids.caseAttachmentOld],
+  );
+  assert.deepEqual(released.rows, [
+    {
+      status: "VERIFIED",
+      cleanup_ready: true,
+      released: true,
+      releaseReason: "SOURCE_DELETED",
+    },
   ]);
 }
 
@@ -706,13 +956,15 @@ export async function runProof(env = process.env) {
     await seedFixtures(owner);
     const { uploadA } = await authorityProof(owner, runtime);
     checks.push("fixed_authority_and_partial_source");
+    await caseAttachmentCompatibilityProof(owner, runtime);
+    checks.push("case_attachment_compatibility_and_lifecycle");
     await swapConcurrencyProof(databaseUrl, owner);
     checks.push("stable_swap_lock_order");
     await sourceReuseProof(owner, runtime, uploadA);
     checks.push("multi_source_reuse_and_delete_release");
     await cleanupConcurrencyProof(databaseUrl, owner, owner, runtime, uploadA);
     checks.push("reference_cleanup_winner_orderings");
-    assert.equal(checks.length, 5);
+    assert.equal(checks.length, 6);
     return {
       ok: true,
       database: DATABASE_NAME,

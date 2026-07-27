@@ -25,9 +25,13 @@ describe("private CaseMessage evidence", () => {
     );
     assert.match(schema, /contentType\s+String\s+@db\.VarChar\(100\)/);
     assert.match(schema, /byteSize\s+Int/);
+    assert.match(
+      schema.match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "",
+      /Compatibility-only duplicate[\s\S]*objectKey\s+String\s+@unique/,
+    );
     assert.doesNotMatch(
       schema.match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "",
-      /\bobjectKey\b|\burl\b|publicUrl/,
+      /\burl\b|publicUrl/,
     );
     assert.match(schema, /publicUrl\s+String\?\s+@db\.VarChar\(2048\)/);
     assert.match(schema, /storageClass\s+String\s+@default\("PUBLIC"\)/);
@@ -48,16 +52,21 @@ describe("private CaseMessage evidence", () => {
     assert.match(compatibilityMigration, /"objectKey" VARCHAR\(500\) NOT NULL/);
     assert.match(
       lifecycleMigration,
-      /requires an empty CaseMessageAttachment table/,
+      /Old code writes objectKey; new code dual-writes[\s\S]*ADD COLUMN "directUploadId" TEXT/,
     );
     assert.match(
       lifecycleMigration,
-      /DROP COLUMN "objectKey"[\s\S]*ADD COLUMN "directUploadId" TEXT NOT NULL/,
+      /UPDATE public\."CaseMessageAttachment" AS attachment[\s\S]*CaseMessageAttachment contains an unbindable DirectUpload source/,
     );
     assert.match(
       lifecycleMigration,
-      /"CaseMessageAttachment_directUploadId_fkey"[\s\S]*REFERENCES public\."DirectUpload"\(id\)/,
+      /ALTER COLUMN "directUploadId" SET NOT NULL[\s\S]*"CaseMessageAttachment_directUploadId_fkey"[\s\S]*REFERENCES public\."DirectUpload"\(id\)/,
     );
+    assert.match(
+      lifecycleMigration,
+      /grainline_direct_upload_case_attachment_bind\(\)[\s\S]*SECURITY DEFINER[\s\S]*CaseMessageAttachment identity fields are immutable/,
+    );
+    assert.doesNotMatch(lifecycleMigration, /DROP COLUMN "objectKey"/);
   });
 
   it("keeps Case evidence out of every public upload path", () => {
@@ -133,7 +142,7 @@ describe("private CaseMessage evidence", () => {
     assert.match(route, /referenceDirectUploadCaseAttachment\(\{[\s\S]*client: tx/);
     assert.match(
       route,
-      /attachments: \{[\s\S]*create:[\s\S]*directUploadId: attachment\.directUploadId[\s\S]*referenceDirectUploadCaseAttachment/,
+      /attachments: \{[\s\S]*create:[\s\S]*objectKey: attachment\.objectKey,[\s\S]*directUploadId: attachment\.directUploadId[\s\S]*referenceDirectUploadCaseAttachment/,
     );
     assert.match(route, /attachmentKeysMatch/);
     assert.match(lifecycle, /grainline_direct_upload_reference_case_attachment/);

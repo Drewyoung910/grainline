@@ -59,6 +59,11 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
     assert.match(proof, /foreign Listing fixed sync/);
     assert.match(proof, /untracked: 1/);
     assert.match(proof, /activeReferenceCount\(owner, uploadA\), 1/);
+    assert.match(proof, /case_attachment_compatibility_and_lifecycle/);
+    assert.match(proof, /mismatched Case attachment key and DirectUpload id/);
+    assert.match(proof, /mutable Case attachment parent/);
+    assert.match(proof, /grainline_direct_upload_case_attachment_read/);
+    assert.match(proof, /releaseReason: "SOURCE_DELETED"/);
   });
 
   it("forces real lock waits and proves cleanup SKIP LOCKED ordering", () => {

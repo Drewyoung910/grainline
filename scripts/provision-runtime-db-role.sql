@@ -585,6 +585,8 @@ WHERE to_regclass('public."DirectUploadReference"') IS NOT NULL;
 WITH direct_upload_authority(function_signature, runtime_execute) AS (
   VALUES
     ('public."grainline_direct_upload_actor_valid"(text)', false),
+    ('public."grainline_direct_upload_case_attachment_bind"()', false),
+    ('public."grainline_direct_upload_case_attachment_reference_trigger"()', false),
     ('public."grainline_direct_upload_identity_immutable"()', false),
     ('public."grainline_direct_upload_message_url_core"(text, text)', false),
     ('public."grainline_direct_upload_record_core"(text, text, text, text, text, integer, text, text, text)', false),
@@ -626,6 +628,8 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
 WITH direct_upload_authority(function_signature, runtime_execute) AS (
   VALUES
     ('public."grainline_direct_upload_actor_valid"(text)', false),
+    ('public."grainline_direct_upload_case_attachment_bind"()', false),
+    ('public."grainline_direct_upload_case_attachment_reference_trigger"()', false),
     ('public."grainline_direct_upload_identity_immutable"()', false),
     ('public."grainline_direct_upload_message_url_core"(text, text)', false),
     ('public."grainline_direct_upload_record_core"(text, text, text, text, text, integer, text, text, text)', false),

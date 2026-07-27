@@ -54,6 +54,40 @@ describe("DirectUpload reference-ledger preparation", () => {
     );
   });
 
+  it("bridges old and new Case attachment writers without trusting either identifier", () => {
+    const migration = source(migrationPath);
+
+    assert.match(
+      migration,
+      /ADD COLUMN "directUploadId" TEXT[\s\S]*UPDATE public\."CaseMessageAttachment" AS attachment/,
+    );
+    assert.match(
+      migration,
+      /upload\.key = attachment\."objectKey"[\s\S]*upload\."userId" = attachment\."uploaderId"[\s\S]*upload\.endpoint = 'caseEvidenceImage'/,
+    );
+    assert.match(
+      migration,
+      /ALTER COLUMN "directUploadId" SET NOT NULL[\s\S]*"CaseMessageAttachment_directUploadId_fkey"/,
+    );
+    assert.match(
+      migration,
+      /grainline_direct_upload_case_attachment_bind\(\)[\s\S]*SECURITY DEFINER[\s\S]*FOR UPDATE/,
+    );
+    assert.match(
+      migration,
+      /NEW\."directUploadId" IS DISTINCT FROM upload\.id/,
+    );
+    assert.match(
+      migration,
+      /NEW\."caseMessageId" IS DISTINCT FROM OLD\."caseMessageId"[\s\S]*CaseMessageAttachment identity fields are immutable/,
+    );
+    assert.match(
+      migration,
+      /BEFORE INSERT OR UPDATE[\s\S]*grainline_direct_upload_case_attachment_bind\(\)/,
+    );
+    assert.doesNotMatch(migration, /DROP COLUMN "objectKey"/);
+  });
+
   it("makes the reference ledger FORCE-hardened and runtime-inaccessible at birth", () => {
     const migration = source(migrationPath);
 

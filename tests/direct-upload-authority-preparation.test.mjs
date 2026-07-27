@@ -150,6 +150,18 @@ describe("DirectUpload fixed-authority preparation", () => {
       migration,
       /'CASE_MESSAGE_ATTACHMENT',\s*p_attachment_id/,
     );
+    assert.match(
+      migration,
+      /grainline_direct_upload_case_attachment_reference_trigger[\s\S]*TG_OP = 'INSERT'[\s\S]*grainline_direct_upload_reference_case_attachment[\s\S]*TG_OP = 'DELETE'[\s\S]*grainline_direct_upload_release_core/,
+    );
+    assert.match(
+      migration,
+      /AFTER INSERT ON public\."CaseMessageAttachment"[\s\S]*BEFORE DELETE ON public\."CaseMessageAttachment"/,
+    );
+    assert.match(
+      migration,
+      /grainline_direct_upload_case_attachment_reference_backfill[\s\S]*ORDER BY row\.id/,
+    );
   });
 
   it("fences cleanup completion and failure by an exact database lease", () => {
