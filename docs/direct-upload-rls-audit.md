@@ -799,6 +799,28 @@ was addressed. The corrected verifier and runtime worker keep each relation
 kind check inside a `CASE` expression before calling the type-specific
 privilege helper. A fresh exact-commit PostgreSQL proof is required.
 
+The corrected exact-tree execution, GitHub Actions run `30230829313` (job
+`89869276880`) at commit `6f8856b4`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role and the isolated
+NOBYPASSRLS/NOINHERIT cleanup role, verified migration status, passed the
+global grant/RLS audit and static contracts, then passed all seven live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`; and
+7. `aggregate_only_legacy_query`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable database and fixtures were destroyed
+with the job. This accepts the cleanup-role catalog partition, exact function
+source/ACL checks and compatible DirectUpload preparation authority on the
+disposable engine. It does not activate the worker, create provider
+credentials, prove R2 deletion, inspect production legacy data, apply
+DirectUpload RLS activation or change any persistent environment.
+
 ## Exit
 
 High ends when this audit, the matrix/strategy decision and static inventory
