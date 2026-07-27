@@ -68,6 +68,10 @@ describe("DirectUpload activated PostgreSQL proof harness", () => {
     assert.match(proof, /runtime unreleased private-message recorder/);
     assert.match(proof, /cleanup ordinary upload recorder/);
     assert.match(proof, /foreign Listing sync/);
+    assert.match(
+      proof,
+      /\[ids\.stranger, ids\.case, ids\.caseAttachment\][\s\S]*?\.rows,[\s\S]*?\[\]/,
+    );
     assert.match(proof, /retired_case_key/);
     assert.match(proof, /isolated_cleanup_lease_fence/);
     assert.match(proof, /wrong-lease/);

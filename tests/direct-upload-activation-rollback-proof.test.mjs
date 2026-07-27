@@ -72,6 +72,7 @@ describe("DirectUpload activation rollback proof", () => {
     assert.match(proof, /exactFunctionPartitionRestored: true/);
     assert.match(proof, /exactForceActivationRestored: true/);
     assert.match(proof, /objectKeyRetirementPreserved: true/);
+    assert.match(proof, /object_key_count: 0/);
   });
 
   it("has a best-effort exact-state restore and no production target", () => {

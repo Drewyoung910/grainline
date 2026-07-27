@@ -20,6 +20,7 @@ const CLEANUP_ROLE = "grainline_direct_upload_cleanup";
 const ids = Object.freeze({
   owner: `${PREFIX}-owner`,
   outsider: `${PREFIX}-outsider`,
+  stranger: `${PREFIX}-stranger`,
   seller: `${PREFIX}-seller`,
   listing: `${PREFIX}-listing`,
   photo: `${PREFIX}-photo`,
@@ -30,6 +31,7 @@ const ids = Object.freeze({
 });
 const ownerClerk = "clerk-direct-upload-activation-proof-owner";
 const outsiderClerk = "clerk-direct-upload-activation-proof-outsider";
+const strangerClerk = "clerk-direct-upload-activation-proof-stranger";
 const publicKey = `listingImage/${ownerClerk}/fixture.webp`;
 const publicUrl = `https://proof.invalid/${publicKey}`;
 const privateKey =
@@ -103,21 +105,21 @@ async function cleanupFixtures(owner) {
       WHERE "sourceId" LIKE '${PREFIX}-%'
          OR "directUploadId" IN (
            SELECT id FROM public."DirectUpload"
-            WHERE "userId" IN ($1, $2)
+            WHERE "userId" IN ($1, $2, $3)
          )`,
-    [ids.owner, ids.outsider],
+    [ids.owner, ids.outsider, ids.stranger],
   );
   await owner.query(
-    `DELETE FROM public."DirectUpload" WHERE "userId" IN ($1, $2)`,
-    [ids.owner, ids.outsider],
+    `DELETE FROM public."DirectUpload" WHERE "userId" IN ($1, $2, $3)`,
+    [ids.owner, ids.outsider, ids.stranger],
   );
   await owner.query(
     `DELETE FROM public."SellerProfile" WHERE id = $1`,
     [ids.seller],
   );
   await owner.query(
-    `DELETE FROM public."User" WHERE id IN ($1, $2)`,
-    [ids.owner, ids.outsider],
+    `DELETE FROM public."User" WHERE id IN ($1, $2, $3)`,
+    [ids.owner, ids.outsider, ids.stranger],
   );
 }
 
@@ -130,6 +132,8 @@ async function seedFixtures(owner) {
        ($1, $2, $3, 'Activation Owner', 'USER', false,
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
        ($4, $5, $6, 'Activation Outsider', 'USER', false,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+       ($7, $8, $9, 'Activation Stranger', 'USER', false,
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
     [
       ids.owner,
@@ -138,6 +142,9 @@ async function seedFixtures(owner) {
       ids.outsider,
       outsiderClerk,
       `${PREFIX}-outsider@example.invalid`,
+      ids.stranger,
+      strangerClerk,
+      `${PREFIX}-stranger@example.invalid`,
     ],
   );
   await owner.query(
@@ -458,6 +465,18 @@ async function fixedAuthorityProof(owner, runtime) {
       )
     ).rows,
     [{ key: privateKey, contentType: "image/webp" }],
+  );
+  assert.deepEqual(
+    (
+      await runtime.query(
+        `SELECT *
+           FROM public.grainline_direct_upload_case_attachment_read(
+             $1, $2, $3
+           )`,
+        [ids.stranger, ids.case, ids.caseAttachment],
+      )
+    ).rows,
+    [],
   );
   return uploadId;
 }

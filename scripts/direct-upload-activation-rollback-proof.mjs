@@ -425,10 +425,21 @@ export async function runDirectUploadActivationRollbackProof(
            WHERE id = $1) AS upload_count,
          (SELECT pg_catalog.count(*)::integer
             FROM public."User"
-           WHERE id = $2) AS user_count`,
+           WHERE id = $2) AS user_count,
+         (SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_attribute AS attribute
+           WHERE attribute.attrelid =
+             'public."CaseMessageAttachment"'::pg_catalog.regclass
+             AND attribute.attname = 'objectKey'
+             AND attribute.attnum > 0
+             AND NOT attribute.attisdropped) AS object_key_count`,
       [fixture.uploadId, fixture.userId],
     );
-    assert.deepEqual(residue.rows, [{ upload_count: 0, user_count: 0 }]);
+    assert.deepEqual(residue.rows, [{
+      upload_count: 0,
+      user_count: 0,
+      object_key_count: 0,
+    }]);
 
     return Object.freeze({
       ok: true,
