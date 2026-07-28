@@ -106,6 +106,18 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     assert.match(probe, /reviewed_member_count > 1/);
     assert.match(probe, /ROLLBACK/);
     assert.doesNotMatch(probe, /COMMIT/);
+
+    const source = readFileSync(
+      "scripts/direct-upload-cleanup-role-provider-remediation.mjs",
+      "utf8",
+    );
+    const deleteBoundary = source.indexOf('"DELETE"');
+    const normalModeGuard = source.lastIndexOf(
+      "if (!config.recoveryAfterDelete)",
+      deleteBoundary,
+    );
+    assert.ok(deleteBoundary > 0);
+    assert.ok(normalModeGuard > 0 && normalModeGuard < deleteBoundary);
   });
 
   it("accepts no inbound member or only PostgreSQL 16's exact bootstrap edge", () => {
