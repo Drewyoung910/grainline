@@ -19,6 +19,7 @@ import {
 import pg from "pg";
 import {
   DIRECT_UPLOAD_ACTIVATION_FUNCTION_NAMES,
+  DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_PRIVATE_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES,
   DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
@@ -303,6 +304,12 @@ export function collectDirectUploadCleanupAuthorityIssues(snapshot) {
   if (normalizedStringArray(snapshot?.memberships).length > 0) {
     issues.push("cleanup worker role must have zero memberships");
   }
+  if (normalizedStringArray(snapshot?.memberRoles).length > 0) {
+    issues.push("cleanup worker role must have zero member roles");
+  }
+  if (normalizedStringArray(snapshot?.defaultPrivileges).length > 0) {
+    issues.push("cleanup worker role has default privilege grants");
+  }
   if (!snapshot?.schemaUsage) {
     issues.push("cleanup worker lacks public schema USAGE");
   }
@@ -312,8 +319,16 @@ export function collectDirectUploadCleanupAuthorityIssues(snapshot) {
   if (normalizedStringArray(snapshot?.tablePrivileges).length > 0) {
     issues.push("cleanup worker has effective table authority");
   }
+  if (normalizedStringArray(snapshot?.columnPrivileges).length > 0) {
+    issues.push("cleanup worker has effective column authority");
+  }
   if (normalizedStringArray(snapshot?.sequencePrivileges).length > 0) {
     issues.push("cleanup worker has effective sequence authority");
+  }
+  if (
+    normalizedStringArray(snapshot?.unexpectedFunctionPrivileges).length > 0
+  ) {
+    issues.push("cleanup worker has unexpected privileged function authority");
   }
 
   const tableRows = Array.isArray(snapshot?.rlsTables)
@@ -352,6 +367,9 @@ export function collectDirectUploadCleanupAuthorityIssues(snapshot) {
   const privateNames = new Set(
     DIRECT_UPLOAD_ACTIVATION_PRIVATE_FUNCTION_NAMES,
   );
+  const invokerNames = new Set(
+    DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
+  );
   const expectedSourceHashes = directUploadFunctionSourceHashes();
   for (const row of functionRows) {
     const name = row.function_name;
@@ -367,17 +385,31 @@ export function collectDirectUploadCleanupAuthorityIssues(snapshot) {
     if (row.public_execute) {
       issues.push(`${name} is PUBLIC-executable`);
     }
+    if (row.leakproof) {
+      issues.push(`${name} must not be LEAKPROOF`);
+    }
+    if (row.function_kind !== "f") {
+      issues.push(`${name} must be an ordinary function`);
+    }
+    if (Boolean(row.security_definer) !== !invokerNames.has(name)) {
+      issues.push(
+        `${name} must be SECURITY ${invokerNames.has(name) ? "INVOKER" : "DEFINER"}`,
+      );
+    }
     if (row.worker_execute_grantable || row.runtime_execute_grantable) {
       issues.push(`${name} has grantable EXECUTE`);
+    }
+    if (normalizedStringArray(row.other_role_execute).length > 0) {
+      issues.push(`${name} is executable by an unexpected role`);
+    }
+    if (normalizedStringArray(row.other_role_execute_grantable).length > 0) {
+      issues.push(`${name} has unexpected grantable EXECUTE`);
     }
     const config = normalizedStringArray(row.function_config);
     if (config.length !== 1 || config[0] !== "search_path=pg_catalog") {
       issues.push(`${name} does not pin only search_path=pg_catalog`);
     }
     if (workerNames.has(name)) {
-      if (!row.security_definer) {
-        issues.push(`${name} must be SECURITY DEFINER`);
-      }
       if (!row.worker_execute || !row.worker_direct_execute) {
         issues.push(`${name} must be executable only by the cleanup worker`);
       }
@@ -429,6 +461,38 @@ export async function readDirectUploadCleanupAuthority(client) {
      )
      SELECT DISTINCT rolname FROM membership ORDER BY rolname`,
   );
+  const memberRoles = await client.query(
+    `WITH RECURSIVE membership AS (
+       SELECT child.oid, child.rolname
+       FROM pg_catalog.pg_auth_members AS edge
+       JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+       JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+       WHERE parent.rolname = current_user
+       UNION
+       SELECT child.oid, child.rolname
+       FROM membership AS parent
+       JOIN pg_catalog.pg_auth_members AS edge ON edge.roleid = parent.oid
+       JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+     )
+     SELECT DISTINCT rolname FROM membership ORDER BY rolname`,
+  );
+  const defaultPrivileges = await client.query(
+    `SELECT pg_catalog.format(
+       '%s:%s:%s',
+       owner.rolname,
+       COALESCE(namespace.nspname, '*'),
+       pg_catalog.upper(acl.privilege_type)
+     ) AS privilege
+     FROM pg_catalog.pg_default_acl AS defaults
+     JOIN pg_catalog.pg_roles AS owner ON owner.oid = defaults.defaclrole
+     LEFT JOIN pg_catalog.pg_namespace AS namespace
+       ON namespace.oid = defaults.defaclnamespace
+     CROSS JOIN LATERAL pg_catalog.aclexplode(defaults.defaclacl) AS acl
+     WHERE acl.grantee = (
+       SELECT oid FROM pg_catalog.pg_roles WHERE rolname = current_user
+     )
+     ORDER BY privilege`,
+  );
   const namespace = await client.query(
     `SELECT
        pg_catalog.has_schema_privilege(current_user, 'public', 'USAGE')
@@ -445,17 +509,62 @@ export async function readDirectUploadCleanupAuthority(client) {
      JOIN pg_catalog.pg_namespace AS namespace
        ON namespace.oid = class.relnamespace
      WHERE namespace.nspname = 'public'
+       AND class.relkind IN ('r', 'p', 'v', 'm', 'f')
+       AND CASE
+         WHEN class.relkind IN ('r', 'p', 'v', 'm', 'f') THEN
+           pg_catalog.has_table_privilege(
+             current_user,
+             class.oid,
+             'SELECT,INSERT,UPDATE,DELETE,REFERENCES'
+           )
+         ELSE false
+       END
+     ORDER BY class.relname`,
+  );
+  const tableAdministrativePrivileges = await client.query(
+    `SELECT class.relname
+     FROM pg_catalog.pg_class AS class
+     JOIN pg_catalog.pg_namespace AS namespace
+       ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
        AND class.relkind IN ('r', 'p')
        AND CASE
          WHEN class.relkind IN ('r', 'p') THEN
            pg_catalog.has_table_privilege(
              current_user,
              class.oid,
-             'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+             'TRUNCATE,TRIGGER'
            )
          ELSE false
        END
      ORDER BY class.relname`,
+  );
+  const columnPrivileges = await client.query(
+    `SELECT pg_catalog.format(
+       '%I.%I',
+       class.relname,
+       attribute.attname
+     ) AS column_name
+     FROM pg_catalog.pg_class AS class
+     JOIN pg_catalog.pg_namespace AS namespace
+       ON namespace.oid = class.relnamespace
+     JOIN pg_catalog.pg_attribute AS attribute
+       ON attribute.attrelid = class.oid
+     WHERE namespace.nspname = 'public'
+       AND class.relkind IN ('r', 'p', 'v', 'm', 'f')
+       AND attribute.attnum > 0
+       AND NOT attribute.attisdropped
+       AND CASE
+         WHEN class.relkind IN ('r', 'p', 'v', 'm', 'f') THEN
+           pg_catalog.has_column_privilege(
+             current_user,
+             class.oid,
+             attribute.attnum,
+             'SELECT,INSERT,UPDATE,REFERENCES'
+           )
+         ELSE false
+       END
+     ORDER BY class.relname, attribute.attnum`,
   );
   const sequencePrivileges = await client.query(
     `SELECT class.relname
@@ -497,6 +606,8 @@ export async function readDirectUploadCleanupAuthority(client) {
        pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
        procedure.prosrc AS function_source,
        procedure.prosecdef AS security_definer,
+       procedure.proleakproof AS leakproof,
+       procedure.prokind AS function_kind,
        procedure.proconfig AS function_config,
        pg_catalog.has_function_privilege(
          $1, procedure.oid, 'EXECUTE'
@@ -568,7 +679,48 @@ export async function readDirectUploadCleanupAuthority(client) {
          ) AS acl
          WHERE acl.grantee = 0
            AND acl.privilege_type = 'EXECUTE'
-       ) AS public_execute
+       ) AS public_execute,
+       ARRAY(
+         SELECT DISTINCT privilege_role.rolname
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             procedure.proacl,
+             pg_catalog.acldefault('f', procedure.proowner)
+           )
+         ) AS acl
+         JOIN pg_catalog.pg_roles AS privilege_role
+           ON privilege_role.oid = acl.grantee
+         WHERE acl.grantee <> procedure.proowner
+           AND acl.grantee <> (
+             SELECT oid FROM pg_catalog.pg_roles WHERE rolname = $1
+           )
+           AND acl.grantee <> (
+             SELECT oid FROM pg_catalog.pg_roles WHERE rolname = $2
+           )
+           AND acl.privilege_type = 'EXECUTE'
+         ORDER BY privilege_role.rolname
+       ) AS other_role_execute,
+       ARRAY(
+         SELECT DISTINCT privilege_role.rolname
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             procedure.proacl,
+             pg_catalog.acldefault('f', procedure.proowner)
+           )
+         ) AS acl
+         JOIN pg_catalog.pg_roles AS privilege_role
+           ON privilege_role.oid = acl.grantee
+         WHERE acl.grantee <> procedure.proowner
+           AND acl.grantee <> (
+             SELECT oid FROM pg_catalog.pg_roles WHERE rolname = $1
+           )
+           AND acl.grantee <> (
+             SELECT oid FROM pg_catalog.pg_roles WHERE rolname = $2
+           )
+           AND acl.privilege_type = 'EXECUTE'
+           AND acl.is_grantable
+         ORDER BY privilege_role.rolname
+       ) AS other_role_execute_grantable
      FROM pg_catalog.pg_proc AS procedure
      JOIN pg_catalog.pg_namespace AS namespace
        ON namespace.oid = procedure.pronamespace
@@ -581,10 +733,37 @@ export async function readDirectUploadCleanupAuthority(client) {
       REVIEWED_TARGET.runtimeRole,
     ],
   );
+  const unexpectedFunctionPrivileges = await client.query(
+    `SELECT pg_catalog.format(
+       '%I.%I(%s)',
+       namespace.nspname,
+       procedure.proname,
+       pg_catalog.pg_get_function_identity_arguments(procedure.oid)
+     ) AS function_signature
+     FROM pg_catalog.pg_proc AS procedure
+     JOIN pg_catalog.pg_namespace AS namespace
+       ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public'
+       AND pg_catalog.has_function_privilege(
+         current_user,
+         procedure.oid,
+         'EXECUTE'
+       )
+       AND (
+         procedure.prosecdef
+         OR procedure.proname LIKE 'grainline\\_%' ESCAPE '\\'
+       )
+       AND procedure.proname <> ALL ($1::text[])
+     ORDER BY function_signature`,
+    [DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES],
+  );
   return Object.freeze({
+    columnPrivileges: columnPrivileges.rows.map((row) => row.column_name),
     currentUser: identity.rows[0]?.current_user,
     databaseCreate: namespace.rows[0]?.database_create,
+    defaultPrivileges: defaultPrivileges.rows.map((row) => row.privilege),
     functions: functions.rows,
+    memberRoles: memberRoles.rows.map((row) => row.rolname),
     memberships: memberships.rows.map((row) => row.rolname),
     role: role.rows[0],
     rlsTables: rlsTables.rows,
@@ -592,7 +771,14 @@ export async function readDirectUploadCleanupAuthority(client) {
     schemaUsage: namespace.rows[0]?.schema_usage,
     sequencePrivileges: sequencePrivileges.rows.map((row) => row.relname),
     sessionUser: identity.rows[0]?.session_user,
-    tablePrivileges: tablePrivileges.rows.map((row) => row.relname),
+    tablePrivileges: [
+      ...tablePrivileges.rows.map((row) => row.relname),
+      ...tableAdministrativePrivileges.rows.map((row) => row.relname),
+    ],
+    unexpectedFunctionPrivileges:
+      unexpectedFunctionPrivileges.rows.map(
+        (row) => row.function_signature,
+      ),
   });
 }
 

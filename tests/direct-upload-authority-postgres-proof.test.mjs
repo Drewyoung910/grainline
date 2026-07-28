@@ -57,6 +57,14 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
       proof,
       /must remain runtime-compatible during preparation/,
     );
+    assert.match(proof, /cleanupMemberships/);
+    assert.match(proof, /cleanupColumns/);
+    assert.match(proof, /cleanupDefaultPrivileges/);
+    assert.match(proof, /cleanupUnexpectedFunctions/);
+    assert.match(
+      proof,
+      /DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES/,
+    );
     assert.match(proof, /runtimeFunctions\.length \+ privateFunctions\.length/);
     assert.match(proof, /DirectUploadReference[\s\S]*runtime_crud: false/);
     assert.match(proof, /DirectUpload[\s\S]*relrowsecurity: false/);

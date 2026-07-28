@@ -232,15 +232,22 @@ outside `DATABASE_URL`, and co-locating a worker URL would expose it to the
 same application-compromise boundary it is meant to escape. The accepted
 activation design uses a separate protected GitHub environment,
 `Production DirectUpload Cleanup`, with the dedicated direct Neon worker URL
-and a cleanup-only R2 credential scoped to the two exact buckets. The scheduled
-job is bounded, non-overlapping, does no bucket listing, verifies FORCE/ACL
-posture before leasing, and retains only sanitized mode-0600 count/hash
-evidence. Provisioning creates no role or password; the external LOGIN and
-secrets require their own reviewed provider step. Remove the Vercel cleanup
-schedule only in the activation release, after the external worker boundary
-and failure notifications are proven. This architecture is scaffolded only;
-no role, credential, provider environment, schedule or production state has
-changed.
+and a cleanup-only R2 credential scoped to the two exact buckets. The worker is
+bounded, non-overlapping, does no bucket listing, verifies FORCE/ACL posture
+before leasing, and retains only sanitized mode-0600 count/hash evidence.
+Provisioning creates no role or password; the external LOGIN and secrets
+require their own reviewed provider step. This scaffold remains manual-only.
+Add its hourly schedule in the activation release that removes the Vercel
+cleanup schedule, after the external worker boundary and failure notifications
+are proven. No role, credential, provider environment, schedule or production
+state has changed.
+
+The 2026-07-28 Extra-High review also widened the cleanup-role invariant from
+the DirectUpload function namespace to every privileged `grainline_*` or
+`SECURITY DEFINER` function, both role-membership directions, column-only and
+table-like relation grants, default grants, and exact function security
+posture. The older seven-check cleanup-role proof is superseded; require a
+fresh exact-tree disposable PostgreSQL run before accepting this layer.
 
 ### Messaging architecture decision (2026-07-22)
 

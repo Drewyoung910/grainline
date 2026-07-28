@@ -860,8 +860,10 @@ The isolated activation-design branch adds:
 - `scripts/direct-upload-cleanup-worker.mjs`, which refuses every non-main,
   shared-credential, pooled/wrong-endpoint, unforced-RLS, table-authorized or
   ACL-drifted execution; and
-- `.github/workflows/direct-upload-cleanup.yml`, which references only the
-  separate protected cleanup environment.
+- `.github/workflows/direct-upload-cleanup.yml`, which is manual-only and
+  references only the separate protected cleanup environment. The hourly
+  trigger belongs to the later activation release that removes the Vercel
+  cleanup schedule.
 
 This is saved scaffolding, not a live worker. No cleanup role, GitHub
 environment, database credential, R2 credential, schedule, migration or
@@ -903,6 +905,21 @@ source/ACL checks and compatible DirectUpload preparation authority on the
 disposable engine. It does not activate the worker, create provider
 credentials, prove R2 deletion, inspect production legacy data, apply
 DirectUpload RLS activation or change any persistent environment.
+
+The 2026-07-28 Extra-High review supersedes that run for release. Its catalog
+check was exact only inside `grainline_direct_upload_*`; it did not reject a
+cleanup-role grant on another privileged `grainline_*` or `SECURITY DEFINER`
+function, column-only relation authority, default privilege grants, or a role
+that was a member of the cleanup role. It also put the hourly trigger in the
+scaffold even though the Vercel-to-GitHub scheduler handoff is an activation
+operation. Provisioning, the live worker and the disposable proof now reject
+both membership directions, table/view/materialized-view/foreign-table and
+column authority, sequence authority, default grants, and every unexpected
+privileged function. All DirectUpload functions also require their exact
+DEFINER/INVOKER posture, non-LEAKPROOF ordinary-function kind, source hash,
+owner, search path and role ACLs. The scaffold is manual-only. A fresh
+exact-tree disposable PostgreSQL proof is required before this branch can be
+accepted.
 
 ## Exit
 

@@ -169,6 +169,43 @@ $grainline_cleanup_role_abort$;
 \unset grainline_cleanup_role_failed
 \unset grainline_cleanup_role_failure
 
+WITH RECURSIVE members AS (
+  SELECT child.oid, child.rolname
+    FROM pg_catalog.pg_auth_members AS edge
+    JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+    JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+   WHERE parent.rolname = :'cleanup_role'
+  UNION
+  SELECT child.oid, child.rolname
+    FROM members AS parent
+    JOIN pg_catalog.pg_auth_members AS edge ON edge.roleid = parent.oid
+    JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+), failure AS (
+  SELECT format(
+    'role %s is a member of cleanup role %s',
+    rolname,
+    :'cleanup_role'
+  ) AS message
+    FROM members
+   ORDER BY rolname
+   LIMIT 1
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_cleanup_role_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_cleanup_role_failure;
+\gset
+\if :grainline_cleanup_role_failed
+\echo :grainline_cleanup_role_failure
+DO $grainline_cleanup_role_abort$
+BEGIN
+  RAISE EXCEPTION 'cleanup-role provisioning refused';
+END
+$grainline_cleanup_role_abort$;
+\endif
+\unset grainline_cleanup_role_failed
+\unset grainline_cleanup_role_failure
+
 GRANT USAGE ON SCHEMA public TO :"cleanup_role";
 REVOKE CREATE ON SCHEMA public FROM :"cleanup_role";
 SELECT format(
@@ -194,7 +231,7 @@ WITH column_grants AS (
     ON attribute.attrelid = class.oid
   CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
   WHERE namespace.nspname = 'public'
-    AND class.relkind IN ('r', 'p')
+    AND class.relkind IN ('r', 'p', 'v', 'm', 'f')
     AND attribute.attnum > 0
     AND NOT attribute.attisdropped
     AND acl.grantee = (
@@ -280,16 +317,53 @@ WITH table_authority AS (
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = class.relnamespace
    WHERE namespace.nspname = 'public'
-     AND class.relkind IN ('r', 'p')
+     AND class.relkind IN ('r', 'p', 'v', 'm', 'f')
      AND CASE
        -- PostgreSQL may reorder WHERE predicates. Keep the catalog-kind
        -- check inside CASE so privilege helpers never receive a TOAST/index
        -- relation before the relkind filter has logically run.
+       WHEN class.relkind IN ('r', 'p', 'v', 'm', 'f') THEN
+         pg_catalog.has_table_privilege(
+           :'cleanup_role',
+           class.oid,
+           'SELECT,INSERT,UPDATE,DELETE,REFERENCES'
+         )
+       ELSE false
+     END
+), table_administrative_authority AS (
+  SELECT class.relname
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relkind IN ('r', 'p')
+     AND CASE
        WHEN class.relkind IN ('r', 'p') THEN
          pg_catalog.has_table_privilege(
            :'cleanup_role',
            class.oid,
-           'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+           'TRUNCATE,TRIGGER'
+         )
+       ELSE false
+     END
+), column_authority AS (
+  SELECT class.relname, attribute.attname
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+    JOIN pg_catalog.pg_attribute AS attribute
+      ON attribute.attrelid = class.oid
+   WHERE namespace.nspname = 'public'
+     AND class.relkind IN ('r', 'p', 'v', 'm', 'f')
+     AND attribute.attnum > 0
+     AND NOT attribute.attisdropped
+     AND CASE
+       WHEN class.relkind IN ('r', 'p', 'v', 'm', 'f') THEN
+         pg_catalog.has_column_privilege(
+           :'cleanup_role',
+           class.oid,
+           attribute.attnum,
+           'SELECT,INSERT,UPDATE,REFERENCES'
          )
        ELSE false
      END
@@ -321,6 +395,35 @@ WITH table_authority AS (
        procedure.oid,
        'EXECUTE'
      )
+), unexpected_function_authority AS (
+  SELECT procedure.proname
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND pg_catalog.has_function_privilege(
+       :'cleanup_role',
+       procedure.oid,
+       'EXECUTE'
+     )
+     AND (
+       procedure.prosecdef
+       OR procedure.proname LIKE 'grainline\_%' ESCAPE '\'
+     )
+     AND procedure.proname NOT IN (
+       'grainline_direct_upload_cleanup_lease',
+       'grainline_direct_upload_cleanup_complete',
+       'grainline_direct_upload_cleanup_fail'
+     )
+), default_authority AS (
+  SELECT defaults.oid
+    FROM pg_catalog.pg_default_acl AS defaults
+    CROSS JOIN LATERAL pg_catalog.aclexplode(defaults.defaclacl) AS acl
+   WHERE acl.grantee = (
+     SELECT oid
+       FROM pg_catalog.pg_roles
+      WHERE rolname = :'cleanup_role'
+   )
 ), expected_function(function_name) AS (
   VALUES
     ('grainline_direct_upload_cleanup_lease'),
@@ -329,9 +432,19 @@ WITH table_authority AS (
 ), failure AS (
   SELECT 'cleanup role retains effective table authority' AS message
    WHERE EXISTS (SELECT 1 FROM table_authority)
+      OR EXISTS (SELECT 1 FROM table_administrative_authority)
+  UNION ALL
+  SELECT 'cleanup role retains effective column authority'
+   WHERE EXISTS (SELECT 1 FROM column_authority)
   UNION ALL
   SELECT 'cleanup role retains effective sequence authority'
    WHERE EXISTS (SELECT 1 FROM sequence_authority)
+  UNION ALL
+  SELECT 'cleanup role retains unexpected privileged function authority'
+   WHERE EXISTS (SELECT 1 FROM unexpected_function_authority)
+  UNION ALL
+  SELECT 'cleanup role retains default privilege grants'
+   WHERE EXISTS (SELECT 1 FROM default_authority)
   UNION ALL
   SELECT 'cleanup role DirectUpload function authority is not exact'
    WHERE EXISTS (

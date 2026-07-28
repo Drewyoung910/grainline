@@ -11,6 +11,13 @@ export const DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES = Object.freeze([
   "grainline_direct_upload_cleanup_fail",
 ]);
 
+export const DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES = Object.freeze([
+  "grainline_direct_upload_identity_immutable",
+  "grainline_direct_upload_message_url_core",
+  "grainline_direct_upload_status_transition",
+  "grainline_direct_upload_utc_now",
+]);
+
 const cleanupFunctionNames = new Set(DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES);
 
 export const DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES = Object.freeze(
@@ -37,4 +44,3 @@ export const DIRECT_UPLOAD_ACTIVATION_PRIVATE_FUNCTION_NAMES = Object.freeze(
 export const DIRECT_UPLOAD_ACTIVATION_FUNCTION_NAMES = Object.freeze(
   DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
 );
-
