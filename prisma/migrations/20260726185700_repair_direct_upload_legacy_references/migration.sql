@@ -92,7 +92,7 @@ BEGIN
       OR upload."storageClass" IS DISTINCT FROM 'PUBLIC'
       OR upload.status IS DISTINCT FROM 'CLAIMED'
       OR upload.key NOT LIKE 'listingImage/%'
-      OR pg_catalog.position('..' IN upload.key) > 0
+      OR position('..' IN upload.key) > 0
       OR upload.key ~ '[[:cntrl:]]'
       OR upload."publicUrl" IS NULL
       OR upload."publicUrl" NOT LIKE 'https://%'

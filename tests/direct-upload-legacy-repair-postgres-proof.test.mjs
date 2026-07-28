@@ -79,6 +79,8 @@ describe("DirectUpload legacy repair migration and PostgreSQL proof", () => {
     assert.match(migration, /normalized_upload_count NOT BETWEEN 1 AND 2/);
     assert.match(migration, /orphan_upload_count NOT BETWEEN 1 AND 2/);
     assert.match(migration, /repair_at \+ interval '7 days'/);
+    assert.match(migration, /\bposition\('\.\.' IN upload\.key\)/);
+    assert.doesNotMatch(migration, /pg_catalog\.position/);
     assert.doesNotMatch(
       migration,
       /INSERT\s+INTO\s+public\."DirectUpload"\b/i,

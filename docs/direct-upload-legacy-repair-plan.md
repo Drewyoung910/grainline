@@ -88,6 +88,15 @@ contracts reject broad lifecycle insertion, RLS/grant changes, a missing lock,
 count drift, caller-derived authority, immediate cleanup or failure to cover
 both valid partitions.
 
+The first disposable replay (`30392993364`) failed closed while Prisma masked
+the underlying SQL error as an aborted transaction. The workflow was hardened
+to isolate the repair after the compatible baseline and execute its exact bytes
+with `psql --echo-errors`. Diagnostic replay `30393161851` then identified a
+schema-qualified PostgreSQL parser special form:
+`pg_catalog.position('..' IN upload.key)`. No production or persistent staging
+state changed. The repair now uses bare `position`, and the repository-wide
+special-form guard rejects that qualification class going forward.
+
 Before production mutation:
 
 1. focused and full local tests, TypeScript, lint, migration replay, grant audit
