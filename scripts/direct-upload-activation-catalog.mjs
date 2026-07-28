@@ -3,7 +3,7 @@ import {
 } from "./direct-upload-authority-catalog.mjs";
 
 export const DIRECT_UPLOAD_CLEANUP_ROLE =
-  "grainline_direct_upload_cleanup";
+  "grainline_direct_upload_cleanup_v2";
 
 export const DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE = Object.freeze({
   admin_option: true,

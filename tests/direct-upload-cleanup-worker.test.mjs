@@ -36,12 +36,12 @@ function source(relativePath) {
 
 function baseEnv(runnerTemp) {
   const databaseUrl =
-    "postgresql://grainline_direct_upload_cleanup:secret@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
+    "postgresql://grainline_direct_upload_cleanup_v2:secret@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
   return {
     DIRECT_UPLOAD_CLEANUP_CONFIRM: DIRECT_UPLOAD_CLEANUP_CONFIRMATION,
     DIRECT_UPLOAD_CLEANUP_DATABASE_URL: databaseUrl,
     DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256:
-      "9cd0240dd25b37092c11b7d3478a0bcc315ce1c72554a0f3e8607bb5dc1d689e",
+      "aa1cbebec5e2691cd0bb7b6d3b708f099db6358f34e4c77ce1e53f2ffce8f1e7",
     DIRECT_UPLOAD_CLEANUP_EVIDENCE_PATH: path.join(
       runnerTemp,
       "direct-upload-cleanup-123-1.json",

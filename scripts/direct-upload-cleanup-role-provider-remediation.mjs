@@ -44,10 +44,10 @@ import {
 
 const { Client } = pg;
 
-export const DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION =
-  "replace-rejected-neon-api-cleanup-role";
-export const DIRECT_UPLOAD_CLEANUP_PROVIDER_RECOVERY_CONFIRMATION =
-  "complete-deleted-neon-api-cleanup-role";
+export const DIRECT_UPLOAD_CLEANUP_PROVIDER_CREATION_CONFIRMATION =
+  "create-versioned-sql-cleanup-role";
+export const REJECTED_DIRECT_UPLOAD_CLEANUP_ROLE =
+  "grainline_direct_upload_cleanup";
 export const DIRECT_UPLOAD_CLEANUP_ENVIRONMENT =
   "Production DirectUpload Cleanup";
 export const DIRECT_UPLOAD_CLEANUP_ENVIRONMENT_ID = 18_906_676_825;
@@ -65,12 +65,9 @@ export const REVIEWED_NEON_USER_ID =
 
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const SAFE_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{64}$/;
-const SAFE_OPERATION_ID_PATTERN = /^[A-Za-z0-9-]{8,80}$/;
 const SAFE_FAILURE_CLASS_PATTERN =
   /^(?:postgres-[0-9A-Z]{5}|postgres-unclassified|command-unclassified)$/;
 const EVIDENCE_PREFIX = "direct-upload-cleanup-role-provider-remediation-";
-const OPERATION_ATTEMPTS = 20;
-const OPERATION_INTERVAL_MS = 2_000;
 let remediationFailureStage = "startup";
 
 function required(env, key) {
@@ -258,7 +255,6 @@ function runNeonApi(cliPath, pathname, method = "GET") {
 
 export function validateReviewedNeonTarget(
   payloads,
-  { expectCleanupRolePresent = true } = {},
 ) {
   const project = payloads?.project?.project;
   const branch = payloads?.branch?.branch;
@@ -272,7 +268,11 @@ export function validateReviewedNeonTarget(
   const matchingRoles = Array.isArray(roles)
     ? roles.filter((candidate) => candidate?.name === DIRECT_UPLOAD_CLEANUP_ROLE)
     : [];
-  const role = matchingRoles[0];
+  const rejectedRoles = Array.isArray(roles)
+    ? roles.filter(
+      (candidate) => candidate?.name === REJECTED_DIRECT_UPLOAD_CLEANUP_ROLE,
+    )
+    : [];
   const environment = payloads?.environment;
   if (
     project?.id !== REVIEWED_NEON_PROJECT_ID
@@ -287,16 +287,8 @@ export function validateReviewedNeonTarget(
     || endpoint.type !== "read_write"
     || endpoint.disabled !== false
     || !Array.isArray(roles)
-    || (
-      expectCleanupRolePresent
-        ? (
-          matchingRoles.length !== 1
-          || role?.branch_id !== REVIEWED_NEON_BRANCH_ID
-          || role.name !== DIRECT_UPLOAD_CLEANUP_ROLE
-          || role.authentication_method !== "password"
-        )
-        : matchingRoles.length !== 0
-    )
+    || matchingRoles.length !== 0
+    || rejectedRoles.length !== 0
     || Number(environment?.id) !== DIRECT_UPLOAD_CLEANUP_ENVIRONMENT_ID
     || environment?.name !== DIRECT_UPLOAD_CLEANUP_ENVIRONMENT
   ) {
@@ -308,7 +300,8 @@ export function validateReviewedNeonTarget(
     environmentId: Number(environment.id),
     projectId: project.id,
     roleName: DIRECT_UPLOAD_CLEANUP_ROLE,
-    rolePresent: expectCleanupRolePresent,
+    rejectedRoleName: REJECTED_DIRECT_UPLOAD_CLEANUP_ROLE,
+    rolePresent: false,
   });
 }
 
@@ -353,7 +346,7 @@ function readNeonRoles(cliPath) {
   }
 }
 
-function readProviderTargets(cliPath, { expectCleanupRolePresent }) {
+function readProviderTargets(cliPath) {
   const base = `/projects/${REVIEWED_NEON_PROJECT_ID}`;
   const target = validateReviewedNeonTarget({
     project: runNeonApi(cliPath, base),
@@ -368,8 +361,6 @@ function readProviderTargets(cliPath, { expectCleanupRolePresent }) {
       `repos/${REVIEWED_REPOSITORY}/environments/`
       + encodeURIComponent(DIRECT_UPLOAD_CLEANUP_ENVIRONMENT),
     ]),
-  }, {
-    expectCleanupRolePresent,
   });
   const secrets = ghJson([
     "secret",
@@ -541,56 +532,6 @@ $grainline_assert_role$;
 `;
 }
 
-export function buildRejectedRolePreflightSql() {
-  return String.raw`
-\set ON_ERROR_STOP on
-BEGIN TRANSACTION READ ONLY;
-DO $grainline_rejected_role$
-DECLARE
-  rejected record;
-  direct_parent text;
-  active_count integer;
-BEGIN
-  IF current_user <> 'neondb_owner' OR session_user <> 'neondb_owner' THEN
-    RAISE EXCEPTION 'provider-remediation owner identity is not exact';
-  END IF;
-  SELECT *
-    INTO rejected
-    FROM pg_catalog.pg_roles
-   WHERE rolname = 'grainline_direct_upload_cleanup';
-  IF rejected IS NULL
-     OR rejected.rolsuper
-     OR NOT rejected.rolcreatedb
-     OR NOT rejected.rolcreaterole
-     OR NOT rejected.rolinherit
-     OR NOT rejected.rolcanlogin
-     OR NOT rejected.rolreplication
-     OR NOT rejected.rolbypassrls THEN
-    RAISE EXCEPTION 'rejected API cleanup role posture changed';
-  END IF;
-  SELECT pg_catalog.string_agg(parent.rolname, ',' ORDER BY parent.rolname)
-    INTO direct_parent
-    FROM pg_catalog.pg_auth_members AS edge
-    JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
-   WHERE edge.member = rejected.oid;
-  IF direct_parent IS DISTINCT FROM 'neon_superuser' THEN
-    RAISE EXCEPTION 'rejected API cleanup role direct memberships changed';
-  END IF;
-  SELECT pg_catalog.count(*)::integer
-    INTO active_count
-    FROM pg_catalog.pg_stat_activity
-   WHERE usename = rejected.rolname
-     AND pid <> pg_catalog.pg_backend_pid();
-  IF active_count <> 0 THEN
-    RAISE EXCEPTION 'rejected API cleanup role has active sessions';
-  END IF;
-END
-$grainline_rejected_role$;
-ROLLBACK;
-\echo grainline_rejected_cleanup_role_preflight_passed
-`;
-}
-
 export function buildAbsentRolePreflightSql() {
   return String.raw`
 \set ON_ERROR_STOP on
@@ -603,35 +544,21 @@ BEGIN
   IF EXISTS (
     SELECT 1
       FROM pg_catalog.pg_roles
-     WHERE rolname = 'grainline_direct_upload_cleanup'
+     WHERE rolname IN (
+       '${REJECTED_DIRECT_UPLOAD_CLEANUP_ROLE}',
+       '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+     )
   ) THEN
-    RAISE EXCEPTION 'deleted API cleanup role is not absent';
+    RAISE EXCEPTION 'retired or versioned cleanup role is not absent';
   END IF;
 END
 $grainline_absent_role$;
 ROLLBACK;
-\echo grainline_deleted_cleanup_role_absence_passed
+\echo grainline_cleanup_role_names_absent
 `;
 }
 
-export function buildReplacementProbeSql(scramVerifier) {
-  return String.raw`
-\set ON_ERROR_STOP on
-\set replacement_verifier ${psqlLiteral(scramVerifier)}
-BEGIN;
-SELECT pg_catalog.format(
-  'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L',
-  'grainline_direct_upload_cleanup_replacement_probe',
-  :'replacement_verifier'
-);
-\gexec
-${roleAssertionSql("'grainline_direct_upload_cleanup_replacement_probe'")}
-ROLLBACK;
-\echo grainline_cleanup_role_replacement_probe_passed
-`;
-}
-
-export function buildRecoveryReplacementProbeSql(scramVerifier) {
+export function buildVersionedReplacementProbeSql(scramVerifier) {
   return String.raw`
 \set ON_ERROR_STOP on
 \set replacement_verifier ${psqlLiteral(scramVerifier)}
@@ -641,21 +568,24 @@ BEGIN
   IF EXISTS (
     SELECT 1
       FROM pg_catalog.pg_roles
-     WHERE rolname = 'grainline_direct_upload_cleanup'
+     WHERE rolname IN (
+       '${REJECTED_DIRECT_UPLOAD_CLEANUP_ROLE}',
+       '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+     )
   ) THEN
-    RAISE EXCEPTION 'deleted API cleanup role is not absent';
+    RAISE EXCEPTION 'versioned cleanup role is not absent';
   END IF;
 END
 $grainline_role_absent$;
 SELECT pg_catalog.format(
   'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L',
-  'grainline_direct_upload_cleanup',
+  '${DIRECT_UPLOAD_CLEANUP_ROLE}',
   :'replacement_verifier'
 );
 \gexec
-${roleAssertionSql("'grainline_direct_upload_cleanup'")}
+${roleAssertionSql(`'${DIRECT_UPLOAD_CLEANUP_ROLE}'`)}
 ROLLBACK;
-\echo grainline_cleanup_role_recovery_probe_passed
+\echo grainline_versioned_cleanup_role_probe_passed
 `;
 }
 
@@ -669,21 +599,24 @@ BEGIN
   IF EXISTS (
     SELECT 1
       FROM pg_catalog.pg_roles
-     WHERE rolname = 'grainline_direct_upload_cleanup'
+     WHERE rolname IN (
+       '${REJECTED_DIRECT_UPLOAD_CLEANUP_ROLE}',
+       '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+     )
   ) THEN
-    RAISE EXCEPTION 'rejected API cleanup role still exists';
+    RAISE EXCEPTION 'retired or versioned cleanup role already exists';
   END IF;
 END
 $grainline_role_absent$;
 SELECT pg_catalog.format(
   'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L',
-  'grainline_direct_upload_cleanup',
+  '${DIRECT_UPLOAD_CLEANUP_ROLE}',
   :'replacement_verifier'
 );
 \gexec
-${roleAssertionSql("'grainline_direct_upload_cleanup'")}
+${roleAssertionSql(`'${DIRECT_UPLOAD_CLEANUP_ROLE}'`)}
 COMMIT;
-\echo grainline_cleanup_role_sql_replacement_committed
+\echo grainline_versioned_cleanup_role_committed
 `;
 }
 
@@ -697,91 +630,6 @@ function runOwnerSql(cliPath, sql, marker) {
   if (!stdout.includes(marker)) {
     throw new Error("reviewed owner SQL success marker is absent");
   }
-}
-
-export function validateDeleteRoleResponse(payload) {
-  const role = payload?.role;
-  const operations = payload?.operations;
-  if (
-    role?.branch_id !== REVIEWED_NEON_BRANCH_ID
-    || role.name !== DIRECT_UPLOAD_CLEANUP_ROLE
-    || !Array.isArray(operations)
-  ) {
-    throw new Error("Neon role-delete response did not match the reviewed target");
-  }
-  return Object.freeze({
-    operations: operations.map((operation) => {
-      if (
-        typeof operation?.id !== "string"
-        || !SAFE_OPERATION_ID_PATTERN.test(operation.id)
-        || operation.project_id !== REVIEWED_NEON_PROJECT_ID
-        || (
-          operation.branch_id
-          && operation.branch_id !== REVIEWED_NEON_BRANCH_ID
-        )
-        || typeof operation.status !== "string"
-      ) {
-        throw new Error("Neon role-delete operation metadata is invalid");
-      }
-      return Object.freeze({
-        id: operation.id,
-        status: operation.status,
-      });
-    }),
-    roleName: role.name,
-  });
-}
-
-async function waitForOperations(cliPath, initialOperations, wait) {
-  let operations = initialOperations;
-  for (let attempt = 1; attempt <= OPERATION_ATTEMPTS; attempt += 1) {
-    if (
-      operations.some((operation) =>
-        ["failed", "error", "cancelled"].includes(operation.status))
-    ) {
-      throw new Error("Neon cleanup-role deletion failed");
-    }
-    if (
-      operations.every((operation) =>
-        ["finished", "skipped"].includes(operation.status))
-    ) {
-      return;
-    }
-    if (attempt < OPERATION_ATTEMPTS) await wait(OPERATION_INTERVAL_MS);
-    operations = operations.map((operation) => {
-      const payload = runNeonApi(
-        cliPath,
-        `/projects/${REVIEWED_NEON_PROJECT_ID}/operations/${operation.id}`,
-      )?.operation;
-      if (
-        payload?.id !== operation.id
-        || payload.project_id !== REVIEWED_NEON_PROJECT_ID
-        || typeof payload.status !== "string"
-      ) {
-        throw new Error("Neon cleanup-role deletion status drifted");
-      }
-      return { id: payload.id, status: payload.status };
-    });
-  }
-  throw new Error("Neon cleanup-role deletion did not finish in time");
-}
-
-async function waitForCatalogRoleAbsence(cliPath, wait) {
-  for (let attempt = 1; attempt <= OPERATION_ATTEMPTS; attempt += 1) {
-    try {
-      runOwnerSql(
-        cliPath,
-        buildAbsentRolePreflightSql(),
-        "grainline_deleted_cleanup_role_absence_passed",
-      );
-      return;
-    } catch {
-      if (attempt < OPERATION_ATTEMPTS) {
-        await wait(OPERATION_INTERVAL_MS);
-      }
-    }
-  }
-  throw new Error("deleted cleanup role did not leave the PostgreSQL catalog");
 }
 
 export function buildDirectUploadCleanupDatabaseUrl(password) {
@@ -940,12 +788,7 @@ function writeEvidence(pathname, evidence) {
 export function parseProviderRemediationConfig(env = process.env) {
   const confirmation =
     env.DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRM;
-  const recoveryAfterDelete =
-    confirmation === DIRECT_UPLOAD_CLEANUP_PROVIDER_RECOVERY_CONFIRMATION;
-  if (
-    confirmation !== DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION
-    && !recoveryAfterDelete
-  ) {
+  if (confirmation !== DIRECT_UPLOAD_CLEANUP_PROVIDER_CREATION_CONFIRMATION) {
     throw new Error("cleanup-role provider-remediation confirmation is invalid");
   }
   const releaseCommit = required(
@@ -967,13 +810,8 @@ export function parseProviderRemediationConfig(env = process.env) {
   }
   return Object.freeze({
     evidencePath,
-    recoveryAfterDelete,
     releaseCommit,
   });
-}
-
-async function defaultWait(milliseconds) {
-  await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function run() {
@@ -987,35 +825,21 @@ async function run() {
   readReviewedNeonCredentials();
   const cliPath = discoverReviewedNeonCli();
   remediationFailureStage = "provider-targets";
-  const target = readProviderTargets(cliPath, {
-    expectCleanupRolePresent: !config.recoveryAfterDelete,
-  });
-  remediationFailureStage = config.recoveryAfterDelete
-    ? "deleted-role-absence"
-    : "rejected-role-preflight";
+  const target = readProviderTargets(cliPath);
+  remediationFailureStage = "cleanup-role-absence";
   runOwnerSql(
     cliPath,
-    config.recoveryAfterDelete
-      ? buildAbsentRolePreflightSql()
-      : buildRejectedRolePreflightSql(),
-    config.recoveryAfterDelete
-      ? "grainline_deleted_cleanup_role_absence_passed"
-      : "grainline_rejected_cleanup_role_preflight_passed",
+    buildAbsentRolePreflightSql(),
+    "grainline_cleanup_role_names_absent",
   );
 
   const password = randomBytes(48).toString("base64url");
   const scramVerifier = makeScramVerifier(password);
-  remediationFailureStage = config.recoveryAfterDelete
-    ? "recovery-replacement-probe"
-    : "replacement-probe";
+  remediationFailureStage = "versioned-replacement-probe";
   runOwnerSql(
     cliPath,
-    config.recoveryAfterDelete
-      ? buildRecoveryReplacementProbeSql(scramVerifier)
-      : buildReplacementProbeSql(scramVerifier),
-    config.recoveryAfterDelete
-      ? "grainline_cleanup_role_recovery_probe_passed"
-      : "grainline_cleanup_role_replacement_probe_passed",
+    buildVersionedReplacementProbeSql(scramVerifier),
+    "grainline_versioned_cleanup_role_probe_passed",
   );
   if (process.argv.includes("--preflight")) {
     process.stdout.write(`${JSON.stringify({
@@ -1023,37 +847,20 @@ async function run() {
       releaseCommit: config.releaseCommit,
       cleanupRole: DIRECT_UPLOAD_CLEANUP_ROLE,
       providerTargetExact: true,
-      providerRoleState: config.recoveryAfterDelete
-        ? "api-role-already-deleted"
-        : "rejected-api-role-present",
-      rejectedRolePostureExact: !config.recoveryAfterDelete,
-      deletedRoleAbsenceExact: config.recoveryAfterDelete,
+      providerRoleState: "retired-and-versioned-role-names-absent",
+      deletedRoleAbsenceExact: true,
+      versionedRoleAbsenceExact: true,
       replacementProbeRolledBack: true,
       productionChanged: false,
     })}\n`);
     return;
   }
 
-  if (!config.recoveryAfterDelete) {
-    const base = `/projects/${REVIEWED_NEON_PROJECT_ID}`
-      + `/branches/${REVIEWED_NEON_BRANCH_ID}`;
-    remediationFailureStage = "provider-role-delete";
-    const deleted = validateDeleteRoleResponse(runNeonApi(
-      cliPath,
-      `${base}/roles/${DIRECT_UPLOAD_CLEANUP_ROLE}`,
-      "DELETE",
-    ));
-    remediationFailureStage = "provider-role-delete-wait";
-    await waitForOperations(cliPath, deleted.operations, defaultWait);
-    remediationFailureStage = "provider-role-catalog-absence-wait";
-    await waitForCatalogRoleAbsence(cliPath, defaultWait);
-  }
-
-  remediationFailureStage = "replacement-create";
+  remediationFailureStage = "versioned-role-create";
   runOwnerSql(
     cliPath,
     buildReplacementSql(scramVerifier),
-    "grainline_cleanup_role_sql_replacement_committed",
+    "grainline_versioned_cleanup_role_committed",
   );
   const connectionString = buildDirectUploadCleanupDatabaseUrl(password);
   remediationFailureStage = "replacement-connection-proof";
@@ -1085,8 +892,9 @@ async function run() {
     run: { completedAt },
     proof: {
       apiCreatedRoleRejected: true,
-      apiRoleAlreadyDeleted: config.recoveryAfterDelete,
-      apiRoleDeleted: !config.recoveryAfterDelete,
+      apiRoleAlreadyDeleted: true,
+      providerDeleteReachable: false,
+      versionedRoleCreated: true,
       replacementAuthenticated: true,
       replacementHasParentMemberships: false,
       replacementHasReviewedBootstrapAdminEdge:

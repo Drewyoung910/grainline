@@ -28,7 +28,7 @@ const DATABASE_NAME = "grainline_ci";
 const PROOF_ENV = "DIRECT_UPLOAD_AUTHORITY_PROOF_DATABASE_URL";
 const PREFIX = "direct-upload-authority-proof";
 const RUNTIME_ROLE = "grainline_app_runtime";
-const CLEANUP_ROLE = "grainline_direct_upload_cleanup";
+const CLEANUP_ROLE = "grainline_direct_upload_cleanup_v2";
 const ids = Object.freeze({
   owner: `${PREFIX}-owner`,
   outsider: `${PREFIX}-outsider`,

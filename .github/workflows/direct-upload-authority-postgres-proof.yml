@@ -106,7 +106,7 @@ jobs:
       - name: Converge production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
       - name: Converge isolated DirectUpload cleanup-worker grants
-        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Verify migration status
         run: npx prisma migrate status
       - name: Audit final runtime grants and RLS catalog
@@ -160,7 +160,7 @@ jobs:
       - name: Reconverge activated runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
       - name: Reconverge activated cleanup-worker grants
-        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Audit activated runtime grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Verify disposable migration status

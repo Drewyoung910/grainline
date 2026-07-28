@@ -8,20 +8,17 @@ import {
 import {
   buildDirectUploadCleanupDatabaseUrl,
   buildAbsentRolePreflightSql,
-  buildRecoveryReplacementProbeSql,
-  buildRejectedRolePreflightSql,
-  buildReplacementProbeSql,
+  buildVersionedReplacementProbeSql,
   buildReplacementSql,
   classifyReviewedPostgresFailure,
   DIRECT_UPLOAD_CLEANUP_ENVIRONMENT,
-  DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION,
-  DIRECT_UPLOAD_CLEANUP_PROVIDER_RECOVERY_CONFIRMATION,
+  DIRECT_UPLOAD_CLEANUP_PROVIDER_CREATION_CONFIRMATION,
   isReviewedNeonAccessToken,
   makeScramVerifier,
   normalizeNeonCredentialExpiry,
   parseProviderRemediationConfig,
   REJECTED_CLEANUP_DATABASE_URL_SHA256,
-  validateDeleteRoleResponse,
+  REJECTED_DIRECT_UPLOAD_CLEANUP_ROLE,
   validateReviewedNeonTarget,
 } from "../scripts/direct-upload-cleanup-role-provider-remediation.mjs";
 
@@ -29,14 +26,14 @@ const PASSWORD = "A".repeat(64);
 const COMMIT = "a".repeat(40);
 
 describe("DirectUpload cleanup-role provider remediation", () => {
-  it("pins the explicit destructive confirmation and protected environment", () => {
+  it("pins the non-delete versioned creation and protected environment", () => {
     assert.equal(
-      DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION,
-      "replace-rejected-neon-api-cleanup-role",
+      DIRECT_UPLOAD_CLEANUP_PROVIDER_CREATION_CONFIRMATION,
+      "create-versioned-sql-cleanup-role",
     );
     assert.equal(
-      DIRECT_UPLOAD_CLEANUP_PROVIDER_RECOVERY_CONFIRMATION,
-      "complete-deleted-neon-api-cleanup-role",
+      REJECTED_DIRECT_UPLOAD_CLEANUP_ROLE,
+      "grainline_direct_upload_cleanup",
     );
     assert.equal(
       DIRECT_UPLOAD_CLEANUP_ENVIRONMENT,
@@ -58,24 +55,22 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     assert.throws(() => makeScramVerifier("short", Buffer.alloc(16)));
   });
 
-  it("requires the exact rejected provider posture before deletion", () => {
-    const sql = buildRejectedRolePreflightSql();
+  it("requires the retired and versioned role names to remain absent", () => {
+    const sql = buildAbsentRolePreflightSql();
     assert.match(sql, /BEGIN TRANSACTION READ ONLY/);
-    assert.match(sql, /NOT rejected\.rolcreatedb/);
-    assert.match(sql, /NOT rejected\.rolcreaterole/);
-    assert.match(sql, /NOT rejected\.rolreplication/);
-    assert.match(sql, /NOT rejected\.rolbypassrls/);
-    assert.match(sql, /direct_parent IS DISTINCT FROM 'neon_superuser'/);
-    assert.match(sql, /pg_catalog\.pg_stat_activity/);
+    assert.match(sql, /'grainline_direct_upload_cleanup'/);
+    assert.match(sql, /'grainline_direct_upload_cleanup_v2'/);
+    assert.match(sql, /retired or versioned cleanup role is not absent/);
     assert.match(sql, /ROLLBACK/);
   });
 
-  it("probes then creates the SQL role with only the forced bootstrap admin edge", () => {
+  it("probes then creates only the versioned SQL role with reviewed authority", () => {
     const verifier = makeScramVerifier(PASSWORD, Buffer.alloc(16, 9));
-    const probe = buildReplacementProbeSql(verifier);
+    const probe = buildVersionedReplacementProbeSql(verifier);
     const replacement = buildReplacementSql(verifier);
     for (const sql of [probe, replacement]) {
       assert.match(sql, /CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L/);
+      assert.match(sql, /'grainline_direct_upload_cleanup_v2'/);
       assert.doesNotMatch(sql, /ADMIN %I/);
       assert.match(sql, /rolsuper/);
       assert.match(sql, /rolbypassrls/);
@@ -91,34 +86,14 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     assert.ok(!replacement.includes(PASSWORD));
   });
 
-  it("recovers only from an already-absent API role and probes the exact name", () => {
-    const absent = buildAbsentRolePreflightSql();
-    const probe = buildRecoveryReplacementProbeSql(
-      makeScramVerifier(PASSWORD, Buffer.alloc(16, 11)),
-    );
-    assert.match(absent, /BEGIN TRANSACTION READ ONLY/);
-    assert.match(absent, /deleted API cleanup role is not absent/);
-    assert.match(absent, /ROLLBACK/);
-    assert.match(probe, /'grainline_direct_upload_cleanup'/);
-    assert.doesNotMatch(
-      probe,
-      /grainline_direct_upload_cleanup_replacement_probe/,
-    );
-    assert.match(probe, /reviewed_member_count > 1/);
-    assert.match(probe, /ROLLBACK/);
-    assert.doesNotMatch(probe, /COMMIT/);
-
+  it("makes every provider delete path unreachable", () => {
     const source = readFileSync(
       "scripts/direct-upload-cleanup-role-provider-remediation.mjs",
       "utf8",
     );
-    const deleteBoundary = source.indexOf('"DELETE"');
-    const normalModeGuard = source.lastIndexOf(
-      "if (!config.recoveryAfterDelete)",
-      deleteBoundary,
-    );
-    assert.ok(deleteBoundary > 0);
-    assert.ok(normalModeGuard > 0 && normalModeGuard < deleteBoundary);
+    assert.doesNotMatch(source, /"DELETE"/);
+    assert.doesNotMatch(source, /validateDeleteRoleResponse/);
+    assert.doesNotMatch(source, /waitForOperations/);
   });
 
   it("accepts no inbound member or only PostgreSQL 16's exact bootstrap edge", () => {
@@ -142,7 +117,7 @@ describe("DirectUpload cleanup-role provider remediation", () => {
   it("builds only the reviewed non-pooled cleanup connection identity", () => {
     const value = buildDirectUploadCleanupDatabaseUrl(PASSWORD);
     const parsed = new URL(value);
-    assert.equal(parsed.username, "grainline_direct_upload_cleanup");
+    assert.equal(parsed.username, "grainline_direct_upload_cleanup_v2");
     assert.equal(
       parsed.hostname,
       "ep-plain-river-aaqg8gj4.westus3.azure.neon.tech",
@@ -179,11 +154,7 @@ describe("DirectUpload cleanup-role provider remediation", () => {
           disabled: false,
         }],
       },
-      roles: [{
-          branch_id: "br-hidden-mouse-aaugn2wr",
-          name: "grainline_direct_upload_cleanup",
-          authentication_method: "password",
-      }],
+      roles: [],
       environment: {
         id: 18_906_676_825,
         name: "Production DirectUpload Cleanup",
@@ -191,53 +162,30 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     };
     assert.equal(
       validateReviewedNeonTarget(payloads).roleName,
-      "grainline_direct_upload_cleanup",
+      "grainline_direct_upload_cleanup_v2",
     );
     assert.throws(() => validateReviewedNeonTarget({
       ...payloads,
       environment: { ...payloads.environment, id: 1 },
     }));
-    assert.equal(
-      validateReviewedNeonTarget({
-        ...payloads,
-        roles: [],
-      }, {
-        expectCleanupRolePresent: false,
-      }).rolePresent,
-      false,
-    );
-    assert.throws(() => validateReviewedNeonTarget(payloads, {
-      expectCleanupRolePresent: false,
-    }));
+    assert.equal(validateReviewedNeonTarget(payloads).rolePresent, false);
     assert.throws(() => validateReviewedNeonTarget({
       ...payloads,
       roles: undefined,
-    }, {
-      expectCleanupRolePresent: false,
     }));
-  });
-
-  it("validates exact non-idempotent delete response metadata", () => {
-    const result = validateDeleteRoleResponse({
-      role: {
-        branch_id: "br-hidden-mouse-aaugn2wr",
-        name: "grainline_direct_upload_cleanup",
-      },
-      operations: [{
-        id: "operation-1234",
-        project_id: "icy-unit-96812898",
-        branch_id: "br-hidden-mouse-aaugn2wr",
-        status: "running",
-      }],
-    });
-    assert.equal(result.roleName, "grainline_direct_upload_cleanup");
-    assert.throws(() => validateDeleteRoleResponse({
-      role: {
-        branch_id: "wrong",
-        name: "grainline_direct_upload_cleanup",
-      },
-      operations: [],
-    }));
+    for (const name of [
+      "grainline_direct_upload_cleanup",
+      "grainline_direct_upload_cleanup_v2",
+    ]) {
+      assert.throws(() => validateReviewedNeonTarget({
+        ...payloads,
+        roles: [{
+          branch_id: "br-hidden-mouse-aaugn2wr",
+          name,
+          authentication_method: "password",
+        }],
+      }));
+    }
   });
 
   it("requires exact confirmation, commit and evidence path", () => {
@@ -246,19 +194,11 @@ describe("DirectUpload cleanup-role provider remediation", () => {
       + `direct-upload-cleanup-role-provider-remediation-${COMMIT}.json`;
     const config = parseProviderRemediationConfig({
       DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRM:
-        DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION,
+        DIRECT_UPLOAD_CLEANUP_PROVIDER_CREATION_CONFIRMATION,
       DIRECT_UPLOAD_CLEANUP_PROVIDER_RELEASE_COMMIT: COMMIT,
       DIRECT_UPLOAD_CLEANUP_PROVIDER_EVIDENCE_PATH: evidencePath,
     });
     assert.equal(config.releaseCommit, COMMIT);
-    assert.equal(config.recoveryAfterDelete, false);
-    const recovery = parseProviderRemediationConfig({
-      DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRM:
-        DIRECT_UPLOAD_CLEANUP_PROVIDER_RECOVERY_CONFIRMATION,
-      DIRECT_UPLOAD_CLEANUP_PROVIDER_RELEASE_COMMIT: COMMIT,
-      DIRECT_UPLOAD_CLEANUP_PROVIDER_EVIDENCE_PATH: evidencePath,
-    });
-    assert.equal(recovery.recoveryAfterDelete, true);
     assert.throws(() => parseProviderRemediationConfig({
       DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRM: "wrong",
       DIRECT_UPLOAD_CLEANUP_PROVIDER_RELEASE_COMMIT: COMMIT,
@@ -324,6 +264,7 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     );
     assert.match(source, /SAFE_FAILURE_CLASS_PATTERN/);
     assert.doesNotMatch(source, /stderr\.write\([^)]*error\?\.message/);
-    assert.match(source, /waitForCatalogRoleAbsence/);
+    assert.match(source, /create-versioned-sql-cleanup-role/);
+    assert.doesNotMatch(source, /waitForCatalogRoleAbsence/);
   });
 });

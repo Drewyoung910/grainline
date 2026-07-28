@@ -286,7 +286,7 @@ async function restoreActivation(owner) {
       `REVOKE ALL ON TABLE
          public."DirectUpload",
          public."DirectUploadReference"
-       FROM PUBLIC, grainline_app_runtime, grainline_direct_upload_cleanup`,
+       FROM PUBLIC, grainline_app_runtime, grainline_direct_upload_cleanup_v2`,
     );
     await owner.query(functionAclStatements({ rollback: false }));
     await owner.query(

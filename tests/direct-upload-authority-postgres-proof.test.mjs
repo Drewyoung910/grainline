@@ -51,7 +51,7 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
 
   it("pins fixed authority, zero generic authority and exact compatibility posture", () => {
     assert.match(proof, /runtimeFunctions = DIRECT_UPLOAD_RUNTIME_FUNCTION_NAMES/);
-    assert.match(proof, /CLEANUP_ROLE = "grainline_direct_upload_cleanup"/);
+    assert.match(proof, /CLEANUP_ROLE = "grainline_direct_upload_cleanup_v2"/);
     assert.match(proof, /cleanupExecuteNames/);
     assert.match(
       proof,
