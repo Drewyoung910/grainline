@@ -855,8 +855,10 @@ The isolated activation-design branch adds:
 - `scripts/direct-upload-function-source-catalog.mjs`, which derives the exact
   final `pg_proc.prosrc` SHA-256 for every reviewed function from the immutable
   migration history and makes source drift a worker/proof failure;
-- `scripts/provision-direct-upload-cleanup-role.sql`, which converges an
-  externally created NOBYPASSRLS/NOINHERIT LOGIN without handling its password;
+- `scripts/provision-direct-upload-cleanup-role.sql`, which requires an
+  externally created NOBYPASSRLS/NOINHERIT LOGIN with exact provider-owned
+  attributes, then converges only its database privileges without handling its
+  password;
 - `scripts/direct-upload-cleanup-worker.mjs`, which refuses every non-main,
   shared-credential, pooled/wrong-endpoint, unforced-RLS, table-authorized or
   ACL-drifted execution; and
@@ -926,6 +928,24 @@ hostname and certificate-chain verification through libpq's system CA pool;
 it does not weaken `sslmode=verify-full`, alter the protected URL or affect the
 Node pre/postflight connection handling. Preserve the failed run as
 non-evidence and require a fresh exact-main run.
+
+The second protected run, `30398993315` (job `90408905840`) at exact main
+`f708810e`, passed preflight and established the verified libpq connection.
+It then failed on the first statement inside the transaction:
+`ALTER ROLE ... NOSUPERUSER ...`. Neon correctly exposes `neondb_owner` as a
+non-superuser migration owner, and PostgreSQL permits only a superuser to
+change the `SUPERUSER` attribute even when requesting `NOSUPERUSER`. The
+statement failed atomically, the transaction never committed, and no grant,
+membership or production data changed.
+
+The corrected provisioning contract no longer asks the migration owner to
+alter provider-owned role attributes. It first verifies LOGIN,
+NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOINHERIT, NOREPLICATION and
+NOBYPASSRLS exactly, then converges only schema/database/object/function
+privileges that the migration owner is authorized to manage. Any attribute
+drift is a hard provider-remediation failure, not something the database
+operator attempts to repair. Preserve `30398993315` as failed evidence and
+require another fresh exact-main production run.
 
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration

@@ -126,11 +126,51 @@ $grainline_cleanup_role_abort$;
 
 BEGIN;
 
-SELECT format(
-  'ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
-  :'cleanup_role'
-);
-\gexec
+-- The provider creates the LOGIN and password. The migration owner is not a
+-- PostgreSQL superuser, so it cannot safely "converge" SUPERUSER,
+-- REPLICATION or BYPASSRLS attributes even when setting their false forms.
+-- Require the provider-created role to arrive with the exact posture instead.
+WITH cleanup_role AS (
+  SELECT
+    role.rolname,
+    role.rolsuper,
+    role.rolcreatedb,
+    role.rolcreaterole,
+    role.rolinherit,
+    role.rolcanlogin,
+    role.rolreplication,
+    role.rolbypassrls
+  FROM pg_catalog.pg_roles AS role
+  WHERE role.rolname = :'cleanup_role'
+), failure AS (
+  SELECT format(
+    'cleanup role %s does not have the reviewed provider-created attributes',
+    :'cleanup_role'
+  ) AS message
+  FROM cleanup_role
+  WHERE rolsuper
+     OR rolcreatedb
+     OR rolcreaterole
+     OR rolinherit
+     OR NOT rolcanlogin
+     OR rolreplication
+     OR rolbypassrls
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_cleanup_role_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_cleanup_role_failure;
+\gset
+\if :grainline_cleanup_role_failed
+\echo :grainline_cleanup_role_failure
+DO $grainline_cleanup_role_abort$
+BEGIN
+  RAISE EXCEPTION 'cleanup-role provisioning refused';
+END
+$grainline_cleanup_role_abort$;
+\endif
+\unset grainline_cleanup_role_failed
+\unset grainline_cleanup_role_failure
 
 WITH RECURSIVE memberships AS (
   SELECT parent.oid, parent.rolname

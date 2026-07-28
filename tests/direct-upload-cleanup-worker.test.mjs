@@ -442,9 +442,24 @@ describe("isolated DirectUpload cleanup worker", () => {
 
     assert.doesNotMatch(provision, /\bCREATE ROLE\b/);
     assert.doesNotMatch(provision, /\bPASSWORD\s+(?:'|:)/i);
+    for (const attribute of [
+      "rolsuper",
+      "rolcreatedb",
+      "rolcreaterole",
+      "rolinherit",
+      "rolcanlogin",
+      "rolreplication",
+      "rolbypassrls",
+    ]) {
+      assert.match(provision, new RegExp(`role\\.${attribute}`));
+    }
     assert.match(
       provision,
-      /LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS/,
+      /reviewed provider-created attributes/,
+    );
+    assert.doesNotMatch(
+      provision,
+      /ALTER ROLE[\s\S]*?(?:SUPERUSER|REPLICATION|BYPASSRLS)/,
     );
     assert.match(
       provision,
