@@ -411,10 +411,7 @@ WITH table_authority AS (
        procedure.oid,
        'EXECUTE'
      )
-     AND (
-       procedure.prosecdef
-       OR procedure.proname LIKE 'grainline\_%' ESCAPE '\'
-     )
+     AND procedure.prosecdef
      AND procedure.proname NOT IN (
        'grainline_direct_upload_cleanup_lease',
        'grainline_direct_upload_cleanup_complete',

@@ -749,10 +749,7 @@ export async function readDirectUploadCleanupAuthority(client) {
          procedure.oid,
          'EXECUTE'
        )
-       AND (
-         procedure.prosecdef
-         OR procedure.proname LIKE 'grainline\\_%' ESCAPE '\\'
-       )
+       AND procedure.prosecdef
        AND procedure.proname <> ALL ($1::text[])
      ORDER BY function_signature`,
     [DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES],

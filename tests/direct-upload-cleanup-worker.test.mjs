@@ -497,6 +497,9 @@ describe("isolated DirectUpload cleanup worker", () => {
     const proof = source(
       "scripts/direct-upload-authority-postgres-proof.mjs",
     );
+    const provision = source(
+      "scripts/provision-direct-upload-cleanup-role.sql",
+    );
 
     assert.match(
       worker,
@@ -511,8 +514,15 @@ describe("isolated DirectUpload cleanup worker", () => {
       /WHEN class\.relkind IN \('r', 'p'\) THEN[\s\S]*has_table_privilege/,
     );
     assert.doesNotMatch(
-      `${worker}\n${proof}\n${source("scripts/provision-direct-upload-cleanup-role.sql")}`,
+      `${worker}\n${proof}\n${provision}`,
       /AND\s+pg_catalog\.has_(?:table|sequence)_privilege/,
     );
+    for (const catalogSource of [worker, proof, provision]) {
+      assert.match(catalogSource, /AND procedure\.prosecdef/);
+      assert.doesNotMatch(
+        catalogSource,
+        /procedure\.prosecdef\s+OR\s+procedure\.proname LIKE/,
+      );
+    }
   });
 });

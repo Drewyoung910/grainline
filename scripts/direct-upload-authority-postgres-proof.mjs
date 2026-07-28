@@ -634,10 +634,7 @@ async function catalogProof(owner) {
            procedure.oid,
            'EXECUTE'
          )
-         AND (
-           procedure.prosecdef
-           OR procedure.proname LIKE 'grainline\\_%' ESCAPE '\\'
-         )
+         AND procedure.prosecdef
          AND procedure.proname <> ALL ($2::text[])
        ORDER BY procedure.proname
     `,

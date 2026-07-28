@@ -907,19 +907,32 @@ credentials, prove R2 deletion, inspect production legacy data, apply
 DirectUpload RLS activation or change any persistent environment.
 
 The 2026-07-28 Extra-High review supersedes that run for release. Its catalog
-check was exact only inside `grainline_direct_upload_*`; it did not reject a
-cleanup-role grant on another privileged `grainline_*` or `SECURITY DEFINER`
-function, column-only relation authority, default privilege grants, or a role
-that was a member of the cleanup role. It also put the hourly trigger in the
-scaffold even though the Vercel-to-GitHub scheduler handoff is an activation
-operation. Provisioning, the live worker and the disposable proof now reject
-both membership directions, table/view/materialized-view/foreign-table and
-column authority, sequence authority, default grants, and every unexpected
-privileged function. All DirectUpload functions also require their exact
-DEFINER/INVOKER posture, non-LEAKPROOF ordinary-function kind, source hash,
-owner, search path and role ACLs. The scaffold is manual-only. A fresh
-exact-tree disposable PostgreSQL proof is required before this branch can be
-accepted.
+check was exact only inside `grainline_direct_upload_*`; it did not reject
+another accessible public `SECURITY DEFINER` function, column-only relation
+authority, default privilege grants, or a role that was a member of the cleanup
+role. It also put the hourly trigger in the scaffold even though the
+Vercel-to-GitHub scheduler handoff is an activation operation. Provisioning,
+the live worker and the disposable proof now reject both membership directions,
+table/view/materialized-view/foreign-table and column authority, sequence
+authority, default grants, and every unexpected public `SECURITY DEFINER`.
+All DirectUpload functions also require their exact DEFINER/INVOKER posture,
+non-LEAKPROOF ordinary-function kind, source hash, owner, search path and role
+ACLs. Pure public `SECURITY INVOKER` validators carry no owner authority and
+remain harmless without relation privileges. The scaffold is manual-only. A
+fresh exact-tree disposable PostgreSQL proof is required before this branch can
+be accepted.
+
+Fresh diagnostic run `30329320704` at `64c0203d` then failed closed during
+cleanup-role convergence before any authority proof or cleanup call. Diagnostic
+run `30329414299` at `228514f9` identified the first effective function as
+`public.grainline_notification_preferences_valid(jsonb)`. That function is a
+pure immutable `SECURITY INVOKER` check-constraint validator, not a
+privilege-bearing service function. PostgreSQL's default PUBLIC EXECUTE makes a
+blanket ban on every named invoker helper both over-broad and impossible to
+enforce with a per-role REVOKE. The global escape check is therefore scoped to
+all accessible public `SECURITY DEFINER` functions, while the complete
+DirectUpload catalog remains exact. Neither failed run addressed persistent
+staging or production.
 
 ## Exit
 

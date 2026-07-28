@@ -243,10 +243,12 @@ are proven. No role, credential, provider environment, schedule or production
 state has changed.
 
 The 2026-07-28 Extra-High review also widened the cleanup-role invariant from
-the DirectUpload function namespace to every privileged `grainline_*` or
+the DirectUpload function namespace to every accessible public
 `SECURITY DEFINER` function, both role-membership directions, column-only and
-table-like relation grants, default grants, and exact function security
-posture. The older seven-check cleanup-role proof is superseded; require a
+table-like relation grants, default grants, and exact DirectUpload function
+security posture. Pure public `SECURITY INVOKER` validators remain callable but
+carry no owner authority and the cleanup role has no underlying relation
+privileges. The older seven-check cleanup-role proof is superseded; require a
 fresh exact-tree disposable PostgreSQL run before accepting this layer.
 
 ### Messaging architecture decision (2026-07-22)
