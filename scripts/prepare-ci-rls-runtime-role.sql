@@ -42,9 +42,9 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
       FROM pg_roles
-     WHERE rolname = 'grainline_direct_upload_cleanup'
+     WHERE rolname = 'grainline_direct_upload_cleanup_v2'
   ) THEN
-    CREATE ROLE grainline_direct_upload_cleanup
+    CREATE ROLE grainline_direct_upload_cleanup_v2
       LOGIN
       NOSUPERUSER
       NOCREATEDB
@@ -66,7 +66,7 @@ ALTER ROLE grainline_app_runtime
   NOREPLICATION
   NOBYPASSRLS;
 
-ALTER ROLE grainline_direct_upload_cleanup
+ALTER ROLE grainline_direct_upload_cleanup_v2
   LOGIN
   NOSUPERUSER
   NOCREATEDB
@@ -103,10 +103,10 @@ BEGIN
       FROM pg_auth_members membership
       JOIN pg_roles child ON child.oid = membership.member
       JOIN pg_roles parent ON parent.oid = membership.roleid
-     WHERE child.rolname = 'grainline_direct_upload_cleanup'
+     WHERE child.rolname = 'grainline_direct_upload_cleanup_v2'
   LOOP
     EXECUTE format(
-      'REVOKE %I FROM grainline_direct_upload_cleanup',
+      'REVOKE %I FROM grainline_direct_upload_cleanup_v2',
       parent_role
     );
   END LOOP;
@@ -116,9 +116,9 @@ $grainline_ci_cleanup_memberships$;
 GRANT USAGE ON SCHEMA public TO grainline_app_runtime;
 REVOKE CREATE ON SCHEMA public FROM grainline_app_runtime;
 REVOKE CREATE ON DATABASE grainline_ci FROM grainline_app_runtime;
-GRANT USAGE ON SCHEMA public TO grainline_direct_upload_cleanup;
-REVOKE CREATE ON SCHEMA public FROM grainline_direct_upload_cleanup;
-REVOKE CREATE ON DATABASE grainline_ci FROM grainline_direct_upload_cleanup;
+GRANT USAGE ON SCHEMA public TO grainline_direct_upload_cleanup_v2;
+REVOKE CREATE ON SCHEMA public FROM grainline_direct_upload_cleanup_v2;
+REVOKE CREATE ON DATABASE grainline_ci FROM grainline_direct_upload_cleanup_v2;
 
 -- Prisma migrations in CI run as the current `ci` owner. Set its defaults
 -- before the first table is created so SavedSearch has the grants required by

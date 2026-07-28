@@ -284,6 +284,15 @@ protected secret/digest unchanged. Preserve the safe absent-role state while a
 bounded SQLSTATE-only diagnostic is reviewed; do not print raw database errors
 or weaken the replacement posture to make the create pass.
 
+The SQLSTATE diagnostic classified the repeated exact-name commit as
+PostgreSQL `XX000`, while both rollback probes passed and every failed
+transaction left the role absent. Retire that provider-tombstoned identity.
+Use `grainline_direct_upload_cleanup_v2` as the cleanup principal, keep the old
+name separately forbidden, and remove the provider-delete path entirely.
+Because the principal is embedded in generated activation ACLs, a fresh full
+disposable activation plus database-first rollback proof is required before
+creating the versioned production login.
+
 The cleanup-only R2 deletion credential is still absent because no signed-in
 Cloudflare control surface was available. Do not substitute the application's
 R2 credential. Keep the worker, hourly scheduler and DirectUpload activation

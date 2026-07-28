@@ -1064,6 +1064,33 @@ five-character SQLSTATE class such as `postgres-42501`; it never emits raw
 stderr, SQL, role passwords, connection URLs or error text. A fresh exact-main
 recovery preflight remains mandatory before another committed replacement.
 
+The SQLSTATE-hardened exact-main attempt at `dfeda5bd` passed the same
+rollback-only preflight and again failed only when committing the exact retired
+name, now classified as PostgreSQL `XX000` (internal/provider error).
+Reconciliation found both the retired role and proposed versioned role absent,
+with the protected cleanup secret/digest still unchanged. Repeating that
+provider-tombstoned name is no longer accepted.
+
+The replacement principal is now
+`grainline_direct_upload_cleanup_v2`. The old API-created name remains a
+separate rejected-name constant and both names must be absent before
+preflight. The operator has one confirmation,
+`create-versioned-sql-cleanup-role`, and contains no provider `DELETE` request,
+delete-response validator or operation waiter. It creates only the versioned
+ordinary SQL role, proves its exact LOGIN/NOBYPASSRLS/NOINHERIT posture and
+zero parent memberships, authenticates directly, then rotates only the
+protected cleanup URL and digest. The shared authority catalog, disposable
+proof roles, protected provisioning workflow, activation/rollback proofs and
+cleanup-worker connection identity use the versioned principal together.
+Function names do not change.
+
+Changing the cleanup principal changes generated DirectUpload
+retirement/activation candidate bytes. The prior exact-tree proof remains
+useful design evidence but is superseded for release. Before provider creation,
+rerun the complete disposable PostgreSQL compatible, activation and
+database-first rollback program against the versioned role, then require fresh
+ordinary CI and production build evidence.
+
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
 tree and reached cleanup-role convergence, including the three intended

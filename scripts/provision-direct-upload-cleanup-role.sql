@@ -4,7 +4,7 @@
 -- LOGIN role and store its connection URL outside Vercel first, then run:
 --
 --   psql "$DIRECT_URL" \
---     -v cleanup_role=grainline_direct_upload_cleanup \
+--     -v cleanup_role=grainline_direct_upload_cleanup_v2 \
 --     -v runtime_role=grainline_app_runtime \
 --     -v migration_role=neondb_owner \
 --     -f scripts/provision-direct-upload-cleanup-role.sql
@@ -13,7 +13,7 @@
 
 \if :{?cleanup_role}
 \else
-\echo 'missing required psql variable: -v cleanup_role=grainline_direct_upload_cleanup'
+\echo 'missing required psql variable: -v cleanup_role=grainline_direct_upload_cleanup_v2'
 DO $grainline_cleanup_role_abort$
 BEGIN
   RAISE EXCEPTION 'cleanup-role provisioning refused';

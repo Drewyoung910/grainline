@@ -140,11 +140,15 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /Exact-commit\s+proof, protected-environment, migration, deployment and production postflight\s+gates remain mandatory/);
     assert.match(audit, /f66aa92fa51954c44f73384d3b4f9761b618d437/);
     assert.match(audit, /complete-deleted-neon-api-cleanup-role/);
+    assert.match(audit, /grainline_direct_upload_cleanup_v2/);
+    assert.match(audit, /create-versioned-sql-cleanup-role/);
+    assert.match(audit, /contains no provider `DELETE` request/);
     assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
     assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
     assert.match(strategy, /CM-A21 execution contract/);
     assert.match(strategy, /run `30225445722`/);
     assert.match(strategy, /Withhold the unused future\s+private-message recorder/);
     assert.match(strategy, /first actual replacement attempt at exact main `f66aa92f`/i);
+    assert.match(strategy, /Use `grainline_direct_upload_cleanup_v2`/);
   });
 });

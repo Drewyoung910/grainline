@@ -49,7 +49,7 @@ jobs:
       - name: Converge cleanup role to three-function authority
         run: >-
           psql "$DIRECT_URL"
-          -v cleanup_role=grainline_direct_upload_cleanup
+          -v cleanup_role=grainline_direct_upload_cleanup_v2
           -v runtime_role=grainline_app_runtime
           -v migration_role=neondb_owner
           -f scripts/provision-direct-upload-cleanup-role.sql

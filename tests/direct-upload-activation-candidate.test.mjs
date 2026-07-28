@@ -82,7 +82,7 @@ describe("DirectUpload activation candidate", () => {
     );
     assert.match(
       migration,
-      /grainline_direct_upload_cleanup posture is not DirectUpload-safe/,
+      /grainline_direct_upload_cleanup_v2 posture is not DirectUpload-safe/,
     );
     assert.match(
       migration,
@@ -121,7 +121,7 @@ describe("DirectUpload activation candidate", () => {
     assert.doesNotMatch(migration, /CREATE\s+POLICY/i);
     assert.match(
       migration,
-      /REVOKE ALL ON TABLE[\s\S]*"DirectUpload"[\s\S]*"DirectUploadReference"[\s\S]*FROM PUBLIC, grainline_app_runtime, grainline_direct_upload_cleanup/,
+      /REVOKE ALL ON TABLE[\s\S]*"DirectUpload"[\s\S]*"DirectUploadReference"[\s\S]*FROM PUBLIC, grainline_app_runtime, grainline_direct_upload_cleanup_v2/,
     );
     assert.match(
       migration,
@@ -145,7 +145,7 @@ describe("DirectUpload activation candidate", () => {
     const runtimeGrants = grantStatements.filter((statement) =>
       statement.endsWith("TO grainline_app_runtime;"));
     const cleanupGrants = grantStatements.filter((statement) =>
-      statement.endsWith("TO grainline_direct_upload_cleanup;"));
+      statement.endsWith("TO grainline_direct_upload_cleanup_v2;"));
 
     assert.equal(runtimeGrants.length, 17);
     assert.equal(cleanupGrants.length, 3);
