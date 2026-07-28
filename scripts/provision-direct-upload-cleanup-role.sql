@@ -396,7 +396,12 @@ WITH table_authority AS (
        'EXECUTE'
      )
 ), unexpected_function_authority AS (
-  SELECT procedure.proname
+  SELECT pg_catalog.format(
+           '%I.%I(%s)',
+           namespace.nspname,
+           procedure.proname,
+           pg_catalog.pg_get_function_identity_arguments(procedure.oid)
+         ) AS function_signature
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
@@ -440,7 +445,15 @@ WITH table_authority AS (
   SELECT 'cleanup role retains effective sequence authority'
    WHERE EXISTS (SELECT 1 FROM sequence_authority)
   UNION ALL
-  SELECT 'cleanup role retains unexpected privileged function authority'
+  SELECT pg_catalog.format(
+           'cleanup role retains unexpected privileged function authority: %s',
+           (
+             SELECT function_signature
+               FROM unexpected_function_authority
+              ORDER BY function_signature
+              LIMIT 1
+           )
+         )
    WHERE EXISTS (SELECT 1 FROM unexpected_function_authority)
   UNION ALL
   SELECT 'cleanup role retains default privilege grants'
