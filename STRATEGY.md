@@ -329,6 +329,18 @@ entry. A fresh exact-tree disposable activation and database-first rollback
 pass is required. These corrections do not change any production gate or
 authorize promotion.
 
+The corrected exact-tree PostgreSQL 16.14 run `30330329787` (job
+`90183904860`) passed at executable commit
+`b843e21e88bfa79f4951e2e18329408671b9f49a`. It repeated the 166-migration
+compatible authority program, staged the reviewed retirement and activation
+candidates (SHA-256 `adbad525ca29a6ea42227d3b196659a04b8a39daf0dbb06a859ba3b5dca3a9d6`
+and `fe4da53160f2add8a7303bcca0a6bc310b07cdb02e16c39213cabf63a56cec21`),
+then passed activated role convergence/global audit, the four live authority
+checks and database-first rollback/exact restoration with no
+persistent-staging or production change. This accepts disposable database
+evidence only; every production/provider/legacy/drain/private-feature gate
+remains separate and explicitly approved.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

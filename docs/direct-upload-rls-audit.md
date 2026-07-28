@@ -1115,6 +1115,49 @@ regressions pin those class-wide invariants. Any proof run predating these
 changes is superseded; a fresh exact-tree disposable activation plus
 database-first rollback run remains required.
 
+Integrated run `30330040739` at merge head `3a61fa50` completed successfully,
+but it began before the lock-order/function-kind corrections and is deliberately
+not accepted as release evidence.
+
+The replacement exact-tree PostgreSQL 16.14 execution, GitHub Actions run
+`30330329787` (job `90183904860`) at executable commit
+`b843e21e88bfa79f4951e2e18329408671b9f49a`, passed the complete program. It
+applied all 166 committed migrations, converged the production-style runtime
+role and hardened isolated cleanup role, passed migration status, the global
+grant/RLS audit, pre-activation static contracts and the eight-check compatible
+authority proof, then generated and applied only these disposable candidates:
+
+- `20260726190000_retire_direct_upload_compatibility_key`, SHA-256
+  `adbad525ca29a6ea42227d3b196659a04b8a39daf0dbb06a859ba3b5dca3a9d6`;
+- `20260726190500_enable_direct_upload_rls`, SHA-256
+  `fe4da53160f2add8a7303bcca0a6bc310b07cdb02e16c39213cabf63a56cec21`.
+
+After 168 total migrations it reconverged both roles, passed the activated
+global audit and exact migration status, then passed all four activated checks:
+`activated_catalog_source_and_acl`, `runtime_and_worker_direct_denial`,
+`runtime_fixed_authority_and_retired_case_key`, and
+`isolated_cleanup_lease_fence`. The separate database-first rollback proved
+old-application direct CRUD compatibility, exact function-partition
+restoration, exact FORCE restoration, preservation of `objectKey` retirement
+and zero fixture residue. Both proof payloads recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the service
+database, roles, fixtures and candidate directories were discarded with the
+job. This accepts the integrated candidate bytes and database proof at
+`b843e21e` only. It does not promote a migration, inspect production, create a
+role/credential/provider object, exercise R2, deploy, activate RLS or enable
+private Case evidence.
+
+Local validation at `b843e21e` passed Prisma generation, `tsc --noEmit`, lint
+(with the existing JSX analyzer warning), all 2,172 runnable repository tests
+and 3 intentional skips. Turbopack compiled the production application
+successfully twice in the disposable worktree, but Next's subsequent
+type-check worker exhausted both the default 2 GiB and explicit 4 GiB Node heap
+on the 8 GiB local host. Because the separate TypeScript pass is green, this is
+classified as a local resource failure rather than a source/type failure, but
+it is not called a successful production build. PR #61 remains stacked on PR
+#60, so ordinary `main`-targeted CI does not run yet; a clean-runner CI
+production build is a mandatory gate after retargeting and before any merge.
+
 ## Exit
 
 Keep Extra High through the cleanup-worker authority review and the downstream
