@@ -277,6 +277,13 @@ protected cleanup secret and digest. The normal path must also wait for
 database-catalog absence after Neon reports deletion complete so this
 non-replayable boundary cannot recur.
 
+The first guarded already-deleted-role recovery at exact main `1d4c5fe2`
+passed every rollback-only check, then failed inside the committed
+replacement-create step. Reconciliation again found the role absent and the
+protected secret/digest unchanged. Preserve the safe absent-role state while a
+bounded SQLSTATE-only diagnostic is reviewed; do not print raw database errors
+or weaken the replacement posture to make the create pass.
+
 The cleanup-only R2 deletion credential is still absent because no signed-in
 Cloudflare control surface was available. Do not substitute the application's
 R2 credential. Keep the worker, hourly scheduler and DirectUpload activation

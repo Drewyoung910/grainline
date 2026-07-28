@@ -12,6 +12,7 @@ import {
   buildRejectedRolePreflightSql,
   buildReplacementProbeSql,
   buildReplacementSql,
+  classifyReviewedPostgresFailure,
   DIRECT_UPLOAD_CLEANUP_ENVIRONMENT,
   DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION,
   DIRECT_UPLOAD_CLEANUP_PROVIDER_RECOVERY_CONFIRMATION,
@@ -280,6 +281,29 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     );
   });
 
+  it("reports only bounded PostgreSQL failure classes", () => {
+    assert.equal(
+      classifyReviewedPostgresFailure(
+        "ERROR:  42501: permission denied for role secret-value",
+      ),
+      "postgres-42501",
+    );
+    assert.equal(
+      classifyReviewedPostgresFailure("ERROR: detail deliberately omitted"),
+      "postgres-unclassified",
+    );
+    assert.equal(
+      classifyReviewedPostgresFailure(
+        "postgresql://role:password@example.invalid/database",
+      ),
+      "command-unclassified",
+    );
+    assert.equal(
+      classifyReviewedPostgresFailure(undefined),
+      "command-unclassified",
+    );
+  });
+
   it("keeps generated credentials off command arguments, output and evidence", () => {
     const source = readFileSync(
       "scripts/direct-upload-cleanup-role-provider-remediation.mjs",
@@ -298,6 +322,8 @@ describe("DirectUpload cleanup-role provider remediation", () => {
       source,
       /at stage \$\{remediationFailureStage\}/,
     );
+    assert.match(source, /SAFE_FAILURE_CLASS_PATTERN/);
+    assert.doesNotMatch(source, /stderr\.write\([^)]*error\?\.message/);
     assert.match(source, /waitForCatalogRoleAbsence/);
   });
 });
