@@ -46,6 +46,8 @@ const { Client } = pg;
 
 export const DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION =
   "replace-rejected-neon-api-cleanup-role";
+export const DIRECT_UPLOAD_CLEANUP_PROVIDER_RECOVERY_CONFIRMATION =
+  "complete-deleted-neon-api-cleanup-role";
 export const DIRECT_UPLOAD_CLEANUP_ENVIRONMENT =
   "Production DirectUpload Cleanup";
 export const DIRECT_UPLOAD_CLEANUP_ENVIRONMENT_ID = 18_906_676_825;
@@ -67,6 +69,7 @@ const SAFE_OPERATION_ID_PATTERN = /^[A-Za-z0-9-]{8,80}$/;
 const EVIDENCE_PREFIX = "direct-upload-cleanup-role-provider-remediation-";
 const OPERATION_ATTEMPTS = 20;
 const OPERATION_INTERVAL_MS = 2_000;
+let remediationFailureStage = "startup";
 
 function required(env, key) {
   const value = env?.[key];
@@ -235,14 +238,23 @@ function runNeonApi(cliPath, pathname, method = "GET") {
   }
 }
 
-export function validateReviewedNeonTarget(payloads) {
+export function validateReviewedNeonTarget(
+  payloads,
+  { expectCleanupRolePresent = true } = {},
+) {
   const project = payloads?.project?.project;
   const branch = payloads?.branch?.branch;
   const endpoints = payloads?.endpoints?.endpoints;
   const endpoint = Array.isArray(endpoints)
     ? endpoints.find((candidate) => candidate?.id === REVIEWED_ENDPOINT_ID)
     : null;
-  const role = payloads?.role?.role;
+  const roles = Array.isArray(payloads?.roles)
+    ? payloads.roles
+    : payloads?.roles?.roles;
+  const matchingRoles = Array.isArray(roles)
+    ? roles.filter((candidate) => candidate?.name === DIRECT_UPLOAD_CLEANUP_ROLE)
+    : [];
+  const role = matchingRoles[0];
   const environment = payloads?.environment;
   if (
     project?.id !== REVIEWED_NEON_PROJECT_ID
@@ -256,9 +268,17 @@ export function validateReviewedNeonTarget(payloads) {
     || endpoint.region_id !== "azure-westus3"
     || endpoint.type !== "read_write"
     || endpoint.disabled !== false
-    || role?.branch_id !== REVIEWED_NEON_BRANCH_ID
-    || role.name !== DIRECT_UPLOAD_CLEANUP_ROLE
-    || role.authentication_method !== "password"
+    || !Array.isArray(roles)
+    || (
+      expectCleanupRolePresent
+        ? (
+          matchingRoles.length !== 1
+          || role?.branch_id !== REVIEWED_NEON_BRANCH_ID
+          || role.name !== DIRECT_UPLOAD_CLEANUP_ROLE
+          || role.authentication_method !== "password"
+        )
+        : matchingRoles.length !== 0
+    )
     || Number(environment?.id) !== DIRECT_UPLOAD_CLEANUP_ENVIRONMENT_ID
     || environment?.name !== DIRECT_UPLOAD_CLEANUP_ENVIRONMENT
   ) {
@@ -269,7 +289,8 @@ export function validateReviewedNeonTarget(payloads) {
     endpointId: endpoint.id,
     environmentId: Number(environment.id),
     projectId: project.id,
-    roleName: role.name,
+    roleName: DIRECT_UPLOAD_CLEANUP_ROLE,
+    rolePresent: expectCleanupRolePresent,
   });
 }
 
@@ -291,7 +312,30 @@ function ghJson(args) {
   }
 }
 
-function readProviderTargets(cliPath) {
+function readNeonRoles(cliPath) {
+  const stdout = runNeonCli(cliPath, [
+    "roles",
+    "list",
+    "--project-id",
+    REVIEWED_NEON_PROJECT_ID,
+    "--branch",
+    REVIEWED_NEON_BRANCH_ID,
+    "--output",
+    "json",
+    "--no-color",
+    "--no-analytics",
+  ], {
+    failureMessage: "reviewed Neon role-list command failed",
+  });
+  try {
+    const payload = JSON.parse(stdout);
+    return Array.isArray(payload) ? payload : payload?.roles;
+  } catch {
+    throw new Error("reviewed Neon role-list response was not valid JSON");
+  }
+}
+
+function readProviderTargets(cliPath, { expectCleanupRolePresent }) {
   const base = `/projects/${REVIEWED_NEON_PROJECT_ID}`;
   const target = validateReviewedNeonTarget({
     project: runNeonApi(cliPath, base),
@@ -300,16 +344,14 @@ function readProviderTargets(cliPath) {
       `${base}/branches/${REVIEWED_NEON_BRANCH_ID}`,
     ),
     endpoints: runNeonApi(cliPath, `${base}/endpoints`),
-    role: runNeonApi(
-      cliPath,
-      `${base}/branches/${REVIEWED_NEON_BRANCH_ID}`
-        + `/roles/${DIRECT_UPLOAD_CLEANUP_ROLE}`,
-    ),
+    roles: readNeonRoles(cliPath),
     environment: ghJson([
       "api",
       `repos/${REVIEWED_REPOSITORY}/environments/`
       + encodeURIComponent(DIRECT_UPLOAD_CLEANUP_ENVIRONMENT),
     ]),
+  }, {
+    expectCleanupRolePresent,
   });
   const secrets = ghJson([
     "secret",
@@ -471,7 +513,7 @@ BEGIN
     FROM members
    WHERE rolname <> 'neondb_owner';
   IF parent_count <> 0
-     OR reviewed_member_count <> 1
+     OR reviewed_member_count > 1
      OR unexpected_member_count <> 0
      OR unexpected_transitive_member_count <> 0 THEN
     RAISE EXCEPTION 'replacement cleanup role membership posture is not exact';
@@ -531,6 +573,29 @@ ROLLBACK;
 `;
 }
 
+export function buildAbsentRolePreflightSql() {
+  return String.raw`
+\set ON_ERROR_STOP on
+BEGIN TRANSACTION READ ONLY;
+DO $grainline_absent_role$
+BEGIN
+  IF current_user <> 'neondb_owner' OR session_user <> 'neondb_owner' THEN
+    RAISE EXCEPTION 'provider-remediation owner identity is not exact';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_roles
+     WHERE rolname = 'grainline_direct_upload_cleanup'
+  ) THEN
+    RAISE EXCEPTION 'deleted API cleanup role is not absent';
+  END IF;
+END
+$grainline_absent_role$;
+ROLLBACK;
+\echo grainline_deleted_cleanup_role_absence_passed
+`;
+}
+
 export function buildReplacementProbeSql(scramVerifier) {
   return String.raw`
 \set ON_ERROR_STOP on
@@ -545,6 +610,34 @@ SELECT pg_catalog.format(
 ${roleAssertionSql("'grainline_direct_upload_cleanup_replacement_probe'")}
 ROLLBACK;
 \echo grainline_cleanup_role_replacement_probe_passed
+`;
+}
+
+export function buildRecoveryReplacementProbeSql(scramVerifier) {
+  return String.raw`
+\set ON_ERROR_STOP on
+\set replacement_verifier ${psqlLiteral(scramVerifier)}
+BEGIN;
+DO $grainline_role_absent$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_roles
+     WHERE rolname = 'grainline_direct_upload_cleanup'
+  ) THEN
+    RAISE EXCEPTION 'deleted API cleanup role is not absent';
+  END IF;
+END
+$grainline_role_absent$;
+SELECT pg_catalog.format(
+  'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L',
+  'grainline_direct_upload_cleanup',
+  :'replacement_verifier'
+);
+\gexec
+${roleAssertionSql("'grainline_direct_upload_cleanup'")}
+ROLLBACK;
+\echo grainline_cleanup_role_recovery_probe_passed
 `;
 }
 
@@ -654,6 +747,24 @@ async function waitForOperations(cliPath, initialOperations, wait) {
   throw new Error("Neon cleanup-role deletion did not finish in time");
 }
 
+async function waitForCatalogRoleAbsence(cliPath, wait) {
+  for (let attempt = 1; attempt <= OPERATION_ATTEMPTS; attempt += 1) {
+    try {
+      runOwnerSql(
+        cliPath,
+        buildAbsentRolePreflightSql(),
+        "grainline_deleted_cleanup_role_absence_passed",
+      );
+      return;
+    } catch {
+      if (attempt < OPERATION_ATTEMPTS) {
+        await wait(OPERATION_INTERVAL_MS);
+      }
+    }
+  }
+  throw new Error("deleted cleanup role did not leave the PostgreSQL catalog");
+}
+
 export function buildDirectUploadCleanupDatabaseUrl(password) {
   if (!SAFE_PASSWORD_PATTERN.test(password)) {
     throw new Error("cleanup-role replacement password is invalid");
@@ -760,6 +871,9 @@ async function verifyReplacementConnection(connectionString) {
     ) {
       throw new Error("replacement cleanup-role connection posture is not exact");
     }
+    return Object.freeze({
+      hasReviewedBootstrapAdminEdge: memberRoleEdges.length === 1,
+    });
   } finally {
     await client.end().catch(() => {});
   }
@@ -805,9 +919,13 @@ function writeEvidence(pathname, evidence) {
 }
 
 export function parseProviderRemediationConfig(env = process.env) {
+  const confirmation =
+    env.DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRM;
+  const recoveryAfterDelete =
+    confirmation === DIRECT_UPLOAD_CLEANUP_PROVIDER_RECOVERY_CONFIRMATION;
   if (
-    env.DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRM
-      !== DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION
+    confirmation !== DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION
+    && !recoveryAfterDelete
   ) {
     throw new Error("cleanup-role provider-remediation confirmation is invalid");
   }
@@ -828,7 +946,11 @@ export function parseProviderRemediationConfig(env = process.env) {
   if (evidencePath !== expected || existsSync(evidencePath)) {
     throw new Error("cleanup-role provider evidence path is not fresh and exact");
   }
-  return Object.freeze({ evidencePath, releaseCommit });
+  return Object.freeze({
+    evidencePath,
+    recoveryAfterDelete,
+    releaseCommit,
+  });
 }
 
 async function defaultWait(milliseconds) {
@@ -836,25 +958,45 @@ async function defaultWait(milliseconds) {
 }
 
 async function run() {
+  remediationFailureStage = "configuration";
   const config = parseProviderRemediationConfig();
+  remediationFailureStage = "git-state";
   const gitState = assertDirectUploadCleanupProviderGitState(
     config.releaseCommit,
   );
+  remediationFailureStage = "provider-credential";
   readReviewedNeonCredentials();
   const cliPath = discoverReviewedNeonCli();
-  const target = readProviderTargets(cliPath);
+  remediationFailureStage = "provider-targets";
+  const target = readProviderTargets(cliPath, {
+    expectCleanupRolePresent: !config.recoveryAfterDelete,
+  });
+  remediationFailureStage = config.recoveryAfterDelete
+    ? "deleted-role-absence"
+    : "rejected-role-preflight";
   runOwnerSql(
     cliPath,
-    buildRejectedRolePreflightSql(),
-    "grainline_rejected_cleanup_role_preflight_passed",
+    config.recoveryAfterDelete
+      ? buildAbsentRolePreflightSql()
+      : buildRejectedRolePreflightSql(),
+    config.recoveryAfterDelete
+      ? "grainline_deleted_cleanup_role_absence_passed"
+      : "grainline_rejected_cleanup_role_preflight_passed",
   );
 
   const password = randomBytes(48).toString("base64url");
   const scramVerifier = makeScramVerifier(password);
+  remediationFailureStage = config.recoveryAfterDelete
+    ? "recovery-replacement-probe"
+    : "replacement-probe";
   runOwnerSql(
     cliPath,
-    buildReplacementProbeSql(scramVerifier),
-    "grainline_cleanup_role_replacement_probe_passed",
+    config.recoveryAfterDelete
+      ? buildRecoveryReplacementProbeSql(scramVerifier)
+      : buildReplacementProbeSql(scramVerifier),
+    config.recoveryAfterDelete
+      ? "grainline_cleanup_role_recovery_probe_passed"
+      : "grainline_cleanup_role_replacement_probe_passed",
   );
   if (process.argv.includes("--preflight")) {
     process.stdout.write(`${JSON.stringify({
@@ -862,35 +1004,49 @@ async function run() {
       releaseCommit: config.releaseCommit,
       cleanupRole: DIRECT_UPLOAD_CLEANUP_ROLE,
       providerTargetExact: true,
-      rejectedRolePostureExact: true,
+      providerRoleState: config.recoveryAfterDelete
+        ? "api-role-already-deleted"
+        : "rejected-api-role-present",
+      rejectedRolePostureExact: !config.recoveryAfterDelete,
+      deletedRoleAbsenceExact: config.recoveryAfterDelete,
       replacementProbeRolledBack: true,
       productionChanged: false,
     })}\n`);
     return;
   }
 
-  const base = `/projects/${REVIEWED_NEON_PROJECT_ID}`
-    + `/branches/${REVIEWED_NEON_BRANCH_ID}`;
-  const deleted = validateDeleteRoleResponse(runNeonApi(
-    cliPath,
-    `${base}/roles/${DIRECT_UPLOAD_CLEANUP_ROLE}`,
-    "DELETE",
-  ));
-  await waitForOperations(cliPath, deleted.operations, defaultWait);
+  if (!config.recoveryAfterDelete) {
+    const base = `/projects/${REVIEWED_NEON_PROJECT_ID}`
+      + `/branches/${REVIEWED_NEON_BRANCH_ID}`;
+    remediationFailureStage = "provider-role-delete";
+    const deleted = validateDeleteRoleResponse(runNeonApi(
+      cliPath,
+      `${base}/roles/${DIRECT_UPLOAD_CLEANUP_ROLE}`,
+      "DELETE",
+    ));
+    remediationFailureStage = "provider-role-delete-wait";
+    await waitForOperations(cliPath, deleted.operations, defaultWait);
+    remediationFailureStage = "provider-role-catalog-absence-wait";
+    await waitForCatalogRoleAbsence(cliPath, defaultWait);
+  }
 
+  remediationFailureStage = "replacement-create";
   runOwnerSql(
     cliPath,
     buildReplacementSql(scramVerifier),
     "grainline_cleanup_role_sql_replacement_committed",
   );
   const connectionString = buildDirectUploadCleanupDatabaseUrl(password);
-  await verifyReplacementConnection(connectionString);
+  remediationFailureStage = "replacement-connection-proof";
+  const replacementProof = await verifyReplacementConnection(connectionString);
   const digest = createHash("sha256").update(connectionString).digest("hex");
+  remediationFailureStage = "github-secret-update";
   setGitHubEnvironmentValue(
     "secret",
     DIRECT_UPLOAD_CLEANUP_DATABASE_SECRET,
     connectionString,
   );
+  remediationFailureStage = "github-digest-update";
   setGitHubEnvironmentValue(
     "variable",
     DIRECT_UPLOAD_CLEANUP_DATABASE_DIGEST_VARIABLE,
@@ -898,6 +1054,7 @@ async function run() {
   );
 
   const completedAt = new Date().toISOString();
+  remediationFailureStage = "evidence-write";
   writeEvidence(config.evidencePath, {
     schemaVersion: 1,
     operation: "direct-upload-cleanup-role-provider-remediation",
@@ -909,10 +1066,12 @@ async function run() {
     run: { completedAt },
     proof: {
       apiCreatedRoleRejected: true,
-      apiRoleDeleted: true,
+      apiRoleAlreadyDeleted: config.recoveryAfterDelete,
+      apiRoleDeleted: !config.recoveryAfterDelete,
       replacementAuthenticated: true,
       replacementHasParentMemberships: false,
-      replacementHasReviewedBootstrapAdminEdge: true,
+      replacementHasReviewedBootstrapAdminEdge:
+        replacementProof.hasReviewedBootstrapAdminEdge,
       replacementHasUnexpectedMemberEdges: false,
       replacementHasPrivilegedAttributes: false,
       replacementPasswordRotated: true,
@@ -924,6 +1083,7 @@ async function run() {
     directUploadRlsChanged: false,
     cleanupExecuted: false,
   });
+  remediationFailureStage = "complete";
   process.stdout.write(`${JSON.stringify({
     status: "passed",
     releaseCommit: config.releaseCommit,
@@ -940,7 +1100,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     await run();
   } catch {
     process.stderr.write(
-      "DirectUpload cleanup-role provider remediation failed closed.\n",
+      "DirectUpload cleanup-role provider remediation failed closed "
+        + `at stage ${remediationFailureStage}.\n`,
     );
     process.exitCode = 1;
   }

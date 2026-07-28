@@ -266,6 +266,17 @@ that exact non-effective edge (or zero edges if a provider superuser removes
 it); continue requiring zero cleanup-role parent memberships and no other
 direct or transitive members.
 
+The first actual replacement attempt at exact main `f66aa92f` safely crossed
+only the provider-delete boundary, then failed before the SQL replacement
+committed. The cleanup role is absent and the protected secret/digest remain
+the rejected, now-unusable values; RLS, grants, data, deployment, cleanup and
+R2 are unchanged. Resume only through the explicit already-deleted-role path:
+prove provider and catalog absence, prove the exact-name ordinary replacement
+inside rollback, create it once, authenticate directly, then rotate only the
+protected cleanup secret and digest. The normal path must also wait for
+database-catalog absence after Neon reports deletion complete so this
+non-replayable boundary cannot recur.
+
 The cleanup-only R2 deletion credential is still absent because no signed-in
 Cloudflare control surface was available. Do not substitute the application's
 R2 credential. Keep the worker, hourly scheduler and DirectUpload activation

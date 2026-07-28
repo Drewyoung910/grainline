@@ -136,11 +136,15 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /record_private_message` grant must also be absent/);
     assert.match(audit, /Aggregate legacy inspection/);
     assert.match(audit, /Keep Extra High through the cleanup-worker authority review/);
-    assert.match(audit, /explicit approval is required for each merge/);
+    assert.match(audit, /Standing authorization permits routine continuation/);
+    assert.match(audit, /Exact-commit\s+proof, protected-environment, migration, deployment and production postflight\s+gates remain mandatory/);
+    assert.match(audit, /f66aa92fa51954c44f73384d3b4f9761b618d437/);
+    assert.match(audit, /complete-deleted-neon-api-cleanup-role/);
     assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
     assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
     assert.match(strategy, /CM-A21 execution contract/);
     assert.match(strategy, /run `30225445722`/);
     assert.match(strategy, /Withhold the unused future\s+private-message recorder/);
+    assert.match(strategy, /first actual replacement attempt at exact main `f66aa92f`/i);
   });
 });
