@@ -5,6 +5,34 @@ import {
 export const DIRECT_UPLOAD_CLEANUP_ROLE =
   "grainline_direct_upload_cleanup";
 
+export const DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE = Object.freeze({
+  admin_option: true,
+  grantor_role: "cloud_admin",
+  inherit_option: false,
+  member_role: "neondb_owner",
+  set_option: false,
+});
+
+export function hasReviewedDirectUploadCleanupMemberPosture({
+  memberRoleEdges,
+  memberRoles,
+} = {}) {
+  if (!Array.isArray(memberRoleEdges) || !Array.isArray(memberRoles)) {
+    return false;
+  }
+  if (memberRoleEdges.length === 0) return memberRoles.length === 0;
+  if (
+    memberRoleEdges.length !== 1
+    || memberRoles.length !== 1
+    || memberRoles[0] !== DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE.member_role
+  ) {
+    return false;
+  }
+  const edge = memberRoleEdges[0];
+  return Object.entries(DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE)
+    .every(([key, value]) => edge?.[key] === value);
+}
+
 export const DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES = Object.freeze([
   "grainline_direct_upload_cleanup_lease",
   "grainline_direct_upload_cleanup_complete",

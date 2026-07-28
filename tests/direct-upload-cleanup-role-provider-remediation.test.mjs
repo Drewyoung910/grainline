@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
+  DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE,
+  hasReviewedDirectUploadCleanupMemberPosture,
+} from "../scripts/direct-upload-activation-catalog.mjs";
+import {
   buildDirectUploadCleanupDatabaseUrl,
   buildRejectedRolePreflightSql,
   buildReplacementProbeSql,
@@ -58,28 +62,43 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     assert.match(sql, /ROLLBACK/);
   });
 
-  it("probes then creates the SQL role with no final memberships", () => {
+  it("probes then creates the SQL role with only the forced bootstrap admin edge", () => {
     const verifier = makeScramVerifier(PASSWORD, Buffer.alloc(16, 9));
     const probe = buildReplacementProbeSql(verifier);
     const replacement = buildReplacementSql(verifier);
     for (const sql of [probe, replacement]) {
-      assert.match(sql, /CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L ADMIN %I/);
+      assert.match(sql, /CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L/);
+      assert.doesNotMatch(sql, /ADMIN %I/);
       assert.match(sql, /rolsuper/);
       assert.match(sql, /rolbypassrls/);
-      assert.match(sql, /parent_count <> 0 OR member_count <> 0/);
+      assert.match(sql, /reviewed_member_count <> 1/);
+      assert.match(sql, /unexpected_member_count <> 0/);
+      assert.match(sql, /unexpected_transitive_member_count <> 0/);
+      assert.match(sql, /grantor\.rolname = 'cloud_admin'/);
+      assert.doesNotMatch(sql, /\bREVOKE\b[\s\S]*\bFROM neondb_owner\b/);
     }
-    assert.match(
-      probe,
-      /REVOKE grainline_direct_upload_cleanup_replacement_probe FROM neondb_owner/,
-    );
     assert.match(probe, /ROLLBACK/);
-    assert.match(
-      replacement,
-      /REVOKE grainline_direct_upload_cleanup FROM neondb_owner/,
-    );
     assert.match(replacement, /COMMIT/);
     assert.ok(!probe.includes(PASSWORD));
     assert.ok(!replacement.includes(PASSWORD));
+  });
+
+  it("accepts no inbound member or only PostgreSQL 16's exact bootstrap edge", () => {
+    assert.equal(hasReviewedDirectUploadCleanupMemberPosture({
+      memberRoleEdges: [],
+      memberRoles: [],
+    }), true);
+    assert.equal(hasReviewedDirectUploadCleanupMemberPosture({
+      memberRoleEdges: [{ ...DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE }],
+      memberRoles: ["neondb_owner"],
+    }), true);
+    assert.equal(hasReviewedDirectUploadCleanupMemberPosture({
+      memberRoleEdges: [{
+        ...DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE,
+        set_option: true,
+      }],
+      memberRoles: ["neondb_owner"],
+    }), false);
   });
 
   it("builds only the reviewed non-pooled cleanup connection identity", () => {

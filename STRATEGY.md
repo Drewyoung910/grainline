@@ -258,6 +258,13 @@ rejected before receiving any cleanup grant: Neon API roles inherit
 through the guarded SQL-role provider-remediation operator, rotate the
 protected cleanup URL, then rerun the exact-main role-provision workflow.
 Do not weaken the cleanup-role posture to accommodate provider defaults.
+PostgreSQL 16 does force one narrowly reviewed reverse bootstrap edge when
+`neondb_owner` creates the replacement through SQL: `neondb_owner` is a member
+of the cleanup role with ADMIN only, INHERIT/SET disabled, granted by
+`cloud_admin`. This cannot be removed by the non-superuser creator. Accept only
+that exact non-effective edge (or zero edges if a provider superuser removes
+it); continue requiring zero cleanup-role parent memberships and no other
+direct or transitive members.
 
 The cleanup-only R2 deletion credential is still absent because no signed-in
 Cloudflare control surface was available. Do not substitute the application's

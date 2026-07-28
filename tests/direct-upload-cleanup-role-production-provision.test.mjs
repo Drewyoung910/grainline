@@ -8,6 +8,7 @@ import {
   DIRECT_UPLOAD_AUTHORITY_FUNCTIONS,
 } from "../scripts/direct-upload-authority-catalog.mjs";
 import {
+  DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE,
   DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
   DIRECT_UPLOAD_CLEANUP_ROLE,
 } from "../scripts/direct-upload-activation-catalog.mjs";
@@ -71,6 +72,7 @@ function validSnapshot() {
       runtime_execute_grantable: false,
     })),
     incompleteMigrationCount: 0,
+    memberRoleEdges: [],
     memberRoles: [],
     memberships: [],
     role: {
@@ -178,11 +180,29 @@ describe("DirectUpload cleanup-role production provision operator", () => {
     );
   });
 
+  it("accepts PostgreSQL 16's exact non-effective bootstrap admin edge", () => {
+    assert.deepEqual(
+      collectDirectUploadCleanupRoleProvisionIssues({
+        ...validSnapshot(),
+        memberRoleEdges: [{ ...DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE }],
+        memberRoles: ["neondb_owner"],
+      }),
+      [],
+    );
+  });
+
   it("rejects authority, membership, RLS, runtime, and transaction drift", () => {
     const cases = [
       { role: { ...validSnapshot().role, rolbypassrls: true } },
       { memberships: ["neondb_owner"] },
       { memberRoles: ["grainline_app_runtime"] },
+      {
+        memberRoleEdges: [{
+          ...DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE,
+          inherit_option: true,
+        }],
+        memberRoles: ["neondb_owner"],
+      },
       { tablePrivileges: ["public.DirectUpload:SELECT"] },
       { columnPrivileges: ["public.DirectUpload.userId:SELECT"] },
       { sequencePrivileges: ["public.example:USAGE"] },

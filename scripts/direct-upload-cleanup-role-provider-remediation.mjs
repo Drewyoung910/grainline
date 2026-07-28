@@ -33,6 +33,7 @@ import {
 } from "./neon-owner-password-control.mjs";
 import {
   DIRECT_UPLOAD_CLEANUP_ROLE,
+  hasReviewedDirectUploadCleanupMemberPosture,
 } from "./direct-upload-activation-catalog.mjs";
 import {
   parseGuardedNeonDatabaseIdentity,
@@ -408,7 +409,9 @@ DO $grainline_assert_role$
 DECLARE
   candidate record;
   parent_count integer;
-  member_count integer;
+  reviewed_member_count integer;
+  unexpected_member_count integer;
+  unexpected_transitive_member_count integer;
 BEGIN
   SELECT *
     INTO candidate
@@ -429,11 +432,49 @@ BEGIN
     FROM pg_catalog.pg_auth_members AS edge
    WHERE edge.member = candidate.oid;
   SELECT pg_catalog.count(*)::integer
-    INTO member_count
+    INTO reviewed_member_count
     FROM pg_catalog.pg_auth_members AS edge
-   WHERE edge.roleid = candidate.oid;
-  IF parent_count <> 0 OR member_count <> 0 THEN
-    RAISE EXCEPTION 'replacement cleanup role memberships are not empty';
+    JOIN pg_catalog.pg_roles AS member ON member.oid = edge.member
+    JOIN pg_catalog.pg_roles AS grantor ON grantor.oid = edge.grantor
+   WHERE edge.roleid = candidate.oid
+     AND member.rolname = 'neondb_owner'
+     AND grantor.rolname = 'cloud_admin'
+     AND edge.admin_option
+     AND NOT edge.inherit_option
+     AND NOT edge.set_option;
+  SELECT pg_catalog.count(*)::integer
+    INTO unexpected_member_count
+    FROM pg_catalog.pg_auth_members AS edge
+    JOIN pg_catalog.pg_roles AS member ON member.oid = edge.member
+    JOIN pg_catalog.pg_roles AS grantor ON grantor.oid = edge.grantor
+   WHERE edge.roleid = candidate.oid
+     AND NOT (
+       member.rolname = 'neondb_owner'
+       AND grantor.rolname = 'cloud_admin'
+       AND edge.admin_option
+       AND NOT edge.inherit_option
+       AND NOT edge.set_option
+     );
+  WITH RECURSIVE members AS (
+    SELECT member.oid, member.rolname
+      FROM pg_catalog.pg_auth_members AS edge
+      JOIN pg_catalog.pg_roles AS member ON member.oid = edge.member
+     WHERE edge.roleid = candidate.oid
+    UNION
+    SELECT member.oid, member.rolname
+      FROM members AS parent
+      JOIN pg_catalog.pg_auth_members AS edge ON edge.roleid = parent.oid
+      JOIN pg_catalog.pg_roles AS member ON member.oid = edge.member
+  )
+  SELECT pg_catalog.count(*)::integer
+    INTO unexpected_transitive_member_count
+    FROM members
+   WHERE rolname <> 'neondb_owner';
+  IF parent_count <> 0
+     OR reviewed_member_count <> 1
+     OR unexpected_member_count <> 0
+     OR unexpected_transitive_member_count <> 0 THEN
+    RAISE EXCEPTION 'replacement cleanup role membership posture is not exact';
   END IF;
 END
 $grainline_assert_role$;
@@ -496,13 +537,11 @@ export function buildReplacementProbeSql(scramVerifier) {
 \set replacement_verifier ${psqlLiteral(scramVerifier)}
 BEGIN;
 SELECT pg_catalog.format(
-  'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L ADMIN %I',
+  'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L',
   'grainline_direct_upload_cleanup_replacement_probe',
-  :'replacement_verifier',
-  'neondb_owner'
+  :'replacement_verifier'
 );
 \gexec
-REVOKE grainline_direct_upload_cleanup_replacement_probe FROM neondb_owner;
 ${roleAssertionSql("'grainline_direct_upload_cleanup_replacement_probe'")}
 ROLLBACK;
 \echo grainline_cleanup_role_replacement_probe_passed
@@ -526,13 +565,11 @@ BEGIN
 END
 $grainline_role_absent$;
 SELECT pg_catalog.format(
-  'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L ADMIN %I',
+  'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L',
   'grainline_direct_upload_cleanup',
-  :'replacement_verifier',
-  'neondb_owner'
+  :'replacement_verifier'
 );
 \gexec
-REVOKE grainline_direct_upload_cleanup FROM neondb_owner;
 ${roleAssertionSql("'grainline_direct_upload_cleanup'")}
 COMMIT;
 \echo grainline_cleanup_role_sql_replacement_committed
@@ -667,19 +704,44 @@ async function verifyReplacementConnection(connectionString) {
       FROM pg_catalog.pg_roles
       WHERE rolname = current_user
     `)).rows[0];
-    const membership = (await client.query(`
+    const parentMemberships = (await client.query(`
       SELECT
-        (
-          SELECT pg_catalog.count(*)::integer
-          FROM pg_catalog.pg_auth_members
-          WHERE member = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = current_user)
-        ) AS parent_count,
-        (
-          SELECT pg_catalog.count(*)::integer
-          FROM pg_catalog.pg_auth_members
-          WHERE roleid = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = current_user)
-        ) AS member_count
-    `)).rows[0];
+        parent.rolname
+      FROM pg_catalog.pg_auth_members AS edge
+      JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+      JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+      WHERE child.rolname = current_user
+      ORDER BY parent.rolname
+    `)).rows.map((row) => row.rolname);
+    const memberRoleEdges = (await client.query(`
+      SELECT
+        member.rolname AS member_role,
+        grantor.rolname AS grantor_role,
+        edge.admin_option,
+        edge.inherit_option,
+        edge.set_option
+      FROM pg_catalog.pg_auth_members AS edge
+      JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+      JOIN pg_catalog.pg_roles AS member ON member.oid = edge.member
+      JOIN pg_catalog.pg_roles AS grantor ON grantor.oid = edge.grantor
+      WHERE parent.rolname = current_user
+      ORDER BY member.rolname, grantor.rolname
+    `)).rows;
+    const memberRoles = (await client.query(`
+      WITH RECURSIVE members AS (
+        SELECT member.oid, member.rolname
+        FROM pg_catalog.pg_auth_members AS edge
+        JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+        JOIN pg_catalog.pg_roles AS member ON member.oid = edge.member
+        WHERE parent.rolname = current_user
+        UNION
+        SELECT member.oid, member.rolname
+        FROM members AS parent
+        JOIN pg_catalog.pg_auth_members AS edge ON edge.roleid = parent.oid
+        JOIN pg_catalog.pg_roles AS member ON member.oid = edge.member
+      )
+      SELECT DISTINCT rolname FROM members ORDER BY rolname
+    `)).rows.map((row) => row.rolname);
     if (
       role?.current_user !== DIRECT_UPLOAD_CLEANUP_ROLE
       || role?.session_user !== DIRECT_UPLOAD_CLEANUP_ROLE
@@ -690,8 +752,11 @@ async function verifyReplacementConnection(connectionString) {
       || !role.rolcanlogin
       || role.rolreplication
       || role.rolbypassrls
-      || Number(membership?.parent_count) !== 0
-      || Number(membership?.member_count) !== 0
+      || parentMemberships.length !== 0
+      || !hasReviewedDirectUploadCleanupMemberPosture({
+        memberRoleEdges,
+        memberRoles,
+      })
     ) {
       throw new Error("replacement cleanup-role connection posture is not exact");
     }
@@ -846,7 +911,9 @@ async function run() {
       apiCreatedRoleRejected: true,
       apiRoleDeleted: true,
       replacementAuthenticated: true,
-      replacementHasMemberships: false,
+      replacementHasParentMemberships: false,
+      replacementHasReviewedBootstrapAdminEdge: true,
+      replacementHasUnexpectedMemberEdges: false,
       replacementHasPrivilegedAttributes: false,
       replacementPasswordRotated: true,
       cleanupDatabaseUrlSha256: digest,
