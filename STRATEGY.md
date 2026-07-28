@@ -293,6 +293,17 @@ Because the principal is embedded in generated activation ACLs, a fresh full
 disposable activation plus database-first rollback proof is required before
 creating the versioned production login.
 
+That fresh versioned proof passed, but the first exact-main `v2` production
+creation also failed at commit with PostgreSQL `XX000` and left both role names
+absent. This disproves the narrower assumption that only the deleted name was
+blocked. The remaining shared operation is supplying a client-built SCRAM
+verifier to Neon SQL, the same credential path already retired for the owner
+rotation after `XX000`. The next guarded candidate must instead pin
+`password_encryption=scram-sha-256` and pass the generated password only
+through process memory/`psql` stdin so PostgreSQL performs the hash. Never put
+the password in argv, logs, evidence or git, and retain every existing
+attribute, membership, target and direct-authentication assertion.
+
 The cleanup-only R2 deletion credential is still absent because no signed-in
 Cloudflare control surface was available. Do not substitute the application's
 R2 credential. Keep the worker, hourly scheduler and DirectUpload activation

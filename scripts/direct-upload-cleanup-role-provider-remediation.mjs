@@ -13,8 +13,6 @@ import {
 } from "node:fs";
 import {
   createHash,
-  createHmac,
-  pbkdf2Sync,
   randomBytes,
 } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -427,33 +425,6 @@ function psqlLiteral(value) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-export function makeScramVerifier(password, salt = randomBytes(16)) {
-  if (
-    !SAFE_PASSWORD_PATTERN.test(password)
-    || !Buffer.isBuffer(salt)
-    || salt.length !== 16
-  ) {
-    throw new Error("cleanup-role password or SCRAM salt is invalid");
-  }
-  const iterations = 4096;
-  const saltedPassword = pbkdf2Sync(
-    Buffer.from(password, "utf8"),
-    salt,
-    iterations,
-    32,
-    "sha256",
-  );
-  const clientKey = createHmac("sha256", saltedPassword)
-    .update("Client Key")
-    .digest();
-  const storedKey = createHash("sha256").update(clientKey).digest();
-  const serverKey = createHmac("sha256", saltedPassword)
-    .update("Server Key")
-    .digest();
-  return `SCRAM-SHA-256$${iterations}:${salt.toString("base64")}`
-    + `$${storedKey.toString("base64")}:${serverKey.toString("base64")}`;
-}
-
 function roleAssertionSql(roleExpression) {
   return `
 DO $grainline_assert_role$
@@ -558,11 +529,11 @@ ROLLBACK;
 `;
 }
 
-export function buildVersionedReplacementProbeSql(scramVerifier) {
+export function buildVersionedReplacementProbeSql() {
   return String.raw`
 \set ON_ERROR_STOP on
-\set replacement_verifier ${psqlLiteral(scramVerifier)}
 BEGIN;
+SET LOCAL password_encryption = 'scram-sha-256';
 DO $grainline_role_absent$
 BEGIN
   IF EXISTS (
@@ -580,7 +551,7 @@ $grainline_role_absent$;
 SELECT pg_catalog.format(
   'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L',
   '${DIRECT_UPLOAD_CLEANUP_ROLE}',
-  :'replacement_verifier'
+  :'replacement_password'
 );
 \gexec
 ${roleAssertionSql(`'${DIRECT_UPLOAD_CLEANUP_ROLE}'`)}
@@ -589,11 +560,11 @@ ROLLBACK;
 `;
 }
 
-export function buildReplacementSql(scramVerifier) {
+export function buildReplacementSql() {
   return String.raw`
 \set ON_ERROR_STOP on
-\set replacement_verifier ${psqlLiteral(scramVerifier)}
 BEGIN;
+SET LOCAL password_encryption = 'scram-sha-256';
 DO $grainline_role_absent$
 BEGIN
   IF EXISTS (
@@ -611,7 +582,7 @@ $grainline_role_absent$;
 SELECT pg_catalog.format(
   'CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L',
   '${DIRECT_UPLOAD_CLEANUP_ROLE}',
-  :'replacement_verifier'
+  :'replacement_password'
 );
 \gexec
 ${roleAssertionSql(`'${DIRECT_UPLOAD_CLEANUP_ROLE}'`)}
@@ -620,9 +591,12 @@ COMMIT;
 `;
 }
 
-function runOwnerSql(cliPath, sql, marker) {
+function runOwnerSql(cliPath, sql, marker, replacementPassword) {
+  const secretPrefix = replacementPassword === undefined
+    ? ""
+    : `\\set replacement_password ${psqlLiteral(replacementPassword)}\n`;
   const stdout = runNeonCli(cliPath, buildPsqlArgs(), {
-    input: `\\set VERBOSITY verbose\n${sql}`,
+    input: `\\set VERBOSITY verbose\n${secretPrefix}${sql}`,
     timeout: 90_000,
     failureMessage: "reviewed owner SQL operation failed",
     classifyPostgresFailure: true,
@@ -834,12 +808,12 @@ async function run() {
   );
 
   const password = randomBytes(48).toString("base64url");
-  const scramVerifier = makeScramVerifier(password);
   remediationFailureStage = "versioned-replacement-probe";
   runOwnerSql(
     cliPath,
-    buildVersionedReplacementProbeSql(scramVerifier),
+    buildVersionedReplacementProbeSql(),
     "grainline_versioned_cleanup_role_probe_passed",
+    password,
   );
   if (process.argv.includes("--preflight")) {
     process.stdout.write(`${JSON.stringify({
@@ -859,8 +833,9 @@ async function run() {
   remediationFailureStage = "versioned-role-create";
   runOwnerSql(
     cliPath,
-    buildReplacementSql(scramVerifier),
+    buildReplacementSql(),
     "grainline_versioned_cleanup_role_committed",
+    password,
   );
   const connectionString = buildDirectUploadCleanupDatabaseUrl(password);
   remediationFailureStage = "replacement-connection-proof";

@@ -1091,6 +1091,29 @@ rerun the complete disposable PostgreSQL compatible, activation and
 database-first rollback program against the versioned role, then require fresh
 ordinary CI and production build evidence.
 
+The full versioned-role proof passed at exact candidate `318646a7`, and the
+candidate merged as main `62cc42e1`. Its production preflight then proved the
+exact Neon/GitHub targets, both role names absent and the versioned
+create/assert path under rollback. The actual run failed closed at
+`versioned-role-create` with PostgreSQL `XX000`; an immediate repeat of the
+same preflight again proved both names absent and no secret, grant, RLS, data,
+deployment, cleanup or R2 change. Because the fresh `v2` name fails in the same
+way as the retired name, name tombstoning is no longer a sufficient
+explanation. The common operation is the client-built SCRAM verifier supplied
+to SQL, which is also the operation class already retired after the production
+owner-password `XX000`.
+
+The next candidate therefore keeps the generated password exclusively in
+process memory and `psql` stdin, pins `password_encryption` to
+`scram-sha-256`, and lets PostgreSQL hash the plaintext during `CREATE ROLE`.
+The password remains absent from command arguments, stdout/stderr, evidence and
+git. This is a correction to the credential-transport method, not permission
+to weaken the role attributes, membership checks, exact-target checks or
+post-creation direct-authentication proof. Require a fresh exact-main
+preflight before the next actual run, preserve the failed `62cc42e1` attempt as
+negative evidence, and do not claim the provider's hidden `XX000` cause is
+proven until a persistent creation passes.
+
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
 tree and reached cleanup-role convergence, including the three intended
