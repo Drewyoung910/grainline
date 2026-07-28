@@ -45,7 +45,6 @@ type VerifiedCaseEvidence =
       ok: true;
       attachment: {
         directUploadId: string;
-        objectKey: string;
         contentType: string;
         byteSize: number;
       };
@@ -149,7 +148,6 @@ export async function verifyPrivateCaseEvidenceForPersistence({
     ok: true,
     attachment: {
       directUploadId: lifecycle.id,
-      objectKey: key,
       contentType: lifecycle.contentType,
       byteSize,
     },

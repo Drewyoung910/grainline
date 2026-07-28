@@ -25,9 +25,9 @@ describe("private CaseMessage evidence", () => {
     );
     assert.match(schema, /contentType\s+String\s+@db\.VarChar\(100\)/);
     assert.match(schema, /byteSize\s+Int/);
-    assert.match(
+    assert.doesNotMatch(
       schema.match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "",
-      /Compatibility-only duplicate[\s\S]*objectKey\s+String\s+@unique/,
+      /objectKey/,
     );
     assert.doesNotMatch(
       schema.match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "",
@@ -142,7 +142,13 @@ describe("private CaseMessage evidence", () => {
     assert.match(route, /referenceDirectUploadCaseAttachment\(\{[\s\S]*client: tx/);
     assert.match(
       route,
-      /attachments: \{[\s\S]*create:[\s\S]*objectKey: attachment\.objectKey,[\s\S]*directUploadId: attachment\.directUploadId[\s\S]*referenceDirectUploadCaseAttachment/,
+      /attachments: \{[\s\S]*create:[\s\S]*directUploadId: attachment\.directUploadId[\s\S]*referenceDirectUploadCaseAttachment/,
+    );
+    assert.doesNotMatch(
+      route.match(
+        /attachments: \{[\s\S]*?create: verifiedAttachments[\s\S]*?\n\s*\},/,
+      )?.[0] ?? "",
+      /objectKey:/,
     );
     assert.match(route, /attachmentKeysMatch/);
     assert.match(lifecycle, /grainline_direct_upload_reference_case_attachment/);

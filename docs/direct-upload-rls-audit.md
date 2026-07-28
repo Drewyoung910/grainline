@@ -906,6 +906,141 @@ disposable engine. It does not activate the worker, create provider
 credentials, prove R2 deletion, inspect production legacy data, apply
 DirectUpload RLS activation or change any persistent environment.
 
+### Compatibility-key retirement and activation proof
+
+The next isolated stack retires the duplicate
+`CaseMessageAttachment.objectKey` only after exact equality/reference/status
+preflight and keeps `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false`. The disabled
+application writes only the authoritative `directUploadId`; it no longer
+carries the private object key in the persistence result. The disposable
+retirement candidate validates the six staged DirectUpload constraints,
+replaces the attachment binding trigger with id-derived validation and changes
+no RLS flag or grant. The following activation candidate requires the exact
+clean predecessor, then makes both `DirectUpload` and
+`DirectUploadReference` policyless ENABLE plus FORCE service tables with zero
+direct runtime/worker table authority. Its exact function partition is 17
+ordinary-runtime, 3 isolated cleanup-worker and 15 private functions; the
+unused private-message recorder remains withheld.
+
+The same disposable workflow also contains two separate live gates:
+
+- activated authority proves exact function identities, owners, source hashes,
+  modes and ACLs; direct table denial for both roles; fixed public/Case
+  operations; foreign-source denial; retired Case attachment identity; and a
+  fenced cleanup lease/complete flow; and
+- database-first rollback disables DirectUpload RLS before restoring the old
+  runtime CRUD/four compatibility functions, executes old-app direct CRUD,
+  then restores both FORCE tables and the exact 17/3 function partition with
+  zero fixture residue. The retired duplicate key is deliberately not
+  recreated; the rollback target is the drained compatible app, not an ancient
+  pre-drain deployment.
+
+The first clean PostgreSQL 16.14 execution, GitHub Actions run `30232279615`
+(job `89873270366`) at commit `af4d0f8e`, passed the current 166 migrations,
+runtime/cleanup-role convergence, global pre-activation grant/RLS audit,
+static contracts, compatible authority proof and both candidate generators.
+The retirement candidate applied, but Prisma reported the activation
+transaction only as `current transaction is aborted`, without the original
+statement error. This is failed activation evidence: no activation,
+rollback or post-activation authority claim is accepted from that run. The
+database was the disposable loopback CI service; it changed neither persistent
+staging nor production. The workflow now executes each generated candidate
+with `psql --echo-errors -v ON_ERROR_STOP=1` and records the exact successful
+bytes in Prisma's disposable ledger afterward, so the next run retains the
+load-bearing PostgreSQL diagnostic instead of Prisma's secondary transaction
+error.
+
+The diagnostic rerun, GitHub Actions run `30232434982` (job `89873695544`)
+at commit `6cbf2681`, again passed preparation and retirement, then exposed the
+original activation error exactly. Activation completed preflight, all
+function/table revokes and grants, and both tables' ENABLE plus FORCE
+statements inside its transaction; the final table-ACL postflight failed to
+parse because the newly strengthened per-privilege/runtime-worker query did
+not close its first `EXISTS` before the separate `PUBLIC` ACL `EXISTS`.
+PostgreSQL rolled the entire activation transaction back. This was a generated
+postflight syntax defect, not a passed or partially committed activation, and
+the disposable service database changed neither persistent staging nor
+production. The correction closes both predicates independently and adds a
+class-specific static regression assertion. A fresh full run is still required
+before any activation/rollback evidence is accepted.
+
+The corrected candidate then applied completely in GitHub Actions run
+`30232549766` (job `89874007172`) at commit `9c54af1f`; both runtime and cleanup
+role provisioners also reconverged the activated state. The following global
+grant audit correctly stopped because its source-derived generic function
+rule still expected the three cleanup functions and the unused private-message
+recorder to remain executable by the ordinary runtime. This was stale audit
+classification, not an activation or provisioning failure. Restoring those
+grants would violate the reviewed separation, so the audit now derives the
+activated runtime-private set from the exact function catalog and requires
+those four functions to remain withheld. The run did not reach live activated
+authority or rollback proof, remains failed evidence, and used only the
+disposable CI database.
+
+Run `30232738558` (job `89874534822`) at commit `0adc668b` then passed the
+activated global grant/RLS audit and exact migration status. Its duplicate
+post-staging static step failed because the schema-source inventory contract
+correctly pins the committed tree's 95 revokes, while the two intentionally
+staged disposable candidates raise that temporary working-tree count to 131.
+The same contract had already passed before staging, and the live activated
+audit had just passed; rerunning that committed-tree cardinality assertion
+after mutating the disposable migration directory was a workflow-ordering
+error. The post-staging step now retains only harness contracts that are
+state-independent. This run did not execute the live activated authority or
+rollback scripts and therefore remains failed evidence.
+
+Run `30232827314` (job `89874779664`) at commit `3b58888c` passed every
+migration, role convergence, pre/post-activation global audit, exact status and
+static contract, then entered the live activated authority proof. Its first
+function-identity comparison stopped on PostgreSQL representation:
+`pg_get_function_identity_arguments()` returned named arguments such as
+`p_user_id text`, while the callable catalog intentionally stores type-only
+signatures such as `text` for `to_regprocedure`. No authority mismatch was
+reported. Both live activation and rollback proofs now use
+`oidvectortypes(proargtypes)`, PostgreSQL's exact type-only representation.
+The run did not reach behavioral authority or rollback checks, so it remains
+failed disposable evidence.
+
+The corrected exact-stack execution, GitHub Actions run `30232923132` (job
+`89875033710`) at commit `7de1b836`, passed on PostgreSQL 16.14. It applied the
+current 166 migrations, proved compatible authority, then staged and applied
+the two disposable retirement/activation candidates (168 total), reconverged
+both least-privilege roles, passed the activated global grant/RLS audit, and
+verified exact migration status. The live activated proof passed four checks:
+
+1. `activated_catalog_source_and_acl`;
+2. `runtime_and_worker_direct_denial`;
+3. `runtime_fixed_authority_and_retired_case_key`; and
+4. `isolated_cleanup_lease_fence`.
+
+The separate database-first rollback proof passed old-application direct CRUD
+compatibility, exact function-partition restoration, exact ENABLE plus FORCE
+restoration on both policyless service tables, preserved retirement of
+`objectKey`, and left zero fixture residue. Both proof payloads recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the disposable
+database and candidates were destroyed with the job.
+
+This accepts the retirement/activation SQL shape, catalog/source/ACL partition,
+fixed runtime behavior, isolated worker fencing and reversible database-first
+compatibility path on the disposable engine. It does **not** promote either
+candidate into the committed migration tree, inspect or repair production
+legacy rows, create the production cleanup role/provider credentials, prove R2
+deletion, deploy the compatible app, complete an old-instance drain, activate
+production RLS, or enable either private-object feature. Those remain separate
+reviewed gates.
+
+The final Extra-High authority review added two explicit assertions that the
+accepted run had only implied: a third, non-participant user receives no Case
+attachment-read row, and the rollback postflight re-queries the catalog to
+prove `CaseMessageAttachment.objectKey` remains absent after exact activation
+restoration. GitHub Actions run `30233243581` (job `89875935635`) at exact
+commit `6449d722` repeated the complete PostgreSQL 16.14 program and passed
+every gate, including both strengthened checks. It recorded the same four
+activated proof groups and successful database-first rollback/restoration with
+no persistent-staging or production change. This is the current accepted
+disposable-engine proof head; it supersedes `7de1b836` only by adding those
+assertions, not by changing the authority design.
+
 The 2026-07-28 Extra-High review supersedes that run for release. Its catalog
 check was exact only inside `grainline_direct_upload_*`; it did not reject
 another accessible public `SECURITY DEFINER` function, column-only relation
@@ -961,11 +1096,78 @@ the disposable engine. It does not create or exercise a live cleanup
 credential, GitHub environment, R2 credential, schedule or production
 activation.
 
+Because the accepted retirement/activation run at `6449d722` predates this
+cleanup-authority hardening, it remains useful design evidence but is
+superseded for release. The integrated retirement/activation tree must repeat
+the complete disposable PostgreSQL activation and database-first rollback
+program against the hardened global catalog, role-membership, default-grant and
+function-security checks before PR #61 can be accepted.
+
+The integrated 2026-07-28 SQL review then found that both generated candidates
+took their exclusive table locks after inspecting mutable catalog/data state.
+The documented disabled-app drain reduces that race in production, but the
+migration itself should not depend on timing: both candidates now take their
+fixed-order `ACCESS EXCLUSIVE` locks immediately after the rollout advisory
+lock and before any preflight. The activation preflight also checks inbound and
+outbound role memberships, and both the candidate and live proof require every
+catalog entry to remain an ordinary `pg_proc.prokind = 'f'` function. Static
+regressions pin those class-wide invariants. Any proof run predating these
+changes is superseded; a fresh exact-tree disposable activation plus
+database-first rollback run remains required.
+
+Integrated run `30330040739` at merge head `3a61fa50` completed successfully,
+but it began before the lock-order/function-kind corrections and is deliberately
+not accepted as release evidence.
+
+The replacement exact-tree PostgreSQL 16.14 execution, GitHub Actions run
+`30330329787` (job `90183904860`) at executable commit
+`b843e21e88bfa79f4951e2e18329408671b9f49a`, passed the complete program. It
+applied all 166 committed migrations, converged the production-style runtime
+role and hardened isolated cleanup role, passed migration status, the global
+grant/RLS audit, pre-activation static contracts and the eight-check compatible
+authority proof, then generated and applied only these disposable candidates:
+
+- `20260726190000_retire_direct_upload_compatibility_key`, SHA-256
+  `adbad525ca29a6ea42227d3b196659a04b8a39daf0dbb06a859ba3b5dca3a9d6`;
+- `20260726190500_enable_direct_upload_rls`, SHA-256
+  `fe4da53160f2add8a7303bcca0a6bc310b07cdb02e16c39213cabf63a56cec21`.
+
+After 168 total migrations it reconverged both roles, passed the activated
+global audit and exact migration status, then passed all four activated checks:
+`activated_catalog_source_and_acl`, `runtime_and_worker_direct_denial`,
+`runtime_fixed_authority_and_retired_case_key`, and
+`isolated_cleanup_lease_fence`. The separate database-first rollback proved
+old-application direct CRUD compatibility, exact function-partition
+restoration, exact FORCE restoration, preservation of `objectKey` retirement
+and zero fixture residue. Both proof payloads recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the service
+database, roles, fixtures and candidate directories were discarded with the
+job. This accepts the integrated candidate bytes and database proof at
+`b843e21e` only. It does not promote a migration, inspect production, create a
+role/credential/provider object, exercise R2, deploy, activate RLS or enable
+private Case evidence.
+
+Local validation at `b843e21e` passed Prisma generation, `tsc --noEmit`, lint
+(with the existing JSX analyzer warning), all 2,172 runnable repository tests
+and 3 intentional skips. Turbopack compiled the production application
+successfully twice in the disposable worktree, but Next's subsequent
+type-check worker exhausted both the default 2 GiB and explicit 4 GiB Node heap
+on the 8 GiB local host. Because the separate TypeScript pass is green, this is
+classified as a local resource failure rather than a source/type failure, but
+it is not called a successful production build. PR #60 exact head
+`c667e5c96f203301e1d6c64300b537187976288e` merged into `main` as
+`9d3a55e078e21264f40765cedeedf81a5e6d2187` on 2026-07-28. PR #61 was then
+retargeted to that `main` head while remaining draft. A fresh clean-runner CI
+production build against the retargeted PR is still a mandatory gate before
+any merge.
+
 ## Exit
 
 Keep Extra High through the cleanup-worker authority review and the downstream
-retirement/activation branch rebase and SQL review. PR #60 remains a draft
-scaffold until its exact proof record, final CI and review boundary are clean;
-it does not authorize a merge or any provider/production mutation. A later
-explicit approval is required for each merge, provider credential/role change,
+retirement/activation SQL review. PR #60 is merged, but merge-only created no
+provider, credential, role, database, scheduler or deployment state. Retargeted
+PR #61 remains draft until its exact proof record, fresh `main`-targeted CI and
+review boundaries are clean; it authorizes no merge or provider/production
+mutation. A later explicit approval is required for each merge that remains,
+including PR #61, and separately for each provider credential/role change,
 production inspection, migration and deployment.

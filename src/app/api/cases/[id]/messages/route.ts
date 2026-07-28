@@ -253,7 +253,6 @@ export async function POST(
 
     const verifiedAttachments: Array<{
       directUploadId: string;
-      objectKey: string;
       contentType: string;
       byteSize: number;
     }> = [];
@@ -417,7 +416,6 @@ export async function POST(
           attachments: {
             create: verifiedAttachments.map((attachment) => ({
               uploaderId: lockedActor.id,
-              objectKey: attachment.objectKey,
               directUploadId: attachment.directUploadId,
               contentType: attachment.contentType,
               byteSize: attachment.byteSize,

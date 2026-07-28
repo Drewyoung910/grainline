@@ -512,6 +512,87 @@ REVOKE INSERT, UPDATE, DELETE ON TABLE
 FROM :"runtime_role";
 \endif
 
+-- DirectUpload starts as a legacy CRUD table while its service-only reference
+-- ledger starts FORCE-hardened with zero policies. Activation is exact only
+-- when both tables have ENABLE plus FORCE, zero policies and no direct runtime
+-- authority. Refuse every partial state; never let a provisioning rerun
+-- silently restore DirectUpload CRUD after activation.
+WITH table_state AS (
+  SELECT
+    c.relname,
+    c.relrowsecurity,
+    c.relforcerowsecurity,
+    COUNT(p.oid)::integer AS policy_count
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  LEFT JOIN pg_policy p ON p.polrelid = c.oid
+  WHERE n.nspname = 'public'
+    AND c.relname IN ('DirectUpload', 'DirectUploadReference')
+    AND c.relkind IN ('r', 'p')
+  GROUP BY c.relname, c.relrowsecurity, c.relforcerowsecurity
+), direct_upload_activation AS (
+  SELECT
+    COUNT(*) = 2
+      AND bool_and(
+        relrowsecurity
+        AND relforcerowsecurity
+        AND policy_count = 0
+      ) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        relname = 'DirectUpload'
+        AND NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS preparation_absent,
+    COUNT(*) = 2
+      AND bool_and(
+        policy_count = 0
+        AND (
+          (
+            relname = 'DirectUpload'
+            AND NOT relrowsecurity
+            AND NOT relforcerowsecurity
+          )
+          OR (
+            relname = 'DirectUploadReference'
+            AND relrowsecurity
+            AND relforcerowsecurity
+          )
+        )
+      ) AS clean_predecessor
+  FROM table_state
+), failure AS (
+  SELECT
+    'DirectUpload RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+  FROM direct_upload_activation
+  WHERE NOT active AND NOT preparation_absent AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE(
+    (SELECT active FROM direct_upload_activation),
+    false
+  ) AS direct_upload_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :direct_upload_rls_active
+REVOKE ALL ON TABLE public."DirectUpload" FROM :"runtime_role";
+\endif
+
 GRANT USAGE ON TYPE
   public."BlogAuthorType",
   public."BlogPostStatus",
@@ -705,6 +786,24 @@ SELECT format(
  WHERE runtime_execute
    AND to_regprocedure(function_signature) IS NOT NULL;
 \gexec
+
+\if :direct_upload_rls_active
+REVOKE ALL ON FUNCTION
+  public.grainline_direct_upload_record_private_message(
+    text, text, text, text, integer
+  )
+  FROM :"runtime_role";
+REVOKE ALL ON FUNCTION
+  public.grainline_direct_upload_cleanup_lease(integer)
+  FROM :"runtime_role";
+REVOKE ALL ON FUNCTION
+  public.grainline_direct_upload_cleanup_complete(text, text)
+  FROM :"runtime_role";
+REVOKE ALL ON FUNCTION
+  public.grainline_direct_upload_cleanup_fail(text, text, text)
+  FROM :"runtime_role";
+\endif
+\unset direct_upload_rls_active
 
 -- These RPCs are introduced by a migration that runs after first-time role
 -- provisioning. Skip them when they do not exist yet; their migration applies

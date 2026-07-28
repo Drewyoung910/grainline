@@ -41,9 +41,12 @@ const {
   collectPolicylessServiceRlsIssues,
   collectTablePrivilegeAllowlistIssues,
   defaultPrivilegeRequirements,
+  directUploadRlsActivationExpected,
   deriveGrantInventory,
+  policylessServiceRlsTableNames,
   requiredRuntimeColumnPrivileges,
   requiredRuntimeTablePrivileges,
+  runtimePrivateFunctionNames,
   formatSavedSearchCatalogEvidence,
   normalizeSavedSearchCatalogState,
   parseGrantAuditDatabaseIdentity,
@@ -384,6 +387,10 @@ describe("database grant inventory guardrails", () => {
     const conversationMessageInventory = {
       rlsPolicyTables: ["SavedSearch", "Notification", "Conversation", "Message"],
     };
+    const directUploadActivationInventory = {
+      rlsForceTables: ["DirectUpload", "DirectUploadReference"],
+      rlsPolicyTables: [],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -404,6 +411,51 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
       "DirectUploadReference",
     ]);
+    assert.equal(
+      directUploadRlsActivationExpected(directUploadActivationInventory),
+      true,
+    );
+    assert.deepEqual(
+      policylessServiceRlsTableNames(directUploadActivationInventory),
+      ["DirectUploadReference", "DirectUpload"],
+    );
+    const activatedPrivateFunctions = runtimePrivateFunctionNames(
+      directUploadActivationInventory,
+    );
+    assert.equal(
+      activatedPrivateFunctions.includes(
+        "grainline_direct_upload_record_private_message",
+      ),
+      true,
+    );
+    for (const cleanupFunction of [
+      "grainline_direct_upload_cleanup_lease",
+      "grainline_direct_upload_cleanup_complete",
+      "grainline_direct_upload_cleanup_fail",
+    ]) {
+      assert.equal(activatedPrivateFunctions.includes(cleanupFunction), true);
+    }
+    assert.deepEqual(
+      runtimePrivateFunctionNames({
+        rlsForceTables: ["DirectUploadReference"],
+        rlsPolicyTables: [],
+      }),
+      [...RUNTIME_PRIVATE_FUNCTIONS],
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        "DirectUpload",
+        directUploadActivationInventory,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        "DirectUpload",
+        { rlsForceTables: ["DirectUploadReference"], rlsPolicyTables: [] },
+      ),
+      REQUIRED_TABLE_PRIVILEGES,
+    );
     assert.deepEqual(
       requiredRuntimeTablePrivileges("Notification", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -529,6 +581,32 @@ describe("database grant inventory guardrails", () => {
         "service-only table DirectUploadReference must have ROW LEVEL SECURITY enabled",
         "service-only table DirectUploadReference must have FORCE ROW LEVEL SECURITY enabled",
         "service-only table DirectUploadReference must retain zero policies",
+      ],
+    );
+    const activatedInventory = {
+      ...inventory,
+      rlsForceTables: ["DirectUpload", "DirectUploadReference"],
+      rlsPolicyTables: [],
+    };
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: "DirectUpload",
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+        ],
+        activatedInventory,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(exact, activatedInventory),
+      [
+        "service-only table DirectUpload must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
       ],
     );
   });
@@ -1570,7 +1648,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 10);
+    assert.equal(guardResultCount, 11);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -1592,6 +1670,18 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /GRANT USAGE ON SCHEMA public TO :"runtime_role"/);
     assert.match(provision, /REVOKE CREATE ON SCHEMA public FROM :"runtime_role"/);
     assert.match(provision, /REVOKE CREATE ON DATABASE/);
+    assert.match(
+      provision,
+      /DirectUpload RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :direct_upload_rls_active[\s\S]*REVOKE ALL ON TABLE public\."DirectUpload"/,
+    );
+    assert.match(
+      provision,
+      /grainline_direct_upload_record_private_message[\s\S]*grainline_direct_upload_cleanup_lease[\s\S]*FROM :"runtime_role"/,
+    );
     assert.match(provision, /aclexplode/);
     assert.match(provision, /REVOKE %s ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /REVOKE GRANT OPTION FOR %s ON TABLE %I\.%I FROM %I/);

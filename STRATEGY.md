@@ -258,6 +258,89 @@ scaffold's hardened database authority partition only; live provider
 credentials, R2 deletion, scheduling and DirectUpload activation remain
 separate gates.
 
+The compatibility-key retirement and DirectUpload activation candidates are
+now saved on a further isolated stack, still unapplied outside disposable CI.
+The retirement boundary drops only the duplicate Case attachment key after
+exact legacy/reference proof; the disabled app persists only
+`directUploadId`. Activation retains zero policies and zero direct table
+authority, partitions the 35 reviewed functions as 17 runtime / 3 cleanup /
+15 private, and withholds the unused private-message recorder. A
+database-first compatibility rollback is part of the activation gate and
+restores the exact activated state afterward without recreating the retired
+duplicate key.
+
+The first combined disposable run (`30232279615`, commit `af4d0f8e`) stopped
+fail-closed while applying activation after retirement; Prisma surfaced only
+the secondary aborted-transaction message. It is not activation evidence and
+changed no persistent environment. Preserve the failed record and require a
+fresh PostgreSQL 16 run with exact statement diagnostics, live activated
+authority, rollback and zero-residue restoration before promotion. This does
+not change production sequencing: compatible disabled app and drain,
+aggregate-only production inspection, separately approved repair/backfill,
+provider/worker proof, activation, pooled-runtime postflight, then a separate
+Case private-evidence release.
+
+Diagnostic run `30232434982` exposed the underlying failure as one missing
+parenthesis between two activation postflight ACL predicates. The activation
+transaction had reached its final audit after applying its revokes, grants and
+RLS flags, so PostgreSQL's transaction rollback prevented any partial state.
+The syntax and class-specific regression contract are corrected; the run
+remains failed evidence and a fresh exact PostgreSQL pass is mandatory.
+
+Run `30232549766` subsequently proved the corrected activation SQL applies and
+both roles reconverge, but the global audit stopped on its older expectation
+that all four compatibility/cleanup functions stay runtime-executable. Keep
+the least-privilege design; the audit now derives the activated private set
+from the exact 35-function catalog. This run also remains failed disposable
+evidence and does not satisfy the live-authority or rollback gate.
+
+Run `30232738558` passed the activated global audit and migration status but
+then reran an unstaged-tree cardinality test after intentionally adding both
+disposable candidates. Keep that source-inventory contract before staging;
+post-staging, run only state-independent harness contracts. The run remains
+failed evidence because live activated authority and rollback did not execute.
+
+Run `30232827314` reached live activated catalog proof after every preceding
+gate passed, then stopped because its identity comparison used PostgreSQL's
+named-argument display against a type-only callable catalog. Use
+`oidvectortypes(proargtypes)` in both live proofs; do not weaken the exact
+identity comparison. Behavioral authority and rollback still require a fresh
+pass.
+
+Exact commit `7de1b836` passed the complete disposable CM-A21
+retirement/activation program in PostgreSQL 16.14 run `30232923132` (job
+`89875033710`): 166 committed plus 2 staged migrations, compatible and
+activated global audits, exact 17/3/15 function partition, direct table
+denials, fixed runtime behavior, cleanup lease fencing, database-first
+old-app-compatible rollback and exact activation restoration. Both proof
+payloads recorded no persistent-staging or production change. Treat this as
+accepted disposable-engine evidence only; all production/provider/legacy
+inspection and feature-release gates above remain mandatory and separately
+approved.
+
+Final proof commit `6449d722` passed PostgreSQL 16.14 run `30233243581` (job
+`89875935635`) after adding explicit foreign Case-attachment denial and
+post-rollback `objectKey`-absence checks. That run remains useful design
+evidence but is superseded for release by the later cleanup-role hardening and
+integrated SQL review. Both generated candidates must take their fixed-order
+exclusive table locks before inspecting mutable state; activation must reject
+both role-membership directions and any non-ordinary DirectUpload catalog
+entry. A fresh exact-tree disposable activation and database-first rollback
+pass is required. These corrections do not change any production gate or
+authorize promotion.
+
+The corrected exact-tree PostgreSQL 16.14 run `30330329787` (job
+`90183904860`) passed at executable commit
+`b843e21e88bfa79f4951e2e18329408671b9f49a`. It repeated the 166-migration
+compatible authority program, staged the reviewed retirement and activation
+candidates (SHA-256 `adbad525ca29a6ea42227d3b196659a04b8a39daf0dbb06a859ba3b5dca3a9d6`
+and `fe4da53160f2add8a7303bcca0a6bc310b07cdb02e16c39213cabf63a56cec21`),
+then passed activated role convergence/global audit, the four live authority
+checks and database-first rollback/exact restoration with no
+persistent-staging or production change. This accepts disposable database
+evidence only; every production/provider/legacy/drain/private-feature gate
+remains separate and explicitly approved.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

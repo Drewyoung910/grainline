@@ -18,6 +18,9 @@ import {
 import {
   DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES,
 } from "./direct-upload-authority-catalog.mjs";
+import {
+  DIRECT_UPLOAD_ACTIVATION_FUNCTIONS,
+} from "./direct-upload-activation-catalog.mjs";
 
 const { Client } = pg;
 
@@ -171,11 +174,33 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   ...NOTIFICATION_PRIVATE_RPC_FUNCTIONS,
 ]);
 
-const RUNTIME_PRIVATE_FUNCTION_NAME_SET = new Set(RUNTIME_PRIVATE_FUNCTIONS);
 const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);
 const POLICYLESS_SERVICE_RLS_TABLE_NAME_SET = new Set(
   POLICYLESS_SERVICE_RLS_TABLES,
 );
+
+export function directUploadRlsActivationExpected(inventory) {
+  return (inventory?.rlsForceTables ?? []).includes("DirectUpload")
+    && !(inventory?.rlsPolicyTables ?? []).includes("DirectUpload");
+}
+
+export function runtimePrivateFunctionNames(inventory) {
+  if (!directUploadRlsActivationExpected(inventory)) {
+    return [...RUNTIME_PRIVATE_FUNCTIONS];
+  }
+  return sortedUnique([
+    ...RUNTIME_PRIVATE_FUNCTIONS,
+    ...DIRECT_UPLOAD_ACTIVATION_FUNCTIONS
+      .filter((entry) => !entry.runtimeExecute)
+      .map((entry) => entry.name),
+  ]);
+}
+
+export function policylessServiceRlsTableNames(inventory) {
+  return directUploadRlsActivationExpected(inventory)
+    ? [...POLICYLESS_SERVICE_RLS_TABLES, "DirectUpload"]
+    : [...POLICYLESS_SERVICE_RLS_TABLES];
+}
 
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
@@ -956,7 +981,13 @@ export function defaultPrivilegeRequirements(inventory) {
 
 export function requiredRuntimeTablePrivileges(tableName, inventory) {
   const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
-  if (RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)) {
+  if (
+    RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)
+    || (
+      tableName === "DirectUpload"
+      && directUploadRlsActivationExpected(inventory)
+    )
+  ) {
     return [];
   }
   if (
@@ -986,7 +1017,7 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
   const rowByTable = new Map(
     (Array.isArray(rows) ? rows : []).map((row) => [row.table_name, row]),
   );
-  for (const tableName of POLICYLESS_SERVICE_RLS_TABLES) {
+  for (const tableName of policylessServiceRlsTableNames(inventory)) {
     if (!(inventory?.tables ?? []).includes(tableName)) continue;
     const row = rowByTable.get(tableName);
     if (!row) {
@@ -1583,7 +1614,11 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       );
     }
     const policylessServiceTable =
-      POLICYLESS_SERVICE_RLS_TABLE_NAME_SET.has(row.table_name);
+      POLICYLESS_SERVICE_RLS_TABLE_NAME_SET.has(row.table_name)
+      || (
+        row.table_name === "DirectUpload"
+        && directUploadRlsActivationExpected(inventory)
+      );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(
         `table ${row.table_name} has ROW LEVEL SECURITY enabled but zero policies`,
@@ -1841,6 +1876,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     [runtimeRole],
   );
   const functionNames = sortedUnique(functionResult.rows.map((row) => row.function_name));
+  const runtimePrivateFunctionNameSet = new Set(
+    runtimePrivateFunctionNames(inventory),
+  );
   issues.push(
     ...missingItems(inventory.functions, functionNames).map((fn) => `missing expected function ${fn}`),
   );
@@ -1848,7 +1886,8 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     ...functionNames.filter((fn) => !inventory.functions.includes(fn)).map((fn) => `live DB has untracked grainline_* function ${fn}`),
   );
   for (const row of functionResult.rows) {
-    const runtimeExecuteExpected = !RUNTIME_PRIVATE_FUNCTION_NAME_SET.has(row.function_name);
+    const runtimeExecuteExpected =
+      !runtimePrivateFunctionNameSet.has(row.function_name);
     if (runtimeExecuteExpected && !row.execute_priv) {
       issues.push(`${row.function_name}(${row.args}) lacks EXECUTE`);
     }
