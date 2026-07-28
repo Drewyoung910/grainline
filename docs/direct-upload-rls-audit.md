@@ -1384,6 +1384,31 @@ activated authority and database-first rollback/restoration. It recorded
 `persistentStagingChanged=false` and `productionChanged=false`; production and
 provider state were not addressed.
 
+One later external review then misread the nested postflight call graph and
+incorrectly claimed the denial probes had moved outside the read-only
+transaction. They remain inside
+`proveDirectUploadPreparationRuntimeCatalog()`: `BEGIN TRANSACTION READ ONLY`
+precedes identity, catalog and the `proveReadOnlyRuntimeBoundary()` call, and
+rollback follows them. Rather than leave that fact dependent on source
+interpretation, executable commit
+`ec7a64207092e2147fa2c27e0dc32a60aaee90af` makes the postflight require
+PostgreSQL's own `transaction_read_only` setting to equal `on` and pins the
+entire call order in regression coverage. Disposable PostgreSQL 16 run
+`30387080175` (job `90368993900`) passed the compatible proof, disposable
+retirement and activation, activated authority and database-first
+rollback/restoration with no persistent-staging, provider or production
+change.
+
+CI run `30387032981` at that checkpoint failed only because a documentation
+line wrap changed `does **not**` to two lines while its assertion allowed
+whitespace after, but not before, the emphasized word. Application,
+migration, grant and disposable PostgreSQL proofs did not fail. Exact CI-fix
+checkpoint `474e8af850c16538fecadf7d36fd4e8078e46c28` normalizes both whitespace
+boundaries; local validation passed 2,172 runnable tests with three intentional
+skips, TypeScript and lint, and final CI run `30388302173` (job `90373084923`)
+passed the full migration/grant/RLS checks, test suite, dependency audit and
+production build.
+
 ## Exit
 
 Keep Extra High through the scheduler-handoff authority/sequencing review.
