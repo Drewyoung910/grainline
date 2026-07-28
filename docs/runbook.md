@@ -1009,6 +1009,13 @@ RLS staging context proof:
   process memory and `psql` stdin, let PostgreSQL hash it, then require direct
   authentication plus the exact role/membership proof before rotating the
   protected GitHub secret.
+- Once that SQL cleanup role exists, every shared migration-owner posture guard
+  must include the forced reverse bootstrap edge as an exact third membership:
+  parent `grainline_direct_upload_cleanup_v2`, member `neondb_owner`, grantor
+  `cloud_admin`, `ADMIN=true`, `INHERIT=false`, `SET=false`. This is not
+  inherited or settable cleanup authority. Reject any different role, extra
+  edge, or option drift, and keep the cleanup role's own parent-membership list
+  empty.
 - Verify the list function's explicit 16-column SQL projection and the helper's
   matching application projection. SQL columns must remain in PostgreSQL
   physical `attnum` order for the `SETOF public."SavedSearch"` return contract.

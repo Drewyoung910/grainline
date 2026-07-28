@@ -304,6 +304,16 @@ through process memory/`psql` stdin so PostgreSQL performs the hash. Never put
 the password in argv, logs, evidence or git, and retain every existing
 attribute, membership, target and direct-authentication assertion.
 
+Exact main `9c853676` proved this correction in production: the v2 ordinary
+login committed, authenticated directly, retained only the reviewed
+non-effective reverse bootstrap edge, and rotated only the protected cleanup
+URL/digest. The first three-function provision run then failed before grants
+because the older global migration-owner guard had not incorporated that
+already-reviewed third membership row. Keep the edge accepted only as
+`ADMIN=true`, `INHERIT=false`, `SET=false`; update every shared owner-posture
+contract together, and rerun the protected provision workflow from fresh exact
+main. Do not broaden the acceptance to arbitrary child roles or options.
+
 The cleanup-only R2 deletion credential is still absent because no signed-in
 Cloudflare control surface was available. Do not substitute the application's
 R2 credential. Keep the worker, hourly scheduler and DirectUpload activation

@@ -40,10 +40,20 @@ function ownerRole() {
     rolcanlogin: true,
     rolreplication: true,
     rolbypassrls: true,
-    memberships: ["grainline_app_runtime", "neon_superuser"],
+    memberships: [
+      "grainline_app_runtime",
+      "grainline_direct_upload_cleanup_v2",
+      "neon_superuser",
+    ],
     membership_options: [
       {
         role: "grainline_app_runtime",
+        adminOption: true,
+        inheritOption: false,
+        setOption: false,
+      },
+      {
+        role: "grainline_direct_upload_cleanup_v2",
         adminOption: true,
         inheritOption: false,
         setOption: false,
@@ -132,6 +142,7 @@ describe("isolated production migration runner", () => {
       (state) => { state.savedSearch.rls_forced = false; },
       (state) => { state.incompleteMigrationCount = 1; },
       (state) => { state.ownerRole.membership_options[0].setOption = true; },
+      (state) => { state.ownerRole.membership_options[1].inheritOption = true; },
       (state) => { state.runtimeRole.rolbypassrls = true; },
     ]) {
       const drifted = databaseState();

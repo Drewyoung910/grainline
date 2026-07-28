@@ -24,6 +24,9 @@ import {
   assertDeterministicPostgresEnvironment,
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
+import {
+  DIRECT_UPLOAD_CLEANUP_ROLE,
+} from "./direct-upload-activation-catalog.mjs";
 
 const { Client } = pg;
 
@@ -76,11 +79,18 @@ const REVIEWED_VERCEL_CLI_INTEGRITY =
   "sha512-+CIEa0qcKm1RNBRhOvpo2l/yz28LMKSDuGeAYGx4/EkYyR5VOrXJZYV52WvqVARcxBAbH3Un2RRin8YGXMlcNg==";
 const REVIEWED_OWNER_MEMBERSHIPS = Object.freeze([
   REVIEWED_RUNTIME_ROLE,
+  DIRECT_UPLOAD_CLEANUP_ROLE,
   "neon_superuser",
 ]);
 const REVIEWED_OWNER_MEMBERSHIP_OPTIONS = Object.freeze([
   Object.freeze({
     role: REVIEWED_RUNTIME_ROLE,
+    adminOption: true,
+    inheritOption: false,
+    setOption: false,
+  }),
+  Object.freeze({
+    role: DIRECT_UPLOAD_CLEANUP_ROLE,
     adminOption: true,
     inheritOption: false,
     setOption: false,
