@@ -60,9 +60,14 @@ function databaseState() {
       rolcanlogin: true,
       rolreplication: true,
       rolbypassrls: true,
-      memberships: ["grainline_app_runtime", "neon_superuser"],
+      memberships: [
+        "grainline_app_runtime",
+        "grainline_direct_upload_cleanup_v2",
+        "neon_superuser",
+      ],
       membership_options: [
         { role: "grainline_app_runtime", adminOption: true, inheritOption: false, setOption: false },
+        { role: "grainline_direct_upload_cleanup_v2", adminOption: true, inheritOption: false, setOption: false },
         { role: "neon_superuser", adminOption: false, inheritOption: true, setOption: true },
       ],
     },

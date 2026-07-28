@@ -1114,6 +1114,29 @@ preflight before the next actual run, preserve the failed `62cc42e1` attempt as
 negative evidence, and do not claim the provider's hidden `XX000` cause is
 proven until a persistent creation passes.
 
+Exact main `9c853676` passed that corrected preflight and actual provider
+remediation. PostgreSQL created and directly authenticated
+`grainline_direct_upload_cleanup_v2` with LOGIN/NOBYPASSRLS/NOINHERIT, zero
+parent memberships, and only the reviewed `neondb_owner` bootstrap admin edge;
+the protected cleanup URL/digest rotated to the new credential. The sanitized
+mode-0600 evidence hash is
+`036486b04ef16da3605bf9721f79deee88f914c1255b67d061b381d69194de38`.
+No function grant, RLS, data, deployment, cleanup or R2 state changed.
+
+The first subsequent protected provision run, `30408963222` (job
+`90440653852`), failed in its owner-only preflight before the grant statement.
+The live read-only catalog explains the failure exactly: the global production
+migration guard still expected only the older
+`grainline_app_runtime`/`neon_superuser` owner memberships and had not yet
+incorporated PostgreSQL 16's already-reviewed
+`grainline_direct_upload_cleanup_v2` reverse bootstrap edge. The edge is
+`ADMIN=true`, `INHERIT=false`, `SET=false`, granted by `cloud_admin`; it does
+not allow the owner to inherit or assume cleanup authority. Update the shared
+production-migration and owner-rotation contracts to accept exactly these
+three owner membership rows, while rejecting any other role or option drift,
+before rerunning the protected provision workflow. The failed run reached no
+grant or postflight step.
+
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
 tree and reached cleanup-role convergence, including the three intended

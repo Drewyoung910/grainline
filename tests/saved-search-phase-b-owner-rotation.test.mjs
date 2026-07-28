@@ -53,10 +53,20 @@ function ownerRole() {
     rolcanlogin: true,
     rolreplication: true,
     rolbypassrls: true,
-    memberships: ["neon_superuser", "grainline_app_runtime"],
+    memberships: [
+      "neon_superuser",
+      "grainline_app_runtime",
+      "grainline_direct_upload_cleanup_v2",
+    ],
     membership_options: [
       {
         role: "grainline_app_runtime",
+        adminOption: true,
+        inheritOption: false,
+        setOption: false,
+      },
+      {
+        role: "grainline_direct_upload_cleanup_v2",
         adminOption: true,
         inheritOption: false,
         setOption: false,

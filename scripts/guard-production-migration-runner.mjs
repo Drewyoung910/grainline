@@ -11,6 +11,9 @@ import {
   assertDeterministicPostgresEnvironment,
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
+import {
+  DIRECT_UPLOAD_CLEANUP_ROLE,
+} from "./direct-upload-activation-catalog.mjs";
 
 const { Client } = pg;
 
@@ -25,6 +28,12 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const REVIEWED_OWNER_MEMBERSHIP_OPTIONS = Object.freeze([
   Object.freeze({
     role: REVIEWED_RUNTIME_ROLE,
+    adminOption: true,
+    inheritOption: false,
+    setOption: false,
+  }),
+  Object.freeze({
+    role: DIRECT_UPLOAD_CLEANUP_ROLE,
     adminOption: true,
     inheritOption: false,
     setOption: false,
@@ -144,7 +153,11 @@ export function assertProductionMigrationDatabaseState(state) {
     || owner.rolreplication !== true
     || owner.rolbypassrls !== true
     || JSON.stringify(sortedMemberships(owner))
-      !== JSON.stringify([REVIEWED_RUNTIME_ROLE, "neon_superuser"])
+      !== JSON.stringify([
+        REVIEWED_RUNTIME_ROLE,
+        DIRECT_UPLOAD_CLEANUP_ROLE,
+        "neon_superuser",
+      ])
     || !exactMembershipOptions(owner.membership_options, REVIEWED_OWNER_MEMBERSHIP_OPTIONS)
     || runtime?.rolname !== REVIEWED_RUNTIME_ROLE
     || runtime.rolsuper !== false
