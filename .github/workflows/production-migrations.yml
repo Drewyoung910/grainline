@@ -45,10 +45,10 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify exact DirectUpload preparation migration tree
+      - name: Verify exact DirectUpload legacy repair migration tree
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-preparation-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-legacy-repair-reviewed
       - name: Verify Conversation and Message authority proof equivalence
         run: npm run audit:rls-conversation-message-authority-release
       - name: Verify Conversation and Message activation proof equivalence

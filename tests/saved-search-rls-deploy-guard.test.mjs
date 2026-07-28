@@ -19,6 +19,8 @@ import {
   CASE_MESSAGE_HISTORY_INDEX_CLEANUP_MIGRATION,
   CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
   DIRECT_UPLOAD_AUTHORITY_MIGRATION,
+  DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION,
+  DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION_TREE_SHA256,
   DIRECT_UPLOAD_PREPARATION_MIGRATION_TREE_SHA256,
   DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION,
   DIRECT_UPLOAD_REFERENCE_LEDGER_MIGRATION,
@@ -93,6 +95,8 @@ const REVIEWED_CASE_MESSAGE_COMPATIBILITY =
   "case-message-compatibility-reviewed";
 const REVIEWED_DIRECT_UPLOAD_PREPARATION =
   "direct-upload-preparation-reviewed";
+const REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR =
+  "direct-upload-legacy-repair-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -151,6 +155,8 @@ function validate(
         CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
       [REVIEWED_DIRECT_UPLOAD_PREPARATION]:
         DIRECT_UPLOAD_PREPARATION_MIGRATION_TREE_SHA256,
+      [REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR]:
+        DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -194,6 +200,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     DIRECT_UPLOAD_REFERENCE_LEDGER_MIGRATION,
     DIRECT_UPLOAD_AUTHORITY_MIGRATION,
     DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION,
+    DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -255,6 +262,10 @@ const REVIEWED_DIRECT_UPLOAD_PREPARATION_MIGRATIONS = [
   DIRECT_UPLOAD_AUTHORITY_MIGRATION,
   DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS = [
+  ...REVIEWED_DIRECT_UPLOAD_PREPARATION_MIGRATIONS,
+  DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -283,6 +294,8 @@ function migrationsFor(phase) {
       REVIEWED_CASE_MESSAGE_COMPATIBILITY_MIGRATIONS,
     [REVIEWED_DIRECT_UPLOAD_PREPARATION]:
       REVIEWED_DIRECT_UPLOAD_PREPARATION_MIGRATIONS,
+    [REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR]:
+      REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS,
   }[phase];
 }
 
@@ -512,6 +525,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_REFERENCE_LEDGER_MIGRATION));
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_AUTHORITY_MIGRATION));
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION));
+    assert.ok(currentMigrations.includes(DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION));
     assert.throws(() => validate(undefined, currentMigrations), /is missing/);
     assert.throws(
       () => validate(RELEASE_ZERO, currentMigrations),
@@ -573,9 +587,13 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_CASE_MESSAGE_COMPATIBILITY, currentMigrations),
       /remain the latest migration/,
     );
+    assert.throws(
+      () => validate(REVIEWED_DIRECT_UPLOAD_PREPARATION, currentMigrations),
+      /remain the latest migration/,
+    );
     assert.equal(
-      validate(REVIEWED_DIRECT_UPLOAD_PREPARATION, currentMigrations).phase,
-      REVIEWED_DIRECT_UPLOAD_PREPARATION,
+      validate(REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR, currentMigrations).phase,
+      REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR,
     );
   });
 
@@ -1006,6 +1024,41 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows the exact DirectUpload legacy repair only after compatible preparation", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR,
+        REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR,
+        hasCaseMessagePrivateAttachmentsMigration: true,
+        hasDirectUploadReferenceLedgerMigration: true,
+        hasDirectUploadAuthorityMigration: true,
+        hasDirectUploadPublicReferencesMigration: true,
+        hasDirectUploadLegacyRepairMigration: true,
+      },
+    );
+
+    for (const migration of [
+      DIRECT_UPLOAD_REFERENCE_LEDGER_MIGRATION,
+      DIRECT_UPLOAD_AUTHORITY_MIGRATION,
+      DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION,
+      DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR,
+            REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact DirectUpload compatible-preparation boundary plus the narrowly reviewed legacy-reference repair migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -1021,6 +1074,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_CONVERSATION_MESSAGE_FORCE,
     REVIEWED_CASE_MESSAGE_COMPATIBILITY,
     REVIEWED_DIRECT_UPLOAD_PREPARATION,
+    REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -1124,7 +1178,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify DirectUpload preparation migration tree[\s\S]{0,220}SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-preparation-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
+      /Verify DirectUpload legacy repair migration tree[\s\S]{0,220}SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-legacy-repair-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
     );
   });
 
@@ -1212,6 +1266,16 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_DIRECT_UPLOAD_PREPARATION,
         [
           ...REVIEWED_DIRECT_UPLOAD_PREPARATION_MIGRATIONS,
+          laterDirectUploadMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR,
+        [
+          ...REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS,
           laterDirectUploadMigration,
         ],
       ),
@@ -1308,6 +1372,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_DIRECT_UPLOAD_PREPARATION_MIGRATIONS,
       ),
       DIRECT_UPLOAD_PREPARATION_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS,
+      ),
+      DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

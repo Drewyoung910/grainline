@@ -4,11 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       release_commit:
-        description: Exact 40-character main commit after compatible app drain
+        description: Exact 40-character reviewed main commit
         required: true
         type: string
+      expected_state:
+        description: Aggregate state this read-only run must prove
+        required: true
+        type: choice
+        options:
+          - pre-repair-inspection
+          - post-repair-verification
       confirmation:
-        description: Type inspect-prelaunch-direct-upload-legacy-state
+        description: Type the exact confirmation required for the selected state
         required: true
         type: string
 
@@ -31,6 +38,7 @@ jobs:
       RUNTIME_DB_ROLE: grainline_app_runtime
       MIGRATION_DB_ROLE: neondb_owner
       DIRECT_UPLOAD_LEGACY_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      DIRECT_UPLOAD_LEGACY_EXPECTED_STATE: ${{ inputs.expected_state }}
       DIRECT_UPLOAD_LEGACY_INSPECT_CONFIRM: ${{ inputs.confirmation }}
       DIRECT_UPLOAD_LEGACY_PREREQUISITES_CONFIRMED: compatible-app-drained-private-surfaces-disabled
     steps:
@@ -47,11 +55,11 @@ jobs:
         run: npm run ops:direct-upload-legacy-inspect
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-          DIRECT_UPLOAD_LEGACY_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-legacy-inspection-${{ inputs.release_commit }}.json
+          DIRECT_UPLOAD_LEGACY_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-legacy-${{ inputs.expected_state }}-${{ inputs.release_commit }}.json
       - name: Upload sanitized aggregate evidence
         uses: actions/upload-artifact@v4
         with:
-          name: direct-upload-legacy-inspection-${{ github.sha }}
-          path: ${{ runner.temp }}/direct-upload-legacy-inspection-${{ github.sha }}.json
+          name: direct-upload-legacy-${{ inputs.expected_state }}-${{ github.sha }}
+          path: ${{ runner.temp }}/direct-upload-legacy-${{ inputs.expected_state }}-${{ github.sha }}.json
           if-no-files-found: error
           retention-days: 30

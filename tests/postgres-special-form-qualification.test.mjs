@@ -26,7 +26,7 @@ const EXECUTABLE_SQL_ROOTS = Object.freeze([
   },
 ]);
 
-const POSTGRES_SPECIAL_FORM = /\bpg_catalog\s*\.\s*(?:greatest|least|coalesce|nullif|exists|case|current_user|session_user|current_date|current_time|current_timestamp|localtime|localtimestamp)\b/gi;
+const POSTGRES_SPECIAL_FORM = /\bpg_catalog\s*\.\s*(?:greatest|least|coalesce|nullif|position|exists|case|current_user|session_user|current_date|current_time|current_timestamp|localtime|localtimestamp)\b/gi;
 const QUALIFIED_UNNEST = /\bpg_catalog\s*\.\s*unnest\s*\(/gi;
 
 function qualifiedMultiArrayUnnest(source) {
