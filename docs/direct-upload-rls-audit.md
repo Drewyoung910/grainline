@@ -1154,15 +1154,20 @@ successfully twice in the disposable worktree, but Next's subsequent
 type-check worker exhausted both the default 2 GiB and explicit 4 GiB Node heap
 on the 8 GiB local host. Because the separate TypeScript pass is green, this is
 classified as a local resource failure rather than a source/type failure, but
-it is not called a successful production build. PR #61 remains stacked on PR
-#60, so ordinary `main`-targeted CI does not run yet; a clean-runner CI
-production build is a mandatory gate after retargeting and before any merge.
+it is not called a successful production build. PR #60 exact head
+`c667e5c96f203301e1d6c64300b537187976288e` merged into `main` as
+`9d3a55e078e21264f40765cedeedf81a5e6d2187` on 2026-07-28. PR #61 was then
+retargeted to that `main` head while remaining draft. A fresh clean-runner CI
+production build against the retargeted PR is still a mandatory gate before
+any merge.
 
 ## Exit
 
 Keep Extra High through the cleanup-worker authority review and the downstream
-retirement/activation branch rebase and SQL review. PR #60 and stacked PR #61
-remain draft until their exact proof records, final CI and review boundaries
-are clean; neither authorizes a merge or any provider/production mutation. A
-later explicit approval is required for each merge, provider credential/role
-change, production inspection, migration and deployment.
+retirement/activation SQL review. PR #60 is merged, but merge-only created no
+provider, credential, role, database, scheduler or deployment state. Retargeted
+PR #61 remains draft until its exact proof record, fresh `main`-targeted CI and
+review boundaries are clean; it authorizes no merge or provider/production
+mutation. A later explicit approval is required for each merge that remains,
+including PR #61, and separately for each provider credential/role change,
+production inspection, migration and deployment.
