@@ -1291,6 +1291,18 @@ attest an exact commit. Before any compatible-app drain claim, deploy and
 independently attest the exact approved `main` release rather than inferring
 source identity from this alias.
 
+The protected GitHub `Production` environment itself is present, restricts
+deployments to exact branch `main`, and requires review by `Drewyoung910`
+without a wait timer. Its non-secret inventory contains
+`PRODUCTION_MIGRATION_DIRECT_URL_SHA256`, and its secret inventory contains
+`PRODUCTION_MIGRATION_DIRECT_URL`; values were not read. This is the required
+shape for the next additive migration dispatch. The later aggregate inspector
+is not yet dispatch-ready: neither the protected environment nor repository
+variable inventory contains `CLOUDFLARE_R2_PUBLIC_URL`, which its fail-closed
+parser requires. Provisioning that credential-free public base remains a
+separate provider mutation after the exact compatible app is deployed and
+drained; do not bypass the missing variable or dispatch the inspector early.
+
 The same Extra-High readiness pass found that the prepared production
 postflight's environment, clean-checkout, evidence and read-only contracts had
 unit coverage, but its exact table/trigger/function/denial query sequence had
