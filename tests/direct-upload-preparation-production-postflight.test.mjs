@@ -150,8 +150,13 @@ describe("DirectUpload preparation production postflight", () => {
     assert.match(source, /BEGIN TRANSACTION READ ONLY/);
     assert.match(
       source,
-      /BEGIN TRANSACTION READ ONLY[\s\S]*if \(verifyProductionIdentity\) await verifyRuntimeIdentity\(client\)/,
+      /BEGIN TRANSACTION READ ONLY[\s\S]*await assertReadOnlyTransaction\(client\)[\s\S]*if \(verifyProductionIdentity\) await verifyRuntimeIdentity\(client\)[\s\S]*await verifyTablePosture\(client, migrationRole\)[\s\S]*await verifyCompatibilityCatalog\(client\)[\s\S]*await verifyFunctionCatalog\(client, migrationRole\)[\s\S]*await proveReadOnlyRuntimeBoundary\(client\)[\s\S]*await client\.query\("ROLLBACK"\)/,
     );
+    assert.match(
+      source,
+      /pg_catalog\.current_setting\('transaction_read_only'\) AS read_only/,
+    );
+    assert.match(source, /result\.rows\[0\]\?\.read_only,\s+"on"/);
     assert.match(source, /wholePostflightTransactionReadOnly: true/);
     assert.match(source, /whole_postflight_read_only_transaction/);
     assert.doesNotMatch(
@@ -216,6 +221,6 @@ describe("DirectUpload preparation production postflight", () => {
     );
     const audit = fs.readFileSync("docs/direct-upload-rls-audit.md", "utf8");
     assert.match(audit, /Production preparation postflight scaffold/);
-    assert.match(audit, /does \*\*not\*\* verify the Vercel deployment/);
+    assert.match(audit, /does \*\*not\*\*\s+verify the Vercel deployment/);
   });
 });

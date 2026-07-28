@@ -628,6 +628,17 @@ async function proveReadOnlyRuntimeBoundary(client) {
   assert.equal(privateRead.rows.length, 0);
 }
 
+async function assertReadOnlyTransaction(client) {
+  const result = await client.query(`
+    SELECT pg_catalog.current_setting('transaction_read_only') AS read_only
+  `);
+  assert.equal(
+    result.rows[0]?.read_only,
+    "on",
+    "DirectUpload production postflight transaction is not read-only",
+  );
+}
+
 export async function proveDirectUploadPreparationRuntimeCatalog(
   client,
   {
@@ -638,6 +649,7 @@ export async function proveDirectUploadPreparationRuntimeCatalog(
   await client.query("BEGIN TRANSACTION READ ONLY");
   let transactionOpen = true;
   try {
+    await assertReadOnlyTransaction(client);
     if (verifyProductionIdentity) await verifyRuntimeIdentity(client);
     await verifyTablePosture(client, migrationRole);
     await verifyCompatibilityCatalog(client);

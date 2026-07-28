@@ -854,9 +854,11 @@ activation has occurred:
 The pooled runtime connection enters `BEGIN TRANSACTION READ ONLY` before
 identity, table, constraint, trigger, function or denial inspection, so the
 database engine enforces the read-only boundary across the entire live proof.
-It creates no fixture rows and writes only a fresh mode-0600 local JSON
-artifact. This database postflight does **not** verify the Vercel deployment,
-the
+The proof also reads PostgreSQL's `transaction_read_only` setting immediately
+after `BEGIN` and requires it to equal `on`; a regression test pins the complete
+call order through the final rollback. It creates no fixture rows and writes
+only a fresh mode-0600 local JSON artifact. This database postflight does
+**not** verify the Vercel deployment, the
 `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` environment value, the private R2
 bucket, authenticated routes, legacy data, cleanup-worker separation or
 DirectUpload activation. Those remain explicit later gates rather than
