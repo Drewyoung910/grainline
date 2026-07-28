@@ -167,6 +167,10 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /30390887295/);
     assert.match(audit, /3 `DirectUpload` rows/);
     assert.match(audit, /2 first-party durable source URLs safely backfillable/);
+    assert.match(
+      audit,
+      /exactly one or two of the three claimed lifecycle rows\s+may have no current durable source match/,
+    );
     assert.match(audit, /120 additional first-party durable source URLs/);
     assert.match(audit, /0 Case attachments/);
     assert.match(audit, /no repair,\s+retirement or RLS activation has run/);

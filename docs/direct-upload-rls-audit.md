@@ -1500,12 +1500,15 @@ The exact aggregate result is:
   listing-video uploads, external/UTFS URLs, invalid identities, constraint
   mismatches, cleanup-lease anomalies or unrepairable lifecycle rows.
 
-The aggregate counts imply one of the three claimed lifecycle rows has no
-current durable source match. They do not disclose which row. The repair must
-derive the two references from locked durable sources, normalize legacy claim
-metadata from the resulting references, and return only the unmatched claimed
-row to delayed cleanup eligibility. It must not create lifecycle rows for the
-120 untracked historical URLs or identify any row outside the protected
+The aggregate counts prove two backfillable durable source URLs, not two
+distinct lifecycle rows: both sources may refer to one upload, or they may
+refer to two. Therefore exactly one or two of the three claimed lifecycle rows
+may have no current durable source match; the protected aggregate inspection
+does not disclose which shape or which rows. The repair must derive exactly
+two references from locked durable sources, normalize legacy claim metadata
+from the resulting references, and return only the one-or-two unmatched
+claimed rows to delayed cleanup eligibility. It must not create lifecycle rows
+for the 120 untracked historical URLs or identify any row outside the protected
 transaction. Production remains at release-sequence step 7; no repair,
 retirement or RLS activation has run.
 
