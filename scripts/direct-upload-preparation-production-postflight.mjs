@@ -178,7 +178,10 @@ async function verifyRuntimeIdentity(client) {
   }]);
 }
 
-async function verifyTablePosture(client) {
+async function verifyTablePosture(
+  client,
+  migrationRole = REVIEWED_MIGRATION_ROLE,
+) {
   const result = await client.query(`
     SELECT
       relation.relname AS table_name,
@@ -215,7 +218,7 @@ async function verifyTablePosture(client) {
       table_name: "DirectUpload",
       rls_enabled: false,
       rls_forced: false,
-      owner_name: REVIEWED_MIGRATION_ROLE,
+      owner_name: migrationRole,
       policy_count: 0,
       can_select: true,
       can_insert: true,
@@ -226,7 +229,7 @@ async function verifyTablePosture(client) {
       table_name: "DirectUploadReference",
       rls_enabled: true,
       rls_forced: true,
-      owner_name: REVIEWED_MIGRATION_ROLE,
+      owner_name: migrationRole,
       policy_count: 0,
       can_select: false,
       can_insert: false,
@@ -312,7 +315,10 @@ async function verifyCompatibilityCatalog(client) {
   ]);
 }
 
-async function verifyFunctionCatalog(client) {
+async function verifyFunctionCatalog(
+  client,
+  migrationRole = REVIEWED_MIGRATION_ROLE,
+) {
   const functionNames = DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map(
     (entry) => entry.name,
   );
@@ -360,7 +366,7 @@ async function verifyFunctionCatalog(client) {
       (candidate) => candidate.function_name === expected.name,
     );
     assert.ok(row, `missing DirectUpload function ${expected.name}`);
-    assert.equal(row.owner_name, REVIEWED_MIGRATION_ROLE);
+    assert.equal(row.owner_name, migrationRole);
     assert.deepEqual(row.function_config, ["search_path=pg_catalog"]);
     assert.equal(row.runtime_execute, expected.runtimeExecute);
     assert.equal(row.public_execute, false);
@@ -432,6 +438,16 @@ async function proveReadOnlyRuntimeBoundary(client) {
   }
 }
 
+export async function proveDirectUploadPreparationRuntimeCatalog(
+  client,
+  { migrationRole = REVIEWED_MIGRATION_ROLE } = {},
+) {
+  await verifyTablePosture(client, migrationRole);
+  await verifyCompatibilityCatalog(client);
+  await verifyFunctionCatalog(client, migrationRole);
+  await proveReadOnlyRuntimeBoundary(client);
+}
+
 export async function runDirectUploadPreparationPostflight(config) {
   const parsed = new URL(config.databaseUrl);
   const client = new Client({
@@ -445,10 +461,7 @@ export async function runDirectUploadPreparationPostflight(config) {
   await client.connect();
   try {
     await verifyRuntimeIdentity(client);
-    await verifyTablePosture(client);
-    await verifyCompatibilityCatalog(client);
-    await verifyFunctionCatalog(client);
-    await proveReadOnlyRuntimeBoundary(client);
+    await proveDirectUploadPreparationRuntimeCatalog(client);
     return Object.freeze({
       status: "passed",
       releaseCommit: config.releaseCommit,

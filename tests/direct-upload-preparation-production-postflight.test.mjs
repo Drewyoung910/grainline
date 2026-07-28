@@ -7,6 +7,7 @@ import {
   DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_CONFIRMATION,
   assertDirectUploadPreparationGitState,
   parseDirectUploadPreparationPostflightConfig,
+  proveDirectUploadPreparationRuntimeCatalog,
   writeDirectUploadPreparationPostflightEvidence,
 } from "../scripts/direct-upload-preparation-production-postflight.mjs";
 import {
@@ -148,6 +149,14 @@ describe("DirectUpload preparation production postflight", () => {
     assert.match(source, /tginitdeferred AS initially_deferred/);
     assert.match(source, /grainline_direct_upload_sync_public_core/);
     assert.match(source, /"42501"/);
+    assert.equal(
+      typeof proveDirectUploadPreparationRuntimeCatalog,
+      "function",
+    );
+    assert.match(
+      source,
+      /proveDirectUploadPreparationRuntimeCatalog\(client\)/,
+    );
     assert.match(source, /productionChangedByPostflight: false/);
     assert.equal(
       DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.length,

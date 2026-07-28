@@ -1259,13 +1259,13 @@ scheduler-handoff checkpoint for draft review only; it does not satisfy the
 later provider, production inspection, migration, smoke, schedule-release or
 postflight gates.
 
-The documentation-only follow-up is exact branch head
+The prior documentation-only follow-up was exact branch head
 `878d9b3586e79d57034458d175fbf70659d7c3b0`. GitHub Actions CI run
-`30375097337` (job `90328613291`) passed against that final head: every
+`30375097337` (job `90328613291`) passed against that checkpoint: every
 committed migration and production-style grant audit, the retained
 Conversation/Message PostgreSQL proofs, TypeScript, lint, all repository tests,
 the dependency security audit and the clean-runner production build passed.
-Draft PR #65 remains open, draft and unmerged at that exact head.
+Draft PR #65 remained open, draft and unmerged.
 
 Its Vercel Preview status is red for a different, expected reason. Deployment
 `dpl_GuAoSiGMWhrJWjVgKZfk3RugEMWx` stopped at
@@ -1290,6 +1290,17 @@ source SHA for that manual deployment, so its deployment id and age do not
 attest an exact commit. Before any compatible-app drain claim, deploy and
 independently attest the exact approved `main` release rather than inferring
 source identity from this alias.
+
+The same Extra-High readiness pass found that the prepared production
+postflight's environment, clean-checkout, evidence and read-only contracts had
+unit coverage, but its exact table/trigger/function/denial query sequence had
+not itself executed in disposable PostgreSQL. The shared catalog proof is now
+exported without weakening the production-only authenticated identity check,
+and the compatible authority harness runs that exact query path under
+`grainline_app_runtime` before creating any fixtures. A fresh disposable
+PostgreSQL run is mandatory before treating this improvement as accepted
+evidence; the historical eight-check runs remain accurately recorded rather
+than being retroactively upgraded.
 
 ## Exit
 
