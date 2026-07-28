@@ -838,8 +838,13 @@ activation has occurred:
   old-application coexistence;
 - `DirectUploadReference` has ENABLE plus FORCE, zero policies and no runtime
   table authority;
-- the temporary Case `objectKey` plus `directUploadId` columns and deferred
-  commit-time reference trigger are installed;
+- the six staged `DirectUpload` legacy constraints exist but remain
+  intentionally `NOT VALID` until the later aggregate inspection, repair and
+  retirement gate; the two Case `directUploadId` constraints are validated;
+- the temporary Case `objectKey` plus `directUploadId` columns and all 13
+  reviewed trigger-to-table/function bindings are installed, including the
+  deferred commit-time Case reference trigger and every source-delete release
+  trigger;
 - all 35 reviewed DirectUpload functions retain exact runtime/PUBLIC ACL,
   owner and pinned-search-path posture;
 - direct reference-ledger access and the generic source core fail with
@@ -853,6 +858,16 @@ does **not** verify the Vercel deployment, the
 bucket, authenticated routes, legacy data, cleanup-worker separation or
 DirectUpload activation. Those remain explicit later gates rather than
 caller-supplied claims embedded in this evidence.
+
+The postflight is deliberately catalog-only and non-destructive. A production
+row delete would mutate real marketplace state and is not an acceptable way to
+prove these triggers. The disposable PostgreSQL authority proof separately
+exercises Case attachment deletion plus Listing and SellerBroadcast deletion,
+including reference release and terminal upload-state behavior. Likewise, an
+authenticated upload smoke belongs to the later compatible-app/provider gate,
+not this additive database postflight. Existing Case attachment rows are
+backfilled into `DirectUploadReference` by the authority migration, so the
+ledger must not be described as universally empty after preparation.
 
 ### Cleanup-worker activation scaffold
 

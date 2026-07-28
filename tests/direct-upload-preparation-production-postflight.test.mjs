@@ -32,11 +32,10 @@ function environment(directory, overrides = {}) {
     DIRECT_UPLOAD_PREPARATION_MIGRATION_RUN_ID: "30230000002",
     DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_CONFIRM:
       DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_CONFIRMATION,
-    DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_EVIDENCE_PATH:
-      path.join(
-        directory,
-        `direct-upload-preparation-production-postflight-${RELEASE_COMMIT}.json`,
-      ),
+    DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_EVIDENCE_PATH: path.join(
+      directory,
+      `direct-upload-preparation-production-postflight-${RELEASE_COMMIT}.json`,
+    ),
     DIRECT_UPLOAD_PREPARATION_RELEASE_COMMIT: RELEASE_COMMIT,
     ...overrides,
   };
@@ -64,9 +63,19 @@ describe("DirectUpload preparation production postflight", () => {
       { DIRECT_UPLOAD_PREPARATION_RELEASE_COMMIT: "short" },
       { DIRECT_UPLOAD_PREPARATION_MAIN_CI_RUN_ID: "0" },
       { DIRECT_UPLOAD_PREPARATION_MIGRATION_RUN_ID: "not-a-run" },
-      { DATABASE_URL: RUNTIME_URL.replace("grainline_app_runtime", "neondb_owner") },
+      {
+        DATABASE_URL: RUNTIME_URL.replace(
+          "grainline_app_runtime",
+          "neondb_owner",
+        ),
+      },
       { DATABASE_URL: RUNTIME_URL.replace("-pooler", "") },
-      { DATABASE_URL: RUNTIME_URL.replace("ep-plain-river-aaqg8gj4", "ep-other") },
+      {
+        DATABASE_URL: RUNTIME_URL.replace(
+          "ep-plain-river-aaqg8gj4",
+          "ep-other",
+        ),
+      },
       { DIRECT_URL: "present" },
       { OTHER_DATABASE_URL: RUNTIME_URL },
       { NODE_TLS_REJECT_UNAUTHORIZED: "0" },
@@ -79,8 +88,8 @@ describe("DirectUpload preparation production postflight", () => {
     for (const drift of cases) {
       const directory = tempDirectory();
       try {
-        assert.throws(
-          () => parseDirectUploadPreparationPostflightConfig(
+        assert.throws(() =>
+          parseDirectUploadPreparationPostflightConfig(
             environment(directory, drift),
           ),
         );
@@ -99,10 +108,11 @@ describe("DirectUpload preparation production postflight", () => {
       { clean: true, head: RELEASE_COMMIT },
     );
     assert.throws(
-      () => assertDirectUploadPreparationGitState(
-        { head: RELEASE_COMMIT, status: "?? unreviewed.sql" },
-        RELEASE_COMMIT,
-      ),
+      () =>
+        assertDirectUploadPreparationGitState(
+          { head: RELEASE_COMMIT, status: "?? unreviewed.sql" },
+          RELEASE_COMMIT,
+        ),
       /exact clean release commit/,
     );
   });
@@ -111,8 +121,9 @@ describe("DirectUpload preparation production postflight", () => {
     const directory = tempDirectory();
     try {
       const evidencePath =
-        environment(directory)
-          .DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_EVIDENCE_PATH;
+        environment(
+          directory,
+        ).DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_EVIDENCE_PATH;
       writeDirectUploadPreparationPostflightEvidence(evidencePath, {
         status: "passed",
         productionChangedByPostflight: false,
@@ -145,23 +156,48 @@ describe("DirectUpload preparation production postflight", () => {
     assert.match(source, /referenceLedgerRuntimeTableAccess: false/);
     assert.match(source, /rls_enabled: false/);
     assert.match(source, /rls_forced: true/);
+    assert.match(source, /convalidated AS validated/);
+    assert.match(source, /DirectUpload_userId_fkey/);
+    assert.match(source, /CaseMessageAttachment_directUploadId_fkey/);
+    assert.match(source, /reviewedUnvalidatedDirectUploadConstraintCount: 6/);
+    assert.match(
+      source,
+      /validatedCaseAttachmentDirectUploadConstraintCount: 2/,
+    );
+    assert.match(source, /reviewedTriggerCount: 13/);
     assert.match(source, /tgdeferrable AS deferrable/);
     assert.match(source, /tginitdeferred AS initially_deferred/);
+    assert.match(source, /procedure\.proname AS function_name/);
+    assert.match(source, /grainline_direct_upload_identity_immutable/);
+    assert.match(source, /grainline_direct_upload_reference_guard/);
+    assert.match(source, /grainline_direct_upload_release_listing_delete/);
+    assert.match(
+      source,
+      /grainline_direct_upload_release_seller_profile_delete/,
+    );
+    assert.match(source, /grainline_direct_upload_release_review_delete/);
+    assert.match(source, /grainline_direct_upload_release_blog_post_delete/);
+    assert.match(
+      source,
+      /grainline_direct_upload_release_commission_request_delete/,
+    );
+    assert.match(
+      source,
+      /grainline_direct_upload_release_seller_broadcast_delete/,
+    );
+    assert.match(
+      source,
+      /grainline_direct_upload_release_legacy_message_delete/,
+    );
     assert.match(source, /grainline_direct_upload_sync_public_core/);
     assert.match(source, /"42501"/);
-    assert.equal(
-      typeof proveDirectUploadPreparationRuntimeCatalog,
-      "function",
-    );
+    assert.equal(typeof proveDirectUploadPreparationRuntimeCatalog, "function");
     assert.match(
       source,
       /proveDirectUploadPreparationRuntimeCatalog\(client\)/,
     );
     assert.match(source, /productionChangedByPostflight: false/);
-    assert.equal(
-      DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.length,
-      35,
-    );
+    assert.equal(DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.length, 35);
     assert.equal(DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES.length, 14);
     const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
     assert.equal(

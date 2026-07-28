@@ -64,10 +64,12 @@ export function parseDirectUploadPreparationPostflightConfig(
     "DirectUpload preparation production postflight",
   );
   if (
-    env.DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_CONFIRM
-      !== DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_CONFIRMATION
+    env.DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_CONFIRM !==
+    DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_CONFIRMATION
   ) {
-    throw new Error("DirectUpload preparation postflight confirmation is invalid");
+    throw new Error(
+      "DirectUpload preparation postflight confirmation is invalid",
+    );
   }
   const privilegedKeys = privilegedDatabaseEnvironmentKeys(env);
   if (privilegedKeys.length > 0) {
@@ -112,11 +114,12 @@ export function parseDirectUploadPreparationPostflightConfig(
     required(env, "DIRECT_UPLOAD_PREPARATION_POSTFLIGHT_EVIDENCE_PATH"),
   );
   if (
-    path.basename(evidencePath)
-      !== `${EVIDENCE_PREFIX}${releaseCommit}.json`
-    || existsSync(evidencePath)
+    path.basename(evidencePath) !== `${EVIDENCE_PREFIX}${releaseCommit}.json` ||
+    existsSync(evidencePath)
   ) {
-    throw new Error("DirectUpload preparation evidence path is not the fresh reviewed path");
+    throw new Error(
+      "DirectUpload preparation evidence path is not the fresh reviewed path",
+    );
   }
 
   return Object.freeze({
@@ -130,11 +133,12 @@ export function parseDirectUploadPreparationPostflightConfig(
 }
 
 export function readDirectUploadPreparationGitState(cwd = process.cwd()) {
-  const run = (args) => execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+  const run = (args) =>
+    execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
   return Object.freeze({
     head: run(["rev-parse", "HEAD"]),
     status: run(["status", "--porcelain=v1", "--untracked-files=all"]),
@@ -143,7 +147,9 @@ export function readDirectUploadPreparationGitState(cwd = process.cwd()) {
 
 export function assertDirectUploadPreparationGitState(state, releaseCommit) {
   if (state?.head !== releaseCommit || state.status !== "") {
-    throw new Error("DirectUpload preparation postflight requires the exact clean release commit");
+    throw new Error(
+      "DirectUpload preparation postflight requires the exact clean release commit",
+    );
   }
   return Object.freeze({ clean: true, head: state.head });
 }
@@ -166,16 +172,18 @@ async function verifyRuntimeIdentity(client) {
     FROM pg_catalog.pg_roles AS role
     WHERE role.rolname = CURRENT_USER
   `);
-  assert.deepEqual(result.rows, [{
-    database_name: REVIEWED_PRODUCTION_RUNTIME_IDENTITY.databaseName,
-    current_user_name: REVIEWED_PRODUCTION_RUNTIME_IDENTITY.role,
-    session_user_name: REVIEWED_PRODUCTION_RUNTIME_IDENTITY.role,
-    rolsuper: false,
-    rolbypassrls: false,
-    rolinherit: false,
-    rolcanlogin: true,
-    member_of_owner: false,
-  }]);
+  assert.deepEqual(result.rows, [
+    {
+      database_name: REVIEWED_PRODUCTION_RUNTIME_IDENTITY.databaseName,
+      current_user_name: REVIEWED_PRODUCTION_RUNTIME_IDENTITY.role,
+      session_user_name: REVIEWED_PRODUCTION_RUNTIME_IDENTITY.role,
+      rolsuper: false,
+      rolbypassrls: false,
+      rolinherit: false,
+      rolcanlogin: true,
+      member_of_owner: false,
+    },
+  ]);
 }
 
 async function verifyTablePosture(
@@ -269,10 +277,105 @@ async function verifyCompatibilityCatalog(client) {
     },
   ]);
 
+  const directUploadConstraints = await client.query(`
+    SELECT
+      constraint_entry.conname AS constraint_name,
+      constraint_entry.contype AS constraint_type,
+      constraint_entry.convalidated AS validated,
+      referenced_relation.relname AS referenced_table
+    FROM pg_catalog.pg_constraint AS constraint_entry
+    LEFT JOIN pg_catalog.pg_class AS referenced_relation
+      ON referenced_relation.oid = constraint_entry.confrelid
+     AND constraint_entry.confrelid <> 0
+    WHERE constraint_entry.conrelid =
+            'public."DirectUpload"'::pg_catalog.regclass
+      AND constraint_entry.conname IN (
+        'DirectUpload_cleanup_lease_pair_check',
+        'DirectUpload_endpoint_check',
+        'DirectUpload_endpoint_storage_content_size_check',
+        'DirectUpload_key_endpoint_check',
+        'DirectUpload_public_url_key_check',
+        'DirectUpload_userId_fkey'
+      )
+    ORDER BY constraint_entry.conname
+  `);
+  assert.deepEqual(directUploadConstraints.rows, [
+    {
+      constraint_name: "DirectUpload_cleanup_lease_pair_check",
+      constraint_type: "c",
+      validated: false,
+      referenced_table: null,
+    },
+    {
+      constraint_name: "DirectUpload_endpoint_check",
+      constraint_type: "c",
+      validated: false,
+      referenced_table: null,
+    },
+    {
+      constraint_name: "DirectUpload_endpoint_storage_content_size_check",
+      constraint_type: "c",
+      validated: false,
+      referenced_table: null,
+    },
+    {
+      constraint_name: "DirectUpload_key_endpoint_check",
+      constraint_type: "c",
+      validated: false,
+      referenced_table: null,
+    },
+    {
+      constraint_name: "DirectUpload_public_url_key_check",
+      constraint_type: "c",
+      validated: false,
+      referenced_table: null,
+    },
+    {
+      constraint_name: "DirectUpload_userId_fkey",
+      constraint_type: "f",
+      validated: false,
+      referenced_table: "User",
+    },
+  ]);
+
+  const caseAttachmentConstraints = await client.query(`
+    SELECT
+      constraint_entry.conname AS constraint_name,
+      constraint_entry.contype AS constraint_type,
+      constraint_entry.convalidated AS validated,
+      referenced_relation.relname AS referenced_table
+    FROM pg_catalog.pg_constraint AS constraint_entry
+    LEFT JOIN pg_catalog.pg_class AS referenced_relation
+      ON referenced_relation.oid = constraint_entry.confrelid
+     AND constraint_entry.confrelid <> 0
+    WHERE constraint_entry.conrelid =
+            'public."CaseMessageAttachment"'::pg_catalog.regclass
+      AND constraint_entry.conname IN (
+        'CaseMessageAttachment_directUploadId_fkey',
+        'CaseMessageAttachment_directUploadId_key'
+      )
+    ORDER BY constraint_entry.conname
+  `);
+  assert.deepEqual(caseAttachmentConstraints.rows, [
+    {
+      constraint_name: "CaseMessageAttachment_directUploadId_fkey",
+      constraint_type: "f",
+      validated: true,
+      referenced_table: "DirectUpload",
+    },
+    {
+      constraint_name: "CaseMessageAttachment_directUploadId_key",
+      constraint_type: "u",
+      validated: true,
+      referenced_table: null,
+    },
+  ]);
+
   const triggers = await client.query(`
     SELECT
       trigger.tgname AS trigger_name,
       relation.relname AS table_name,
+      procedure.proname AS function_name,
       trigger.tgenabled AS enabled,
       trigger.tgdeferrable AS deferrable,
       trigger.tginitdeferred AS initially_deferred
@@ -281,12 +384,24 @@ async function verifyCompatibilityCatalog(client) {
       ON relation.oid = trigger.tgrelid
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = relation.relnamespace
+    JOIN pg_catalog.pg_proc AS procedure
+      ON procedure.oid = trigger.tgfoid
     WHERE namespace.nspname = 'public'
       AND NOT trigger.tgisinternal
       AND trigger.tgname IN (
         'grainline_direct_upload_case_attachment_bind',
+        'grainline_direct_upload_identity_immutable',
         'grainline_direct_upload_reference_case_attachment_insert',
-        'grainline_direct_upload_release_case_attachment_delete'
+        'grainline_direct_upload_reference_guard',
+        'grainline_direct_upload_release_blog_post_delete',
+        'grainline_direct_upload_release_case_attachment_delete',
+        'grainline_direct_upload_release_commission_request_delete',
+        'grainline_direct_upload_release_legacy_message_delete',
+        'grainline_direct_upload_release_listing_delete',
+        'grainline_direct_upload_release_review_delete',
+        'grainline_direct_upload_release_seller_broadcast_delete',
+        'grainline_direct_upload_release_seller_profile_delete',
+        'grainline_direct_upload_status_transition'
       )
     ORDER BY trigger.tgname
   `);
@@ -294,6 +409,15 @@ async function verifyCompatibilityCatalog(client) {
     {
       trigger_name: "grainline_direct_upload_case_attachment_bind",
       table_name: "CaseMessageAttachment",
+      function_name: "grainline_direct_upload_case_attachment_bind",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_identity_immutable",
+      table_name: "DirectUpload",
+      function_name: "grainline_direct_upload_identity_immutable",
       enabled: "O",
       deferrable: false,
       initially_deferred: false,
@@ -301,13 +425,89 @@ async function verifyCompatibilityCatalog(client) {
     {
       trigger_name: "grainline_direct_upload_reference_case_attachment_insert",
       table_name: "CaseMessageAttachment",
+      function_name:
+        "grainline_direct_upload_case_attachment_reference_trigger",
       enabled: "O",
       deferrable: true,
       initially_deferred: true,
     },
     {
+      trigger_name: "grainline_direct_upload_reference_guard",
+      table_name: "DirectUploadReference",
+      function_name: "grainline_direct_upload_reference_guard",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_release_blog_post_delete",
+      table_name: "BlogPost",
+      function_name: "grainline_direct_upload_source_delete_trigger",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
       trigger_name: "grainline_direct_upload_release_case_attachment_delete",
       table_name: "CaseMessageAttachment",
+      function_name:
+        "grainline_direct_upload_case_attachment_reference_trigger",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_release_commission_request_delete",
+      table_name: "CommissionRequest",
+      function_name: "grainline_direct_upload_source_delete_trigger",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_release_legacy_message_delete",
+      table_name: "Message",
+      function_name: "grainline_direct_upload_source_delete_trigger",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_release_listing_delete",
+      table_name: "Listing",
+      function_name: "grainline_direct_upload_source_delete_trigger",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_release_review_delete",
+      table_name: "Review",
+      function_name: "grainline_direct_upload_source_delete_trigger",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_release_seller_broadcast_delete",
+      table_name: "SellerBroadcast",
+      function_name: "grainline_direct_upload_source_delete_trigger",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_release_seller_profile_delete",
+      table_name: "SellerProfile",
+      function_name: "grainline_direct_upload_source_delete_trigger",
+      enabled: "O",
+      deferrable: false,
+      initially_deferred: false,
+    },
+    {
+      trigger_name: "grainline_direct_upload_status_transition",
+      table_name: "DirectUpload",
+      function_name: "grainline_direct_upload_status_transition",
       enabled: "O",
       deferrable: false,
       initially_deferred: false,
@@ -394,14 +594,14 @@ async function proveReadOnlyRuntimeBoundary(client) {
     await client.query("SET LOCAL statement_timeout = '10s'");
     await expectInsufficientPrivilege(
       client,
-      () => client.query(
-        `SELECT * FROM public."DirectUploadReference" LIMIT 1`,
-      ),
+      () =>
+        client.query(`SELECT * FROM public."DirectUploadReference" LIMIT 1`),
       "DirectUploadReference direct read",
     );
     await expectInsufficientPrivilege(
       client,
-      () => client.query(`
+      () =>
+        client.query(`
         SELECT public.grainline_direct_upload_sync_public_core(
           NULL::text,
           NULL::text,
@@ -478,6 +678,9 @@ export async function runDirectUploadPreparationPostflight(config) {
       referenceLedgerRlsForced: true,
       referenceLedgerPolicyCount: 0,
       referenceLedgerRuntimeTableAccess: false,
+      reviewedUnvalidatedDirectUploadConstraintCount: 6,
+      validatedCaseAttachmentDirectUploadConstraintCount: 2,
+      reviewedTriggerCount: 13,
       functionCount: DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.length,
       privateFunctionCount: DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES.length,
       postflightReadOnly: true,
@@ -485,7 +688,7 @@ export async function runDirectUploadPreparationPostflight(config) {
       completedChecks: [
         "actual_pooled_runtime_role_identity",
         "compatible_direct_upload_and_service_only_reference_table_posture",
-        "dual_column_and_deferred_case_reference_trigger_catalog",
+        "dual_column_exact_constraint_and_full_trigger_catalog",
         "exact_direct_upload_function_acl_and_search_path_catalog",
         "reference_table_and_generic_core_direct_denial",
         "fixed_lookup_and_private_read_fail_closed_for_invalid_actor",
@@ -534,6 +737,9 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await main();
 }
