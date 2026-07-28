@@ -1246,7 +1246,18 @@ Next production build stopped before application compilation because this
 disposable worktree's `node_modules` is a symlink outside Turbopack's accepted
 filesystem root. That environmental panic is retained as failed build
 evidence, not relabeled as success or a source defect. A clean-runner
-production build against the exact pushed checkpoint remains mandatory.
+production build against the exact pushed checkpoint remained mandatory.
+
+GitHub Actions CI run `30374757227` (job `90327434031`) then passed at exact
+code checkpoint `d1c879a4511545f98251a29ece8f95eaaf4f5f0f`. The clean
+runner installed a local dependency tree, applied the committed migration tree
+to PostgreSQL, converged and audited production-style runtime grants, repeated
+the Conversation/Message FORCE proofs, passed TypeScript, lint, all tests and
+the dependency security audit, and completed the production build. This
+resolves the local symlink failure as environmental evidence. It accepts the
+scheduler-handoff checkpoint for draft review only; it does not satisfy the
+later provider, production inspection, migration, smoke, schedule-release or
+postflight gates.
 
 ## Exit
 
