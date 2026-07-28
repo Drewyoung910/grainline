@@ -17,15 +17,15 @@ describe("local disk headroom guard", () => {
     assert.equal(availableKilobytesFromDf(output), 12 * 1024 * 1024);
   });
 
-  it("fails below ten GiB and passes at the boundary", () => {
-    assert.equal(MINIMUM_FREE_GIB, 10);
+  it("fails below one GiB and passes at the boundary", () => {
+    assert.equal(MINIMUM_FREE_GIB, 1);
     assert.throws(
-      () => assertLocalDiskHeadroom({ availableKilobytes: 9 * 1024 * 1024 }),
-      /9\.0 GiB free; 10 GiB required/,
+      () => assertLocalDiskHeadroom({ availableKilobytes: 0.5 * 1024 * 1024 }),
+      /0\.5 GiB free; 1 GiB required/,
     );
     assert.equal(
-      assertLocalDiskHeadroom({ availableKilobytes: 10 * 1024 * 1024 }),
-      10,
+      assertLocalDiskHeadroom({ availableKilobytes: 1 * 1024 * 1024 }),
+      1,
     );
   });
 
