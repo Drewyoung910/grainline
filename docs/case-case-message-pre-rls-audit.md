@@ -282,3 +282,55 @@ compatible migration adds the exact index and a nullable durable author-kind
 column. Nullable is deliberate until the protected aggregate-only inspection
 classifies every legacy message; every new application creation path must set
 the source-derived kind meanwhile.
+
+## Production compatibility release
+
+PR #58 merged the reviewed Phase 1B compatibility boundary to `main` as
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`. Merge-bound general CI run
+`30234737824`, Notification FORCE proof run `30234737862` and
+Conversation/Message FORCE proof run `30234737831` all passed at that exact
+merge commit. PRs #59 through #61 remained draft and were not part of this
+release.
+
+Protected Production Migrations run `30235375755` (job `89882085705`) received
+an explicit exact-commit approval and passed every source, credential, role,
+sealed-tree and prior-RLS release guard. It applied only:
+
+- `20260726183000_prepare_case_message_author_kind`;
+- `20260726183500_prepare_case_message_history_index`;
+- `20260726183600_drop_legacy_case_message_history_indexes`; and
+- `20260726184000_prepare_private_case_message_attachments`.
+
+Prisma then reported all 163 migrations current. The final owner-side catalog
+and runtime-grant audit passed for `grainline_app_runtime`: 59 tables, 21
+enums, 57 `grainline_*` functions, four RLS policy tables and zero sequence
+references. The four compatibility migrations do not enable Case or
+CaseMessage RLS and do not create a policy.
+
+The application was deployed separately from a clean detached worktree at the
+same merge commit. Vercel production deployment
+`dpl_3fknfRH5uMczmdq21xQmcAmc614V` reached `READY`, was promoted to
+`thegrainline.com` and records both `meta.gitCommitSha` and
+`meta.grainlineReleaseCommit` as the exact merge SHA. The production runtime
+database guard verified the pooled `grainline_app_runtime` identity before the
+build. `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` was supplied explicitly to
+both build and runtime environments, so the prepared private-evidence feature
+remains disabled. `/api/health` returned `200 {"ok":true}` after alias
+promotion.
+
+Two unauthenticated fake-id evidence requests returned `401` from Clerk
+middleware before reaching the route and therefore are not evidence for or
+against the route-local feature gate. A signed-in browser session was not
+available for the optional route-level `404 {"error":"Not found."}` smoke.
+This limitation does not widen the release: the exact-`true` application gate
+and explicit deployment override remain fail closed. A separate authenticated
+smoke is still required before any future authorization to set the flag true.
+The local aggregate-only database postflight also could not start because the
+cleaned workstation no longer had the `pg` client dependency; no production
+connection was opened. The protected migration status and catalog/grant audit
+above are the accepted database evidence for this compatibility release.
+
+This release prepares integrity and deployment compatibility only. Case and
+CaseMessage RLS remain off, DirectUpload preparation/activation remains
+unreleased, and private Case evidence must not be enabled until those separate
+gates and authenticated participant/staff-versus-foreign-user proof pass.
