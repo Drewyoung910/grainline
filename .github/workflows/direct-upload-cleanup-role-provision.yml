@@ -1,0 +1,69 @@
+name: DirectUpload Cleanup Role Provision
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character reviewed main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type provision-reviewed-direct-upload-cleanup-role
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    name: Converge isolated DirectUpload cleanup role
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production
+    env:
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      MIGRATION_DB_ROLE: neondb_owner
+      DIRECT_UPLOAD_CLEANUP_ROLE_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      DIRECT_UPLOAD_CLEANUP_ROLE_PROVISION_CONFIRM: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify exact source, owner connection, and compatible production posture
+        run: npm run ops:direct-upload-cleanup-role-provision -- --preflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_CLEANUP_ROLE_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-cleanup-role-provision-${{ inputs.release_commit }}.json
+      - name: Converge cleanup role to three-function authority
+        run: >-
+          psql "$DIRECT_URL"
+          -v cleanup_role=grainline_direct_upload_cleanup
+          -v runtime_role=grainline_app_runtime
+          -v migration_role=neondb_owner
+          -f scripts/provision-direct-upload-cleanup-role.sql
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Prove cleanup-role and compatible-runtime authority
+        run: npm run ops:direct-upload-cleanup-role-provision -- --postflight
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_CLEANUP_ROLE_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-cleanup-role-provision-${{ inputs.release_commit }}.json
+      - name: Upload sanitized cleanup-role evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-upload-cleanup-role-provision-${{ github.sha }}
+          path: ${{ runner.temp }}/direct-upload-cleanup-role-provision-${{ github.sha }}.json
+          if-no-files-found: error
+          retention-days: 30

@@ -61,6 +61,8 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
     assert.match(proof, /cleanupColumns/);
     assert.match(proof, /cleanupDefaultPrivileges/);
     assert.match(proof, /cleanupUnexpectedFunctions/);
+    assert.match(proof, /cleanup_role_production_postflight_query/);
+    assert.match(proof, /readDirectUploadCleanupRoleProvisionSnapshot/);
     assert.match(
       proof,
       /DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES/,

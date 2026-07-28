@@ -18,6 +18,9 @@ import {
 import {
   directUploadFunctionSourceHashes,
 } from "./direct-upload-function-source-catalog.mjs";
+import {
+  readDirectUploadCleanupRoleProvisionSnapshot,
+} from "./direct-upload-cleanup-role-production-provision.mjs";
 
 const { Client } = pg;
 
@@ -1365,6 +1368,29 @@ async function bannedAccountLifecycleCleanupProof(owner, runtime) {
   ]);
 }
 
+async function cleanupRoleProductionPostflightQueryProof(owner) {
+  await owner.query("BEGIN TRANSACTION READ ONLY");
+  try {
+    const snapshot =
+      await readDirectUploadCleanupRoleProvisionSnapshot(owner);
+    assert.equal(snapshot.currentUser, "ci");
+    assert.equal(snapshot.sessionUser, "ci");
+    assert.equal(snapshot.transactionReadOnly, "on");
+    assert.equal(snapshot.role?.rolname, CLEANUP_ROLE);
+    assert.equal(snapshot.functions.length, 35);
+    assert.equal(snapshot.tables.length, 2);
+    assert.deepEqual(snapshot.memberships, []);
+    assert.deepEqual(snapshot.memberRoles, []);
+    assert.deepEqual(snapshot.tablePrivileges, []);
+    assert.deepEqual(snapshot.columnPrivileges, []);
+    assert.deepEqual(snapshot.sequencePrivileges, []);
+    assert.deepEqual(snapshot.defaultPrivileges, []);
+    assert.deepEqual(snapshot.unexpectedFunctionPrivileges, []);
+  } finally {
+    await owner.query("ROLLBACK");
+  }
+}
+
 export async function runProof(env = process.env) {
   const { databaseUrl } = parseProofConfig(env);
   const owner = await connect(databaseUrl, `${PREFIX}-owner`);
@@ -1373,6 +1399,8 @@ export async function runProof(env = process.env) {
   try {
     await catalogProof(owner);
     checks.push("catalog_and_acl");
+    await cleanupRoleProductionPostflightQueryProof(owner);
+    checks.push("cleanup_role_production_postflight_query");
     await seedFixtures(owner);
     const { uploadA } = await authorityProof(owner, runtime);
     checks.push("fixed_authority_and_partial_source");
@@ -1388,7 +1416,7 @@ export async function runProof(env = process.env) {
     checks.push("aggregate_only_legacy_query");
     await bannedAccountLifecycleCleanupProof(owner, runtime);
     checks.push("banned_account_lifecycle_cleanup");
-    assert.equal(checks.length, 8);
+    assert.equal(checks.length, 9);
     return {
       ok: true,
       database: DATABASE_NAME,
