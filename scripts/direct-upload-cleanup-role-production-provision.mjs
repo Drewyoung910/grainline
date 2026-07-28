@@ -17,6 +17,7 @@ import {
 import {
   DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
   DIRECT_UPLOAD_CLEANUP_ROLE,
+  hasReviewedDirectUploadCleanupMemberPosture,
 } from "./direct-upload-activation-catalog.mjs";
 import {
   PRODUCTION_MIGRATION_CONFIRMATION,
@@ -152,8 +153,8 @@ export function collectDirectUploadCleanupRoleProvisionIssues(snapshot) {
   if (normalizedStrings(snapshot?.memberships).length > 0) {
     issues.push("cleanup role has a parent-role membership");
   }
-  if (normalizedStrings(snapshot?.memberRoles).length > 0) {
-    issues.push("cleanup role has a member role");
+  if (!hasReviewedDirectUploadCleanupMemberPosture(snapshot)) {
+    issues.push("cleanup role member-role posture is not exact");
   }
   if (
     snapshot?.schemaUsage !== true
@@ -316,6 +317,20 @@ export async function readDirectUploadCleanupRoleProvisionSnapshot(client) {
       JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
     )
     SELECT DISTINCT rolname FROM membership ORDER BY rolname
+  `, [DIRECT_UPLOAD_CLEANUP_ROLE]);
+  const memberRoleEdges = await client.query(`
+    SELECT
+      child.rolname AS member_role,
+      grantor.rolname AS grantor_role,
+      edge.admin_option,
+      edge.inherit_option,
+      edge.set_option
+    FROM pg_catalog.pg_auth_members AS edge
+    JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+    JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+    JOIN pg_catalog.pg_roles AS grantor ON grantor.oid = edge.grantor
+    WHERE parent.rolname = $1
+    ORDER BY child.rolname, grantor.rolname
   `, [DIRECT_UPLOAD_CLEANUP_ROLE]);
   const namespace = (await client.query(`
     SELECT
@@ -553,6 +568,7 @@ export async function readDirectUploadCleanupRoleProvisionSnapshot(client) {
     defaultPrivileges: defaultPrivileges.rows.map((row) => row.privilege),
     functions: functions.rows,
     incompleteMigrationCount,
+    memberRoleEdges: memberRoleEdges.rows,
     memberRoles: memberRoles.rows.map((row) => row.rolname),
     memberships: memberships.rows.map((row) => row.rolname),
     role,
@@ -658,7 +674,8 @@ async function runPostflight(config) {
       cleanupFunctionCount: DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES.length,
       cleanupRoleHasCreateAuthority: false,
       cleanupRoleHasDefaultPrivileges: false,
-      cleanupRoleHasMemberships: false,
+      cleanupRoleHasOnlyReviewedMemberPosture: true,
+      cleanupRoleHasParentMemberships: false,
       cleanupRoleHasTableColumnOrSequenceAuthority: false,
       directUploadFunctionCount: snapshot.functions.length,
       directUploadReferenceForced: true,

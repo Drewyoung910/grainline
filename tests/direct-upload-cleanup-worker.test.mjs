@@ -12,6 +12,7 @@ import {
   DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_PRIVATE_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES,
+  DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE,
   DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
   DIRECT_UPLOAD_CLEANUP_ROLE,
 } from "../scripts/direct-upload-activation-catalog.mjs";
@@ -93,6 +94,7 @@ function acceptedAuthoritySnapshot() {
     databaseCreate: false,
     defaultPrivileges: [],
     functions: DIRECT_UPLOAD_ACTIVATION_FUNCTION_NAMES.map(functionRow),
+    memberRoleEdges: [],
     memberRoles: [],
     memberships: [],
     role: {
@@ -232,12 +234,24 @@ describe("isolated DirectUpload cleanup worker", () => {
       ),
       [],
     );
+    assert.deepEqual(
+      collectDirectUploadCleanupAuthorityIssues({
+        ...acceptedAuthoritySnapshot(),
+        memberRoleEdges: [{ ...DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE }],
+        memberRoles: ["neondb_owner"],
+      }),
+      [],
+    );
 
     const drifted = structuredClone(acceptedAuthoritySnapshot());
     drifted.role.rolbypassrls = true;
     drifted.tablePrivileges.push("DirectUpload");
     drifted.columnPrivileges.push("DirectUpload.key");
     drifted.memberRoles.push("grainline_app_runtime");
+    drifted.memberRoleEdges.push({
+      ...DIRECT_UPLOAD_CLEANUP_BOOTSTRAP_ADMIN_EDGE,
+      set_option: true,
+    });
     drifted.defaultPrivileges.push("neondb_owner:public:EXECUTE");
     drifted.unexpectedFunctionPrivileges.push(
       "public.grainline_notification_create_core(text)",
@@ -277,7 +291,7 @@ describe("isolated DirectUpload cleanup worker", () => {
       issues.some((issue) => issue.includes("effective column authority")),
     );
     assert.ok(
-      issues.some((issue) => issue.includes("zero member roles")),
+      issues.some((issue) => issue.includes("member-role posture")),
     );
     assert.ok(
       issues.some((issue) => issue.includes("default privilege grants")),
@@ -471,8 +485,11 @@ describe("isolated DirectUpload cleanup worker", () => {
     );
     assert.match(
       provision,
-      /role %s is a member of cleanup role %s/,
+      /unexpected role %s is transitively a member of cleanup role %s/,
     );
+    assert.match(provision, /grantor_role = 'cloud_admin'/);
+    assert.match(provision, /AND NOT inherit_option/);
+    assert.match(provision, /AND NOT set_option/);
     for (const name of DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES) {
       assert.match(
         provision,

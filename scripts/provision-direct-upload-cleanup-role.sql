@@ -220,15 +220,41 @@ WITH RECURSIVE members AS (
     FROM members AS parent
     JOIN pg_catalog.pg_auth_members AS edge ON edge.roleid = parent.oid
     JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+), direct_member_edges AS (
+  SELECT
+    child.rolname AS member_role,
+    grantor.rolname AS grantor_role,
+    edge.admin_option,
+    edge.inherit_option,
+    edge.set_option
+  FROM pg_catalog.pg_auth_members AS edge
+  JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+  JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+  JOIN pg_catalog.pg_roles AS grantor ON grantor.oid = edge.grantor
+  WHERE parent.rolname = :'cleanup_role'
 ), failure AS (
   SELECT format(
-    'role %s is a member of cleanup role %s',
+    'unexpected role %s is transitively a member of cleanup role %s',
     rolname,
     :'cleanup_role'
   ) AS message
     FROM members
-   ORDER BY rolname
-   LIMIT 1
+   WHERE rolname <> :'migration_role'
+  UNION ALL
+  SELECT format(
+    'cleanup role %s has an unexpected direct member edge for %s',
+    :'cleanup_role',
+    member_role
+  )
+    FROM direct_member_edges
+   WHERE NOT (
+     :'migration_role' = 'neondb_owner'
+     AND member_role = :'migration_role'
+     AND grantor_role = 'cloud_admin'
+     AND admin_option
+     AND NOT inherit_option
+     AND NOT set_option
+   )
 )
 SELECT
   EXISTS (SELECT 1 FROM failure) AS grainline_cleanup_role_failed,

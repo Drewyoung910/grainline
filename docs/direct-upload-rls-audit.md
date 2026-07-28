@@ -279,7 +279,8 @@ project:
 
 `scripts/provision-direct-upload-cleanup-role.sql` deliberately creates no role
 and sets no password. The externally managed LOGIN must exist first; the
-operator only converges its attributes, memberships and grants. The worker
+operator verifies its exact attributes and membership posture, then converges
+only its grants. The worker
 refuses to run until both lifecycle tables have ENABLE plus FORCE RLS with zero
 policies, the worker has zero table/sequence authority, ordinary runtime has
 lost cleanup EXECUTE, and the unused private-message recorder remains
@@ -900,9 +901,11 @@ migrations. It:
 2. runs `scripts/provision-direct-upload-cleanup-role.sql` without creating a
    role or handling its password; and
 3. runs an owner-side `READ ONLY` postflight proving the cleanup role has no
-   memberships, member roles, create authority, default privileges or
-   table/column/sequence authority, exactly three non-grantable DirectUpload
-   function grants, and no unexpected privileged function access.
+   parent memberships, unexpected member roles, create authority, default
+   privileges or table/column/sequence authority, exactly three non-grantable
+   DirectUpload function grants, and no unexpected privileged function access.
+   A SQL-created production role may retain only PostgreSQL 16's exact
+   non-effective bootstrap admin edge described below.
 
 The postflight simultaneously proves `DirectUpload` remains RLS-off with
 compatible runtime CRUD, `DirectUploadReference` remains policyless ENABLE
@@ -964,7 +967,8 @@ so it cannot safely strip the attributes in place. The accepted remediation
 is therefore a guarded credential rotation: prove the exact rejected posture
 and zero active sessions, prove SQL role creation inside a rollback-only
 transaction, delete only the rejected API role, recreate the same role name
-through SQL as LOGIN/NOINHERIT with no privileged attributes or memberships,
+through SQL as LOGIN/NOINHERIT with no privileged attributes or parent
+memberships,
 prove the new direct connection, and replace only the protected cleanup
 environment secret and its SHA-256 digest. The generated password and SCRAM
 verifier must remain in process memory/stdin and must never be printed or
@@ -984,6 +988,34 @@ was reachable. The corrected guard accepts only 64-4096 characters from the
 reviewed opaque-token alphabet and retains the exact user-id, private-file and
 minimum-lifetime checks. A fresh exact-main preflight remains mandatory before
 the delete boundary.
+
+The replacement probe at corrected exact main `3c2ed678` then reached
+PostgreSQL and exposed a second, provider-specific contract error entirely
+inside rolled-back transactions. PostgreSQL 16 rejected the explicit
+`ADMIN neondb_owner` clause because an admin option cannot be granted back to
+its own grantor. Omitting that clause created an ordinary LOGIN/NOINHERIT role,
+but PostgreSQL automatically recorded `neondb_owner` as a member of the new
+role with `ADMIN=true`, `INHERIT=false`, `SET=false`, granted by Neon's
+`cloud_admin`. A plain revoke could not remove a grant made by `cloud_admin`,
+and a grantor-qualified revoke was correctly denied because `neondb_owner`
+cannot assume `cloud_admin`. PostgreSQL 16 documents that a non-superuser with
+`CREATEROLE` is always given this bootstrap admin option and cannot remove the
+bootstrap-user grant itself:
+<https://www.postgresql.org/docs/16/role-attributes.html>.
+
+That forced reverse edge does not give the cleanup LOGIN any parent authority,
+does not let `neondb_owner` inherit or `SET ROLE` to cleanup authority, and
+adds no untrusted principal: `neondb_owner` is the already protected migration
+owner and has broader database authority independently. The reviewed
+production posture is therefore zero parent memberships and either zero member
+edges (if a provider superuser later removes it) or exactly this one
+`neondb_owner`/`cloud_admin` bootstrap admin edge, with no transitive member
+role beyond `neondb_owner`. Every other edge or option combination fails
+closed in the remediation connection proof, protected provisioning postflight
+and cleanup worker. All exploratory creations were transaction-aborted or
+rolled back; the rejected provider role, protected secret and digest, RLS
+posture, R2 and production data remained unchanged. A fresh exact-main
+rollback-only probe is still required.
 
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration

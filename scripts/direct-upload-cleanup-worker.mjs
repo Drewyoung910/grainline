@@ -24,6 +24,7 @@ import {
   DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES,
   DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
   DIRECT_UPLOAD_CLEANUP_ROLE,
+  hasReviewedDirectUploadCleanupMemberPosture,
 } from "./direct-upload-activation-catalog.mjs";
 import {
   directUploadFunctionSourceHashes,
@@ -302,10 +303,10 @@ export function collectDirectUploadCleanupAuthorityIssues(snapshot) {
     issues.push("cleanup connection role identity is not exact");
   }
   if (normalizedStringArray(snapshot?.memberships).length > 0) {
-    issues.push("cleanup worker role must have zero memberships");
+    issues.push("cleanup worker role must have zero parent memberships");
   }
-  if (normalizedStringArray(snapshot?.memberRoles).length > 0) {
-    issues.push("cleanup worker role must have zero member roles");
+  if (!hasReviewedDirectUploadCleanupMemberPosture(snapshot)) {
+    issues.push("cleanup worker member-role posture is not exact");
   }
   if (normalizedStringArray(snapshot?.defaultPrivileges).length > 0) {
     issues.push("cleanup worker role has default privilege grants");
@@ -475,6 +476,20 @@ export async function readDirectUploadCleanupAuthority(client) {
        JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
      )
      SELECT DISTINCT rolname FROM membership ORDER BY rolname`,
+  );
+  const memberRoleEdges = await client.query(
+    `SELECT
+       child.rolname AS member_role,
+       grantor.rolname AS grantor_role,
+       edge.admin_option,
+       edge.inherit_option,
+       edge.set_option
+     FROM pg_catalog.pg_auth_members AS edge
+     JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+     JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+     JOIN pg_catalog.pg_roles AS grantor ON grantor.oid = edge.grantor
+     WHERE parent.rolname = current_user
+     ORDER BY child.rolname, grantor.rolname`,
   );
   const defaultPrivileges = await client.query(
     `SELECT pg_catalog.format(
@@ -760,6 +775,7 @@ export async function readDirectUploadCleanupAuthority(client) {
     databaseCreate: namespace.rows[0]?.database_create,
     defaultPrivileges: defaultPrivileges.rows.map((row) => row.privilege),
     functions: functions.rows,
+    memberRoleEdges: memberRoleEdges.rows,
     memberRoles: memberRoles.rows.map((row) => row.rolname),
     memberships: memberships.rows.map((row) => row.rolname),
     role: role.rows[0],
