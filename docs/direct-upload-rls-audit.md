@@ -1259,6 +1259,38 @@ scheduler-handoff checkpoint for draft review only; it does not satisfy the
 later provider, production inspection, migration, smoke, schedule-release or
 postflight gates.
 
+The documentation-only follow-up is exact branch head
+`878d9b3586e79d57034458d175fbf70659d7c3b0`. GitHub Actions CI run
+`30375097337` (job `90328613291`) passed against that final head: every
+committed migration and production-style grant audit, the retained
+Conversation/Message PostgreSQL proofs, TypeScript, lint, all repository tests,
+the dependency security audit and the clean-runner production build passed.
+Draft PR #65 remains open, draft and unmerged at that exact head.
+
+Its Vercel Preview status is red for a different, expected reason. Deployment
+`dpl_GuAoSiGMWhrJWjVgKZfk3RugEMWx` stopped at
+`guard:runtime-db-env` with `DATABASE_URL_SHAPE` before the Next build because
+the branch Preview does not have the reviewed runtime database credential
+shape. Do not weaken that fail-closed guard or relabel the Preview as source
+build evidence; the clean GitHub runner is the accepted source/build proof, and
+the eventual production application release remains an exact manual deployment
+using the protected production runtime environment.
+
+A 2026-07-28 read-only release inventory also preserved the boundary between
+repository preparation and production. Exact `main` head
+`ff6abe15badc54132ce9df70ba56f93723d332ac` has green CI run
+`30368981066`, but the newest visible `Production Migrations` workflow remains
+run `30235375755` at older release `da4489ace5a592880a325c3e6f90bad7ded8ee37`.
+This workflow history contains no later DirectUpload-preparation deployment; it
+is not a substitute for a live database postflight and must not be used to
+claim the current catalog. The production alias resolves to ready deployment
+`dpl_3fknfRH5uMczmdq21xQmcAmc614V`, whose built `vercel.json` still contains
+the hourly `/api/cron/direct-upload-cleanup` schedule. Vercel exposed no Git
+source SHA for that manual deployment, so its deployment id and age do not
+attest an exact commit. Before any compatible-app drain claim, deploy and
+independently attest the exact approved `main` release rather than inferring
+source identity from this alias.
+
 ## Exit
 
 Keep Extra High through the scheduler-handoff authority/sequencing review.
