@@ -57,7 +57,7 @@ no-public-domain proof and object audit telemetry remain required.
 | Read private Case evidence | Case attachment route reads lifecycle by key | Exact Case attachment read operation; no client key |
 | Claim public durable references | Listing, SellerProfile, Review, BlogPost, CommissionRequest, SellerBroadcast and legacy Message writers call generic claim helpers | Family-specific reference operations that prove the exact durable field/row and owner |
 | Claim private Case evidence | Case message route calls generic key claim then directly links `claimedById` | One atomic CaseMessage/attachment/reference operation |
-| Clean abandoned uploads | Cleanup cron calls `processExpiredDirectUploadBatch()` | Fixed lease/complete/fail operations returning only an eligible batch; grant them to a dedicated cleanup-worker role, not ordinary request runtime, at activation |
+| Clean abandoned uploads | Before activation, the compatible Vercel cron calls `processExpiredDirectUploadBatch()` | The activation release removes the Vercel route and runtime helper, then hands fixed lease/complete/fail operations to a dedicated GitHub cleanup-worker role with an exact schedule release gate |
 | Account export | Account export directly lists every column | Fixed actor export projection with no key, URL, internal target id or raw error |
 | Account deletion | Deletion reads rows and deletes public lifecycle rows directly | Fixed source-aware release/deletion operation; retained Case evidence remains referenced |
 | Runtime provisioning | `scripts/provision-runtime-db-role.sql` grants SELECT/INSERT/UPDATE/DELETE | Activation must revoke all table access and grant only reviewed functions |
@@ -287,11 +287,20 @@ runtime-inaccessible.
 
 GitHub schedule delay is acceptable for abandoned-object garbage collection:
 it can delay deletion but cannot authorize a live object or customer action.
-It is not a substitute for monitoring. Before activation, verify protected
-environment review rules, failed-workflow notifications and one disposable
-provider smoke with complete object/database cleanup. At activation, remove
-the Vercel cleanup schedule so two providers do not own the same operational
-job. Do not put the cleanup URL into Vercel or weaken
+It is not a substitute for monitoring. Before database activation, verify the
+environment's exact-main deployment-branch restriction, isolated secret and
+variable inventory, and failed-workflow notification path while the schedule
+gate remains absent. Once the hourly schedule is enabled, this recurring
+worker environment must have no required reviewers, wait timer, or custom
+manual protection rule; GitHub holds a job before runner/secret access until
+those rules pass, which would turn an hourly maintenance job into a queue of
+pending approvals. The worker intentionally refuses cleanup until FORCE RLS
+and the exact function partition are live, so the disposable provider deletion
+smoke belongs after activation but before enabling the hourly schedule. It
+requires its own reviewed provider/database mutation approval and must leave no
+object or row behind. The activation release removes the Vercel cleanup route
+and schedule; do not leave two providers as steady-state owners of the same
+operational job. Do not put the cleanup URL into Vercel or weaken
 `guard:runtime-db-env`.
 
 ## Proposed compatible schema
@@ -860,16 +869,18 @@ The isolated activation-design branch adds:
 - `scripts/direct-upload-cleanup-worker.mjs`, which refuses every non-main,
   shared-credential, pooled/wrong-endpoint, unforced-RLS, table-authorized or
   ACL-drifted execution; and
-- `.github/workflows/direct-upload-cleanup.yml`, which is manual-only and
-  references only the separate protected cleanup environment. The hourly
-  trigger belongs to the later activation release that removes the Vercel
-  cleanup schedule.
+- `.github/workflows/direct-upload-cleanup.yml`, which initially remains
+  manual-only and references only the separate protected cleanup environment.
+  The activation-release branch adds the hourly trigger behind the exact
+  repository variable
+  `DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE=20260726190500_enable_direct_upload_rls`
+  while removing the Vercel cleanup route and schedule.
 
 This is saved scaffolding, not a live worker. No cleanup role, GitHub
-environment, database credential, R2 credential, schedule, migration or
-provider object has been created or changed. The current Vercel cron remains
-the compatible pre-activation owner of cleanup until the later activation
-release deliberately transfers that responsibility.
+environment, database credential, R2 credential, enabled GitHub schedule,
+migration or provider object has been created or changed. Production's Vercel
+cron remains the compatible pre-activation owner of cleanup until the later
+activation release deliberately transfers that responsibility.
 
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
@@ -1161,13 +1172,88 @@ retargeted to that `main` head while remaining draft. A fresh clean-runner CI
 production build against the retargeted PR is still a mandatory gate before
 any merge.
 
+PR #61 exact head
+`d4abd02d87ef34741f73d0ccf04ac963bd069c3a` subsequently merged into
+`main` as `ff6abe15badc54132ce9df70ba56f93723d332ac` on 2026-07-28.
+The merge preserved the reviewed candidates as generators and compatible
+application/schema preparation; it did not itself commit either generated
+retirement/activation migration. No provider credential, cleanup role,
+repository schedule release variable or production database mutation was
+performed as part of that merge-only action.
+
+### Scheduler-handoff activation-release checkpoint
+
+Branch `agent/direct-upload-scheduler-handoff-20260728` starts from exact
+`main` head `ff6abe15badc54132ce9df70ba56f93723d332ac` and prepares the
+single-scheduler transition:
+
+- removes `/api/cron/direct-upload-cleanup`, its `vercel.json` schedule and
+  `processExpiredDirectUploadBatch()` from application runtime;
+- adds an hourly `50 * * * *` GitHub trigger while retaining manual dispatch;
+- skips every scheduled job unless repository variable
+  `DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE` is exactly
+  `20260726190500_enable_direct_upload_rls`; and
+- repeats the exact release-token check inside the worker so a workflow-only
+  edit cannot accidentally make scheduled cleanup executable.
+
+The branch is deliberately inert while the repository variable is absent. It
+does not create the protected environment, Neon role/credential, cleanup-only
+R2 credential or failure-notification integration, and it does not stage or
+apply the two production migrations. Do not merge or deploy it as ordinary
+maintenance. This scheduler sub-sequence does not replace release-sequence
+steps 3 through 7 above: additive preparation, compatible-app deployment and
+drain, aggregate production inspection, and any separately approved repair
+must be complete first. Only then may the final activation release be
+assembled and promoted in this order:
+
+1. provision and verify the isolated worker boundary with the schedule release
+   variable absent; restrict the environment to exact `main`, and verify it has
+   no reviewer/wait/custom manual gate that would block recurring jobs;
+2. stage the already proved retirement/activation candidate bytes in the final
+   reviewed release commit alongside this scheduler handoff;
+3. merge and deploy that exact release, verify the production alias, retire the
+   Vercel scheduler, and prove every preceding application instance and
+   in-flight Vercel cleanup invocation has drained;
+4. apply the reviewed compatibility-key retirement and DirectUpload activation
+   migrations;
+5. run a separately approved disposable R2/database deletion smoke and one
+   manual worker pass, then inspect the sanitized artifacts;
+6. set the exact repository release variable; and
+7. verify the first scheduled run and failure-notification delivery, then
+   retire the old Vercel Sentry cron monitor.
+
+This creates a bounded cleanup gap between steps 3 and 6. That gap delays
+garbage collection but cannot authorize uploads; it is safer than giving the
+new worker work before its database grants exist. Keep the old Sentry cron
+monitor active during that gap: an expected missed-check-in signal is better
+than an invisible stalled handoff. Rollback order is: remove the release
+variable, run the database-first rollback, redeploy the last compatible
+Vercel-cron application and restore its Sentry monitor if it was already
+retired. The provider smoke and each production/provider mutation remain
+separate explicit approvals.
+
+The 2026-07-28 read-only GitHub inventory confirmed this boundary before the
+checkpoint: `Production DirectUpload Cleanup` returned `404 Not Found`, and
+the repository contained zero variables whose names start with
+`DIRECT_UPLOAD_CLEANUP_`. This proves that the current branch did not inherit a
+live release switch or pre-existing worker environment. It does not provision
+either one; their later creation remains an explicit provider mutation.
+
+Pre-commit local validation passed the focused scheduler/DirectUpload
+contracts, `tsc --noEmit`, full lint (with the existing JSX analyzer warning),
+and all 2,172 runnable repository tests with 3 intentional skips. The local
+Next production build stopped before application compilation because this
+disposable worktree's `node_modules` is a symlink outside Turbopack's accepted
+filesystem root. That environmental panic is retained as failed build
+evidence, not relabeled as success or a source defect. A clean-runner
+production build against the exact pushed checkpoint remains mandatory.
+
 ## Exit
 
-Keep Extra High through the cleanup-worker authority review and the downstream
-retirement/activation SQL review. PR #60 is merged, but merge-only created no
-provider, credential, role, database, scheduler or deployment state. Retargeted
-PR #61 remains draft until its exact proof record, fresh `main`-targeted CI and
-review boundaries are clean; it authorizes no merge or provider/production
-mutation. A later explicit approval is required for each merge that remains,
-including PR #61, and separately for each provider credential/role change,
-production inspection, migration and deployment.
+Keep Extra High through the scheduler-handoff authority/sequencing review.
+PRs #60 and #61 are merged as preparation, but DirectUpload RLS remains an
+unexecuted production rollout: the generated migrations are not committed,
+the GitHub schedule is not enabled, and this handoff branch is not merged or
+deployed. A later explicit approval is required separately for its merge, exact
+deployment, each provider credential/role change, production inspection,
+migration, disposable provider smoke and schedule release.

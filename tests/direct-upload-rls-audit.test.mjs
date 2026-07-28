@@ -100,6 +100,7 @@ describe("DirectUpload RLS audit contracts", () => {
     const accountExport = source("src/app/api/account/export/route.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const cleanupWorker = source("scripts/direct-upload-cleanup-worker.mjs");
     const review = source("src/app/api/reviews/[id]/route.ts");
     const listingEdit = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     const migration = source(
@@ -116,8 +117,12 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(migration, /grainline_direct_upload_source_delete_trigger/);
     assert.match(migration, /grainline_direct_upload_release_review_delete/);
     assert.match(migration, /grainline_direct_upload_release_listing_delete/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_complete/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_fail/);
+    assert.doesNotMatch(
+      lifecycle,
+      /grainline_direct_upload_cleanup_(?:lease|complete|fail)/,
+    );
+    assert.match(cleanupWorker, /grainline_direct_upload_cleanup_complete/);
+    assert.match(cleanupWorker, /grainline_direct_upload_cleanup_fail/);
     assert.match(audit, /must omit key, URL, internal target ids and raw\s+provider error text/);
     assert.match(audit, /attempt\/lease token/);
   });
@@ -135,8 +140,11 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /Ordinary `grainline_app_runtime` must lose EXECUTE on all three/);
     assert.match(audit, /record_private_message` grant must also be absent/);
     assert.match(audit, /Aggregate legacy inspection/);
-    assert.match(audit, /Keep Extra High through the cleanup-worker authority review/);
-    assert.match(audit, /explicit approval is required for each merge/);
+    assert.match(
+      audit,
+      /Keep Extra High through the scheduler-handoff authority\/sequencing review/,
+    );
+    assert.match(audit, /explicit approval is required separately for its merge/);
     assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
     assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
     assert.match(strategy, /CM-A21 execution contract/);
