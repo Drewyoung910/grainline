@@ -1366,6 +1366,22 @@ applied the two disposable retirement/activation candidates, passed activated
 authority plus database-first rollback and exact restoration, and recorded
 `persistentStagingChanged=false` and `productionChanged=false` throughout.
 
+The next external audit correctly inspected credential/evidence handling but
+overstated two properties. The preparation ledger is not guaranteed empty:
+the authority migration iterates every existing `CaseMessageAttachment` and
+invokes the fixed reference function, which inserts its normalized ledger row.
+Also, the prior `READ ONLY` transaction began only around the denial checks;
+the preceding catalog operations were fixed `SELECT`s but were not yet under
+the engine-enforced transaction. Exact executable commit
+`30bac3a6d07bb92f77cc6d393d61bacb1fbc9648` moves transaction ownership around
+production identity, table, constraint, trigger, function and denial
+inspection as one unit. Disposable PostgreSQL 16 run `30384341260` (job
+`90359733007`) passed the exact nine-check compatible proof with the revised
+whole-transaction query path, then passed disposable retirement, activation,
+activated authority and database-first rollback/restoration. It recorded
+`persistentStagingChanged=false` and `productionChanged=false`; production and
+provider state were not addressed.
+
 ## Exit
 
 Keep Extra High through the scheduler-handoff authority/sequencing review.
