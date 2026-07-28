@@ -55,6 +55,7 @@ jobs:
           -f scripts/provision-direct-upload-cleanup-role.sql
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
       - name: Prove cleanup-role and compatible-runtime authority
         run: npm run ops:direct-upload-cleanup-role-provision -- --postflight
         env:
