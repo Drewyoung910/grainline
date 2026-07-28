@@ -1046,6 +1046,24 @@ transaction. It never issues a second provider delete. Sanitized failure
 output now includes only the bounded stage name so future partial progress can
 be reconciled without exposing credentials.
 
+The corrected recovery operator merged as exact main
+`1d4c5fe20d99966ac10c3bfa890a41ba2b026f8e`; its merged-main CI and
+production build passed. Recovery preflight proved the API role already
+deleted, exact provider/catalog absence, the unchanged rejected digest and
+exact-name replacement creation under rollback. Actual recovery then failed
+closed at `replacement-create`. Immediate reconciliation again proved zero
+cleanup roles in Neon, the old protected secret/digest timestamps unchanged,
+and therefore no reachable grant, RLS, data, deployment, cleanup or R2 change.
+The failure is within the transactional SQL create/assert/commit operation,
+not the provider or GitHub stages.
+
+The stage marker was still too coarse to distinguish a PostgreSQL permission,
+catalog, invariant or transaction failure. The next diagnostic retains verbose
+PostgreSQL errors only inside the operator process and emits at most a validated
+five-character SQLSTATE class such as `postgres-42501`; it never emits raw
+stderr, SQL, role passwords, connection URLs or error text. A fresh exact-main
+recovery preflight remains mandatory before another committed replacement.
+
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
 tree and reached cleanup-role convergence, including the three intended

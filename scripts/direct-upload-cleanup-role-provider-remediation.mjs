@@ -66,6 +66,8 @@ export const REVIEWED_NEON_USER_ID =
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const SAFE_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{64}$/;
 const SAFE_OPERATION_ID_PATTERN = /^[A-Za-z0-9-]{8,80}$/;
+const SAFE_FAILURE_CLASS_PATTERN =
+  /^(?:postgres-[0-9A-Z]{5}|postgres-unclassified|command-unclassified)$/;
 const EVIDENCE_PREFIX = "direct-upload-cleanup-role-provider-remediation-";
 const OPERATION_ATTEMPTS = 20;
 const OPERATION_INTERVAL_MS = 2_000;
@@ -213,9 +215,25 @@ function runNeonCli(cliPath, args, options = {}) {
     maxBuffer: 2 * 1024 * 1024,
   });
   if (result.error || result.status !== 0) {
-    throw new Error(options.failureMessage ?? "reviewed Neon command failed");
+    const error = new Error(
+      options.failureMessage ?? "reviewed Neon command failed",
+    );
+    if (options.classifyPostgresFailure) {
+      error.failureClass = classifyReviewedPostgresFailure(result.stderr);
+    }
+    throw error;
   }
   return result.stdout;
+}
+
+export function classifyReviewedPostgresFailure(stderr) {
+  if (typeof stderr !== "string") return "command-unclassified";
+  const sqlstate = stderr.match(/\b(?:ERROR|FATAL):\s+([0-9A-Z]{5}):/i)?.[1];
+  if (sqlstate && /^[0-9A-Z]{5}$/.test(sqlstate.toUpperCase())) {
+    return `postgres-${sqlstate.toUpperCase()}`;
+  }
+  if (/\b(?:ERROR|FATAL):/i.test(stderr)) return "postgres-unclassified";
+  return "command-unclassified";
 }
 
 function runNeonApi(cliPath, pathname, method = "GET") {
@@ -671,9 +689,10 @@ COMMIT;
 
 function runOwnerSql(cliPath, sql, marker) {
   const stdout = runNeonCli(cliPath, buildPsqlArgs(), {
-    input: sql,
+    input: `\\set VERBOSITY verbose\n${sql}`,
     timeout: 90_000,
     failureMessage: "reviewed owner SQL operation failed",
+    classifyPostgresFailure: true,
   });
   if (!stdout.includes(marker)) {
     throw new Error("reviewed owner SQL success marker is absent");
@@ -1098,10 +1117,13 @@ async function run() {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     await run();
-  } catch {
+  } catch (error) {
+    const failureClass = SAFE_FAILURE_CLASS_PATTERN.test(error?.failureClass)
+      ? error.failureClass
+      : "command-unclassified";
     process.stderr.write(
       "DirectUpload cleanup-role provider remediation failed closed "
-        + `at stage ${remediationFailureStage}.\n`,
+        + `at stage ${remediationFailureStage} (${failureClass}).\n`,
     );
     process.exitCode = 1;
   }
