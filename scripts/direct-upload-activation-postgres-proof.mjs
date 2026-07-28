@@ -264,6 +264,7 @@ async function catalogProof(owner) {
        procedure.proname,
        pg_catalog.oidvectortypes(procedure.proargtypes)
          AS identity_arguments,
+       procedure.prokind,
        procedure.prosecdef,
        procedure.proleakproof,
        procedure.proconfig,
@@ -311,6 +312,7 @@ async function catalogProof(owner) {
     const expected = byName.get(row.proname);
     assert.ok(expected, `unexpected DirectUpload function ${row.proname}`);
     assert.equal(row.identity_arguments, expected.identityArguments);
+    assert.equal(row.prokind, "f");
     assert.equal(row.prosecdef, expected.securityDefiner);
     assert.equal(row.proleakproof, false);
     assert.deepEqual(row.proconfig, ["search_path=pg_catalog"]);

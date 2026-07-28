@@ -320,9 +320,14 @@ approved.
 
 Final proof commit `6449d722` passed PostgreSQL 16.14 run `30233243581` (job
 `89875935635`) after adding explicit foreign Case-attachment denial and
-post-rollback `objectKey`-absence checks. Use this as the accepted disposable
-proof head. It strengthens evidence only and does not change any production
-gate or authorize promotion.
+post-rollback `objectKey`-absence checks. That run remains useful design
+evidence but is superseded for release by the later cleanup-role hardening and
+integrated SQL review. Both generated candidates must take their fixed-order
+exclusive table locks before inspecting mutable state; activation must reject
+both role-membership directions and any non-ordinary DirectUpload catalog
+entry. A fresh exact-tree disposable activation and database-first rollback
+pass is required. These corrections do not change any production gate or
+authorize promotion.
 
 ### Messaging architecture decision (2026-07-22)
 

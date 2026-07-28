@@ -1103,6 +1103,18 @@ the complete disposable PostgreSQL activation and database-first rollback
 program against the hardened global catalog, role-membership, default-grant and
 function-security checks before PR #61 can be accepted.
 
+The integrated 2026-07-28 SQL review then found that both generated candidates
+took their exclusive table locks after inspecting mutable catalog/data state.
+The documented disabled-app drain reduces that race in production, but the
+migration itself should not depend on timing: both candidates now take their
+fixed-order `ACCESS EXCLUSIVE` locks immediately after the rollout advisory
+lock and before any preflight. The activation preflight also checks inbound and
+outbound role memberships, and both the candidate and live proof require every
+catalog entry to remain an ordinary `pg_proc.prokind = 'f'` function. Static
+regressions pin those class-wide invariants. Any proof run predating these
+changes is superseded; a fresh exact-tree disposable activation plus
+database-first rollback run remains required.
+
 ## Exit
 
 Keep Extra High through the cleanup-worker authority review and the downstream

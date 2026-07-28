@@ -52,6 +52,7 @@ describe("DirectUpload activated PostgreSQL proof harness", () => {
     assert.match(proof, /functions\.rows\.length, 35/);
     assert.match(proof, /oidvectortypes\(procedure\.proargtypes\)/);
     assert.match(proof, /row\.identity_arguments, expected\.identityArguments/);
+    assert.match(proof, /row\.prokind, "f"/);
     assert.match(proof, /owner_is_proof_role/);
     assert.match(proof, /source hash drifted/);
     assert.match(proof, /policy_count: 0/);

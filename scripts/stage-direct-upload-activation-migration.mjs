@@ -133,6 +133,7 @@ BEGIN
     END IF;
 
     SELECT
+      procedure.prokind,
       procedure.prosecdef,
       procedure.proleakproof,
       procedure.proconfig,
@@ -159,7 +160,8 @@ BEGIN
       FROM pg_catalog.pg_proc AS procedure
      WHERE procedure.oid = function_oid;
 
-    IF actual.prosecdef IS DISTINCT FROM expected.security_definer
+    IF actual.prokind IS DISTINCT FROM 'f'
+       OR actual.prosecdef IS DISTINCT FROM expected.security_definer
        OR actual.proleakproof
        OR actual.proconfig IS DISTINCT FROM
          ARRAY['search_path=pg_catalog']::text[]
@@ -193,6 +195,11 @@ SET LOCAL statement_timeout = '60s';
 SELECT pg_catalog.pg_advisory_xact_lock(
   pg_catalog.hashtextextended('grainline.direct-upload.rls.activation', 0)
 );
+
+LOCK TABLE
+  public."DirectUpload",
+  public."DirectUploadReference"
+IN ACCESS EXCLUSIVE MODE;
 
 DO $grainline_direct_upload_activation_role_preflight$
 DECLARE
@@ -254,13 +261,19 @@ BEGIN
       FROM pg_catalog.pg_auth_members AS membership
       JOIN pg_catalog.pg_roles AS member
         ON member.oid = membership.member
+      JOIN pg_catalog.pg_roles AS granted_role
+        ON granted_role.oid = membership.roleid
      WHERE member.rolname IN (
-       'grainline_app_runtime',
-       '${DIRECT_UPLOAD_CLEANUP_ROLE}'
-     )
+             'grainline_app_runtime',
+             '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+           )
+        OR granted_role.rolname IN (
+             'grainline_app_runtime',
+             '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+           )
   ) THEN
     RAISE EXCEPTION
-      'DirectUpload runtime or cleanup role retains role membership';
+      'DirectUpload runtime or cleanup role retains inbound or outbound role membership';
   END IF;
 
   SELECT class.relrowsecurity, class.relforcerowsecurity
@@ -484,11 +497,6 @@ ${functionCatalogProof(
     "grainline_direct_upload_activation_function_preflight",
     { predecessor: true },
   )}
-
-LOCK TABLE
-  public."DirectUpload",
-  public."DirectUploadReference"
-IN ACCESS EXCLUSIVE MODE;
 
 REVOKE ALL ON TABLE
   public."DirectUpload",

@@ -40,6 +40,11 @@ describe("DirectUpload compatibility-key retirement candidate", () => {
   it("requires exact compatibility identity and active-reference coherence", () => {
     const { migration } = buildDirectUploadRetirementCandidate();
 
+    assert.ok(
+      migration.indexOf("LOCK TABLE")
+        < migration.indexOf("DO $grainline_direct_upload_retirement_preflight$"),
+      "retirement must lock before inspecting mutable rows",
+    );
     assert.match(
       migration,
       /upload\.key IS DISTINCT FROM attachment\."objectKey"/,

@@ -29,6 +29,12 @@ SELECT pg_catalog.pg_advisory_xact_lock(
   pg_catalog.hashtextextended('grainline.direct-upload.rls.activation', 0)
 );
 
+LOCK TABLE
+  public."DirectUpload",
+  public."DirectUploadReference",
+  public."CaseMessageAttachment"
+IN ACCESS EXCLUSIVE MODE;
+
 DO $grainline_direct_upload_retirement_preflight$
 DECLARE
   direct_upload_state record;
@@ -209,12 +215,6 @@ BEGIN
   END IF;
 END
 $grainline_direct_upload_retirement_preflight$;
-
-LOCK TABLE
-  public."DirectUpload",
-  public."DirectUploadReference",
-  public."CaseMessageAttachment"
-IN ACCESS EXCLUSIVE MODE;
 
 ALTER TABLE public."DirectUpload"
   VALIDATE CONSTRAINT "DirectUpload_userId_fkey";

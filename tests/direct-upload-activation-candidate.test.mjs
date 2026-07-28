@@ -69,6 +69,13 @@ describe("DirectUpload activation candidate", () => {
   it("requires the exact roles, retired key, constraints, and predecessor ACLs", () => {
     const { migration } = buildDirectUploadActivationCandidate();
 
+    assert.ok(
+      migration.indexOf("LOCK TABLE")
+        < migration.indexOf(
+          "DO $grainline_direct_upload_activation_role_preflight$",
+        ),
+      "activation must lock before inspecting mutable table posture",
+    );
     assert.match(
       migration,
       /grainline_app_runtime role posture is not DirectUpload-safe/,
@@ -89,6 +96,11 @@ describe("DirectUpload activation candidate", () => {
       migration,
       /DirectUpload predecessor table authority is not exact/,
     );
+    assert.match(
+      migration,
+      /member\.rolname IN[\s\S]*granted_role\.rolname IN/,
+    );
+    assert.match(migration, /actual\.prokind IS DISTINCT FROM 'f'/);
     assert.match(
       migration,
       /pg_catalog\.md5\(actual\.prosrc\) IS DISTINCT FROM expected\.source_md5/,
