@@ -6,6 +6,7 @@ on:
       - agent/direct-upload-rls-preparation-20260726
       - agent/direct-upload-rls-activation-20260726
       - agent/direct-upload-object-key-retirement-20260726
+      - agent/direct-upload-legacy-repair-20260728
     paths:
       - .github/workflows/direct-upload-authority-postgres-proof.yml
       - package.json
@@ -20,6 +21,7 @@ on:
       - scripts/direct-upload-cleanup-worker.mjs
       - scripts/direct-upload-function-source-catalog.mjs
       - scripts/direct-upload-legacy-inspect.mjs
+      - scripts/direct-upload-legacy-repair-postgres-proof.mjs
       - scripts/prepare-ci-rls-runtime-role.sql
       - scripts/provision-direct-upload-cleanup-role.sql
       - scripts/provision-runtime-db-role.sql
@@ -35,6 +37,7 @@ on:
       - tests/direct-upload-authority-postgres-proof.test.mjs
       - tests/direct-upload-cleanup-worker.test.mjs
       - tests/direct-upload-legacy-inspect.test.mjs
+      - tests/direct-upload-legacy-repair-postgres-proof.test.mjs
       - tests/direct-upload-retirement-candidate.test.mjs
   workflow_dispatch:
 
@@ -62,6 +65,7 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_AUTHORITY_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_LEGACY_REPAIR_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
     steps:
@@ -95,7 +99,10 @@ jobs:
           tests/direct-upload-authority-postgres-proof.test.mjs
           tests/direct-upload-cleanup-worker.test.mjs
           tests/direct-upload-legacy-inspect.test.mjs
+          tests/direct-upload-legacy-repair-postgres-proof.test.mjs
           tests/direct-upload-retirement-candidate.test.mjs
+      - name: Prove both valid DirectUpload legacy repair shapes
+        run: npm run audit:rls-direct-upload-legacy-repair
       - name: Prove compatible DirectUpload fixed authority
         run: npm run audit:rls-direct-upload-authority
       - name: Stage disposable compatibility-key retirement
