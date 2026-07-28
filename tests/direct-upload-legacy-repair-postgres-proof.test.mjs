@@ -112,11 +112,14 @@ describe("DirectUpload legacy repair migration and PostgreSQL proof", () => {
     assert.match(plan, /ff6abe15badc54132ce9df70ba56f93723d332ac/);
     assert.match(plan, /30389331036/);
     assert.match(plan, /30390887295/);
+    assert.match(plan, /30393344198/);
     assert.match(plan, /2 first-party durable source URLs/);
     assert.match(plan, /do \*\*not\*\* prove two distinct lifecycle rows/);
     assert.match(plan, /120 untracked historical URLs/);
     assert.match(plan, /cleanup eligibility seven days in the future/);
     assert.match(plan, /recoverable Neon backup\/child branch/);
+    assert.match(plan, /post-repair-verification/);
+    assert.match(plan, /verify-prelaunch-direct-upload-legacy-repair/);
     assert.match(plan, /does not authorize either later step/);
   });
 

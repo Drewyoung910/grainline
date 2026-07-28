@@ -61,7 +61,8 @@ Prepared DirectUpload production postflight:
   disabled and every old instance has drained, separately authorize and
   manually dispatch
   `.github/workflows/direct-upload-legacy-inspection.yml` from the exact clean
-  main commit. Supply the same 40-character commit and type
+  main commit. Select `pre-repair-inspection`, supply the same 40-character
+  commit and type
   `inspect-prelaunch-direct-upload-legacy-state`.
 - The protected GitHub `Production` environment must provide
   `PRODUCTION_MIGRATION_DIRECT_URL`,
@@ -72,6 +73,12 @@ Prepared DirectUpload production postflight:
   reference backfill, constraint validation, object copy/delete, URL rewrite,
   endpoint retirement and any unrepairable row decision each require their
   own reviewed change and residue proof.
+- After the separately guarded repair, rerun that workflow from the exact
+  repair commit with `post-repair-verification` and confirmation
+  `verify-prelaunch-direct-upload-legacy-repair`. That mode fails closed unless
+  the two valid shared/distinct lifecycle partitions, active-owner state,
+  cleanup fence, reference totals and unchanged compatibility posture all
+  match the reviewed repair contract.
 
 ## Incident Triage
 

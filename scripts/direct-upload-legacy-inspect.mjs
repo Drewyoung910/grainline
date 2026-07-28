@@ -21,8 +21,20 @@ import {
 
 const { Client } = pg;
 
+export const DIRECT_UPLOAD_LEGACY_EXPECTED_STATES = Object.freeze({
+  preRepair: "pre-repair-inspection",
+  postRepair: "post-repair-verification",
+});
+export const DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATIONS = Object.freeze({
+  [DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair]:
+    "inspect-prelaunch-direct-upload-legacy-state",
+  [DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.postRepair]:
+    "verify-prelaunch-direct-upload-legacy-repair",
+});
 export const DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATION =
-  "inspect-prelaunch-direct-upload-legacy-state";
+  DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATIONS[
+    DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair
+  ];
 export const DIRECT_UPLOAD_LEGACY_PREREQUISITE_CONFIRMATION =
   "compatible-app-drained-private-surfaces-disabled";
 
@@ -82,9 +94,18 @@ export function parseDirectUploadLegacyInspectionConfig(env = process.env) {
   if (!COMMIT_PATTERN.test(releaseCommit) || releaseCommit !== githubCommit) {
     throw new Error("DirectUpload legacy inspection commit must match the dispatched main commit");
   }
+  const expectedState = required(
+    env,
+    "DIRECT_UPLOAD_LEGACY_EXPECTED_STATE",
+  );
+  const expectedConfirmation =
+    DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATIONS[expectedState];
+  if (!expectedConfirmation) {
+    throw new Error("DirectUpload legacy inspection expected state is not reviewed");
+  }
   if (
     env.DIRECT_UPLOAD_LEGACY_INSPECT_CONFIRM
-      !== DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATION
+      !== expectedConfirmation
   ) {
     throw new Error("DirectUpload legacy inspection confirmation is not exact");
   }
@@ -136,17 +157,20 @@ export function parseDirectUploadLegacyInspectionConfig(env = process.env) {
   );
   const expectedPath = path.join(
     runnerTemp,
-    `direct-upload-legacy-inspection-${releaseCommit}.json`,
+    `direct-upload-legacy-${expectedState}-${releaseCommit}.json`,
   );
   if (evidencePath !== expectedPath || existsSync(evidencePath)) {
     throw new Error("DirectUpload legacy inspection evidence path is not the fresh reviewed runner path");
   }
 
   return Object.freeze({
-    mode: "inspect",
+    mode: expectedState === DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair
+      ? "inspect"
+      : "verify-repair",
     directUrl,
     directUrlSha256,
     evidencePath,
+    expectedState,
     firstPartyBaseUrl,
     firstPartyBaseUrlSha256,
     identity,
@@ -184,6 +208,7 @@ export const DIRECT_UPLOAD_LEGACY_COUNT_FIELDS = Object.freeze([
   "active_reference_count",
   "released_reference_count",
   "missing_user_count",
+  "invalid_owner_count",
   "invalid_endpoint_count",
   "invalid_storage_class_count",
   "invalid_status_count",
@@ -430,6 +455,173 @@ export function normalizeDirectUploadLegacyResult(row) {
       ),
     }),
   });
+}
+
+const ZERO_INVARIANT_COUNT_FIELDS = Object.freeze([
+  "missingUserCount",
+  "invalidOwnerCount",
+  "invalidEndpointCount",
+  "invalidStorageClassCount",
+  "invalidStatusCount",
+  "invalidKeyEndpointCount",
+  "invalidPublicUrlStorageCount",
+  "invalidContentSizeCount",
+  "stateTimestampCoherenceCount",
+  "cleanupLeasePairMismatchCount",
+  "claimPairMismatchCount",
+  "danglingClaimSourceCount",
+  "cleanupEligibleCount",
+  "staleDeletingLeaseCount",
+  "invalidReferenceSourceTypeCount",
+  "activeReferenceSourceMissingCount",
+  "activeReferenceOwnerMismatchCount",
+  "activeReferenceExclusivityMismatchCount",
+  "activePublicReferenceUrlMismatchCount",
+  "privateMultiActiveReferenceUploadCount",
+  "legacyUtfsDurableSourceUrlCount",
+  "legacyUtfsUntrackedSourceUrlCount",
+  "unknownExternalDurableSourceUrlCount",
+  "caseAttachmentCount",
+  "caseAttachmentKeyIdMismatchCount",
+  "caseAttachmentMetadataMismatchCount",
+  "caseAttachmentMissingActiveReferenceCount",
+  "caseAttachmentDuplicateActiveReferenceCount",
+  "listingVideoUploadCount",
+  "messageFileUploadCount",
+  "messageAnyUploadCount",
+  "messagePrivateImageUploadCount",
+  "unrepairableLifecycleRowCount",
+]);
+
+function assertExactCount(counts, field, expected, state) {
+  if (counts[field] !== expected) {
+    throw new Error(
+      `DirectUpload ${state} aggregate does not match the reviewed ${field} count`,
+    );
+  }
+}
+
+function assertOnlyDistributionCount(distribution, key, expected, state) {
+  for (const [entry, count] of Object.entries(distribution)) {
+    if (count !== (entry === key ? expected : 0)) {
+      throw new Error(
+        `DirectUpload ${state} aggregate does not match the reviewed ${key} distribution`,
+      );
+    }
+  }
+}
+
+export function assertDirectUploadLegacyExpectedState(
+  inventory,
+  expectedState,
+) {
+  if (
+    expectedState !== DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair
+    && expectedState !== DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.postRepair
+  ) {
+    throw new Error("DirectUpload legacy inspection expected state is not reviewed");
+  }
+  const { counts, distributions } = inventory;
+  for (const field of ZERO_INVARIANT_COUNT_FIELDS) {
+    assertExactCount(counts, field, 0, expectedState);
+  }
+  for (const [field, expected] of Object.entries({
+    directUploadCount: 3,
+    durableSourceUrlCount: 122,
+    firstPartyDurableSourceUrlCount: 122,
+    firstPartyUntrackedSourceUrlCount: 120,
+  })) {
+    assertExactCount(counts, field, expected, expectedState);
+  }
+  assertOnlyDistributionCount(
+    distributions.endpoints,
+    "listingImage",
+    3,
+    expectedState,
+  );
+  assertOnlyDistributionCount(
+    distributions.storageClasses,
+    "PUBLIC",
+    3,
+    expectedState,
+  );
+  const providerTotal = Object.values(distributions.durableProviders)
+    .reduce((sum, count) => sum + count, 0);
+  if (
+    providerTotal !== 122
+    || Object.keys(distributions.durableProviders)
+      .some((key) => !key.endsWith(":FIRST_PARTY"))
+  ) {
+    throw new Error(
+      `DirectUpload ${expectedState} aggregate does not match the reviewed provider distribution`,
+    );
+  }
+
+  if (expectedState === DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair) {
+    for (const [field, expected] of Object.entries({
+      directUploadReferenceCount: 0,
+      activeReferenceCount: 0,
+      releasedReferenceCount: 0,
+      unknownClaimTypeCount: 3,
+      claimedZeroActiveReferenceUploadCount: 3,
+      publicMultiActiveReferenceUploadCount: 0,
+      firstPartyBackfillableSourceUrlCount: 2,
+    })) {
+      assertExactCount(counts, field, expected, expectedState);
+    }
+    assertOnlyDistributionCount(
+      distributions.statuses,
+      "CLAIMED",
+      3,
+      expectedState,
+    );
+    assertOnlyDistributionCount(
+      distributions.claimTypes,
+      "UNKNOWN",
+      3,
+      expectedState,
+    );
+  } else {
+    for (const [field, expected] of Object.entries({
+      directUploadReferenceCount: 2,
+      activeReferenceCount: 2,
+      releasedReferenceCount: 0,
+      unknownClaimTypeCount: 0,
+      claimedZeroActiveReferenceUploadCount: 0,
+      firstPartyBackfillableSourceUrlCount: 0,
+    })) {
+      assertExactCount(counts, field, expected, expectedState);
+    }
+    if (
+      ![0, 1].includes(counts.publicMultiActiveReferenceUploadCount)
+      || ![1, 2].includes(distributions.statuses.CLAIMED)
+      || ![1, 2].includes(distributions.statuses.VERIFIED)
+      || distributions.statuses.CLAIMED
+        + distributions.statuses.VERIFIED !== 3
+      || Object.entries(distributions.statuses).some(
+        ([status, count]) =>
+          !["CLAIMED", "VERIFIED"].includes(status) && count !== 0,
+      )
+    ) {
+      throw new Error(
+        "DirectUpload post-repair aggregate does not match the reviewed lifecycle partition",
+      );
+    }
+    const knownClaimCount = Object.entries(distributions.claimTypes)
+      .filter(([claimType]) =>
+        !["UNCLAIMED", "UNKNOWN"].includes(claimType))
+      .reduce((sum, [, count]) => sum + count, 0);
+    if (
+      distributions.claimTypes.UNCLAIMED !== distributions.statuses.VERIFIED
+      || distributions.claimTypes.UNKNOWN !== 0
+      || knownClaimCount !== distributions.statuses.CLAIMED
+    ) {
+      throw new Error(
+        "DirectUpload post-repair aggregate does not match the reviewed claim partition",
+      );
+    }
+  }
+  return Object.freeze({ expectedState, matched: true });
 }
 
 async function readPosture(client) {
@@ -744,6 +936,12 @@ export const DIRECT_UPLOAD_LEGACY_COUNTS_SQL = `
        FROM public."DirectUpload" AS upload
        LEFT JOIN public."User" AS owner ON owner.id = upload."userId"
       WHERE owner.id IS NULL) AS missing_user_count,
+    (SELECT pg_catalog.count(*)
+       FROM public."DirectUpload" AS upload
+       LEFT JOIN public."User" AS owner ON owner.id = upload."userId"
+      WHERE owner.id IS NULL
+         OR owner.banned
+         OR owner."deletedAt" IS NOT NULL) AS invalid_owner_count,
     (SELECT pg_catalog.count(*) FROM public."DirectUpload"
       WHERE endpoint NOT IN (
         'listingImage', 'messageImage', 'messageFile', 'messageAny',
@@ -1026,6 +1224,8 @@ export const DIRECT_UPLOAD_LEGACY_COUNTS_SQL = `
        FROM public."DirectUpload" AS upload
        LEFT JOIN public."User" AS owner ON owner.id = upload."userId"
       WHERE owner.id IS NULL
+         OR owner.banned
+         OR owner."deletedAt" IS NOT NULL
          OR upload.endpoint NOT IN (
            'listingImage', 'messageImage', 'messageFile', 'messageAny',
            'caseEvidenceImage', 'messagePrivateImage', 'reviewPhoto',
@@ -1167,6 +1367,10 @@ export async function runDirectUploadLegacyInspection(config) {
     transactionOpen = true;
     const posture = await readPosture(client);
     const inventory = await readCounts(client, config.firstPartyBaseUrl);
+    const stateProof = assertDirectUploadLegacyExpectedState(
+      inventory,
+      config.expectedState,
+    );
     await client.query("ROLLBACK");
     transactionOpen = false;
     return Object.freeze({
@@ -1174,6 +1378,8 @@ export async function runDirectUploadLegacyInspection(config) {
       releaseCommit: config.releaseCommit,
       directUrlSha256: config.directUrlSha256,
       firstPartyBaseUrlSha256: config.firstPartyBaseUrlSha256,
+      expectedState: config.expectedState,
+      stateProof,
       posture,
       counts: inventory.counts,
       distributions: inventory.distributions,
@@ -1237,6 +1443,9 @@ async function main() {
     writeDirectUploadLegacyInspectionEvidence(config.evidencePath, evidence);
     process.stdout.write(`${JSON.stringify({
       status: evidence.status,
+      mode: evidence.mode,
+      expectedState: evidence.expectedState,
+      stateProof: evidence.stateProof,
       releaseCommit: evidence.releaseCommit,
       posture: evidence.posture,
       counts: evidence.counts,

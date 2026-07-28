@@ -7,8 +7,11 @@ import { describe, it } from "node:test";
 import {
   DIRECT_UPLOAD_LEGACY_COUNT_FIELDS,
   DIRECT_UPLOAD_LEGACY_COUNTS_SQL,
+  DIRECT_UPLOAD_LEGACY_EXPECTED_STATES,
   DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATION,
+  DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATIONS,
   DIRECT_UPLOAD_LEGACY_PREREQUISITE_CONFIRMATION,
+  assertDirectUploadLegacyExpectedState,
   assertDirectUploadLegacyInspectionGitState,
   normalizeDirectUploadLegacyCounts,
   normalizeDirectUploadLegacyResult,
@@ -23,14 +26,18 @@ const RUNNER_TEMP = "/private/tmp/direct-upload-legacy-inspection-test";
 const PUBLIC_BASE = "https://cdn.example.com/media/";
 
 function configEnv(overrides = {}) {
+  const expectedState = overrides.DIRECT_UPLOAD_LEGACY_EXPECTED_STATE
+    ?? DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair;
   return {
     CLOUDFLARE_R2_PUBLIC_URL: PUBLIC_BASE,
     DIRECT_URL,
     DIRECT_UPLOAD_LEGACY_INSPECT_CONFIRM:
-      DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATION,
+      DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATIONS[expectedState]
+      ?? DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATION,
     DIRECT_UPLOAD_LEGACY_INSPECT_EVIDENCE_PATH:
-      `${RUNNER_TEMP}/direct-upload-legacy-inspection-${COMMIT}.json`,
+      `${RUNNER_TEMP}/direct-upload-legacy-${expectedState}-${COMMIT}.json`,
     DIRECT_UPLOAD_LEGACY_INSPECT_RELEASE_COMMIT: COMMIT,
+    DIRECT_UPLOAD_LEGACY_EXPECTED_STATE: expectedState,
     DIRECT_UPLOAD_LEGACY_PREREQUISITES_CONFIRMED:
       DIRECT_UPLOAD_LEGACY_PREREQUISITE_CONFIRMATION,
     GITHUB_ACTIONS: "true",
@@ -50,6 +57,10 @@ describe("DirectUpload aggregate-only legacy inspection", () => {
   it("requires exact main dispatch, prerequisite, owner target, and reviewed public base", () => {
     const config = parseDirectUploadLegacyInspectionConfig(configEnv());
     assert.equal(config.mode, "inspect");
+    assert.equal(
+      config.expectedState,
+      DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair,
+    );
     assert.equal(config.firstPartyBaseUrl, "https://cdn.example.com/media");
     assert.equal(
       config.firstPartyBaseUrlSha256,
@@ -62,6 +73,7 @@ describe("DirectUpload aggregate-only legacy inspection", () => {
       { GITHUB_EVENT_NAME: "push" },
       { GITHUB_SHA: "f".repeat(40) },
       { DIRECT_UPLOAD_LEGACY_INSPECT_CONFIRM: "yes" },
+      { DIRECT_UPLOAD_LEGACY_EXPECTED_STATE: "unknown-state" },
       { DIRECT_UPLOAD_LEGACY_PREREQUISITES_CONFIRMED: "pending" },
       { PRODUCTION_MIGRATION_DIRECT_URL_SHA256: "0".repeat(64) },
       { DATABASE_URL: "present" },
@@ -73,6 +85,24 @@ describe("DirectUpload aggregate-only legacy inspection", () => {
       assert.throws(() =>
         parseDirectUploadLegacyInspectionConfig(configEnv(drift)));
     }
+  });
+
+  it("pairs post-repair verification with a distinct exact confirmation and artifact", () => {
+    const expectedState = DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.postRepair;
+    const config = parseDirectUploadLegacyInspectionConfig(configEnv({
+      DIRECT_UPLOAD_LEGACY_EXPECTED_STATE: expectedState,
+    }));
+    assert.equal(config.mode, "verify-repair");
+    assert.equal(config.expectedState, expectedState);
+    assert.match(config.evidencePath, /post-repair-verification/);
+    assert.throws(
+      () => parseDirectUploadLegacyInspectionConfig(configEnv({
+        DIRECT_UPLOAD_LEGACY_EXPECTED_STATE: expectedState,
+        DIRECT_UPLOAD_LEGACY_INSPECT_CONFIRM:
+          DIRECT_UPLOAD_LEGACY_INSPECTION_CONFIRMATION,
+      })),
+      /confirmation is not exact/,
+    );
   });
 
   it("rejects pooler and non-owner targets", () => {
@@ -253,8 +283,152 @@ describe("DirectUpload aggregate-only legacy inspection", () => {
     assert.match(DIRECT_UPLOAD_LEGACY_COUNTS_SQL, /case_attachment_metadata_mismatch_count/);
     assert.match(DIRECT_UPLOAD_LEGACY_COUNTS_SQL, /stale_deleting_lease_count/);
     assert.match(DIRECT_UPLOAD_LEGACY_COUNTS_SQL, /unrepairable_lifecycle_row_count/);
+    assert.match(DIRECT_UPLOAD_LEGACY_COUNTS_SQL, /invalid_owner_count/);
+    assert.match(DIRECT_UPLOAD_LEGACY_COUNTS_SQL, /owner\.banned/);
     assert.match(DIRECT_UPLOAD_LEGACY_COUNTS_SQL, /endpoint_counts/);
     assert.match(DIRECT_UPLOAD_LEGACY_COUNTS_SQL, /durable_provider_counts/);
+  });
+
+  it("fails closed unless pre-repair and post-repair aggregates match their exact shapes", () => {
+    const zeroCounts = Object.fromEntries(
+      DIRECT_UPLOAD_LEGACY_COUNT_FIELDS.map((field) => [
+        field.replaceAll("_", " ").replace(
+          / (\w)/g,
+          (_, letter) => letter.toUpperCase(),
+        ),
+        0,
+      ]),
+    );
+    const baseInventory = {
+      counts: {
+        ...zeroCounts,
+        directUploadCount: 3,
+        durableSourceUrlCount: 122,
+        firstPartyDurableSourceUrlCount: 122,
+        firstPartyUntrackedSourceUrlCount: 120,
+      },
+      distributions: {
+        endpoints: {
+          listingImage: 3,
+          messageImage: 0,
+          messageFile: 0,
+          messageAny: 0,
+          caseEvidenceImage: 0,
+          messagePrivateImage: 0,
+          reviewPhoto: 0,
+          listingVideo: 0,
+          bannerImage: 0,
+          galleryImage: 0,
+          blogImage: 0,
+          UNKNOWN: 0,
+        },
+        storageClasses: { PUBLIC: 3, PRIVATE: 0, UNKNOWN: 0 },
+        statuses: {
+          PRESIGNED: 0,
+          VERIFIED: 0,
+          CLAIMED: 3,
+          DELETING: 0,
+          DELETED: 0,
+          DELETE_FAILED: 0,
+          UNKNOWN: 0,
+        },
+        claimTypes: {
+          UNCLAIMED: 0,
+          LISTING_PHOTO: 0,
+          LISTING_VIDEO: 0,
+          SELLER_PROFILE_BANNER: 0,
+          SELLER_PROFILE_AVATAR: 0,
+          SELLER_PROFILE_WORKSHOP: 0,
+          SELLER_PROFILE_GALLERY: 0,
+          REVIEW_PHOTO: 0,
+          BLOG_POST_COVER: 0,
+          COMMISSION_REFERENCE: 0,
+          SELLER_BROADCAST_IMAGE: 0,
+          LEGACY_MESSAGE_ATTACHMENT: 0,
+          CASE_MESSAGE_ATTACHMENT: 0,
+          MESSAGE_ATTACHMENT: 0,
+          UNKNOWN: 3,
+        },
+        durableProviders: { "LISTING_PHOTO:FIRST_PARTY": 122 },
+      },
+    };
+    const preRepair = structuredClone(baseInventory);
+    Object.assign(preRepair.counts, {
+      unknownClaimTypeCount: 3,
+      claimedZeroActiveReferenceUploadCount: 3,
+      firstPartyBackfillableSourceUrlCount: 2,
+    });
+    assert.deepEqual(
+      assertDirectUploadLegacyExpectedState(
+        preRepair,
+        DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair,
+      ),
+      {
+        expectedState: DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair,
+        matched: true,
+      },
+    );
+
+    const postRepair = structuredClone(baseInventory);
+    Object.assign(postRepair.counts, {
+      directUploadReferenceCount: 2,
+      activeReferenceCount: 2,
+      publicMultiActiveReferenceUploadCount: 1,
+    });
+    Object.assign(postRepair.distributions.statuses, {
+      CLAIMED: 1,
+      VERIFIED: 2,
+    });
+    Object.assign(postRepair.distributions.claimTypes, {
+      UNCLAIMED: 2,
+      LISTING_PHOTO: 1,
+      UNKNOWN: 0,
+    });
+    assert.deepEqual(
+      assertDirectUploadLegacyExpectedState(
+        postRepair,
+        DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.postRepair,
+      ),
+      {
+        expectedState: DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.postRepair,
+        matched: true,
+      },
+    );
+    const twoUploadPartition = structuredClone(postRepair);
+    twoUploadPartition.counts.publicMultiActiveReferenceUploadCount = 0;
+    Object.assign(twoUploadPartition.distributions.statuses, {
+      CLAIMED: 2,
+      VERIFIED: 1,
+    });
+    Object.assign(twoUploadPartition.distributions.claimTypes, {
+      UNCLAIMED: 1,
+      LISTING_PHOTO: 2,
+    });
+    assert.equal(
+      assertDirectUploadLegacyExpectedState(
+        twoUploadPartition,
+        DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.postRepair,
+      ).matched,
+      true,
+    );
+    const invalidOwner = structuredClone(preRepair);
+    invalidOwner.counts.invalidOwnerCount = 1;
+    assert.throws(
+      () => assertDirectUploadLegacyExpectedState(
+        invalidOwner,
+        DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.preRepair,
+      ),
+      /invalidOwnerCount/,
+    );
+    const driftedRepair = structuredClone(postRepair);
+    driftedRepair.counts.activeReferenceCount = 1;
+    assert.throws(
+      () => assertDirectUploadLegacyExpectedState(
+        driftedRepair,
+        DIRECT_UPLOAD_LEGACY_EXPECTED_STATES.postRepair,
+      ),
+      /activeReferenceCount/,
+    );
   });
 
   it("writes aggregate-only evidence once as a private regular file", () => {
@@ -309,6 +483,8 @@ describe("DirectUpload aggregate-only legacy inspection", () => {
     assert.match(workflow, /secrets\.PRODUCTION_MIGRATION_DIRECT_URL/);
     assert.match(workflow, /vars\.PRODUCTION_MIGRATION_DIRECT_URL_SHA256/);
     assert.match(workflow, /vars\.CLOUDFLARE_R2_PUBLIC_URL/);
+    assert.match(workflow, /pre-repair-inspection/);
+    assert.match(workflow, /post-repair-verification/);
     assert.doesNotMatch(workflow, /secrets\.(?:DIRECT_URL|DATABASE_URL)\b/);
     assert.match(workflow, /upload-artifact@v4/);
     assert.match(workflow, /retention-days: 30/);

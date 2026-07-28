@@ -95,7 +95,10 @@ with `psql --echo-errors`. Diagnostic replay `30393161851` then identified a
 schema-qualified PostgreSQL parser special form:
 `pg_catalog.position('..' IN upload.key)`. No production or persistent staging
 state changed. The repair now uses bare `position`, and the repository-wide
-special-form guard rejects that qualification class going forward.
+special-form guard rejects that qualification class going forward. Corrected
+PostgreSQL 16 run `30393344198` then passed the exact SQL replay, both
+aggregate-valid repair partitions, compatible authority proof, disposable
+retirement/activation proof and rollback with zero persistent-state change.
 
 Before production mutation:
 
@@ -106,13 +109,17 @@ Before production mutation:
    this repair as the latest migration and must reject retirement/activation
    candidates;
 4. a fresh aggregate preflight must still match the repair boundary, including
-   valid active owners;
+   valid active owners, using `pre-repair-inspection` and exact confirmation
+   `inspect-prelaunch-direct-upload-legacy-state`;
 5. create and verify a recoverable Neon backup/child branch before mutation;
 6. dispatch the protected production migration workflow for that exact main
    commit only;
-7. run an aggregate-only postflight proving 2 active references, one-or-two
-   normalized claimed uploads, one-or-two delayed verified uploads, zero
-   unknown claim labels and unchanged RLS/grant posture.
+7. run the protected aggregate-only inspector in
+   `post-repair-verification` mode with exact confirmation
+   `verify-prelaunch-direct-upload-legacy-repair`, proving 2 active
+   references, one-or-two normalized claimed uploads, one-or-two delayed
+   verified uploads, zero unknown claim labels, valid active owners and
+   unchanged RLS/grant posture.
 
 Only after repair evidence is durable may the separate compatibility-key
 retirement and DirectUpload FORCE-RLS activation sequence resume. The repair
