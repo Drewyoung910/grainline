@@ -255,6 +255,7 @@ export async function POST(req: NextRequest) {
       client: tx,
       userId: me.id,
       sellerBroadcastId: created.id,
+      requireAllTracked: Boolean(imageUrl),
     });
     return { ok: true as const, broadcast: created };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));

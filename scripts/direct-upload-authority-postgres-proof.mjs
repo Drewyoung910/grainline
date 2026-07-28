@@ -55,6 +55,10 @@ const uploads = Object.freeze({
   privateB: {
     key: `caseEvidenceImage/${actorSegments.owner}/${ids.case}/new.webp`,
   },
+  accountDelete: {
+    key: `reviewPhoto/${actorSegments.outsider}/account-delete.webp`,
+    url: `https://proof.invalid/reviewPhoto/${actorSegments.outsider}/account-delete.webp`,
+  },
 });
 const legacyUrl = "https://legacy.invalid/direct-upload-authority-proof.webp";
 
@@ -1026,6 +1030,69 @@ async function aggregateLegacyInspectionQueryProof(owner) {
   assert.ok(counts.firstPartyDurableSourceUrlCount >= 1);
 }
 
+async function bannedAccountLifecycleCleanupProof(owner, runtime) {
+  const recorded = await runtime.query(
+    `
+      SELECT public.grainline_direct_upload_record_processed_public(
+        $1, $2, 'reviewPhoto', $3, 'image/webp', 1024
+      ) AS id
+    `,
+    [ids.outsider, uploads.accountDelete.key, uploads.accountDelete.url],
+  );
+  const uploadId = recorded.rows[0]?.id;
+  assert.equal(typeof uploadId, "string");
+
+  await owner.query(
+    `UPDATE public."User" SET banned = true WHERE id = $1`,
+    [ids.outsider],
+  );
+
+  const publicUrls = await runtime.query(
+    `
+      SELECT "publicUrl"
+        FROM public.grainline_direct_upload_account_public_urls($1)
+    `,
+    [ids.outsider],
+  );
+  assert.deepEqual(publicUrls.rows, [{ publicUrl: uploads.accountDelete.url }]);
+
+  const exportRows = await runtime.query(
+    `SELECT id FROM public.grainline_direct_upload_export($1)`,
+    [ids.outsider],
+  );
+  assert.equal(
+    exportRows.rowCount,
+    0,
+    "ordinary DirectUpload export must stay denied for a banned actor",
+  );
+
+  const released = await runtime.query(
+    `
+      SELECT public.grainline_direct_upload_release_for_account($1) AS released
+    `,
+    [ids.outsider],
+  );
+  assert.equal(released.rows[0]?.released, 0);
+
+  const lifecycle = await owner.query(
+    `
+      SELECT status,
+             "cleanupAfter" IS NOT NULL
+               AND "cleanupAfter" <= public.grainline_direct_upload_utc_now()
+               AS cleanup_ready
+        FROM public."DirectUpload"
+       WHERE id = $1
+    `,
+    [uploadId],
+  );
+  assert.deepEqual(lifecycle.rows, [
+    {
+      status: "VERIFIED",
+      cleanup_ready: true,
+    },
+  ]);
+}
+
 export async function runProof(env = process.env) {
   const { databaseUrl } = parseProofConfig(env);
   const owner = await connect(databaseUrl, `${PREFIX}-owner`);
@@ -1047,7 +1114,9 @@ export async function runProof(env = process.env) {
     checks.push("reference_cleanup_winner_orderings");
     await aggregateLegacyInspectionQueryProof(owner);
     checks.push("aggregate_only_legacy_query");
-    assert.equal(checks.length, 7);
+    await bannedAccountLifecycleCleanupProof(owner, runtime);
+    checks.push("banned_account_lifecycle_cleanup");
+    assert.equal(checks.length, 8);
     return {
       ok: true,
       database: DATABASE_NAME,

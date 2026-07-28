@@ -162,6 +162,11 @@ releases references through database triggers, and Listing/Review mutation
 paths defer object deletion to the fenced cleanup worker after the last
 reference. This is still compatible preparation only: DirectUpload RLS remains
 off and its old table grants remain until the reviewed activation/drain split.
+Production now has the four PR #58 Case/CaseMessage preparation migrations and
+compatible app at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
+build and runtime. It does not yet have the DirectUpload reference-ledger,
+authority or public-reference preparation migrations.
 The earlier exact preparation tree passed PostgreSQL 16.14
 authority/concurrency proof in run `30225445722`; retain that evidence without
 treating it as activation. A later Extra-High review correctly superseded it:
@@ -204,6 +209,18 @@ seventh `aggregate_only_legacy_query` check, with no persistent-staging or
 production change. This proves the count query executes against the compatible
 schema; it does not classify production and does not authorize backfill,
 constraint validation, object mutation or activation.
+
+The final 2026-07-27 Extra-High authority review then found two
+pre-production gaps: the new SellerBroadcast image path did not fail closed on
+an `untracked=1` cleanup race, and account-deletion media functions rejected
+already-banned accounts because they reused interactive actor validity. The
+broadcast create now requires every selected image to be tracked inside its
+serializable transaction. Account URL collection/release now allows an
+existing, not-yet-deleted banned account while ordinary upload/export
+operations remain denied. The proof harness adds an eighth
+`banned_account_lifecycle_cleanup` check. This migration edit supersedes
+`30228466175` for release and requires a fresh exact-tree PostgreSQL run before
+PR #59 is accepted.
 
 ### Messaging architecture decision (2026-07-22)
 
