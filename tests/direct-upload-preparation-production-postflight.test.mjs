@@ -221,6 +221,9 @@ describe("DirectUpload preparation production postflight", () => {
     );
     const audit = fs.readFileSync("docs/direct-upload-rls-audit.md", "utf8");
     assert.match(audit, /Production preparation postflight scaffold/);
-    assert.match(audit, /does \*\*not\*\*\s+verify the Vercel deployment/);
+    assert.match(
+      audit,
+      /does\s+\*\*not\*\*\s+verify the Vercel deployment/,
+    );
   });
 });
