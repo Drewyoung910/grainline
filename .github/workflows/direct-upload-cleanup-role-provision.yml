@@ -31,7 +31,6 @@ jobs:
       MIGRATION_DB_ROLE: neondb_owner
       DIRECT_UPLOAD_CLEANUP_ROLE_RELEASE_COMMIT: ${{ inputs.release_commit }}
       DIRECT_UPLOAD_CLEANUP_ROLE_PROVISION_CONFIRM: ${{ inputs.confirmation }}
-      DIRECT_UPLOAD_CLEANUP_ROLE_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-cleanup-role-provision-${{ inputs.release_commit }}.json
     steps:
       - uses: actions/checkout@v5
         with:
@@ -46,6 +45,7 @@ jobs:
         run: npm run ops:direct-upload-cleanup-role-provision -- --preflight
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_CLEANUP_ROLE_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-cleanup-role-provision-${{ inputs.release_commit }}.json
       - name: Converge cleanup role to three-function authority
         run: >-
           psql "$DIRECT_URL"
@@ -59,6 +59,7 @@ jobs:
         run: npm run ops:direct-upload-cleanup-role-provision -- --postflight
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_CLEANUP_ROLE_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-cleanup-role-provision-${{ inputs.release_commit }}.json
       - name: Upload sanitized cleanup-role evidence
         uses: actions/upload-artifact@v4
         with:
