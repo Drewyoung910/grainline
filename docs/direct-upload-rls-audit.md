@@ -1344,6 +1344,25 @@ proof, and passed database-first rollback plus exact activation restoration.
 Every proof payload recorded `persistentStagingChanged=false` and
 `productionChanged=false`; no provider or production state was addressed.
 
+The compatible postflight catalog was then strengthened after an external
+review incorrectly proposed requiring validation of all staged constraints
+and using a real production Listing deletion as proof. Exact executable commit
+`019e98663035b7a097f768f307b30f4e26f3dd38` instead asserts the intended
+compatible boundary read-only: the six reviewed `DirectUpload` constraints
+exist and remain unvalidated, both Case attachment `directUploadId`
+constraints are validated, and all 13 reviewed triggers have the exact table,
+function, enabled and deferrability bindings. It also records why production
+row deletion and authenticated upload mutation belong to disposable and later
+provider proofs, respectively, rather than this additive database postflight.
+Disposable PostgreSQL 16 workflow run `30380507780` (job `90346906910`)
+applied all 166 committed migrations and passed the expanded nine-check
+compatible proof, including the new exact
+`production_postflight_query_shape`; its source-reuse checks exercised real
+fixture deletion only inside the disposable database. It then generated and
+applied the two disposable retirement/activation candidates, passed activated
+authority plus database-first rollback and exact restoration, and recorded
+`persistentStagingChanged=false` and `productionChanged=false` throughout.
+
 ## Exit
 
 Keep Extra High through the scheduler-handoff authority/sequencing review.
