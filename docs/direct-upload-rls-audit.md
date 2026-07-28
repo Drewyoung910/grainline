@@ -1096,6 +1096,39 @@ the disposable engine. It does not create or exercise a live cleanup
 credential, GitHub environment, R2 credential, schedule or production
 activation.
 
+### Production legacy-reference repair
+
+The compatible application and database preparation were preserved while PR
+`#66` added only the exact data-repair migration plus fail-closed pre/post
+aggregate verification. Exact main
+`9bda3509b4dd371c469e6a694c6b6a0ac5af6a83` passed merged-main CI run
+`30394252961`; the exact branch head had already passed focused PostgreSQL run
+`30393987193` and pull-request CI `30393989837`.
+
+Protected read-only preflight `30394541893` re-proved the 3 lifecycle / 0
+reference / 2 backfillable boundary and added an explicit zero count for
+missing, banned or deleted owners. Before mutation, protected compute-less
+Neon backup branch `br-late-night-aaghw6ow` captured production parent
+`br-hidden-mouse-aaugn2wr` at LSN `0/4B8C9578` and timestamp
+`2026-07-28T20:05:34Z`.
+
+Protected migration run `30394920532` applied only
+`20260726185700_repair_direct_upload_legacy_references`; its final migration
+status and live grant/RLS audit passed. Protected read-only postflight
+`30395029352` proved the distinct-upload partition: 2 active references on 2
+`CLAIMED` uploads, one unmatched `VERIFIED` upload behind the seven-day
+cleanup fence, zero unknown claims/backfillable sources/invalid owners or
+other reviewed anomalies, and no change to the compatible RLS/grant posture.
+Sanitized mode-0600 pre/post artifacts have SHA-256
+`ad172adece521e4560febdf41e5c82b580e654667eb2a990e6502517777ed6db` and
+`57f6fbb42e879ee5c06a11433088c8edbb929c631f4f0733c29cfb6d55669a2a`.
+
+This closes the legacy-reference repair only. It does not retire
+`CaseMessageAttachment.objectKey`, activate the cleanup worker, enable
+DirectUpload RLS or either private-object feature, and it does not create
+lifecycle rows for the 120 historical first-party URLs that were already
+outside the ledger.
+
 Because the accepted retirement/activation run at `6449d722` predates this
 cleanup-authority hardening, it remains useful design evidence but is
 superseded for release. The integrated retirement/activation tree must repeat

@@ -1,7 +1,8 @@
 # DirectUpload legacy-reference repair
 
-Status: prepared and disposable-proofed only. No repair, retirement or
-DirectUpload RLS activation has run in production.
+Status: production legacy-reference repair complete on 2026-07-28.
+Compatibility-key retirement and DirectUpload RLS activation have not run in
+production.
 
 ## Durable production boundary
 
@@ -100,7 +101,7 @@ PostgreSQL 16 run `30393344198` then passed the exact SQL replay, both
 aggregate-valid repair partitions, compatible authority proof, disposable
 retirement/activation proof and rollback with zero persistent-state change.
 
-Before production mutation:
+The production mutation required:
 
 1. focused and full local tests, TypeScript, lint, migration replay, grant audit
    and PostgreSQL proof must pass on the exact clean repair commit;
@@ -124,3 +125,68 @@ Before production mutation:
 Only after repair evidence is durable may the separate compatibility-key
 retirement and DirectUpload FORCE-RLS activation sequence resume. The repair
 does not authorize either later step.
+
+## Production repair completion — 2026-07-28
+
+PR `#66` merged the reviewed data-only repair at exact main commit
+`9bda3509b4dd371c469e6a694c6b6a0ac5af6a83`. Pull-request CI run
+`30393989837`, focused PostgreSQL run `30393987193`, and merged-main CI run
+`30394252961` passed the exact migration tree, both valid repair partitions,
+authority/rollback proof, migration replay, grant audit, TypeScript, lint,
+2,189 repository tests (2,186 pass, zero fail, three intentional skips),
+dependency audit and production build.
+
+Fresh protected pre-repair inspection run `30394541893` (job `90394116644`)
+then passed in one repeatable-read, read-only owner transaction at that exact
+main commit. In addition to the previously inspected 3/0/2 boundary, the
+strengthened operator proved zero missing, banned or deleted lifecycle owners.
+The mode-0600 sanitized off-worktree artifact is
+`direct-upload-legacy-pre-repair-inspection-9bda3509b4dd371c469e6a694c6b6a0ac5af6a83.json`;
+its SHA-256 is
+`ad172adece521e4560febdf41e5c82b580e654667eb2a990e6502517777ed6db`.
+
+A protected, compute-less Neon child was created before mutation:
+
+- branch id `br-late-night-aaghw6ow`;
+- name `direct-upload-legacy-repair-backup-20260728-2005z`;
+- production parent `br-hidden-mouse-aaugn2wr`;
+- parent LSN `0/4B8C9578`;
+- parent timestamp `2026-07-28T20:05:34Z`;
+- ready, protected, non-primary, non-default, with zero compute endpoints.
+
+The initial create call completed at Neon but its immediate local response
+validator rejected the returned shape. The operator did not retry. A
+read-only inventory found exactly one branch with the intended name, and
+separate project/parent/branch/endpoint reads proved the complete boundary
+above. Retain this branch through the later activation rollback window.
+
+Protected production migration run `30394920532` (job `90395347308`) applied
+only `20260726185700_repair_direct_upload_legacy_references` at exact main
+`9bda3509b4dd371c469e6a694c6b6a0ac5af6a83`. Its source/owner/role guard,
+exact-tree guard, prior RLS release proofs, migration status and live final
+grant/RLS audit all passed.
+
+Protected post-repair verification run `30395029352` (job `90395714093`) then
+passed read-only at the same commit. Production landed in the distinct-upload
+partition:
+
+- 3 lifecycle rows remain;
+- exactly 2 active references bind 2 `CLAIMED` uploads;
+- the unmatched third upload is `VERIFIED`, has no claim metadata and is
+  behind the seven-day cleanup fence;
+- 0 released references, invalid owners, unknown claim labels, dangling or
+  mismatched references, backfillable sources, cleanup-eligible rows, Case
+  attachments, external/UTFS URLs or unrepairable lifecycle rows;
+- the 120 historical first-party durable URLs without lifecycle rows remain
+  deliberately untracked; the repair created no synthetic lifecycle rows;
+- `DirectUpload` RLS remains off with compatible legacy runtime CRUD;
+  `DirectUploadReference` remains policyless ENABLE plus FORCE with no runtime
+  table authority.
+
+The mode-0600 sanitized off-worktree postflight artifact is
+`direct-upload-legacy-post-repair-verification-9bda3509b4dd371c469e6a694c6b6a0ac5af6a83.json`;
+its SHA-256 is
+`57f6fbb42e879ee5c06a11433088c8edbb929c631f4f0733c29cfb6d55669a2a`.
+No application deploy, provider-object mutation, compatibility-key retirement,
+cleanup-worker activation or DirectUpload RLS activation was part of this
+repair release.
