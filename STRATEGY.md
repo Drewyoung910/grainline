@@ -252,6 +252,13 @@ The role must be converged and proved through the exact-main owner-only
 operator preserves compatible runtime authority and proves in a read-only
 postflight that DirectUpload RLS is still off.
 
+The first provider role was created through the Neon API and was correctly
+rejected before receiving any cleanup grant: Neon API roles inherit
+`neon_superuser`-class attributes and membership. Replace that unused role
+through the guarded SQL-role provider-remediation operator, rotate the
+protected cleanup URL, then rerun the exact-main role-provision workflow.
+Do not weaken the cleanup-role posture to accommodate provider defaults.
+
 The cleanup-only R2 deletion credential is still absent because no signed-in
 Cloudflare control surface was available. Do not substitute the application's
 R2 credential. Keep the worker, hourly scheduler and DirectUpload activation
