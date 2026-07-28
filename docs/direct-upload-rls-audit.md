@@ -755,6 +755,15 @@ accepted as build evidence. The partial `.next` output was deleted, the 10 GiB
 disk guard was preserved, and the clean GitHub runner must provide the exact
 in-tree dependency install, build and PostgreSQL evidence.
 
+That clean-runner gate is now accepted. Pull-request CI run `30327609567` (job
+`90176153302`) at documentation head `67617abd` completed the in-tree
+dependency install and Prisma generation, verified every pinned migration and
+prior RLS release artifact, applied all migrations to ephemeral PostgreSQL,
+converged/audited runtime grants, passed the retained database proofs,
+TypeScript, lint, all repository tests, the high-severity dependency audit and
+the production Next build. The executable DirectUpload tree remained exact
+commit `546c112f`; `67617abd` changed only this audit and `STRATEGY.md`.
+
 ### Production preparation postflight scaffold
 
 `scripts/direct-upload-preparation-production-postflight.mjs` is the
