@@ -1000,6 +1000,15 @@ RLS staging context proof:
   reveal-only recovery and must never be blindly retried. Do not treat this
   staged code as production-active before its separate post-Phase-B rollout
   passes.
+- Treat client-built SCRAM verifiers for Neon SQL role creation as the same
+  retired credential-operation class. The fresh
+  `grainline_direct_upload_cleanup_v2` name also failed at commit with `XX000`
+  after its rollback probe passed, so the earlier name-tombstone hypothesis was
+  incomplete. For the guarded cleanup-role replacement, pin
+  `password_encryption` to `scram-sha-256`, carry the generated password only in
+  process memory and `psql` stdin, let PostgreSQL hash it, then require direct
+  authentication plus the exact role/membership proof before rotating the
+  protected GitHub secret.
 - Verify the list function's explicit 16-column SQL projection and the helper's
   matching application projection. SQL columns must remain in PostgreSQL
   physical `attnum` order for the `SETOF public."SavedSearch"` return contract.

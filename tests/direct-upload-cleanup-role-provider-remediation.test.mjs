@@ -14,7 +14,6 @@ import {
   DIRECT_UPLOAD_CLEANUP_ENVIRONMENT,
   DIRECT_UPLOAD_CLEANUP_PROVIDER_CREATION_CONFIRMATION,
   isReviewedNeonAccessToken,
-  makeScramVerifier,
   normalizeNeonCredentialExpiry,
   parseProviderRemediationConfig,
   REJECTED_CLEANUP_DATABASE_URL_SHA256,
@@ -45,16 +44,6 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     );
   });
 
-  it("builds a valid SCRAM verifier without embedding the password", () => {
-    const verifier = makeScramVerifier(PASSWORD, Buffer.alloc(16, 7));
-    assert.match(
-      verifier,
-      /^SCRAM-SHA-256\$4096:[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+:[A-Za-z0-9+/=]+$/,
-    );
-    assert.ok(!verifier.includes(PASSWORD));
-    assert.throws(() => makeScramVerifier("short", Buffer.alloc(16)));
-  });
-
   it("requires the retired and versioned role names to remain absent", () => {
     const sql = buildAbsentRolePreflightSql();
     assert.match(sql, /BEGIN TRANSACTION READ ONLY/);
@@ -65,11 +54,12 @@ describe("DirectUpload cleanup-role provider remediation", () => {
   });
 
   it("probes then creates only the versioned SQL role with reviewed authority", () => {
-    const verifier = makeScramVerifier(PASSWORD, Buffer.alloc(16, 9));
-    const probe = buildVersionedReplacementProbeSql(verifier);
-    const replacement = buildReplacementSql(verifier);
+    const probe = buildVersionedReplacementProbeSql();
+    const replacement = buildReplacementSql();
     for (const sql of [probe, replacement]) {
+      assert.match(sql, /SET LOCAL password_encryption = 'scram-sha-256'/);
       assert.match(sql, /CREATE ROLE %I LOGIN NOINHERIT PASSWORD %L/);
+      assert.match(sql, /:'replacement_password'/);
       assert.match(sql, /'grainline_direct_upload_cleanup_v2'/);
       assert.doesNotMatch(sql, /ADMIN %I/);
       assert.match(sql, /rolsuper/);
@@ -82,8 +72,6 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     }
     assert.match(probe, /ROLLBACK/);
     assert.match(replacement, /COMMIT/);
-    assert.ok(!probe.includes(PASSWORD));
-    assert.ok(!replacement.includes(PASSWORD));
   });
 
   it("makes every provider delete path unreachable", () => {
@@ -250,6 +238,12 @@ describe("DirectUpload cleanup-role provider remediation", () => {
       "utf8",
     );
     assert.doesNotMatch(source, /reveal_password/);
+    assert.match(
+      source,
+      /input: `\\\\set VERBOSITY verbose\\n\$\{secretPrefix\}\$\{sql\}`/,
+    );
+    assert.match(source, /\\\\set replacement_password/);
+    assert.doesNotMatch(source, /"--(?:password|variable)"/);
     assert.match(
       source,
       /spawnSync\("gh"[\s\S]*input: value/,
