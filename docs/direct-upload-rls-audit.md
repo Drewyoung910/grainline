@@ -5,9 +5,9 @@ Opened 2026-07-26 as CM-A21. High audit completed on
 `agent/direct-upload-rls-preparation-20260726`. Production now contains the
 four PR #58 Case/CaseMessage compatibility migrations and compatible
 application at exact commit
-`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
+`ff6abe15badc54132ce9df70ba56f93723d332ac`, with Case evidence disabled at
 both build and runtime. The three additive DirectUpload preparation migrations
-from exact `main` release
+from that exact `main` release
 `ff6abe15badc54132ce9df70ba56f93723d332ac` reached production on
 2026-07-28. DirectUpload RLS and FORCE remain off, legacy runtime CRUD remains
 compatible, and no provider-object mutation or DirectUpload activation has
@@ -1443,9 +1443,71 @@ proved on draft PR #65. Do not retroactively describe this live evidence as
 engine-attested whole-transaction coverage. The later hardening remains the
 accepted implementation for future runs.
 
-This completes release-sequence step 3 only. The exact compatible application
-still must be deployed and its prior instances drained before any aggregate
-legacy inspection, repair, retirement or RLS activation.
+This completed release-sequence step 3. The exact compatible application,
+drain and aggregate-only inspection are recorded below.
+
+### Production compatible application, drain and aggregate inspection
+
+The exact clean checkout of
+`ff6abe15badc54132ce9df70ba56f93723d332ac`, already accepted by exact-main CI
+run `30368981066`, was manually deployed to Vercel Production as
+`dpl_6amaoPXBtt84TsQ8EqrbLF5waRUk`. The provider build passed
+`guard:runtime-db-env` with the pooled `grainline_app_runtime` identity, then
+completed Prisma generation, the Next production build and TypeScript.
+Vercel reported the deployment `READY`; `thegrainline.com` resolved to that
+exact deployment and `/api/health` returned HTTP 200 with `{ok:true}`.
+
+The production environment inventory contained `DATABASE_URL` and
+`RUNTIME_DB_ROLE`, no `DIRECT_URL` or other database URL alias, and no
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED` value. The application therefore retained
+the fail-closed disabled Case-evidence boundary. Vercel does not expose a Git
+source SHA for this manual upload, so source identity is attested by the clean
+detached release checkout, exact-main CI, provider project binding and captured
+build/deployment result rather than an invented provider-SHA claim.
+
+The old-instance drain gate passed after more than 300 seconds, matching the
+largest declared application function duration. The superseded unique
+deployment returned Vercel SSO protection rather than an application response,
+the canonical aliases resolved only to the new ready deployment, and the
+DirectUpload cleanup cron's own maximum duration is 60 seconds. This is the
+accepted prelaunch compatibility drain; it does not disable rollback by
+redeploying the exact prior Git release if later required.
+
+The protected GitHub `Production` environment then received only the
+credential-free `CLOUDFLARE_R2_PUBLIC_URL` variable required to classify
+first-party public URLs. Its normalized digest matched the reviewed local
+production-parity value; the value itself was not printed or placed in
+evidence.
+
+Aggregate-only inspection workflow run `30390887295` (job `90381893482`) then
+passed at exact main
+`ff6abe15badc54132ce9df70ba56f93723d332ac`. It ran in one repeatable-read,
+read-only owner transaction and exported no rows, ids, keys, URLs, bodies or
+credentials. The sanitized mode-0600 local artifact is
+`grainline-rollout-evidence/direct-upload-legacy-inspection-ff6abe15badc54132ce9df70ba56f93723d332ac.json`.
+
+The exact aggregate result is:
+
+- 3 `DirectUpload` rows, all public `listingImage`, all `CLAIMED`;
+- 0 normalized reference rows and therefore 3 claimed rows with no active
+  normalized reference;
+- 2 first-party durable source URLs safely backfillable against an existing
+  owned lifecycle row;
+- 120 additional first-party durable source URLs with no lifecycle row, which
+  remain explicitly accepted legacy/unchanged-value data rather than invented
+  lifecycle records;
+- 0 Case attachments, private-message uploads, legacy message upload endpoints,
+  listing-video uploads, external/UTFS URLs, invalid identities, constraint
+  mismatches, cleanup-lease anomalies or unrepairable lifecycle rows.
+
+The aggregate counts imply one of the three claimed lifecycle rows has no
+current durable source match. They do not disclose which row. The repair must
+derive the two references from locked durable sources, normalize legacy claim
+metadata from the resulting references, and return only the unmatched claimed
+row to delayed cleanup eligibility. It must not create lifecycle rows for the
+120 untracked historical URLs or identify any row outside the protected
+transaction. Production remains at release-sequence step 7; no repair,
+retirement or RLS activation has run.
 
 ## Exit
 

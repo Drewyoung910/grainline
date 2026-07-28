@@ -159,6 +159,17 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /Production additive-preparation release/);
     assert.match(audit, /30389331036/);
     assert.match(audit, /productionChangedByPostflight=false/);
+    assert.match(
+      audit,
+      /Production compatible application, drain and aggregate inspection/,
+    );
+    assert.match(audit, /dpl_6amaoPXBtt84TsQ8EqrbLF5waRUk/);
+    assert.match(audit, /30390887295/);
+    assert.match(audit, /3 `DirectUpload` rows/);
+    assert.match(audit, /2 first-party durable source URLs safely backfillable/);
+    assert.match(audit, /120 additional first-party durable source URLs/);
+    assert.match(audit, /0 Case attachments/);
+    assert.match(audit, /no repair,\s+retirement or RLS activation has run/);
     assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
     assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
     assert.match(strategy, /CM-A21 execution contract/);
