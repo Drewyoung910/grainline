@@ -1057,7 +1057,16 @@ RLS staging context proof:
 2. Check `/api/cron/*` logs in Vercel for route-level failures.
 3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
 4. Check Sentry for cron route exceptions and failed cron check-ins.
-5. For abandoned direct uploads, inspect `DirectUpload` rows by `status`, `cleanupAfter`, `attempts`, `endpoint`, and `lastError`. `/api/cron/direct-upload-cleanup` deletes expired unclaimed direct-upload keys from R2 and reports per-row failures in `CronRun.result.failures`; investigate repeated `DELETE_FAILED` rows before manually deleting objects.
+5. Before DirectUpload activation, abandoned-upload cleanup remains owned by
+   `/api/cron/direct-upload-cleanup`; inspect lifecycle rows by `status`,
+   `cleanupAfter`, `attempts`, `endpoint`, and `lastError`, and investigate
+   repeated `DELETE_FAILED` results in `CronRun`. After DirectUpload activation,
+   the Vercel schedule must be absent and the protected GitHub
+   `DirectUpload Cleanup` workflow is the sole scheduler. Check its hourly run
+   and sanitized artifact; any provider failure makes the workflow fail after
+   the exact lease is marked `DELETE_FAILED`. Never copy object keys, database
+   URLs or R2 credentials into tickets. Manual workflow dispatch requires exact
+   confirmation `run-reviewed-direct-upload-cleanup`.
 6. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, `dedupKey`, and `lastError`. Retryable provider sends use `dedupKey` as the Resend idempotency key, so check the Resend dashboard before manually resending a stuck `PROCESSING` row. `SENT`, `SKIPPED`, and `DEAD` rows are pruned after 30 days by the daily notification-prune cron.
 7. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
 

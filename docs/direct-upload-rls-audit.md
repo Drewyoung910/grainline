@@ -250,6 +250,50 @@ key behind ordinary runtime table access; either the compatibility column is
 gone first or the parent attachment table has independently activated,
 parent-derived RLS. The planned sequence uses the narrower first option.
 
+### DU-A14: a second database URL cannot share the application environment
+
+The reviewed Vercel runtime guard rejects every PostgreSQL URL outside
+`DATABASE_URL`. That is load-bearing: adding
+`DIRECT_UPLOAD_CLEANUP_DATABASE_URL` to the main Vercel project would both fail
+the build and place the supposedly isolated worker credential in the same
+environment as every ordinary request handler. Application compromise able to
+read environment variables could then recover the worker credential, defeating
+the separation from `grainline_app_runtime`.
+
+The accepted cleanup topology is therefore external to the application
+project:
+
+- a separate protected GitHub environment named
+  `Production DirectUpload Cleanup`;
+- one direct Neon connection authenticating only as
+  `grainline_direct_upload_cleanup`;
+- one R2 credential restricted to the exact public and private cleanup
+  buckets, with no application upload credential in the job;
+- an hourly, non-overlapping main-branch workflow that can only call the three
+  fenced cleanup functions and `DeleteObject`;
+- a maximum of 10 batches of 20 rows per run, with no bucket listing;
+- exact source, database digest, endpoint, role, RLS, table-denial and function
+  ACL checks before the first lease; and
+- mode-`0600` evidence containing only counts, bounded error-code
+  distributions and hashes of provider identifiers.
+
+`scripts/provision-direct-upload-cleanup-role.sql` deliberately creates no role
+and sets no password. The externally managed LOGIN must exist first; the
+operator only converges its attributes, memberships and grants. The worker
+refuses to run until both lifecycle tables have ENABLE plus FORCE RLS with zero
+policies, the worker has zero table/sequence authority, ordinary runtime has
+lost cleanup EXECUTE, and the unused private-message recorder remains
+runtime-inaccessible.
+
+GitHub schedule delay is acceptable for abandoned-object garbage collection:
+it can delay deletion but cannot authorize a live object or customer action.
+It is not a substitute for monitoring. Before activation, verify protected
+environment review rules, failed-workflow notifications and one disposable
+provider smoke with complete object/database cleanup. At activation, remove
+the Vercel cleanup schedule so two providers do not own the same operational
+job. Do not put the cleanup URL into Vercel or weaken
+`guard:runtime-db-env`.
+
 ## Proposed compatible schema
 
 Add `DirectUploadReference`:
@@ -384,8 +428,9 @@ deployed and old instances have drained.
    backup, rollback and residue proof. Unknown rows remain fail-closed.
 8. **Activation:** ENABLE plus FORCE RLS, revoke all runtime table privileges,
    grant only reviewed actor operations, move cleanup lease/complete/fail to
-   the dedicated worker role, withhold the unused private-message recorder,
-   and validate accepted invariants.
+   the externally isolated worker role, remove the Vercel cleanup schedule,
+   withhold the unused private-message recorder, and validate accepted
+   invariants.
 9. **Postflight:** prove no-context/direct CRUD denial, actor/source isolation,
    public shared references, private exclusivity, release/cleanup fencing,
    sanitized export and exact grants under the pooled runtime role.
@@ -800,9 +845,127 @@ bucket, authenticated routes, legacy data, cleanup-worker separation or
 DirectUpload activation. Those remain explicit later gates rather than
 caller-supplied claims embedded in this evidence.
 
+### Cleanup-worker activation scaffold
+
+The isolated activation-design branch adds:
+
+- `scripts/direct-upload-activation-catalog.mjs`, which partitions all 35
+  reviewed functions into 17 ordinary-runtime, 3 cleanup-worker and 15 private
+  functions;
+- `scripts/direct-upload-function-source-catalog.mjs`, which derives the exact
+  final `pg_proc.prosrc` SHA-256 for every reviewed function from the immutable
+  migration history and makes source drift a worker/proof failure;
+- `scripts/provision-direct-upload-cleanup-role.sql`, which converges an
+  externally created NOBYPASSRLS/NOINHERIT LOGIN without handling its password;
+- `scripts/direct-upload-cleanup-worker.mjs`, which refuses every non-main,
+  shared-credential, pooled/wrong-endpoint, unforced-RLS, table-authorized or
+  ACL-drifted execution; and
+- `.github/workflows/direct-upload-cleanup.yml`, which is manual-only and
+  references only the separate protected cleanup environment. The hourly
+  trigger belongs to the later activation release that removes the Vercel
+  cleanup schedule.
+
+This is saved scaffolding, not a live worker. No cleanup role, GitHub
+environment, database credential, R2 credential, schedule, migration or
+provider object has been created or changed. The current Vercel cron remains
+the compatible pre-activation owner of cleanup until the later activation
+release deliberately transfers that responsibility.
+
+The scaffold's first disposable PostgreSQL execution, GitHub Actions run
+`30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
+tree and reached cleanup-role convergence, including the three intended
+function grants. Its final authority verifier then failed with
+`"pg_toast_16388" is not a sequence`. PostgreSQL had reordered a
+`has_sequence_privilege` predicate ahead of the adjacent `relkind = 'S'`
+filter, so the verifier passed a TOAST relation to the sequence-only helper.
+This was a catalog-verifier defect, not accepted activation evidence; the
+service database was disposable and no persistent staging or production state
+was addressed. The corrected verifier and runtime worker keep each relation
+kind check inside a `CASE` expression before calling the type-specific
+privilege helper. A fresh exact-commit PostgreSQL proof is required.
+
+The corrected exact-tree execution, GitHub Actions run `30230829313` (job
+`89869276880`) at commit `6f8856b4`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role and the isolated
+NOBYPASSRLS/NOINHERIT cleanup role, verified migration status, passed the
+global grant/RLS audit and static contracts, then passed all seven live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`; and
+7. `aggregate_only_legacy_query`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable database and fixtures were destroyed
+with the job. This accepts the cleanup-role catalog partition, exact function
+source/ACL checks and compatible DirectUpload preparation authority on the
+disposable engine. It does not activate the worker, create provider
+credentials, prove R2 deletion, inspect production legacy data, apply
+DirectUpload RLS activation or change any persistent environment.
+
+The 2026-07-28 Extra-High review supersedes that run for release. Its catalog
+check was exact only inside `grainline_direct_upload_*`; it did not reject
+another accessible public `SECURITY DEFINER` function, column-only relation
+authority, default privilege grants, or a role that was a member of the cleanup
+role. It also put the hourly trigger in the scaffold even though the
+Vercel-to-GitHub scheduler handoff is an activation operation. Provisioning,
+the live worker and the disposable proof now reject both membership directions,
+table/view/materialized-view/foreign-table and column authority, sequence
+authority, default grants, and every unexpected public `SECURITY DEFINER`.
+All DirectUpload functions also require their exact DEFINER/INVOKER posture,
+non-LEAKPROOF ordinary-function kind, source hash, owner, search path and role
+ACLs. Pure public `SECURITY INVOKER` validators carry no owner authority and
+remain harmless without relation privileges. The scaffold is manual-only. A
+fresh exact-tree disposable PostgreSQL proof is required before this branch can
+be accepted.
+
+Fresh diagnostic run `30329320704` at `64c0203d` then failed closed during
+cleanup-role convergence before any authority proof or cleanup call. Diagnostic
+run `30329414299` at `228514f9` identified the first effective function as
+`public.grainline_notification_preferences_valid(jsonb)`. That function is a
+pure immutable `SECURITY INVOKER` check-constraint validator, not a
+privilege-bearing service function. PostgreSQL's default PUBLIC EXECUTE makes a
+blanket ban on every named invoker helper both over-broad and impossible to
+enforce with a per-role REVOKE. The global escape check is therefore scoped to
+all accessible public `SECURITY DEFINER` functions, while the complete
+DirectUpload catalog remains exact. Neither failed run addressed persistent
+staging or production.
+
+The corrected exact-tree disposable PostgreSQL 16.14 execution, GitHub Actions
+run `30329597171` (job `90181797774`) at executable commit
+`e407271e891f59330b20fb50a127b21f2a598364`, then passed. It applied all 166
+migrations, converged the production-style runtime role and the isolated
+NOBYPASSRLS/NOINHERIT cleanup role, verified migration status, passed the
+global grant/RLS audit and static contracts, and passed all eight live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`;
+7. `aggregate_only_legacy_query`; and
+8. `banned_account_lifecycle_cleanup`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; its database, roles and fixtures existed only
+inside the discarded job service container. Expected `42501` and validation
+errors in the PostgreSQL service log are deliberate negative assertions that
+proved the cleanup role could not read reference rows, execute private cores,
+forge actors/keys or create invalid Case bindings. This accepts the hardened
+cleanup-role authority partition and current DirectUpload function catalog on
+the disposable engine. It does not create or exercise a live cleanup
+credential, GitHub environment, R2 credential, schedule or production
+activation.
+
 ## Exit
 
-High ends when this audit, the matrix/strategy decision and static inventory
-tests are committed on the separate stacked branch. Switch to Extra High
-before editing schema, migrations, functions, grants, policies or lifecycle
-application code.
+Keep Extra High through the cleanup-worker authority review and the downstream
+retirement/activation branch rebase and SQL review. PR #60 remains a draft
+scaffold until its exact proof record, final CI and review boundary are clean;
+it does not authorize a merge or any provider/production mutation. A later
+explicit approval is required for each merge, provider credential/role change,
+production inspection, migration and deployment.

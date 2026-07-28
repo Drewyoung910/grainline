@@ -79,11 +79,22 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Cloudflare R2: `npm run audit:r2-upload` passes with production-like credentials after any R2 credential, CORS, public-domain, or bucket-policy change. `/api/health` only proves `HeadBucket` reachability.
 - Cloudflare R2: public bucket listing/ListBucket exposure is disabled or otherwise non-public, with dashboard or CLI evidence retained.
 - Cloudflare R2: bucket-level max object-size defense verified where available; app-level upload validation remains required.
+- DirectUpload cleanup after its RLS activation: separate protected GitHub
+  environment contains only the dedicated NOBYPASSRLS worker URL and
+  bucket-scoped cleanup R2 credential; exact digest/role/FORCE/table-denial
+  preflight and a disposable delete smoke pass; failed-workflow notifications
+  are delivered; the Vercel cleanup schedule is absent; and no worker database
+  URL exists in Vercel.
 - Cloudflare: TLS 1.0/1.1 disabled, TLS 1.2+ enabled, TLS 1.3 enabled, HSTS header present in production and preload-list status verified against hstspreload.org, SSL Labs grade recorded. Do not treat source-configured `preload` as preload-list acceptance.
 - Cloudflare: WAF managed rules and bot protection mode enabled only after provider/webhook/API smoke tests confirm Stripe, Clerk, Resend, Shippo, Vercel health checks, and uptime checks are not challenged.
 - Upstash: production Redis database configured.
 - Sentry: production project receiving errors and source maps.
-- Sentry: cron monitors configured for every `vercel.json` cron; alert routing verified for `source=cron_ops_health` warnings, including completed-cron partial record failures, `AccountDeletionSideEffect` cleanup issues, direct-upload cleanup failures, and webhook failure spike messages.
+- Sentry: cron monitors configured for every remaining `vercel.json` cron;
+  alert routing verified for `source=cron_ops_health` warnings, including
+  completed-cron partial record failures, `AccountDeletionSideEffect` cleanup
+  issues, and webhook failure spike messages. After DirectUpload activation,
+  cleanup failures are monitored by the separately verified GitHub workflow,
+  not a Vercel/Sentry cron monitor.
 - Sentry: `npm run audit:sentry-crons` passes with live read-only Sentry credentials and a retained sanitized artifact for cron monitor coverage and alert-routing configuration. Keep separate dashboard screenshots or exported evidence for actual notification delivery tests.
 - UptimeRobot: monitoring `https://thegrainline.com/api/health`.
 - GitHub: branch protection on `main`, required CI, Dependabot alerts/updates, secret scanning/push protection where available, and CodeQL/code scanning where available.
@@ -275,7 +286,14 @@ Record links/screenshots/dates for:
 - Clerk and Resend webhook delivery.
 - Cloudflare R2 public bucket-listing/ListBucket posture, bucket-level max object-size setting, CORS/public-domain settings, and upload smoke-test artifact from `npm run audit:r2-upload`.
 - Neon backup/PITR setting and most recent restore drill.
-- Sentry alert rules for CSP/script/frame violations, production error spikes, Sentry cron monitors, `source=cron_ops_health` warnings including completed-cron partial record failures, `AccountDeletionSideEffect` cleanup issues, direct-upload cleanup failures, and webhook failure spike messages, including the read-only artifact from `npm run audit:sentry-crons` plus dashboard screenshots or exported notification-delivery evidence.
+- Sentry alert rules for CSP/script/frame violations, production error spikes,
+  Sentry cron monitors for remaining Vercel crons,
+  `source=cron_ops_health` warnings including
+  completed-cron partial record failures, `AccountDeletionSideEffect` cleanup
+  issues and webhook failure spikes, including the read-only artifact from
+  `npm run audit:sentry-crons` plus dashboard screenshots or exported
+  notification-delivery evidence. DirectUpload activation evidence separately
+  proves GitHub cleanup-workflow failure notification delivery.
 - Google Search Console ownership verification and sitemap index submission.
 - Launch evidence inventory artifact from `npm run audit:launch-evidence`, generated after the machine artifacts and manual evidence manifest have been assembled.
 
