@@ -721,8 +721,29 @@ upload for cleanup while its ordinary sanitized upload export remains empty.
 The migration edit changes the complete reviewed tree fingerprint to
 `0dacf34460ed27a16e332d29240c09eb8e0d183dba3c89778498987d3501759c`.
 All earlier runs remain useful evidence for the checks they executed, but are
-superseded for release by this exact-tree change. A fresh disposable
-PostgreSQL 16 execution is required before PR #59 can be accepted.
+superseded for release by this exact-tree change.
+
+The fresh exact-tree execution, GitHub Actions run `30327497254` (job
+`90175815165`) at executable commit `546c112f`, passed on PostgreSQL 16.14. It
+applied all 166 migrations, converged the production-style runtime role,
+verified migration status, passed the global grant/RLS audit and static
+contracts, then passed all eight live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`;
+7. `aggregate_only_legacy_query`; and
+8. `banned_account_lifecycle_cleanup`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable service database and fixtures were
+destroyed with the job. This is the accepted disposable-engine authority,
+concurrency, application-skew, aggregate-inspector and banned-account cleanup
+evidence for the exact compatible preparation tree. It is not DirectUpload
+activation evidence, provider-bucket evidence or a production catalog claim.
 
 Local validation at this checkpoint passed all 2,147 repository tests
 (2,144 pass, zero fail, three intentional skips), TypeScript and lint. The

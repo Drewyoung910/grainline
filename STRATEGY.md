@@ -219,8 +219,12 @@ serializable transaction. Account URL collection/release now allows an
 existing, not-yet-deleted banned account while ordinary upload/export
 operations remain denied. The proof harness adds an eighth
 `banned_account_lifecycle_cleanup` check. This migration edit supersedes
-`30228466175` for release and requires a fresh exact-tree PostgreSQL run before
-PR #59 is accepted.
+`30228466175` for release. Fresh exact-tree PostgreSQL 16.14 run
+`30327497254` (job `90175815165`) passed at executable commit `546c112f`: all
+166 migrations, production-style grant convergence, migration status, the
+global grant/RLS audit, static contracts and all eight live checks passed. It
+recorded no persistent-staging or production change. Treat it as compatible
+preparation evidence only, not DirectUpload activation.
 
 ### Messaging architecture decision (2026-07-22)
 
