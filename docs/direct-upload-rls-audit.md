@@ -2,8 +2,13 @@
 
 Opened 2026-07-26 as CM-A21. High audit completed on
 `agent/direct-upload-rls-audit-20260726`; Extra-High preparation is active on
-`agent/direct-upload-rls-preparation-20260726`. No database, provider, bucket,
-object, deployment, grant or production state has changed.
+`agent/direct-upload-rls-preparation-20260726`. Production now contains the
+four PR #58 Case/CaseMessage compatibility migrations and compatible
+application at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
+both build and runtime. No DirectUpload preparation migration, DirectUpload
+grant/RLS change, provider-object mutation or DirectUpload activation has
+reached production.
 
 `DirectUpload` is a shared upload-control ledger, not an ordinary user-owned
 content table. It spans public listing/profile/review/blog/broadcast/commission
@@ -446,7 +451,8 @@ Disposable PostgreSQL must prove:
 - actor/key exact lookup cannot enumerate or switch context;
 - export never returns key, URL, source id or raw error;
 - account deletion retains Case evidence and schedules ordinary private/public
-  cleanup correctly;
+  cleanup correctly, including when the account is banned before local
+  anonymization starts;
 - function ACL/search-path/source hashes match the reviewed catalog; and
 - rollback restores the accepted compatible schema/grants without residue.
 
@@ -486,9 +492,14 @@ compatibility. A locked SECURITY DEFINER trigger derives the id for old writes,
 validates dual writes, and rejects attachment identity mutation. The authority
 migration then creates/releases normalized references automatically for both
 writer versions and backfills any rows created between the two migrations.
-Production has not received the earlier Case compatibility migration. The
-duplicate key is a temporary transition field and must be removed after the
-compatible app drains, before DirectUpload activation.
+Production has received the four earlier PR #58 Case compatibility migrations
+and compatible app at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled. It
+has not received `20260726184500_prepare_direct_upload_reference_ledger`,
+`20260726185000_prepare_direct_upload_authority` or
+`20260726185500_prepare_direct_upload_public_references`. The duplicate key is
+a temporary transition field and must be removed after the compatible app
+drains, before DirectUpload activation.
 
 ### Fixed lifecycle/core authority checkpoint
 
@@ -709,7 +720,7 @@ checks but is superseded for release compatibility. The corrected trigger is
 `DEFERRABLE INITIALLY DEFERRED`, and the live harness now executes both the
 exact old claim-insert-link transaction and the new
 dual-write-plus-explicit-reference transaction. That amended tree requires
-another exact PostgreSQL proof. Its reviewed full-tree fingerprint is
+another exact PostgreSQL proof. Its then-reviewed full-tree fingerprint was
 `61bd54f8f1a3b6c627fe6c895be65e30aa09c906ab732a42e94d021d8018ce74`.
 
 The corrected exact-tree execution, GitHub Actions run `30226904740` (job
@@ -723,8 +734,80 @@ dual-write-plus-explicit-reference transaction. The result recorded
 `persistentStagingChanged=false` and `productionChanged=false`; the disposable
 database and fixtures were destroyed with the job. This is the accepted
 disposable-engine authority, concurrency and application-skew evidence for the
-current compatible preparation tree. It is not DirectUpload activation
+then-current compatible preparation tree. It is not DirectUpload activation
 evidence, provider-bucket evidence or a production catalog claim.
+
+### Final preparation authority review corrections
+
+The 2026-07-27 Extra-High review found two pre-production defects in the
+preparation stack:
+
+1. New seller broadcasts verified an optional first-party image before their
+   serializable create transaction, but did not require the source-sync result
+   to track every selected URL. A concurrent cleanup lease could therefore win
+   between verification and source sync, leave `untracked=1`, and still allow
+   the broadcast row to commit. The create path now passes
+   `requireAllTracked: Boolean(imageUrl)` inside the transaction, so that race
+   rolls back the new broadcast rather than persisting an image whose object
+   may be deleted.
+2. Account URL collection and account release reused the ordinary interactive
+   actor-validity helper, which rejects banned users. Provider-driven deletion
+   or deletion of an already-banned account could therefore omit its public
+   media and make local anonymization roll back. Those two account-lifecycle
+   operations now independently require a syntactically valid, existing,
+   not-yet-deleted account while intentionally allowing `banned=true`.
+   Ordinary upload creation, ownership lookup and sanitized export continue to
+   use the stricter not-banned actor rule.
+
+The disposable PostgreSQL harness now includes an eighth
+`banned_account_lifecycle_cleanup` check proving that a banned account can
+enumerate its exact public deletion URLs and schedule its unreferenced public
+upload for cleanup while its ordinary sanitized upload export remains empty.
+The migration edit changes the complete reviewed tree fingerprint to
+`0dacf34460ed27a16e332d29240c09eb8e0d183dba3c89778498987d3501759c`.
+All earlier runs remain useful evidence for the checks they executed, but are
+superseded for release by this exact-tree change.
+
+The fresh exact-tree execution, GitHub Actions run `30327497254` (job
+`90175815165`) at executable commit `546c112f`, passed on PostgreSQL 16.14. It
+applied all 166 migrations, converged the production-style runtime role,
+verified migration status, passed the global grant/RLS audit and static
+contracts, then passed all eight live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`;
+7. `aggregate_only_legacy_query`; and
+8. `banned_account_lifecycle_cleanup`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable service database and fixtures were
+destroyed with the job. This is the accepted disposable-engine authority,
+concurrency, application-skew, aggregate-inspector and banned-account cleanup
+evidence for the exact compatible preparation tree. It is not DirectUpload
+activation evidence, provider-bucket evidence or a production catalog claim.
+
+Local validation at this checkpoint passed all 2,147 repository tests
+(2,144 pass, zero fail, three intentional skips), TypeScript and lint. The
+default Next build did not reach application compilation because Turbopack
+rejects this disposable worktree's intentionally external `node_modules`
+symlink. The webpack fallback then reached compilation but exhausted Node's
+default 2 GiB heap without reporting an application defect. Neither result is
+accepted as build evidence. The partial `.next` output was deleted, the 10 GiB
+disk guard was preserved, and the clean GitHub runner must provide the exact
+in-tree dependency install, build and PostgreSQL evidence.
+
+That clean-runner gate is now accepted. Pull-request CI run `30327609567` (job
+`90176153302`) at documentation head `67617abd` completed the in-tree
+dependency install and Prisma generation, verified every pinned migration and
+prior RLS release artifact, applied all migrations to ephemeral PostgreSQL,
+converged/audited runtime grants, passed the retained database proofs,
+TypeScript, lint, all repository tests, the high-severity dependency audit and
+the production Next build. The executable DirectUpload tree remained exact
+commit `546c112f`; `67617abd` changed only this audit and `STRATEGY.md`.
 
 ### Production preparation postflight scaffold
 

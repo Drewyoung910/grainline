@@ -1176,7 +1176,14 @@ SET search_path = pg_catalog
 AS $grainline_direct_upload_account_public_urls$
   SELECT upload."publicUrl"::text
     FROM public."DirectUpload" AS upload
-   WHERE public.grainline_direct_upload_actor_valid(p_user_id)
+   WHERE p_user_id IS NOT NULL
+     AND p_user_id ~ '^[A-Za-z0-9._:-]{1,128}$'
+     AND EXISTS (
+       SELECT 1
+         FROM public."User" AS account_actor
+        WHERE account_actor.id = p_user_id
+          AND account_actor."deletedAt" IS NULL
+     )
      AND upload."userId" = p_user_id
      AND upload."storageClass" = 'PUBLIC'
      AND upload."publicUrl" IS NOT NULL
@@ -1197,7 +1204,14 @@ DECLARE
   released_at timestamp(3);
   released_count integer;
 BEGIN
-  IF NOT public.grainline_direct_upload_actor_valid(p_user_id) THEN
+  IF p_user_id IS NULL
+     OR p_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR NOT EXISTS (
+       SELECT 1
+         FROM public."User" AS account_actor
+        WHERE account_actor.id = p_user_id
+          AND account_actor."deletedAt" IS NULL
+     ) THEN
     RAISE EXCEPTION 'DirectUpload account actor is invalid'
       USING ERRCODE = '42501';
   END IF;

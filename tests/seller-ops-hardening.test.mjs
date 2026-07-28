@@ -94,6 +94,10 @@ describe("seller operational route hardening", () => {
     assert.match(route, /isFirstPartyMediaUrl\(u\)/);
     assert.match(route, /verifyFirstPartyMediaUrlForPersistence\(\{/);
     assert.match(route, /syncSellerBroadcastDirectUploadReferences\(\{/);
+    assert.match(
+      route,
+      /syncSellerBroadcastDirectUploadReferences\(\{[\s\S]*requireAllTracked: Boolean\(imageUrl\),[\s\S]*\}\);/,
+    );
     assert.match(route, /allowedEndpoints: \[\s*"listingImage",\s*"bannerImage",\s*"galleryImage",\s*\]/s);
     assert.match(route, /safeRateLimit\(\s*broadcastAttemptRatelimit,\s*seller\.id,\s*\)/s);
     assert.match(route, /safeRateLimit\(\s*broadcastRatelimit,\s*seller\.id,\s*\)/s);

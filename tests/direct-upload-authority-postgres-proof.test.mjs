@@ -74,6 +74,10 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
     assert.match(proof, /mutable Case attachment parent/);
     assert.match(proof, /grainline_direct_upload_case_attachment_read/);
     assert.match(proof, /releaseReason: "SOURCE_DELETED"/);
+    assert.match(proof, /banned_account_lifecycle_cleanup/);
+    assert.match(proof, /grainline_direct_upload_account_public_urls/);
+    assert.match(proof, /grainline_direct_upload_release_for_account/);
+    assert.match(proof, /grainline_direct_upload_export/);
   });
 
   it("forces real lock waits and proves cleanup SKIP LOCKED ordering", () => {
