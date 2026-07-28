@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -183,31 +183,29 @@ describe("direct upload lifecycle", () => {
     assert.match(threadPage, /requireAllTracked: true/);
   });
 
-  it("runs cron cleanup without bucket listing and reports partial failures through CronRun result", () => {
+  it("retires application cleanup authority in favor of the isolated worker", () => {
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
-    const route = source("src/app/api/cron/direct-upload-cleanup/route.ts");
     const r2 = source("src/lib/r2.ts");
     const vercel = source("vercel.json");
+    const workflow = source(".github/workflows/direct-upload-cleanup.yml");
 
-    assert.match(lifecycle, /processExpiredDirectUploadBatch/);
-    assert.match(
+    assert.doesNotMatch(lifecycle, /processExpiredDirectUploadBatch/);
+    assert.doesNotMatch(lifecycle, /deleteR2ObjectByStorageClass/);
+    assert.doesNotMatch(
       lifecycle,
-      /deleteR2ObjectByStorageClass\(row\.key, row\.storageClass\)/,
+      /grainline_direct_upload_cleanup_(?:lease|complete|fail)/,
     );
-    assert.doesNotMatch(lifecycle, /ListObjects/);
-    assert.match(lifecycle, /failures\.push\(/);
-    assert.match(lifecycle, /complete: rows\.length < take/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_lease/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_complete/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_fail/);
     assert.doesNotMatch(lifecycle, /prisma\.directUpload\.findMany/);
 
     assert.match(r2, /export async function deleteR2ObjectByKey/);
     assert.match(r2, /export async function deletePrivateR2ObjectByKey/);
     assert.match(r2, /storageClass === "PRIVATE"/);
-    assert.match(route, /verifyCronRequest/);
-    assert.match(route, /withSentryCronMonitor\("direct-upload-cleanup", \{ value: "50 \* \* \* \*"/);
-    assert.match(route, /processExpiredDirectUploadBatch/);
-    assert.match(vercel, /"path": "\/api\/cron\/direct-upload-cleanup"/);
+    assert.equal(
+      existsSync("src/app/api/cron/direct-upload-cleanup/route.ts"),
+      false,
+    );
+    assert.doesNotMatch(vercel, /"path": "\/api\/cron\/direct-upload-cleanup"/);
+    assert.match(workflow, /cron: "50 \* \* \* \*"/);
+    assert.match(workflow, /ops:direct-upload-cleanup-worker/);
   });
 });

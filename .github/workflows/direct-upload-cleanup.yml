@@ -7,6 +7,8 @@ on:
         description: Type run-reviewed-direct-upload-cleanup
         required: true
         type: string
+  schedule:
+    - cron: "50 * * * *"
 
 permissions:
   contents: read
@@ -18,12 +20,22 @@ concurrency:
 jobs:
   cleanup:
     name: Delete expired unreferenced DirectUploads
-    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    if: >-
+      github.repository == 'Drewyoung910/grainline'
+      && github.ref == 'refs/heads/main'
+      && (
+        github.event_name == 'workflow_dispatch'
+        || (
+          github.event_name == 'schedule'
+          && vars.DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE == '20260726190500_enable_direct_upload_rls'
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: Production DirectUpload Cleanup
     env:
       DIRECT_UPLOAD_CLEANUP_CONFIRM: ${{ inputs.confirmation }}
+      DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE: ${{ vars.DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE }}
       DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256: ${{ vars.DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256 }}
       DIRECT_UPLOAD_CLEANUP_R2_ACCOUNT_ID: ${{ vars.DIRECT_UPLOAD_CLEANUP_R2_ACCOUNT_ID }}
       DIRECT_UPLOAD_CLEANUP_R2_PRIVATE_BUCKET: ${{ vars.DIRECT_UPLOAD_CLEANUP_R2_PRIVATE_BUCKET }}

@@ -41,6 +41,8 @@ const { Client } = pg;
 
 export const DIRECT_UPLOAD_CLEANUP_CONFIRMATION =
   "run-reviewed-direct-upload-cleanup";
+export const DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE =
+  "20260726190500_enable_direct_upload_rls";
 export const DIRECT_UPLOAD_CLEANUP_BATCH_SIZE = 20;
 export const DIRECT_UPLOAD_CLEANUP_MAX_BATCHES = 10;
 
@@ -130,6 +132,15 @@ export function parseDirectUploadCleanupWorkerConfig(env = process.env) {
     && env.DIRECT_UPLOAD_CLEANUP_CONFIRM !== DIRECT_UPLOAD_CLEANUP_CONFIRMATION
   ) {
     throw new Error("manual DirectUpload cleanup confirmation is not exact");
+  }
+  if (
+    env.GITHUB_EVENT_NAME === "schedule"
+    && env.DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE
+      !== DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE
+  ) {
+    throw new Error(
+      "scheduled DirectUpload cleanup release gate is not exact",
+    );
   }
   const forbiddenPresent = FORBIDDEN_ENV_KEYS.filter((key) =>
     Object.hasOwn(env, key),

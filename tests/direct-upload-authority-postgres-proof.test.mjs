@@ -68,6 +68,9 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
     assert.match(proof, /runtimeFunctions\.length \+ privateFunctions\.length/);
     assert.match(proof, /DirectUploadReference[\s\S]*runtime_crud: false/);
     assert.match(proof, /DirectUpload[\s\S]*relrowsecurity: false/);
+    assert.match(proof, /proveDirectUploadPreparationRuntimeCatalog/);
+    assert.match(proof, /production_postflight_query_shape/);
+    assert.match(proof, /assert\.equal\(checks\.length, 9\)/);
     assert.match(proof, /runtime generic source sync/);
     assert.match(proof, /forged DirectUpload actor key segment/);
     assert.match(proof, /foreign Listing fixed sync/);

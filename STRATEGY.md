@@ -236,11 +236,24 @@ and a cleanup-only R2 credential scoped to the two exact buckets. The worker is
 bounded, non-overlapping, does no bucket listing, verifies FORCE/ACL posture
 before leasing, and retains only sanitized mode-0600 count/hash evidence.
 Provisioning creates no role or password; the external LOGIN and secrets
-require their own reviewed provider step. This scaffold remains manual-only.
-Add its hourly schedule in the activation release that removes the Vercel
-cleanup schedule, after the external worker boundary and failure notifications
-are proven. No role, credential, provider environment, schedule or production
-state has changed.
+require their own reviewed provider step. The scheduler-handoff release removes
+the Vercel route and schedule and adds the GitHub hourly trigger, but scheduled
+jobs fail closed unless the repository variable
+`DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE` exactly equals
+`20260726190500_enable_direct_upload_rls`. Keep that variable absent while the
+code is merged/deployed and while the database still lacks the worker grants.
+Restrict the environment to exact `main`, but do not configure a required
+reviewer, wait timer or custom manual protection rule for the recurring job:
+GitHub would hold every hourly job before runner/secret access.
+After the reviewed retirement/activation migrations, run one manual worker
+pass, inspect its sanitized artifact, then set the exact variable and verify
+the first scheduled pass plus failure notifications. No role, credential,
+provider environment, enabled schedule or production state has changed.
+The final promotion must also verify the exact production alias and complete
+old-instance/in-flight-Vercel-cleanup drain after the handoff deployment and
+before applying either migration.
+Keep the old Sentry cron monitor active through the bounded cleanup gap, then
+retire it only after the first scheduled GitHub cleanup succeeds.
 
 The 2026-07-28 Extra-High review also widened the cleanup-role invariant from
 the DirectUpload function namespace to every accessible public

@@ -130,6 +130,7 @@ describe("private CaseMessage evidence", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
     const evidence = source("src/lib/caseEvidence.ts");
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const cleanupWorker = source("scripts/direct-upload-cleanup-worker.mjs");
 
     assert.match(route, /verifyPrivateCaseEvidenceForPersistence/);
     assert.match(
@@ -152,10 +153,12 @@ describe("private CaseMessage evidence", () => {
     );
     assert.match(route, /attachmentKeysMatch/);
     assert.match(lifecycle, /grainline_direct_upload_reference_case_attachment/);
-    assert.match(
+    assert.doesNotMatch(
       lifecycle,
-      /deleteR2ObjectByStorageClass\(row\.key, row\.storageClass\)/,
+      /grainline_direct_upload_cleanup_(?:lease|complete|fail)/,
     );
+    assert.match(cleanupWorker, /storageClass === "PRIVATE"/);
+    assert.match(cleanupWorker, /new DeleteObjectCommand\(/);
   });
 
   it("keeps private object keys server-side and serializes locked reads", () => {

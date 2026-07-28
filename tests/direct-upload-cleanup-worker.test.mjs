@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  existsSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -17,6 +18,7 @@ import {
 } from "../scripts/direct-upload-activation-catalog.mjs";
 import {
   DIRECT_UPLOAD_CLEANUP_CONFIRMATION,
+  DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE,
   collectDirectUploadCleanupAuthorityIssues,
   directUploadCleanupProviderErrorCode,
   parseDirectUploadCleanupWorkerConfig,
@@ -179,9 +181,30 @@ describe("isolated DirectUpload cleanup worker", () => {
       const scheduled = parseDirectUploadCleanupWorkerConfig({
         ...env,
         DIRECT_UPLOAD_CLEANUP_CONFIRM: "",
+        DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE,
         GITHUB_EVENT_NAME: "schedule",
       });
       assert.equal(scheduled.runId, "123");
+
+      assert.throws(
+        () =>
+          parseDirectUploadCleanupWorkerConfig({
+            ...env,
+            DIRECT_UPLOAD_CLEANUP_CONFIRM: "",
+            GITHUB_EVENT_NAME: "schedule",
+          }),
+        /scheduled DirectUpload cleanup release gate is not exact/,
+      );
+      assert.throws(
+        () =>
+          parseDirectUploadCleanupWorkerConfig({
+            ...env,
+            DIRECT_UPLOAD_CLEANUP_CONFIRM: "",
+            DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE: "wrong-release",
+            GITHUB_EVENT_NAME: "schedule",
+          }),
+        /scheduled DirectUpload cleanup release gate is not exact/,
+      );
 
       assert.throws(
         () =>
@@ -412,16 +435,26 @@ describe("isolated DirectUpload cleanup worker", () => {
     );
   });
 
-  it("keeps the worker outside Vercel and behind a separate protected environment", () => {
+  it("hands scheduling to the gated worker outside Vercel", () => {
     const workflow = source(
       ".github/workflows/direct-upload-cleanup.yml",
     );
     const runtimeGuard = source("scripts/guard-runtime-db-env.mjs");
     const worker = source("scripts/direct-upload-cleanup-worker.mjs");
+    const vercel = source("vercel.json");
+    const runtimeLifecycle = source("src/lib/directUploadLifecycle.ts");
+    const runbook = source("docs/runbook.md");
+    const launchChecklist = source("docs/launch-checklist.md");
 
     assert.match(workflow, /environment: Production DirectUpload Cleanup/);
     assert.match(workflow, /workflow_dispatch:/);
-    assert.doesNotMatch(workflow, /^\s*schedule:/m);
+    assert.match(workflow, /^\s*schedule:/m);
+    assert.match(workflow, /cron: "50 \* \* \* \*"/);
+    assert.match(
+      workflow,
+      /vars\.DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE == '20260726190500_enable_direct_upload_rls'/,
+    );
+    assert.match(workflow, /DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE:/);
     assert.match(workflow, /persist-credentials: false/);
     assert.match(workflow, /npm ci --ignore-scripts/);
     assert.match(workflow, /DIRECT_UPLOAD_CLEANUP_DATABASE_URL:/);
@@ -429,10 +462,35 @@ describe("isolated DirectUpload cleanup worker", () => {
     assert.doesNotMatch(workflow, /PRODUCTION_MIGRATION_DIRECT_URL/);
     assert.doesNotMatch(workflow, /\bDATABASE_URL:/);
     assert.match(runtimeGuard, /PostgreSQL URLs outside DATABASE_URL/);
+    assert.equal(
+      existsSync("src/app/api/cron/direct-upload-cleanup/route.ts"),
+      false,
+    );
+    assert.doesNotMatch(vercel, /\/api\/cron\/direct-upload-cleanup/);
+    assert.doesNotMatch(
+      runtimeLifecycle,
+      /grainline_direct_upload_cleanup_(?:lease|complete|fail)/,
+    );
     assert.doesNotMatch(worker, /ListObjects/);
     assert.match(worker, /DeleteObjectCommand/);
     assert.match(worker, /DirectUpload cleanup evidence mode is not 0600/);
     assert.match(worker, /result\.failed > 0 \|\| result\.skipped > 0/);
+    assert.match(
+      runbook,
+      /restrict that environment to\s+exact `main`[\s\S]*no required reviewer, wait timer or custom\s+manual protection rule/,
+    );
+    assert.match(
+      runbook,
+      /verify the production\s+alias and prove every prior instance plus any in-flight Vercel cleanup has\s+drained/,
+    );
+    assert.match(
+      runbook,
+      /Keep the old Vercel Sentry cron monitor active during\s+the gap[\s\S]*retire it only\s+after the first scheduled GitHub pass succeeds/,
+    );
+    assert.match(
+      launchChecklist,
+      /deployment branches are restricted to exact `main`[\s\S]*no\s+required reviewer, wait timer or custom manual protection rule/,
+    );
   });
 
   it("provisions no password and converges only the three cleanup functions", () => {

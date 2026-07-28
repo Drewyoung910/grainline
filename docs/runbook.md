@@ -1066,7 +1066,27 @@ RLS staging context proof:
    and sanitized artifact; any provider failure makes the workflow fail after
    the exact lease is marked `DELETE_FAILED`. Never copy object keys, database
    URLs or R2 credentials into tickets. Manual workflow dispatch requires exact
-   confirmation `run-reviewed-direct-upload-cleanup`.
+   confirmation `run-reviewed-direct-upload-cleanup`. Scheduled jobs remain
+   skipped unless the repository variable
+   `DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE` is exactly
+   `20260726190500_enable_direct_upload_rls`.
+   Transfer ownership in this order: provision and verify the isolated worker
+   boundary while its schedule gate is absent; restrict that environment to
+   exact `main` and verify it has no required reviewer, wait timer or custom
+   manual protection rule that would hold hourly jobs; deploy the exact
+   compatible app that removes the Vercel route/schedule; verify the production
+   alias and prove every prior instance plus any in-flight Vercel cleanup has
+   drained; apply the reviewed retirement and activation migrations; run and
+   inspect one manual worker pass; then set the exact schedule release variable
+   and verify the first scheduled pass plus failure-notification delivery. The
+   short cleanup gap is safer than enabling the new worker before its fixed
+   database grants exist. Keep the old Vercel Sentry cron monitor active during
+   the gap so a stalled handoff emits a missed-check-in signal; retire it only
+   after the first scheduled GitHub pass succeeds.
+   For rollback, remove the schedule release variable first, run the
+   database-first DirectUpload rollback, redeploy the last compatible
+   Vercel-cron app, and restore its Sentry cron monitor if it was already
+   retired. Do not enable both schedulers as normal steady state.
 6. For email delays, inspect `EmailOutbox` rows by `status`, `nextAttemptAt`, `attempts`, `dedupKey`, and `lastError`. Retryable provider sends use `dedupKey` as the Resend idempotency key, so check the Resend dashboard before manually resending a stuck `PROCESSING` row. `SENT`, `SKIPPED`, and `DEAD` rows are pruned after 30 days by the daily notification-prune cron.
 7. Keep outbox draining at bounded concurrency; do not manually send large batches outside the quota guard.
 

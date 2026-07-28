@@ -280,6 +280,7 @@ describe("DirectUpload fixed-authority preparation", () => {
 
   it("routes application lifecycle writes, reads, cleanup, and Case references through fixed operations", () => {
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const cleanupWorker = source("scripts/direct-upload-cleanup-worker.mjs");
     const caseEvidence = source("src/lib/caseEvidence.ts");
     const caseMessages = source("src/app/api/cases/[id]/messages/route.ts");
     const caseRead = source(
@@ -294,11 +295,16 @@ describe("DirectUpload fixed-authority preparation", () => {
       "grainline_direct_upload_owned_lookup",
       "grainline_direct_upload_reference_case_attachment",
       "grainline_direct_upload_case_attachment_read",
+    ]) {
+      assert.match(lifecycle, new RegExp(functionName), functionName);
+    }
+    for (const functionName of [
       "grainline_direct_upload_cleanup_lease",
       "grainline_direct_upload_cleanup_complete",
       "grainline_direct_upload_cleanup_fail",
     ]) {
-      assert.match(lifecycle, new RegExp(functionName), functionName);
+      assert.doesNotMatch(lifecycle, new RegExp(functionName), functionName);
+      assert.match(cleanupWorker, new RegExp(functionName), functionName);
     }
     assert.match(caseEvidence, /findOwnedDirectUploadForKey/);
     assert.match(caseMessages, /referenceDirectUploadCaseAttachment/);

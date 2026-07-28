@@ -100,6 +100,7 @@ describe("DirectUpload RLS audit contracts", () => {
     const accountExport = source("src/app/api/account/export/route.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const cleanupWorker = source("scripts/direct-upload-cleanup-worker.mjs");
     const review = source("src/app/api/reviews/[id]/route.ts");
     const listingEdit = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     const migration = source(
@@ -116,8 +117,12 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(migration, /grainline_direct_upload_source_delete_trigger/);
     assert.match(migration, /grainline_direct_upload_release_review_delete/);
     assert.match(migration, /grainline_direct_upload_release_listing_delete/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_complete/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_fail/);
+    assert.doesNotMatch(
+      lifecycle,
+      /grainline_direct_upload_cleanup_(?:lease|complete|fail)/,
+    );
+    assert.match(cleanupWorker, /grainline_direct_upload_cleanup_complete/);
+    assert.match(cleanupWorker, /grainline_direct_upload_cleanup_fail/);
     assert.match(audit, /must omit key, URL, internal target ids and raw\s+provider error text/);
     assert.match(audit, /attempt\/lease token/);
   });
@@ -135,8 +140,40 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /Ordinary `grainline_app_runtime` must lose EXECUTE on all three/);
     assert.match(audit, /record_private_message` grant must also be absent/);
     assert.match(audit, /Aggregate legacy inspection/);
-    assert.match(audit, /Keep Extra High through the cleanup-worker authority review/);
-    assert.match(audit, /explicit approval is required for each merge/);
+    assert.match(
+      audit,
+      /Keep Extra High through the scheduler-handoff authority\/sequencing review/,
+    );
+    assert.match(
+      audit,
+      /standing user\s+authorization permits the documented rollout to continue without conversational\s+micro-approvals/,
+    );
+    assert.match(
+      audit,
+      /Keep exact-commit, preflight, evidence and isolation gates/,
+    );
+    assert.match(
+      audit,
+      /stop only for a\s+genuinely ambiguous scope expansion or failed gate/,
+    );
+    assert.match(audit, /Production additive-preparation release/);
+    assert.match(audit, /30389331036/);
+    assert.match(audit, /productionChangedByPostflight=false/);
+    assert.match(
+      audit,
+      /Production compatible application, drain and aggregate inspection/,
+    );
+    assert.match(audit, /dpl_6amaoPXBtt84TsQ8EqrbLF5waRUk/);
+    assert.match(audit, /30390887295/);
+    assert.match(audit, /3 `DirectUpload` rows/);
+    assert.match(audit, /2 first-party durable source URLs safely backfillable/);
+    assert.match(
+      audit,
+      /exactly one or two of the three claimed lifecycle rows\s+may have no current durable source match/,
+    );
+    assert.match(audit, /120 additional first-party durable source URLs/);
+    assert.match(audit, /0 Case attachments/);
+    assert.match(audit, /no repair,\s+retirement or RLS activation has run/);
     assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
     assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
     assert.match(strategy, /CM-A21 execution contract/);

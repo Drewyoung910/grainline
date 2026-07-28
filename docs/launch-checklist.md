@@ -83,8 +83,14 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
   environment contains only the dedicated NOBYPASSRLS worker URL and
   bucket-scoped cleanup R2 credential; exact digest/role/FORCE/table-denial
   preflight and a disposable delete smoke pass; failed-workflow notifications
-  are delivered; the Vercel cleanup schedule is absent; and no worker database
-  URL exists in Vercel.
+  are delivered; deployment branches are restricted to exact `main`; no
+  required reviewer, wait timer or custom manual protection rule blocks
+  recurring jobs; the repository variable
+  `DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE` is exactly
+  `20260726190500_enable_direct_upload_rls`; one scheduled run has produced a
+  sanitized successful artifact; the Vercel cleanup route and schedule are
+  absent; its Sentry cron monitor is retired; and no worker database URL exists
+  in Vercel.
 - Cloudflare: TLS 1.0/1.1 disabled, TLS 1.2+ enabled, TLS 1.3 enabled, HSTS header present in production and preload-list status verified against hstspreload.org, SSL Labs grade recorded. Do not treat source-configured `preload` as preload-list acceptance.
 - Cloudflare: WAF managed rules and bot protection mode enabled only after provider/webhook/API smoke tests confirm Stripe, Clerk, Resend, Shippo, Vercel health checks, and uptime checks are not challenged.
 - Upstash: production Redis database configured.

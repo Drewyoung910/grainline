@@ -5,10 +5,13 @@ Opened 2026-07-26 as CM-A21. High audit completed on
 `agent/direct-upload-rls-preparation-20260726`. Production now contains the
 four PR #58 Case/CaseMessage compatibility migrations and compatible
 application at exact commit
-`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
-both build and runtime. No DirectUpload preparation migration, DirectUpload
-grant/RLS change, provider-object mutation or DirectUpload activation has
-reached production.
+`ff6abe15badc54132ce9df70ba56f93723d332ac`, with Case evidence disabled at
+both build and runtime. The three additive DirectUpload preparation migrations
+from that exact `main` release
+`ff6abe15badc54132ce9df70ba56f93723d332ac` reached production on
+2026-07-28. DirectUpload RLS and FORCE remain off, legacy runtime CRUD remains
+compatible, and no provider-object mutation or DirectUpload activation has
+occurred.
 
 `DirectUpload` is a shared upload-control ledger, not an ordinary user-owned
 content table. It spans public listing/profile/review/blog/broadcast/commission
@@ -57,7 +60,7 @@ no-public-domain proof and object audit telemetry remain required.
 | Read private Case evidence | Case attachment route reads lifecycle by key | Exact Case attachment read operation; no client key |
 | Claim public durable references | Listing, SellerProfile, Review, BlogPost, CommissionRequest, SellerBroadcast and legacy Message writers call generic claim helpers | Family-specific reference operations that prove the exact durable field/row and owner |
 | Claim private Case evidence | Case message route calls generic key claim then directly links `claimedById` | One atomic CaseMessage/attachment/reference operation |
-| Clean abandoned uploads | Cleanup cron calls `processExpiredDirectUploadBatch()` | Fixed lease/complete/fail operations returning only an eligible batch; grant them to a dedicated cleanup-worker role, not ordinary request runtime, at activation |
+| Clean abandoned uploads | Before activation, the compatible Vercel cron calls `processExpiredDirectUploadBatch()` | The activation release removes the Vercel route and runtime helper, then hands fixed lease/complete/fail operations to a dedicated GitHub cleanup-worker role with an exact schedule release gate |
 | Account export | Account export directly lists every column | Fixed actor export projection with no key, URL, internal target id or raw error |
 | Account deletion | Deletion reads rows and deletes public lifecycle rows directly | Fixed source-aware release/deletion operation; retained Case evidence remains referenced |
 | Runtime provisioning | `scripts/provision-runtime-db-role.sql` grants SELECT/INSERT/UPDATE/DELETE | Activation must revoke all table access and grant only reviewed functions |
@@ -287,11 +290,20 @@ runtime-inaccessible.
 
 GitHub schedule delay is acceptable for abandoned-object garbage collection:
 it can delay deletion but cannot authorize a live object or customer action.
-It is not a substitute for monitoring. Before activation, verify protected
-environment review rules, failed-workflow notifications and one disposable
-provider smoke with complete object/database cleanup. At activation, remove
-the Vercel cleanup schedule so two providers do not own the same operational
-job. Do not put the cleanup URL into Vercel or weaken
+It is not a substitute for monitoring. Before database activation, verify the
+environment's exact-main deployment-branch restriction, isolated secret and
+variable inventory, and failed-workflow notification path while the schedule
+gate remains absent. Once the hourly schedule is enabled, this recurring
+worker environment must have no required reviewers, wait timer, or custom
+manual protection rule; GitHub holds a job before runner/secret access until
+those rules pass, which would turn an hourly maintenance job into a queue of
+pending approvals. The worker intentionally refuses cleanup until FORCE RLS
+and the exact function partition are live, so the disposable provider deletion
+smoke belongs after activation but before enabling the hourly schedule. It
+requires its own reviewed provider/database mutation approval and must leave no
+object or row behind. The activation release removes the Vercel cleanup route
+and schedule; do not leave two providers as steady-state owners of the same
+operational job. Do not put the cleanup URL into Vercel or weaken
 `guard:runtime-db-env`.
 
 ## Proposed compatible schema
@@ -829,21 +841,41 @@ activation has occurred:
   old-application coexistence;
 - `DirectUploadReference` has ENABLE plus FORCE, zero policies and no runtime
   table authority;
-- the temporary Case `objectKey` plus `directUploadId` columns and deferred
-  commit-time reference trigger are installed;
+- the six staged `DirectUpload` legacy constraints exist but remain
+  intentionally `NOT VALID` until the later aggregate inspection, repair and
+  retirement gate; the two Case `directUploadId` constraints are validated;
+- the temporary Case `objectKey` plus `directUploadId` columns and all 13
+  reviewed trigger-to-table/function bindings are installed, including the
+  deferred commit-time Case reference trigger and every source-delete release
+  trigger;
 - all 35 reviewed DirectUpload functions retain exact runtime/PUBLIC ACL,
   owner and pinned-search-path posture;
 - direct reference-ledger access and the generic source core fail with
   `42501`; and
 - invalid-actor fixed lookup/read operations return no rows.
 
-The live database transaction is `READ ONLY`, creates no fixture rows and
-writes only a fresh mode-0600 local JSON artifact. This database postflight
-does **not** verify the Vercel deployment, the
+The pooled runtime connection enters `BEGIN TRANSACTION READ ONLY` before
+identity, table, constraint, trigger, function or denial inspection, so the
+database engine enforces the read-only boundary across the entire live proof.
+The proof also reads PostgreSQL's `transaction_read_only` setting immediately
+after `BEGIN` and requires it to equal `on`; a regression test pins the complete
+call order through the final rollback. It creates no fixture rows and writes
+only a fresh mode-0600 local JSON artifact. This database postflight does
+**not** verify the Vercel deployment, the
 `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` environment value, the private R2
 bucket, authenticated routes, legacy data, cleanup-worker separation or
 DirectUpload activation. Those remain explicit later gates rather than
 caller-supplied claims embedded in this evidence.
+
+The postflight is deliberately catalog-only and non-destructive. A production
+row delete would mutate real marketplace state and is not an acceptable way to
+prove these triggers. The disposable PostgreSQL authority proof separately
+exercises Case attachment deletion plus Listing and SellerBroadcast deletion,
+including reference release and terminal upload-state behavior. Likewise, an
+authenticated upload smoke belongs to the later compatible-app/provider gate,
+not this additive database postflight. Existing Case attachment rows are
+backfilled into `DirectUploadReference` by the authority migration, so the
+ledger must not be described as universally empty after preparation.
 
 ### Cleanup-worker activation scaffold
 
@@ -860,16 +892,18 @@ The isolated activation-design branch adds:
 - `scripts/direct-upload-cleanup-worker.mjs`, which refuses every non-main,
   shared-credential, pooled/wrong-endpoint, unforced-RLS, table-authorized or
   ACL-drifted execution; and
-- `.github/workflows/direct-upload-cleanup.yml`, which is manual-only and
-  references only the separate protected cleanup environment. The hourly
-  trigger belongs to the later activation release that removes the Vercel
-  cleanup schedule.
+- `.github/workflows/direct-upload-cleanup.yml`, which initially remains
+  manual-only and references only the separate protected cleanup environment.
+  The activation-release branch adds the hourly trigger behind the exact
+  repository variable
+  `DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE=20260726190500_enable_direct_upload_rls`
+  while removing the Vercel cleanup route and schedule.
 
 This is saved scaffolding, not a live worker. No cleanup role, GitHub
-environment, database credential, R2 credential, schedule, migration or
-provider object has been created or changed. The current Vercel cron remains
-the compatible pre-activation owner of cleanup until the later activation
-release deliberately transfers that responsibility.
+environment, database credential, R2 credential, enabled GitHub schedule,
+migration or provider object has been created or changed. Production's Vercel
+cron remains the compatible pre-activation owner of cleanup until the later
+activation release deliberately transfers that responsibility.
 
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
@@ -1161,13 +1195,332 @@ retargeted to that `main` head while remaining draft. A fresh clean-runner CI
 production build against the retargeted PR is still a mandatory gate before
 any merge.
 
+PR #61 exact head
+`d4abd02d87ef34741f73d0ccf04ac963bd069c3a` subsequently merged into
+`main` as `ff6abe15badc54132ce9df70ba56f93723d332ac` on 2026-07-28.
+The merge preserved the reviewed candidates as generators and compatible
+application/schema preparation; it did not itself commit either generated
+retirement/activation migration. No provider credential, cleanup role,
+repository schedule release variable or production database mutation was
+performed as part of that merge-only action.
+
+### Scheduler-handoff activation-release checkpoint
+
+Branch `agent/direct-upload-scheduler-handoff-20260728` starts from exact
+`main` head `ff6abe15badc54132ce9df70ba56f93723d332ac` and prepares the
+single-scheduler transition:
+
+- removes `/api/cron/direct-upload-cleanup`, its `vercel.json` schedule and
+  `processExpiredDirectUploadBatch()` from application runtime;
+- adds an hourly `50 * * * *` GitHub trigger while retaining manual dispatch;
+- skips every scheduled job unless repository variable
+  `DIRECT_UPLOAD_CLEANUP_SCHEDULE_RELEASE` is exactly
+  `20260726190500_enable_direct_upload_rls`; and
+- repeats the exact release-token check inside the worker so a workflow-only
+  edit cannot accidentally make scheduled cleanup executable.
+
+The branch is deliberately inert while the repository variable is absent. It
+does not create the protected environment, Neon role/credential, cleanup-only
+R2 credential or failure-notification integration, and it does not stage or
+apply the two production migrations. Do not merge or deploy it as ordinary
+maintenance. This scheduler sub-sequence does not replace release-sequence
+steps 3 through 7 above: additive preparation, compatible-app deployment and
+drain, aggregate production inspection, and any separately approved repair
+must be complete first. Only then may the final activation release be
+assembled and promoted in this order:
+
+1. provision and verify the isolated worker boundary with the schedule release
+   variable absent; restrict the environment to exact `main`, and verify it has
+   no reviewer/wait/custom manual gate that would block recurring jobs;
+2. stage the already proved retirement/activation candidate bytes in the final
+   reviewed release commit alongside this scheduler handoff;
+3. merge and deploy that exact release, verify the production alias, retire the
+   Vercel scheduler, and prove every preceding application instance and
+   in-flight Vercel cleanup invocation has drained;
+4. apply the reviewed compatibility-key retirement and DirectUpload activation
+   migrations;
+5. run a separately approved disposable R2/database deletion smoke and one
+   manual worker pass, then inspect the sanitized artifacts;
+6. set the exact repository release variable; and
+7. verify the first scheduled run and failure-notification delivery, then
+   retire the old Vercel Sentry cron monitor.
+
+This creates a bounded cleanup gap between steps 3 and 6. That gap delays
+garbage collection but cannot authorize uploads; it is safer than giving the
+new worker work before its database grants exist. Keep the old Sentry cron
+monitor active during that gap: an expected missed-check-in signal is better
+than an invisible stalled handoff. Rollback order is: remove the release
+variable, run the database-first rollback, redeploy the last compatible
+Vercel-cron application and restore its Sentry monitor if it was already
+retired. The provider smoke and each production/provider mutation remain
+separate explicit approvals.
+
+The 2026-07-28 read-only GitHub inventory confirmed this boundary before the
+checkpoint: `Production DirectUpload Cleanup` returned `404 Not Found`, and
+the repository contained zero variables whose names start with
+`DIRECT_UPLOAD_CLEANUP_`. This proves that the current branch did not inherit a
+live release switch or pre-existing worker environment. It does not provision
+either one; their later creation remains an explicit provider mutation.
+
+Pre-commit local validation passed the focused scheduler/DirectUpload
+contracts, `tsc --noEmit`, full lint (with the existing JSX analyzer warning),
+and all 2,172 runnable repository tests with 3 intentional skips. The local
+Next production build stopped before application compilation because this
+disposable worktree's `node_modules` is a symlink outside Turbopack's accepted
+filesystem root. That environmental panic is retained as failed build
+evidence, not relabeled as success or a source defect. A clean-runner
+production build against the exact pushed checkpoint remained mandatory.
+
+GitHub Actions CI run `30374757227` (job `90327434031`) then passed at exact
+code checkpoint `d1c879a4511545f98251a29ece8f95eaaf4f5f0f`. The clean
+runner installed a local dependency tree, applied the committed migration tree
+to PostgreSQL, converged and audited production-style runtime grants, repeated
+the Conversation/Message FORCE proofs, passed TypeScript, lint, all tests and
+the dependency security audit, and completed the production build. This
+resolves the local symlink failure as environmental evidence. It accepts the
+scheduler-handoff checkpoint for draft review only; it does not satisfy the
+later provider, production inspection, migration, smoke, schedule-release or
+postflight gates.
+
+The prior documentation-only follow-up was exact branch head
+`878d9b3586e79d57034458d175fbf70659d7c3b0`. GitHub Actions CI run
+`30375097337` (job `90328613291`) passed against that checkpoint: every
+committed migration and production-style grant audit, the retained
+Conversation/Message PostgreSQL proofs, TypeScript, lint, all repository tests,
+the dependency security audit and the clean-runner production build passed.
+Draft PR #65 remained open, draft and unmerged.
+
+Its Vercel Preview status is red for a different, expected reason. Deployment
+`dpl_GuAoSiGMWhrJWjVgKZfk3RugEMWx` stopped at
+`guard:runtime-db-env` with `DATABASE_URL_SHAPE` before the Next build because
+the branch Preview does not have the reviewed runtime database credential
+shape. Do not weaken that fail-closed guard or relabel the Preview as source
+build evidence; the clean GitHub runner is the accepted source/build proof, and
+the eventual production application release remains an exact manual deployment
+using the protected production runtime environment.
+
+A 2026-07-28 read-only release inventory also preserved the boundary between
+repository preparation and production. Exact `main` head
+`ff6abe15badc54132ce9df70ba56f93723d332ac` has green CI run
+`30368981066`, but the newest visible `Production Migrations` workflow remains
+run `30235375755` at older release `da4489ace5a592880a325c3e6f90bad7ded8ee37`.
+This workflow history contains no later DirectUpload-preparation deployment; it
+is not a substitute for a live database postflight and must not be used to
+claim the current catalog. The production alias resolves to ready deployment
+`dpl_3fknfRH5uMczmdq21xQmcAmc614V`, whose built `vercel.json` still contains
+the hourly `/api/cron/direct-upload-cleanup` schedule. Vercel exposed no Git
+source SHA for that manual deployment, so its deployment id and age do not
+attest an exact commit. Before any compatible-app drain claim, deploy and
+independently attest the exact approved `main` release rather than inferring
+source identity from this alias.
+
+The protected GitHub `Production` environment itself is present, restricts
+deployments to exact branch `main`, and requires review by `Drewyoung910`
+without a wait timer. Its non-secret inventory contains
+`PRODUCTION_MIGRATION_DIRECT_URL_SHA256`, and its secret inventory contains
+`PRODUCTION_MIGRATION_DIRECT_URL`; values were not read. This is the required
+shape for the next additive migration dispatch. The later aggregate inspector
+is not yet dispatch-ready: neither the protected environment nor repository
+variable inventory contains `CLOUDFLARE_R2_PUBLIC_URL`, which its fail-closed
+parser requires. Provisioning that credential-free public base remains a
+separate provider mutation after the exact compatible app is deployed and
+drained; do not bypass the missing variable or dispatch the inspector early.
+
+The same Extra-High readiness pass found that the prepared production
+postflight's environment, clean-checkout, evidence and read-only contracts had
+unit coverage, but its exact table/trigger/function/denial query sequence had
+not itself executed in disposable PostgreSQL. The shared catalog proof is now
+exported without weakening the production-only authenticated identity check,
+and the compatible authority harness runs that exact query path under
+`grainline_app_runtime` before creating any fixtures. A fresh disposable
+PostgreSQL run was mandatory before treating this improvement as accepted
+evidence; the historical eight-check runs remain accurately recorded rather
+than being retroactively upgraded.
+
+That replacement proof passed. GitHub Actions run `30376366157` (job
+`90332970378`) at exact executable commit
+`f9a05405ad6c8067a7cdf12753c85508a9337fcc` applied all 166 committed
+migrations to disposable PostgreSQL 16, converged and audited both the
+production-style runtime role and isolated cleanup role, and passed the
+expanded nine-check compatible proof. Its new
+`production_postflight_query_shape` check executed the exact prepared
+table/trigger/function/denial query path under `grainline_app_runtime`; the
+other eight authority, lifecycle, race and aggregate-inspector checks also
+passed. The run then generated and applied only the two reviewed disposable
+retirement/activation candidates, passed the activated catalog and behavioral
+proof, and passed database-first rollback plus exact activation restoration.
+Every proof payload recorded `persistentStagingChanged=false` and
+`productionChanged=false`; no provider or production state was addressed.
+
+The compatible postflight catalog was then strengthened after an external
+review incorrectly proposed requiring validation of all staged constraints
+and using a real production Listing deletion as proof. Exact executable commit
+`019e98663035b7a097f768f307b30f4e26f3dd38` instead asserts the intended
+compatible boundary read-only: the six reviewed `DirectUpload` constraints
+exist and remain unvalidated, both Case attachment `directUploadId`
+constraints are validated, and all 13 reviewed triggers have the exact table,
+function, enabled and deferrability bindings. It also records why production
+row deletion and authenticated upload mutation belong to disposable and later
+provider proofs, respectively, rather than this additive database postflight.
+Disposable PostgreSQL 16 workflow run `30380507780` (job `90346906910`)
+applied all 166 committed migrations and passed the expanded nine-check
+compatible proof, including the new exact
+`production_postflight_query_shape`; its source-reuse checks exercised real
+fixture deletion only inside the disposable database. It then generated and
+applied the two disposable retirement/activation candidates, passed activated
+authority plus database-first rollback and exact restoration, and recorded
+`persistentStagingChanged=false` and `productionChanged=false` throughout.
+
+The next external audit correctly inspected credential/evidence handling but
+overstated two properties. The preparation ledger is not guaranteed empty:
+the authority migration iterates every existing `CaseMessageAttachment` and
+invokes the fixed reference function, which inserts its normalized ledger row.
+Also, the prior `READ ONLY` transaction began only around the denial checks;
+the preceding catalog operations were fixed `SELECT`s but were not yet under
+the engine-enforced transaction. Exact executable commit
+`30bac3a6d07bb92f77cc6d393d61bacb1fbc9648` moves transaction ownership around
+production identity, table, constraint, trigger, function and denial
+inspection as one unit. Disposable PostgreSQL 16 run `30384341260` (job
+`90359733007`) passed the exact nine-check compatible proof with the revised
+whole-transaction query path, then passed disposable retirement, activation,
+activated authority and database-first rollback/restoration. It recorded
+`persistentStagingChanged=false` and `productionChanged=false`; production and
+provider state were not addressed.
+
+One later external review then misread the nested postflight call graph and
+incorrectly claimed the denial probes had moved outside the read-only
+transaction. They remain inside
+`proveDirectUploadPreparationRuntimeCatalog()`: `BEGIN TRANSACTION READ ONLY`
+precedes identity, catalog and the `proveReadOnlyRuntimeBoundary()` call, and
+rollback follows them. Rather than leave that fact dependent on source
+interpretation, executable commit
+`ec7a64207092e2147fa2c27e0dc32a60aaee90af` makes the postflight require
+PostgreSQL's own `transaction_read_only` setting to equal `on` and pins the
+entire call order in regression coverage. Disposable PostgreSQL 16 run
+`30387080175` (job `90368993900`) passed the compatible proof, disposable
+retirement and activation, activated authority and database-first
+rollback/restoration with no persistent-staging, provider or production
+change.
+
+CI run `30387032981` at that checkpoint failed only because a documentation
+line wrap changed `does **not**` to two lines while its assertion allowed
+whitespace after, but not before, the emphasized word. Application,
+migration, grant and disposable PostgreSQL proofs did not fail. Exact CI-fix
+checkpoint `474e8af850c16538fecadf7d36fd4e8078e46c28` normalizes both whitespace
+boundaries; local validation passed 2,172 runnable tests with three intentional
+skips, TypeScript and lint, and final CI run `30388302173` (job `90373084923`)
+passed the full migration/grant/RLS checks, test suite, dependency audit and
+production build.
+
+### Production additive-preparation release
+
+The guarded `Production Migrations` workflow run `30389331036` (job
+`90376541448`) applied only these three committed migrations from exact
+`main` release `ff6abe15badc54132ce9df70ba56f93723d332ac`:
+
+- `20260726184500_prepare_direct_upload_reference_ledger`;
+- `20260726185000_prepare_direct_upload_authority`; and
+- `20260726185500_prepare_direct_upload_public_references`.
+
+The workflow was bound to green exact-main CI run `30368981066`, passed its
+release, owner-role, runtime-role, migration-artifact and existing-RLS guards,
+reported the schema up to date after the apply, and passed the final runtime
+grant audit across 60 tables, 21 enums, 92 `grainline_*` functions, one
+extension, four RLS-policy tables and zero sequence references.
+
+The exact-release pooled-runtime postflight then passed and wrote sanitized
+mode-0600 evidence to
+`grainline-rollout-evidence/direct-upload-preparation-production-postflight-ff6abe15badc54132ce9df70ba56f93723d332ac.json`.
+It proved the actual `grainline_app_runtime` identity, compatible table and
+reference-ledger posture, constraint/trigger/function catalogs, direct denial
+for the service ledger and generic core, and fail-closed invalid-actor lookups.
+The result records `productionChangedByPostflight=false`.
+
+The postflight executable at the exact release commit runs its denial probes
+inside `BEGIN TRANSACTION READ ONLY`; its preceding catalog operations are
+fixed `SELECT`s but predate the later whole-postflight transaction hardening
+proved on draft PR #65. Do not retroactively describe this live evidence as
+engine-attested whole-transaction coverage. The later hardening remains the
+accepted implementation for future runs.
+
+This completed release-sequence step 3. The exact compatible application,
+drain and aggregate-only inspection are recorded below.
+
+### Production compatible application, drain and aggregate inspection
+
+The exact clean checkout of
+`ff6abe15badc54132ce9df70ba56f93723d332ac`, already accepted by exact-main CI
+run `30368981066`, was manually deployed to Vercel Production as
+`dpl_6amaoPXBtt84TsQ8EqrbLF5waRUk`. The provider build passed
+`guard:runtime-db-env` with the pooled `grainline_app_runtime` identity, then
+completed Prisma generation, the Next production build and TypeScript.
+Vercel reported the deployment `READY`; `thegrainline.com` resolved to that
+exact deployment and `/api/health` returned HTTP 200 with `{ok:true}`.
+
+The production environment inventory contained `DATABASE_URL` and
+`RUNTIME_DB_ROLE`, no `DIRECT_URL` or other database URL alias, and no
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED` value. The application therefore retained
+the fail-closed disabled Case-evidence boundary. Vercel does not expose a Git
+source SHA for this manual upload, so source identity is attested by the clean
+detached release checkout, exact-main CI, provider project binding and captured
+build/deployment result rather than an invented provider-SHA claim.
+
+The old-instance drain gate passed after more than 300 seconds, matching the
+largest declared application function duration. The superseded unique
+deployment returned Vercel SSO protection rather than an application response,
+the canonical aliases resolved only to the new ready deployment, and the
+DirectUpload cleanup cron's own maximum duration is 60 seconds. This is the
+accepted prelaunch compatibility drain; it does not disable rollback by
+redeploying the exact prior Git release if later required.
+
+The protected GitHub `Production` environment then received only the
+credential-free `CLOUDFLARE_R2_PUBLIC_URL` variable required to classify
+first-party public URLs. Its normalized digest matched the reviewed local
+production-parity value; the value itself was not printed or placed in
+evidence.
+
+Aggregate-only inspection workflow run `30390887295` (job `90381893482`) then
+passed at exact main
+`ff6abe15badc54132ce9df70ba56f93723d332ac`. It ran in one repeatable-read,
+read-only owner transaction and exported no rows, ids, keys, URLs, bodies or
+credentials. The sanitized mode-0600 local artifact is
+`grainline-rollout-evidence/direct-upload-legacy-inspection-ff6abe15badc54132ce9df70ba56f93723d332ac.json`.
+
+The exact aggregate result is:
+
+- 3 `DirectUpload` rows, all public `listingImage`, all `CLAIMED`;
+- 0 normalized reference rows and therefore 3 claimed rows with no active
+  normalized reference;
+- 2 first-party durable source URLs safely backfillable against an existing
+  owned lifecycle row;
+- 120 additional first-party durable source URLs with no lifecycle row, which
+  remain explicitly accepted legacy/unchanged-value data rather than invented
+  lifecycle records;
+- 0 Case attachments, private-message uploads, legacy message upload endpoints,
+  listing-video uploads, external/UTFS URLs, invalid identities, constraint
+  mismatches, cleanup-lease anomalies or unrepairable lifecycle rows.
+
+The aggregate counts prove two backfillable durable source URLs, not two
+distinct lifecycle rows: both sources may refer to one upload, or they may
+refer to two. Therefore exactly one or two of the three claimed lifecycle rows
+may have no current durable source match; the protected aggregate inspection
+does not disclose which shape or which rows. The repair must derive exactly
+two references from locked durable sources, normalize legacy claim metadata
+from the resulting references, and return only the one-or-two unmatched
+claimed rows to delayed cleanup eligibility. It must not create lifecycle rows
+for the 120 untracked historical URLs or identify any row outside the protected
+transaction. Production remains at release-sequence step 7; no repair,
+retirement or RLS activation has run.
+
 ## Exit
 
-Keep Extra High through the cleanup-worker authority review and the downstream
-retirement/activation SQL review. PR #60 is merged, but merge-only created no
-provider, credential, role, database, scheduler or deployment state. Retargeted
-PR #61 remains draft until its exact proof record, fresh `main`-targeted CI and
-review boundaries are clean; it authorizes no merge or provider/production
-mutation. A later explicit approval is required for each merge that remains,
-including PR #61, and separately for each provider credential/role change,
-production inspection, migration and deployment.
+Keep Extra High through the scheduler-handoff authority/sequencing review.
+PRs #60 and #61 are merged and the additive preparation migrations are live,
+but DirectUpload RLS remains an unexecuted production rollout: the generated
+retirement/activation migrations are not committed, the GitHub schedule is not
+enabled, and this handoff branch is not merged or deployed. The standing user
+authorization permits the documented rollout to continue without conversational
+micro-approvals. Keep exact-commit, preflight, evidence and isolation gates for
+each deployment, provider credential/role change, production inspection,
+migration, disposable provider smoke and schedule release; stop only for a
+genuinely ambiguous scope expansion or failed gate.

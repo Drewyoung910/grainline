@@ -18,6 +18,9 @@ import {
 import {
   directUploadFunctionSourceHashes,
 } from "./direct-upload-function-source-catalog.mjs";
+import {
+  proveDirectUploadPreparationRuntimeCatalog,
+} from "./direct-upload-preparation-production-postflight.mjs";
 
 const { Client } = pg;
 
@@ -1373,6 +1376,10 @@ export async function runProof(env = process.env) {
   try {
     await catalogProof(owner);
     checks.push("catalog_and_acl");
+    await proveDirectUploadPreparationRuntimeCatalog(runtime, {
+      migrationRole: "ci",
+    });
+    checks.push("production_postflight_query_shape");
     await seedFixtures(owner);
     const { uploadA } = await authorityProof(owner, runtime);
     checks.push("fixed_authority_and_partial_source");
@@ -1388,7 +1395,7 @@ export async function runProof(env = process.env) {
     checks.push("aggregate_only_legacy_query");
     await bannedAccountLifecycleCleanupProof(owner, runtime);
     checks.push("banned_account_lifecycle_cleanup");
-    assert.equal(checks.length, 8);
+    assert.equal(checks.length, 9);
     return {
       ok: true,
       database: DATABASE_NAME,
