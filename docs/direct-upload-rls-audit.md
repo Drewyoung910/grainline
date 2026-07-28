@@ -6,9 +6,12 @@ Opened 2026-07-26 as CM-A21. High audit completed on
 four PR #58 Case/CaseMessage compatibility migrations and compatible
 application at exact commit
 `da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
-both build and runtime. No DirectUpload preparation migration, DirectUpload
-grant/RLS change, provider-object mutation or DirectUpload activation has
-reached production.
+both build and runtime. The three additive DirectUpload preparation migrations
+from exact `main` release
+`ff6abe15badc54132ce9df70ba56f93723d332ac` reached production on
+2026-07-28. DirectUpload RLS and FORCE remain off, legacy runtime CRUD remains
+compatible, and no provider-object mutation or DirectUpload activation has
+occurred.
 
 `DirectUpload` is a shared upload-control ledger, not an ordinary user-owned
 content table. It spans public listing/profile/review/blog/broadcast/commission
@@ -1409,12 +1412,50 @@ skips, TypeScript and lint, and final CI run `30388302173` (job `90373084923`)
 passed the full migration/grant/RLS checks, test suite, dependency audit and
 production build.
 
+### Production additive-preparation release
+
+The guarded `Production Migrations` workflow run `30389331036` (job
+`90376541448`) applied only these three committed migrations from exact
+`main` release `ff6abe15badc54132ce9df70ba56f93723d332ac`:
+
+- `20260726184500_prepare_direct_upload_reference_ledger`;
+- `20260726185000_prepare_direct_upload_authority`; and
+- `20260726185500_prepare_direct_upload_public_references`.
+
+The workflow was bound to green exact-main CI run `30368981066`, passed its
+release, owner-role, runtime-role, migration-artifact and existing-RLS guards,
+reported the schema up to date after the apply, and passed the final runtime
+grant audit across 60 tables, 21 enums, 92 `grainline_*` functions, one
+extension, four RLS-policy tables and zero sequence references.
+
+The exact-release pooled-runtime postflight then passed and wrote sanitized
+mode-0600 evidence to
+`grainline-rollout-evidence/direct-upload-preparation-production-postflight-ff6abe15badc54132ce9df70ba56f93723d332ac.json`.
+It proved the actual `grainline_app_runtime` identity, compatible table and
+reference-ledger posture, constraint/trigger/function catalogs, direct denial
+for the service ledger and generic core, and fail-closed invalid-actor lookups.
+The result records `productionChangedByPostflight=false`.
+
+The postflight executable at the exact release commit runs its denial probes
+inside `BEGIN TRANSACTION READ ONLY`; its preceding catalog operations are
+fixed `SELECT`s but predate the later whole-postflight transaction hardening
+proved on draft PR #65. Do not retroactively describe this live evidence as
+engine-attested whole-transaction coverage. The later hardening remains the
+accepted implementation for future runs.
+
+This completes release-sequence step 3 only. The exact compatible application
+still must be deployed and its prior instances drained before any aggregate
+legacy inspection, repair, retirement or RLS activation.
+
 ## Exit
 
 Keep Extra High through the scheduler-handoff authority/sequencing review.
-PRs #60 and #61 are merged as preparation, but DirectUpload RLS remains an
-unexecuted production rollout: the generated migrations are not committed,
-the GitHub schedule is not enabled, and this handoff branch is not merged or
-deployed. A later explicit approval is required separately for its merge, exact
-deployment, each provider credential/role change, production inspection,
-migration, disposable provider smoke and schedule release.
+PRs #60 and #61 are merged and the additive preparation migrations are live,
+but DirectUpload RLS remains an unexecuted production rollout: the generated
+retirement/activation migrations are not committed, the GitHub schedule is not
+enabled, and this handoff branch is not merged or deployed. The standing user
+authorization permits the documented rollout to continue without conversational
+micro-approvals. Keep exact-commit, preflight, evidence and isolation gates for
+each deployment, provider credential/role change, production inspection,
+migration, disposable provider smoke and schedule release; stop only for a
+genuinely ambiguous scope expansion or failed gate.

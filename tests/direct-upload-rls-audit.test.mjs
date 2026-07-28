@@ -144,7 +144,21 @@ describe("DirectUpload RLS audit contracts", () => {
       audit,
       /Keep Extra High through the scheduler-handoff authority\/sequencing review/,
     );
-    assert.match(audit, /explicit approval is required separately for its merge/);
+    assert.match(
+      audit,
+      /standing user\s+authorization permits the documented rollout to continue without conversational\s+micro-approvals/,
+    );
+    assert.match(
+      audit,
+      /Keep exact-commit, preflight, evidence and isolation gates/,
+    );
+    assert.match(
+      audit,
+      /stop only for a\s+genuinely ambiguous scope expansion or failed gate/,
+    );
+    assert.match(audit, /Production additive-preparation release/);
+    assert.match(audit, /30389331036/);
+    assert.match(audit, /productionChangedByPostflight=false/);
     assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
     assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
     assert.match(strategy, /CM-A21 execution contract/);
