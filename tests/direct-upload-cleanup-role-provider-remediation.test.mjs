@@ -8,6 +8,7 @@ import {
   buildReplacementSql,
   DIRECT_UPLOAD_CLEANUP_ENVIRONMENT,
   DIRECT_UPLOAD_CLEANUP_PROVIDER_REMEDIATION_CONFIRMATION,
+  isReviewedNeonAccessToken,
   makeScramVerifier,
   normalizeNeonCredentialExpiry,
   parseProviderRemediationConfig,
@@ -188,6 +189,15 @@ describe("DirectUpload cleanup-role provider remediation", () => {
     assert.equal(normalizeNeonCredentialExpiry(1_785_277_130_259), 1_785_277_130_259);
     assert.equal(normalizeNeonCredentialExpiry(1_785_277_130), 1_785_277_130_000);
     assert.throws(() => normalizeNeonCredentialExpiry("invalid"));
+  });
+
+  it("accepts reviewed opaque Neon access-token shapes without assuming JWT length", () => {
+    assert.equal(isReviewedNeonAccessToken("a".repeat(87)), true);
+    assert.equal(isReviewedNeonAccessToken("a".repeat(63)), false);
+    assert.equal(
+      isReviewedNeonAccessToken(`${"a".repeat(70)} secret`),
+      false,
+    );
   });
 
   it("keeps generated credentials off command arguments, output and evidence", () => {
