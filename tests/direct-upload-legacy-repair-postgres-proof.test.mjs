@@ -130,6 +130,10 @@ describe("DirectUpload legacy repair migration and PostgreSQL proof", () => {
       /npm run audit:rls-direct-upload-legacy-repair/,
     );
     assert.match(
+      workflow,
+      /Isolate the repair migration for exact SQL diagnostics[\s\S]*Apply the compatible baseline migration tree[\s\S]*Restore the exact repair migration[\s\S]*psql "\$DIRECT_URL"[\s\S]*--echo-errors[\s\S]*20260726185700_repair_direct_upload_legacy_references\/migration\.sql[\s\S]*prisma migrate resolve[\s\S]*--applied 20260726185700_repair_direct_upload_legacy_references/,
+    );
+    assert.match(
       ci,
       /Prove DirectUpload legacy repair in ephemeral PostgreSQL[\s\S]*audit:rls-direct-upload-legacy-repair/,
     );

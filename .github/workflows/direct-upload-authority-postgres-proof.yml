@@ -78,8 +78,28 @@ jobs:
       - run: npx prisma generate
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
-      - name: Apply the current migration tree
+      - name: Isolate the repair migration for exact SQL diagnostics
+        run: >-
+          mv
+          prisma/migrations/20260726185700_repair_direct_upload_legacy_references
+          "$RUNNER_TEMP/direct-upload-legacy-repair"
+      - name: Apply the compatible baseline migration tree
         run: npx prisma migrate deploy
+      - name: Restore the exact repair migration
+        run: >-
+          mv
+          "$RUNNER_TEMP/direct-upload-legacy-repair"
+          prisma/migrations/20260726185700_repair_direct_upload_legacy_references
+      - name: Apply the repair migration with exact SQL diagnostics
+        run: >-
+          psql "$DIRECT_URL"
+          --echo-errors
+          -v ON_ERROR_STOP=1
+          -f prisma/migrations/20260726185700_repair_direct_upload_legacy_references/migration.sql
+      - name: Record the repair migration in the disposable Prisma ledger
+        run: >-
+          npx prisma migrate resolve
+          --applied 20260726185700_repair_direct_upload_legacy_references
       - name: Converge production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
       - name: Converge isolated DirectUpload cleanup-worker grants
