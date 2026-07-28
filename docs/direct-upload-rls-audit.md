@@ -915,6 +915,18 @@ must not be reused or copied into the cleanup environment. Until that
 credential is created and provider deletion is proved, the cleanup worker and
 DirectUpload activation remain blocked.
 
+The first protected production provisioning run, `30398188163` (job
+`90406279837`) at exact main `a816af9a`, passed the Node owner/source/database
+preflight and then failed before opening the `psql` connection. The runner's
+libpq client honored `sslmode=verify-full` but had no default
+`~/.postgresql/root.crt`; no SQL statement or production mutation ran, and the
+postflight was correctly skipped. The workflow now supplies
+`PGSSLROOTCERT=system` only to the `psql` convergence step. This retains
+hostname and certificate-chain verification through libpq's system CA pool;
+it does not weaken `sslmode=verify-full`, alter the protected URL or affect the
+Node pre/postflight connection handling. Preserve the failed run as
+non-evidence and require a fresh exact-main run.
+
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
 tree and reached cleanup-role convergence, including the three intended

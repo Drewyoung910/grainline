@@ -263,6 +263,10 @@ describe("DirectUpload cleanup-role production provision operator", () => {
     assert.match(workflow, /persist-credentials: false/);
     assert.match(workflow, /PRODUCTION_MIGRATION_DIRECT_URL/);
     assert.match(workflow, /provision-direct-upload-cleanup-role\.sql/);
+    assert.match(
+      workflow,
+      /Converge cleanup role to three-function authority[\s\S]*PGSSLROOTCERT: system/,
+    );
     assert.doesNotMatch(workflow, /DIRECT_UPLOAD_CLEANUP_DATABASE_URL/);
     assert.doesNotMatch(workflow, /DIRECT_UPLOAD_CLEANUP_R2_/);
     assert.match(operator, /BEGIN TRANSACTION READ ONLY/);
