@@ -1017,6 +1017,35 @@ rolled back; the rejected provider role, protected secret and digest, RLS
 posture, R2 and production data remained unchanged. A fresh exact-main
 rollback-only probe is still required.
 
+Exact-main commit `f66aa92fa51954c44f73384d3b4f9761b618d437` passed ordinary
+merged-main CI and the separate complete disposable DirectUpload activation
+plus database-first rollback proof. Its production provider-remediation
+preflight then passed the exact provider, rejected-role, protected
+secret/digest and rollback-only replacement checks. The subsequent actual
+operator deleted the rejected API-created role but failed closed before the
+ordinary SQL replacement committed. Reconciliation immediately afterward
+proved the cleanup role absent from Neon's role list, while the protected
+cleanup secret timestamp and rejected digest
+`6096b5b751b15fcb036f835bf60d20fddaeb354f94d5b9d492eed120401f731a`
+remained unchanged. The prior owner-catalog checks and the failed create
+transaction establish that no replacement role persisted. No function grant,
+RLS state, application data, deployment, cleanup execution or R2 state
+changed. The old protected URL is now unusable because its role no longer
+exists.
+
+The operator had treated completion of the Neon delete operation as immediate
+PostgreSQL catalog absence and had no explicit resume path after a successful
+non-replayable delete. The correction polls an owner-authenticated read-only
+catalog proof before the ordinary create and adds a separate
+`complete-deleted-neon-api-cleanup-role` recovery confirmation. Recovery is
+accepted only when the exact Neon project/branch/endpoint and protected
+environment remain pinned, the cleanup role is absent in both provider
+metadata and the production catalog, the rejected secret digest is unchanged,
+and an exact-name SQL replacement passes entirely inside a rolled-back
+transaction. It never issues a second provider delete. Sanitized failure
+output now includes only the bounded stage name so future partial progress can
+be reconciled without exposing credentials.
+
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
 tree and reached cleanup-role convergence, including the three intended
@@ -1347,6 +1376,9 @@ retirement/activation SQL review. PR #60 is merged, but merge-only created no
 provider, credential, role, database, scheduler or deployment state. Retargeted
 PR #61 remains draft until its exact proof record, fresh `main`-targeted CI and
 review boundaries are clean; it authorizes no merge or provider/production
-mutation. A later explicit approval is required for each merge that remains,
-including PR #61, and separately for each provider credential/role change,
-production inspection, migration and deployment.
+mutation. Standing authorization permits routine continuation through this
+already-scoped rollout without conversational micro-approval. Exact-commit
+proof, protected-environment, migration, deployment and production postflight
+gates remain mandatory, and work must stop on failed safety evidence,
+unexpected production state, destructive scope drift or a required platform
+approval.
