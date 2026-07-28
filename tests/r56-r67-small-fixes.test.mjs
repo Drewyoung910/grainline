@@ -48,19 +48,17 @@ describe("R56-R67 small audit follow-up guardrails", () => {
     assert.doesNotMatch(editPhotoGrid, /onReorder/);
   });
 
-  it("keeps existing-listing photo writes behind Save and cleans up vanished-row conflicts", () => {
+  it("keeps existing-listing photo writes behind Save and defers safe object cleanup", () => {
     const editPage = source("src/app/dashboard/listings/[id]/edit/page.tsx");
 
     assert.match(editPage, /class ListingPhotoConflictError extends Error/);
     assert.match(editPage, /const submittedNewPhotoUrls = new Set<string>\(\)/);
     assert.match(editPage, /const updatedPhoto = await tx\.photo\.updateMany/);
     assert.match(editPage, /if \(updatedPhoto\.count === 0\) \{\s*throw new ListingPhotoConflictError\(\);/s);
-    assert.match(editPage, /deleteR2ObjectByUrl\(url\)\.catch/);
-    assert.match(editPage, /source: "listing_photo_conflict_cleanup"/);
-    assert.match(editPage, /source: "listing_photo_save_cleanup"/);
+    assert.match(editPage, /syncListingDirectUploadReferences/);
+    assert.doesNotMatch(editPage, /deleteR2ObjectByUrl/);
+    assert.match(editPage, /fenced lifecycle\s+\/\/ worker removes them/s);
     assert.match(editPage, /source: "listing_update_ai_re_review"/);
-    assert.match(editPage, /logServerError\(cleanupError, \{/);
-    assert.match(editPage, /logServerError\(error, \{/);
     assert.match(editPage, /logServerError\(err, \{/);
     assert.doesNotMatch(editPage, /console\.error\("\[listing photo/);
     assert.doesNotMatch(editPage, /console\.error\("\[listing-update\]/);

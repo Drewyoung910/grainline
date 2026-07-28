@@ -9,15 +9,26 @@ function source(path) {
 describe("private CaseMessage evidence", () => {
   it("adds only opaque parent-scoped image metadata and private upload lifecycle state", () => {
     const schema = source("prisma/schema.prisma");
-    const migration = source(
+    const compatibilityMigration = source(
       "prisma/migrations/20260726184000_prepare_private_case_message_attachments/migration.sql",
+    );
+    const lifecycleMigration = source(
+      "prisma/migrations/20260726184500_prepare_direct_upload_reference_ledger/migration.sql",
     );
 
     assert.match(schema, /model CaseMessageAttachment \{/);
     assert.match(schema, /caseMessage\s+CaseMessage[\s\S]*onDelete: Cascade/);
-    assert.match(schema, /objectKey\s+String\s+@unique @db\.VarChar\(500\)/);
+    assert.match(schema, /directUploadId\s+String\s+@unique/);
+    assert.match(
+      schema,
+      /directUpload\s+DirectUpload\s+@relation\(fields: \[directUploadId\], references: \[id\], onDelete: Restrict\)/,
+    );
     assert.match(schema, /contentType\s+String\s+@db\.VarChar\(100\)/);
     assert.match(schema, /byteSize\s+Int/);
+    assert.match(
+      schema.match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "",
+      /Compatibility-only duplicate[\s\S]*objectKey\s+String\s+@unique/,
+    );
     assert.doesNotMatch(
       schema.match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "",
       /\burl\b|publicUrl/,
@@ -25,20 +36,37 @@ describe("private CaseMessage evidence", () => {
     assert.match(schema, /publicUrl\s+String\?\s+@db\.VarChar\(2048\)/);
     assert.match(schema, /storageClass\s+String\s+@default\("PUBLIC"\)/);
 
-    assert.match(migration, /\bBEGIN;/);
-    assert.match(migration, /\bCOMMIT;/);
-    assert.match(migration, /ALTER COLUMN "publicUrl" DROP NOT NULL/);
-    assert.match(migration, /CHECK \("storageClass" IN \('PUBLIC', 'PRIVATE'\)\)/);
+    assert.match(compatibilityMigration, /\bBEGIN;/);
+    assert.match(compatibilityMigration, /\bCOMMIT;/);
+    assert.match(compatibilityMigration, /ALTER COLUMN "publicUrl" DROP NOT NULL/);
+    assert.match(compatibilityMigration, /CHECK \("storageClass" IN \('PUBLIC', 'PRIVATE'\)\)/);
     assert.match(
-      migration,
+      compatibilityMigration,
       /"storageClass" = 'PUBLIC' AND "publicUrl" IS NOT NULL[\s\S]*"storageClass" = 'PRIVATE' AND "publicUrl" IS NULL/,
     );
     assert.match(
-      migration,
+      compatibilityMigration,
       /CHECK \("contentType" IN \('image\/jpeg', 'image\/png', 'image\/webp'\)\)/,
     );
-    assert.match(migration, /CHECK \("byteSize" > 0 AND "byteSize" <= 8388608\)/);
-    assert.match(migration, /CHECK \("objectKey" LIKE 'caseEvidenceImage\/%'\)/);
+    assert.match(compatibilityMigration, /CHECK \("byteSize" > 0 AND "byteSize" <= 8388608\)/);
+    assert.match(compatibilityMigration, /"objectKey" VARCHAR\(500\) NOT NULL/);
+    assert.match(
+      lifecycleMigration,
+      /Old code writes objectKey; new code dual-writes[\s\S]*ADD COLUMN "directUploadId" TEXT/,
+    );
+    assert.match(
+      lifecycleMigration,
+      /UPDATE public\."CaseMessageAttachment" AS attachment[\s\S]*CaseMessageAttachment contains an unbindable DirectUpload source/,
+    );
+    assert.match(
+      lifecycleMigration,
+      /ALTER COLUMN "directUploadId" SET NOT NULL[\s\S]*"CaseMessageAttachment_directUploadId_fkey"[\s\S]*REFERENCES public\."DirectUpload"\(id\)/,
+    );
+    assert.match(
+      lifecycleMigration,
+      /grainline_direct_upload_case_attachment_bind\(\)[\s\S]*SECURITY DEFINER[\s\S]*CaseMessageAttachment identity fields are immutable/,
+    );
+    assert.doesNotMatch(lifecycleMigration, /DROP COLUMN "objectKey"/);
   });
 
   it("keeps Case evidence out of every public upload path", () => {
@@ -89,7 +117,10 @@ describe("private CaseMessage evidence", () => {
       uploadRoute,
       /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff: actsAsStaff \}\)/,
     );
-    assert.match(readRoute, /caseMessage: \{ caseId: id \}/);
+    assert.match(
+      readRoute,
+      /readDirectUploadCaseAttachment\(\{[\s\S]*caseId: id,[\s\S]*attachmentId/,
+    );
     assert.match(readRoute, /CASE_EVIDENCE_SIGNED_URL_TTL_SECONDS = 60/);
     assert.match(readRoute, /"Cache-Control": "private, no-store, max-age=0"/);
     assert.match(readRoute, /"Referrer-Policy": "no-referrer"/);
@@ -108,15 +139,13 @@ describe("private CaseMessage evidence", () => {
     assert.match(evidence, /lifecycle\.status !== DIRECT_UPLOAD_STATUS\.VERIFIED/);
     assert.match(evidence, /uploadFileSignatureMatches/);
     assert.match(route, /await prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(route, /claimDirectUploadForKey\(\{[\s\S]*client: tx/);
+    assert.match(route, /referenceDirectUploadCaseAttachment\(\{[\s\S]*client: tx/);
     assert.match(
       route,
-      /claimedByType: "CASE_MESSAGE_ATTACHMENT"[\s\S]*attachments: \{[\s\S]*create:/,
+      /attachments: \{[\s\S]*create:[\s\S]*objectKey: attachment\.objectKey,[\s\S]*directUploadId: attachment\.directUploadId[\s\S]*referenceDirectUploadCaseAttachment/,
     );
     assert.match(route, /attachmentKeysMatch/);
-    assert.match(lifecycle, /existing\.storageClass !== storageClass/);
-    assert.match(lifecycle, /existing\.claimedByType !== claimedByType/);
-    assert.match(lifecycle, /existing\.claimedById !== claimedById/);
+    assert.match(lifecycle, /grainline_direct_upload_reference_case_attachment/);
     assert.match(
       lifecycle,
       /deleteR2ObjectByStorageClass\(row\.key, row\.storageClass\)/,
@@ -176,7 +205,7 @@ describe("private CaseMessage evidence", () => {
     );
     assert.match(
       deletion,
-      /directUpload\.deleteMany\(\{\s*where: \{ userId: user\.id, storageClass: "PUBLIC" \}/s,
+      /releaseDirectUploadsForAccount\(\{\s*client: tx,\s*userId: user\.id/s,
     );
     assert.match(plan, /PDFs remain prohibited/);
     assert.match(plan, /future Case retention purge must[\s\S]*private-object deletion/);

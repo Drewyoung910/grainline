@@ -26,9 +26,7 @@ const EXPECTED_BASELINE = {
     "CaseMessageAttachment.relation-reference": 1,
   },
   "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts": {
-    "CaseMessageAttachment.findFirst": 1,
-    "CaseMessage.relation-reference": 2,
-    "Case.relation-reference": 1,
+    "Case.findUnique": 1,
   },
   "src/app/api/cases/[id]/attachments/route.ts": {
     "Case.findUnique": 1,
@@ -126,7 +124,7 @@ describe("Case and CaseMessage RLS inventory", () => {
 
   it("pins every current direct, relation, and raw SQL access path", () => {
     assert.equal(inventory.ormCalls.length, 46);
-    assert.equal(inventory.relationReferences.length, 25);
+    assert.equal(inventory.relationReferences.length, 22);
     assert.equal(inventory.rawSqlReferences.length, 12);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
@@ -146,7 +144,7 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /69 total protected references across 25 source files/);
     assert.match(
       audit,
-      /83 total protected references\s+across 29 source files/,
+      /80 total protected references\s+across 29 source files/,
     );
     assert.match(audit, /durable source-derived author kind/);
     assert.match(audit, /same Order lock before (?:their|its) conflict\s+predicates/);

@@ -57,6 +57,12 @@ export const CASE_MESSAGE_HISTORY_INDEX_CLEANUP_MIGRATION =
   "20260726183600_drop_legacy_case_message_history_indexes";
 export const CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION =
   "20260726184000_prepare_private_case_message_attachments";
+export const DIRECT_UPLOAD_REFERENCE_LEDGER_MIGRATION =
+  "20260726184500_prepare_direct_upload_reference_ledger";
+export const DIRECT_UPLOAD_AUTHORITY_MIGRATION =
+  "20260726185000_prepare_direct_upload_authority";
+export const DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION =
+  "20260726185500_prepare_direct_upload_public_references";
 export const RELEASE_ZERO_MIGRATION_TREE_SHA256 =
   "3e9111525735043266cf6f18b790641ad3103126804836f4a7cccd8e5e29ff29";
 export const PHASE_A_MIGRATION_TREE_SHA256 =
@@ -83,6 +89,8 @@ export const CONVERSATION_MESSAGE_FORCE_MIGRATION_TREE_SHA256 =
   "0bc28692fd3eef7a72cd1a7207ce977a71482b700ab111b6e807028cee6e9672";
 export const CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256 =
   "b3e3d18feccddc5375b27765f753d09b4da58bb53f24e84a4b049fa5c27013b0";
+export const DIRECT_UPLOAD_PREPARATION_MIGRATION_TREE_SHA256 =
+  "0dacf34460ed27a16e332d29240c09eb8e0d183dba3c89778498987d3501759c";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -121,6 +129,8 @@ const REVIEWED_CONVERSATION_MESSAGE_FORCE =
   "conversation-message-force-reviewed";
 const REVIEWED_CASE_MESSAGE_COMPATIBILITY =
   "case-message-compatibility-reviewed";
+const REVIEWED_DIRECT_UPLOAD_PREPARATION =
+  "direct-upload-preparation-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
 const TEST_SOURCE_ROOTS = ["tests"];
 const TEST_SOURCE_EXTENSIONS = new Set([
@@ -392,6 +402,8 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
       CONVERSATION_MESSAGE_FORCE_MIGRATION_TREE_SHA256,
     [REVIEWED_CASE_MESSAGE_COMPATIBILITY]:
       CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
+    [REVIEWED_DIRECT_UPLOAD_PREPARATION]:
+      DIRECT_UPLOAD_PREPARATION_MIGRATION_TREE_SHA256,
   }[phase];
   if (migrationTreeSha256 !== expected) {
     throw new Error(
@@ -641,6 +653,15 @@ export function validateSavedSearchRlsDeployShape({
   );
   const hasCaseMessagePrivateAttachmentsMigration = migrations.has(
     CASE_MESSAGE_PRIVATE_ATTACHMENTS_MIGRATION,
+  );
+  const hasDirectUploadReferenceLedgerMigration = migrations.has(
+    DIRECT_UPLOAD_REFERENCE_LEDGER_MIGRATION,
+  );
+  const hasDirectUploadAuthorityMigration = migrations.has(
+    DIRECT_UPLOAD_AUTHORITY_MIGRATION,
+  );
+  const hasDirectUploadPublicReferencesMigration = migrations.has(
+    DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION,
   );
 
   if (phase === RELEASE_ZERO_PHASE) {
@@ -1207,9 +1228,48 @@ export function validateSavedSearchRlsDeployShape({
     };
   }
 
+  if (phase === REVIEWED_DIRECT_UPLOAD_PREPARATION) {
+    if (
+      !hasConversationMessageForceMigration
+      || !hasCaseMessageAuthorKindMigration
+      || !hasCaseMessageHistoryIndexMigration
+      || !hasCaseMessageHistoryIndexCleanupMigration
+      || !hasCaseMessagePrivateAttachmentsMigration
+      || !hasDirectUploadReferenceLedgerMigration
+      || !hasDirectUploadAuthorityMigration
+      || !hasDirectUploadPublicReferencesMigration
+    ) {
+      throw new Error(
+        `${REVIEWED_DIRECT_UPLOAD_PREPARATION} requires the exact CaseMessage compatibility boundary plus the DirectUpload reference-ledger, fixed-authority and public-reference migrations`,
+      );
+    }
+
+    assertNoLaterMigration(
+      migrationNames,
+      DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION,
+      phase,
+    );
+    assertReviewedMigrationTree(phase, migrationTreeSha256);
+    assertReviewedPrismaMigrationConfig(prismaConfigSha256);
+    assertProductionArtifactExcludesContextGate({
+      phase,
+      contextGateRouteExists,
+      contextGateRunnerTestExists: runnerTestExists,
+      middlewareSource,
+    });
+
+    return {
+      phase,
+      hasCaseMessagePrivateAttachmentsMigration,
+      hasDirectUploadReferenceLedgerMigration,
+      hasDirectUploadAuthorityMigration,
+      hasDirectUploadPublicReferencesMigration,
+    };
+  }
+
   const received = phase === undefined || phase === "" ? "missing" : phase;
   throw new Error(
-    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, ${REVIEWED_NOTIFICATION_FORCE}, ${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY}, ${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS}, ${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP}, ${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION}, ${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION}, ${REVIEWED_CONVERSATION_MESSAGE_FORCE}, or ${REVIEWED_CASE_MESSAGE_COMPATIBILITY}`,
+    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, ${REVIEWED_NOTIFICATION_FORCE}, ${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY}, ${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS}, ${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP}, ${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION}, ${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION}, ${REVIEWED_CONVERSATION_MESSAGE_FORCE}, ${REVIEWED_CASE_MESSAGE_COMPATIBILITY}, or ${REVIEWED_DIRECT_UPLOAD_PREPARATION}`,
   );
 }
 

@@ -23,9 +23,12 @@ describe("review/report/favorite observability hardening", () => {
     assert.doesNotMatch(editRoute, /source: "review_rating_summary_refresh"/);
   });
 
-  it("captures review side-effect failures with bounded identifiers", () => {
+  it("captures review notification failures and keeps media release on the fixed lifecycle path", () => {
     const createRoute = source("src/app/api/reviews/route.ts");
     const editRoute = source("src/app/api/reviews/[id]/route.ts");
+    const migration = source(
+      "prisma/migrations/20260726185500_prepare_direct_upload_public_references/migration.sql",
+    );
 
     assert.match(createRoute, /import \{ sanitizeEmailOutboxError \} from "@\/lib\/emailOutboxSanitize"/);
     assert.match(createRoute, /source: "review_notification_email"/);
@@ -33,10 +36,12 @@ describe("review/report/favorite observability hardening", () => {
     assert.match(createRoute, /console\.error\("Failed to send review notification email:", sanitizeEmailOutboxError\(e\)\)/);
     assert.doesNotMatch(createRoute, /console\.error\("Failed to create review notification:", e\)/);
     assert.doesNotMatch(createRoute, /console\.error\("Failed to send review notification email:", e\)/);
-    assert.match(editRoute, /source: "review_photo_cleanup_edit"/);
-    assert.match(editRoute, /source: "review_photo_cleanup_delete"/);
-    assert.match(editRoute, /Review photo cleanup skipped non-R2 media/);
-    assert.doesNotMatch(editRoute, /extra:\s*\{[^}]*url/s);
+    assert.match(editRoute, /await syncReviewDirectUploadReferences\(\{\s*client: tx,/s);
+    assert.doesNotMatch(editRoute, /deletePublicObjectsBestEffort|deleteObject\(|directUpload\./);
+    assert.match(
+      migration,
+      /CREATE TRIGGER grainline_direct_upload_release_review_delete\s+BEFORE DELETE ON public\."Review"/,
+    );
   });
 
   it("keeps review edits observable and allows buyers to clear comments", () => {

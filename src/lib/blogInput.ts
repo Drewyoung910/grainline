@@ -10,8 +10,8 @@ function trimmed(raw: FormDataEntryValue | string | null | undefined): string | 
 export async function normalizeBlogCoverImageUrl(
   raw: FormDataEntryValue | string | null | undefined,
   clerkUserId: string,
-  existingUrl?: string | null,
-  accountUserId?: string,
+  existingUrl: string | null | undefined,
+  accountUserId: string,
 ): Promise<string | null> {
   const value = trimmed(raw);
   if (!value) return null;

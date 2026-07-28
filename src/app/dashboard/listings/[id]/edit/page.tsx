@@ -13,7 +13,6 @@ import TagsInput from "@/components/TagsInput";
 import { ListingStatus, type Category, type ListingType } from "@prisma/client";
 import { CATEGORY_VALUES } from "@/lib/categories";
 import { sanitizeText, sanitizeRichText, truncateText } from "@/lib/sanitize";
-import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { publicListingPath } from "@/lib/publicPaths";
 import { normalizeTag } from "@/lib/tags";
 import { listingEditBlockReason } from "@/lib/listingEditState";
@@ -27,7 +26,7 @@ import {
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import { isFirstPartyMediaUrlForUser } from "@/lib/urlValidation";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { expireOpenCheckoutSessionsForListing } from "@/lib/checkoutSessionExpiry";
 import { listingMutationRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { MAX_MANUAL_STOCK_QUANTITY } from "@/lib/stockMutationState";
@@ -306,14 +305,6 @@ async function updateListing(
   if (photoManifest.photos.length === 0) {
     return { ok: false, error: "Add at least one listing photo before saving." };
   }
-  const nextPhotosById = new Map(
-    photoManifest.photos
-      .filter((photo): photo is PhotoManifestItem & { id: string } => Boolean(photo.id))
-      .map((photo) => [photo.id, photo]),
-  );
-  const retainedUrls = new Set(
-    photoManifest.photos.flatMap((photo) => [photo.url, photo.originalUrl].filter((url): url is string => Boolean(url))),
-  );
   const existingPhotoUrls = new Set(
     listing.photos.flatMap((photo) => [photo.url, photo.originalUrl].filter((url): url is string => Boolean(url))),
   );
@@ -335,26 +326,6 @@ async function updateListing(
       return { ok: false, error: "Invalid photo URL. Re-upload the photo and try again." };
     }
   }
-  const r2CleanupUrls = new Set<string>();
-  for (const existingPhoto of listing.photos) {
-    const nextPhoto = nextPhotosById.get(existingPhoto.id);
-    if (!nextPhoto) {
-      if (!retainedUrls.has(existingPhoto.url)) r2CleanupUrls.add(existingPhoto.url);
-      if (existingPhoto.originalUrl && existingPhoto.originalUrl !== existingPhoto.url && !retainedUrls.has(existingPhoto.originalUrl)) {
-        r2CleanupUrls.add(existingPhoto.originalUrl);
-      }
-      continue;
-    }
-    if (
-      nextPhoto.url !== existingPhoto.url &&
-      existingPhoto.originalUrl &&
-      existingPhoto.originalUrl !== existingPhoto.url &&
-      !retainedUrls.has(existingPhoto.url)
-    ) {
-      r2CleanupUrls.add(existingPhoto.url);
-    }
-  }
-
   // Detect price/variant changes for priceVersion bump and to flag this
   // save as a content edit that should go through AI re-review.
   const priceValueChanged = priceCents !== listing.priceCents;
@@ -476,12 +447,10 @@ async function updateListing(
           });
         }
       }
-      await claimDirectUploadsForUrls({
+      await syncListingDirectUploadReferences({
         client: tx,
-        urls: [...submittedNewPhotoUrls],
         userId: listing.seller.userId,
-        claimedByType: "Listing",
-        claimedById: listingId,
+        listingId,
       });
 
       return updated;
@@ -491,17 +460,8 @@ async function updateListing(
     }
   } catch (error) {
     if (error instanceof ListingPhotoConflictError) {
-      await Promise.all(
-        Array.from(submittedNewPhotoUrls).map((url) =>
-          deleteR2ObjectByUrl(url).catch((cleanupError) => {
-            logServerError(cleanupError, {
-              source: "listing_photo_conflict_cleanup",
-              level: "warning",
-              extra: { listingId, sellerId: listing.sellerId },
-            });
-          }),
-        ),
-      );
+      // The transaction left new uploads unreferenced. The fenced lifecycle
+      // worker removes them without racing a valid public reuse.
       return { ok: false, error: error.message };
     }
     throw error;
@@ -645,18 +605,6 @@ async function updateListing(
   revalidatePath("/browse");
   revalidateListingSearchCaches();
   revalidateFeaturedMakerCaches();
-
-  await Promise.all(
-    Array.from(r2CleanupUrls).map((url) =>
-      deleteR2ObjectByUrl(url).catch((error) => {
-        logServerError(error, {
-          source: "listing_photo_save_cleanup",
-          level: "warning",
-          extra: { listingId, sellerId: listing.sellerId },
-        });
-      }),
-    ),
-  );
 
   // Re-query final status after AI re-review may have transitioned the listing.
   // Public listing path 404s for DRAFT, HIDDEN, REJECTED, PENDING_REVIEW — must

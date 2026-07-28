@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -7,11 +6,9 @@ import { sanitizeRichText } from "@/lib/sanitize";
 import { containsProfanity } from "@/lib/profanity";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncReviewDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { rateLimitResponse, reviewRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { deleteR2ObjectByUrl } from "@/lib/r2";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
-import { mapWithConcurrency } from "@/lib/concurrency";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -30,45 +27,6 @@ const ReviewPatchSchema = z.object({
   photoUrls: ReviewPhotoUrlsSchema,
 });
 const REVIEW_PATCH_BODY_MAX_BYTES = 24 * 1024;
-
-function mediaUrlHost(url: string) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "invalid-url";
-  }
-}
-
-function captureReviewPhotoCleanupFailures({
-  results,
-  photos,
-  reviewId,
-  source,
-}: {
-  results: PromiseSettledResult<boolean>[];
-  photos: { url: string }[];
-  reviewId: string;
-  source: string;
-}) {
-  results.forEach((result, index) => {
-    const host = mediaUrlHost(photos[index]?.url ?? "");
-    if (result.status === "rejected") {
-      Sentry.captureException(result.reason, {
-        level: "warning",
-        tags: { source },
-        extra: { reviewId, host },
-      });
-      return;
-    }
-    if (result.value === false) {
-      Sentry.captureMessage("Review photo cleanup skipped non-R2 media", {
-        level: "warning",
-        tags: { source, host },
-        extra: { reviewId },
-      });
-    }
-  });
-}
 
 export async function PATCH(
   req: Request,
@@ -175,29 +133,13 @@ export async function PATCH(
         sortOrder: i,
       })),
     });
-    await claimDirectUploadsForUrls({
+    await syncReviewDirectUploadReferences({
       client: tx,
-      urls: verifiedPhotos.filter((url) => !oldPhotoUrls.has(url)),
       userId: r.reviewerId,
-      claimedByType: "Review",
-      claimedById: id,
+      reviewId: id,
     });
 
     await refreshSellerRatingSummary(r.listing.sellerId, tx);
-  });
-
-  const retainedUrls = new Set(verifiedPhotos);
-  const removedPhotos = oldPhotos.filter((photo) => !retainedUrls.has(photo.url));
-  const cleanupResults = await mapWithConcurrency(
-    removedPhotos,
-    5,
-    (photo) => deleteR2ObjectByUrl(photo.url),
-  );
-  captureReviewPhotoCleanupFailures({
-    results: cleanupResults,
-    photos: removedPhotos,
-    reviewId: id,
-    source: "review_photo_cleanup_edit",
   });
 
   // revalidate listing page
@@ -237,21 +179,9 @@ export async function DELETE(
     return privateJson({ error: "Not found" }, { status: HTTP_STATUS.NOT_FOUND });
   }
 
-  const photos = await prisma.reviewPhoto.findMany({
-    where: { reviewId: id },
-    select: { url: true },
-  });
-
   await prisma.$transaction(async (tx) => {
     await tx.review.delete({ where: { id } });
     await refreshSellerRatingSummary(review.listing.sellerId, tx);
-  });
-  const cleanupResults = await mapWithConcurrency(photos, 5, (photo) => deleteR2ObjectByUrl(photo.url));
-  captureReviewPhotoCleanupFailures({
-    results: cleanupResults,
-    photos,
-    reviewId: id,
-    source: "review_photo_cleanup_delete",
   });
 
   revalidateFeaturedMakerCaches();

@@ -32,17 +32,14 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 import { caseMessageAuthorKindForActor } from "@/lib/caseMessageAuthor";
 import {
-  CASE_EVIDENCE_STORAGE_CLASS,
-  CASE_EVIDENCE_UPLOAD_ENDPOINT,
   MAX_CASE_MESSAGE_ATTACHMENTS,
   verifyPrivateCaseEvidenceForPersistence,
 } from "@/lib/caseEvidence";
 import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
 import {
-  claimDirectUploadForKey,
   DirectUploadClaimError,
+  referenceDirectUploadCaseAttachment,
 } from "@/lib/directUploadLifecycle";
-import { DIRECT_UPLOAD_STATUS } from "@/lib/directUploadLifecycleState";
 import {
   databaseClockTimestamp,
   lockCaseForLifecycle,
@@ -72,27 +69,27 @@ class CaseMessageRouteError extends Error {
 }
 
 function attachmentKeysMatch(
-  attachments: readonly { objectKey: string }[],
+  attachments: readonly { directUpload: { key: string } }[],
   expectedKeys: readonly string[],
 ) {
   if (attachments.length !== expectedKeys.length) return false;
-  const actual = attachments.map(({ objectKey }) => objectKey).sort();
+  const actual = attachments.map(({ directUpload }) => directUpload.key).sort();
   const expected = [...expectedKeys].sort();
   return actual.every((key, index) => key === expected[index]);
 }
 
 type CaseMessageResponseAttachment = {
   id: string;
-  objectKey: string;
   contentType: string;
   byteSize: number;
   createdAt: Date;
+  directUpload: { key: string };
 };
 
 function caseMessageResponse<
   T extends { attachments: readonly CaseMessageResponseAttachment[] },
 >(message: T): Omit<T, "attachments"> & {
-  attachments: Array<Omit<CaseMessageResponseAttachment, "objectKey">>;
+  attachments: Array<Omit<CaseMessageResponseAttachment, "directUpload">>;
 } {
   const { attachments, ...messageFields } = message;
   return {
@@ -208,7 +205,7 @@ export async function POST(
           body: messageBody,
           createdAt: { gte: retryCutoff },
           attachments: {
-            some: { objectKey: { in: attachmentKeys } },
+            some: { directUpload: { key: { in: attachmentKeys } } },
           },
         },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -217,10 +214,10 @@ export async function POST(
           attachments: {
             select: {
               id: true,
-              objectKey: true,
               contentType: true,
               byteSize: true,
               createdAt: true,
+              directUpload: { select: { key: true } },
             },
           },
         },
@@ -255,6 +252,7 @@ export async function POST(
     }
 
     const verifiedAttachments: Array<{
+      directUploadId: string;
       objectKey: string;
       contentType: string;
       byteSize: number;
@@ -353,10 +351,10 @@ export async function POST(
           attachments: {
             select: {
               id: true,
-              objectKey: true,
               contentType: true,
               byteSize: true,
               createdAt: true,
+              directUpload: { select: { key: true } },
             },
           },
         },
@@ -403,21 +401,6 @@ export async function POST(
         data: caseUpdates,
       });
 
-      for (const attachment of verifiedAttachments) {
-        const claimed = await claimDirectUploadForKey({
-          client: tx,
-          key: attachment.objectKey,
-          userId: lockedActor.id,
-          endpoint: CASE_EVIDENCE_UPLOAD_ENDPOINT,
-          storageClass: CASE_EVIDENCE_STORAGE_CLASS,
-          claimedByType: "CASE_MESSAGE_ATTACHMENT",
-          now: transitionAt,
-        });
-        if (!claimed.tracked || !claimed.claimed) {
-          throw new DirectUploadClaimError();
-        }
-      }
-
       const authorKind = caseMessageAuthorKindForActor({
         actorId: lockedActor.id,
         buyerId: lockedCase.buyerId,
@@ -435,6 +418,7 @@ export async function POST(
             create: verifiedAttachments.map((attachment) => ({
               uploaderId: lockedActor.id,
               objectKey: attachment.objectKey,
+              directUploadId: attachment.directUploadId,
               contentType: attachment.contentType,
               byteSize: attachment.byteSize,
             })),
@@ -444,26 +428,23 @@ export async function POST(
           attachments: {
             select: {
               id: true,
-              objectKey: true,
+              directUploadId: true,
               contentType: true,
               byteSize: true,
               createdAt: true,
+              directUpload: { select: { key: true } },
             },
           },
         },
       });
 
       for (const attachment of message.attachments) {
-        const linked = await tx.directUpload.updateMany({
-          where: {
-            key: attachment.objectKey,
-            status: DIRECT_UPLOAD_STATUS.CLAIMED,
-            claimedByType: "CASE_MESSAGE_ATTACHMENT",
-            claimedById: null,
-          },
-          data: { claimedById: attachment.id },
+        const referenced = await referenceDirectUploadCaseAttachment({
+          client: tx,
+          userId: lockedActor.id,
+          attachmentId: attachment.id,
         });
-        if (linked.count !== 1) {
+        if (!referenced) {
           throw new DirectUploadClaimError();
         }
       }

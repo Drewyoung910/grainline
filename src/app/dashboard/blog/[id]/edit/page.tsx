@@ -8,7 +8,7 @@ import { BLOG_BODY_MAX_CHARS, calculateReadingTime } from "@/lib/blog";
 import { BlogPostType } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncBlogPostDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
@@ -180,15 +180,11 @@ export default async function EditBlogPostPage({
         },
       });
       if (claimed.count === 0) return null;
-      if (coverImageUrl && coverImageUrl !== existing.coverImageUrl) {
-        await claimDirectUploadsForUrls({
-          client: tx,
-          urls: [coverImageUrl],
-          userId: author.id,
-          claimedByType: "BlogPost",
-          claimedById: id,
-        });
-      }
+      await syncBlogPostDirectUploadReferences({
+        client: tx,
+        userId: author.id,
+        blogPostId: id,
+      });
       return tx.blogPost.findUnique({
         where: { id },
         select: { id: true, slug: true, sellerProfileId: true, sellerProfile: { select: { displayName: true, userId: true } } },

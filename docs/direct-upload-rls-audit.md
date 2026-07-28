@@ -1,0 +1,808 @@
+# DirectUpload RLS and Lifecycle Authority Audit
+
+Opened 2026-07-26 as CM-A21. High audit completed on
+`agent/direct-upload-rls-audit-20260726`; Extra-High preparation is active on
+`agent/direct-upload-rls-preparation-20260726`. Production now contains the
+four PR #58 Case/CaseMessage compatibility migrations and compatible
+application at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
+both build and runtime. No DirectUpload preparation migration, DirectUpload
+grant/RLS change, provider-object mutation or DirectUpload activation has
+reached production.
+
+`DirectUpload` is a shared upload-control ledger, not an ordinary user-owned
+content table. It spans public listing/profile/review/blog/broadcast/commission
+media, legacy ordinary-message attachments, private Case evidence, future
+private ordinary-message attachments, account export/deletion and the cleanup
+cron. Its production release therefore remains separate from Message and Case
+even though both depend on it.
+
+## Accepted threat boundary
+
+The production runtime role must lose direct table access. `DirectUpload` and
+its reference table should use ENABLE plus FORCE RLS with no runtime table
+policy or direct table grant; the runtime receives only fixed operations.
+Owner-backed functions must pin `search_path`, reject `PUBLIC`, validate all
+durable targets and derive status/timestamps/cleanup state.
+
+Those functions do not authenticate a human. The runtime can assert an actor
+id, so a stolen `grainline_app_runtime` credential can impersonate a valid
+application actor within each granted function. Clerk authentication,
+server-side actor resolution and exact call-site guards remain load-bearing.
+The database boundary removes arbitrary table CRUD, enumeration, target
+selection and status rewriting; it is containment, not independent identity.
+
+The cleanup worker is intentionally different: leasing eligible objects must
+return cross-user object keys. Those lease/complete/fail operations must move
+to a dedicated NOBYPASSRLS worker role and connection before DirectUpload
+activation. Ordinary `grainline_app_runtime` must lose EXECUTE on all three.
+Until then, the compatible preparation retains the existing runtime authority
+and does not claim containment from a stolen runtime credential.
+
+Arbitrary application-runtime compromise with R2 credentials also remains able
+to access objects permitted by those credentials. Database RLS cannot solve
+that provider-secret threat. Separate bucket scope, credential rotation,
+no-public-domain proof and object audit telemetry remain required.
+
+## Verified operation inventory
+
+| Operation | Current code | Authority destination |
+|---|---|---|
+| Record processed public upload | `src/app/api/upload/image/route.ts` calls `recordDirectUploadVerified()` | Fixed actor/endpoint operation; database derives status and clocks and validates endpoint/type/size bounds |
+| Record presigned public upload | `src/app/api/upload/presign/route.ts` calls `recordDirectUploadPresigned()` | Fixed direct-upload operation; disable unused/retired endpoints before grant |
+| Mark public upload verified | `src/app/api/upload/verify/route.ts` calls `markDirectUploadVerified()` | Exact actor/key/endpoint transition with database-derived clocks |
+| Record private Case evidence | `src/app/api/cases/[id]/attachments/route.ts` calls `recordDirectUploadVerified()` | Case-participant operation with fixed private endpoint/storage, exact Case scope and no public URL |
+| Verify public persistence | `src/lib/uploadPersistenceVerification.ts` reads by key | Exact actor/key/endpoint projection; no list or arbitrary-row read |
+| Verify private Case persistence | `src/lib/caseEvidence.ts` reads by key | Exact Case/actor/source projection |
+| Read private Case evidence | Case attachment route reads lifecycle by key | Exact Case attachment read operation; no client key |
+| Claim public durable references | Listing, SellerProfile, Review, BlogPost, CommissionRequest, SellerBroadcast and legacy Message writers call generic claim helpers | Family-specific reference operations that prove the exact durable field/row and owner |
+| Claim private Case evidence | Case message route calls generic key claim then directly links `claimedById` | One atomic CaseMessage/attachment/reference operation |
+| Clean abandoned uploads | Cleanup cron calls `processExpiredDirectUploadBatch()` | Fixed lease/complete/fail operations returning only an eligible batch; grant them to a dedicated cleanup-worker role, not ordinary request runtime, at activation |
+| Account export | Account export directly lists every column | Fixed actor export projection with no key, URL, internal target id or raw error |
+| Account deletion | Deletion reads rows and deletes public lifecycle rows directly | Fixed source-aware release/deletion operation; retained Case evidence remains referenced |
+| Runtime provisioning | `scripts/provision-runtime-db-role.sql` grants SELECT/INSERT/UPDATE/DELETE | Activation must revoke all table access and grant only reviewed functions |
+
+Current public claim call sites:
+
+- Listing: new, custom and edit;
+- SellerProfile: onboarding and profile edit;
+- Review: create and edit;
+- BlogPost: new and edit;
+- CommissionRequest: create;
+- SellerBroadcast: create; and
+- ordinary Message: attachment send.
+
+Private Case evidence is the current private claim path. CM-A20 will add a
+private ordinary-Message path only after this rollout.
+
+## Endpoint and durable-source matrix
+
+| Endpoint | Current storage/content | Valid durable sources |
+|---|---|---|
+| `listingImage` | Public processed image | Listing photos; an already-referenced seller-owned image may also appear in that seller's broadcast |
+| `messageImage` | Public processed image | CommissionRequest reference images |
+| `messageFile` | Public PDF direct upload | Legacy Message only; no new grant after the CM-A20 cutover |
+| `messageAny` | Public processed image or PDF direct upload | Legacy ordinary Message only; no new grant after the CM-A20 cutover |
+| `caseEvidenceImage` | Private processed image | One exact CaseMessageAttachment |
+| `messagePrivateImage` | Planned private processed image | One exact MessageAttachment after CM-A20 |
+| `reviewPhoto` | Public processed image | ReviewPhoto owned by the reviewer |
+| `listingVideo` | Public video direct upload | Listing video, but no active UI call site was found; inspect legacy state before deciding whether to disable it |
+| `bannerImage` | Public processed image | SellerProfile banner; seller-owned broadcast reuse is valid |
+| `galleryImage` | Public processed image | SellerProfile avatar/workshop/gallery, BlogPost cover, or seller-owned broadcast |
+| `blogImage` | Public processed image | BlogPost cover |
+
+Do not encode one exclusive claim rule across this matrix. Private attachments
+are exclusive. Public images can legitimately be referenced by more than one
+durable source.
+
+## Findings
+
+### DU-A01: broad runtime CRUD
+
+The provisioning script grants runtime SELECT, INSERT, UPDATE and DELETE on
+`DirectUpload`. A stolen runtime credential can enumerate keys, rewrite
+ownership/status/cleanup state, delete lifecycle evidence or create arbitrary
+rows. Child-table RLS does not contain that table-level access.
+
+### DU-A02: caller-controlled generic claim identity
+
+`claimDirectUploadForKey()` accepts `claimedByType` and `claimedById` from
+application code. It validates upload owner/storage/status but does not prove
+that the claimed source row exists, belongs to that actor or contains the
+object. Fixed family operations must derive reference identity from the exact
+durable source.
+
+### DU-A03: one claim conflicts with valid public reuse
+
+The current `claimedByType`/`claimedById` pair is exclusive. Yet the product
+explicitly accepts a seller's existing `listingImage`, `bannerImage` or
+`galleryImage` in a SellerBroadcast, and BlogPost covers may reuse a
+`galleryImage`. A previously tracked image already claimed by Listing or
+SellerProfile is rejected when the second valid source tries to claim it.
+
+Use a normalized reference ledger with multiple active references for PUBLIC
+objects and exactly one for PRIVATE objects. Do not weaken private exclusivity
+to solve public reuse.
+
+### DU-A04: claimed-object deletion drifts from ledger state
+
+Review removal/admin deletion and Listing edit/delete call R2 deletion helpers
+without releasing or updating the corresponding lifecycle row. Other replaced
+profile/blog objects may retain both object and claim indefinitely. A row can
+therefore remain `CLAIMED` after its object or source is gone, while storage can
+retain unreferenced claimed objects forever.
+
+Reference release must happen atomically with the durable source change. The
+last active reference should set the upload back to cleanup-eligible
+`VERIFIED` with a database-derived immediate `cleanupAfter`; the retryable
+worker performs the external delete and records success/failure.
+
+### DU-A05: export exposes raw control metadata
+
+Account export selects `key`, `publicUrl`, `claimedById` and `lastError` for
+every row. With private storage this would export opaque private object keys.
+The user-facing export needs only bounded endpoint/storage/content/size/status
+and lifecycle timestamps. It must omit key, URL, internal target ids and raw
+provider error text.
+
+### DU-A06: private key duplication
+
+The unapplied Case-compatible schema duplicates the private key in
+`CaseMessageAttachment`. The CM-A20 draft initially proposed the same shape.
+Both private children should instead hold a unique foreign key to the exact
+`DirectUpload` row. Only a fixed authenticated read operation may resolve the
+object key. The already reviewed Case migration must remain byte-immutable;
+the next reviewed DirectUpload migration performs the shape transition and
+must fail closed rather than rewrite any unexpected Case evidence row.
+
+### DU-A07: incomplete database invariants
+
+The database checks the status enum, positive size, nonnegative attempts and
+public/private URL nullability. It does not yet enforce:
+
+- endpoint whitelist and endpoint/storage/content/size compatibility;
+- ownership foreign key;
+- status-specific timestamp/claim/cleanup coherence;
+- immutable key/owner/endpoint/storage/content/size;
+- permitted status transitions;
+- active-reference/status coherence; or
+- private exclusive versus public shared reference cardinality.
+
+Add compatible constraints/triggers in stages and validate them only after the
+legacy inspection/backfill.
+
+### DU-A08: compatibility accepts untracked new references
+
+The public verifier allows a valid owned first-party object when no lifecycle
+row exists, and generic claim returns `{tracked:false, claimed:false}` without
+failing. That preserves historical URLs but lets a newly submitted URL bypass
+the ledger. After compatible app deployment, new values must require a
+verified lifecycle row. Exact already-persisted legacy values may remain under
+an explicit unchanged-value exception until migration.
+
+### DU-A09: cleanup completion lacks a lease fence
+
+The cleanup worker serializes normal duplicate pickup through status and
+`cleanupAfter`, but its final success/failure updates use only the row id. A
+worker that outlives the retry lease can overwrite a newer worker's result.
+Fixed cleanup operations must return an attempt/lease token and condition
+complete/fail updates on that exact token and `DELETING` state.
+
+### DU-A10: endpoint retirement is unresolved
+
+No active `VideoUploader` consumer was found for `listingVideo`;
+`messageFile` is legacy and `messageAny` is scheduled for public-message
+cutover. Aggregate legacy counts—not assumptions—must decide whether those
+creation grants can be removed. Unknown endpoints/types fail closed.
+
+### DU-A11: legacy reference completeness is unknown
+
+Database inspection is required for tracked rows with null/unknown/dangling
+claims, durable public URLs without lifecycle rows, multiple durable sources
+sharing one URL, stale claimed rows, expired cleanup rows, private attachment
+mismatches and invalid state coherence. Inspection returns aggregate counts
+only: never keys, URLs, user ids, source ids, message bodies or raw errors.
+
+### DU-A12: cleanup authority is broader than ordinary request authority
+
+The cleanup lease must return a bounded cross-user batch containing object
+keys, while complete/fail mutate service-owned lifecycle state. The cron route
+is protected by `verifyCronRequest()`, but the current database grant is still
+held by the ordinary request runtime role. A stolen runtime database credential
+could therefore invoke the worker operations directly, lease eligible rows and
+enumerate their keys even without the cron secret.
+
+Preparation may retain that grant only because DirectUpload still has its old
+full runtime CRUD authority and RLS remains off. Activation must create a
+dedicated NOBYPASSRLS cleanup-worker role/connection, grant it only
+lease/complete/fail EXECUTE, and revoke those three functions from
+`grainline_app_runtime`. The production grant audit and pooled postflight must
+prove both sides. The unused future
+`grainline_direct_upload_record_private_message` grant must also be absent from
+ordinary-runtime activation until CM-A20's compatible application release
+actually consumes it.
+
+### DU-A13: private Case child conversion must survive old/new app overlap
+
+The first reference-ledger draft treated the unapplied Case evidence table as
+empty and replaced `objectKey` with `directUploadId` in one migration. That is
+fail-closed for unexpected rows but not deployment-compatible: an old
+application instance would continue inserting `objectKey` after the migration
+and fail against the new shape.
+
+Preparation must instead retain the compatibility column, add and exactly
+backfill `directUploadId`, and install a private database binding trigger. The
+trigger derives the id for an old writer and rejects any caller-provided
+key/id/uploader/content/size mismatch. It locks the lifecycle row against the
+cleanup worker and makes attachment identity immutable. A second private,
+deferred constraint trigger creates the exclusive normalized reference at
+transaction commit and releases it on delete. Deferral is required because the
+old Case writer claims the upload, inserts the attachment, then fills the
+legacy `claimedById` in the same transaction; an immediate trigger would fill
+that legacy field first and make the old writer roll back. New application code
+dual-writes both columns and performs an immediate explicit reference call; the
+deferred commit-time replay remains idempotent.
+
+After the compatible application is deployed and every older instance has
+drained, a separate reviewed cleanup migration must prove exact agreement and
+drop `objectKey`. DirectUpload activation may not retain this duplicate private
+key behind ordinary runtime table access; either the compatibility column is
+gone first or the parent attachment table has independently activated,
+parent-derived RLS. The planned sequence uses the narrower first option.
+
+## Proposed compatible schema
+
+Add `DirectUploadReference`:
+
+- id;
+- `directUploadId` foreign key;
+- constrained `sourceType`;
+- bounded `sourceId`;
+- database-derived `exclusive` flag matching the lifecycle storage class;
+- `createdAt`;
+- nullable `releasedAt` and bounded `releaseReason`;
+- active source and lifecycle indexes;
+- one active `(directUploadId, sourceType, sourceId)` reference; and
+- one active reference total when `exclusive=true`.
+
+The reference table starts with ENABLE plus FORCE RLS and no runtime table
+grants. Fixed family functions insert/release rows only after locking the
+lifecycle and validating the exact durable source. A trigger rejects a
+reference whose exclusivity does not match PUBLIC/PRIVATE storage.
+
+The compatible `CaseMessageAttachment` transition temporarily stores both its
+legacy `objectKey` and unique `directUploadId`; the database derives and proves
+their equality for old writers while the new application dual-writes them.
+After old deployment drain, drop the duplicate key. The planned
+`MessageAttachment` starts directly with a unique `directUploadId` foreign key
+and never needs the legacy duplicate. Child metadata remains source-derived and
+database-constrained.
+
+Keep legacy `claimedByType`/`claimedById` during coexistence only. Preparation
+functions dual-write them where compatible. After old deployment drain and
+reference backfill, remove application dependence on those columns; later drop
+them in a separately reviewed cleanup migration.
+
+## Fixed operation catalog
+
+Preparation must define and prove:
+
+1. processed-public record;
+2. presigned-public record;
+3. public verification transition;
+4. private Case record;
+5. private Message record;
+6. exact actor-owned persistence lookup;
+7. family-specific public reference operations for Listing, SellerProfile,
+   Review, BlogPost, CommissionRequest and SellerBroadcast;
+8. legacy Message compatibility reference during drain only;
+9. atomic Case and Message private attachment references;
+10. source-aware reference release;
+11. fenced cleanup batch lease, complete and fail;
+12. sanitized account-export projection;
+13. account-deletion release/retention; and
+14. owner-only aggregate legacy inspection.
+
+Private generic cores, if used, receive no runtime or PUBLIC EXECUTE. Every
+runtime function has a pinned signature, `search_path=pg_catalog`, bounded
+return projection and exact ACL inventory. No dynamic SQL is permitted.
+
+## Legacy aggregate inspection
+
+The separately approved, repeatable-read owner inspection must count:
+
+- rows by endpoint/storage/status/content type/claim type;
+- unknown endpoint/type/storage/status combinations;
+- state/timestamp/cleanup coherence violations;
+- missing User owners;
+- null/unknown/dangling claim pairs;
+- claims whose source exists but has the wrong owner, endpoint or URL/key;
+- lifecycle rows referenced by zero, one or multiple durable sources;
+- durable first-party URLs by source family with no lifecycle row;
+- allowlisted legacy UploadThing/UTFS durable URLs by source family and origin;
+- private Case child/lifecycle mismatches;
+- expired cleanup-eligible rows and stale `DELETING` leases;
+- `listingVideo`, `messageFile` and `messageAny` legacy populations; and
+- rows that cannot be deterministically backfilled.
+
+Inspection stops after counts. Reference backfill, constraint validation,
+object deletion, URL rewrite, key migration and endpoint retirement each need
+their own reviewed mutation and residue proof.
+
+The reusable inspector is now scaffolded in
+`scripts/direct-upload-legacy-inspect.mjs` and the protected,
+production-serialized manual workflow is
+`.github/workflows/direct-upload-legacy-inspection.yml`. It refuses anything
+except the exact clean dispatched main commit, reviewed direct production
+owner URL/digest and the explicit
+`compatible-app-drained-private-surfaces-disabled` prerequisite. The current
+public R2 base comes from the protected GitHub Production variable
+`CLOUDFLARE_R2_PUBLIC_URL`; the artifact retains only its SHA-256.
+
+The single repeatable-read, read-only transaction returns fixed aggregate
+counts for lifecycle/reference coherence, source ownership, public/private
+exclusivity, Case key/id/reference binding, cleanup eligibility, stale leases,
+first-party and UploadThing/UTFS legacy populations, backfillable versus
+untracked durable URLs and the legacy `listingVideo`, `messageFile`,
+`messageAny` and future-private endpoint populations. Fixed categorical
+distributions cover endpoint, storage class, status, content type, claim type,
+and source-family/provider-origin buckets. Unknown database values are folded
+into `UNKNOWN`/`UNKNOWN_EXTERNAL`; no raw value, key, URL, row id, user id or
+message body enters the evidence.
+
+The exact aggregate SQL is also executed inside the disposable DirectUpload
+PostgreSQL harness. GitHub Actions run `30228466175` (job `89862786290`) at
+commit `c748758e` passed on PostgreSQL 16.14: all 166 migrations,
+production-style runtime grant convergence, migration status, the global
+grant/RLS audit, static contracts and seven live checks passed. The seventh
+check, `aggregate_only_legacy_query`, executed the full inspector SQL against
+the disposable fixture population and preserved the expected Case/reference
+invariants. The run recorded `persistentStagingChanged=false` and
+`productionChanged=false`.
+
+This accepts the query as executable disposable-engine evidence, not as a
+production data classification. Dispatching it against production still
+requires separate read-only authorization after the compatible application is
+deployed and old instances have drained.
+
+## Release sequence
+
+1. **High audit:** complete this source/actor/endpoint inventory and static
+   drift tests.
+2. **Extra-High preparation:** design schema, fixed functions, grants,
+   constraints, call-site guards and exact disposable PostgreSQL
+   authority/concurrency/rollback proof. No production mutation.
+3. **Additive preparation release:** land the reference table, compatible
+   columns/functions and non-disruptive constraints. Old app remains valid.
+4. **Compatible application release:** new code uses fixed operations and
+   dual-writes references while old instances may still use direct CRUD.
+5. **Drain proof:** prove the old deployment is gone; stop all new untracked
+   persistence and direct lifecycle CRUD.
+6. **Aggregate legacy inspection:** separately approved, read-only and
+   count-only.
+7. **Reference backfill/repair:** separately approved from exact counts with
+   backup, rollback and residue proof. Unknown rows remain fail-closed.
+8. **Activation:** ENABLE plus FORCE RLS, revoke all runtime table privileges,
+   grant only reviewed actor operations, move cleanup lease/complete/fail to
+   the dedicated worker role, withhold the unused private-message recorder,
+   and validate accepted invariants.
+9. **Postflight:** prove no-context/direct CRUD denial, actor/source isolation,
+   public shared references, private exclusivity, release/cleanup fencing,
+   sanitized export and exact grants under the pooled runtime role.
+10. **Private-object releases:** only after this postflight may Case or CM-A20
+    make private-key application paths live, each in its own release.
+
+## Extra-High proof requirements
+
+Disposable PostgreSQL must prove:
+
+- runtime cannot select, insert, update or delete either table directly;
+- exact record/verify state transitions and invalid-transition denial;
+- endpoint/storage/content/size and owner validation;
+- valid same-owner public reuse plus foreign-source denial;
+- private single-use under concurrent claims;
+- reference creation versus release and cleanup winner orderings;
+- stale cleanup worker completion cannot overwrite a newer lease;
+- actor/key exact lookup cannot enumerate or switch context;
+- export never returns key, URL, source id or raw error;
+- account deletion retains Case evidence and schedules ordinary private/public
+  cleanup correctly, including when the account is banned before local
+  anonymization starts;
+- function ACL/search-path/source hashes match the reviewed catalog; and
+- rollback restores the accepted compatible schema/grants without residue.
+
+## Extra-High preparation checkpoints
+
+### Reference-ledger schema checkpoint
+
+The first local-only checkpoint adds
+`20260726184500_prepare_direct_upload_reference_ledger` and begins the
+deployment-compatible Case child transition to `DirectUpload.id`.
+
+The preparation migration deliberately leaves `DirectUpload` RLS disabled and
+keeps its old runtime grants for old-application compatibility. It creates
+`DirectUploadReference` with ENABLE plus FORCE RLS, zero policies and no
+runtime/PUBLIC table privileges from birth. It also adds:
+
+- a NOT VALID DirectUpload owner foreign key so new rows are checked without
+  pretending unknown legacy rows have been inspected;
+- compatible endpoint/storage/content/size and key/public-URL constraints;
+- cleanup lease columns for later attempt fencing;
+- immutable lifecycle identity and bounded status-transition triggers;
+- active reference identity and private-exclusivity partial unique indexes;
+  a locked Case attachment key/id binding trigger for old/new application
+  coexistence; and
+- a trigger that derives reference exclusivity from the locked lifecycle row
+  instead of accepting the caller's value.
+
+This is schema preparation only. The fixed operation catalog, reference/status
+maintenance, app call-site conversion, activation migration, aggregate legacy
+inspection and live PostgreSQL proof remain open.
+
+The exact reviewed bytes of
+`20260726184000_prepare_private_case_message_attachments` remain immutable.
+`20260726184500_prepare_direct_upload_reference_ledger` adds and exactly
+backfills `directUploadId` while retaining `objectKey` for old-application
+compatibility. A locked SECURITY DEFINER trigger derives the id for old writes,
+validates dual writes, and rejects attachment identity mutation. The authority
+migration then creates/releases normalized references automatically for both
+writer versions and backfills any rows created between the two migrations.
+Production has received the four earlier PR #58 Case compatibility migrations
+and compatible app at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled. It
+has not received `20260726184500_prepare_direct_upload_reference_ledger`,
+`20260726185000_prepare_direct_upload_authority` or
+`20260726185500_prepare_direct_upload_public_references`. The duplicate key is
+a temporary transition field and must be removed after the compatible app
+drains, before DirectUpload activation.
+
+### Fixed lifecycle/core authority checkpoint
+
+The next local-only checkpoint adds
+`20260726185000_prepare_direct_upload_authority` without revoking the old
+DirectUpload table grants or enabling DirectUpload RLS. It adds fixed,
+runtime-granted operations for:
+
+- processed-public, presigned-public, private Case and future private Message
+  lifecycle creation;
+- the public verification transition and exact actor/key lookup;
+- source-validated private Case attachment reference and read;
+- bounded cleanup leasing plus exact lease-fenced completion/failure;
+- sanitized account export;
+- account-owned public URL collection; and
+- account-deletion reference release/cleanup scheduling.
+
+Private actor, UTC clock, record, reference and release cores are explicitly
+revoked from both runtime and PUBLIC. Database clocks are normalized to UTC at
+the SQL boundary; IDs and cleanup lease tokens are database-derived. The record
+core independently derives the key owner segment from the actor's durable
+Clerk id and rejects a key whose endpoint or user segment does not match,
+rather than relying only on application-side key construction.
+
+The compatible application draft now uses those operations for upload
+record/verify, persistence lookup, private Case reference/read, cleanup,
+account export and account deletion. New first-party persistence fails closed
+without a matching lifecycle row; exact unchanged legacy URLs remain accepted
+only through the pre-existing `existingUrls` path.
+
+This checkpoint still has no live PostgreSQL proof and is not release-ready.
+The public source families, source-aware release, exact ACL/catalog proof and
+the activation/rollback split remain open at this checkpoint.
+
+### Fixed public-reference family checkpoint
+
+The next compatible draft adds
+`20260726185500_prepare_direct_upload_public_references` and removes the
+generic application claim API. Runtime receives only seven source-specific
+operations for Listing, SellerProfile, Review, BlogPost, CommissionRequest,
+SellerBroadcast and the drain-only legacy Message representation. Each
+operation locks and reads its durable source, proves the actor/source
+relationship, derives URLs, endpoints, source type and source id in the
+database, and calls a runtime-inaccessible reference core.
+
+The family conversion preserves valid public object reuse through normalized
+references rather than rebinding a single `claimedByType`/`claimedById`.
+Create paths fail closed when a submitted first-party URL lacks a matching
+verified lifecycle. Compatible edit paths may retain exact legacy URLs already
+stored on the source, pending the aggregate legacy inspection and backfill.
+When any durable URL is untracked, the database may add references for matched
+lifecycles but releases none; this prevents a permissive legacy edit or a
+direct fixed-function caller from using an ignored untracked count to release
+and clean up an object the source still needs.
+
+The Extra-High static review caught and corrected four defects before live
+PostgreSQL execution:
+
+1. nullable BlogPost ownership originally used `NOT IN`, and six other
+   families used `<>`; SQL UNKNOWN could fail to reject a null actor. All
+   ownership checks now use `IS DISTINCT FROM`, the core rejects null
+   actor/source inputs explicitly, and Blog recognizes only durable
+   `authorId`, matching the application edit authority;
+2. SellerProfile invoked four mutating families through `UNION ALL`, which did
+   not provide an explicit execution sequence;
+3. desired references and stale references originally acquired lifecycle
+   locks in separate orders, allowing a cross-source public-object swap to
+   deadlock; and
+4. Listing/Review application cleanup still deleted R2 objects directly after
+   release, which could destroy an object that another valid public source
+   continued to reference.
+
+The corrected core locks the union of desired and currently referenced
+lifecycle rows by id before any reference mutation. SellerProfile families run
+sequentially. Source-root BEFORE DELETE triggers release references for
+Listing, SellerProfile, Review, BlogPost, CommissionRequest, SellerBroadcast
+and legacy Message rows. Application mutation paths no longer directly delete
+Listing or Review media; the fenced lifecycle worker deletes only after the
+last reference is released. Removing a seller avatar also synchronizes its
+reference in the same transaction.
+
+This remains preparation only: DirectUpload RLS is still off, old runtime table
+grants remain for deployment coexistence, no SQL has been applied, and no
+provider or production state changed. Exact disposable PostgreSQL syntax, ACL,
+authority, reuse, release/cleanup and concurrency proof has passed. Aggregate
+legacy inspection and backfill, the production preparation preflight,
+activation/rollback split and final Extra-High authority review remain
+required.
+
+### Disposable PostgreSQL proof record
+
+`scripts/direct-upload-authority-postgres-proof.mjs` and its branch-scoped
+PostgreSQL 16 workflow are the next evidence gate. The harness refuses every
+non-loopback target and every database name except `grainline_ci`; it never
+reads the ordinary runtime or migration URL variables. It is designed to
+apply the exact stacked migration tree, converge the production-style runtime
+role, and prove:
+
+- exact runtime/PUBLIC function ACLs, pinned `pg_catalog` search paths, the
+  compatible pre-activation DirectUpload posture, and the zero-table-authority
+  FORCE posture of DirectUploadReference;
+- runtime denial of generic reference operations, null/foreign actor denial,
+  and database-derived key ownership;
+- fail-closed partial-source behavior even when a direct database caller
+  ignores the returned untracked count;
+- public-object reuse plus last-reference release through source-delete
+  triggers;
+- stable lifecycle lock ordering during a two-source object swap; and
+- both cleanup/reference winner orders, including `SKIP LOCKED` behavior and
+  exact cleanup-lease fencing.
+
+The scaffold is not evidence of a pass until the workflow runs successfully.
+It uses only disposable `example.invalid` fixtures, removes them in `finally`,
+and records that neither persistent staging nor production changed.
+
+The first workflow execution, GitHub Actions run `30224585194`, applied the
+entire migration tree, converged the runtime role, and then stopped at the
+global grant audit before fixtures ran. The audit still assumed that every
+Prisma table required CRUD and every `grainline_*` function required runtime
+EXECUTE. That old assumption correctly failed against the new least-privilege
+shape: `DirectUploadReference` has zero table grants and 12 generic/trigger
+functions are runtime-private. The correction keeps the audit hard while
+classifying exactly that one service-only table and those 12 functions,
+teaches provisioning to converge the same ACLs, and updates the schema-wide
+inventory from 59 to 60 models. Do not reinterpret this stopped run as
+authority evidence; the actual proof did not execute.
+
+The corrected exact-tree execution, GitHub Actions run `30224847389` (job
+`89853249938`) at commit `f7dcce32`, passed on PostgreSQL 16.14. It passed the
+full migration tree, production-style runtime-role convergence, the global
+grant/RLS audit, static harness contracts and all five live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `stable_swap_lock_order`;
+4. `multi_source_reuse_and_delete_release`; and
+5. `reference_cleanup_winner_orderings`.
+
+The runtime-role denial probes produced the expected database errors for
+DirectUploadReference table access, generic sync execution, null actor,
+forged key ownership and foreign Listing source authority. The result recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the CI service
+database and every disposable fixture were destroyed with the job. This is
+accepted disposable-engine authority/concurrency evidence for the compatible
+preparation stack, not activation evidence and not a production catalog claim.
+The post-proof Extra-High review also hardened the global drift audit: accepting
+this intentionally policyless service ledger may not suppress verification of
+its posture. The audit now independently requires DirectUploadReference to
+retain ENABLE plus FORCE, zero policies and zero runtime table privileges; a
+missing catalog row or loss of either RLS flag fails closed.
+
+That audit correction passed again in run `30224946994` at commit `69ecd95a`.
+During final release-guard packaging, the guard then correctly exposed that the
+previously sealed Case migration had been amended by the first reference-ledger
+checkpoint. Commit `6697a0f3` restored
+`20260726184000_prepare_private_case_message_attachments` byte-for-byte to its
+reviewed `b3e3d18f...` tree and moved its then-empty-only `objectKey` to
+`directUploadId` transition into
+`20260726184500_prepare_direct_upload_reference_ledger`. The reviewed full-tree
+fingerprint at that checkpoint was
+`8eb9896ac024b73daf368593e57fc485bd2b651b8e4b4b37a8cb66b31c1fe7bc`.
+
+The fresh exact-tree execution, GitHub Actions run `30225445722` (job
+`89854768934`) at commit `6697a0f3`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified
+migration status, passed the global grant/RLS audit and static contracts, then
+passed all five live authority/concurrency checks listed above. It recorded
+`persistentStagingChanged=false` and `productionChanged=false`. The subsequent
+Extra-High deployment-skew review found that its empty-only shape replacement
+would reject old-application writes after migration. The preparation now uses
+the additive dual-column/binding-trigger protocol in DU-A13 and adds automatic
+Case reference insert/delete maintenance. Therefore run `30225445722` remains
+useful prior authority/concurrency evidence but is explicitly superseded for
+release; the amended exact tree requires a fresh PostgreSQL run before its
+preparation can be accepted. The first Extra-High-reviewed amended full-tree
+fingerprint was
+`90290c0c88ecf0270acf832605126100fa6f24505496989754ab5d6d01274324`.
+
+The first execution of that amended tree, GitHub Actions run `30226471869`
+(job `89857383277`) at commit `34711980`, applied all 166 migrations and passed
+runtime-role convergence, migration status, the global grant/RLS audit and
+static contracts. The live harness then failed because its older cleanup
+concurrency check asserted that the entire service-wide lease batch was empty.
+The new Case lifecycle check had correctly released an unrelated private
+fixture, so PostgreSQL legitimately leased that row. This was a proof-isolation
+defect, not an authority or migration failure; both databases were disposable
+and the workflow changed no persistent staging or production state. The
+correction verifies that the specifically referenced upload is absent from the
+lease batch and moves the already-proven released fixture outside the later
+test's clock window.
+
+The corrected exact-tree execution, GitHub Actions run `30226543504` (job
+`89857578571`) at commit `6c1dba12`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified migration
+status, passed the global grant/RLS audit and static contracts, then passed all
+six live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`; and
+6. `reference_cleanup_winner_orderings`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable service database and fixtures were
+destroyed with the job. This is the accepted disposable-engine evidence for the
+amended compatible preparation tree. It is not DirectUpload activation
+evidence, provider-bucket evidence or a production catalog claim.
+
+The following deployment-packaging review then compared the database triggers
+against the exact old Phase 1B Case route rather than only its final insert. It
+found that the old route updates legacy `claimedById` after attachment creation
+inside one transaction. The immediate insert trigger in the proven tree had
+already populated that field, so the old route's exact null-guarded update would
+return zero and roll back. Run `30226543504` remains valid for its six modeled
+checks but is superseded for release compatibility. The corrected trigger is
+`DEFERRABLE INITIALLY DEFERRED`, and the live harness now executes both the
+exact old claim-insert-link transaction and the new
+dual-write-plus-explicit-reference transaction. That amended tree requires
+another exact PostgreSQL proof. Its then-reviewed full-tree fingerprint was
+`61bd54f8f1a3b6c627fe6c895be65e30aa09c906ab732a42e94d021d8018ce74`.
+
+The corrected exact-tree execution, GitHub Actions run `30226904740` (job
+`89858487348`) at commit `ce4a914b`, passed on PostgreSQL 16.14. It applied all
+166 migrations, converged the production-style runtime role, verified migration
+status, passed the global grant/RLS audit and static contracts, then passed all
+six live checks listed above. In particular,
+`case_attachment_compatibility_and_lifecycle` now commits both the exact legacy
+claim-insert-null-guarded-link transaction and the new
+dual-write-plus-explicit-reference transaction. The result recorded
+`persistentStagingChanged=false` and `productionChanged=false`; the disposable
+database and fixtures were destroyed with the job. This is the accepted
+disposable-engine authority, concurrency and application-skew evidence for the
+then-current compatible preparation tree. It is not DirectUpload activation
+evidence, provider-bucket evidence or a production catalog claim.
+
+### Final preparation authority review corrections
+
+The 2026-07-27 Extra-High review found two pre-production defects in the
+preparation stack:
+
+1. New seller broadcasts verified an optional first-party image before their
+   serializable create transaction, but did not require the source-sync result
+   to track every selected URL. A concurrent cleanup lease could therefore win
+   between verification and source sync, leave `untracked=1`, and still allow
+   the broadcast row to commit. The create path now passes
+   `requireAllTracked: Boolean(imageUrl)` inside the transaction, so that race
+   rolls back the new broadcast rather than persisting an image whose object
+   may be deleted.
+2. Account URL collection and account release reused the ordinary interactive
+   actor-validity helper, which rejects banned users. Provider-driven deletion
+   or deletion of an already-banned account could therefore omit its public
+   media and make local anonymization roll back. Those two account-lifecycle
+   operations now independently require a syntactically valid, existing,
+   not-yet-deleted account while intentionally allowing `banned=true`.
+   Ordinary upload creation, ownership lookup and sanitized export continue to
+   use the stricter not-banned actor rule.
+
+The disposable PostgreSQL harness now includes an eighth
+`banned_account_lifecycle_cleanup` check proving that a banned account can
+enumerate its exact public deletion URLs and schedule its unreferenced public
+upload for cleanup while its ordinary sanitized upload export remains empty.
+The migration edit changes the complete reviewed tree fingerprint to
+`0dacf34460ed27a16e332d29240c09eb8e0d183dba3c89778498987d3501759c`.
+All earlier runs remain useful evidence for the checks they executed, but are
+superseded for release by this exact-tree change.
+
+The fresh exact-tree execution, GitHub Actions run `30327497254` (job
+`90175815165`) at executable commit `546c112f`, passed on PostgreSQL 16.14. It
+applied all 166 migrations, converged the production-style runtime role,
+verified migration status, passed the global grant/RLS audit and static
+contracts, then passed all eight live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`;
+7. `aggregate_only_legacy_query`; and
+8. `banned_account_lifecycle_cleanup`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; the disposable service database and fixtures were
+destroyed with the job. This is the accepted disposable-engine authority,
+concurrency, application-skew, aggregate-inspector and banned-account cleanup
+evidence for the exact compatible preparation tree. It is not DirectUpload
+activation evidence, provider-bucket evidence or a production catalog claim.
+
+Local validation at this checkpoint passed all 2,147 repository tests
+(2,144 pass, zero fail, three intentional skips), TypeScript and lint. The
+default Next build did not reach application compilation because Turbopack
+rejects this disposable worktree's intentionally external `node_modules`
+symlink. The webpack fallback then reached compilation but exhausted Node's
+default 2 GiB heap without reporting an application defect. Neither result is
+accepted as build evidence. The partial `.next` output was deleted, the 10 GiB
+disk guard was preserved, and the clean GitHub runner must provide the exact
+in-tree dependency install, build and PostgreSQL evidence.
+
+That clean-runner gate is now accepted. Pull-request CI run `30327609567` (job
+`90176153302`) at documentation head `67617abd` completed the in-tree
+dependency install and Prisma generation, verified every pinned migration and
+prior RLS release artifact, applied all migrations to ephemeral PostgreSQL,
+converged/audited runtime grants, passed the retained database proofs,
+TypeScript, lint, all repository tests, the high-severity dependency audit and
+the production Next build. The executable DirectUpload tree remained exact
+commit `546c112f`; `67617abd` changed only this audit and `STRATEGY.md`.
+
+### Production preparation postflight scaffold
+
+`scripts/direct-upload-preparation-production-postflight.mjs` is the
+read-only pooled-runtime proof for the additive preparation release. It is
+deliberately separate from the owner migration workflow and rejects every
+owner/direct/aliased database credential. The operator requires:
+
+- the exact clean release commit;
+- the reviewed pooled `grainline_app_runtime` production identity;
+- exact positive general-CI and protected-migration run ids;
+- an explicit confirmation phrase; and
+- a fresh, commit-bound evidence path.
+
+It verifies the compatible pre-activation boundary rather than pretending
+activation has occurred:
+
+- `DirectUpload` still has RLS off, zero policies and legacy runtime CRUD for
+  old-application coexistence;
+- `DirectUploadReference` has ENABLE plus FORCE, zero policies and no runtime
+  table authority;
+- the temporary Case `objectKey` plus `directUploadId` columns and deferred
+  commit-time reference trigger are installed;
+- all 35 reviewed DirectUpload functions retain exact runtime/PUBLIC ACL,
+  owner and pinned-search-path posture;
+- direct reference-ledger access and the generic source core fail with
+  `42501`; and
+- invalid-actor fixed lookup/read operations return no rows.
+
+The live database transaction is `READ ONLY`, creates no fixture rows and
+writes only a fresh mode-0600 local JSON artifact. This database postflight
+does **not** verify the Vercel deployment, the
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` environment value, the private R2
+bucket, authenticated routes, legacy data, cleanup-worker separation or
+DirectUpload activation. Those remain explicit later gates rather than
+caller-supplied claims embedded in this evidence.
+
+## Exit
+
+High ends when this audit, the matrix/strategy decision and static inventory
+tests are committed on the separate stacked branch. Switch to Extra High
+before editing schema, migrations, functions, grants, policies or lifecycle
+application code.

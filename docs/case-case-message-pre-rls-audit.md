@@ -28,8 +28,8 @@ surface with the TypeScript AST. The initial baseline is:
 - 69 total protected references across 25 source files.
 
 The Phase 1B private-evidence and lifecycle-integrity draft expands the scanner
-to `CaseMessageAttachment` and currently records 46 direct operations, 25
-nested relation references and 12 raw SQL references: 83 total protected references
+to `CaseMessageAttachment` and currently records 46 direct operations, 22
+nested relation references and 12 raw SQL references: 80 total protected references
 across 29 source files. The original 69-reference baseline remains above as
 historical evidence; the generated current inventory, not either prose count,
 is the activation completeness gate.
@@ -122,7 +122,7 @@ the table is ready.
 | CC-A05 | Medium/Scale | Buyer, seller and admin detail pages load the entire CaseMessage history ordered only by `createdAt`. Account export intentionally includes every participant Case/message as part of a much broader per-account export. Long disputes can create unbounded interactive query, render and payload cost, and equal timestamps lack a stable tie-breaker. | Use bounded `(createdAt,id)` keyset history for interactive pages and add a `(caseId,createdAt,id)` index. Keep account export complete through a dedicated participant projection; do not truncate legal export data. Move the whole-account export to an async streamed artifact if production evidence shows either a 10-second generation time or a 25 MiB uncompressed payload for one account. |
 | CC-A06 | High/Product | Public and email copy gives the seller 48 hours to respond. The scheduled job does not escalate an `OPEN` Case when `sellerRespondBy` expires; it waits until that deadline is another 14 days old. Parties normally cannot escalate `OPEN` because it has no discussion unlock timestamp. The separate bulk route that uses the deadline is not scheduled. | Choose and document the actual policy. The current public 48-hour contract implies the scheduled transition must use the expired `sellerRespondBy` boundary, with idempotent audit/notification proof. |
 | CC-A07 | High | The database has only a non-negative refund check. It does not enforce coherent lifecycle fields: active versus terminal resolution data, resolved timestamps/actor, discussion/unlock timestamps, resolution marks, or refund fields matching resolution type. | Inspect legacy combinations, define the state invariant, repair only classified rows, then add checks/triggers and prove every valid transition plus forged-state rejection. |
-| CC-A08 | Expected gap | The original audit found 69 direct/relation/raw protected references; the current Phase 1B scanner pins 83 after private evidence and compatible lifecycle work. Participant RLS alone would break context-free cron/webhook/metrics/retention flows, while permissive service policies would recreate broad authority. | Convert all current references to explicit participant, staff, webhook, cron, lifecycle or aggregate destinations. Revoke direct runtime INSERT/UPDATE/DELETE before activation and keep no-context reads denied. |
+| CC-A08 | Expected gap | The original audit found 69 direct/relation/raw protected references; the current scanner pins 80 after private evidence, compatible lifecycle work, and replacement of three attachment-download relation reads with a fixed source-validating function. Participant RLS alone would break context-free cron/webhook/metrics/retention flows, while permissive service policies would recreate broad authority. | Convert all current references to explicit participant, staff, webhook, cron, lifecycle or aggregate destinations. Revoke direct runtime INSERT/UPDATE/DELETE before activation and keep no-context reads denied. |
 | CC-A09 | High | The isolated reply route now re-reads the Case and actor role/account state after the Case lock, treats a staff user who is also a party as that party, and derives author kind/status effects from the fresh rows. It does not yet provide a database function boundary against a caller holding the runtime credential, nor a final shared Case/User lock order. | Fixed write functions must derive the author and current authority after the reviewed lock order. Caller input may include user-authored body only; recipient, author kind, status side effects and event identity are database-derived. |
 | CC-A10 | Medium | Case is a predicate inside Order label, fulfillment, delivery, PII retention and seller-quality operations. Enabling RLS without converting these hidden relation/raw references would make active Cases invisible to context-free jobs or incorrectly permit an Order transition. | Pin every relation/raw reference in the inventory and replace it with a reviewed participant or fixed service predicate before activation. Keep the Order table's own later RLS release separate. |
 | CC-A11 | Accepted launch requirement | Damage/not-as-described disputes have no evidence attachment model even though the Terms say staff review photos. The existing generic Message upload path persists publicly reachable R2 URLs, which is not an acceptable confidentiality boundary for dispute evidence. Adding sensitive evidence after Case RLS would also require another parent-scoped authority and retention rollout. | Include a private-object-backed `CaseMessageAttachment` image model in the tightly coupled Case group before policy SQL. Process and verify images, persist an opaque object key rather than a public URL, retrieve only after Case participant/staff authorization through a short-lived signed path, inherit parent Case visibility, and define export/deletion/retention behavior. PDF evidence remains prohibited until a reviewed malware-scan/quarantine pipeline exists. |
@@ -133,13 +133,18 @@ the table is ready.
 
 CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
 a separate non-public R2 bucket, never the generic public message uploader.
-It records opaque keys in `CaseMessageAttachment`, atomically claims verified
-upload ownership with the message, retrieves only through a participant/staff
-authorization route and includes attachment metadata in interactive history
-and account export. The private Cloudflare bucket and application environment
-do not exist merely because this code exists; production evidence upload stays
-blocked until bucket privacy, least-privilege object access, authenticated
-signed read, foreign denial and cleanup are proven.
+Its first compatible writer records an opaque key in
+`CaseMessageAttachment`; the later DirectUpload preparation temporarily
+dual-stores that key with a database-bound `directUploadId` so old and new
+deployments can overlap safely. The duplicate key must be proven equal and
+dropped after drain, before DirectUpload activation. Upload ownership is
+claimed atomically with the message, retrieval remains behind a
+participant/staff authorization route, and only attachment metadata enters
+interactive history and account export. The private Cloudflare bucket and
+application environment do not exist merely because this code exists;
+production evidence upload stays blocked until bucket privacy, least-privilege
+object access, authenticated signed read, foreign denial and cleanup are
+proven.
 
 The final compatible review made the storage boundary fail closed across the
 whole lifecycle: a claimed `DirectUpload` cannot be rebound to another source

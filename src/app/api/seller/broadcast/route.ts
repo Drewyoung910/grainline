@@ -28,7 +28,7 @@ import {
   isFirstPartyMediaUrl,
 } from "@/lib/urlValidation";
 import { verifyFirstPartyMediaUrlForPersistence } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncSellerBroadcastDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { captureProfanityFlag } from "@/lib/profanityTelemetry";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
@@ -251,15 +251,12 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true },
     });
-    if (imageUrl) {
-      await claimDirectUploadsForUrls({
-        client: tx,
-        urls: [imageUrl],
-        userId: me.id,
-        claimedByType: "SellerBroadcast",
-        claimedById: created.id,
-      });
-    }
+    await syncSellerBroadcastDirectUploadReferences({
+      client: tx,
+      userId: me.id,
+      sellerBroadcastId: created.id,
+      requireAllTracked: Boolean(imageUrl),
+    });
     return { ok: true as const, broadcast: created };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
 

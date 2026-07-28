@@ -9,6 +9,9 @@ import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/conversation-message-authority-catalog.mjs";
+import {
+  DIRECT_UPLOAD_AUTHORITY_FUNCTIONS,
+} from "../scripts/direct-upload-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const {
@@ -23,7 +26,9 @@ const {
   NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES,
   NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
   NOTIFICATION_SERVICE_RPC_FUNCTIONS,
+  POLICYLESS_SERVICE_RLS_TABLES,
   RUNTIME_PRIVATE_FUNCTIONS,
+  RUNTIME_PRIVATE_TABLES,
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   assertGrantAuditConnectionMatches,
@@ -33,6 +38,7 @@ const {
   collectMessagePolicyIssues,
   collectNotificationFunctionIssues,
   collectNotificationPolicyIssues,
+  collectPolicylessServiceRlsIssues,
   collectTablePrivilegeAllowlistIssues,
   defaultPrivilegeRequirements,
   deriveGrantInventory,
@@ -391,6 +397,14 @@ describe("database grant inventory guardrails", () => {
       REQUIRED_TABLE_PRIVILEGES,
     );
     assert.deepEqual(
+      requiredRuntimeTablePrivileges("DirectUploadReference", phaseAInventory),
+      [],
+    );
+    assert.deepEqual(RUNTIME_PRIVATE_TABLES, ["DirectUploadReference"]);
+    assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
+      "DirectUploadReference",
+    ]);
+    assert.deepEqual(
       requiredRuntimeTablePrivileges("Notification", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
     );
@@ -482,6 +496,39 @@ describe("database grant inventory guardrails", () => {
         "table Notification runtime role has unexpected table privileges: INSERT",
         "table Notification runtime role is missing column privileges: read:UPDATE",
         "table Notification runtime role has unexpected column privileges: title:UPDATE",
+      ],
+    );
+  });
+
+  it("pins the policyless DirectUpload service ledger to ENABLE plus FORCE", () => {
+    const inventory = { tables: ["DirectUpload", "DirectUploadReference"] };
+    const exact = [{
+      table_name: "DirectUploadReference",
+      rls_enabled: true,
+      rls_forced: true,
+      policy_count: 0,
+    }];
+    assert.deepEqual(collectPolicylessServiceRlsIssues(exact, inventory), []);
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues([], inventory),
+      [
+        "service-only table DirectUploadReference must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
+      ],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [{
+          table_name: "DirectUploadReference",
+          rls_enabled: false,
+          rls_forced: false,
+          policy_count: 1,
+        }],
+        inventory,
+      ),
+      [
+        "service-only table DirectUploadReference must have ROW LEVEL SECURITY enabled",
+        "service-only table DirectUploadReference must have FORCE ROW LEVEL SECURITY enabled",
+        "service-only table DirectUploadReference must retain zero policies",
       ],
     );
   });
@@ -717,7 +764,7 @@ describe("database grant inventory guardrails", () => {
         (entry) => inventory.functions.includes(entry.name),
       );
 
-    assert.equal(inventory.tables.length, 59);
+    assert.equal(inventory.tables.length, 60);
     assert.equal(inventory.enums.length, 21);
     assert.deepEqual(inventory.functions, [
       "grainline_conversation_participants_immutable",
@@ -729,6 +776,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_notification_preferences_valid",
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
+      ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
       ...(conversationMessageAuthorityPrepared
         ? CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name)
         : []),
@@ -739,7 +787,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      34 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      70 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -777,7 +825,13 @@ describe("database grant inventory guardrails", () => {
     );
     assert.deepEqual(
       inventory.rlsForceTables,
-      ["Conversation", "Message", "Notification", "SavedSearch"],
+      [
+        "Conversation",
+        "DirectUploadReference",
+        "Message",
+        "Notification",
+        "SavedSearch",
+      ],
     );
   });
 
@@ -1444,7 +1498,7 @@ describe("database grant inventory guardrails", () => {
     const pkg = source("package.json");
 
     assert.match(plan, /Source-derived grant inventory/);
-    assert.match(plan, /59 Prisma model tables/);
+    assert.match(plan, /60 Prisma model tables/);
     assert.match(plan, /21 Prisma enum types/);
     assert.match(plan, /0 source-derived sequences/);
     assert.match(plan, /1 source-derived extension/);
@@ -1641,7 +1695,12 @@ describe("database grant inventory guardrails", () => {
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO/i);
     assert.doesNotMatch(provision, /GRANT\s+[^;]*ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+TO/i);
 
-    assert.deepEqual(provisionedObjects(provision, "TABLE"), inventory.tables);
+    assert.deepEqual(
+      provisionedObjects(provision, "TABLE"),
+      inventory.tables.filter(
+        (tableName) => !RUNTIME_PRIVATE_TABLES.includes(tableName),
+      ),
+    );
     assert.deepEqual(provisionedObjects(provision, "TYPE"), inventory.enums);
     for (const fn of inventory.functions) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;

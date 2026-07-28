@@ -143,7 +143,7 @@ describe("message and case policy guardrails", () => {
     const helper = source("src/lib/uploadPersistenceVerification.ts");
 
     assert.match(threadPage, /verifyFirstPartyUploadForPersistence/);
-    assert.match(threadPage, /claimDirectUploadForUrl/);
+    assert.match(threadPage, /syncLegacyMessageDirectUploadReference/);
     assert.match(threadPage, /MESSAGE_ATTACHMENT_CONTENT_TYPES/);
     assert.match(threadPage, /endpoint: "messageAny"/);
     assert.ok(
@@ -152,10 +152,12 @@ describe("message and case policy guardrails", () => {
       "message attachments must be verified before message rows are created",
     );
     assert.ok(
-      threadPage.indexOf("await claimDirectUploadForUrl({") <
-        threadPage.indexOf("const createdAttachment = await sendActorOrdinaryMessage"),
-      "tracked direct uploads must be claimed before attachment rows are created",
+      threadPage.indexOf("const createdAttachment = await sendActorOrdinaryMessage") <
+        threadPage.indexOf("await syncLegacyMessageDirectUploadReference({"),
+      "tracked upload references must be derived from the durable message row",
     );
+    assert.match(threadPage, /messageId: createdAttachment\.messageId/);
+    assert.match(threadPage, /requireAllTracked: true/);
     assert.match(helper, /export const MESSAGE_ATTACHMENT_CONTENT_TYPES/);
     assert.match(helper, /"application\/pdf"/);
     assert.match(helper, /IMAGE_UPLOAD_TYPES/);

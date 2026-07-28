@@ -21,7 +21,7 @@ import {
   filterVerifiedFirstPartyMediaUrlsForUser,
   verifyFirstPartyMediaUrlForPersistence,
 } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncSellerProfileDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { IMAGE_UPLOAD_TYPES } from "@/lib/uploadRules";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { parseMoneyInputToCents } from "@/lib/money";
@@ -215,17 +215,10 @@ async function updateSellerProfile(_prevState: unknown, formData: FormData) {
         giftWrappingPriceCents: offersGiftWrapping ? giftWrappingPriceCents : null,
       },
     });
-    await claimDirectUploadsForUrls({
+    await syncSellerProfileDirectUploadReferences({
       client: tx,
-      urls: [
-        bannerImageUrl,
-        avatarImageUrl,
-        workshopImageUrl,
-        ...(galleryImageUrlsTouched ? galleryImageUrls : []),
-      ].filter((url): url is string => Boolean(url)),
       userId: seller.userId,
-      claimedByType: "SellerProfile",
-      claimedById: seller.id,
+      sellerProfileId: seller.id,
     });
   });
 
@@ -303,7 +296,17 @@ async function removeSellerAvatar() {
   const { success } = await safeRateLimit(sellerProfileRatelimit, userId);
   if (!success) return;
   const { seller } = await ensureSeller();
-  await prisma.sellerProfile.update({ where: { id: seller.id }, data: { avatarImageUrl: null } });
+  await prisma.$transaction(async (tx) => {
+    await tx.sellerProfile.update({
+      where: { id: seller.id },
+      data: { avatarImageUrl: null },
+    });
+    await syncSellerProfileDirectUploadReferences({
+      client: tx,
+      userId: seller.userId,
+      sellerProfileId: seller.id,
+    });
+  });
   revalidatePath("/dashboard/profile");
   revalidatePath(`/seller/${seller.id}`);
   revalidateFeaturedMakerCaches();

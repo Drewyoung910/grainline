@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureSeller } from "@/lib/ensureSeller";
 import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenceVerification";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncListingDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { sanitizeRichText, sanitizeText, truncateText } from "@/lib/sanitize";
 import { sendCustomOrderReadyLink } from "@/lib/customOrderReadyLink";
 import { sellerFacingUserLabel } from "@/lib/sellerFacingUser";
@@ -197,12 +197,11 @@ async function createCustomListing(_prevState: unknown, formData: FormData) {
         })) },
       },
     });
-    await claimDirectUploadsForUrls({
+    await syncListingDirectUploadReferences({
       client: tx,
-      urls: [...imageUrls, ...imageOriginalUrls],
       userId: seller.userId,
-      claimedByType: "Listing",
-      claimedById: listing.id,
+      listingId: listing.id,
+      requireAllTracked: true,
     });
     return listing;
   });

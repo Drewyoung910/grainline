@@ -45,6 +45,10 @@ import {
   listActorSentMessageBodiesForDeletion,
   redactActorMessagesForAccountDeletion,
 } from "@/lib/conversationMessageAuthority";
+import {
+  accountDirectUploadPublicUrls,
+  releaseDirectUploadsForAccount,
+} from "@/lib/directUploadLifecycle";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
 const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
@@ -80,7 +84,7 @@ type BodyRedactionCandidate = {
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
 type AccountDeletionMediaDb = Pick<
   Prisma.TransactionClient,
-  "sellerProfile" | "reviewPhoto" | "commissionRequest" | "blogPost" | "directUpload" | "$queryRaw"
+  "sellerProfile" | "reviewPhoto" | "commissionRequest" | "blogPost" | "$queryRaw"
 >;
 
 function accountDeletionCheckoutReservationWhere(
@@ -951,9 +955,9 @@ async function collectAccountDeletionMediaUrls(
     where: { OR: [{ authorId: userId }, { sellerProfile: { userId } }] },
     select: { coverImageUrl: true, videoUrl: true, body: true },
   });
-  const directUploads = await db.directUpload.findMany({
-    where: { userId },
-    select: { publicUrl: true },
+  const directUploads = await accountDirectUploadPublicUrls({
+    client: db,
+    userId,
   });
 
   if (sellerProfile) {
@@ -1444,12 +1448,12 @@ export async function anonymizeUserAccount(
     ]);
     const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId);
     await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls);
-    // Public account media is queued above and its lifecycle rows can be
-    // removed. Private Case evidence is retained with the dispute record, so
-    // keep its lifecycle row: authenticated reads require that claimed row,
-    // while unclaimed private uploads still expire through lifecycle cleanup.
-    await tx.directUpload.deleteMany({
-      where: { userId: user.id, storageClass: "PUBLIC" },
+    // Public account media is queued above, then its durable references are
+    // released and its lifecycle rows become cleanup-eligible. Private Case
+    // evidence remains referenced with the dispute record.
+    await releaseDirectUploadsForAccount({
+      client: tx,
+      userId: user.id,
     });
 
     await tx.adminAuditLog.create({

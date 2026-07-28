@@ -119,12 +119,112 @@ For the active Case lifecycle checkpoint, proof fidelity is part of the gate:
 the first accepted 14-ordering PostgreSQL run remains valid only for its modeled
 subset because its mark-resolved/cron helpers used stronger post-lock time
 semantics than the corresponding application routes and did not contend staff
-resolution against replies. Exact code head `9f4079fe` passed all 21 corrected
-two-session orderings in disposable PostgreSQL 16.14 run `30217588001`, using
-the real refund sentinel, Order-then-Case locks and post-wait PostgreSQL
-timestamps. Preserve that expanded proof as the compatible-integrity baseline;
-later database invariants and fixed RLS authority still require their own
-review and proof.
+resolution against replies. Exact hardening head `4dc57266` passed all 21
+corrected two-session orderings in disposable PostgreSQL run `30218521286`
+after the final private-lifecycle review changed the migration bytes; exact
+general CI `30218522907` also passed. The run used the real refund sentinel,
+Order-then-Case locks and post-wait PostgreSQL timestamps. Preserve that
+expanded proof as the compatible-integrity baseline; later database invariants
+and fixed RLS authority still require their own review and proof.
+
+The ordinary Message private-object pass has its own execution contract in
+`docs/message-private-object-remediation-plan.md`. Preserve one Message per
+attachment for the first release, store new object identity in a private
+one-to-one child that references rather than duplicates the `DirectUpload`
+key, keep new sends image-only, and classify legacy public URLs before
+separately approved copy/rewrite/deletion. Legacy UploadThing/UTFS URLs are a
+separate allowlisted provider class, not R2 keys; copy and retirement need
+their own bounded fetch/delete evidence. Fixed database operations constrain
+behavior but do not authenticate their asserted participant ids; Clerk,
+server-side actor resolution and exact call-site guards remain load-bearing.
+`DirectUpload` remains a separate shared lifecycle RLS group (CM-A21); do not
+silently bundle its cross-product authority into Message or Case. Complete
+that separate rollout before production promotion of either private-object
+path.
+
+The CM-A21 execution contract lives in `docs/direct-upload-rls-audit.md`.
+Public media needs a normalized multi-reference ledger because seller-owned
+images may validly appear in more than one Listing/Profile/Blog/Broadcast
+source; private Case/Message objects stay single-reference. The target posture
+is FORCE RLS with no direct runtime table access and only fixed
+record/verify/reference/release/export operations. Cleanup lease/complete/fail
+must use a dedicated NOBYPASSRLS worker role rather than the ordinary request
+runtime because the worker necessarily receives bounded cross-user object
+keys. Refactor private
+attachment children to reference the lifecycle row rather than duplicate its
+key. Production promotion waits for aggregate legacy inspection, reference
+backfill, exact PostgreSQL proof and pooled-runtime postflight.
+
+CM-A21 preparation now uses a service-only reference ledger plus
+source-derived public family operations; the generic application claim API is
+removed in the draft. Public reuse is reference-counted, source deletion
+releases references through database triggers, and Listing/Review mutation
+paths defer object deletion to the fenced cleanup worker after the last
+reference. This is still compatible preparation only: DirectUpload RLS remains
+off and its old table grants remain until the reviewed activation/drain split.
+Production now has the four PR #58 Case/CaseMessage preparation migrations and
+compatible app at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
+build and runtime. It does not yet have the DirectUpload reference-ledger,
+authority or public-reference preparation migrations.
+The earlier exact preparation tree passed PostgreSQL 16.14
+authority/concurrency proof in run `30225445722`; retain that evidence without
+treating it as activation. A later Extra-High review correctly superseded it:
+the Case child conversion must retain `objectKey` temporarily, database-derive
+and validate `directUploadId` for old writers, dual-write from the new app, and
+create/release normalized references through triggers. After compatible app
+deployment and old-instance drain, separately prove equality and drop the
+duplicate key before DirectUpload activation. The amended exact tree requires a
+fresh disposable PostgreSQL proof. That proof is now accepted at exact commit
+`6c1dba12`: PostgreSQL 16.14 run `30226543504` applied all 166 migrations and
+passed the global grant/RLS audit plus six authority/concurrency checks,
+including old/new Case attachment binding and release. It recorded no
+persistent-staging or production change. Treat it as compatible-preparation
+evidence only, not activation. A subsequent exact-old-writer review found that
+the Case route fills legacy `claimedById` after its attachment insert; the
+insert reference trigger therefore must be deferred until transaction commit,
+not immediate. The corrected harness executes that full old transaction and
+the new dual-write transaction. This supersedes the run for release
+compatibility. The corrected exact tree passed GitHub Actions run `30226904740`
+(job `89858487348`) at commit `ce4a914b` on PostgreSQL 16.14: all 166
+migrations, runtime-grant convergence, global grant/RLS audit and all six live
+authority/concurrency checks passed, including both full old/new writer
+transactions. It recorded no persistent-staging or production change. Treat
+this as compatible-preparation evidence only, not DirectUpload activation.
+
+Do not activate DirectUpload or enable either private-object surface until
+aggregate legacy classification/backfill, the dedicated cleanup-worker role,
+rollback and pooled-runtime postflight gates are complete. The compatible
+schema/application checkpoint may be promoted first only with
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED=false`; that disabled release is what makes
+the required old/new application drain possible. Withhold the unused future
+private-message recorder from ordinary-runtime activation until CM-A20's
+compatible application release consumes it.
+
+The DirectUpload aggregate-only legacy inspector and its protected serialized
+workflow are now saved. Exact disposable PostgreSQL 16.14 run `30228466175`
+(job `89862786290`) at `c748758e` passed all migrations, grant convergence,
+global catalog audit, the six retained authority/concurrency checks and the
+seventh `aggregate_only_legacy_query` check, with no persistent-staging or
+production change. This proves the count query executes against the compatible
+schema; it does not classify production and does not authorize backfill,
+constraint validation, object mutation or activation.
+
+The final 2026-07-27 Extra-High authority review then found two
+pre-production gaps: the new SellerBroadcast image path did not fail closed on
+an `untracked=1` cleanup race, and account-deletion media functions rejected
+already-banned accounts because they reused interactive actor validity. The
+broadcast create now requires every selected image to be tracked inside its
+serializable transaction. Account URL collection/release now allows an
+existing, not-yet-deleted banned account while ordinary upload/export
+operations remain denied. The proof harness adds an eighth
+`banned_account_lifecycle_cleanup` check. This migration edit supersedes
+`30228466175` for release. Fresh exact-tree PostgreSQL 16.14 run
+`30327497254` (job `90175815165`) passed at executable commit `546c112f`: all
+166 migrations, production-style grant convergence, migration status, the
+global grant/RLS audit, static contracts and all eight live checks passed. It
+recorded no persistent-staging or production change. Treat it as compatible
+preparation evidence only, not DirectUpload activation.
 
 ### Messaging architecture decision (2026-07-22)
 

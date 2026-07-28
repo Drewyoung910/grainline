@@ -15,6 +15,9 @@ import {
   CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS,
   CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
 } from "./conversation-message-authority-catalog.mjs";
+import {
+  DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES,
+} from "./direct-upload-authority-catalog.mjs";
 
 const { Client } = pg;
 
@@ -25,6 +28,12 @@ export const SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELET
 export const NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES = ["read:UPDATE"];
 export const CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
+export const RUNTIME_PRIVATE_TABLES = Object.freeze([
+  "DirectUploadReference",
+]);
+export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
+  "DirectUploadReference",
+]);
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
 export const REQUIRED_TYPE_PRIVILEGES = ["USAGE"];
@@ -157,11 +166,16 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_message_participants_match_conversation",
   "grainline_message_route_immutable",
   "grainline_message_maintain_thread_state",
+  ...DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES,
   ...CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
   ...NOTIFICATION_PRIVATE_RPC_FUNCTIONS,
 ]);
 
 const RUNTIME_PRIVATE_FUNCTION_NAME_SET = new Set(RUNTIME_PRIVATE_FUNCTIONS);
+const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);
+const POLICYLESS_SERVICE_RLS_TABLE_NAME_SET = new Set(
+  POLICYLESS_SERVICE_RLS_TABLES,
+);
 
 function sortedUnique(values) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
@@ -942,6 +956,9 @@ export function defaultPrivilegeRequirements(inventory) {
 
 export function requiredRuntimeTablePrivileges(tableName, inventory) {
   const rlsPolicyTables = inventory.rlsPolicyTables ?? [];
+  if (RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)) {
+    return [];
+  }
   if (
     (tableName === "Conversation" || tableName === "Message")
     && rlsPolicyTables.includes(tableName)
@@ -962,6 +979,39 @@ export function requiredRuntimeColumnPrivileges(tableName, inventory) {
     && (inventory.rlsPolicyTables ?? []).includes("Notification")
     ? NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES
     : [];
+}
+
+export function collectPolicylessServiceRlsIssues(rows, inventory) {
+  const issues = [];
+  const rowByTable = new Map(
+    (Array.isArray(rows) ? rows : []).map((row) => [row.table_name, row]),
+  );
+  for (const tableName of POLICYLESS_SERVICE_RLS_TABLES) {
+    if (!(inventory?.tables ?? []).includes(tableName)) continue;
+    const row = rowByTable.get(tableName);
+    if (!row) {
+      issues.push(
+        `service-only table ${tableName} must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies`,
+      );
+      continue;
+    }
+    if (!row.rls_enabled) {
+      issues.push(
+        `service-only table ${tableName} must have ROW LEVEL SECURITY enabled`,
+      );
+    }
+    if (!row.rls_forced) {
+      issues.push(
+        `service-only table ${tableName} must have FORCE ROW LEVEL SECURITY enabled`,
+      );
+    }
+    if (Number(row.policy_count) !== 0) {
+      issues.push(
+        `service-only table ${tableName} must retain zero policies`,
+      );
+    }
+  }
+  return issues;
 }
 
 function missingItems(expected, actual) {
@@ -1532,12 +1582,14 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
         `table ${row.table_name} has RLS policies (${policyList}) but ROW LEVEL SECURITY is not enabled`,
       );
     }
-    if (row.rls_enabled && !hasPolicies) {
+    const policylessServiceTable =
+      POLICYLESS_SERVICE_RLS_TABLE_NAME_SET.has(row.table_name);
+    if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(
         `table ${row.table_name} has ROW LEVEL SECURITY enabled but zero policies`,
       );
     }
-    if (row.rls_forced && !hasPolicies) {
+    if (row.rls_forced && !hasPolicies && !policylessServiceTable) {
       issues.push(
         `table ${row.table_name} has FORCE ROW LEVEL SECURITY enabled but zero policies`,
       );
@@ -1551,6 +1603,9 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       );
     }
   }
+  issues.push(
+    ...collectPolicylessServiceRlsIssues(rlsPolicyResult.rows, inventory),
+  );
 
   if (expectedRlsPolicyTables.has("SavedSearch")) {
     issues.push(

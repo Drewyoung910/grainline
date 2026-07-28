@@ -4,12 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
-import {
-  CASE_EVIDENCE_STORAGE_CLASS,
-  CASE_EVIDENCE_UPLOAD_ENDPOINT,
-} from "@/lib/caseEvidence";
 import { prisma } from "@/lib/db";
-import { DIRECT_UPLOAD_STATUS } from "@/lib/directUploadLifecycleState";
+import { readDirectUploadCaseAttachment } from "@/lib/directUploadLifecycle";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import {
@@ -58,31 +54,17 @@ export async function GET(
     throw error;
   }
 
-  const attachment = await prisma.caseMessageAttachment.findFirst({
-    where: {
-      id: attachmentId,
-      caseMessage: { caseId: id },
-    },
+  const caseRecord = await prisma.case.findUnique({
+    where: { id },
     select: {
-      objectKey: true,
-      contentType: true,
-      caseMessage: {
-        select: {
-          case: {
-            select: {
-              buyerId: true,
-              sellerId: true,
-            },
-          },
-        },
-      },
+      buyerId: true,
+      sellerId: true,
     },
   });
-  if (!attachment) {
-    return privateJson({ error: "Evidence not found." }, { status: 404 });
+  if (!caseRecord) {
+    return privateJson({ error: "Case not found." }, { status: 404 });
   }
 
-  const caseRecord = attachment.caseMessage.case;
   const isParty =
     me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
   const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
@@ -94,32 +76,21 @@ export async function GET(
     if (pinResponse) return pinResponse;
   }
 
-  const lifecycle = await prisma.directUpload.findUnique({
-    where: { key: attachment.objectKey },
-    select: {
-      endpoint: true,
-      storageClass: true,
-      status: true,
-    },
+  const lifecycle = await readDirectUploadCaseAttachment({
+    userId: me.id,
+    caseId: id,
+    attachmentId,
   });
-  if (
-    !lifecycle
-    || lifecycle.endpoint !== CASE_EVIDENCE_UPLOAD_ENDPOINT
-    || lifecycle.storageClass !== CASE_EVIDENCE_STORAGE_CLASS
-    || lifecycle.status !== DIRECT_UPLOAD_STATUS.CLAIMED
-  ) {
-    return privateJson(
-      { error: "Evidence is unavailable." },
-      { status: 410 },
-    );
+  if (!lifecycle) {
+    return privateJson({ error: "Evidence not found." }, { status: 404 });
   }
 
   const signedUrl = await getSignedUrl(
     r2,
     new GetObjectCommand({
       Bucket: privateR2BucketName(),
-      Key: attachment.objectKey,
-      ResponseContentType: attachment.contentType,
+      Key: lifecycle.key,
+      ResponseContentType: lifecycle.contentType,
       ResponseContentDisposition: "inline",
       ResponseCacheControl: "private, no-store",
     }),

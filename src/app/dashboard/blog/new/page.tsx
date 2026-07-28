@@ -8,7 +8,7 @@ import { BLOG_BODY_MAX_CHARS, generateSlug, calculateReadingTime } from "@/lib/b
 import { BlogPostType, BlogAuthorType, Prisma } from "@prisma/client";
 import BlogPostForm from "@/components/BlogPostForm";
 import { normalizeBlogCoverImageUrl, normalizeBlogVideoUrl } from "@/lib/blogInput";
-import { claimDirectUploadsForUrls } from "@/lib/directUploadLifecycle";
+import { syncBlogPostDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { normalizeTags } from "@/lib/tags";
 import { revalidateBlogSearchCaches } from "@/lib/searchCache";
@@ -162,15 +162,12 @@ export default async function NewBlogPostPage() {
               publishedAt: status === "PUBLISHED" ? new Date() : null,
             },
           });
-          if (coverImageUrl) {
-            await claimDirectUploadsForUrls({
-              client: tx,
-              urls: [coverImageUrl],
-              userId: author.id,
-              claimedByType: "BlogPost",
-              claimedById: created.id,
-            });
-          }
+          await syncBlogPostDirectUploadReferences({
+            client: tx,
+            userId: author.id,
+            blogPostId: created.id,
+            requireAllTracked: Boolean(coverImageUrl),
+          });
           return created;
         });
         break;

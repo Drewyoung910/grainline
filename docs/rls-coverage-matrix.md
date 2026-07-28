@@ -5,7 +5,7 @@ Last updated: 2026-07-26
 ## Purpose And Scope
 
 This is the schema-complete disposition ledger for Grainline's site-wide
-database isolation program. Snapshot scope: 59 Prisma models.
+database isolation program. Snapshot scope: 60 Prisma models.
 
 `SavedSearch`, `Notification`, `Conversation`, and `Message` are the four
 tables in this snapshot with production RLS. Every other row is **not active
@@ -71,7 +71,7 @@ completed alternative.
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
 | `Case` | `BLOCKED_DESIGN` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Active pre-RLS audit is pinned at 69 protected references in `docs/case-case-message-pre-rls-audit.md`; close party/order invariants, transition races, deadline semantics and service destinations before policy SQL |
 | `CaseMessage` | `BLOCKED_DESIGN` | Case and case message | Private dispute discussion; buyer, seller and staff | Active audit requires durable source-derived author kind, parent authority, bounded keyset history and locked timestamp/state transitions before policy SQL |
-| `CaseMessageAttachment` | `BLOCKED_DESIGN` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Keep opaque keys in a non-public bucket; prove verified ownership, parent-scoped signed reads, lifecycle cleanup/export/retention and parent-dependent authority before policy SQL |
+| `CaseMessageAttachment` | `BLOCKED_DESIGN` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Use the documented old/new dual-column DirectUpload transition, then prove and drop the compatibility `objectKey` after drain; activate only with parent-derived authority, signed reads and lifecycle cleanup/export/retention proof |
 | `SavedSearch` | `RLS_LIVE_PHASE_B` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Phase B FORCE is live; retain exact policies, grants, canary, rollback, and maintenance proof |
 | `StockNotification` | `PLANNED_RLS` | Stock notification | Direct user subscription with listing-wide notification fanout and cleanup | Owner reads and writes plus explicit service fanout and listing cleanup path; do not fold silently into Bucket B |
 | `MakerVerification` | `BLOCKED_DESIGN` | Verification | Seller application evidence and staff review notes; applicant, employee and admin | Applicant projection, staff review path, decision writes and notification side effects |
@@ -82,7 +82,8 @@ completed alternative.
 | `ResendWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Webhook idempotency and errors; Resend handler and operations | Service-only grants or narrow RPCs with no ordinary request reads |
 | `ClerkWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Identity webhook idempotency and errors; Clerk handler and operations | Service-only grants or narrow RPCs with no ordinary request reads |
 | `CronRun` | `ALTERNATIVE_REVIEW` | Cron and operations ledgers | Job status and bounded result metadata; cron workers and operations | Cron service role or narrow job RPCs plus read-only ops visibility |
-| `DirectUpload` | `PLANNED_RLS` | Direct upload | User-owned upload claim state with cleanup jobs | Owner policies plus explicit verifier and cleanup service operations |
+| `DirectUpload` | `PLANNED_RLS` | Direct upload | User-owned upload claim state with cleanup jobs; the compatible private-object schema can also retain non-public Case/Message keys | Follow `docs/direct-upload-rls-audit.md`: deny direct runtime table access, use fixed record/verify/reference/release/export operations plus a shared-public/exclusive-private reference ledger, move cleanup lease/complete/fail to a dedicated NOBYPASSRLS worker role, and complete the separate CM-A21 rollout before private-object production promotion |
+| `DirectUploadReference` | `PLANNED_RLS` | Direct upload service ledger | Normalized shared-public and exclusive-private durable references; ordinary application SQL has no legitimate table-level access | Service-only FORCE RLS with zero policies and zero runtime/PUBLIC table grants; only private cores behind source-validating fixed operations may create or release references |
 | `SystemAuditLog` | `ALTERNATIVE_REVIEW` | Audit ledgers | Cross-system action evidence; provider, cron, staff and operations | Append-only service path, denied ordinary mutation and reviewed staff read access |
 | `EmailFailureCount` | `ALTERNATIVE_REVIEW` | Email service ledgers | Delivery failure counters keyed by email; Resend handler and mail service | Service-only mutation and no ordinary request enumeration |
 | `EmailOutbox` | `ALTERNATIVE_REVIEW` | Email service ledgers | Recipient PII and rendered email content; producers, sender cron and operations | Dedicated producer and worker operations, least-privilege reads and retention proof |

@@ -56,19 +56,19 @@ describe("account deletion media cleanup scoping", () => {
     );
   });
 
-  it("collects direct-upload lifecycle URLs before deleting account-owned lifecycle rows", () => {
+  it("collects direct-upload URLs before releasing account-owned lifecycle references", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const collectStart = deletion.indexOf("async function collectAccountDeletionMediaUrls");
     const collectEnd = deletion.indexOf("function revalidateDeletedAccountSearchCaches", collectStart);
     const collect = deletion.slice(collectStart, collectEnd);
     const collectCall = deletion.indexOf("const mediaUrls = await collectAccountDeletionMediaUrls(tx, user.id, user.clerkId)");
     const enqueueCall = deletion.indexOf("await enqueueAccountDeletionMediaDeleteSideEffects(tx, user.id, mediaUrls)");
-    const deleteRows = deletion.indexOf("await tx.directUpload.deleteMany({");
+    const releaseRows = deletion.indexOf("await releaseDirectUploadsForAccount({");
 
-    assert.match(deletion, /"sellerProfile" \| "reviewPhoto" \| "commissionRequest" \| "blogPost" \| "directUpload" \| "\$queryRaw"/);
+    assert.match(deletion, /"sellerProfile" \| "reviewPhoto" \| "commissionRequest" \| "blogPost" \| "\$queryRaw"/);
     assert.match(collect, /listActorSentMessageBodiesForDeletion\(userId, db\)/);
     assert.doesNotMatch(collect, /db\.message\./);
-    assert.match(collect, /db\.directUpload\.findMany\(\{\s*where: \{ userId \},\s*select: \{ publicUrl: true \},\s*\}\)/s);
+    assert.match(collect, /accountDirectUploadPublicUrls\(\{\s*client: db,\s*userId,\s*\}\)/s);
     assert.match(
       collect,
       /directUploads\.forEach\(\(upload\) => \{\s*if \(upload\.publicUrl\) urls\.add\(upload\.publicUrl\);\s*\}\)/s,
@@ -80,14 +80,11 @@ describe("account deletion media cleanup scoping", () => {
     );
     assert.ok(collectCall >= 0, "account deletion must collect media URLs");
     assert.ok(enqueueCall > collectCall, "media deletion side effects must be enqueued after collection");
-    assert.ok(deleteRows > enqueueCall, "public DirectUpload rows should be deleted only after durable media cleanup side effects are queued");
+    assert.ok(releaseRows > enqueueCall, "public DirectUpload references should be released only after durable media cleanup side effects are queued");
     assert.match(
       deletion,
-      /tx\.directUpload\.deleteMany\(\{\s*where: \{ userId: user\.id, storageClass: "PUBLIC" \}/s,
+      /releaseDirectUploadsForAccount\(\{\s*client: tx,\s*userId: user\.id,\s*\}\)/s,
     );
-    assert.doesNotMatch(
-      deletion,
-      /tx\.directUpload\.deleteMany\(\{\s*where: \{ userId: user\.id \}\s*\}\)/s,
-    );
+    assert.doesNotMatch(deletion, /tx\.directUpload\.deleteMany/);
   });
 });
