@@ -8,6 +8,10 @@ import {
   DIRECT_UPLOAD_RUNTIME_FUNCTION_NAMES,
 } from "./direct-upload-authority-catalog.mjs";
 import {
+  DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
+  DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
+} from "./direct-upload-activation-catalog.mjs";
+import {
   DIRECT_UPLOAD_LEGACY_COUNTS_SQL,
   normalizeDirectUploadLegacyResult,
 } from "./direct-upload-legacy-inspect.mjs";
@@ -59,6 +63,10 @@ const uploads = Object.freeze({
   },
   privateB: {
     key: `caseEvidenceImage/${actorSegments.owner}/${ids.case}/new.webp`,
+  },
+  accountDelete: {
+    key: `reviewPhoto/${actorSegments.outsider}/account-delete.webp`,
+    url: `https://proof.invalid/reviewPhoto/${actorSegments.outsider}/account-delete.webp`,
   },
 });
 const legacyUrl = "https://legacy.invalid/direct-upload-authority-proof.webp";
@@ -295,7 +303,14 @@ async function catalogProof(owner) {
 
   const cleanupRole = await owner.query(
     `
-      SELECT rolsuper, rolinherit, rolcanlogin, rolreplication, rolbypassrls
+      SELECT
+             rolsuper,
+             rolcreatedb,
+             rolcreaterole,
+             rolinherit,
+             rolcanlogin,
+             rolreplication,
+             rolbypassrls
         FROM pg_catalog.pg_roles
        WHERE rolname = $1
     `,
@@ -304,12 +319,50 @@ async function catalogProof(owner) {
   assert.deepEqual(cleanupRole.rows, [
     {
       rolsuper: false,
+      rolcreatedb: false,
+      rolcreaterole: false,
       rolinherit: false,
       rolcanlogin: true,
       rolreplication: false,
       rolbypassrls: false,
     },
   ]);
+
+  const cleanupMemberships = await owner.query(
+    `
+      WITH RECURSIVE parent_memberships AS (
+        SELECT parent.oid, parent.rolname
+          FROM pg_catalog.pg_auth_members AS edge
+          JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+          JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+         WHERE child.rolname = $1
+        UNION
+        SELECT parent.oid, parent.rolname
+          FROM parent_memberships AS child
+          JOIN pg_catalog.pg_auth_members AS edge
+            ON edge.member = child.oid
+          JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+      ), member_roles AS (
+        SELECT child.oid, child.rolname
+          FROM pg_catalog.pg_auth_members AS edge
+          JOIN pg_catalog.pg_roles AS parent ON parent.oid = edge.roleid
+          JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+         WHERE parent.rolname = $1
+        UNION
+        SELECT child.oid, child.rolname
+          FROM member_roles AS parent
+          JOIN pg_catalog.pg_auth_members AS edge
+            ON edge.roleid = parent.oid
+          JOIN pg_catalog.pg_roles AS child ON child.oid = edge.member
+      )
+      SELECT 'parent' AS direction, rolname FROM parent_memberships
+      UNION ALL
+      SELECT 'member' AS direction, rolname FROM member_roles
+      ORDER BY direction, rolname
+    `,
+    [CLEANUP_ROLE],
+  );
+  assert.deepEqual(cleanupMemberships.rows, []);
 
   const tables = await owner.query(`
     SELECT class.relname, class.relrowsecurity, class.relforcerowsecurity,
@@ -384,16 +437,13 @@ async function catalogProof(owner) {
       runtimeFunctions.includes(row.proname),
       `${row.proname} has the wrong runtime EXECUTE posture`,
     );
-    if (
-      ![
-        "grainline_direct_upload_identity_immutable",
-        "grainline_direct_upload_message_url_core",
-        "grainline_direct_upload_status_transition",
-        "grainline_direct_upload_utc_now",
-      ].includes(row.proname)
-    ) {
-      assert.equal(row.prosecdef, true, `${row.proname} must be SECURITY DEFINER`);
-    }
+    const expectedSecurityDefiner =
+      !DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES.includes(row.proname);
+    assert.equal(
+      row.prosecdef,
+      expectedSecurityDefiner,
+      `${row.proname} has the wrong SECURITY posture`,
+    );
   }
 
   const cleanupFunctions = await owner.query(
@@ -437,7 +487,53 @@ async function catalogProof(owner) {
     }
   }
 
+  const cleanupNamespace = await owner.query(
+    `
+      SELECT
+        pg_catalog.has_schema_privilege($1, 'public', 'USAGE')
+          AS schema_usage,
+        pg_catalog.has_schema_privilege($1, 'public', 'CREATE')
+          AS schema_create,
+        pg_catalog.has_database_privilege(
+          $1,
+          current_database(),
+          'CREATE'
+        ) AS database_create
+    `,
+    [CLEANUP_ROLE],
+  );
+  assert.deepEqual(cleanupNamespace.rows, [
+    {
+      schema_usage: true,
+      schema_create: false,
+      database_create: false,
+    },
+  ]);
+
   const cleanupTables = await owner.query(
+    `
+      SELECT class.relname
+        FROM pg_catalog.pg_class AS class
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = class.relnamespace
+       WHERE namespace.nspname = 'public'
+         AND class.relkind IN ('r', 'p', 'v', 'm', 'f')
+         AND CASE
+           WHEN class.relkind IN ('r', 'p', 'v', 'm', 'f') THEN
+             pg_catalog.has_table_privilege(
+               $1,
+               class.oid,
+               'SELECT,INSERT,UPDATE,DELETE,REFERENCES'
+             )
+           ELSE false
+         END
+       ORDER BY class.relname
+    `,
+    [CLEANUP_ROLE],
+  );
+  assert.deepEqual(cleanupTables.rows, []);
+
+  const cleanupTableAdministrativeAuthority = await owner.query(
     `
       SELECT class.relname
         FROM pg_catalog.pg_class AS class
@@ -450,7 +546,7 @@ async function catalogProof(owner) {
              pg_catalog.has_table_privilege(
                $1,
                class.oid,
-               'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+               'TRUNCATE,TRIGGER'
              )
            ELSE false
          END
@@ -458,7 +554,93 @@ async function catalogProof(owner) {
     `,
     [CLEANUP_ROLE],
   );
-  assert.deepEqual(cleanupTables.rows, []);
+  assert.deepEqual(cleanupTableAdministrativeAuthority.rows, []);
+
+  const cleanupColumns = await owner.query(
+    `
+      SELECT class.relname, attribute.attname
+        FROM pg_catalog.pg_class AS class
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = class.relnamespace
+        JOIN pg_catalog.pg_attribute AS attribute
+          ON attribute.attrelid = class.oid
+       WHERE namespace.nspname = 'public'
+         AND class.relkind IN ('r', 'p', 'v', 'm', 'f')
+         AND attribute.attnum > 0
+         AND NOT attribute.attisdropped
+         AND CASE
+           WHEN class.relkind IN ('r', 'p', 'v', 'm', 'f') THEN
+             pg_catalog.has_column_privilege(
+               $1,
+               class.oid,
+               attribute.attnum,
+               'SELECT,INSERT,UPDATE,REFERENCES'
+             )
+           ELSE false
+         END
+       ORDER BY class.relname, attribute.attnum
+    `,
+    [CLEANUP_ROLE],
+  );
+  assert.deepEqual(cleanupColumns.rows, []);
+
+  const cleanupSequences = await owner.query(
+    `
+      SELECT class.relname
+        FROM pg_catalog.pg_class AS class
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = class.relnamespace
+       WHERE namespace.nspname = 'public'
+         AND class.relkind = 'S'
+         AND CASE
+           WHEN class.relkind = 'S' THEN
+             pg_catalog.has_sequence_privilege(
+               $1,
+               class.oid,
+               'USAGE,SELECT,UPDATE'
+             )
+           ELSE false
+         END
+       ORDER BY class.relname
+    `,
+    [CLEANUP_ROLE],
+  );
+  assert.deepEqual(cleanupSequences.rows, []);
+
+  const cleanupDefaultPrivileges = await owner.query(
+    `
+      SELECT defaults.oid
+        FROM pg_catalog.pg_default_acl AS defaults
+        CROSS JOIN LATERAL pg_catalog.aclexplode(defaults.defaclacl) AS acl
+       WHERE acl.grantee = (
+         SELECT oid
+           FROM pg_catalog.pg_roles
+          WHERE rolname = $1
+       )
+    `,
+    [CLEANUP_ROLE],
+  );
+  assert.deepEqual(cleanupDefaultPrivileges.rows, []);
+
+  const cleanupUnexpectedFunctions = await owner.query(
+    `
+      SELECT procedure.proname
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = procedure.pronamespace
+       WHERE namespace.nspname = 'public'
+         AND pg_catalog.has_function_privilege(
+           $1,
+           procedure.oid,
+           'EXECUTE'
+         )
+         AND procedure.prosecdef
+         AND procedure.proname <> ALL ($2::text[])
+       ORDER BY procedure.proname
+    `,
+    [CLEANUP_ROLE, DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES],
+  );
+  assert.deepEqual(cleanupUnexpectedFunctions.rows, []);
 
   const triggers = await owner.query(`
     SELECT class.relname, trigger.tgname
@@ -1120,6 +1302,69 @@ async function aggregateLegacyInspectionQueryProof(owner) {
   assert.ok(counts.firstPartyDurableSourceUrlCount >= 1);
 }
 
+async function bannedAccountLifecycleCleanupProof(owner, runtime) {
+  const recorded = await runtime.query(
+    `
+      SELECT public.grainline_direct_upload_record_processed_public(
+        $1, $2, 'reviewPhoto', $3, 'image/webp', 1024
+      ) AS id
+    `,
+    [ids.outsider, uploads.accountDelete.key, uploads.accountDelete.url],
+  );
+  const uploadId = recorded.rows[0]?.id;
+  assert.equal(typeof uploadId, "string");
+
+  await owner.query(
+    `UPDATE public."User" SET banned = true WHERE id = $1`,
+    [ids.outsider],
+  );
+
+  const publicUrls = await runtime.query(
+    `
+      SELECT "publicUrl"
+        FROM public.grainline_direct_upload_account_public_urls($1)
+    `,
+    [ids.outsider],
+  );
+  assert.deepEqual(publicUrls.rows, [{ publicUrl: uploads.accountDelete.url }]);
+
+  const exportRows = await runtime.query(
+    `SELECT id FROM public.grainline_direct_upload_export($1)`,
+    [ids.outsider],
+  );
+  assert.equal(
+    exportRows.rowCount,
+    0,
+    "ordinary DirectUpload export must stay denied for a banned actor",
+  );
+
+  const released = await runtime.query(
+    `
+      SELECT public.grainline_direct_upload_release_for_account($1) AS released
+    `,
+    [ids.outsider],
+  );
+  assert.equal(released.rows[0]?.released, 0);
+
+  const lifecycle = await owner.query(
+    `
+      SELECT status,
+             "cleanupAfter" IS NOT NULL
+               AND "cleanupAfter" <= public.grainline_direct_upload_utc_now()
+               AS cleanup_ready
+        FROM public."DirectUpload"
+       WHERE id = $1
+    `,
+    [uploadId],
+  );
+  assert.deepEqual(lifecycle.rows, [
+    {
+      status: "VERIFIED",
+      cleanup_ready: true,
+    },
+  ]);
+}
+
 export async function runProof(env = process.env) {
   const { databaseUrl } = parseProofConfig(env);
   const owner = await connect(databaseUrl, `${PREFIX}-owner`);
@@ -1141,7 +1386,9 @@ export async function runProof(env = process.env) {
     checks.push("reference_cleanup_winner_orderings");
     await aggregateLegacyInspectionQueryProof(owner);
     checks.push("aggregate_only_legacy_query");
-    assert.equal(checks.length, 7);
+    await bannedAccountLifecycleCleanupProof(owner, runtime);
+    checks.push("banned_account_lifecycle_cleanup");
+    assert.equal(checks.length, 8);
     return {
       ok: true,
       database: DATABASE_NAME,

@@ -1,8 +1,6 @@
 name: DirectUpload Cleanup
 
 on:
-  schedule:
-    - cron: "50 * * * *"
   workflow_dispatch:
     inputs:
       confirmation:
@@ -55,4 +53,3 @@ jobs:
           path: ${{ runner.temp }}/direct-upload-cleanup-${{ github.run_id }}-${{ github.run_attempt }}.json
           if-no-files-found: warn
           retention-days: 30
-

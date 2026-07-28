@@ -55,12 +55,16 @@ const functionIdentityArguments = Object.freeze({
   grainline_direct_upload_sync_legacy_message: "text, text",
 });
 
-const securityInvokerFunctions = new Set([
+export const DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES = Object.freeze([
   "grainline_direct_upload_identity_immutable",
   "grainline_direct_upload_message_url_core",
   "grainline_direct_upload_status_transition",
   "grainline_direct_upload_utc_now",
 ]);
+
+const securityInvokerFunctions = new Set(
+  DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
+);
 
 const cleanupFunctionNames = new Set(DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES);
 

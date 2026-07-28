@@ -135,7 +135,8 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /Ordinary `grainline_app_runtime` must lose EXECUTE on all three/);
     assert.match(audit, /record_private_message` grant must also be absent/);
     assert.match(audit, /Aggregate legacy inspection/);
-    assert.match(audit, /Switch to Extra High\s+before editing schema/);
+    assert.match(audit, /Keep Extra High through the cleanup-worker authority review/);
+    assert.match(audit, /explicit approval is required for each merge/);
     assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
     assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
     assert.match(strategy, /CM-A21 execution contract/);

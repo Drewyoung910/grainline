@@ -162,6 +162,11 @@ releases references through database triggers, and Listing/Review mutation
 paths defer object deletion to the fenced cleanup worker after the last
 reference. This is still compatible preparation only: DirectUpload RLS remains
 off and its old table grants remain until the reviewed activation/drain split.
+Production now has the four PR #58 Case/CaseMessage preparation migrations and
+compatible app at exact commit
+`da4489ace5a592880a325c3e6f90bad7ded8ee37`, with Case evidence disabled at
+build and runtime. It does not yet have the DirectUpload reference-ledger,
+authority or public-reference preparation migrations.
 The earlier exact preparation tree passed PostgreSQL 16.14
 authority/concurrency proof in run `30225445722`; retain that evidence without
 treating it as activation. A later Extra-High review correctly superseded it:
@@ -205,21 +210,53 @@ production change. This proves the count query executes against the compatible
 schema; it does not classify production and does not authorize backfill,
 constraint validation, object mutation or activation.
 
+The final 2026-07-27 Extra-High authority review then found two
+pre-production gaps: the new SellerBroadcast image path did not fail closed on
+an `untracked=1` cleanup race, and account-deletion media functions rejected
+already-banned accounts because they reused interactive actor validity. The
+broadcast create now requires every selected image to be tracked inside its
+serializable transaction. Account URL collection/release now allows an
+existing, not-yet-deleted banned account while ordinary upload/export
+operations remain denied. The proof harness adds an eighth
+`banned_account_lifecycle_cleanup` check. This migration edit supersedes
+`30228466175` for release. Fresh exact-tree PostgreSQL 16.14 run
+`30327497254` (job `90175815165`) passed at executable commit `546c112f`: all
+166 migrations, production-style grant convergence, migration status, the
+global grant/RLS audit, static contracts and all eight live checks passed. It
+recorded no persistent-staging or production change. Treat it as compatible
+preparation evidence only, not DirectUpload activation.
+
 The cleanup credential must not be added to the main Vercel project. The
 existing runtime isolation guard intentionally rejects every PostgreSQL URL
 outside `DATABASE_URL`, and co-locating a worker URL would expose it to the
 same application-compromise boundary it is meant to escape. The accepted
 activation design uses a separate protected GitHub environment,
 `Production DirectUpload Cleanup`, with the dedicated direct Neon worker URL
-and a cleanup-only R2 credential scoped to the two exact buckets. The scheduled
-job is bounded, non-overlapping, does no bucket listing, verifies FORCE/ACL
-posture before leasing, and retains only sanitized mode-0600 count/hash
-evidence. Provisioning creates no role or password; the external LOGIN and
-secrets require their own reviewed provider step. Remove the Vercel cleanup
-schedule only in the activation release, after the external worker boundary
-and failure notifications are proven. This architecture is scaffolded only;
-no role, credential, provider environment, schedule or production state has
-changed.
+and a cleanup-only R2 credential scoped to the two exact buckets. The worker is
+bounded, non-overlapping, does no bucket listing, verifies FORCE/ACL posture
+before leasing, and retains only sanitized mode-0600 count/hash evidence.
+Provisioning creates no role or password; the external LOGIN and secrets
+require their own reviewed provider step. This scaffold remains manual-only.
+Add its hourly schedule in the activation release that removes the Vercel
+cleanup schedule, after the external worker boundary and failure notifications
+are proven. No role, credential, provider environment, schedule or production
+state has changed.
+
+The 2026-07-28 Extra-High review also widened the cleanup-role invariant from
+the DirectUpload function namespace to every accessible public
+`SECURITY DEFINER` function, both role-membership directions, column-only and
+table-like relation grants, default grants, and exact DirectUpload function
+security posture. Pure public `SECURITY INVOKER` validators remain callable but
+carry no owner authority and the cleanup role has no underlying relation
+privileges. The older seven-check cleanup-role proof is superseded. Exact-tree
+disposable PostgreSQL 16.14 run `30329597171` (job `90181797774`) passed at
+executable commit `e407271e891f59330b20fb50a127b21f2a598364`: all 166
+migrations, runtime and cleanup-role convergence, migration status, the global
+grant/RLS audit, static contracts and all eight live authority/lifecycle checks
+passed, with no persistent-staging or production change. This accepts the
+scaffold's hardened database authority partition only; live provider
+credentials, R2 deletion, scheduling and DirectUpload activation remain
+separate gates.
 
 The compatibility-key retirement and DirectUpload activation candidates are
 now saved on a further isolated stack, still unapplied outside disposable CI.

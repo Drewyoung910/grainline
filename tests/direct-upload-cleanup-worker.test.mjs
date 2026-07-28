@@ -9,6 +9,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import {
   DIRECT_UPLOAD_ACTIVATION_FUNCTION_NAMES,
+  DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_PRIVATE_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES,
   DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
@@ -66,14 +67,19 @@ function functionRow(name) {
     DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES.includes(name);
   return {
     function_config: ["search_path=pg_catalog"],
+    function_kind: "f",
     function_name: name,
     function_source: reviewedFunctionSources[name],
+    leakproof: false,
+    other_role_execute: [],
+    other_role_execute_grantable: [],
     owner_name: "neondb_owner",
     public_execute: false,
     runtime_direct_execute: runtime,
     runtime_execute: runtime,
     runtime_execute_grantable: false,
-    security_definer: worker,
+    security_definer:
+      !DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES.includes(name),
     worker_direct_execute: worker,
     worker_execute: worker,
     worker_execute_grantable: false,
@@ -82,9 +88,12 @@ function functionRow(name) {
 
 function acceptedAuthoritySnapshot() {
   return {
+    columnPrivileges: [],
     currentUser: DIRECT_UPLOAD_CLEANUP_ROLE,
     databaseCreate: false,
+    defaultPrivileges: [],
     functions: DIRECT_UPLOAD_ACTIVATION_FUNCTION_NAMES.map(functionRow),
+    memberRoles: [],
     memberships: [],
     role: {
       rolbypassrls: false,
@@ -115,6 +124,7 @@ function acceptedAuthoritySnapshot() {
     sequencePrivileges: [],
     sessionUser: DIRECT_UPLOAD_CLEANUP_ROLE,
     tablePrivileges: [],
+    unexpectedFunctionPrivileges: [],
   };
 }
 
@@ -131,6 +141,7 @@ describe("isolated DirectUpload cleanup worker", () => {
     assert.equal(runtime.size, 17);
     assert.equal(worker.size, 3);
     assert.equal(privateFunctions.size, 15);
+    assert.equal(DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES.length, 4);
     assert.equal(
       new Set([...runtime, ...worker, ...privateFunctions]).size,
       all.size,
@@ -225,6 +236,12 @@ describe("isolated DirectUpload cleanup worker", () => {
     const drifted = structuredClone(acceptedAuthoritySnapshot());
     drifted.role.rolbypassrls = true;
     drifted.tablePrivileges.push("DirectUpload");
+    drifted.columnPrivileges.push("DirectUpload.key");
+    drifted.memberRoles.push("grainline_app_runtime");
+    drifted.defaultPrivileges.push("neondb_owner:public:EXECUTE");
+    drifted.unexpectedFunctionPrivileges.push(
+      "public.grainline_notification_create_core(text)",
+    );
     drifted.rlsTables[0].relforcerowsecurity = false;
     const cleanupLease = drifted.functions.find(
       (row) =>
@@ -232,6 +249,8 @@ describe("isolated DirectUpload cleanup worker", () => {
     );
     cleanupLease.runtime_execute = true;
     cleanupLease.runtime_direct_execute = true;
+    cleanupLease.other_role_execute.push("unexpected_service");
+    cleanupLease.leakproof = true;
     const ordinaryFunction = drifted.functions.find(
       (row) =>
         row.function_name ===
@@ -239,6 +258,7 @@ describe("isolated DirectUpload cleanup worker", () => {
     );
     ordinaryFunction.worker_execute = true;
     ordinaryFunction.worker_direct_execute = true;
+    ordinaryFunction.security_definer = false;
     const privateMessage = drifted.functions.find(
       (row) =>
         row.function_name ===
@@ -254,15 +274,38 @@ describe("isolated DirectUpload cleanup worker", () => {
       issues.some((issue) => issue.includes("effective table authority")),
     );
     assert.ok(
+      issues.some((issue) => issue.includes("effective column authority")),
+    );
+    assert.ok(
+      issues.some((issue) => issue.includes("zero member roles")),
+    );
+    assert.ok(
+      issues.some((issue) => issue.includes("default privilege grants")),
+    );
+    assert.ok(
+      issues.some((issue) =>
+        issue.includes("unexpected privileged function authority"),
+      ),
+    );
+    assert.ok(
       issues.some((issue) => issue.includes("DirectUpload must have")),
     );
     assert.ok(
       issues.some((issue) => issue.includes("must be runtime-inaccessible")),
     );
     assert.ok(
+      issues.some((issue) => issue.includes("unexpected role")),
+    );
+    assert.ok(
+      issues.some((issue) => issue.includes("must not be LEAKPROOF")),
+    );
+    assert.ok(
       issues.some((issue) =>
         issue.includes("must be cleanup-worker-inaccessible"),
       ),
+    );
+    assert.ok(
+      issues.some((issue) => issue.includes("must be SECURITY DEFINER")),
     );
     assert.ok(
       issues.some((issue) => issue.includes("source hash does not match")),
@@ -377,7 +420,8 @@ describe("isolated DirectUpload cleanup worker", () => {
     const worker = source("scripts/direct-upload-cleanup-worker.mjs");
 
     assert.match(workflow, /environment: Production DirectUpload Cleanup/);
-    assert.match(workflow, /cron: "50 \* \* \* \*"/);
+    assert.match(workflow, /workflow_dispatch:/);
+    assert.doesNotMatch(workflow, /^\s*schedule:/m);
     assert.match(workflow, /persist-credentials: false/);
     assert.match(workflow, /npm ci --ignore-scripts/);
     assert.match(workflow, /DIRECT_UPLOAD_CLEANUP_DATABASE_URL:/);
@@ -410,6 +454,10 @@ describe("isolated DirectUpload cleanup worker", () => {
       provision,
       /REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public/,
     );
+    assert.match(
+      provision,
+      /role %s is a member of cleanup role %s/,
+    );
     for (const name of DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES) {
       assert.match(
         provision,
@@ -419,6 +467,18 @@ describe("isolated DirectUpload cleanup worker", () => {
     assert.match(
       provision,
       /cleanup role DirectUpload function authority is not exact/,
+    );
+    assert.match(
+      provision,
+      /cleanup role retains unexpected privileged function authority/,
+    );
+    assert.match(
+      provision,
+      /cleanup role retains effective column authority/,
+    );
+    assert.match(
+      provision,
+      /cleanup role retains default privilege grants/,
     );
     assert.match(
       provision,
@@ -437,6 +497,9 @@ describe("isolated DirectUpload cleanup worker", () => {
     const proof = source(
       "scripts/direct-upload-authority-postgres-proof.mjs",
     );
+    const provision = source(
+      "scripts/provision-direct-upload-cleanup-role.sql",
+    );
 
     assert.match(
       worker,
@@ -451,8 +514,15 @@ describe("isolated DirectUpload cleanup worker", () => {
       /WHEN class\.relkind IN \('r', 'p'\) THEN[\s\S]*has_table_privilege/,
     );
     assert.doesNotMatch(
-      `${worker}\n${proof}\n${source("scripts/provision-direct-upload-cleanup-role.sql")}`,
+      `${worker}\n${proof}\n${provision}`,
       /AND\s+pg_catalog\.has_(?:table|sequence)_privilege/,
     );
+    for (const catalogSource of [worker, proof, provision]) {
+      assert.match(catalogSource, /AND procedure\.prosecdef/);
+      assert.doesNotMatch(
+        catalogSource,
+        /procedure\.prosecdef\s+OR\s+procedure\.proname LIKE/,
+      );
+    }
   });
 });

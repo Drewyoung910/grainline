@@ -224,6 +224,34 @@ describe("DirectUpload fixed-authority preparation", () => {
       migration,
       /upload\."storageClass" = 'PUBLIC'/,
     );
+
+    const accountUrlsStart = migration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.grainline_direct_upload_account_public_urls",
+    );
+    const accountReleaseStart = migration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.grainline_direct_upload_release_for_account",
+      accountUrlsStart,
+    );
+    const accountReleaseEnd = migration.indexOf(
+      "\nREVOKE ALL ON FUNCTION",
+      accountReleaseStart,
+    );
+    const accountUrlsBlock = migration.slice(accountUrlsStart, accountReleaseStart);
+    const accountReleaseBlock = migration.slice(accountReleaseStart, accountReleaseEnd);
+
+    for (const [label, block] of [
+      ["account public URLs", accountUrlsBlock],
+      ["account release", accountReleaseBlock],
+    ]) {
+      assert.doesNotMatch(
+        block,
+        /grainline_direct_upload_actor_valid/,
+        `${label} must not reject a banned account before deletion cleanup`,
+      );
+      assert.match(block, /account_actor\.id = p_user_id/);
+      assert.match(block, /account_actor\."deletedAt" IS NULL/);
+      assert.doesNotMatch(block, /account_actor\.banned = false/);
+    }
   });
 
   it("pins the exact runtime ACL catalog and keeps all cores private", () => {
