@@ -239,8 +239,24 @@ Provisioning creates no role or password; the external LOGIN and secrets
 require their own reviewed provider step. This scaffold remains manual-only.
 Add its hourly schedule in the activation release that removes the Vercel
 cleanup schedule, after the external worker boundary and failure notifications
-are proven. No role, credential, provider environment, schedule or production
-state has changed.
+are proven.
+
+Provider preparation began on 2026-07-28 without activating cleanup. The
+main-only protected `Production DirectUpload Cleanup` GitHub environment now
+exists, and the dedicated direct Neon LOGIN
+`grainline_direct_upload_cleanup` was created on the production branch. Its
+connection URL is stored only in that environment, alongside its SHA-256
+digest; it was not copied into Vercel or the ordinary Production environment.
+The role must be converged and proved through the exact-main owner-only
+`DirectUpload Cleanup Role Provision` workflow before it is usable. That
+operator preserves compatible runtime authority and proves in a read-only
+postflight that DirectUpload RLS is still off.
+
+The cleanup-only R2 deletion credential is still absent because no signed-in
+Cloudflare control surface was available. Do not substitute the application's
+R2 credential. Keep the worker, hourly scheduler and DirectUpload activation
+blocked until a cleanup-only key is scoped to the exact public/private buckets
+and its provider deletion behavior is proved.
 
 The 2026-07-28 Extra-High review also widened the cleanup-role invariant from
 the DirectUpload function namespace to every accessible public

@@ -7,6 +7,7 @@ on:
       - agent/direct-upload-rls-activation-20260726
       - agent/direct-upload-object-key-retirement-20260726
       - agent/direct-upload-legacy-repair-20260728
+      - agent/direct-upload-cleanup-provider-prep-20260728
     paths:
       - .github/workflows/direct-upload-authority-postgres-proof.yml
       - package.json
@@ -19,6 +20,7 @@ on:
       - scripts/direct-upload-authority-catalog.mjs
       - scripts/direct-upload-authority-postgres-proof.mjs
       - scripts/direct-upload-cleanup-worker.mjs
+      - scripts/direct-upload-cleanup-role-production-provision.mjs
       - scripts/direct-upload-function-source-catalog.mjs
       - scripts/direct-upload-legacy-inspect.mjs
       - scripts/direct-upload-legacy-repair-postgres-proof.mjs
@@ -36,6 +38,7 @@ on:
       - tests/direct-upload-activation-rollback-proof.test.mjs
       - tests/direct-upload-authority-postgres-proof.test.mjs
       - tests/direct-upload-cleanup-worker.test.mjs
+      - tests/direct-upload-cleanup-role-production-provision.test.mjs
       - tests/direct-upload-legacy-inspect.test.mjs
       - tests/direct-upload-legacy-repair-postgres-proof.test.mjs
       - tests/direct-upload-retirement-candidate.test.mjs
@@ -118,6 +121,7 @@ jobs:
           tests/direct-upload-activation-rollback-proof.test.mjs
           tests/direct-upload-authority-postgres-proof.test.mjs
           tests/direct-upload-cleanup-worker.test.mjs
+          tests/direct-upload-cleanup-role-production-provision.test.mjs
           tests/direct-upload-legacy-inspect.test.mjs
           tests/direct-upload-legacy-repair-postgres-proof.test.mjs
           tests/direct-upload-retirement-candidate.test.mjs

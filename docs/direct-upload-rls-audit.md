@@ -865,11 +865,55 @@ The isolated activation-design branch adds:
   trigger belongs to the later activation release that removes the Vercel
   cleanup schedule.
 
-This is saved scaffolding, not a live worker. No cleanup role, GitHub
-environment, database credential, R2 credential, schedule, migration or
-provider object has been created or changed. The current Vercel cron remains
-the compatible pre-activation owner of cleanup until the later activation
-release deliberately transfers that responsibility.
+This remains an inactive worker scaffold. Provider preparation created the
+dedicated Neon LOGIN and the separate protected GitHub environment described
+below, but no cleanup run, R2 deletion credential, schedule, app deployment or
+DirectUpload activation has occurred. The current Vercel cron remains the
+compatible pre-activation owner of cleanup until the later activation release
+deliberately transfers that responsibility.
+
+### Cleanup-worker provider preparation
+
+On 2026-07-28, the main-only protected GitHub environment
+`Production DirectUpload Cleanup` was created as environment id
+`18906676825`, with Drew Young as its required reviewer and only the exact
+`main` branch allowed. The dedicated direct Neon role
+`grainline_direct_upload_cleanup` was created on production branch
+`br-hidden-mouse-aaugn2wr`. Its generated password was never printed or
+persisted locally. The resulting direct connection URL exists only as the
+environment secret `DIRECT_UPLOAD_CLEANUP_DATABASE_URL`; the environment
+variable `DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256` records digest
+`6096b5b751b15fcb036f835bf60d20fddaeb354f94d5b9d492eed120401f731a`.
+Neither value was added to Vercel.
+
+The role exists but is not accepted as provisioned until the reviewed operator
+lands and passes. `.github/workflows/direct-upload-cleanup-role-provision.yml`
+is a manual exact-main operator in the existing `Production` environment and
+uses the same `production-database-migrations` concurrency group as schema
+migrations. It:
+
+1. reuses the production migration preflight to prove the exact clean main
+   commit, owner URL digest/identity, ordinary runtime role posture,
+   SavedSearch Phase B posture and migration ledger;
+2. runs `scripts/provision-direct-upload-cleanup-role.sql` without creating a
+   role or handling its password; and
+3. runs an owner-side `READ ONLY` postflight proving the cleanup role has no
+   memberships, member roles, create authority, default privileges or
+   table/column/sequence authority, exactly three non-grantable DirectUpload
+   function grants, and no unexpected privileged function access.
+
+The postflight simultaneously proves `DirectUpload` remains RLS-off with
+compatible runtime CRUD, `DirectUploadReference` remains policyless ENABLE
+plus FORCE, and all compatible runtime function grants remain unchanged. Its
+artifact is aggregate/catalog-only, commit-bound, sanitized and mode 0600.
+Provisioning does not activate the worker, run object deletion, alter R2,
+deploy the app or enable DirectUpload RLS.
+
+The cleanup-only R2 credential is still absent. It must be scoped to delete
+objects from the exact public and private cleanup buckets; application R2 keys
+must not be reused or copied into the cleanup environment. Until that
+credential is created and provider deletion is proved, the cleanup worker and
+DirectUpload activation remain blocked.
 
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration

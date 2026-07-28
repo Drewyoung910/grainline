@@ -20,6 +20,7 @@
     "ops:conversation-message-force-postflight": "node scripts/conversation-message-compatibility-production-postflight.mjs --post-force",
     "ops:direct-upload-preparation-postflight": "node scripts/direct-upload-preparation-production-postflight.mjs",
     "ops:direct-upload-legacy-inspect": "node scripts/direct-upload-legacy-inspect.mjs",
+    "ops:direct-upload-cleanup-role-provision": "node scripts/direct-upload-cleanup-role-production-provision.mjs",
     "ops:direct-upload-cleanup-worker": "node scripts/direct-upload-cleanup-worker.mjs",
     "ops:verify-db-separation": "node scripts/runtime-db-credential-separation-postflight.mjs",
     "ops:converge-local-runtime-db": "node scripts/converge-local-runtime-db-env.mjs",
