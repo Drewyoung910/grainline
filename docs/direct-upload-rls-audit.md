@@ -1298,9 +1298,24 @@ not itself executed in disposable PostgreSQL. The shared catalog proof is now
 exported without weakening the production-only authenticated identity check,
 and the compatible authority harness runs that exact query path under
 `grainline_app_runtime` before creating any fixtures. A fresh disposable
-PostgreSQL run is mandatory before treating this improvement as accepted
+PostgreSQL run was mandatory before treating this improvement as accepted
 evidence; the historical eight-check runs remain accurately recorded rather
 than being retroactively upgraded.
+
+That replacement proof passed. GitHub Actions run `30376366157` (job
+`90332970378`) at exact executable commit
+`f9a05405ad6c8067a7cdf12753c85508a9337fcc` applied all 166 committed
+migrations to disposable PostgreSQL 16, converged and audited both the
+production-style runtime role and isolated cleanup role, and passed the
+expanded nine-check compatible proof. Its new
+`production_postflight_query_shape` check executed the exact prepared
+table/trigger/function/denial query path under `grainline_app_runtime`; the
+other eight authority, lifecycle, race and aggregate-inspector checks also
+passed. The run then generated and applied only the two reviewed disposable
+retirement/activation candidates, passed the activated catalog and behavioral
+proof, and passed database-first rollback plus exact activation restoration.
+Every proof payload recorded `persistentStagingChanged=false` and
+`productionChanged=false`; no provider or production state was addressed.
 
 ## Exit
 
