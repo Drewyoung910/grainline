@@ -947,6 +947,35 @@ drift is a hard provider-remediation failure, not something the database
 operator attempts to repair. Preserve `30398993315` as failed evidence and
 require another fresh exact-main production run.
 
+The third protected run, `30399802535` (job `90411568860`) at exact main
+`58b8cb88`, passed the exact-source, owner-identity and compatible production
+preflight, then failed before any grant. A separate owner-authenticated
+`READ ONLY` catalog inspection proved why: the Neon API-created cleanup role
+had `CREATEDB`, `CREATEROLE`, `INHERIT`, `REPLICATION` and `BYPASSRLS`, plus
+direct membership in `neon_superuser` and its transitive privileged roles.
+The attempted grant transaction stopped on the attribute check and rolled
+back; DirectUpload RLS, data, grants, R2 and cleanup execution were unchanged.
+
+This is provider behavior, not permissible cleanup authority. Neon documents
+that Console/CLI/API-created roles receive `neon_superuser`, whereas roles
+created through SQL receive ordinary PostgreSQL defaults. A rollback-only
+test also proved `neondb_owner` lacks `ADMIN OPTION` on the rejected API role,
+so it cannot safely strip the attributes in place. The accepted remediation
+is therefore a guarded credential rotation: prove the exact rejected posture
+and zero active sessions, prove SQL role creation inside a rollback-only
+transaction, delete only the rejected API role, recreate the same role name
+through SQL as LOGIN/NOINHERIT with no privileged attributes or memberships,
+prove the new direct connection, and replace only the protected cleanup
+environment secret and its SHA-256 digest. The generated password and SCRAM
+verifier must remain in process memory/stdin and must never be printed or
+written to evidence. This provider remediation does not grant functions,
+activate RLS, run cleanup, deploy the app or touch R2; the protected role
+convergence remains a separate fresh exact-main gate afterward. Run the
+operator's `--preflight` mode first: it verifies the exact protected secret
+metadata and rejected-role posture, then creates and discards a replacement
+probe inside a rolled-back transaction. Only a fresh exact-main invocation
+without `--preflight` may cross the provider-delete boundary.
+
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
 tree and reached cleanup-role convergence, including the three intended
