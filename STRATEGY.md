@@ -248,8 +248,15 @@ the DirectUpload function namespace to every accessible public
 table-like relation grants, default grants, and exact DirectUpload function
 security posture. Pure public `SECURITY INVOKER` validators remain callable but
 carry no owner authority and the cleanup role has no underlying relation
-privileges. The older seven-check cleanup-role proof is superseded; require a
-fresh exact-tree disposable PostgreSQL run before accepting this layer.
+privileges. The older seven-check cleanup-role proof is superseded. Exact-tree
+disposable PostgreSQL 16.14 run `30329597171` (job `90181797774`) passed at
+executable commit `e407271e891f59330b20fb50a127b21f2a598364`: all 166
+migrations, runtime and cleanup-role convergence, migration status, the global
+grant/RLS audit, static contracts and all eight live authority/lifecycle checks
+passed, with no persistent-staging or production change. This accepts the
+scaffold's hardened database authority partition only; live provider
+credentials, R2 deletion, scheduling and DirectUpload activation remain
+separate gates.
 
 ### Messaging architecture decision (2026-07-22)
 

@@ -934,9 +934,38 @@ all accessible public `SECURITY DEFINER` functions, while the complete
 DirectUpload catalog remains exact. Neither failed run addressed persistent
 staging or production.
 
+The corrected exact-tree disposable PostgreSQL 16.14 execution, GitHub Actions
+run `30329597171` (job `90181797774`) at executable commit
+`e407271e891f59330b20fb50a127b21f2a598364`, then passed. It applied all 166
+migrations, converged the production-style runtime role and the isolated
+NOBYPASSRLS/NOINHERIT cleanup role, verified migration status, passed the
+global grant/RLS audit and static contracts, and passed all eight live checks:
+
+1. `catalog_and_acl`;
+2. `fixed_authority_and_partial_source`;
+3. `case_attachment_compatibility_and_lifecycle`;
+4. `stable_swap_lock_order`;
+5. `multi_source_reuse_and_delete_release`;
+6. `reference_cleanup_winner_orderings`;
+7. `aggregate_only_legacy_query`; and
+8. `banned_account_lifecycle_cleanup`.
+
+The result recorded `persistentStagingChanged=false` and
+`productionChanged=false`; its database, roles and fixtures existed only
+inside the discarded job service container. Expected `42501` and validation
+errors in the PostgreSQL service log are deliberate negative assertions that
+proved the cleanup role could not read reference rows, execute private cores,
+forge actors/keys or create invalid Case bindings. This accepts the hardened
+cleanup-role authority partition and current DirectUpload function catalog on
+the disposable engine. It does not create or exercise a live cleanup
+credential, GitHub environment, R2 credential, schedule or production
+activation.
+
 ## Exit
 
-High ends when this audit, the matrix/strategy decision and static inventory
-tests are committed on the separate stacked branch. Switch to Extra High
-before editing schema, migrations, functions, grants, policies or lifecycle
-application code.
+Keep Extra High through the cleanup-worker authority review and the downstream
+retirement/activation branch rebase and SQL review. PR #60 remains a draft
+scaffold until its exact proof record, final CI and review boundary are clean;
+it does not authorize a merge or any provider/production mutation. A later
+explicit approval is required for each merge, provider credential/role change,
+production inspection, migration and deployment.
