@@ -976,6 +976,15 @@ metadata and rejected-role posture, then creates and discards a replacement
 probe inside a rolled-back transaction. Only a fresh exact-main invocation
 without `--preflight` may cross the provider-delete boundary.
 
+The first exact-main rollback-only preflight at `a1f72cc0` stopped before its
+first provider request because the local credential-shape guard incorrectly
+assumed an access token must exceed 100 characters. The current Neon CLI
+stores an 87-character opaque token. No SQL, role, secret or provider mutation
+was reachable. The corrected guard accepts only 64-4096 characters from the
+reviewed opaque-token alphabet and retains the exact user-id, private-file and
+minimum-lifetime checks. A fresh exact-main preflight remains mandatory before
+the delete boundary.
+
 The scaffold's first disposable PostgreSQL execution, GitHub Actions run
 `30230563291` (job `89868520266`) at commit `cf776ea2`, applied the migration
 tree and reached cleanup-role convergence, including the three intended

@@ -159,6 +159,15 @@ export function normalizeNeonCredentialExpiry(value) {
   return numeric > 10_000_000_000 ? numeric : numeric * 1000;
 }
 
+export function isReviewedNeonAccessToken(value) {
+  return (
+    typeof value === "string"
+    && value.length >= 64
+    && value.length <= 4096
+    && /^[A-Za-z0-9._~-]+$/.test(value)
+  );
+}
+
 export function readReviewedNeonCredentials(
   credentialsPath = path.join(process.env.HOME ?? "", ".config", "neonctl", "credentials.json"),
   now = Date.now(),
@@ -175,8 +184,7 @@ export function readReviewedNeonCredentials(
     credentials.expires_at,
   );
   if (
-    typeof credentials.access_token !== "string"
-    || credentials.access_token.length < 100
+    !isReviewedNeonAccessToken(credentials.access_token)
     || credentials.user_id !== REVIEWED_NEON_USER_ID
     || !Number.isFinite(expiresAtMillis)
     || expiresAtMillis <= now + 5 * 60_000
