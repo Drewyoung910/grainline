@@ -851,9 +851,12 @@ activation has occurred:
   `42501`; and
 - invalid-actor fixed lookup/read operations return no rows.
 
-The live database transaction is `READ ONLY`, creates no fixture rows and
-writes only a fresh mode-0600 local JSON artifact. This database postflight
-does **not** verify the Vercel deployment, the
+The pooled runtime connection enters `BEGIN TRANSACTION READ ONLY` before
+identity, table, constraint, trigger, function or denial inspection, so the
+database engine enforces the read-only boundary across the entire live proof.
+It creates no fixture rows and writes only a fresh mode-0600 local JSON
+artifact. This database postflight does **not** verify the Vercel deployment,
+the
 `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false` environment value, the private R2
 bucket, authenticated routes, legacy data, cleanup-worker separation or
 DirectUpload activation. Those remain explicit later gates rather than

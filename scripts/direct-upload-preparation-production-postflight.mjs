@@ -588,20 +588,16 @@ async function expectInsufficientPrivilege(client, operation, label) {
 }
 
 async function proveReadOnlyRuntimeBoundary(client) {
-  await client.query("BEGIN TRANSACTION READ ONLY");
-  let transactionOpen = true;
-  try {
-    await client.query("SET LOCAL statement_timeout = '10s'");
-    await expectInsufficientPrivilege(
-      client,
-      () =>
-        client.query(`SELECT * FROM public."DirectUploadReference" LIMIT 1`),
-      "DirectUploadReference direct read",
-    );
-    await expectInsufficientPrivilege(
-      client,
-      () =>
-        client.query(`
+  await client.query("SET LOCAL statement_timeout = '10s'");
+  await expectInsufficientPrivilege(
+    client,
+    () => client.query(`SELECT * FROM public."DirectUploadReference" LIMIT 1`),
+    "DirectUploadReference direct read",
+  );
+  await expectInsufficientPrivilege(
+    client,
+    () =>
+      client.query(`
         SELECT public.grainline_direct_upload_sync_public_core(
           NULL::text,
           NULL::text,
@@ -610,42 +606,48 @@ async function proveReadOnlyRuntimeBoundary(client) {
           NULL::text[]
         )
       `),
-      "generic DirectUpload reference core",
-    );
+    "generic DirectUpload reference core",
+  );
 
-    const ownedLookup = await client.query(`
-      SELECT *
-      FROM public.grainline_direct_upload_owned_lookup(
-        'direct-upload-postflight-invalid-actor',
-        'direct-upload-postflight/invalid-key'
-      )
-    `);
-    assert.equal(ownedLookup.rows.length, 0);
-    const privateRead = await client.query(`
-      SELECT *
-      FROM public.grainline_direct_upload_case_attachment_read(
-        'direct-upload-postflight-invalid-actor',
-        'direct-upload-postflight-invalid-case',
-        'direct-upload-postflight-invalid-attachment'
-      )
-    `);
-    assert.equal(privateRead.rows.length, 0);
+  const ownedLookup = await client.query(`
+    SELECT *
+    FROM public.grainline_direct_upload_owned_lookup(
+      'direct-upload-postflight-invalid-actor',
+      'direct-upload-postflight/invalid-key'
+    )
+  `);
+  assert.equal(ownedLookup.rows.length, 0);
+  const privateRead = await client.query(`
+    SELECT *
+    FROM public.grainline_direct_upload_case_attachment_read(
+      'direct-upload-postflight-invalid-actor',
+      'direct-upload-postflight-invalid-case',
+      'direct-upload-postflight-invalid-attachment'
+    )
+  `);
+  assert.equal(privateRead.rows.length, 0);
+}
 
+export async function proveDirectUploadPreparationRuntimeCatalog(
+  client,
+  {
+    migrationRole = REVIEWED_MIGRATION_ROLE,
+    verifyProductionIdentity = false,
+  } = {},
+) {
+  await client.query("BEGIN TRANSACTION READ ONLY");
+  let transactionOpen = true;
+  try {
+    if (verifyProductionIdentity) await verifyRuntimeIdentity(client);
+    await verifyTablePosture(client, migrationRole);
+    await verifyCompatibilityCatalog(client);
+    await verifyFunctionCatalog(client, migrationRole);
+    await proveReadOnlyRuntimeBoundary(client);
     await client.query("ROLLBACK");
     transactionOpen = false;
   } finally {
     if (transactionOpen) await client.query("ROLLBACK").catch(() => {});
   }
-}
-
-export async function proveDirectUploadPreparationRuntimeCatalog(
-  client,
-  { migrationRole = REVIEWED_MIGRATION_ROLE } = {},
-) {
-  await verifyTablePosture(client, migrationRole);
-  await verifyCompatibilityCatalog(client);
-  await verifyFunctionCatalog(client, migrationRole);
-  await proveReadOnlyRuntimeBoundary(client);
 }
 
 export async function runDirectUploadPreparationPostflight(config) {
@@ -660,8 +662,9 @@ export async function runDirectUploadPreparationPostflight(config) {
   });
   await client.connect();
   try {
-    await verifyRuntimeIdentity(client);
-    await proveDirectUploadPreparationRuntimeCatalog(client);
+    await proveDirectUploadPreparationRuntimeCatalog(client, {
+      verifyProductionIdentity: true,
+    });
     return Object.freeze({
       status: "passed",
       releaseCommit: config.releaseCommit,
@@ -683,9 +686,11 @@ export async function runDirectUploadPreparationPostflight(config) {
       reviewedTriggerCount: 13,
       functionCount: DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.length,
       privateFunctionCount: DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES.length,
+      wholePostflightTransactionReadOnly: true,
       postflightReadOnly: true,
       productionChangedByPostflight: false,
       completedChecks: [
+        "whole_postflight_read_only_transaction",
         "actual_pooled_runtime_role_identity",
         "compatible_direct_upload_and_service_only_reference_table_posture",
         "dual_column_exact_constraint_and_full_trigger_catalog",

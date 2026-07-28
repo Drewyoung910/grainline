@@ -148,6 +148,16 @@ describe("DirectUpload preparation production postflight", () => {
       "utf8",
     );
     assert.match(source, /BEGIN TRANSACTION READ ONLY/);
+    assert.match(
+      source,
+      /BEGIN TRANSACTION READ ONLY[\s\S]*if \(verifyProductionIdentity\) await verifyRuntimeIdentity\(client\)/,
+    );
+    assert.match(source, /wholePostflightTransactionReadOnly: true/);
+    assert.match(source, /whole_postflight_read_only_transaction/);
+    assert.doesNotMatch(
+      source,
+      /await verifyRuntimeIdentity\(client\);\s+await proveDirectUploadPreparationRuntimeCatalog/,
+    );
     assert.doesNotMatch(
       source,
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\s+(?:INTO|FROM|public\.)/i,
@@ -194,7 +204,7 @@ describe("DirectUpload preparation production postflight", () => {
     assert.equal(typeof proveDirectUploadPreparationRuntimeCatalog, "function");
     assert.match(
       source,
-      /proveDirectUploadPreparationRuntimeCatalog\(client\)/,
+      /proveDirectUploadPreparationRuntimeCatalog\(client, \{/,
     );
     assert.match(source, /productionChangedByPostflight: false/);
     assert.equal(DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.length, 35);
