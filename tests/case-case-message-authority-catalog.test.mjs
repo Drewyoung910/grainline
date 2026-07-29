@@ -78,7 +78,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     }
   });
 
-  it("keeps recipient reads invoker-scoped and service authority narrow", () => {
+  it("keeps ordinary recipient reads invoker-scoped and source-bound exceptions narrow", () => {
     const byId = new Map(
       CASE_AUTHORITY_OPERATIONS.map((operation) => [
         operation.id,
@@ -88,7 +88,6 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     for (const id of [
       "case_get",
       "case_get_by_order",
-      "case_message_page",
       "case_staff_queue",
       "case_staff_active_count",
       "case_export",
@@ -96,6 +95,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       assert.equal(byId.get(id)?.security, "INVOKER", id);
     }
     assert.equal(byId.get("case_message_preflight")?.security, "DEFINER");
+    assert.equal(byId.get("case_message_page")?.security, "DEFINER");
     assert.equal(
       byId.get("case_message_preflight")?.operationKind,
       "SOURCE_BOUND_READ",

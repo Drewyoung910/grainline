@@ -44,6 +44,7 @@
     "audit:rls-case-open-authority": "node scripts/case-open-authority-postgres-proof.mjs",
     "audit:rls-case-reply-authority": "node scripts/case-reply-authority-postgres-proof.mjs",
     "audit:rls-case-message-preflight": "node scripts/case-message-preflight-authority-postgres-proof.mjs",
+    "audit:rls-case-message-page": "node scripts/case-message-page-authority-postgres-proof.mjs",
     "audit:rls-direct-upload-authority": "node scripts/direct-upload-authority-postgres-proof.mjs",
     "audit:rls-direct-upload-legacy-repair": "node scripts/direct-upload-legacy-repair-postgres-proof.mjs",
     "audit:rls-direct-upload-retirement-candidate": "node scripts/stage-direct-upload-retirement-migration.mjs",

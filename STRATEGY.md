@@ -139,6 +139,17 @@ references across 23 files, with twenty-eight of the 80-reference baseline
 retained in the converted ledger. This remains preparation, not production
 activation.
 
+The bounded interactive Case-message history is also a narrow source-validating
+database projection, not a generic INVOKER read. It crosses exact
+Case/CaseMessage/attachment rows for both participants and PIN-verified staff,
+so broad runtime table/User visibility is the wrong prerequisite. Keep its
+SECURITY DEFINER output limited to message fields, durable or
+relationship-derived author kind, and attachment id/content type/size/time;
+never return User profile/contact fields, DirectUpload ids or object keys.
+Retain the 51-row hard cap and stable `(createdAt,id)` cursor. Unknown legacy
+non-party authors remain unlabeled rather than being inferred as staff from
+mutable current role.
+
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and
 aggregate-only. The two tracks rejoin before activation: DirectUpload must

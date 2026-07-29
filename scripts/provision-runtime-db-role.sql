@@ -868,6 +868,34 @@ WHERE to_regprocedure(
 ) IS NOT NULL;
 \gexec
 
+-- Case-message history is absent before its compatible authority migration.
+-- Keep PUBLIC closed and converge only the exact bounded source-validating
+-- projection; direct Case-family reads remain unchanged until activation.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_message_page(text, text, timestamp, text, integer) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_message_page(text,text,timestamp without time zone,text,integer)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_message_page(text, text, timestamp, text, integer) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_message_page(text,text,timestamp without time zone,text,integer)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_message_page(text, text, timestamp, text, integer) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_message_page(text,text,timestamp without time zone,text,integer)'
+) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.

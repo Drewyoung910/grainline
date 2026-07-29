@@ -873,6 +873,36 @@ durable converted ledger, leaving 52 remaining references across 23 files and
 twenty-eight converted references. It does not apply migrations, enable
 evidence, deploy or change Case-family RLS.
 
+Phase 4 bounded Case-message page authority candidate (2026-07-29): hard
+review corrected the original all-recipient-reads-are-INVOKER catalog rule.
+The interactive history page crosses Case, CaseMessage and attachment rows for
+both parties and staff. An INVOKER implementation would therefore require
+broad runtime visibility and would break as the later Case-family/User RLS
+boundaries narrow direct reads.
+
+The compatible
+`grainline_case_message_page(actorUserId, caseId, cursorCreatedAt, cursorId,
+limit)` operation is one source-validating SECURITY DEFINER projection. It
+validates an active actor, exact Case participation or current staff role,
+complete cursor pairs, a hard maximum of 51 rows and at most four attachments
+per message; orders by the existing `(createdAt,id)` keyset; and returns only
+message id, author id, durable or relationship-derived author kind, body,
+timestamp and bounded attachment metadata. It exposes no email, Clerk id, User
+profile field, DirectUpload id,
+public URL or private object key. The redundant per-message author name is
+removed from the later app conversion; the Case header and durable
+Buyer/Seller/Grainline Staff labels remain.
+
+Legacy null author kind is derived only when the author id equals the Case
+buyer or seller. An unknown non-party legacy author remains unlabeled rather
+than being promoted to staff from mutable current `User.role`. The function
+pins `search_path`, denies PUBLIC, grants only its exact runtime signature and
+changes no Case-family policy, RLS posture or table grant. Its disposable
+PostgreSQL proof covers buyer/seller/staff equivalence, foreign/disabled/missing
+denial, page bound and tie-stable cursor behavior, minimal attachment output,
+legacy author derivation, transaction-local context, read-only state and zero
+residue.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
