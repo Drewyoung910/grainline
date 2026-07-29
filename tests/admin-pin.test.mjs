@@ -217,21 +217,21 @@ describe("admin PIN cookie secret configuration", () => {
 
     assert.match(messages, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
     assert.match(messages, /const \{ userId, sessionId \} = await auth\(\)/);
-    assert.match(messages, /const isNonPartyStaff = isStaff && !isParty/);
-    assert.match(messages, /if \(isNonPartyStaff\) \{/);
+    assert.match(messages, /await getCaseMessagePreflight\(\{/);
+    assert.match(messages, /if \(preflight\.actsAsStaff\) \{/);
     assert.match(messages, /requireStaffAdminPinForApi\(req, userId, sessionId\)/);
     assert.ok(
-      messages.indexOf("if (!isParty && !isStaff)") <
-        messages.indexOf("if (isNonPartyStaff)") &&
-        messages.indexOf("if (isNonPartyStaff)") <
+      messages.indexOf("if (!preflight)") <
+        messages.indexOf("if (preflight.actsAsStaff)") &&
+        messages.indexOf("if (preflight.actsAsStaff)") <
           messages.indexOf("for (const key of attachmentKeys)") &&
-        messages.indexOf("if (isNonPartyStaff)") <
+        messages.indexOf("if (preflight.actsAsStaff)") <
           messages.indexOf("await replyToCaseWithFixedAuthority({"),
       "only staff non-party case messages should require the admin PIN before evidence reads and message creation",
     );
     assert.match(
       messages,
-      /const isNonPartyStaff = isStaff && !isParty[\s\S]*requireStaffAdminPinForApi[\s\S]*replyToCaseWithFixedAuthority/,
+      /getCaseMessagePreflight[\s\S]*preflight\.actsAsStaff[\s\S]*requireStaffAdminPinForApi[\s\S]*replyToCaseWithFixedAuthority/,
     );
   });
 });

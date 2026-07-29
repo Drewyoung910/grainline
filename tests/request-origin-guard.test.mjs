@@ -124,7 +124,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.case.findUnique",
+      "getCaseMessagePreflight({",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/escalate/route.ts", [
       "verifyCronRequest(req)",

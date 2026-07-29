@@ -13,8 +13,6 @@ import {
   safeRateLimit,
 } from "@/lib/ratelimit";
 import {
-  canCreateCaseMessageForStatus,
-  unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
@@ -36,6 +34,7 @@ import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
 import { replyToCaseWithFixedAuthority } from "@/lib/caseReplyAuthority";
 import type { CaseReplyResult } from "@/lib/caseReplyResult";
 import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
+import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
 import { z } from "zod";
 
 const CaseMessageSchema = z.object({
@@ -158,44 +157,36 @@ export async function POST(
     if (!messageBody)
       return privateJson({ error: "body is required." }, { status: 400 });
 
-    const caseRecord = await prisma.case.findUnique({
-      where: { id },
-      include: {
-        buyer: { select: { id: true, banned: true, deletedAt: true } },
-        seller: { select: { id: true, banned: true, deletedAt: true } },
-      },
-    });
-    if (!caseRecord)
+    let preflight;
+    try {
+      preflight = await getCaseMessagePreflight({
+        actorUserId: me.id,
+        caseId: id,
+      });
+    } catch (error) {
+      if (getPrismaRawSqlState(error) === "22023") {
+        return privateJson({ error: "Case not found." }, { status: 404 });
+      }
+      throw error;
+    }
+    if (!preflight) {
       return privateJson({ error: "Case not found." }, { status: 404 });
+    }
 
-    const isParty =
-      me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
-    const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
-    const isNonPartyStaff = isStaff && !isParty;
-    if (!isParty && !isStaff)
-      return privateJson({ error: "Forbidden." }, { status: 403 });
-    if (isNonPartyStaff) {
+    if (preflight.actsAsStaff) {
       const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
       if (pinResponse) return pinResponse;
     }
-
-    if (
-      !canCreateCaseMessageForStatus(caseRecord.status, {
-        isStaff: isNonPartyStaff,
-      })
-    ) {
+    if (!preflight.canCreateMessage) {
       return privateJson({ error: "This case is closed." }, { status: 400 });
     }
-
-    const unavailableRecipientReason = unavailableCaseMessageRecipientReason({
-      senderId: me.id,
-      buyer: caseRecord.buyer,
-      seller: caseRecord.seller,
-      isStaff: isNonPartyStaff,
-    });
-    if (unavailableRecipientReason) {
+    if (preflight.recipientUnavailableReason) {
       return privateJson(
-        { error: unavailableCaseRecipientMessage(unavailableRecipientReason) },
+        {
+          error: unavailableCaseRecipientMessage(
+            preflight.recipientUnavailableReason,
+          ),
+        },
         { status: 409 },
       );
     }

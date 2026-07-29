@@ -103,20 +103,25 @@ describe("private CaseMessage evidence", () => {
       "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts",
     );
 
-    for (const route of [uploadRoute, readRoute]) {
-      assert.match(route, /me\.id === caseRecord\.buyerId/);
-      assert.match(route, /me\.id === caseRecord\.sellerId/);
-      assert.match(route, /me\.role === "EMPLOYEE" \|\| me\.role === "ADMIN"/);
-      assert.match(route, /requireStaffAdminPinForApi/);
-      assert.match(route, /return privateJson\(\{ error: "Forbidden\."/);
-    }
+    assert.match(uploadRoute, /await getCaseMessagePreflight\(\{/);
+    assert.match(uploadRoute, /actorUserId: me\.id/);
+    assert.match(uploadRoute, /if \(preflight\.actsAsStaff\)/);
+    assert.match(uploadRoute, /requireStaffAdminPinForApi/);
+    assert.match(uploadRoute, /if \(!preflight\.canCreateMessage\)/);
+    assert.match(uploadRoute, /if \(preflight\.recipientUnavailableReason\)/);
+    assert.ok(
+      uploadRoute.indexOf("if (preflight.recipientUnavailableReason)") <
+        uploadRoute.indexOf("form = await req.formData()"),
+      "recipient availability must fail before private upload bytes are read",
+    );
+    assert.doesNotMatch(uploadRoute, /prisma\.case\.findUnique/);
+    assert.match(readRoute, /me\.id === caseRecord\.buyerId/);
+    assert.match(readRoute, /me\.id === caseRecord\.sellerId/);
+    assert.match(readRoute, /me\.role === "EMPLOYEE" \|\| me\.role === "ADMIN"/);
+    assert.match(readRoute, /requireStaffAdminPinForApi/);
+    assert.match(readRoute, /return privateJson\(\{ error: "Forbidden\."/);
     assert.match(uploadRoute, /uploadFileSignatureMatches/);
     assert.match(uploadRoute, /stripMetadata/);
-    assert.match(uploadRoute, /const actsAsStaff = isStaff && !isParty/);
-    assert.match(
-      uploadRoute,
-      /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff: actsAsStaff \}\)/,
-    );
     assert.match(
       readRoute,
       /readDirectUploadCaseAttachment\(\{[\s\S]*caseId: id,[\s\S]*attachmentId/,
