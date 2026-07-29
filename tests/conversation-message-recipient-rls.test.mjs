@@ -225,6 +225,17 @@ describe("Conversation and Message recipient RLS draft", () => {
     assert.match(proof, /proveMarkReadRaces\(owner\)/);
     assert.match(proof, /proveArchiveRaces\(owner\)/);
     assert.match(proof, /wait_event_type === "Lock"/);
+    assert.match(proof, /function capturePromiseOutcome\(promise\)/);
+    assert.match(proof, /function replayCapturedOutcome\(captured\)/);
+    assert.equal(
+      (proof.match(/capturePromiseOutcome\(invokeOrdinaryMessage\(/g) ?? [])
+        .length,
+      2,
+    );
+    assert.equal(
+      (proof.match(/replayCapturedOutcome\(blockedSend\)/g) ?? []).length,
+      2,
+    );
   });
 
   it("keeps ordinary write targets derived and private cores ungranted", () => {

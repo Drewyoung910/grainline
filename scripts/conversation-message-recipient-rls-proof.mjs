@@ -106,6 +106,19 @@ async function expectPgError(operation, expectedCodes, label) {
   assert.fail(`${label} unexpectedly succeeded`);
 }
 
+function capturePromiseOutcome(promise) {
+  return promise.then(
+    (value) => ({ ok: true, value }),
+    (error) => ({ error, ok: false }),
+  );
+}
+
+async function replayCapturedOutcome(captured) {
+  const outcome = await captured;
+  if (!outcome.ok) throw outcome.error;
+  return outcome.value;
+}
+
 async function waitForLock(observer, applicationName) {
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
@@ -1465,17 +1478,20 @@ async function proveBlockRaces(owner) {
     );
 
     await sendSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
-    const blockedSend = invokeOrdinaryMessage(
+    // Observe the rejection immediately. PostgreSQL can reject as soon as the
+    // first transaction commits, before the lock observer reaches
+    // expectPgError; a raw temporarily-unobserved promise is flaky under Node.
+    const blockedSend = capturePromiseOutcome(invokeOrdinaryMessage(
       sendSecond,
       "29292929-2929-4292-8292-292929292929",
       fixture.userAId,
       fixture.startedConversationId,
       "block race blocked second",
-    );
+    ));
     await waitForLock(owner, "cm-authority-block-send-second");
     await blockFirst.query("COMMIT");
     await expectPgError(
-      () => blockedSend,
+      () => replayCapturedOutcome(blockedSend),
       ["42501"],
       "block-first concurrent ordinary send",
     );
@@ -1524,17 +1540,17 @@ async function proveAccountDeletionRaces(owner) {
     );
 
     await sendSecond.query("BEGIN ISOLATION LEVEL READ COMMITTED");
-    const blockedSend = invokeOrdinaryMessage(
+    const blockedSend = capturePromiseOutcome(invokeOrdinaryMessage(
       sendSecond,
       "30303030-3030-4303-8303-303030303030",
       fixture.userCId,
       fixture.conversationCEId,
       "deletion race blocked second",
-    );
+    ));
     await waitForLock(owner, "cm-authority-deletion-send-second");
     await deletionFirst.query("COMMIT");
     await expectPgError(
-      () => blockedSend,
+      () => replayCapturedOutcome(blockedSend),
       ["42501"],
       "deletion-first concurrent ordinary send",
     );
