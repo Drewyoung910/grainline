@@ -168,7 +168,7 @@ describe("Case and CaseMessage aggregate-only legacy inspection", () => {
       CASE_LEGACY_COUNT_FIELDS.length,
     );
     assert.equal(result.counts.caseCount, 0);
-    assert.equal(result.counts.unrepairableAttachmentRowCount, 0);
+    assert.equal(result.counts.blockingAttachmentRowCount, 0);
     assert.deepEqual(result.distributions.caseStatus, {
       OPEN: 0,
       IN_DISCUSSION: 0,

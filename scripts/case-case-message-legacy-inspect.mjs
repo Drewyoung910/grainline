@@ -221,11 +221,11 @@ export const CASE_LEGACY_COUNT_FIELDS = Object.freeze([
   "case_attachment_claim_orphan_count",
   "attachment_invalid_metadata_count",
   "attachment_timestamp_before_message_count",
-  "unrepairable_case_row_count",
-  "unrepairable_message_row_count",
-  "unrepairable_attachment_row_count",
-  "unrepairable_attachment_reference_row_count",
-  "unrepairable_attachment_claim_row_count",
+  "blocking_case_row_count",
+  "blocking_message_row_count",
+  "blocking_attachment_row_count",
+  "blocking_attachment_reference_row_count",
+  "blocking_attachment_claim_row_count",
 ]);
 
 const DISTRIBUTION_FIELDS = Object.freeze([
@@ -386,7 +386,7 @@ case_attachment_reference_anomalies AS (
       OR reference."directUploadId"
          IS DISTINCT FROM attachment."directUploadId"
       OR reference.exclusive IS DISTINCT FROM true
-    ) AS unrepairable
+    ) AS blocking
   FROM public."DirectUploadReference" AS reference
   LEFT JOIN public."CaseMessageAttachment" AS attachment
     ON attachment.id = reference."sourceId"
@@ -399,7 +399,7 @@ case_attachment_claim_anomalies AS (
     (
       attachment.id IS NULL
       OR upload.id IS DISTINCT FROM attachment."directUploadId"
-    ) AS unrepairable
+    ) AS blocking
   FROM public."DirectUpload" AS upload
   LEFT JOIN public."CaseMessageAttachment" AS attachment
     ON attachment.id = upload."claimedById"
@@ -497,7 +497,7 @@ case_anomalies AS (
         AND case_row."buyerMarkedResolved"
         AND case_row."sellerMarkedResolved"
       )
-    ) AS unrepairable
+    ) AS blocking
   FROM public."Case" AS case_row
   LEFT JOIN public."Order" AS orders ON orders.id = case_row."orderId"
   LEFT JOIN order_seller_summary AS summary
@@ -533,7 +533,7 @@ message_anomalies AS (
       )
       OR message."createdAt" < case_row."createdAt"
       OR message."createdAt" > case_row."updatedAt"
-    ) AS unrepairable
+    ) AS blocking
   FROM public."CaseMessage" AS message
   JOIN public."Case" AS case_row ON case_row.id = message."caseId"
   JOIN public."User" AS author ON author.id = message."authorId"
@@ -564,7 +564,7 @@ attachment_anomalies AS (
       OR attachment."byteSize" <= 0
       OR attachment."byteSize" > 8388608
       OR attachment."createdAt" < message."createdAt"
-    ) AS unrepairable
+    ) AS blocking
   FROM public."CaseMessageAttachment" AS attachment
   JOIN public."CaseMessage" AS message
     ON message.id = attachment."caseMessageId"
@@ -856,7 +856,7 @@ SELECT
     AS attachment_reference_nonexclusive_count,
   (SELECT pg_catalog.count(*)::integer
      FROM case_attachment_claim_anomalies
-    WHERE unrepairable)
+    WHERE blocking)
     AS case_attachment_claim_orphan_count,
   (SELECT pg_catalog.count(*)::integer
      FROM public."CaseMessageAttachment"
@@ -875,22 +875,22 @@ SELECT
     WHERE attachment."createdAt" < message."createdAt")
     AS attachment_timestamp_before_message_count,
   (SELECT pg_catalog.count(*)::integer
-     FROM case_anomalies WHERE unrepairable)
-    AS unrepairable_case_row_count,
+     FROM case_anomalies WHERE blocking)
+    AS blocking_case_row_count,
   (SELECT pg_catalog.count(*)::integer
-     FROM message_anomalies WHERE unrepairable)
-    AS unrepairable_message_row_count,
+     FROM message_anomalies WHERE blocking)
+    AS blocking_message_row_count,
   (SELECT pg_catalog.count(*)::integer
-     FROM attachment_anomalies WHERE unrepairable)
-    AS unrepairable_attachment_row_count,
+     FROM attachment_anomalies WHERE blocking)
+    AS blocking_attachment_row_count,
   (SELECT pg_catalog.count(*)::integer
      FROM case_attachment_reference_anomalies
-    WHERE unrepairable)
-    AS unrepairable_attachment_reference_row_count,
+    WHERE blocking)
+    AS blocking_attachment_reference_row_count,
   (SELECT pg_catalog.count(*)::integer
      FROM case_attachment_claim_anomalies
-    WHERE unrepairable)
-    AS unrepairable_attachment_claim_row_count,
+    WHERE blocking)
+    AS blocking_attachment_claim_row_count,
   pg_catalog.jsonb_build_object(
     'OPEN', (SELECT pg_catalog.count(*) FROM public."Case"
       WHERE status = 'OPEN'::public."CaseStatus"),
@@ -1222,16 +1222,16 @@ async function main() {
       attachmentCount: inventory.counts.attachmentCount,
       caseCount: inventory.counts.caseCount,
       caseMessageCount: inventory.counts.caseMessageCount,
-      unrepairableAttachmentRowCount:
-        inventory.counts.unrepairableAttachmentRowCount,
-      unrepairableAttachmentClaimRowCount:
-        inventory.counts.unrepairableAttachmentClaimRowCount,
-      unrepairableAttachmentReferenceRowCount:
-        inventory.counts.unrepairableAttachmentReferenceRowCount,
-      unrepairableCaseRowCount:
-        inventory.counts.unrepairableCaseRowCount,
-      unrepairableMessageRowCount:
-        inventory.counts.unrepairableMessageRowCount,
+      blockingAttachmentRowCount:
+        inventory.counts.blockingAttachmentRowCount,
+      blockingAttachmentClaimRowCount:
+        inventory.counts.blockingAttachmentClaimRowCount,
+      blockingAttachmentReferenceRowCount:
+        inventory.counts.blockingAttachmentReferenceRowCount,
+      blockingCaseRowCount:
+        inventory.counts.blockingCaseRowCount,
+      blockingMessageRowCount:
+        inventory.counts.blockingMessageRowCount,
     })}\n`,
   );
 }
