@@ -56,14 +56,19 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
   freezeOperation({
     id: "case_staff_queue",
     candidateFunctionName: "grainline_case_staff_queue",
-    operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    operationKind: "SOURCE_BOUND_READ",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "statusFilter", "cursor", "boundedLimit"],
     applicationPreconditions: [
       "the staff actor completed the session-bound staff PIN challenge",
     ],
-    databaseDerived: ["current staff role", "bounded queue rows", "message counts"],
+    databaseDerived: [
+      "current staff role",
+      "bounded queue rows",
+      "message counts",
+      "minimal buyer and seller contact projection",
+    ],
   }),
   freezeOperation({
     id: "case_staff_active_count",

@@ -917,6 +917,28 @@ leaving 50 current protected references across 22 files and thirty converted
 references. This is compatible app preparation only: no production migration,
 deployment, Case-family policy or RLS state changes.
 
+Phase 4 grouped Case recipient-read authority candidate (2026-07-29): add
+three coexistence-safe SECURITY INVOKER operations for one visible Case by id,
+one visible Case by Order id and the current staff active-Case count. Each
+operation validates the active database actor, sets transaction-local
+`app.user_id`, derives participant/current-staff visibility, returns a fixed
+minimal shape and grants only the exact runtime signature. The Case projection
+contains lifecycle fields required by buyer/seller/staff detail surfaces but
+no User PII, Order detail, payment-event provenance, attachment identifier,
+private object key or raw Stripe refund id. Every timestamp is converted from
+the database's UTC `timestamp without time zone` convention to `timestamptz`
+at the SQL boundary.
+
+The same review reclassifies the later PII-bearing staff queue as a narrow
+source-validating SECURITY DEFINER operation. It cannot remain INVOKER because
+future self-only User RLS would correctly hide the buyer/seller contact fields
+that PIN-verified staff need. That queue stays a separate later checkpoint;
+this grouped migration implements only the PII-free Case projections and
+count. No application reference moves in this authority-only checkpoint, so
+the inventory remains 50 current references across 22 files with thirty in
+the converted ledger. No RLS, table grant, deployment or production state is
+changed.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

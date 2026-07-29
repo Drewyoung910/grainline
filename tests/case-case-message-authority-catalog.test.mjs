@@ -88,7 +88,6 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     for (const id of [
       "case_get",
       "case_get_by_order",
-      "case_staff_queue",
       "case_staff_active_count",
       "case_export",
     ]) {
@@ -96,8 +95,13 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     }
     assert.equal(byId.get("case_message_preflight")?.security, "DEFINER");
     assert.equal(byId.get("case_message_page")?.security, "DEFINER");
+    assert.equal(byId.get("case_staff_queue")?.security, "DEFINER");
     assert.equal(
       byId.get("case_message_preflight")?.operationKind,
+      "SOURCE_BOUND_READ",
+    );
+    assert.equal(
+      byId.get("case_staff_queue")?.operationKind,
       "SOURCE_BOUND_READ",
     );
     for (const operation of CASE_AUTHORITY_OPERATIONS) {

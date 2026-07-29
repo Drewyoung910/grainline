@@ -900,6 +900,8 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
+      "grainline_case_get",
+      "grainline_case_get_by_order",
       "grainline_case_message_page",
       "grainline_case_message_preflight",
       "grainline_case_open",
@@ -910,6 +912,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_resolution_prepare",
       "grainline_case_staff_resolution_provider_record",
       "grainline_case_staff_resolution_reconcile",
+      "grainline_case_staff_active_count",
       "grainline_case_stripe_dispute_apply",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
@@ -931,7 +934,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      88 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      91 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -941,10 +944,13 @@ describe("database grant inventory guardrails", () => {
     ));
     for (const functionName of [
       "grainline_case_mark_resolved",
+      "grainline_case_get",
+      "grainline_case_get_by_order",
       "grainline_case_message_page",
       "grainline_case_message_preflight",
       "grainline_case_open",
       "grainline_case_reply",
+      "grainline_case_staff_active_count",
       "grainline_case_staff_resolution_prepare",
       "grainline_case_staff_resolution_provider_record",
       "grainline_case_staff_resolution_finalize",

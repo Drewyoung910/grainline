@@ -94,7 +94,7 @@ The machine-readable catalog contains 26 operations.
 | `case_get` | INVOKER | One Case by id for a participant or current staff member |
 | `case_get_by_order` | INVOKER | One visible Case by exact Order id |
 | `case_message_page` | DEFINER | Source-bound, bounded stable `(createdAt,id)` history plus attachment metadata without object keys or User profile fields |
-| `case_staff_queue` | INVOKER | Bounded staff queue and message counts |
+| `case_staff_queue` | DEFINER | Source-validating bounded staff queue, message counts and minimal buyer/seller contact fields |
 | `case_staff_active_count` | INVOKER | Staff-only active Case count |
 | `case_export` | INVOKER | Complete participant Case/message export plus attachment metadata |
 | `case_message_preflight` | DEFINER | Source-bound current authority, messageable status and counterparty availability before upload or reply |
@@ -103,15 +103,17 @@ The interactive projection stays bounded. The account export is deliberately
 complete and remains a separate projection; it must not inherit the
 interactive page limit.
 
-The message preflight and bounded message page are narrow source-validating
-exceptions to the remaining recipient projections. The preflight must inspect
-the counterparty's suspended/deleted state, while the page must cross the
-Case/CaseMessage/attachment boundary for both participants and staff. Keeping
-either operation `SECURITY INVOKER` would couple Case messaging to broad
-runtime table visibility and would break as later User and Case-family RLS
-narrows direct reads.
+The message preflight, bounded message page and PII-bearing staff queue are
+narrow source-validating exceptions to the remaining recipient projections.
+The preflight must inspect the counterparty's suspended/deleted state, the
+message page must cross the Case/CaseMessage/attachment boundary for both
+participants and staff, and the queue must retrieve minimal buyer/seller
+contact fields that a later self-only User policy must hide from an ordinary
+INVOKER read. Keeping any of these operations `SECURITY INVOKER` would couple
+Case administration to broad runtime table visibility and would break as later
+User and Case-family RLS narrows direct reads.
 
-Both `SECURITY DEFINER` functions validate the active actor and exact
+All three `SECURITY DEFINER` projections validate the active actor and exact
 participant-or-current-staff relationship internally. The message page returns
 only stable message fields, durable or relationship-derived author kind, and
 attachment id/content type/size/time. It deliberately drops the redundant
@@ -530,6 +532,28 @@ kind stays unlabeled. This moves two more references to the durable converted
 ledger, leaving 50 current references across 22 files and thirty converted
 references. It is an isolated compatible app candidate: production and
 Case-family RLS remain unchanged.
+
+The grouped Case recipient-read authority checkpoint adds three compatible
+`SECURITY INVOKER` operations:
+`grainline_case_get(actorUserId, caseId)`,
+`grainline_case_get_by_order(actorUserId, orderId)` and
+`grainline_case_staff_active_count(actorUserId)`. Each validates an active
+actor, sets transaction-local `app.user_id`, derives participant or current
+staff visibility in PostgreSQL, returns no row for missing, disabled or
+unauthorized actors, pins `search_path`, denies PUBLIC and grants only its
+exact runtime signature. The two Case results expose one fixed lifecycle
+projection and deliberately exclude User profile/contact fields, Order
+details, payment-source fields, attachment identifiers and the raw Stripe
+refund object id. Database UTC `timestamp without time zone` values cross the
+SQL boundary as `timestamptz`, preventing local-time reinterpretation.
+
+This checkpoint does not convert an application caller, so the exact inventory
+remains 50 references across 22 files with thirty converted references. It
+also corrects `case_staff_queue` to a separate source-validating SECURITY
+DEFINER design: the queue needs minimal cross-user buyer/seller contact data,
+which a later self-only User RLS policy must hide from ordinary INVOKER
+queries. The queue is not implemented by this migration and may not be folded
+into the PII-free shared Case projection.
 
 ## Account deletion boundary
 
