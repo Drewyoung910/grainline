@@ -617,6 +617,12 @@ remaining references and nine converted references; production remains
 unchanged and the application candidate still requires exact-head CI before
 any merge, migration or deployment decision.
 
+The application conversion is preserved in commit `1cc1d468` on draft PR
+`#93`. The draft is temporarily eligible for `main`-targeted CI only; its
+intended stacked base remains the unmerged staff-resolution authority branch.
+Neither the checkpoint nor CI targeting authorizes a merge, migration,
+deployment, grant change or Case-family RLS activation.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
