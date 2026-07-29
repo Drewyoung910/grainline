@@ -1,17 +1,17 @@
-# Case and CaseMessage Pre-RLS Audit
+# Case, CaseMessage, and CaseMessageAttachment Pre-RLS Audit
 
 Opened 2026-07-26. Status: active read-only behavior and authority audit.
-No Case/CaseMessage policy SQL, grant change, migration, provider resource or
-production mutation is authorized by this document.
+No Case/CaseMessage/CaseMessageAttachment policy SQL, grant change, migration,
+provider resource or production mutation is authorized by this document.
 The phased rollout boundary is `docs/rls-case-case-message-plan.md`.
 
 ## Why this gate exists
 
-`Case` and `CaseMessage` contain dispute narratives, participant identities,
-staff communications, refund evidence and lifecycle state. They are also read
-or mutated by payment, shipping, account-lifecycle and seller-quality flows.
-RLS must encode the intended dispute product rather than freeze accidental
-application behavior.
+`Case`, `CaseMessage` and `CaseMessageAttachment` contain dispute narratives,
+participant identities, staff communications, private evidence, refund
+evidence and lifecycle state. They are also read or mutated by payment,
+shipping, account-lifecycle and seller-quality flows. RLS must encode the
+intended dispute product rather than freeze accidental application behavior.
 
 This is one tightly coupled group because CaseMessage visibility and write
 validity depend on its parent Case. It remains a separate activation from
@@ -299,10 +299,12 @@ persistent staging or production database was used or changed.
 ## Pre-policy readiness gate
 
 The source audit checkpoint is complete when the inventory and findings are
-committed with green validation. Case/CaseMessage is ready for policy/authority
-SQL only when:
+committed with green validation. The three-table
+Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
+policy/authority SQL only when:
 
-- the 69-reference baseline is pinned by tests;
+- the current exact 80-reference baseline is pinned by tests (the original 69
+  remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A10 and CC-A13 through CC-A15 are fixed or have an accepted
   proof-backed design;
@@ -310,7 +312,9 @@ SQL only when:
 - legacy-data inspection queries exist and are read-only by default;
 - the coverage matrix, architecture and strategy records reflect that
   Conversation/Message is complete and Case/CaseMessage is the active audit;
-- no policy/grant SQL is drafted until an Extra-High authority review starts.
+- the Extra-High machine-readable authority catalog maps every source to a
+  fixed operation and records application/provider trust boundaries before
+  policy/grant SQL is drafted.
 
 ## Compatibility progress
 

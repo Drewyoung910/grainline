@@ -153,10 +153,20 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /Include a private-object-backed `CaseMessageAttachment` image model/);
     assert.match(audit, /persist an opaque object key rather than a public URL/);
     assert.match(audit, /PDF evidence remains prohibited/);
-    assert.match(audit, /no policy\/grant SQL is drafted until an Extra-High authority review starts/);
+    assert.match(
+      audit,
+      /current exact 80-reference baseline is pinned by tests/,
+    );
+    assert.match(
+      audit,
+      /machine-readable authority catalog maps every source to a\s+fixed operation/,
+    );
     assert.match(plan, /Switch back to Extra High before Phase 1B/);
     assert.match(plan, /Convert every current protected reference/);
-    assert.match(plan, /must not activate with Order/);
+    assert.match(
+      plan,
+      /Case, CaseMessage and CaseMessageAttachment must activate together/,
+    );
     assert.match(plan, /FORCE-only migration that changes no row, policy, grant/);
 
     const feasibilityPlan = fs.readFileSync(

@@ -46,11 +46,19 @@ meaning of Bucket B as `Notification` so historical rollout evidence stays
 unambiguous. Prepare shared inventories and infrastructure across later tables
 where useful, then activate independently reviewed, tightly coupled groups.
 `Notification` and `Conversation` + `Message` are complete in production
-through FORCE and actual pooled-runtime proof. `Case` + `CaseMessage` is the
-active group. Its protected Phase 2 aggregate-only production inspection
-completed with zero Cases, CaseMessages, attachments or anomaly counts, so no
-legacy cleanup/backfill is needed; Phase 3 invariant and authority-catalog
-design is now active while production RLS remains off. `Cart` + `CartItem`;
+through FORCE and actual pooled-runtime proof. `Case` + `CaseMessage` +
+`CaseMessageAttachment` is the active tightly coupled group. Its protected
+Phase 2 aggregate-only production inspection completed with zero Cases,
+CaseMessages, attachments or anomaly counts, so no legacy cleanup/backfill is
+needed; Phase 3 invariant and authority-catalog design is now active while
+production RLS remains off. The current catalog pins all 80 references across
+29 sources to 26 fixed operations. It rejects caller-asserted staff-PIN flags,
+generic provider results, free account-deletion targets and caller-selected
+cron rows; application PIN/provider verification remain explicit external
+trust boundaries. External refund resolution will use a private, FORCE-RLS,
+zero-policy `CaseResolutionClaim` service ledger so provider idempotency,
+recovery and finalization are database-bound rather than caller-asserted.
+`Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,
 observable, and reversible before the next group begins. Never combine
@@ -85,8 +93,9 @@ authorization, integrity constraints, provider/background operations,
 retention/export/deletion, concurrency, indexes and test coverage; fix
 load-bearing defects first so policies do not encode them. Conversation and
 Message are complete; their retained record is
-`docs/conversation-message-pre-rls-audit.md`. The active Case/CaseMessage record
-is `docs/case-case-message-pre-rls-audit.md`.
+`docs/conversation-message-pre-rls-audit.md`. The active
+Case/CaseMessage/CaseMessageAttachment record is
+`docs/case-case-message-pre-rls-audit.md`.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and
