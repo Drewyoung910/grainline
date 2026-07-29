@@ -413,12 +413,20 @@ async function proveClaimLedger(client) {
     )
   `, [ids.refundOrder]);
 
+  await client.query(`
+    UPDATE public."CaseResolutionClaim"
+       SET status = 'RECONCILIATION_REQUIRED',
+           "updatedAt" = CURRENT_TIMESTAMP
+     WHERE id = 'case-invariant-proof-refund-claim'
+  `);
+
   await expectPostgresError(
     client,
     "provider_evidence_before_recorded_state",
     () => client.query(`
       UPDATE public."CaseResolutionClaim"
-         SET "orderPaymentEventId" = 'case-invariant-proof-refund-event',
+         SET status = 'PROVIDER_PENDING',
+             "orderPaymentEventId" = 'case-invariant-proof-refund-event',
              "providerRecordedAt" = CURRENT_TIMESTAMP,
              "updatedAt" = CURRENT_TIMESTAMP
        WHERE id = 'case-invariant-proof-refund-claim'
