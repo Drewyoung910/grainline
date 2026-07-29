@@ -16,6 +16,7 @@ import {
   CASE_LEGACY_PREREQUISITE_CONFIRMATION,
   assertCaseLegacyInspectionGitState,
   assertCaseLegacyPosture,
+  buildCaseLegacyInspectionClientOptions,
   normalizeCaseLegacyResult,
   parseCaseLegacyInspectionConfig,
   writeCaseLegacyInspectionEvidence,
@@ -120,6 +121,17 @@ describe("Case and CaseMessage aggregate-only legacy inspection", () => {
       const config = parseCaseLegacyInspectionConfig(baseEnv(runnerTemp));
       assert.equal(config.releaseCommit, COMMIT);
       assert.equal(config.identity.username, "neondb_owner");
+      assert.deepEqual(
+        buildCaseLegacyInspectionClientOptions(config),
+        {
+          application_name: "grainline-case-legacy-inspection",
+          connectionString: DIRECT_URL,
+          connectionTimeoutMillis: 10_000,
+          enableChannelBinding: true,
+          query_timeout: 55_000,
+          statement_timeout: 50_000,
+        },
+      );
       for (const drift of [
         { GITHUB_REF: "refs/heads/feature" },
         { GITHUB_EVENT_NAME: "push" },
@@ -138,6 +150,10 @@ describe("Case and CaseMessage aggregate-only legacy inspection", () => {
             ...drift,
           }));
       }
+      assert.throws(
+        () => buildCaseLegacyInspectionClientOptions({}),
+        /must include directUrl/,
+      );
     } finally {
       rmSync(runnerTemp, { force: true, recursive: true });
     }

@@ -282,6 +282,17 @@ this read-only Case classification work. Stop after reporting production
 counts. Any backfill, repair or constraint is a later evidence-driven mutation
 with its own backup and rollback boundary.
 
+First production dispatch record (2026-07-28): protected workflow run
+`30412359026` at exact main commit
+`7767ae3ae7380ff91a74db0e8a1830f17c8d8b84` failed closed before connecting or
+executing the aggregate query. The PostgreSQL channel-binding helper received
+the guarded identity summary instead of a parsed `URL` and raised
+`parsed must be a URL`. No transaction ran, no evidence artifact was uploaded,
+and no production data, catalog, grant or RLS state changed. The corrective
+checkpoint constructs the actual PostgreSQL client options from the already
+validated `directUrl` and exercises that construction in the focused test so a
+config-only test cannot mask this boundary again.
+
 ## Phase 3: authority catalog design at Extra High
 
 Every function must have fixed schema-qualified objects, pinned `search_path`,
