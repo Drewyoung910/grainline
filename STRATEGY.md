@@ -330,6 +330,14 @@ R2 credential. Keep the worker, hourly scheduler and DirectUpload activation
 blocked until a cleanup-only key is scoped to the exact public/private buckets
 and its provider deletion behavior is proved.
 
+The retained proof path is deliberately independent of the cleanup worker:
+the worker must fail closed until DirectUpload is FORCE-protected, while the
+credential must be proved before activation. A manual-only protected GitHub
+workflow therefore writes, heads, deletes and re-heads one random disposable
+object in each exact bucket, receives no database or application R2
+credential, performs no bucket listing, and records only sanitized hashes and
+bounded outcomes. Any possible residual object fails the gate.
+
 The 2026-07-28 Extra-High review also widened the cleanup-role invariant from
 the DirectUpload function namespace to every accessible public
 `SECURITY DEFINER` function, both role-membership directions, column-only and
