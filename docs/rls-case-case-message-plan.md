@@ -582,11 +582,20 @@ pass locally, as do the complete repository test suite, TypeScript and lint.
 The local Next production build compiled and completed its TypeScript phase,
 then correctly stopped at page-data collection because this disposable
 worktree has no `DATABASE_URL`; the protected CI run supplies only its
-loopback PostgreSQL service URL. The engine migration/proof is still pending a
-fresh exact-head PostgreSQL 16 CI run; until that passes, the SQL remains an
-unproven isolated candidate. Production migrations, app conversion,
-direct-grant revocation, Case RLS, merge and deployment remain unauthorized
-and unchanged.
+loopback PostgreSQL service URL. At that checkpoint the engine migration/proof
+still required a fresh exact-head PostgreSQL 16 CI run, and production
+migrations, app conversion, direct-grant revocation, Case RLS, merge and
+deployment remained unauthorized and unchanged.
+
+Exact-head CI run `30426358816` subsequently passed for authority head
+`c5f649abae36e8a7200fb5e92316dccf0ed77de0`. PostgreSQL 16 applied the complete
+sealed migration tree, converged production-style runtime grants, and passed
+the 43-check rollback-only Case authority proof plus migration status, final
+grant/catalog audit, TypeScript, lint, complete repository tests, dependency
+audit and production build. This proves the compatible database authority
+candidate in isolated CI only; it does not authorize a production migration,
+application conversion, merge, direct-grant revocation or Case RLS
+activation.
 
 ## Phase 5: ENABLE activation
 
