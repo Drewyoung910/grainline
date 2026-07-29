@@ -623,6 +623,12 @@ intended stacked base remains the unmerged staff-resolution authority branch.
 Neither the checkpoint nor CI targeting authorizes a merge, migration,
 deployment, grant change or Case-family RLS activation.
 
+Exact candidate head `c57bfdac` passed GitHub Actions run `30428708830`,
+including migration application to disposable PostgreSQL, runtime-grant audit,
+rollback-only Case proofs, TypeScript, lint, the full test suite, dependency
+audit and production build. The Vercel preview remains intentionally blocked
+by the runtime database environment guard and is not release evidence.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
