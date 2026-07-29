@@ -763,6 +763,44 @@ dependency audit and production build. This is exact-head isolated CI evidence
 for draft PR #97 only; it is not merge, production migration, deployment,
 grant-revocation or Case-family activation evidence.
 
+Phase 4 Case-reply authority candidate (2026-07-29): the compatible
+`grainline_case_reply` operation accepts the active actor, exact Case,
+sanitized body and at most four DirectUpload ids. PostgreSQL locks the actor
+before the parent Case, rederives party/staff authority and status, then
+derives author kind, transition effects, UTC clock, ids, attachment metadata
+and replay identity. Party precedence prevents an employee/admin who is also
+a participant from bypassing participant lifecycle rules.
+
+Attachment authority is tied to the existing private DirectUpload lifecycle:
+the upload must belong to the actor, be verified and private, use the
+`caseEvidenceImage` endpoint and key scope for the locked Case, and meet the
+accepted image/size bounds. The existing deferred trigger creates the
+exclusive lifecycle reference in the same transaction. PostgreSQL does not
+replace the route's R2 byte/signature verification, which remains an external
+precondition before the fixed write.
+
+Identical retries serialize on a database-derived advisory key and must match
+the exact recent body plus complete sorted attachment set. Every reply also
+serializes on the parent Case, preserving the already-reviewed different-body,
+seller-first and pending-close transition ordering. The sealed migration-tree
+phase, grant convergence, static SQL contract and a loopback-only PostgreSQL
+proof are included in the isolated candidate. Exact-head run `30440635790`
+passed at `ac4f6955db4cbdaaf3785d8de9fd6849546f80a0`: forged actor, status,
+recipient and upload-source denials; transition, replay and real lock-wait
+behavior; rollback and zero residue; grant/RLS audits; TypeScript; lint; the
+complete repository suite; reviewed dependency audit; and production build.
+Earlier run `30440456425` is retained as a proof-fixture failure: one
+DirectUpload seed parameter was inferred as both `varchar` and `text` before
+the authority function executed. The follow-up adds an explicit `text` cast
+and a static regression marker. Before application conversion, the proof also
+pins the claim/retry transition that the route depends on: first create changes
+the upload to `CLAIMED`, exact replay succeeds, and changed-body reuse fails
+without residue. Exact head `904745864275c3899f91263137400113189d1e95`
+passed the extended 20-check PostgreSQL proof and every repository gate in run
+`30465487551`. This closes the authority proof gate but does not close the
+separate application conversion. Case-family RLS and production remain
+unchanged.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
