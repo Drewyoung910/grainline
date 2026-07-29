@@ -1223,6 +1223,17 @@ complete suite passes all 2,538 tests locally (2,531 pass and 7
 PostgreSQL-environment skips), together with focused authority contracts,
 TypeScript, lint and the exact sealed migration-tree guard.
 
+Exact escalation/cron head
+`7132093163faefaec646d92f08d3bd5a966205f7` then passed GitHub Actions run
+`30496775294` (job `90727343830`). PostgreSQL 16 applied the complete stacked
+migration tree, converged production-style runtime grants and passed the new
+authority, replay, atomic audit/notification, concurrent-worker, lock-race,
+rollback and zero-residue proof. Every predecessor RLS proof, migration
+status, final grant/RLS audit, TypeScript, lint, complete repository suite,
+reviewed dependency audit and production build also passed. Draft PR #116 is
+validation-only; this evidence does not authorize merge, production
+migration, deployment, direct-grant revocation or Case-family RLS activation.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

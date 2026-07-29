@@ -691,3 +691,14 @@ both lock races, unchanged caller context and zero residue. The same run
 passed all preceding RLS proofs, final runtime grant audit, TypeScript, lint,
 the full tests, dependency audit and production build. No production or
 persistent staging state changed.
+
+The later interactive-escalation and scheduled-transition checkpoint passed
+at exact head `7132093163faefaec646d92f08d3bd5a966205f7` in GitHub Actions run
+`30496775294` (job `90727343830`). The disposable PostgreSQL 16 service applied
+the complete migration tree and proved exact ACLs, forged and ineligible
+denials, deterministic replay, source-derived audit and notification writes,
+counterparty-unavailable escalation, concurrent cron workers, reply and
+resolution races, rollback and zero residue. All earlier database proofs,
+final grant/RLS audit, TypeScript, lint, full tests, reviewed dependency audit
+and production build passed in the same run. Production and persistent
+staging remained unchanged.

@@ -213,6 +213,15 @@ performs those post-commit calls only as harmless recovery replays; primary
 notification creation no longer depends on an in-memory list that can be lost
 after the Case transition commits.
 
+Exact escalation/cron implementation head
+`7132093163faefaec646d92f08d3bd5a966205f7` passed GitHub Actions run
+`30496775294` (job `90727343830`). Its PostgreSQL 16 proof covered the exact
+catalog and grants, direct forced-RLS denial, source-derived writes, replay,
+counterparty-unavailable behavior, concurrent workers, lock races, rollback
+and zero residue. The same run passed the complete predecessor proof stack,
+final grant audit and every repository gate. This is compatible-preparation
+evidence only; no production or persistent-staging state changed.
+
 ## Staff PIN boundary
 
 No database function accepts `staffPinWasVerified`, `authorized` or an

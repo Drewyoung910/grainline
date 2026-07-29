@@ -222,7 +222,9 @@ only as deduplicated recovery replays. State-specific partial indexes keep the
 three due scans bounded as terminal Case history grows. The last ordinary application
 conversion is account deletion; the other remaining reference is the private
 non-runtime Case lock core. This remains preparation only; production
-Case-family RLS is still off.
+Case-family RLS is still off. Exact escalation/cron head `71320931` passed
+GitHub Actions run `30496775294` (job `90727343830`), including the disposable
+PostgreSQL authority/concurrency/rollback proof and every repository gate.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and
