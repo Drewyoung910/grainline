@@ -374,6 +374,23 @@ remains in later groups. New Case/message/audit identities must be generated
 inside PostgreSQL (UUID text is compatible with the opaque String ids); Prisma
 `cuid()` is a client default, not a database default.
 
+Phase 3 invariant hard-review checkpoint (2026-07-28): the draft-only
+Case/CaseMessage/attachment and private resolution-claim SQL remains outside
+the migration tree and is exercised only inside the disposable PostgreSQL
+proof. The first engine pass caught quoted trigger table-name dispatch and was
+corrected to exact `TG_RELID`/`regclass` identity. The subsequent authority
+review strengthened mutable source locks to `FOR SHARE`, fixes the canonical
+authority order as actor User, then Order when applicable, then parent Case for
+the compatible app and later functions, locks the complete retained
+Order/seller relationship,
+and prevents a claim from carrying payment evidence while still
+`PROVIDER_PENDING`. Once linked, provider evidence is immutable; terminal
+clocks cannot precede provider evidence or exceed the claim update clock.
+The invariant layer deliberately does not claim that a terminal
+Case-to-`UNDER_REVIEW` transition itself proves Stripe provenance: that
+transition remains a compatibility shape until direct runtime writes are
+replaced by the source-bound `case_stripe_dispute_apply` operation.
+
 External staff refunds use a private `CaseResolutionClaim` service ledger,
 created FORCE-protected with zero policies and zero runtime/PUBLIC table
 privileges. Prepare, explicit bounded Stripe-evidence recording and finalize

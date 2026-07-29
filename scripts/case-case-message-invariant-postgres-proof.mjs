@@ -412,6 +412,20 @@ async function proveClaimLedger(client) {
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [ids.refundOrder]);
+
+  await expectPostgresError(
+    client,
+    "provider_evidence_before_recorded_state",
+    () => client.query(`
+      UPDATE public."CaseResolutionClaim"
+         SET "orderPaymentEventId" = 'case-invariant-proof-refund-event',
+             "providerRecordedAt" = CURRENT_TIMESTAMP,
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = 'case-invariant-proof-refund-claim'
+    `),
+    /CaseResolutionClaim_status_evidence_check/,
+  );
+
   await client.query(`
     UPDATE public."CaseResolutionClaim"
        SET status = 'PROVIDER_RECORDED',
@@ -420,6 +434,36 @@ async function proveClaimLedger(client) {
            "updatedAt" = CURRENT_TIMESTAMP
      WHERE id = 'case-invariant-proof-refund-claim'
   `);
+
+  await expectPostgresError(
+    client,
+    "provider_evidence_rebinding",
+    async () => {
+      await client.query(`
+        INSERT INTO public."OrderPaymentEvent" (
+          id, "orderId", "stripeEventId", "eventType",
+          "amountCents", currency, "createdAt", "updatedAt"
+        )
+        VALUES (
+          'case-invariant-proof-refund-event-rebind',
+          $1, 'evt_case_invariant_proof_refund_rebind',
+          'refund.created', 10000, 'usd',
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+      `, [ids.refundOrder]);
+      await client.query(`
+        UPDATE public."CaseResolutionClaim"
+           SET status = 'RECONCILIATION_REQUIRED',
+               "orderPaymentEventId" =
+                 'case-invariant-proof-refund-event-rebind',
+               "providerRecordedAt" = CURRENT_TIMESTAMP,
+               "updatedAt" = CURRENT_TIMESTAMP
+         WHERE id = 'case-invariant-proof-refund-claim'
+      `);
+    },
+    /CaseResolutionClaim provider evidence is immutable/,
+  );
+
   await client.query(`
     UPDATE public."CaseResolutionClaim"
        SET status = 'FINALIZED',
@@ -580,7 +624,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 13,
+      checks: 15,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

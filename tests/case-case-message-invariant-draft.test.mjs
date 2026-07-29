@@ -78,7 +78,7 @@ test("Case parties and immutable authority fields are database checked", () => {
   );
   assert.match(
     normalizedSql,
-    /pg_catalog\.count\(DISTINCT seller\."userId"\)/,
+    /pg_catalog\.count\(DISTINCT locked_seller\.seller_user_id\)/,
   );
   assert.match(
     normalizedSql,
@@ -87,6 +87,14 @@ test("Case parties and immutable authority fields are database checked", () => {
   assert.match(
     normalizedSql,
     /NEW\."buyerId" IS DISTINCT FROM order_buyer_id/,
+  );
+  assert.match(
+    normalizedSql,
+    /FROM public\."Order" AS orders WHERE orders\.id = NEW\."orderId" FOR SHARE/,
+  );
+  assert.match(
+    normalizedSql,
+    /ORDER BY item\.id, listing\.id, seller\.id FOR SHARE OF item, listing, seller/,
   );
   assert.match(
     normalizedSql,
@@ -103,7 +111,7 @@ test("Case parties and immutable authority fields are database checked", () => {
   }
 });
 
-test("Case status graph is forward-only except a source-bound review reopen", () => {
+test("Case status graph reserves review reopen for the later fixed operation", () => {
   assert.match(
     normalizedSql,
     /CREATE OR REPLACE FUNCTION public\.grainline_case_status_transition_valid\(\)/,
@@ -151,6 +159,14 @@ test("CaseMessage author kind is durable and source-derived", () => {
   assert.match(
     normalizedSql,
     /CaseMessage authority fields are immutable/,
+  );
+  assert.match(
+    normalizedSql,
+    /FROM public\."User" AS actor WHERE actor\.id = NEW\."authorId" FOR SHARE.*FROM public\."Case" AS case_row WHERE case_row\.id = NEW\."caseId" FOR SHARE/s,
+  );
+  assert.doesNotMatch(
+    normalizedSql,
+    /FROM public\."User" AS actor WHERE actor\.id = NEW\."authorId" FOR KEY SHARE/,
   );
 });
 

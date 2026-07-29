@@ -264,21 +264,29 @@ BEGIN
     INTO order_buyer_id
     FROM public."Order" AS orders
    WHERE orders.id = NEW."orderId"
-   FOR KEY SHARE;
+   FOR SHARE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Case Order does not exist'
       USING ERRCODE = '23503';
   END IF;
 
+  -- Lock every retained Order/seller relationship in a stable order before
+  -- deriving the one exact seller. The outer aggregate cannot carry a row
+  -- locking clause, so the non-aggregate inner query owns the locks.
   SELECT
-    pg_catalog.count(DISTINCT seller."userId")::integer,
-    pg_catalog.min(seller."userId")
+    pg_catalog.count(DISTINCT locked_seller.seller_user_id)::integer,
+    pg_catalog.min(locked_seller.seller_user_id)
     INTO seller_count, only_seller_user_id
-    FROM public."OrderItem" AS item
-    JOIN public."Listing" AS listing ON listing.id = item."listingId"
-    JOIN public."SellerProfile" AS seller
-      ON seller.id = listing."sellerId"
-   WHERE item."orderId" = NEW."orderId";
+    FROM (
+      SELECT seller."userId" AS seller_user_id
+        FROM public."OrderItem" AS item
+        JOIN public."Listing" AS listing ON listing.id = item."listingId"
+        JOIN public."SellerProfile" AS seller
+          ON seller.id = listing."sellerId"
+       WHERE item."orderId" = NEW."orderId"
+       ORDER BY item.id, listing.id, seller.id
+       FOR SHARE OF item, listing, seller
+    ) AS locked_seller;
 
   IF seller_count <> 1
      OR NEW."sellerId" IS DISTINCT FROM only_seller_user_id
@@ -300,7 +308,7 @@ BEGIN
       FROM public."OrderPaymentEvent" AS event
      WHERE event.id = NEW."openedByPaymentEventId"
        AND event."orderId" = NEW."orderId"
-     FOR KEY SHARE;
+     FOR SHARE;
     IF NOT FOUND
        OR dispute_event_type <> 'charge.dispute.created'
        OR NEW.reason <> 'OTHER'::public."CaseReason" THEN
@@ -439,6 +447,21 @@ DECLARE
   parent record;
   author record;
 BEGIN
+  -- Canonical authority order begins with actor User, then Order when the
+  -- operation has one, then parent Case. The compatible application and later
+  -- fixed functions must acquire that order before this invariant is promoted.
+  SELECT actor.role, actor.banned, actor."deletedAt"
+    INTO author
+    FROM public."User" AS actor
+   WHERE actor.id = NEW."authorId"
+   FOR SHARE;
+  IF NOT FOUND
+     OR author.banned
+     OR author."deletedAt" IS NOT NULL THEN
+    RAISE EXCEPTION 'CaseMessage author relationship is invalid'
+      USING ERRCODE = '23514';
+  END IF;
+
   SELECT
     case_row."buyerId",
     case_row."sellerId",
@@ -446,21 +469,13 @@ BEGIN
     INTO parent
     FROM public."Case" AS case_row
    WHERE case_row.id = NEW."caseId"
-   FOR KEY SHARE;
+   FOR SHARE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'CaseMessage parent Case does not exist'
       USING ERRCODE = '23503';
   END IF;
 
-  SELECT actor.role, actor.banned, actor."deletedAt"
-    INTO author
-    FROM public."User" AS actor
-   WHERE actor.id = NEW."authorId"
-   FOR KEY SHARE;
-  IF NOT FOUND
-     OR author.banned
-     OR author."deletedAt" IS NOT NULL
-     OR (
+  IF (
        NEW."authorKind" = 'BUYER'::public."CaseMessageAuthorKind"
        AND NEW."authorId" IS DISTINCT FROM parent."buyerId"
      )

@@ -99,6 +99,23 @@ CREATE TABLE public."CaseResolutionClaim" (
         "reconciledAt" IS NULL
         OR "reconciledAt" >= "createdAt"
       )
+      AND (
+        "providerRecordedAt" IS NULL
+        OR "providerRecordedAt" <= "updatedAt"
+      )
+      AND (
+        "finalizedAt" IS NULL
+        OR "finalizedAt" <= "updatedAt"
+      )
+      AND (
+        "reconciledAt" IS NULL
+        OR "reconciledAt" <= "updatedAt"
+      )
+      AND (
+        "providerRecordedAt" IS NULL
+        OR "finalizedAt" IS NULL
+        OR "providerRecordedAt" <= "finalizedAt"
+      )
     ),
   CONSTRAINT "CaseResolutionClaim_refund_shape_check"
     CHECK (
@@ -134,9 +151,16 @@ CREATE TABLE public."CaseResolutionClaim" (
       (
         status IN (
           'LOCAL_READY'::public."CaseResolutionClaimStatus",
-          'PROVIDER_PENDING'::public."CaseResolutionClaimStatus",
-          'RECONCILIATION_REQUIRED'::public."CaseResolutionClaimStatus"
+          'PROVIDER_PENDING'::public."CaseResolutionClaimStatus"
         )
+        AND "orderPaymentEventId" IS NULL
+        AND "providerRecordedAt" IS NULL
+        AND "finalizedAt" IS NULL
+      )
+      OR
+      (
+        status =
+          'RECONCILIATION_REQUIRED'::public."CaseResolutionClaimStatus"
         AND "finalizedAt" IS NULL
       )
       OR
@@ -244,6 +268,20 @@ BEGIN
      OR NEW."idempotencyScope" IS DISTINCT FROM OLD."idempotencyScope"
      OR NEW."createdAt" IS DISTINCT FROM OLD."createdAt" THEN
     RAISE EXCEPTION 'CaseResolutionClaim authority fields are immutable'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF (
+       OLD."orderPaymentEventId" IS NOT NULL
+       AND NEW."orderPaymentEventId"
+         IS DISTINCT FROM OLD."orderPaymentEventId"
+     )
+     OR (
+       OLD."providerRecordedAt" IS NOT NULL
+       AND NEW."providerRecordedAt"
+         IS DISTINCT FROM OLD."providerRecordedAt"
+     ) THEN
+    RAISE EXCEPTION 'CaseResolutionClaim provider evidence is immutable'
       USING ERRCODE = '23514';
   END IF;
 

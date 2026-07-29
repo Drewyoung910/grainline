@@ -63,6 +63,8 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "stale_refund_snapshot_on_reopen",
     "empty_participant_opening",
     "wrong_order_payment_evidence",
+    "provider_evidence_before_recorded_state",
+    "provider_evidence_rebinding",
     "claim_without_order_lease",
     "terminal_claim_mutation",
     "unattested_no_effect_release",

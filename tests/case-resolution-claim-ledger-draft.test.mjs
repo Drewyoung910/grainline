@@ -103,6 +103,14 @@ test("CaseResolutionClaim has distinct truthful terminal states", () => {
     normalizedSql,
     /status NOT IN \( 'FINALIZED'.*'RELEASED_NO_PROVIDER_EFFECT'/s,
   );
+  assert.match(
+    normalizedSql,
+    /status IN \( 'LOCAL_READY'.*'PROVIDER_PENDING'.*AND "orderPaymentEventId" IS NULL.*AND "providerRecordedAt" IS NULL.*AND "finalizedAt" IS NULL/s,
+  );
+  assert.match(
+    normalizedSql,
+    /status = 'RECONCILIATION_REQUIRED'.*AND "finalizedAt" IS NULL/s,
+  );
 });
 
 test("CaseResolutionClaim evidence and authority fields are immutable", () => {
@@ -132,6 +140,18 @@ test("CaseResolutionClaim evidence and authority fields are immutable", () => {
   assert.match(
     normalizedSql,
     /Terminal CaseResolutionClaim is immutable/,
+  );
+  assert.match(
+    normalizedSql,
+    /OLD\."orderPaymentEventId" IS NOT NULL.*NEW\."orderPaymentEventId" IS DISTINCT FROM OLD\."orderPaymentEventId".*OLD\."providerRecordedAt" IS NOT NULL.*NEW\."providerRecordedAt" IS DISTINCT FROM OLD\."providerRecordedAt"/s,
+  );
+  assert.match(
+    normalizedSql,
+    /CaseResolutionClaim provider evidence is immutable/,
+  );
+  assert.match(
+    normalizedSql,
+    /"providerRecordedAt" <= "finalizedAt"/,
   );
   assert.match(
     normalizedSql,
