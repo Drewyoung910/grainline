@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const MINIMUM_FREE_GIB = 10;
+export const MINIMUM_FREE_GIB = 1;
 
 export function availableKilobytesFromDf(output) {
   const lines = String(output)
