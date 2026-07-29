@@ -44,8 +44,8 @@ describe("Notification order, payment, and fulfillment authority", () => {
       (webhook.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_CHECKOUT/g) ?? []).length,
       2,
     );
-    assert.match(webhook, /paymentEventId: event\.id/);
-    assert.match(webhook, /sourceId: notifySellerUserId\.paymentEventId/);
+    assert.match(webhook, /notificationPaymentSourceId: event\.id/);
+    assert.match(webhook, /sourceId: notifySellerUserId\.notificationPaymentSourceId/);
     assert.match(webhook, /relatedUserId: notifySellerUserId\.buyerUserId \?\? undefined/);
     assert.match(webhook, /const payoutEvent = await prisma\.sellerPayoutEvent\.upsert/);
     assert.match(webhook, /sourceType: NOTIFICATION_SOURCE_TYPES\.STRIPE_PAYOUT_FAILURE/);

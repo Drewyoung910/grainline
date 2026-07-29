@@ -15,17 +15,22 @@ This is one tightly coupled three-table visibility and write-integrity group:
 3. `CaseMessageAttachment` inherits visibility from its parent message and
    must bind only to a verified private `DirectUpload`.
 
-The current exact inventory is 80 protected references across 29 source files:
-46 direct ORM operations, 22 nested relation references and 12 raw SQL
-references. The executable catalog deep-compares every source and operation
-count with the live scanner. A source cannot disappear, appear or claim a new
-destination without changing a test.
+The Phase 4 baseline is 80 protected references across 29 source files: 46
+direct ORM operations, 22 nested relation references and 12 raw SQL
+references. After converting the Stripe dispute webhook, the current exact
+inventory is 77 remaining references across 28 source files: 44 direct ORM
+operations, 21 nested relation references and 12 raw SQL references. The
+executable catalog deep-compares every remaining source and operation count
+with the live scanner and retains the three removed Stripe-webhook references
+in a separate converted-source ledger. A source cannot disappear, appear or
+claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
-Stripe resolution handshake. It has no user-facing read path and is not a
-fourth participant-content table. It is created already FORCE-protected with
-zero policies and no `PUBLIC` or runtime table privileges; only the fixed Case
-resolution functions may use it.
+Stripe resolution handshake. `CaseStripeDisputeApplication` is the separate
+immutable replay ledger for source-bound dispute create/reopen. Neither has a
+user-facing read path or is a participant-content table. Both are created
+FORCE-protected with zero policies and no `PUBLIC` or runtime table
+privileges; only their fixed Case functions may use them.
 
 `DirectUpload`, `Order`, `OrderPaymentEvent`, `Notification`,
 `AccountDeletionSideEffect`, `AdminAuditLog` and `SystemAuditLog` remain
@@ -126,7 +131,7 @@ enforces its own byte/character bounds and accepted enums; the word
 
 | Operation | Source binding |
 |---|---|
-| `case_stripe_dispute_apply` | Exact durable `OrderPaymentEvent` produced after signed Stripe webhook verification; a webhook-created Case records that source, while a reopened Case clears stale Case-level resolution/refund snapshots but retains durable Order payment history |
+| `case_stripe_dispute_apply` | Exact durable `OrderPaymentEvent` produced after signed Stripe webhook verification; rejects wrong-charge, terminal and superseded sources; a webhook-created Case records that source, while a reopened Case clears stale Case-level resolution/refund snapshots; immutable replay authority is stored in private `CaseStripeDisputeApplication`, while `SystemAuditLog` remains non-authoritative observability |
 | `case_seller_refund_apply` | Exact seller-owned Order plus committed local refund event |
 | `case_cron_transition_batch` | Database-selected due rows by a fixed transition family and bounded limit |
 | `case_account_deletion_redact` | Exact locked `LOCAL_ANONYMIZE` `AccountDeletionSideEffect`; the deleting User is derived |
@@ -259,13 +264,17 @@ Before compatible function SQL can be accepted:
   invariants;
 - implement the private `CaseResolutionClaim` lifecycle, recovery fencing and
   zero-policy/zero-table-grant posture;
+- keep Stripe-dispute replay identity in private
+  `CaseStripeDisputeApplication`, never in broadly writable
+  `SystemAuditLog`, and reject valid-but-superseded provider events;
 - make cron notification replay durable and bounded;
 - prove every actor/foreign/no-context read, every valid/invalid transition,
   attachment binding, provider-event mismatch, account-deletion source
   mismatch and rollback in disposable PostgreSQL 16;
 - prove real lock waits for every documented race pair;
-- keep all draft SQL outside `prisma/migrations` until the authority review is
-  accepted.
+- keep invariant/activation SQL outside `prisma/migrations` until its
+  authority review is accepted; compatible operation migrations remain
+  unmerged and unapplied until their own exact SQL and engine proof passes.
 
 Before production activation, the compatible application must convert all 80
 references to catalog destinations and the scanner must reach exactly zero

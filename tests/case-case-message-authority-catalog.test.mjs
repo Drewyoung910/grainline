@@ -5,6 +5,8 @@ import {
   CASE_AUTHORITY_OPERATION_IDS,
   CASE_AUTHORITY_OPERATIONS,
   CASE_AUTHORITY_SOURCE_DESTINATIONS,
+  CASE_CONVERTED_SOURCE_DESTINATIONS,
+  caseAuthorityConvertedReferenceCount,
   caseAuthorityReferenceCount,
 } from "../scripts/case-case-message-authority-catalog.mjs";
 import {
@@ -16,9 +18,14 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
   const inventory = collectCaseCaseMessageAccess();
   const summary = summarizeCaseCaseMessageAccess(inventory);
 
-  it("classifies every exact protected source and all 80 references", () => {
-    assert.equal(caseAuthorityReferenceCount(), 80);
-    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 29);
+  it("classifies all 77 remaining references and retains the 3 converted references", () => {
+    assert.equal(caseAuthorityReferenceCount(), 77);
+    assert.equal(caseAuthorityConvertedReferenceCount(), 3);
+    assert.equal(
+      caseAuthorityReferenceCount() + caseAuthorityConvertedReferenceCount(),
+      80,
+    );
+    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 28);
     assert.deepEqual(
       Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).sort(),
       Object.keys(summary).sort(),
@@ -37,6 +44,16 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
         `${source} has no authority destination`,
       );
     }
+    for (const [source, classification] of Object.entries(
+      CASE_CONVERTED_SOURCE_DESTINATIONS,
+    )) {
+      assert.equal(summary[source], undefined, `${source} still has direct protected access`);
+      assert.ok(classification.actors.length > 0, `${source} has no actor`);
+      assert.ok(
+        classification.destinations.length > 0,
+        `${source} has no converted authority destination`,
+      );
+    }
   });
 
   it("uses one unique, fully referenced operation catalog", () => {
@@ -47,6 +64,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     assert.equal(CASE_AUTHORITY_OPERATIONS.length, 26);
     const referenced = new Set(
       Object.values(CASE_AUTHORITY_SOURCE_DESTINATIONS)
+        .concat(Object.values(CASE_CONVERTED_SOURCE_DESTINATIONS))
         .flatMap((source) => source.destinations),
     );
     assert.deepEqual(
@@ -315,7 +333,11 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     );
     assert.match(
       normalizedCatalog,
-      /keep all draft SQL outside `prisma\/migrations`/,
+      /keep invariant\/activation SQL outside `prisma\/migrations`/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /compatible operation migrations remain unmerged and unapplied/,
     );
   });
 });

@@ -1,11 +1,11 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-07-26
+Last updated: 2026-07-28
 
 ## Purpose And Scope
 
 This is the schema-complete disposition ledger for Grainline's site-wide
-database isolation program. Snapshot scope: 60 Prisma models.
+database isolation program. Snapshot scope: 61 Prisma models.
 
 `SavedSearch`, `Notification`, `Conversation`, and `Message` are the four
 tables in this snapshot with production RLS. Every other row is **not active
@@ -69,9 +69,11 @@ completed alternative.
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
-| `Case` | `BLOCKED_DESIGN` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Active pre-RLS audit is pinned at 69 protected references in `docs/case-case-message-pre-rls-audit.md`; close party/order invariants, transition races, deadline semantics and service destinations before policy SQL |
-| `CaseMessage` | `BLOCKED_DESIGN` | Case and case message | Private dispute discussion; buyer, seller and staff | Active audit requires durable source-derived author kind, parent authority, bounded keyset history and locked timestamp/state transitions before policy SQL |
-| `CaseMessageAttachment` | `BLOCKED_DESIGN` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Use the documented old/new dual-column DirectUpload transition, then prove and drop the compatibility `objectKey` after drain; activate only with parent-derived authority, signed reads and lifecycle cleanup/export/retention proof |
+| `Case` | `BLOCKED_DESIGN` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Active Phase 4 conversion is pinned to an 80-reference baseline and 26 fixed operations; the Stripe dispute webhook conversion removes 3, leaving 77 across 28 sources, with converted references retained in the executable ledger |
+| `CaseResolutionClaim` | `PLANNED_RLS` | Case resolution service ledger | Private staff/provider handshake, refund intent, local payment evidence and reconciliation state; no ordinary participant table access | Candidate preparation creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only reviewed source-validating fixed operations can prepare, record, reconcile and finalize claims |
+| `CaseStripeDisputeApplication` | `PLANNED_RLS` | Case Stripe-dispute service ledger | Immutable exact payment-event-to-Case replay authority; no ordinary participant table access | Candidate creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only `grainline_case_stripe_dispute_apply` can create or read exact replay evidence |
+| `CaseMessage` | `BLOCKED_DESIGN` | Case and case message | Private dispute discussion; buyer, seller and staff | Phase 3 proved durable source-derived author kind, parent authority, bounded keyset history and locked timestamp/state transitions; Phase 4 must convert all current writes before promotion |
+| `CaseMessageAttachment` | `BLOCKED_DESIGN` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Complete the separately gated DirectUpload private-object provider proof, then activate only with parent-derived authority, signed reads and lifecycle cleanup/export/retention proof |
 | `SavedSearch` | `RLS_LIVE_PHASE_B` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Phase B FORCE is live; retain exact policies, grants, canary, rollback, and maintenance proof |
 | `StockNotification` | `PLANNED_RLS` | Stock notification | Direct user subscription with listing-wide notification fanout and cleanup | Owner reads and writes plus explicit service fanout and listing cleanup path; do not fold silently into Bucket B |
 | `MakerVerification` | `BLOCKED_DESIGN` | Verification | Seller application evidence and staff review notes; applicant, employee and admin | Applicant projection, staff review path, decision writes and notification side effects |

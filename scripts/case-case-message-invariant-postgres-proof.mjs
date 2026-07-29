@@ -10,8 +10,6 @@ const PROOF_ENV = "CASE_INVARIANT_PROOF_DATABASE_URL";
 const DATABASE_NAME = "grainline_ci";
 const INVARIANT_DRAFT =
   "docs/rls-drafts/case-case-message-invariants.sql";
-const CLAIM_DRAFT =
-  "docs/rls-drafts/case-resolution-claim-ledger.sql";
 
 const ids = Object.freeze({
   buyer: "case-invariant-proof-buyer",
@@ -140,9 +138,13 @@ async function seedBaseFixtures(client) {
     ids.releaseOrder,
   ].entries()) {
     await client.query(`
-      INSERT INTO public."Order" (id, "buyerId")
-      VALUES ($1, $2)
-    `, [orderId, ids.buyer]);
+      INSERT INTO public."Order" (id, "buyerId", "stripeChargeId")
+      VALUES ($1, $2, $3)
+    `, [
+      orderId,
+      ids.buyer,
+      `ch_case_invariant_proof_${position}`,
+    ]);
     await client.query(`
       INSERT INTO public."OrderItem" (
         id, "orderId", "listingId", quantity, "priceCents"
@@ -282,31 +284,44 @@ async function proveCaseAndMessageInvariants(client) {
 
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "eventType",
-      currency, "createdAt", "updatedAt"
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", currency, metadata,
+      "createdAt", "updatedAt"
     )
     VALUES (
       'case-invariant-proof-dispute-event',
       $1, 'evt_case_invariant_proof_dispute',
-      'charge.dispute.created', 'usd',
+      'dp_case_invariant_proof', 'dispute', 'DISPUTE', 'usd',
+      pg_catalog.jsonb_build_object(
+        'chargeId', 'ch_case_invariant_proof_1',
+        'disputeId', 'dp_case_invariant_proof',
+        'stripeEventType', 'charge.dispute.created',
+        'stripeEventCreated', 1770000000
+      ),
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [ids.sourceOrder]);
 
-  await client.query(`
-    INSERT INTO public."Case" (
-      id, "orderId", "buyerId", "sellerId", reason, description,
-      status, "sellerRespondBy", "openedByPaymentEventId",
-      "createdAt", "updatedAt"
-    )
-    VALUES (
-      $1, $2, $3, $4, 'OTHER',
-      'Durable Stripe dispute opening.',
-      'UNDER_REVIEW', CURRENT_TIMESTAMP + INTERVAL '48 hours',
-      'case-invariant-proof-dispute-event',
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-    )
-  `, [ids.sourceCase, ids.sourceOrder, ids.buyer, ids.seller]);
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  const appliedDispute = await client.query(`
+    SELECT *
+      FROM public.grainline_case_stripe_dispute_apply(
+        'case-invariant-proof-dispute-event'
+      )
+  `);
+  await client.query("RESET ROLE");
+  assert.deepEqual(appliedDispute.rows, [{
+    caseId: appliedDispute.rows[0]?.caseId,
+    orderId: ids.sourceOrder,
+    sellerUserId: ids.seller,
+    buyerUserId: ids.buyer,
+    paymentEventId: "case-invariant-proof-dispute-event",
+    action: "create",
+  }]);
+  assert.match(
+    appliedDispute.rows[0]?.caseId ?? "",
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
   await setConstraintsImmediate(client);
 
   const sourceCase = await client.query(`
@@ -320,8 +335,263 @@ async function proveCaseAndMessageInvariants(client) {
            FROM public."CaseMessage" AS message
           WHERE message."caseId" = case_row.id
        )
-  `, [ids.sourceCase]);
+  `, [appliedDispute.rows[0].caseId]);
   assert.equal(sourceCase.rows[0]?.count, 1);
+
+  const replayedDispute = await client.query(`
+    SELECT *
+      FROM public.grainline_case_stripe_dispute_apply(
+        'case-invariant-proof-dispute-event'
+      )
+  `);
+  assert.equal(replayedDispute.rows[0]?.caseId, appliedDispute.rows[0]?.caseId);
+  assert.equal(replayedDispute.rows[0]?.action, "replay");
+
+  const disputeApplication = await client.query(`
+    SELECT pg_catalog.count(*)::integer AS count
+      FROM public."CaseStripeDisputeApplication"
+     WHERE "paymentEventId" = 'case-invariant-proof-dispute-event'
+       AND "caseId" = $1
+       AND "orderId" = $2
+       AND action = 'create'
+  `, [appliedDispute.rows[0].caseId, ids.sourceOrder]);
+  assert.equal(disputeApplication.rows[0]?.count, 1);
+
+  const disputeAudit = await client.query(`
+    SELECT pg_catalog.count(*)::integer AS count
+      FROM public."SystemAuditLog"
+     WHERE action = 'CASE_STRIPE_DISPUTE_APPLIED'
+       AND metadata->>'orderPaymentEventId' =
+           'case-invariant-proof-dispute-event'
+  `);
+  assert.equal(disputeAudit.rows[0]?.count, 1);
+}
+
+async function proveStripeDisputeAuthority(client) {
+  await client.query(`
+    UPDATE public."Case"
+       SET status = 'RESOLVED',
+           resolution = 'REFUND_FULL',
+           "refundAmountCents" = 10000,
+           "stripeRefundId" = 're_case_invariant_stale_snapshot',
+           "resolvedAt" = CURRENT_TIMESTAMP,
+           "resolvedById" = $2,
+           "buyerMarkedResolved" = false,
+           "sellerMarkedResolved" = false,
+           "updatedAt" = CURRENT_TIMESTAMP
+     WHERE id = $1
+  `, [ids.ordinaryCase, ids.staff]);
+
+  await client.query(`
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", currency, reason, metadata,
+      "createdAt", "updatedAt"
+    )
+    VALUES (
+      'case-invariant-proof-reopen-event',
+      $1, 'evt_case_invariant_proof_reopen',
+      'dp_case_invariant_reopen', 'dispute', 'DISPUTE', 'usd',
+      'fraudulent',
+      pg_catalog.jsonb_build_object(
+        'chargeId', 'ch_case_invariant_proof_0',
+        'disputeId', 'dp_case_invariant_reopen',
+        'stripeEventType', 'charge.dispute.created',
+        'stripeEventCreated', 1770000001
+      ),
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [ids.ordinaryOrder]);
+
+  const reopened = await client.query(`
+    SELECT *
+      FROM public.grainline_case_stripe_dispute_apply(
+        'case-invariant-proof-reopen-event'
+      )
+  `);
+  assert.equal(reopened.rows[0]?.caseId, ids.ordinaryCase);
+  assert.equal(reopened.rows[0]?.action, "reopen");
+
+  const cleared = await client.query(`
+    SELECT
+      status::text,
+      resolution,
+      "refundAmountCents",
+      "stripeRefundId",
+      "resolvedAt",
+      "resolvedById",
+      "buyerMarkedResolved",
+      "sellerMarkedResolved"
+      FROM public."Case"
+     WHERE id = $1
+  `, [ids.ordinaryCase]);
+  assert.deepEqual(cleared.rows[0], {
+    status: "UNDER_REVIEW",
+    resolution: null,
+    refundAmountCents: null,
+    stripeRefundId: null,
+    resolvedAt: null,
+    resolvedById: null,
+    buyerMarkedResolved: false,
+    sellerMarkedResolved: false,
+  });
+
+  await client.query(`
+    UPDATE public."Case"
+       SET status = 'RESOLVED',
+           resolution = 'DISMISSED',
+           "resolvedAt" = CURRENT_TIMESTAMP,
+           "resolvedById" = $2,
+           "updatedAt" = CURRENT_TIMESTAMP
+     WHERE id = $1
+  `, [ids.ordinaryCase, ids.staff]);
+
+  const replayed = await client.query(`
+    SELECT *
+      FROM public.grainline_case_stripe_dispute_apply(
+        'case-invariant-proof-reopen-event'
+      )
+  `);
+  assert.equal(replayed.rows[0]?.action, "replay");
+  const replayState = await client.query(`
+    SELECT status::text, resolution::text
+      FROM public."Case"
+     WHERE id = $1
+  `, [ids.ordinaryCase]);
+  assert.deepEqual(replayState.rows[0], {
+    status: "RESOLVED",
+    resolution: "DISMISSED",
+  });
+
+  await client.query(`
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", currency, status, metadata,
+      "createdAt", "updatedAt"
+    )
+    VALUES (
+      'case-invariant-proof-reopen-terminal-event',
+      $1, 'evt_case_invariant_proof_reopen_terminal',
+      'dp_case_invariant_reopen', 'dispute', 'DISPUTE', 'usd', 'won',
+      pg_catalog.jsonb_build_object(
+        'chargeId', 'ch_case_invariant_proof_0',
+        'disputeId', 'dp_case_invariant_reopen',
+        'stripeEventType', 'charge.dispute.closed',
+        'stripeEventCreated', 1770000002
+      ),
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [ids.ordinaryOrder]);
+  const replayedAfterTerminal = await client.query(`
+    SELECT *
+      FROM public.grainline_case_stripe_dispute_apply(
+        'case-invariant-proof-reopen-event'
+      )
+  `);
+  assert.equal(replayedAfterTerminal.rows[0]?.action, "replay");
+  const postTerminalReplayState = await client.query(`
+    SELECT status::text, resolution::text
+      FROM public."Case"
+     WHERE id = $1
+  `, [ids.ordinaryCase]);
+  assert.deepEqual(postTerminalReplayState.rows[0], {
+    status: "RESOLVED",
+    resolution: "DISMISSED",
+  });
+
+  await client.query(`
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", currency, status, metadata,
+      "createdAt", "updatedAt"
+    )
+    VALUES
+      (
+        'case-invariant-proof-superseded-dispute-event',
+        $1, 'evt_case_invariant_proof_superseded',
+        'dp_case_invariant_superseded', 'dispute', 'DISPUTE', 'usd',
+        'needs_response',
+        pg_catalog.jsonb_build_object(
+          'chargeId', 'ch_case_invariant_proof_3',
+          'disputeId', 'dp_case_invariant_superseded',
+          'stripeEventType', 'charge.dispute.created',
+          'stripeEventCreated', 1770000002
+        ),
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      ),
+      (
+        'case-invariant-proof-terminal-dispute-event',
+        $1, 'evt_case_invariant_proof_terminal',
+        'dp_case_invariant_superseded', 'dispute', 'DISPUTE', 'usd',
+        'won',
+        pg_catalog.jsonb_build_object(
+          'chargeId', 'ch_case_invariant_proof_3',
+          'disputeId', 'dp_case_invariant_superseded',
+          'stripeEventType', 'charge.dispute.closed',
+          'stripeEventCreated', 1770000003
+        ),
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+  `, [ids.releaseOrder]);
+  await expectPostgresError(
+    client,
+    "superseded_dispute_source",
+    () => client.query(`
+      SELECT *
+        FROM public.grainline_case_stripe_dispute_apply(
+          'case-invariant-proof-superseded-dispute-event'
+        )
+    `),
+    /Case Stripe dispute source is superseded/,
+  );
+  const supersededResidue = await client.query(`
+    SELECT
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."Case"
+         WHERE "orderId" = $1
+      ) AS case_count,
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."CaseStripeDisputeApplication"
+         WHERE "paymentEventId" =
+               'case-invariant-proof-superseded-dispute-event'
+      ) AS application_count
+  `, [ids.releaseOrder]);
+  assert.deepEqual(supersededResidue.rows[0], {
+    case_count: 0,
+    application_count: 0,
+  });
+
+  await client.query(`
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", currency, metadata,
+      "createdAt", "updatedAt"
+    )
+    VALUES (
+      'case-invariant-proof-invalid-dispute-event',
+      $1, 'evt_case_invariant_proof_invalid_dispute',
+      'dp_case_invariant_invalid', 'dispute', 'DISPUTE', 'usd',
+      pg_catalog.jsonb_build_object(
+        'chargeId', 'ch_case_invariant_proof_wrong',
+        'disputeId', 'dp_case_invariant_invalid',
+        'stripeEventType', 'charge.dispute.created'
+      ),
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [ids.releaseOrder]);
+  await expectPostgresError(
+    client,
+    "forged_dispute_order_charge",
+    () => client.query(`
+      SELECT *
+        FROM public.grainline_case_stripe_dispute_apply(
+          'case-invariant-proof-invalid-dispute-event'
+        )
+    `),
+    /Case Stripe dispute source is invalid/,
+  );
 }
 
 async function proveClaimLedger(client) {
@@ -565,32 +835,37 @@ async function proveClaimLedger(client) {
 }
 
 async function provePrivatePosture(client) {
-  const posture = await client.query(`
-    SELECT
-      class.relrowsecurity,
-      class.relforcerowsecurity,
-      (
-        SELECT pg_catalog.count(*)::integer
-          FROM pg_catalog.pg_policy AS policy
-         WHERE policy.polrelid = class.oid
-      ) AS policy_count,
-      pg_catalog.has_table_privilege(
-        'grainline_app_runtime',
-        'public."CaseResolutionClaim"',
-        'SELECT,INSERT,UPDATE,DELETE'
-      ) AS runtime_has_dml
-      FROM pg_catalog.pg_class AS class
-      JOIN pg_catalog.pg_namespace AS namespace
-        ON namespace.oid = class.relnamespace
-     WHERE namespace.nspname = 'public'
-       AND class.relname = 'CaseResolutionClaim'
-  `);
-  assert.deepEqual(posture.rows[0], {
-    relrowsecurity: true,
-    relforcerowsecurity: true,
-    policy_count: 0,
-    runtime_has_dml: false,
-  });
+  for (const privateTable of [
+    "CaseResolutionClaim",
+    "CaseStripeDisputeApplication",
+  ]) {
+    const posture = await client.query(`
+      SELECT
+        class.relrowsecurity,
+        class.relforcerowsecurity,
+        (
+          SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid
+        ) AS policy_count,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime',
+          class.oid,
+          'SELECT,INSERT,UPDATE,DELETE'
+        ) AS runtime_has_dml
+        FROM pg_catalog.pg_class AS class
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = class.relnamespace
+       WHERE namespace.nspname = 'public'
+         AND class.relname = $1
+    `, [privateTable]);
+    assert.deepEqual(posture.rows[0], {
+      relrowsecurity: true,
+      relforcerowsecurity: true,
+      policy_count: 0,
+      runtime_has_dml: false,
+    });
+  }
 
   await expectPostgresError(
     client,
@@ -602,6 +877,17 @@ async function provePrivatePosture(client) {
       );
     },
     /permission denied for table CaseResolutionClaim/,
+  );
+  await expectPostgresError(
+    client,
+    "runtime_direct_dispute_application_read",
+    async () => {
+      await client.query("SET LOCAL ROLE grainline_app_runtime");
+      await client.query(
+        'SELECT pg_catalog.count(*) FROM public."CaseStripeDisputeApplication"',
+      );
+    },
+    /permission denied for table CaseStripeDisputeApplication/,
   );
   const identity = await client.query(
     "SELECT current_user AS current_user",
@@ -624,19 +910,19 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("BEGIN");
     began = true;
     await client.query(readDraftTransactionBody(INVARIANT_DRAFT));
-    await client.query(readDraftTransactionBody(CLAIM_DRAFT));
     await seedBaseFixtures(client);
     await proveCaseAndMessageInvariants(client);
+    await proveStripeDisputeAuthority(client);
     await proveClaimLedger(client);
     await provePrivatePosture(client);
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 15,
+      checks: 24,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
-      proofMode: "ephemeral-loopback-draft-rollback",
+      proofMode: "ephemeral-loopback-migration-plus-draft-rollback",
       status: "passed",
     });
   } finally {
