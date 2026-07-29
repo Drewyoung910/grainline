@@ -728,9 +728,6 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
     destinations: ["case_cron_transition_batch"],
     inventory: { "Case.updateMany": 3, "Case.findMany": 3 },
   }),
-});
-
-export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
   "src/lib/accountDeletion.ts": freezeSource({
     actors: ["ACCOUNT_LIFECYCLE"],
     destinations: ["case_account_deletion_blockers", "case_account_deletion_redact"],
@@ -744,6 +741,9 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "Case.raw-sql-reference": 4,
     },
   }),
+});
+
+export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
   "src/lib/caseLifecycleLocks.ts": freezeSource({
     actors: ["PRIVATE_CORE"],
     destinations: ["case_lock_core"],

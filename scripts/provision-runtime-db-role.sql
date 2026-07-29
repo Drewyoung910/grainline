@@ -914,7 +914,9 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_guild_unresolved_guard(text)'),
     ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
     ('public.grainline_case_escalate(text,text)'),
-    ('public.grainline_case_cron_transition_batch(text,integer)')
+    ('public.grainline_case_cron_transition_batch(text,integer)'),
+    ('public.grainline_case_account_deletion_blockers(text)'),
+    ('public.grainline_case_account_deletion_redact(text)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM recipient_read
@@ -935,7 +937,9 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_guild_unresolved_guard(text)'),
     ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
     ('public.grainline_case_escalate(text,text)'),
-    ('public.grainline_case_cron_transition_batch(text,integer)')
+    ('public.grainline_case_cron_transition_batch(text,integer)'),
+    ('public.grainline_case_account_deletion_blockers(text)'),
+    ('public.grainline_case_account_deletion_redact(text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -960,7 +964,9 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_guild_unresolved_guard(text)'),
     ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
     ('public.grainline_case_escalate(text,text)'),
-    ('public.grainline_case_cron_transition_batch(text,integer)')
+    ('public.grainline_case_cron_transition_batch(text,integer)'),
+    ('public.grainline_case_account_deletion_blockers(text)'),
+    ('public.grainline_case_account_deletion_redact(text)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

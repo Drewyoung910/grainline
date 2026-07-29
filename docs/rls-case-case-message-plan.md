@@ -1234,6 +1234,61 @@ reviewed dependency audit and production build also passed. Draft PR #116 is
 validation-only; this evidence does not authorize merge, production
 migration, deployment, direct-grant revocation or Case-family RLS activation.
 
+Final ordinary-application conversion candidate (2026-07-29): account
+deletion now obtains the active participant-Case count through
+`grainline_case_account_deletion_blockers` and passes only the exact retained
+`LOCAL_ANONYMIZE` side-effect id to
+`grainline_case_account_deletion_redact`. The write function discovers the
+User, takes the established User lock, re-locks and validates the side effect,
+then rechecks active Cases to close the preflight-to-anonymization race. It
+derives all sensitive values, participant Cases and message targets and uses
+the existing private Conversation/Message redaction core; callers cannot
+choose redaction needles, rows or replacement text.
+
+This moves the final eleven ordinary account-deletion references into the
+retained ledger. The scanner now finds only one raw Case reference: the
+private `grainline_case_lock_core` implementation in
+`caseLifecycleLocks.ts`, which is owner-internal and not executable by the
+runtime or `PUBLIC`. The 80-reference baseline is therefore 79 converted
+ordinary references plus one private core, with zero ordinary direct,
+relation or raw protected-table access. This remains compatible preparation:
+the two new functions do not enable RLS, revoke table grants or authorize a
+production migration or deployment. A fresh exact-head PostgreSQL proof is
+required before Phase 4 can close.
+
+The proof harness is saved as
+`scripts/case-account-deletion-authority-postgres-proof.mjs`. It refuses
+non-loopback targets and databases other than `grainline_ci`; checks the exact
+function modes and ACLs; forces zero-policy RLS on disposable Case and
+CaseMessage fixtures; proves direct runtime reads/writes cannot reach those
+rows while the two fixed functions still work; rejects active Cases, forged
+side-effect sources and the wrong isolation level; demonstrates transaction
+rollback and the shared User-lock serialization; preserves a historical Gmail
+alias claimed by another active account; proves source-derived redaction and
+idempotent replay; then restores pre-RLS posture and requires zero fixture
+residue. The buyer-description fixed replacement and seller-description
+quoted-value redaction are deliberately disjoint so a sensitive value cannot
+cause a second pass to alter the fixed deletion placeholder.
+
+The complete local suite after this final conversion exposed seven stale
+repository contracts, not application failures. Two helper-boundary tests
+still used the removed `collectCaseMessagesBySensitiveText` function as the
+end marker for `cleanupDeletedSellerFanoutRows`; they now end at the next
+surviving helper, `redactOrderReviewNotesForDeletedAccount`, and continue to
+assert sequential database work and exact fanout cleanup. Three predecessor
+migration tests still expected the escalation/cron phase to be the CI tree
+head; they now require this account-deletion phase while keeping the
+production workflow pinned to its older authorized boundary. One older
+Conversation/Message CI-ordering contract also named the prior Case guard
+step; it now identifies the current Case guard while retaining all of its
+before/after ordering assertions. The Unicode redaction contract still
+expected the removed application body scanner; it
+now pins the database-derived two-code-point threshold and existing private
+redaction core. Local TypeScript and lint were already green. The live-engine
+proof remains an exact-head CI gate because this workstation has no loopback
+PostgreSQL server or client; static or PGlite execution is not accepted as a
+substitute for PostgreSQL role, RLS, ACL and row-lock behavior.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

@@ -41,8 +41,18 @@ describe("unicode boundary follow-ups", () => {
   it("uses bounded short-name redaction without broad Notification text authority", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const redaction = source("src/lib/accountDeletionAuditRedaction.ts");
+    const caseRedaction = source(
+      "prisma/migrations/20260729061000_prepare_case_account_deletion_authority/migration.sql",
+    );
     assert.match(deletion, /Array\.from\(item\)\.length >= 2/);
-    assert.match(deletion, /bodyTextMatchSql\(value\)/);
+    assert.match(
+      caseRedaction,
+      /pg_catalog\.char_length\(\s*pg_catalog\.lower\(pg_catalog\.btrim\(value\)\)\s*\)\s*>= 2/,
+    );
+    assert.match(
+      caseRedaction,
+      /public\.grainline_account_deletion_redact_text_core\(\s*message\.body,\s*sensitive_values\s*\)/,
+    );
     assert.doesNotMatch(deletion, /notificationTextMatchSql|redactNotificationsAboutDeletedAccount/);
     assert.match(deletion, /deleteAccountNotificationServiceRows\(tx, user\.id\)/);
     assert.match(redaction, /Array\.from\(value\)\.length >= 2/);

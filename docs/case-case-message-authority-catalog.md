@@ -48,11 +48,16 @@ label, total, party and stock validation under database locks, while the
 client needs only a bounded success acknowledgement after finalization. The
 interactive escalation and scheduled Case-transition conversion then moves
 the route's direct read, guarded update and obsolete bulk raw update plus six
-cron reads/writes behind two fixed operations. The current exact inventory is
-therefore 12 remaining references across 2 source files, with all sixty-eight
-removed references retained in the converted-source ledger. The executable catalog
-deep-compares every remaining source and operation count with the live scanner.
-A source cannot disappear, appear or claim conversion without changing a test.
+cron reads/writes behind two fixed operations. The account-deletion conversion
+then moves the active-Case blocker count, authored/quoted CaseMessage
+redaction and participant Case-description redaction behind two fixed
+operations. The current exact inventory is therefore 1 private-core reference
+across 1 source file, with all seventy-nine ordinary application references
+retained in the converted-source ledger. The remaining reference is
+`caseLifecycleLocks.ts`, the private owner-internal Case lock that is not
+runtime-executable. The executable catalog deep-compares every remaining
+source and operation count with the live scanner. A source cannot disappear,
+appear or claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication`,
@@ -713,9 +718,20 @@ changed; production and persistent staging were untouched.
 ## Account deletion boundary
 
 The redaction function does not accept a free `deletingUserId`. It accepts an
-exact `AccountDeletionSideEffect` id, locks a `LOCAL_ANONYMIZE` source in the
-expected lifecycle state, derives the User, locks the User and derives the
-sensitive values and Case/message targets. The existing application
+exact `AccountDeletionSideEffect` id, performs an unlocked discovery read,
+locks the derived User first, then locks and revalidates the
+`LOCAL_ANONYMIZE` source in its exact dedup/payload/lifecycle shape. This
+preserves the account lifecycle's established User-first lock order. After
+the User lock it rechecks that no active participant Case appeared after the
+earlier blocker preflight; a race fails closed before any Case-family
+redaction. It derives the sensitive values and Case/message targets and reuses
+the already-live private Conversation/Message email-normalization,
+regex-escape and text-redaction cores. The runtime supplies no User id,
+redaction needle, Case id, Message id or replacement text.
+
+The separate blocker function accepts the current local User id and returns
+only one active participant-Case count. It reveals no Case id, counterparty,
+narrative, state distribution or timestamps. The existing application
 re-verification, Clerk deletion and retry-worker behavior remain external
 preconditions.
 

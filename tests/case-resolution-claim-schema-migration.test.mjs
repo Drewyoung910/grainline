@@ -32,7 +32,7 @@ test("Case claim preparation remains a reviewed predecessor but not production-a
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-escalation-cron-authority-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-account-deletion-authority-reviewed/,
   );
   assert.match(
     productionWorkflow,

@@ -77,9 +77,15 @@ authority, due families, clocks, audits and notification sources under stable
 User -> Order -> Case locks. The exact current countdown is 5 direct
 operations, 0 nested relation references and 7 raw SQL references: 12
 remaining protected references across 2 source files. The converted-source
-ledger now retains all sixty-eight removed references. The exact 80-reference
-conversion baseline, 12-reference current countdown and sixty-eight-reference
-converted ledger are pinned by tests.
+ledger then retained all sixty-eight removed references. The account-deletion
+conversion removes the final five direct operations and six raw SQL
+references from ordinary application code. The exact current countdown is
+therefore 0 direct operations, 0 nested relation references and 1 raw SQL
+reference: the private non-runtime Case lock core in
+`caseLifecycleLocks.ts`. The converted-source ledger retains all seventy-nine
+ordinary application references. The exact 80-reference conversion baseline,
+1-reference private-core countdown and seventy-nine-reference converted ledger
+are pinned by tests.
 
 The Extra-High escalation review rejected two first-draft replay details
 before commit. A bare `NOT IN` check would not reject a missing
@@ -99,8 +105,12 @@ authorized by that result.
 The later staff-resolution application checkpoint passed exact-head full CI
 at `d2b30d765af3c8b55a68949073c489c72ac192bb`, run `30493654183`
 (job `90717324313`). Temporary PR #115 was closed unmerged. The current
-escalation/cron migration, application conversion and PostgreSQL harness are a
-new candidate and do not inherit that proof.
+escalation/cron checkpoint then passed run `30496775294` at exact head
+`7132093163faefaec646d92f08d3bd5a966205f7`; final documentation head
+`a9860049bc72a6052228f2e39593ce33ca52fa2c` passed run `30497142729`, and
+temporary PR #116 was closed unmerged. The account-deletion migration,
+application conversion and PostgreSQL harness are a new candidate and do not
+inherit those proofs.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every

@@ -900,6 +900,8 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
+      "grainline_case_account_deletion_blockers",
+      "grainline_case_account_deletion_redact",
       "grainline_case_cron_transition_batch",
       "grainline_case_escalate",
       "grainline_case_export_page",
@@ -944,7 +946,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      101 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      103 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -953,6 +955,8 @@ describe("database grant inventory guardrails", () => {
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_list(text, integer, text) FROM PUBLIC",
     ));
     for (const functionName of [
+      "grainline_case_account_deletion_blockers",
+      "grainline_case_account_deletion_redact",
       "grainline_case_cron_transition_batch",
       "grainline_case_escalate",
       "grainline_case_mark_resolved",

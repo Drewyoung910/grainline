@@ -198,7 +198,7 @@ describe("Conversation and Message functions-only authority candidate", () => {
 
   it("orders promoted FORCE verification before migration and FORCE proofs afterward", () => {
     const migrationTree = ci.indexOf(
-      "- name: Verify Case escalation and cron-transition authority migration tree",
+      "- name: Verify Case account-deletion authority migration tree",
     );
     const releaseProof = ci.indexOf(
       "- name: Verify Conversation and Message authority proof equivalence",

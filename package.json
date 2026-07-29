@@ -51,6 +51,7 @@
     "audit:rls-case-seller-aggregate": "node scripts/case-seller-aggregate-authority-postgres-proof.mjs",
     "audit:rls-case-account-export": "node scripts/case-account-export-authority-postgres-proof.mjs",
     "audit:rls-case-escalation-cron": "node scripts/case-escalation-cron-authority-postgres-proof.mjs",
+    "audit:rls-case-account-deletion": "node scripts/case-account-deletion-authority-postgres-proof.mjs",
     "audit:rls-direct-upload-authority": "node scripts/direct-upload-authority-postgres-proof.mjs",
     "audit:rls-direct-upload-legacy-repair": "node scripts/direct-upload-legacy-repair-postgres-proof.mjs",
     "audit:rls-direct-upload-retirement-candidate": "node scripts/stage-direct-upload-retirement-migration.mjs",
