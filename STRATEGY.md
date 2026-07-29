@@ -47,7 +47,8 @@ unambiguous. Prepare shared inventories and infrastructure across later tables
 where useful, then activate independently reviewed, tightly coupled groups.
 `Notification` and `Conversation` + `Message` are complete in production
 through FORCE and actual pooled-runtime proof. `Case` + `CaseMessage` is the
-active, separately approved pre-policy audit. `Cart` + `CartItem`;
+active group and has entered Phase 2 aggregate-only legacy inspection
+preparation; its production RLS remains off. `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,
 observable, and reversible before the next group begins. Never combine
@@ -84,6 +85,16 @@ load-bearing defects first so policies do not encode them. Conversation and
 Message are complete; their retained record is
 `docs/conversation-message-pre-rls-audit.md`. The active Case/CaseMessage record
 is `docs/case-case-message-pre-rls-audit.md`.
+
+Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
+credential is created because the Case inspection is owner-only, read-only and
+aggregate-only. The two tracks rejoin before activation: DirectUpload must
+complete its cleanup credential proof, activation and pooled-runtime postflight
+before private Case evidence is enabled or Case policy activation is claimed.
+The saved Case inspector must run before the staged DirectUpload
+compatibility-key retirement because it pins the current dual-column
+compatibility posture. Production inspection results authorize classification
+only; any cleanup/backfill or invariant mutation waits for the actual counts.
 
 Case photo evidence is a launch requirement, not a later generic messaging
 feature. Before Case policy SQL, add private-object-backed processed image

@@ -42,6 +42,29 @@ No Case/CaseMessage RLS migration exists in the current tree. Direct runtime
 table access is therefore an expected pre-activation gap, not evidence that
 the table is ready.
 
+## Phase 2 aggregate classification boundary
+
+The 2026-07-28 Phase 2 candidate inventories the production legacy shape
+without selecting any row-level identifier or user-authored content. Its fixed
+aggregate schema covers Order/party consistency, lifecycle and resolution
+coherence, nullable author-kind classification, historical author
+relationships, message timestamp ties and large histories, and private
+attachment/DirectUpload/reference binding.
+
+The production operator is manual-main and owner-only because RLS remains off
+and the migration credential is the reviewed read-only inspection boundary.
+It requires an exact clean dispatched commit, exact production endpoint and
+roles, and the protected connection-string digest. PostgreSQL itself attests
+that the repeatable-read transaction is read-only. Sanitized evidence contains
+counts, fixed enum distributions and target/source hashes only.
+
+A separate loopback-`grainline_ci` PostgreSQL 16 proof executes the exact
+aggregate SQL after every committed migration. Static tests alone are not
+accepted as SQL/schema proof. Neither the disposable proof nor this saved
+production operator classifies the live rows; the protected production
+inspection must still run and then stop. No inferred repair, backfill,
+constraint, policy or grant is pre-authorized by a predicted zero count.
+
 ## Confirmed product contract
 
 - One Case exists per Order.
