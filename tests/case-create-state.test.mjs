@@ -65,15 +65,16 @@ describe("case create state", () => {
     );
   });
 
-  it("returns a friendly conflict for duplicate case creation races", () => {
-    assert.match(route, /\(err as \{ code\?: string \}\)\.code === "P2002"/);
+  it("returns a friendly conflict for exact Case-open replays", () => {
+    assert.match(route, /if \(result\.action === "replay"\)/);
     assert.match(route, /A case is already open for this order\./);
     assert.match(route, /status: 409/);
   });
 
-  it("enforces the shared case window in the API route and buyer order page", () => {
-    assert.match(route, /isOrderCaseWindowClosed\(order, now\)/);
-    assert.match(route, /caseWindowClosedMessage\(caseWindowClosesAt\(order\)\)/);
+  it("delegates race-safe eligibility to the fixed authority and retains buyer-page guidance", () => {
+    assert.match(route, /await openCaseWithFixedAuthority\(/);
+    assert.doesNotMatch(route, /isOrderCaseWindowClosed\(order, now\)/);
+    assert.doesNotMatch(route, /caseWindowClosedMessage\(caseWindowClosesAt\(order\)\)/);
 
     assert.match(buyerOrderPage, /const caseWindowClosed = isOrderCaseWindowClosed\(order, now\)/);
     assert.match(buyerOrderPage, /!caseWindowClosed/);

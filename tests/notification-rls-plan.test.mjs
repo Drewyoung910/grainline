@@ -196,7 +196,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(messagePage, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: committedNotificationMessageId/);
     assert.match(customOrderRequest, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: requestMessage\.messageId/);
     assert.match(customOrderReady, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: messageId/);
-    assert.match(caseOpen, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: newCase\.id/);
+    assert.match(caseOpen, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: result\.caseId/);
     assert.equal((caseMessages.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/g) ?? []).length, 3);
     assert.match(caseMarkResolved, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_RESOLUTION_MARK,\s*sourceId: authoritySourceId/);
     assert.match(

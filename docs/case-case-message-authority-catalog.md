@@ -18,15 +18,16 @@ This is one tightly coupled three-table visibility and write-integrity group:
 The Phase 4 baseline is 80 protected references across 29 source files: 46
 direct ORM operations, 22 nested relation references and 12 raw SQL
 references. After converting the Stripe dispute webhook, seller-refund route,
-staff Case-resolution write path and participant mark-resolved route, the
-current exact inventory is 68 remaining references across 26 source files: 36
-direct ORM operations, 21 nested relation references and 11 raw SQL
-references. The executable catalog deep-compares every remaining source and
-operation count with the live scanner and retains all twelve removed
-references (three from the Stripe webhook, two from the seller-refund route,
-four from staff resolution and three from participant mark-resolved) in a
-separate converted-source ledger. A source cannot disappear, appear or claim
-conversion without changing a test.
+staff Case-resolution write path, participant mark-resolved route and buyer
+Case-open route, the current exact inventory is 64 remaining references
+across 25 source files: 35 direct ORM operations, 18 nested relation
+references and 11 raw SQL references. The executable catalog deep-compares
+every remaining source and operation count with the live scanner and retains
+all sixteen removed references (three from the Stripe webhook, two from the
+seller-refund route, four from staff resolution, three from participant
+mark-resolved and four from buyer Case opening) in a separate converted-source
+ledger. A source cannot disappear, appear or claim conversion without
+changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication`,
@@ -346,6 +347,19 @@ lint, the full repository suite, the reviewed dependency audit and the
 production build also passed. This is engine proof for the isolated draft
 authority in PR #96; it is not application conversion, merge, production
 migration, deployment or Case RLS activation evidence.
+
+The compatible application successor removes the buyer route's direct Case
+create, nested Case existence read and two nested CaseMessage references. The
+route retains origin protection, Clerk authentication, local-account
+enforcement, user-scoped rate limiting, bounded JSON parsing and text
+sanitization before calling only `grainline_case_open`. It validates one exact
+nine-key result, stops a strict replay before Notification or email side
+effects, and uses only database-returned Case, Order, buyer and seller
+identities afterward. The response retains the buyer UI's required Case
+identity and state without querying protected tables. This moves four
+references into the converted ledger and reduces the activation countdown to
+64; it does not authorize merge, production migration, deployment, grant
+revocation or Case-family RLS activation.
 
 ## Account deletion boundary
 

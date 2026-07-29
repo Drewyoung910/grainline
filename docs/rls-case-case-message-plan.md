@@ -6,7 +6,7 @@ authority/invariant proof. Production RLS remains off for Case, CaseMessage
 and CaseMessageAttachment.
 
 The behavior findings, 80-reference conversion baseline and current
-68-reference countdown live in
+64-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -445,7 +445,7 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
   Stripe-dispute operation also adds its own private immutable replay ledger;
   it is not bundled with Case participant policies or direct-grant revocation.
 - Convert every protected reference to its explicit destination (80 at the
-  fixed Phase 4 baseline; 68 remain after the first four compatible app
+  fixed Phase 4 baseline; 64 remain after the first five compatible app
   conversions, while earlier Phase 1B counts remain historical evidence
   rather than an activation target).
 - Keep an exact zero-direct-access inventory gate.
@@ -725,10 +725,43 @@ table privileges. Its exact Order/Case/buyer/seller/message/audit bindings and
 description hash let retries validate durable source state without trusting a
 caller-provided Case id, seller, replay key, clock or audit. The compatible
 migration leaves Case, CaseMessage and CaseMessageAttachment RLS and legacy
-grants unchanged. Disposable PostgreSQL 16 must still execute the exact
-migration and prove paid creation/replay, unpaid and forged denial, lifecycle
-fences, runtime ledger denial, real two-session lock waiting, rollback and zero
-residue before the authority checkpoint can be accepted.
+grants unchanged. Authority commit
+`f7aa25a50191f84b6ec09be3709fe0abad25cc0e` passed GitHub Actions run
+`30436133437`; final documentation head
+`a2fe4a562681da1e42757934144024d0ec8846c9` passed exact-head run
+`30436469169`. Both runs applied the migration to disposable PostgreSQL 16,
+converged production-style grants, passed paid creation/replay, unpaid and
+forged denial, lifecycle fences, runtime ledger denial, a real two-session
+Order lock wait, rollback and zero residue, then passed the full repository
+gate. Draft PR #96 is restored to its intended stacked base. This is isolated
+CI evidence only and authorizes no production action.
+
+Phase 4 buyer Case-open application-conversion candidate (2026-07-29): the
+browser route preserves the existing origin, Clerk, local-account,
+user-scoped rate-limit, bounded-body and sanitization boundaries, then calls
+only `grainline_case_open`. The fail-closed validator requires one exact
+nine-key result whose Order, buyer and reason match the request; whose seller
+is distinct; whose generated Case/message/audit identities have the fixed
+shape; and whose state is exactly `OPEN` with a reviewed create/replay action.
+A replay returns the existing 409 before Notification or email side effects.
+The Notification source, seller lookup, observability and response use only
+database-returned identities.
+
+This conversion moves one direct Case create, one nested Case read and two
+nested CaseMessage references into the converted ledger. The exact current
+inventory is 64 remaining references across 25 source files and sixteen
+converted references. It remains stacked on the unmerged buyer Case-open
+authority draft; no merge, production migration, deployment, grant change or
+Case-family RLS activation is authorized.
+
+Implementation commit `1ecab9eed5b4587757de8c2cb45dd2a74b351e16`
+passed GitHub Actions run `30437725318`. Disposable PostgreSQL 16 applied the
+sealed authority migration tree, converged production-style runtime grants,
+passed the buyer Case-open authority and broader Case/grant/RLS proofs, then
+passed TypeScript, lint, the complete repository suite, the reviewed
+dependency audit and production build. This is exact-head isolated CI evidence
+for draft PR #97 only; it is not merge, production migration, deployment,
+grant-revocation or Case-family activation evidence.
 
 ## Phase 5: ENABLE activation
 

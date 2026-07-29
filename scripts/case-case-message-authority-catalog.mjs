@@ -520,6 +520,15 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
       "Case.raw-sql-reference": 1,
     },
   }),
+  "src/app/api/cases/route.ts": freezeSource({
+    actors: ["BUYER"],
+    destinations: ["case_open"],
+    inventory: {
+      "Case.create": 1,
+      "Case.relation-reference": 1,
+      "CaseMessage.relation-reference": 2,
+    },
+  }),
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
@@ -600,15 +609,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
     inventory: {
       "Case.findUnique": 2,
       "CaseMessage.relation-reference": 1,
-    },
-  }),
-  "src/app/api/cases/route.ts": freezeSource({
-    actors: ["BUYER"],
-    destinations: ["case_open"],
-    inventory: {
-      "Case.create": 1,
-      "Case.relation-reference": 1,
-      "CaseMessage.relation-reference": 2,
     },
   }),
   "src/app/api/cron/case-auto-close/route.ts": freezeSource({

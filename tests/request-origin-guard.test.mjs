@@ -118,7 +118,7 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "tx.order.findUnique",
+      "openCaseWithFixedAuthority({",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/messages/route.ts", [
       "await auth()",

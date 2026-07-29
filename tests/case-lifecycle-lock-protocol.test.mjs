@@ -36,24 +36,31 @@ describe("Case and Order lifecycle lock protocol", () => {
     assert.match(locks, /SELECT clock_timestamp\(\) AS now/);
   });
 
-  it("locks and rechecks the Order before atomically creating and auditing a Case", () => {
+  it("delegates atomic buyer Case creation to the fixed database authority", () => {
     const route = source("src/app/api/cases/route.ts");
 
     assertOrdered(route, [
-      ["transaction", "await prisma.$transaction(async (tx) =>"],
-      ["Order lock", "await lockOrderForCaseLifecycle(tx, orderId)"],
-      ["fresh Order read", "await tx.order.findUnique"],
-      ["Case create", "await tx.case.create"],
-      ["strict user audit", "await logUserAuditActionOrThrow"],
+      ["fixed authority", "await openCaseWithFixedAuthority({"],
+      ["replay stop", 'if (result.action === "replay")'],
       ["seller notification", "await createNotification"],
     ]);
-    assert.match(route, /order\.items\.some\(\(item\) => item\.listing\.seller\.user\.id !== sellerId\)/);
-    assert.match(route, /if \(sellerId === me\.id\)/);
-    assert.match(route, /orderHasRefundLedger\(order\) \|\| order\.sellerRefundId/);
-    assert.match(
-      route,
-      /order\.labelStatus === "PURCHASED"[\s\S]{0,120}fulfillmentStatus === "PENDING"/,
+    assert.doesNotMatch(route, /prisma\.\$transaction/);
+    assert.doesNotMatch(route, /lockOrderForCaseLifecycle/);
+    assert.doesNotMatch(route, /(?:prisma|tx)\.(?:case|caseMessage)\./);
+
+    const migration = source(
+      "prisma/migrations/20260729051000_prepare_case_open_authority/migration.sql",
     );
+    assertOrdered(migration, [
+      ["buyer User lock", "FROM public.\"User\" AS actor"],
+      ["Order lock", "FROM public.\"Order\" AS orders"],
+      ["seller relationship locks", "FOR SHARE OF item, listing, seller"],
+      ["existing Case lock", "FROM public.\"Case\" AS case_row"],
+      ["Case create", "INSERT INTO public.\"Case\""],
+      ["opening message", "INSERT INTO public.\"CaseMessage\""],
+      ["strict audit", "INSERT INTO public.\"AdminAuditLog\""],
+      ["private replay ledger", "INSERT INTO public.\"CaseOpenApplication\""],
+    ]);
   });
 
   it("takes the same Order lock before label, fulfillment, delivery confirmation, and refund reservations", () => {
