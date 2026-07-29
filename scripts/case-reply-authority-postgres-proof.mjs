@@ -447,6 +447,35 @@ async function proveAttachmentAuthority(observer, runtime) {
     source_id: created.attachments[0].id,
     exclusive: true,
   });
+
+  const replayed = await reply(
+    runtime,
+    ids.buyer,
+    ids.attachmentCase,
+    BODY,
+    [ids.validUpload],
+  );
+  assert.equal(replayed.action, "replay");
+  assert.equal(replayed.messageId, created.messageId);
+  assert.deepEqual(replayed.attachments, created.attachments);
+
+  await expectRuntimeError(
+    runtime,
+    "claimed_upload_changed_body_rejected",
+    [
+      ids.buyer,
+      ids.attachmentCase,
+      `${BODY} Changed.`,
+      [ids.validUpload],
+    ],
+    /upload authority is invalid/,
+  );
+  const attachmentCaseCount = await observer.query(`
+    SELECT pg_catalog.count(*)::integer AS count
+      FROM public."CaseMessage"
+     WHERE "caseId" = $1
+  `, [ids.attachmentCase]);
+  assert.equal(attachmentCaseCount.rows[0]?.count, 1);
 }
 
 async function proveReplay(observer, runtime) {
@@ -622,7 +651,7 @@ export async function runCaseReplyAuthorityPostgresProof(env = process.env) {
       reference_count: 0,
     });
     return Object.freeze({
-      checks: 18,
+      checks: 20,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

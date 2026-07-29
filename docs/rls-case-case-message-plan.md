@@ -792,9 +792,12 @@ complete repository suite; reviewed dependency audit; and production build.
 Earlier run `30440456425` is retained as a proof-fixture failure: one
 DirectUpload seed parameter was inferred as both `varchar` and `text` before
 the authority function executed. The follow-up adds an explicit `text` cast
-and a static regression marker. This closes the authority proof gate but does
-not close the separate application conversion. Case-family RLS and production
-remain unchanged.
+and a static regression marker. Before application conversion, the proof also
+pins the claim/retry transition that the route depends on: first create changes
+the upload to `CLAIMED`, exact replay succeeds, and changed-body reuse fails
+without residue. This closes the authority proof gate but does not close the
+separate application conversion. Case-family RLS and production remain
+unchanged.
 
 ## Phase 5: ENABLE activation
 

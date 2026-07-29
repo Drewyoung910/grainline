@@ -450,9 +450,12 @@ proofs, followed by every repository gate and the production build. Run
 `30440456425` is retained as failed evidence: its DirectUpload seed reused an
 uncast parameter across `varchar` and `text`, so PostgreSQL rejected the proof
 fixture before the fixed function ran. The follow-up pins that fixture status
-to `text`; it does not alter the migration. The direct route references remain
-in the 64-reference countdown until the separate application conversion
-succeeds.
+to `text`; it does not alter the migration. A subsequent proof extension
+requires the attachment's lifecycle to be `CLAIMED` after the first message,
+accepts the exact same-body/same-upload replay, rejects changed-body reuse of
+that claimed upload and proves the Case still has one message. The direct route
+references remain in the 64-reference countdown until the separate application
+conversion succeeds.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B

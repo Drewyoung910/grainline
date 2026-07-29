@@ -407,7 +407,11 @@ DirectUpload proof fixture reused one uncast parameter as both `varchar` and
 `text`; follow-up `ac4f6955` pins the fixture value as `text` and removes an
 out-of-transaction `SET CONSTRAINTS` warning. The failed run changed no
 persistent environment and is retained as diagnostic evidence rather than
-discarded.
+discarded. Before application conversion, the proof was extended to preserve
+the attachment-retry boundary explicitly: the first request claims the private
+upload, an exact same-body/same-upload retry returns the original message, and
+the same now-claimed upload with changed body fails without creating a second
+message.
 
 ## Account deletion boundary
 
