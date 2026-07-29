@@ -47,8 +47,10 @@ unambiguous. Prepare shared inventories and infrastructure across later tables
 where useful, then activate independently reviewed, tightly coupled groups.
 `Notification` and `Conversation` + `Message` are complete in production
 through FORCE and actual pooled-runtime proof. `Case` + `CaseMessage` is the
-active group and has entered Phase 2 aggregate-only legacy inspection
-preparation; its production RLS remains off. `Cart` + `CartItem`;
+active group. Its protected Phase 2 aggregate-only production inspection
+completed with zero Cases, CaseMessages, attachments or anomaly counts, so no
+legacy cleanup/backfill is needed; Phase 3 invariant and authority-catalog
+design is now active while production RLS remains off. `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,
 observable, and reversible before the next group begins. Never combine

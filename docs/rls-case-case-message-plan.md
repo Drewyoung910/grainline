@@ -1,9 +1,10 @@
 # Case and CaseMessage RLS Plan
 
-Opened 2026-07-26. Current phase: Phase 2 aggregate-only legacy inspection
-preparation. Production Case/CaseMessage RLS remains off.
+Opened 2026-07-26. Current phase: Phase 3 invariant and authority-catalog
+design after a clean Phase 2 production inspection. Production
+Case/CaseMessage RLS remains off.
 
-The behavior findings and 69-reference source baseline live in
+The behavior findings and current 80-reference source baseline live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -292,6 +293,26 @@ and no production data, catalog, grant or RLS state changed. The corrective
 checkpoint constructs the actual PostgreSQL client options from the already
 validated `directUrl` and exercises that construction in the focused test so a
 config-only test cannot mask this boundary again.
+
+Fresh production inspection record (2026-07-28): protected run `30413133843`
+(job `90453636790`) passed at exact main
+`de9ad52ff6c7dfb58a44773ec9e14e44a103f0a4` after PR #83 and fresh merged-main
+CI run `30412936579`. PostgreSQL attested the repeatable-read transaction as
+read-only. The inspection found zero Cases, zero CaseMessages and zero
+CaseMessageAttachments. Every relationship, lifecycle, author-kind, timestamp,
+attachment, DirectUpload/reference and blocking count was zero; every bounded
+distribution was empty. No cleanup or backfill is required.
+
+The mode-0600 sanitized off-worktree artifact is
+`case-case-message-legacy-inspection-de9ad52ff6c7dfb58a44773ec9e14e44a103f0a4.json`;
+its SHA-256 is
+`dd4194a39e83e7c4363e9b251d495e66534df3d83c5f3ac2ab521a15dbae8654`.
+It contains fixed aggregate counts, bounded enum distributions and reviewed
+target/source metadata only—no row ids, message text, participant ids, object
+keys or credentials. Production retained Case/CaseMessage/attachment RLS off,
+DirectUpload RLS off, DirectUploadReference FORCE with zero policies, and the
+runtime role as `NOBYPASSRLS`. Phase 2 is complete; Phase 3 may design new-row
+invariants and the fixed Case authority catalog without a legacy mutation.
 
 ## Phase 3: authority catalog design at Extra High
 

@@ -72,6 +72,20 @@ parsed `URL`. PostgreSQL was not queried, no evidence artifact was written and
 production was unchanged. Client-option construction is now an exported,
 focused-test boundary derived from the previously validated direct URL.
 
+The corrected protected dispatch passed in run `30413133843` (job
+`90453636790`) at exact main
+`de9ad52ff6c7dfb58a44773ec9e14e44a103f0a4`. It found zero Cases, zero
+CaseMessages and zero CaseMessageAttachments; all 50 fixed integrity/blocker
+counts and all bounded status/resolution/author-kind distributions were zero.
+Consequently there is no legacy cleanup or author-kind backfill to design.
+Production posture remained pre-RLS and unchanged. The sanitized mode-0600
+off-worktree artifact is
+`case-case-message-legacy-inspection-de9ad52ff6c7dfb58a44773ec9e14e44a103f0a4.json`
+at SHA-256
+`dd4194a39e83e7c4363e9b251d495e66534df3d83c5f3ac2ab521a15dbae8654`.
+It contains no ids, user-authored text, participant identities, object keys or
+credentials.
+
 ## Confirmed product contract
 
 - One Case exists per Order.
