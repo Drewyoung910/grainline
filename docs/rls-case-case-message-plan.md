@@ -784,10 +784,17 @@ the exact recent body plus complete sorted attachment set. Every reply also
 serializes on the parent Case, preserving the already-reviewed different-body,
 seller-first and pending-close transition ordering. The sealed migration-tree
 phase, grant convergence, static SQL contract and a loopback-only PostgreSQL
-proof are included in the isolated candidate. The proof must pass forged
-actor, status, recipient, upload-source, transition, replay, real lock-wait,
-rollback and zero-residue checks before any application conversion begins.
-Case-family RLS and production remain unchanged.
+proof are included in the isolated candidate. Exact-head run `30440635790`
+passed at `ac4f6955db4cbdaaf3785d8de9fd6849546f80a0`: forged actor, status,
+recipient and upload-source denials; transition, replay and real lock-wait
+behavior; rollback and zero residue; grant/RLS audits; TypeScript; lint; the
+complete repository suite; reviewed dependency audit; and production build.
+Earlier run `30440456425` is retained as a proof-fixture failure: one
+DirectUpload seed parameter was inferred as both `varchar` and `text` before
+the authority function executed. The follow-up adds an explicit `text` cast
+and a static regression marker. This closes the authority proof gate but does
+not close the separate application conversion. Case-family RLS and production
+remain unchanged.
 
 ## Phase 5: ENABLE activation
 

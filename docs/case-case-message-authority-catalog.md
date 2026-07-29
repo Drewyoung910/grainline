@@ -394,8 +394,20 @@ This migration is functions-only and coexistence-safe. It changes no
 Case-family RLS posture or legacy table grant. The application reply route,
 notifications/email behavior, merge, production migration, deployment,
 direct-grant revocation and Case-family activation remain separate and
-unauthorized until the exact PostgreSQL proof and subsequent route conversion
-pass independently.
+unauthorized until the subsequent route conversion passes independently.
+
+The authority boundary passed exact-head GitHub Actions at
+`ac4f6955db4cbdaaf3785d8de9fd6849546f80a0` in run `30440635790`.
+PostgreSQL 16 applied the sealed migration tree, converged the production-style
+runtime grants, passed the Case-reply authority and two-session lock proof, and
+then passed the broader grant/RLS proofs, TypeScript, lint, complete repository
+suite, reviewed dependency audit and production build. The preceding run
+`30440456425` failed before exercising the authority function because its
+DirectUpload proof fixture reused one uncast parameter as both `varchar` and
+`text`; follow-up `ac4f6955` pins the fixture value as `text` and removes an
+out-of-transaction `SET CONSTRAINTS` warning. The failed run changed no
+persistent environment and is retained as diagnostic evidence rather than
+discarded.
 
 ## Account deletion boundary
 

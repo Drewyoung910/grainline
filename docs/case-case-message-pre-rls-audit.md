@@ -442,9 +442,17 @@ lifecycle state, accepted endpoint/type/size and the exact Case segment in the
 object key. The deferred lifecycle trigger establishes the exclusive
 attachment reference before commit. R2 byte/signature verification remains a
 route-side external precondition. This closes the fixed-function portion of
-CC-A04/CC-A09 only after the disposable PostgreSQL proof passes; the direct
-route references remain in the 64-reference countdown until the separate
-application conversion succeeds.
+CC-A04/CC-A09. Exact-head GitHub Actions run `30440635790` passed at
+`ac4f6955db4cbdaaf3785d8de9fd6849546f80a0`, including PostgreSQL 16
+migration application, production-style grant convergence, forged-authority,
+attachment, replay, transition, two-session lock, rollback and zero-residue
+proofs, followed by every repository gate and the production build. Run
+`30440456425` is retained as failed evidence: its DirectUpload seed reused an
+uncast parameter across `varchar` and `text`, so PostgreSQL rejected the proof
+fixture before the fixed function ran. The follow-up pins that fixture status
+to `text`; it does not alter the migration. The direct route references remain
+in the 64-reference countdown until the separate application conversion
+succeeds.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B
