@@ -64,6 +64,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "stale_refund_snapshot_on_reopen",
     "empty_participant_opening",
     "wrong_order_payment_evidence",
+    "forged_case_dispute_source",
     "provider_evidence_before_recorded_state",
     "provider_evidence_rebinding",
     "claim_without_order_lease",
@@ -83,6 +84,8 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "null_provider_reconciliation_action",
     "non_admin_provider_reconciliation",
     "released_claim_cannot_finalize",
+    "legacy_case_relationship_preflight",
+    "legacy_message_author_preflight",
   ]) {
     assert.match(proof, new RegExp(`"${check}"`), check);
   }
@@ -104,6 +107,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);
+  assert.match(proof, /checks: 46/);
 });
 
 test("seller-refund proof parameters have one explicit PostgreSQL type", () => {

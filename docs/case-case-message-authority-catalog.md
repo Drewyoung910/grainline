@@ -784,3 +784,20 @@ returned text is capped to `char_length(p_body)`. This closes the existing
 Case/CaseMessage without granting the runtime a generic redaction primitive.
 The fixed Case function remains the only runtime-executable entry point in
 this group and still accepts only the validated deletion side-effect id.
+
+Invariant promotion must not treat trigger creation as validation of existing
+rows. The draft transaction first advisory-locks the Case rollout and
+write-freezes Case, CaseMessage and CaseMessageAttachment, then rechecks every
+trigger-only target relationship before creating collision-intolerant helper
+functions. The `openedByPaymentEventId` relationship requires an exact
+same-Order DISPUTE event with a nonblank provider event/object id, matching
+retained Order charge, numeric provider timestamp, live dispute status,
+lowercase currency and canonical dispute metadata. This trigger remains
+defense in depth; the fixed Stripe-dispute function's supersession and replay
+checks remain the only runtime write authority after activation.
+
+`grainline_case_message_author_valid` locks the parent Case `FOR UPDATE`.
+Although it reads party identity, the later thread-maintenance trigger updates
+that same Case. Taking only `FOR SHARE` would let concurrent direct inserts
+both hold shared row locks and then deadlock while upgrading; the fixed reply
+operation already serializes on the same parent update lock.

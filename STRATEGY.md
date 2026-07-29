@@ -1088,6 +1088,14 @@ then cap only the already-redacted output to its original character length.
 Every future retained-text deletion path must prove its maximum-length and
 shortest-needle boundary in disposable PostgreSQL before activation.
 
+Case invariant promotion must validate preexisting trigger-only relationships
+under a write freeze; installing a trigger and then testing only newly seeded
+rows is not legacy proof. Retain the rollout advisory lock, bounded timeouts,
+target-table lock, collision-intolerant function creation and pre-install
+invalid-row PostgreSQL cases when the draft is promoted. Provider-backed Case
+openings must use the same exact Order-charge/event identity in both the fixed
+operation and the trigger defense.
+
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
 Vercel/database exceptions, disposable secrets, and provider resources were

@@ -1348,3 +1348,57 @@ local dependency audit was also unable to reach the npm registry. The fresh
 exact-head CI run must therefore supply the final real PostgreSQL, dependency
 audit and production-build evidence rather than weakening either gate or
 connecting this workstation build to production.
+
+Exact revised account-deletion head
+`743cd957850fb0ecf57d2f9e8130b624c84a3517` passed GitHub Actions run
+`30500124919` (job `90737739979`). PostgreSQL applied the complete sealed
+migration tree and the 16-check Case deletion proof accepted the private
+shared-core ACL, maximum-length/two-character redaction boundary, source and
+active-Case denials, forced-RLS direct denial, rollback, User-lock
+serialization, derived redaction, idempotency and zero residue. Every
+predecessor database proof, migration status, final runtime grant/RLS audit,
+TypeScript, lint, complete repository suite, dependency audit and production
+build passed in the same run. This supersedes the 15-check evidence for
+readiness but remains isolated compatible-preparation proof; production and
+persistent staging were unchanged.
+
+### Invariant draft re-audit correction (2026-07-29)
+
+The prior 43-check invariant proof installed the draft before seeding its
+fixtures. That proved post-install trigger and constraint behavior, but it also
+meant the migration's legacy preflight saw empty Case tables and never
+demonstrated that preexisting trigger-only anomalies would stop promotion.
+The draft also ran unlocked preflight reads, leaving an old compatible writer
+able to commit an anomaly before trigger creation, and its direct
+`openedByPaymentEventId` trigger validated less provider provenance than the
+already-reviewed fixed Stripe-dispute operation.
+
+The corrected unapplied draft now takes the rollout advisory lock, applies
+bounded lock/statement timeouts, and write-freezes Case, CaseMessage and
+CaseMessageAttachment before inspection. It rechecks existing
+Order/buyer/seller binding, webhook opening provenance, message author-kind
+and clocks, attachment author/clock binding and opening evidence. New helper
+functions use `CREATE FUNCTION`, not `CREATE OR REPLACE`, so an unexpected
+catalog collision fails rather than silently overwriting code. The dispute
+trigger now also pins nonblank event/object ids, the exact retained Order
+charge, numeric provider time, live dispute status and lowercase currency.
+The message-author trigger takes the parent Case `FOR UPDATE`, not `FOR SHARE`,
+because its paired after-insert trigger advances the thread clock. Two direct
+inserts that both held a shared parent lock and then upgraded to update could
+deadlock; the stronger parent lock serializes that boundary and is already
+held by the fixed reply operation.
+The deferred opening-evidence trigger also locks the parent Case before
+counting remaining messages. Without that lock, two concurrent deletes of the
+last two messages could each see the other's uncommitted row and commit an
+empty human-opened Case. A cascading parent deletion is allowed because no
+Case row remains to protect.
+The attachment-parent trigger likewise takes the parent CaseMessage
+`FOR UPDATE`, matching the existing deferred DirectUpload reference trigger
+that later updates/locks the same source graph and preventing a shared-lock
+upgrade race for concurrent attachment inserts.
+
+The rollback-only proof now first seeds invalid legacy Case and CaseMessage
+rows before attempting the draft and requires both preflights to reject. Its
+normal post-install phase additionally rejects a same-Order dispute event with
+a forged charge. The resulting 46-check candidate is still draft-only and
+must pass exact PostgreSQL CI before any invariant migration is promoted.

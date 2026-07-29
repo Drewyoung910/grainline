@@ -7,12 +7,104 @@
 
 BEGIN;
 
+SET LOCAL lock_timeout = '10s';
+SET LOCAL statement_timeout = '60s';
+
+SELECT pg_catalog.pg_advisory_xact_lock(
+  pg_catalog.hashtextextended('grainline.case.rls.activation', 0)
+);
+
+-- Freeze the three protected targets before inspecting legacy rows. Trigger
+-- functions enforce only writes that occur after they are installed; without
+-- this lock, an old compatible runtime could commit a trigger-only anomaly
+-- between the preflight SELECTs and trigger creation.
+LOCK TABLE
+  public."Case",
+  public."CaseMessage",
+  public."CaseMessageAttachment"
+IN SHARE ROW EXCLUSIVE MODE;
+
 -- The compatible preparation migration already adds the nullable
 -- Case.openedByPaymentEventId source and its exact same-Order foreign key.
 -- This draft adds only the later strict lifecycle and relationship invariants.
 
 DO $grainline_case_invariant_preflight$
 BEGIN
+  IF EXISTS (
+    WITH order_seller_summary AS (
+      SELECT
+        orders.id AS order_id,
+        orders."buyerId" AS order_buyer_id,
+        pg_catalog.count(DISTINCT seller."userId") FILTER (
+          WHERE seller."userId" IS NOT NULL
+        )::integer AS seller_count,
+        pg_catalog.min(seller."userId") AS only_seller_id
+        FROM public."Order" AS orders
+        LEFT JOIN public."OrderItem" AS item
+          ON item."orderId" = orders.id
+        LEFT JOIN public."Listing" AS listing
+          ON listing.id = item."listingId"
+        LEFT JOIN public."SellerProfile" AS seller
+          ON seller.id = listing."sellerId"
+       GROUP BY orders.id, orders."buyerId"
+    )
+    SELECT 1
+      FROM public."Case" AS case_row
+      LEFT JOIN order_seller_summary AS summary
+        ON summary.order_id = case_row."orderId"
+     WHERE summary.order_id IS NULL
+        OR (
+          case_row."buyerId" IS NOT NULL
+          AND case_row."buyerId"
+                IS DISTINCT FROM summary.order_buyer_id
+        )
+        OR summary.seller_count IS DISTINCT FROM 1
+        OR case_row."sellerId"
+             IS DISTINCT FROM summary.only_seller_id
+  ) THEN
+    RAISE EXCEPTION 'Case relationship preflight found incompatible rows';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM public."Case" AS case_row
+     WHERE case_row."openedByPaymentEventId" IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."OrderPaymentEvent" AS event
+          WHERE event.id = case_row."openedByPaymentEventId"
+            AND event."orderId" = case_row."orderId"
+            AND event."eventType" = 'DISPUTE'
+            AND event."stripeObjectType" = 'dispute'
+            AND event."stripeObjectId" IS NOT NULL
+            AND pg_catalog.btrim(event."stripeObjectId") <> ''
+            AND event."stripeEventId" IS NOT NULL
+            AND pg_catalog.btrim(event."stripeEventId") <> ''
+            AND pg_catalog.jsonb_typeof(event.metadata) = 'object'
+            AND event.metadata->>'stripeEventType'
+                  = 'charge.dispute.created'
+            AND event.metadata->>'chargeId' = (
+              SELECT orders."stripeChargeId"
+                FROM public."Order" AS orders
+               WHERE orders.id = case_row."orderId"
+            )
+            AND event.metadata->>'disputeId'
+                  = event."stripeObjectId"
+            AND event.metadata->>'stripeEventCreated'
+                  ~ '^[0-9]{1,12}$'
+            AND pg_catalog.lower(COALESCE(event.status, '')) NOT IN (
+              'won',
+              'lost',
+              'prevented',
+              'warning_closed'
+            )
+            AND event.currency ~ '^[a-z]{3}$'
+            AND case_row.reason = 'OTHER'::public."CaseReason"
+       )
+  ) THEN
+    RAISE EXCEPTION 'Case opening-source preflight found incompatible rows';
+  END IF;
+
   IF EXISTS (
     SELECT 1
       FROM public."Case" AS case_row
@@ -103,6 +195,52 @@ BEGIN
         OR pg_catalog.btrim(message.body) = ''
   ) THEN
     RAISE EXCEPTION 'CaseMessage preflight found incomplete author/body rows';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM public."CaseMessage" AS message
+      JOIN public."Case" AS case_row
+        ON case_row.id = message."caseId"
+      JOIN public."User" AS author
+        ON author.id = message."authorId"
+     WHERE (
+       message."authorKind" = 'BUYER'::public."CaseMessageAuthorKind"
+       AND message."authorId" IS DISTINCT FROM case_row."buyerId"
+     )
+        OR (
+          message."authorKind" = 'SELLER'::public."CaseMessageAuthorKind"
+          AND message."authorId" IS DISTINCT FROM case_row."sellerId"
+        )
+        OR (
+          message."authorKind" = 'STAFF'::public."CaseMessageAuthorKind"
+          AND (
+            message."authorId" IS NOT DISTINCT FROM case_row."buyerId"
+            OR message."authorId" IS NOT DISTINCT FROM case_row."sellerId"
+            OR author.role NOT IN (
+              'EMPLOYEE'::public."Role",
+              'ADMIN'::public."Role"
+            )
+          )
+        )
+        OR message."createdAt" < case_row."createdAt"
+        OR message."createdAt" > case_row."updatedAt"
+  ) THEN
+    RAISE EXCEPTION
+      'CaseMessage relationship preflight found incompatible rows';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM public."CaseMessageAttachment" AS attachment
+      JOIN public."CaseMessage" AS message
+        ON message.id = attachment."caseMessageId"
+     WHERE attachment."uploaderId"
+             IS DISTINCT FROM message."authorId"
+        OR attachment."createdAt" < message."createdAt"
+  ) THEN
+    RAISE EXCEPTION
+      'CaseMessageAttachment relationship preflight found incompatible rows';
   END IF;
 
   IF EXISTS (
@@ -237,7 +375,7 @@ ALTER TABLE public."CaseMessage"
 ALTER TABLE public."CaseMessage"
   VALIDATE CONSTRAINT "CaseMessage_body_check";
 
-CREATE OR REPLACE FUNCTION public.grainline_case_relationship_valid()
+CREATE FUNCTION public.grainline_case_relationship_valid()
 RETURNS trigger
 LANGUAGE plpgsql
 VOLATILE
@@ -247,12 +385,13 @@ SET search_path = pg_catalog
 AS $grainline_case_relationship_valid$
 DECLARE
   order_buyer_id text;
+  order_stripe_charge_id text;
   seller_count integer;
   only_seller_user_id text;
   dispute_event record;
 BEGIN
-  SELECT orders."buyerId"
-    INTO order_buyer_id
+  SELECT orders."buyerId", orders."stripeChargeId"
+    INTO order_buyer_id, order_stripe_charge_id
     FROM public."Order" AS orders
    WHERE orders.id = NEW."orderId"
    FOR SHARE;
@@ -296,8 +435,11 @@ BEGIN
   IF NEW."openedByPaymentEventId" IS NOT NULL THEN
     SELECT
       event."eventType",
+      event."stripeEventId",
       event."stripeObjectType",
       event."stripeObjectId",
+      event.status,
+      event.currency,
       event.metadata
       INTO dispute_event
       FROM public."OrderPaymentEvent" AS event
@@ -306,13 +448,30 @@ BEGIN
      FOR SHARE;
     IF NOT FOUND
        OR dispute_event."eventType" <> 'DISPUTE'
+       OR dispute_event."stripeEventId" IS NULL
+       OR pg_catalog.btrim(dispute_event."stripeEventId") = ''
        OR dispute_event."stripeObjectType" IS DISTINCT FROM 'dispute'
        OR dispute_event."stripeObjectId" IS NULL
+       OR pg_catalog.btrim(dispute_event."stripeObjectId") = ''
        OR pg_catalog.jsonb_typeof(dispute_event.metadata) <> 'object'
        OR dispute_event.metadata->>'stripeEventType'
             IS DISTINCT FROM 'charge.dispute.created'
+       OR order_stripe_charge_id IS NULL
+       OR pg_catalog.btrim(order_stripe_charge_id) = ''
+       OR dispute_event.metadata->>'chargeId'
+            IS DISTINCT FROM order_stripe_charge_id
        OR dispute_event.metadata->>'disputeId'
             IS DISTINCT FROM dispute_event."stripeObjectId"
+       OR dispute_event.metadata->>'stripeEventCreated' IS NULL
+       OR dispute_event.metadata->>'stripeEventCreated'
+            !~ '^[0-9]{1,12}$'
+       OR pg_catalog.lower(COALESCE(dispute_event.status, '')) IN (
+            'won',
+            'lost',
+            'prevented',
+            'warning_closed'
+          )
+       OR dispute_event.currency !~ '^[a-z]{3}$'
        OR NEW.reason <> 'OTHER'::public."CaseReason" THEN
       RAISE EXCEPTION 'Case webhook opening source is invalid'
         USING ERRCODE = '23514';
@@ -333,7 +492,7 @@ ON public."Case"
 FOR EACH ROW
 EXECUTE FUNCTION public.grainline_case_relationship_valid();
 
-CREATE OR REPLACE FUNCTION public.grainline_case_authority_fields_immutable()
+CREATE FUNCTION public.grainline_case_authority_fields_immutable()
 RETURNS trigger
 LANGUAGE plpgsql
 VOLATILE
@@ -370,7 +529,7 @@ BEFORE UPDATE ON public."Case"
 FOR EACH ROW
 EXECUTE FUNCTION public.grainline_case_authority_fields_immutable();
 
-CREATE OR REPLACE FUNCTION public.grainline_case_status_transition_valid()
+CREATE FUNCTION public.grainline_case_status_transition_valid()
 RETURNS trigger
 LANGUAGE plpgsql
 VOLATILE
@@ -437,7 +596,7 @@ BEFORE UPDATE OF status ON public."Case"
 FOR EACH ROW
 EXECUTE FUNCTION public.grainline_case_status_transition_valid();
 
-CREATE OR REPLACE FUNCTION public.grainline_case_message_author_valid()
+CREATE FUNCTION public.grainline_case_message_author_valid()
 RETURNS trigger
 LANGUAGE plpgsql
 VOLATILE
@@ -471,7 +630,7 @@ BEGIN
     INTO parent
     FROM public."Case" AS case_row
    WHERE case_row.id = NEW."caseId"
-   FOR SHARE;
+   FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'CaseMessage parent Case does not exist'
       USING ERRCODE = '23503';
@@ -515,7 +674,7 @@ ON public."CaseMessage"
 FOR EACH ROW
 EXECUTE FUNCTION public.grainline_case_message_author_valid();
 
-CREATE OR REPLACE FUNCTION
+CREATE FUNCTION
   public.grainline_case_message_authority_fields_immutable()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -546,7 +705,7 @@ FOR EACH ROW
 EXECUTE FUNCTION
   public.grainline_case_message_authority_fields_immutable();
 
-CREATE OR REPLACE FUNCTION public.grainline_case_message_maintain_thread()
+CREATE FUNCTION public.grainline_case_message_maintain_thread()
 RETURNS trigger
 LANGUAGE plpgsql
 VOLATILE
@@ -574,7 +733,7 @@ AFTER INSERT ON public."CaseMessage"
 FOR EACH ROW
 EXECUTE FUNCTION public.grainline_case_message_maintain_thread();
 
-CREATE OR REPLACE FUNCTION public.grainline_case_opening_evidence_valid()
+CREATE FUNCTION public.grainline_case_opening_evidence_valid()
 RETURNS trigger
 LANGUAGE plpgsql
 VOLATILE
@@ -584,6 +743,7 @@ SET search_path = pg_catalog
 AS $grainline_case_opening_evidence_valid$
 DECLARE
   target_case_id text;
+  opening_source_id text;
 BEGIN
   IF TG_RELID = 'public."Case"'::pg_catalog.regclass THEN
     target_case_id := NEW.id;
@@ -591,17 +751,24 @@ BEGIN
     target_case_id := OLD."caseId";
   END IF;
 
-  IF EXISTS (
-    SELECT 1
-      FROM public."Case" AS case_row
-     WHERE case_row.id = target_case_id
-       AND case_row."openedByPaymentEventId" IS NULL
-       AND NOT EXISTS (
-         SELECT 1
-           FROM public."CaseMessage" AS message
-          WHERE message."caseId" = case_row.id
-       )
-  ) THEN
+  -- A message-delete trigger must serialize on the parent before checking the
+  -- remaining message set. Otherwise two concurrent deletes could each see
+  -- the other's uncommitted row and commit an empty human-opened Case.
+  SELECT case_row."openedByPaymentEventId"
+    INTO opening_source_id
+    FROM public."Case" AS case_row
+   WHERE case_row.id = target_case_id
+   FOR UPDATE;
+
+  -- Cascading deletion of the parent removes the Case before its deferred
+  -- message triggers run; no opening invariant remains to enforce then.
+  IF FOUND
+     AND opening_source_id IS NULL
+     AND NOT EXISTS (
+       SELECT 1
+         FROM public."CaseMessage" AS message
+        WHERE message."caseId" = target_case_id
+     ) THEN
     RAISE EXCEPTION 'Case has no human or durable webhook opening evidence'
       USING ERRCODE = '23514';
   END IF;
@@ -628,7 +795,7 @@ DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW
 EXECUTE FUNCTION public.grainline_case_opening_evidence_valid();
 
-CREATE OR REPLACE FUNCTION
+CREATE FUNCTION
   public.grainline_case_attachment_parent_valid()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -644,7 +811,7 @@ BEGIN
     INTO parent
     FROM public."CaseMessage" AS message
    WHERE message.id = NEW."caseMessageId"
-   FOR KEY SHARE;
+   FOR UPDATE;
   IF NOT FOUND
      OR NEW."uploaderId" IS DISTINCT FROM parent."authorId"
      OR NEW."createdAt" < parent."createdAt" THEN

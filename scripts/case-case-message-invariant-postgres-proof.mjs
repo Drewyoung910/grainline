@@ -173,6 +173,77 @@ async function seedBaseFixtures(client) {
   }
 }
 
+async function expectLegacyPreflightError(
+  client,
+  name,
+  seedInvalidLegacyState,
+  pattern,
+  draftBody,
+) {
+  await client.query("BEGIN");
+  try {
+    await seedBaseFixtures(client);
+    await seedInvalidLegacyState();
+    let caught;
+    try {
+      await client.query(draftBody);
+    } catch (error) {
+      caught = error;
+    }
+    assert.ok(caught, `${name} unexpectedly passed the invariant preflight`);
+    assert.match(safeError(caught), pattern, name);
+  } finally {
+    await client.query("ROLLBACK").catch(() => {});
+  }
+}
+
+async function proveLegacyPreflightRejects(client, draftBody) {
+  await expectLegacyPreflightError(
+    client,
+    "legacy_case_relationship_preflight",
+    () => client.query(`
+      INSERT INTO public."Case" (
+        id, "orderId", "buyerId", "sellerId", reason, description,
+        status, "sellerRespondBy", "createdAt", "updatedAt"
+      )
+      VALUES (
+        'case-invariant-proof-legacy-case',
+        $1, $2, $3, 'OTHER',
+        'Legacy relationship preflight fixture.',
+        'OPEN', CURRENT_TIMESTAMP + INTERVAL '48 hours',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.ordinaryOrder, ids.buyer, ids.foreign]),
+    /Case relationship preflight found incompatible rows/,
+    draftBody,
+  );
+
+  await expectLegacyPreflightError(
+    client,
+    "legacy_message_author_preflight",
+    async () => {
+      await insertParticipantCase(
+        client,
+        ids.ordinaryCase,
+        ids.ordinaryOrder,
+      );
+      await client.query(`
+        INSERT INTO public."CaseMessage" (
+          id, "caseId", "authorId", "authorKind", body, "createdAt"
+        )
+        VALUES (
+          'case-invariant-proof-legacy-forged-message',
+          $1, $2, 'BUYER',
+          'Legacy forged-author preflight fixture.',
+          CURRENT_TIMESTAMP
+        )
+      `, [ids.ordinaryCase, ids.foreign]);
+    },
+    /CaseMessage relationship preflight found incompatible rows/,
+    draftBody,
+  );
+}
+
 async function insertParticipantCase(client, caseId, orderId) {
   await client.query(`
     INSERT INTO public."Case" (
@@ -296,6 +367,47 @@ async function proveCaseAndMessageInvariants(client) {
     /Case has no human or durable webhook opening evidence/,
   );
   await client.query("SET CONSTRAINTS ALL DEFERRED");
+
+  await expectPostgresError(
+    client,
+    "forged_case_dispute_source",
+    async () => {
+      await client.query(`
+        INSERT INTO public."OrderPaymentEvent" (
+          id, "orderId", "stripeEventId", "stripeObjectId",
+          "stripeObjectType", "eventType", currency, metadata,
+          "createdAt", "updatedAt"
+        )
+        VALUES (
+          'case-invariant-proof-forged-case-dispute-event',
+          $1, 'evt_case_invariant_proof_forged_case_dispute',
+          'dp_case_invariant_proof_forged', 'dispute', 'DISPUTE', 'usd',
+          pg_catalog.jsonb_build_object(
+            'chargeId', 'ch_wrong_case_invariant_proof',
+            'disputeId', 'dp_case_invariant_proof_forged',
+            'stripeEventType', 'charge.dispute.created',
+            'stripeEventCreated', 1770000000
+          ),
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+      `, [ids.sourceOrder]);
+      await client.query(`
+        INSERT INTO public."Case" (
+          id, "orderId", "buyerId", "sellerId", reason, description,
+          status, "sellerRespondBy", "openedByPaymentEventId",
+          "createdAt", "updatedAt"
+        )
+        VALUES (
+          'case-invariant-proof-forged-source-case',
+          $1, $2, $3, 'OTHER', 'Forged dispute source.',
+          'UNDER_REVIEW', CURRENT_TIMESTAMP + INTERVAL '48 hours',
+          'case-invariant-proof-forged-case-dispute-event',
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+      `, [ids.sourceOrder, ids.buyer, ids.seller]);
+    },
+    /Case webhook opening source is invalid/,
+  );
 
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
@@ -1563,9 +1675,11 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
   await client.connect();
   let began = false;
   try {
+    const draftBody = readDraftTransactionBody(INVARIANT_DRAFT);
+    await proveLegacyPreflightRejects(client, draftBody);
     await client.query("BEGIN");
     began = true;
-    await client.query(readDraftTransactionBody(INVARIANT_DRAFT));
+    await client.query(draftBody);
     await seedBaseFixtures(client);
     await proveCaseAndMessageInvariants(client);
     await proveStripeDisputeAuthority(client);
@@ -1576,7 +1690,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 43,
+      checks: 46,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

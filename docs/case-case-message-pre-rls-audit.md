@@ -732,3 +732,22 @@ the derived two-character state token, requires successful fixed-function
 commit, exact retained length, absence of the token, idempotency and zero
 residue. The earlier 15-check success remains useful authority evidence but is
 superseded for readiness by this 16-check boundary proof.
+
+Exact revised head `743cd957850fb0ecf57d2f9e8130b624c84a3517` passed
+GitHub Actions run `30500124919` (job `90737739979`), including the 16-check
+database proof, all prior RLS proofs, migration/grant audits, repository tests,
+dependency audit and production build. Production and persistent staging
+remained unchanged.
+
+The following invariant-draft re-audit found that the earlier proof installed
+the draft before seeding, so its legacy preflight had only seen empty tables.
+The preflight also lacked a target-table write freeze and did not recheck all
+trigger-only relationship shapes. The revised draft now advisory-locks the
+rollout, uses bounded timeouts, locks all three protected targets against
+compatible DML, validates existing Case party/Order/source binding, message
+author/clock binding and attachment parent/clock binding, and refuses function
+name collisions. Its dispute trigger now derives the exact Order charge and
+requires the same provider identity shape as the fixed source operation. A
+46-check rollback proof seeds invalid state before installation and separately
+tests the stronger installed trigger. This is saved preparation, not a
+production invariant or RLS change.
