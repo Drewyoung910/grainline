@@ -135,9 +135,20 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /Ordinary `grainline_app_runtime` must lose EXECUTE on all three/);
     assert.match(audit, /record_private_message` grant must also be absent/);
     assert.match(audit, /Aggregate legacy inspection/);
-    assert.match(audit, /Keep Extra High through the cleanup-worker authority review/);
-    assert.match(audit, /Standing authorization permits routine continuation/);
-    assert.match(audit, /Exact-commit\s+proof, protected-environment, migration, deployment and production postflight\s+gates remain mandatory/);
+    assert.match(
+      audit,
+      /Keep Extra High through the cleanup-only R2 credential\/delete proof/,
+    );
+    assert.match(audit, /30409531954/);
+    assert.match(audit, /DirectUpload` RLS remains off/);
+    assert.match(
+      audit,
+      /Standing\s+authorization permits routine continuation/,
+    );
+    assert.match(
+      audit,
+      /Exact-commit\s+proof,\s+protected-environment,\s+migration,\s+deployment\s+and\s+production\s+postflight\s+gates\s+remain\s+mandatory/,
+    );
     assert.match(audit, /f66aa92fa51954c44f73384d3b4f9761b618d437/);
     assert.match(audit, /complete-deleted-neon-api-cleanup-role/);
     assert.match(audit, /grainline_direct_upload_cleanup_v2/);

@@ -1460,16 +1460,55 @@ retargeted to that `main` head while remaining draft. A fresh clean-runner CI
 production build against the retargeted PR is still a mandatory gate before
 any merge.
 
+### Production cleanup-role provision
+
+The provider-credential correction merged through PR `#77` as exact main
+`9c853676f64960923fdfeee93eb592b5c10f1e4f`. Its rollback-only preflight and
+actual run passed: `grainline_direct_upload_cleanup_v2` is a direct,
+non-pooled LOGIN/NOBYPASSRLS/NOINHERIT principal with zero parent memberships,
+only PostgreSQL 16's reviewed non-effective reverse bootstrap edge, and a
+working rotated password stored only in the protected
+`Production DirectUpload Cleanup` environment. The protected URL digest is
+`8ce9ee5b0cc56bfe6c6f2d30b0a749fbbae63425be7581b3a0ca24e5a0b21a3a`.
+Sanitized provider evidence is retained mode 0600 as
+`direct-upload-cleanup-role-provider-remediation-9c853676f64960923fdfeee93eb592b5c10f1e4f.json`,
+SHA-256
+`036486b04ef16da3605bf9721f79deee88f914c1255b67d061b381d69194de38`.
+
+Protected provision run `30408963222` failed before grants because the shared
+migration-owner guard had not yet added that reviewed edge. PR `#78` updated
+the shared migration, historical owner-rotation and runtime-separation
+contracts together and merged as exact main
+`4f859fc89f7f4ebdb84028c2a78e12c2882040b3`; its local and GitHub CI gates
+passed.
+
+Corrected protected run `30409531954` (job `90442358212`) then passed all
+steps: exact-main/owner/compatible-state preflight, convergence of only the
+three cleanup functions, read-only catalog/authority postflight and sanitized
+artifact upload. The proof covers 35 exact DirectUpload functions, no cleanup
+role relation/column/sequence/default/create authority, zero parent
+memberships, only the reviewed member posture, retained compatible runtime
+authority, forced policyless `DirectUploadReference`, zero incomplete
+migrations and `DirectUpload` RLS still off. The artifact is retained mode
+0600 as
+`direct-upload-cleanup-role-provision-4f859fc89f7f4ebdb84028c2a78e12c2882040b3.json`,
+SHA-256
+`e471a8fed1935bc5b788567648b03b8da1b89f187182f1b17ce80c58b0f54b38`.
+No app deployment, data cleanup, R2 change or DirectUpload RLS activation
+occurred.
+
 ## Exit
 
-Keep Extra High through the cleanup-worker authority review and the downstream
-retirement/activation SQL review. PR #60 is merged, but merge-only created no
-provider, credential, role, database, scheduler or deployment state. Retargeted
-PR #61 remains draft until its exact proof record, fresh `main`-targeted CI and
-review boundaries are clean; it authorizes no merge or provider/production
-mutation. Standing authorization permits routine continuation through this
-already-scoped rollout without conversational micro-approval. Exact-commit
-proof, protected-environment, migration, deployment and production postflight
-gates remain mandatory, and work must stop on failed safety evidence,
-unexpected production state, destructive scope drift or a required platform
-approval.
+Keep Extra High through the cleanup-only R2 credential/delete proof and the
+downstream retirement/activation SQL review. PRs `#60` and `#61` are merged;
+the production v2 cleanup login and its exact three-function authority are now
+provisioned and proved. `DirectUpload` RLS remains off, its compatibility key
+remains present, no cleanup has run, no scheduler is active, and the
+cleanup-only R2 credential is still absent. Do not promote the generated
+retirement/activation candidates or schedule the worker until that
+bucket-scoped deletion credential passes a disposable-object proof. Standing
+authorization permits routine continuation through this already-scoped
+rollout without conversational micro-approval. Exact-commit proof,
+protected-environment, migration, deployment and production postflight gates
+remain mandatory, and work must stop on failed safety evidence, unexpected
+production state, destructive scope drift or a required platform approval.

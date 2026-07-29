@@ -314,6 +314,16 @@ already-reviewed third membership row. Keep the edge accepted only as
 contract together, and rerun the protected provision workflow from fresh exact
 main. Do not broaden the acceptance to arbitrary child roles or options.
 
+That correction merged as exact main `4f859fc8`, and protected run
+`30409531954` (job `90442358212`) passed the exact-main preflight,
+three-function cleanup grant, read-only postflight and sanitized artifact
+upload. The v2 role now has only the reviewed cleanup functions and no
+relation, column, sequence, default, create, parent-role or unexpected
+DEFINER authority; compatible runtime access remains intact and DirectUpload
+RLS remains off. The next gate is the cleanup-only, bucket-scoped R2 deletion
+credential plus disposable-object delete proof. Do not reuse application R2
+credentials or promote/schedule DirectUpload activation before that gate.
+
 The cleanup-only R2 deletion credential is still absent because no signed-in
 Cloudflare control surface was available. Do not substitute the application's
 R2 credential. Keep the worker, hourly scheduler and DirectUpload activation
