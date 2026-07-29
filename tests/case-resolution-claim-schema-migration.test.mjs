@@ -24,7 +24,7 @@ test("CaseResolutionClaim preparation is additive and coexistence-safe", () => {
   );
 });
 
-test("Case claim preparation is CI-reviewed but not production-authorized", () => {
+test("Case claim preparation remains a reviewed predecessor but not production-authorized", () => {
   const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const productionWorkflow = fs.readFileSync(
     ".github/workflows/production-migrations.yml",
@@ -32,7 +32,7 @@ test("Case claim preparation is CI-reviewed but not production-authorized", () =
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-claim-preparation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-stripe-dispute-authority-reviewed/,
   );
   assert.match(
     productionWorkflow,

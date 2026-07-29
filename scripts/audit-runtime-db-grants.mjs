@@ -33,10 +33,12 @@ export const NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES = ["read:UPDATE"];
 export const CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
+  "CaseStripeDisputeApplication",
   "DirectUploadReference",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseResolutionClaim",
+  "CaseStripeDisputeApplication",
   "DirectUploadReference",
 ]);
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];

@@ -82,9 +82,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify Case resolution-claim preparation migration tree
+      - name: Verify Case Stripe-dispute authority migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-claim-preparation-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-stripe-dispute-authority-reviewed
         run: npm run verify:rls-release-artifact
       - name: Verify Conversation and Message authority proof equivalence
         run: npm run audit:rls-conversation-message-authority-release

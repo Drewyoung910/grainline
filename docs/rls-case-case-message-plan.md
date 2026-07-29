@@ -368,6 +368,17 @@ Case records its exact source in `Case.openedByPaymentEventId` and may begin
 without a falsely buyer-authored opening message; the ordinary buyer-open
 operation still creates its first message atomically.
 
+Extra-High review of the first compatible operation found two authority gaps
+before merge. `SystemAuditLog` still has broad runtime CRUD and therefore
+cannot be the immutable replay boundary. Stripe delivery is also unordered, so
+a valid but superseded `charge.dispute.created` source cannot be accepted only
+because its signature was verified earlier. The corrected candidate uses a
+separate zero-policy, zero-table-grant
+`CaseStripeDisputeApplication` replay ledger, and the function rejects an
+older event or an open event superseded at the same provider timestamp by a
+terminal dispute event. `SystemAuditLog` remains co-committed observability,
+not authority.
+
 The catalog also records honest cross-group limits: PostgreSQL validates local
 payment evidence but does not independently attest Stripe, and
 Order/OrderPaymentEvent/AccountDeletionSideEffect direct-write hardening
@@ -419,7 +430,9 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
   runtime/PUBLIC table privileges; the migration does not add strict
   Case/CaseMessage triggers, participant policies or callable resolution
   operations.
-- Deploy fixed functions while retaining old direct grants.
+- Add each reviewed fixed operation while retaining old direct grants. The
+  Stripe-dispute operation also adds its own private immutable replay ledger;
+  it is not bundled with Case participant policies or direct-grant revocation.
 - Convert every current protected reference to its explicit destination (80 in
   the current exact scanner; earlier Phase 1B counts remain historical
   evidence rather than an activation target).
@@ -439,6 +452,17 @@ functions; the table and invariant trigger functions remain runtime-private.
 The strict Case/CaseMessage invariant draft now consumes this prepared shape
 instead of attempting to recreate it. This checkpoint is code-only:
 production migrations, Case RLS and app deployment remain unchanged.
+
+Phase 4 Stripe-dispute authority checkpoint (2026-07-28): the isolated,
+unmerged candidate accepts only one exact same-Order `OrderPaymentEvent`,
+locks Order, payment source, complete seller graph and Case in canonical
+order, derives all participants/linkage inside PostgreSQL, and clears the
+complete terminal Case snapshot on a legitimate reopen. Replay identity is
+held in private `CaseStripeDisputeApplication` rather than caller-writable
+`SystemAuditLog`. The function rejects malformed, wrong-charge, terminal and
+superseded sources. The migration does not enable participant RLS, revoke
+legacy Case grants, deploy application conversion or authorize production
+migration.
 
 ## Phase 5: ENABLE activation
 

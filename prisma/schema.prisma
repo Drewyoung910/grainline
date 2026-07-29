@@ -710,23 +710,24 @@ model OrderShippingRateQuote {
 }
 
 model OrderPaymentEvent {
-  id               String   @id @default(cuid())
-  orderId          String
-  order            Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  stripeEventId    String   @unique @db.VarChar(255)
-  stripeObjectId   String?  @db.VarChar(255)
-  stripeObjectType String?  @db.VarChar(100)
-  eventType        String   @db.VarChar(100)
-  amountCents      Int?
-  currency         String   @default("usd") @db.VarChar(3)
-  status           String?  @db.VarChar(100)
-  reason           String?  @db.VarChar(255)
-  description      String?  @db.VarChar(5000)
+  id                            String                         @id @default(cuid())
+  orderId                       String
+  order                         Order                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  stripeEventId                 String                         @unique @db.VarChar(255)
+  stripeObjectId                String?                        @db.VarChar(255)
+  stripeObjectType              String?                        @db.VarChar(100)
+  eventType                     String                         @db.VarChar(100)
+  amountCents                   Int?
+  currency                      String                         @default("usd") @db.VarChar(3)
+  status                        String?                        @db.VarChar(100)
+  reason                        String?                        @db.VarChar(255)
+  description                   String?                        @db.VarChar(5000)
   // Bounded Stripe payment/refund/dispute event context. Store safe ids and
   // small status details only, not full provider payloads.
-  metadata         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  metadata                      Json?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  caseStripeDisputeApplications CaseStripeDisputeApplication[]
 
   // Supports same-Order composite evidence foreign keys managed by raw SQL.
   @@unique([id, orderId])
@@ -902,33 +903,34 @@ enum CaseMessageAuthorKind {
 }
 
 model Case {
-  id                     String          @id @default(cuid())
-  orderId                String          @unique
-  order                  Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  buyerId                String?
-  buyer                  User?           @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
-  sellerId               String
-  seller                 User            @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  reason                 CaseReason
-  description            String          @db.VarChar(5000)
-  status                 CaseStatus      @default(OPEN)
-  resolution             CaseResolution?
-  refundAmountCents      Int?
-  stripeRefundId         String?         @db.VarChar(255)
-  sellerRespondBy        DateTime
-  discussionStartedAt    DateTime?
-  escalateUnlocksAt      DateTime?
-  buyerMarkedResolved    Boolean         @default(false)
-  sellerMarkedResolved   Boolean         @default(false)
-  resolvedAt             DateTime?
-  resolvedById           String?
-  resolvedBy             User?           @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  id                        String                         @id @default(cuid())
+  orderId                   String                         @unique
+  order                     Order                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  buyerId                   String?
+  buyer                     User?                          @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  sellerId                  String
+  seller                    User                           @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  reason                    CaseReason
+  description               String                         @db.VarChar(5000)
+  status                    CaseStatus                     @default(OPEN)
+  resolution                CaseResolution?
+  refundAmountCents         Int?
+  stripeRefundId            String?                        @db.VarChar(255)
+  sellerRespondBy           DateTime
+  discussionStartedAt       DateTime?
+  escalateUnlocksAt         DateTime?
+  buyerMarkedResolved       Boolean                        @default(false)
+  sellerMarkedResolved      Boolean                        @default(false)
+  resolvedAt                DateTime?
+  resolvedById              String?
+  resolvedBy                User?                          @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
   // Nullable during the compatibility release. The fixed Stripe-dispute
   // operation later derives this exact same-Order event inside PostgreSQL.
-  openedByPaymentEventId String?         @unique
-  messages               CaseMessage[]
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  openedByPaymentEventId    String?                        @unique
+  stripeDisputeApplications CaseStripeDisputeApplication[]
+  messages                  CaseMessage[]
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
 
   // Supports private claim same-Order binding managed by raw SQL.
   @@unique([id, orderId])
@@ -964,6 +966,22 @@ model CaseResolutionClaim {
   updatedAt            DateTime                  @updatedAt
 
   @@index([status, createdAt])
+}
+
+// Private immutable replay ledger for the fixed Stripe-dispute Case
+// operation. Runtime table access is intentionally absent; the reviewed
+// SECURITY DEFINER operation is its only application path.
+model CaseStripeDisputeApplication {
+  paymentEventId String            @id
+  paymentEvent   OrderPaymentEvent @relation(fields: [paymentEventId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  caseId         String
+  orderId        String
+  case           Case              @relation(fields: [caseId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  action         String            @db.VarChar(10)
+  createdAt      DateTime          @default(now())
+
+  @@index([caseId, createdAt])
+  @@index([orderId])
 }
 
 model CaseMessage {

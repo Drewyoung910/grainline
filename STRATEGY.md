@@ -64,7 +64,12 @@ audited administrator finding of no provider effect uses a distinct
 claim as finalized. Stripe-dispute-created Cases record their exact durable
 payment-event source rather than fabricating a buyer-authored message, and
 dispute reopen clears the complete stale Case-level resolution/refund snapshot
-while retaining the Order payment/audit history.
+while retaining the Order payment/audit history. Its replay identity belongs
+in a separate private, FORCE-RLS, zero-policy
+`CaseStripeDisputeApplication` ledger because broadly writable
+`SystemAuditLog` is evidence/observability rather than security authority.
+The fixed operation must also reject valid but superseded Stripe events; signed
+delivery does not imply event ordering.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,

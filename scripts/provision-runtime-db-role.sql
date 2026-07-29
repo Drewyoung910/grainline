@@ -627,6 +627,34 @@ SELECT format(
 WHERE to_regtype('public."CaseResolutionClaimStatus"') IS NOT NULL;
 \gexec
 
+-- The first compatible Case service operation is absent before its
+-- operation-and-private-ledger preparation migration. Converge it to zero PUBLIC/direct
+-- runtime authority, then grant only EXECUTE when it exists.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_stripe_dispute_apply(text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_stripe_dispute_apply(text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_stripe_dispute_apply(text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.
@@ -674,6 +702,7 @@ SELECT format(
 FROM (
   VALUES
     ('CaseResolutionClaim'),
+    ('CaseStripeDisputeApplication'),
     ('DirectUploadReference')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;

@@ -70,6 +70,9 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "terminal_claim_mutation",
     "unattested_no_effect_release",
     "runtime_direct_claim_read",
+    "runtime_direct_dispute_application_read",
+    "forged_dispute_order_charge",
+    "superseded_dispute_source",
   ]) {
     assert.match(proof, new RegExp(`"${check}"`), check);
   }
@@ -77,6 +80,11 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /SET LOCAL ROLE grainline_app_runtime/);
   assert.match(proof, /RELEASED_NO_PROVIDER_EFFECT/);
   assert.match(proof, /openedByPaymentEventId/);
+  assert.match(proof, /CaseStripeDisputeApplication/);
+  assert.match(proof, /grainline_case_stripe_dispute_apply/);
+  assert.match(proof, /refundAmountCents: null/);
+  assert.match(proof, /action, "replay"/);
+  assert.match(proof, /replayedAfterTerminal/);
 });
 
 test("Case invariant proof is rollback-only and emits no credentials", () => {

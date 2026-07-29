@@ -249,7 +249,7 @@ DECLARE
   order_buyer_id text;
   seller_count integer;
   only_seller_user_id text;
-  dispute_event_type text;
+  dispute_event record;
 BEGIN
   SELECT orders."buyerId"
     INTO order_buyer_id
@@ -294,14 +294,25 @@ BEGIN
   END IF;
 
   IF NEW."openedByPaymentEventId" IS NOT NULL THEN
-    SELECT event."eventType"
-      INTO dispute_event_type
+    SELECT
+      event."eventType",
+      event."stripeObjectType",
+      event."stripeObjectId",
+      event.metadata
+      INTO dispute_event
       FROM public."OrderPaymentEvent" AS event
      WHERE event.id = NEW."openedByPaymentEventId"
        AND event."orderId" = NEW."orderId"
      FOR SHARE;
     IF NOT FOUND
-       OR dispute_event_type <> 'charge.dispute.created'
+       OR dispute_event."eventType" <> 'DISPUTE'
+       OR dispute_event."stripeObjectType" IS DISTINCT FROM 'dispute'
+       OR dispute_event."stripeObjectId" IS NULL
+       OR pg_catalog.jsonb_typeof(dispute_event.metadata) <> 'object'
+       OR dispute_event.metadata->>'stripeEventType'
+            IS DISTINCT FROM 'charge.dispute.created'
+       OR dispute_event.metadata->>'disputeId'
+            IS DISTINCT FROM dispute_event."stripeObjectId"
        OR NEW.reason <> 'OTHER'::public."CaseReason" THEN
       RAISE EXCEPTION 'Case webhook opening source is invalid'
         USING ERRCODE = '23514';
