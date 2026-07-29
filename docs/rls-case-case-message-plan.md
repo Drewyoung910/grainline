@@ -6,7 +6,7 @@ authority/invariant proof. Production RLS remains off for Case, CaseMessage
 and CaseMessageAttachment.
 
 The behavior findings, 80-reference conversion baseline and current
-71-reference countdown live in
+68-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -445,7 +445,7 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
   Stripe-dispute operation also adds its own private immutable replay ledger;
   it is not bundled with Case participant policies or direct-grant revocation.
 - Convert every protected reference to its explicit destination (80 at the
-  fixed Phase 4 baseline; 71 remain after the first three compatible app
+  fixed Phase 4 baseline; 68 remain after the first four compatible app
   conversions, while earlier Phase 1B counts remain historical evidence
   rather than an activation target).
 - Keep an exact zero-direct-access inventory gate.
@@ -666,6 +666,23 @@ RLS catalog proofs. TypeScript, lint, the complete test suite, dependency
 audit and production build also passed. This is disposable CI evidence only;
 production migrations, deployment, direct-grant revocation and Case-family
 RLS remain unchanged and unauthorized.
+
+Phase 4 participant mark-resolved application-conversion candidate
+(2026-07-29): the route retains the origin, authentication, account-state and
+rate-limit boundaries, then invokes only the fixed authority. It performs no
+direct Case/CaseMessage read or write and creates no application-side audit.
+The application accepts exactly one ten-key result whose actor, Case,
+participant side, deterministic audit identity and state are validated
+fail-closed. Counterparty notification and the response use database-returned
+identities; the already-live Notification authority independently derives
+recipient, link and copy from the strict audit source.
+
+This conversion moves the route's two direct reads and one raw update into the
+converted-source ledger. The exact current inventory is 68 remaining
+references across 26 source files and twelve converted references. The
+candidate remains stacked on the participant-authority draft; it does not
+authorize a merge, migration, deployment, provider change, direct-grant
+revocation or Case-family RLS activation.
 
 ## Phase 5: ENABLE activation
 

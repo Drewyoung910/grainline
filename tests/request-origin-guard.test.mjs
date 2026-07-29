@@ -135,8 +135,8 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/cases/[id]/mark-resolved/route.ts", [
       "await auth()",
       "safeRateLimit(",
-      "prisma.case.findUnique",
-      "UPDATE \"Case\"",
+      "await markCaseParticipantResolved({",
+      "await notifyCounterpartyOfResolutionMark({",
     ]);
   });
 

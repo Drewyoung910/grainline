@@ -36,10 +36,11 @@ direct Case writes and one nested Case read with
 `grainline_case_stripe_dispute_apply`, replace the seller-refund route's Case
 read plus guarded update with `grainline_case_seller_refund_apply`, and replace
 four staff-resolution writes/reads with its fixed claim protocol. The current
-countdown is therefore 38 direct operations, 21 nested relation references and
-12 raw SQL references: 71 remaining protected references across 27 source
-files. The executable catalog retains all nine removed references in a
-converted-source ledger;
+participant conversion also replaces two direct Case reads and one raw Case
+update with `grainline_case_mark_resolved`. The countdown is therefore 36
+direct operations, 21 nested relation references and 11 raw SQL references:
+68 remaining protected references across 26 source files. The executable
+catalog retains all twelve removed references in a converted-source ledger;
 neither the original 69-reference audit nor the 80-reference Phase 4 baseline
 is discarded.
 
@@ -333,8 +334,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 71-reference current countdown
-  and nine-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 68-reference current countdown
+  and twelve-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A10 and CC-A13 through CC-A15 are fixed or have an accepted
@@ -371,6 +372,21 @@ to receive the distinct Stripe event id because its reviewed `order_payment`
 source contract validates `OrderPaymentEvent.stripeEventId`. The function
 migration must deploy before this compatible application; Case RLS remains off
 and no production change is authorized by this checkpoint.
+
+The fourth Phase 4 application conversion (2026-07-29) removes every direct
+protected reference from the participant mark-resolved route. The browser
+route retains the origin, authentication, local-account and rate-limit
+boundaries, then invokes only the fixed participant-resolution function. It
+accepts exactly one ten-key, identity-consistent result and uses only returned
+Case, Order, participant and audit identities for its response and
+Notification handoff. Retry notification authority remains the deterministic
+audit source, including when an older pending-close event is replayed after the
+counterparty has since completed mutual resolution. Direct Case reads, raw
+updates, application-side lifecycle locks and application-side audit creation
+are absent. This reduces the live conversion countdown to 68 references while
+retaining all twelve removed references in the converted ledger. It does not
+enable Case-family RLS or authorize production migration, deployment or grant
+revocation.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B

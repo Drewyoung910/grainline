@@ -17,15 +17,16 @@ This is one tightly coupled three-table visibility and write-integrity group:
 
 The Phase 4 baseline is 80 protected references across 29 source files: 46
 direct ORM operations, 22 nested relation references and 12 raw SQL
-references. After converting the Stripe dispute webhook, seller-refund route
-and staff Case-resolution write path, the current exact inventory is 71
-remaining references across 27 source files: 38 direct ORM operations, 21
-nested relation references and 12 raw SQL references. The executable catalog
-deep-compares every remaining source and operation count with the live scanner
-and retains all nine removed references (three from the Stripe webhook, two
-from the seller-refund route and four from staff resolution) in a separate
-converted-source ledger. A source cannot disappear, appear or claim conversion
-without changing a test.
+references. After converting the Stripe dispute webhook, seller-refund route,
+staff Case-resolution write path and participant mark-resolved route, the
+current exact inventory is 68 remaining references across 26 source files: 36
+direct ORM operations, 21 nested relation references and 11 raw SQL
+references. The executable catalog deep-compares every remaining source and
+operation count with the live scanner and retains all twelve removed
+references (three from the Stripe webhook, two from the seller-refund route,
+four from staff resolution and three from participant mark-resolved) in a
+separate converted-source ledger. A source cannot disappear, appear or claim
+conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication` and
@@ -290,6 +291,20 @@ depending on PostgreSQL `NOT IN` three-valued behavior. The migration retains
 all legacy Case table grants and does not enable participant RLS; engine proof,
 application conversion, merge, production migration and deployment remain
 separate and unauthorized.
+
+The compatible application candidate removes both direct `Case.findUnique`
+operations and the raw `Case` update from the participant mark-resolved route.
+After the existing origin, Clerk, local-account and rate-limit boundaries, the
+route calls only `grainline_case_mark_resolved(actorUserId, caseId)`. A
+fail-closed application validator requires one row with the exact ten-key
+result, the requested actor/Case, exactly one participant side, the
+database-derived deterministic audit id, coherent status/mark state and no
+extra keys. The route maps only the reviewed PostgreSQL SQLSTATE families to
+bounded client responses; unknown failures retain the normal server-error
+path. Notification recipient, event kind and link remain source-derived by the
+already-live Notification function from the returned audit identity. The
+converted-source ledger retains all three removed references rather than
+silently reducing the baseline.
 
 ## Account deletion boundary
 

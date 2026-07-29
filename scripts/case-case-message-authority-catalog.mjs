@@ -512,6 +512,14 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
       "Case.findUniqueOrThrow": 1,
     },
   }),
+  "src/app/api/cases/[id]/mark-resolved/route.ts": freezeSource({
+    actors: ["PARTICIPANT"],
+    destinations: ["case_mark_resolved"],
+    inventory: {
+      "Case.findUnique": 2,
+      "Case.raw-sql-reference": 1,
+    },
+  }),
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
@@ -569,11 +577,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "Case.updateMany": 1,
       "Case.raw-sql-reference": 1,
     },
-  }),
-  "src/app/api/cases/[id]/mark-resolved/route.ts": freezeSource({
-    actors: ["PARTICIPANT"],
-    destinations: ["case_mark_resolved"],
-    inventory: { "Case.findUnique": 2, "Case.raw-sql-reference": 1 },
   }),
   "src/app/api/cases/[id]/messages/route.ts": freezeSource({
     actors: ["PARTICIPANT", "STAFF"],

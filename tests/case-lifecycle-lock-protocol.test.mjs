@@ -184,28 +184,49 @@ describe("Case and Order lifecycle lock protocol", () => {
     const markResolved = source(
       "src/app/api/cases/[id]/mark-resolved/route.ts",
     );
+    const markAuthority = source(
+      "prisma/migrations/20260729050000_prepare_case_participant_resolution_authority/migration.sql",
+    ).replace(/\s+/g, " ");
     const staffResolve = source("src/app/api/cases/[id]/resolve/route.ts");
     const staffAuthority = source(
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
     ).replace(/\s+/g, " ");
-    const markWrite = markResolved.slice(
-      markResolved.indexOf("const result = await prisma.$transaction"),
-    );
-
-    assertOrdered(markWrite, [
-      ["mark transaction", "const result = await prisma.$transaction"],
-      ["mark Order lock", "await lockOrderForCaseLifecycle"],
-      ["mark Case lock", "await lockCaseForLifecycle"],
-      ["mark fresh Case read", "await tx.case.findUnique"],
+    assertOrdered(markAuthority, [
+      [
+        "mark actor lock",
+        'FROM public."User" AS actor WHERE actor.id = p_actor_user_id FOR SHARE',
+      ],
+      [
+        "mark Order lock",
+        'FROM public."Order" AS orders WHERE orders.id = source_order_id FOR UPDATE',
+      ],
+      [
+        "mark Case lock",
+        'FROM public."Case" AS case_row WHERE case_row.id = p_case_id AND case_row."orderId" = locked_order.id FOR UPDATE',
+      ],
       [
         "mark post-lock timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
+        "transition_at := pg_catalog.timezone( 'UTC', pg_catalog.clock_timestamp() )",
       ],
-      ["mark transition", 'UPDATE "Case"'],
-      ["mark audit", "await logAdminActionOrThrow"],
     ]);
-    assert.match(markWrite, /if \(lockedOrder\.sellerRefundId\)/);
-    assert.match(markWrite, /"updatedAt" = \$\{transitionAt\}/);
+    const markTransition = markAuthority.slice(
+      markAuthority.indexOf('UPDATE public."Case" AS case_row'),
+    );
+    assertOrdered(markTransition, [
+      ["mark transition", 'UPDATE public."Case" AS case_row'],
+      ["mark audit", 'INSERT INTO public."AdminAuditLog"'],
+      ["mark result", "RETURN pg_catalog.jsonb_build_object"],
+    ]);
+    assert.match(
+      markResolved,
+      /await markCaseParticipantResolved\(\{[\s\S]*actorUserId: me\.id,[\s\S]*caseId: id/,
+    );
+    assert.doesNotMatch(markResolved, /prisma\.\$transaction/);
+    assert.match(
+      markAuthority,
+      /locked_order\."sellerRefundId" IS NOT NULL OR locked_order\."caseResolutionClaimId" IS NOT NULL/,
+    );
+    assert.match(markAuthority, /"updatedAt" = transition_at/);
 
     assertOrdered(staffResolve, [
       ["staff prepare", "await prepareCaseStaffResolution("],
