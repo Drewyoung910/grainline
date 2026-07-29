@@ -27,20 +27,27 @@ surface with the TypeScript AST. The initial baseline is:
 - 10 raw SQL references;
 - 69 total protected references across 25 source files.
 
-The Phase 1B private-evidence and lifecycle-integrity draft expands the scanner
-to `CaseMessageAttachment` and currently records 46 direct operations, 22
-nested relation references and 12 raw SQL references: 80 total protected references
-across 29 source files. The original 69-reference baseline remains above as
-historical evidence; the generated current inventory, not either prose count,
-is the activation completeness gate.
+The Phase 1B private-evidence and lifecycle-integrity draft expanded the
+scanner to `CaseMessageAttachment` and established the Phase 4 conversion
+baseline at 46 direct operations, 22 nested relation references and 12 raw SQL
+references: 80 total protected references across 29 source files. The first
+compatible application conversion replaces the Stripe dispute webhook's two
+direct Case writes and one nested Case read with
+`grainline_case_stripe_dispute_apply`. The current countdown is therefore 44
+direct operations, 21 nested relation references and 12 raw SQL references:
+77 remaining protected references across 28 source files. The executable
+catalog retains the three removed references in a converted-source ledger;
+neither the original 69-reference audit nor the 80-reference Phase 4 baseline
+is discarded.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
 reference still needs an actor, purpose and migration destination.
 
-No Case/CaseMessage RLS migration exists in the current tree. Direct runtime
-table access is therefore an expected pre-activation gap, not evidence that
-the table is ready.
+No participant-policy or Case/CaseMessage activation migration exists in the
+current tree. Compatible source and fixed-operation migrations do exist on
+isolated, unmerged branches. Direct runtime table access is therefore an
+expected pre-activation gap, not evidence that the table is ready.
 
 ## Phase 2 aggregate classification boundary
 
@@ -307,7 +314,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the current exact 80-reference baseline is pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 77-reference current countdown
+  and three-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A10 and CC-A13 through CC-A15 are fixed or have an accepted
@@ -332,6 +340,18 @@ The reader is correct with the existing `(caseId, createdAt)` index and uses
 `id` as a stable tie-breaker. The exact `(caseId, createdAt, id)` index migration
 is grouped with Phase 1B's reviewed compatible schema migration so the
 protected migration-tree guard is updated once rather than bypassed.
+
+The first Phase 4 application conversion (2026-07-28) removes every direct
+Case-table reference from the signed Stripe dispute webhook. After recording
+the exact `OrderPaymentEvent`, the route resolves its local row id and passes
+only that id to `grainline_case_stripe_dispute_apply`; PostgreSQL derives the
+Order, buyer, seller, Case target, transition and replay identity. The route
+requires one relationship-consistent `create` or `reopen` result and fails the
+transaction closed otherwise. The already-live Notification wrapper continues
+to receive the distinct Stripe event id because its reviewed `order_payment`
+source contract validates `OrderPaymentEvent.stripeEventId`. The function
+migration must deploy before this compatible application; Case RLS remains off
+and no production change is authorized by this checkpoint.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B

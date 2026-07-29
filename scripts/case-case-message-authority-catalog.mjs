@@ -469,6 +469,22 @@ const freezeSource = (entry) => Object.freeze({
   inventory: Object.freeze({ ...entry.inventory }),
 });
 
+// Once a source has no direct protected-table references, move its former
+// inventory here rather than deleting its authority history. The current
+// scanner stays an exact activation countdown while this ledger proves which
+// fixed operation replaced each removed reference.
+export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/app/api/stripe/webhook/route.ts": freezeSource({
+    actors: ["STRIPE_WEBHOOK"],
+    destinations: ["case_stripe_dispute_apply"],
+    inventory: {
+      "Case.updateMany": 1,
+      "Case.create": 1,
+      "Case.relation-reference": 1,
+    },
+  }),
+});
+
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
   "src/app/admin/cases/[id]/page.tsx": freezeSource({
     actors: ["STAFF"],
@@ -581,15 +597,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
     destinations: ["case_seller_refund_apply"],
     inventory: { "Case.findUnique": 1, "Case.updateMany": 1 },
   }),
-  "src/app/api/stripe/webhook/route.ts": freezeSource({
-    actors: ["STRIPE_WEBHOOK"],
-    destinations: ["case_stripe_dispute_apply"],
-    inventory: {
-      "Case.updateMany": 1,
-      "Case.create": 1,
-      "Case.relation-reference": 1,
-    },
-  }),
   "src/app/api/verification/apply/route.ts": freezeSource({
     actors: ["SELLER"],
     destinations: ["case_seller_verification_eligibility"],
@@ -680,6 +687,16 @@ export const CASE_AUTHORITY_OPERATION_IDS = Object.freeze(
 
 export function caseAuthorityReferenceCount() {
   return Object.values(CASE_AUTHORITY_SOURCE_DESTINATIONS)
+    .reduce(
+      (total, source) =>
+        total + Object.values(source.inventory)
+          .reduce((sourceTotal, count) => sourceTotal + count, 0),
+      0,
+    );
+}
+
+export function caseAuthorityConvertedReferenceCount() {
+  return Object.values(CASE_CONVERTED_SOURCE_DESTINATIONS)
     .reduce(
       (total, source) =>
         total + Object.values(source.inventory)

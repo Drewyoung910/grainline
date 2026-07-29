@@ -70,11 +70,6 @@ const EXPECTED_BASELINE = {
     "Case.findUnique": 1,
     "Case.updateMany": 1,
   },
-  "src/app/api/stripe/webhook/route.ts": {
-    "Case.updateMany": 1,
-    "Case.create": 1,
-    "Case.relation-reference": 1,
-  },
   "src/app/api/verification/apply/route.ts": { "Case.count": 1 },
   "src/app/dashboard/verification/page.tsx": { "Case.count": 1 },
   "src/lib/accountDeletion.ts": {
@@ -123,8 +118,8 @@ describe("Case and CaseMessage RLS inventory", () => {
   const inventory = collectCaseCaseMessageAccess();
 
   it("pins every current direct, relation, and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 46);
-    assert.equal(inventory.relationReferences.length, 22);
+    assert.equal(inventory.ormCalls.length, 44);
+    assert.equal(inventory.relationReferences.length, 21);
     assert.equal(inventory.rawSqlReferences.length, 12);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
@@ -155,14 +150,14 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /PDF evidence remains prohibited/);
     assert.match(
       audit,
-      /current exact 80-reference baseline is pinned by tests/,
+      /exact 80-reference conversion baseline, 77-reference current countdown\s+and three-reference converted ledger are pinned by tests/,
     );
     assert.match(
       audit,
       /machine-readable authority catalog maps every source to a\s+fixed operation/,
     );
     assert.match(plan, /Switch back to Extra High before Phase 1B/);
-    assert.match(plan, /Convert every current protected reference/);
+    assert.match(plan, /Convert every protected reference/);
     assert.match(
       plan,
       /Case, CaseMessage and CaseMessageAttachment must activate together/,

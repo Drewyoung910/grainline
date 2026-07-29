@@ -15,11 +15,15 @@ This is one tightly coupled three-table visibility and write-integrity group:
 3. `CaseMessageAttachment` inherits visibility from its parent message and
    must bind only to a verified private `DirectUpload`.
 
-The current exact inventory is 80 protected references across 29 source files:
-46 direct ORM operations, 22 nested relation references and 12 raw SQL
-references. The executable catalog deep-compares every source and operation
-count with the live scanner. A source cannot disappear, appear or claim a new
-destination without changing a test.
+The Phase 4 baseline is 80 protected references across 29 source files: 46
+direct ORM operations, 22 nested relation references and 12 raw SQL
+references. After converting the Stripe dispute webhook, the current exact
+inventory is 77 remaining references across 28 source files: 44 direct ORM
+operations, 21 nested relation references and 12 raw SQL references. The
+executable catalog deep-compares every remaining source and operation count
+with the live scanner and retains the three removed Stripe-webhook references
+in a separate converted-source ledger. A source cannot disappear, appear or
+claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication` is the separate

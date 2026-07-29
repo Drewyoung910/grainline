@@ -5,7 +5,8 @@ conversion after a clean Phase 2 production inspection and completed Phase 3
 authority/invariant proof. Production RLS remains off for Case, CaseMessage
 and CaseMessageAttachment.
 
-The behavior findings and current 80-reference source baseline live in
+The behavior findings, 80-reference conversion baseline and current
+77-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -344,8 +345,8 @@ authorized staff decisions, not ordinary participant input.
 
 Phase 3 catalog checkpoint (2026-07-28): the isolated candidate adds
 `scripts/case-case-message-authority-catalog.mjs`, its exact inventory-drift
-test and `docs/case-case-message-authority-catalog.md`. It maps all 80 current
-references across 29 sources to 26 fixed operations. The boundary explicitly
+test and `docs/case-case-message-authority-catalog.md`. It maps the initial 80
+Phase 4 references across 29 sources to 26 fixed operations. The boundary explicitly
 includes CaseMessageAttachment rather than treating private evidence as an
 independent activation.
 
@@ -433,9 +434,10 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 - Add each reviewed fixed operation while retaining old direct grants. The
   Stripe-dispute operation also adds its own private immutable replay ledger;
   it is not bundled with Case participant policies or direct-grant revocation.
-- Convert every current protected reference to its explicit destination (80 in
-  the current exact scanner; earlier Phase 1B counts remain historical
-  evidence rather than an activation target).
+- Convert every protected reference to its explicit destination (80 at the
+  fixed Phase 4 baseline; 77 remain after the first compatible app conversion,
+  while earlier Phase 1B counts remain historical evidence rather than an
+  activation target).
 - Keep an exact zero-direct-access inventory gate.
 - Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,
   deletion, retention and metrics paths on the compatible database.
@@ -470,6 +472,20 @@ repository's pull-request-only CI can run the full PostgreSQL 16 migration and
 rollback-only authority proof; it includes the exact PR `#87` schema
 prerequisite until that predecessor merges. This is a CI/review arrangement,
 not production migration or deployment authorization.
+
+Phase 4 Stripe-dispute application-conversion checkpoint (2026-07-28): the
+isolated successor removes two direct Case writes and one nested Case read from
+the signed webhook, reducing the exact current inventory from 80 to 77. The
+route records the durable payment event, resolves its local id, invokes only
+`grainline_case_stripe_dispute_apply`, verifies the one exact returned
+Order/payment relationship and uses database-derived buyer/seller identities.
+It keeps the Stripe event id separate for the already-live Notification
+`order_payment` source contract. The old JavaScript Case transition helper is
+removed, and the catalog retains all three replaced references in a
+machine-checked converted-source ledger. This is compatible application work:
+the fixed-function migration must precede its deployment; no production
+migration, deployment, direct-grant revocation or Case RLS activation is
+authorized here.
 
 ## Phase 5: ENABLE activation
 

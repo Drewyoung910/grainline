@@ -52,8 +52,11 @@ Phase 2 aggregate-only production inspection completed with zero Cases,
 CaseMessages, attachments or anomaly counts, so no legacy cleanup/backfill is
 needed; Phase 3 invariant and authority-catalog proof is complete and Phase 4
 compatible schema/application conversion is active while production RLS
-remains off. The current catalog pins all 80 references across
-29 sources to 26 fixed operations. It rejects caller-asserted staff-PIN flags,
+remains off. The catalog pins the 80-reference Phase 4 baseline across 29
+sources to 26 fixed operations. Its first compatible app conversion moves all
+three Stripe dispute webhook references to the fixed database function, so 77
+direct/nested/raw references across 28 sources remain; the removed references
+stay in a machine-checked conversion ledger. It rejects caller-asserted staff-PIN flags,
 generic provider results, free account-deletion targets and caller-selected
 cron rows; application PIN/provider verification remain explicit external
 trust boundaries. External refund resolution will use a private, FORCE-RLS,
