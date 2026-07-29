@@ -30,16 +30,18 @@ conversion then moves its direct message read and nested attachment relation
 behind `grainline_case_message_page`. The grouped recipient-read application
 conversion then moves the staff Case detail lookup, staff active-count query
 and three nested Order-to-Case reads behind the fixed recipient projections.
-The current exact inventory is therefore 45 remaining references across 17
-source files: 25 direct ORM operations, 9 nested relation references and 11
-raw SQL references. The executable catalog deep-compares every remaining
-source and operation count with the live scanner and retains all thirty-five removed
+The PIN-gated staff queue conversion then moves its Case count, paginated Case
+read and nested message count behind `grainline_case_staff_queue`. The current
+exact inventory is therefore 42 remaining references across 16 source files:
+23 direct ORM operations, 8 nested relation references and 11 raw SQL
+references. The executable catalog deep-compares every remaining source and
+operation count with the live scanner and retains all thirty-eight removed
 references (three from the Stripe webhook, two from the seller-refund route,
 four from staff resolution, three from participant mark-resolved, four from
 buyer Case opening, ten from Case reply, two from Case-message preflight, two
-from Case-message page history and five from grouped recipient reads) in a
-separate converted-source ledger. A
-source cannot disappear, appear or claim conversion without changing a test.
+from Case-message page history, five from grouped recipient reads and three
+from the staff queue) in a separate converted-source ledger. A source cannot
+disappear, appear or claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication`,
@@ -572,6 +574,31 @@ separate payment-event ledger. This moves five references to the converted
 ledger, leaving 45 current references across 17 files and thirty-five
 converted references. It remains compatible app preparation only: no policy,
 RLS posture, table grant, deployment or production data changes.
+
+The PIN-gated staff queue authority checkpoint adds one compatible
+`SECURITY DEFINER` projection,
+`grainline_case_staff_queue(actorUserId, statusFilter, requestedPage,
+pageSize)`. PostgreSQL revalidates an active EMPLOYEE or ADMIN, sets
+transaction-local actor context, derives the total count and clamped page from
+the same SQL snapshot, and returns at most 50 rows in the existing stable
+resolved-last ordering. The result contains only Case and Order ids, reason,
+status, message count, an explicit UTC creation timestamp, and the minimal
+buyer/seller labels the queue already displays. It excludes User ids, Clerk
+ids, avatars, Case narrative, payment/refund fields, evidence identifiers and
+private object keys. Empty display names fall back to the stored email exactly
+as the prior application query did.
+
+One strict typed wrapper is now the only Case-family access in
+`src/app/admin/cases/page.tsx`. It validates the exact result shape,
+pagination arithmetic, bounded counts, ids, enums, unique rows, display-field
+lengths and UTC timestamps before rendering. The existing
+`requireAdminPageAccess` and session-bound staff PIN remain the application
+precondition; the database function never accepts a PIN assertion. This moves
+three protected references to the converted ledger, leaving 42 current
+references across 16 files and thirty-eight converted references. The
+compatible migration adds only the function and its exact runtime EXECUTE
+grant. It does not enable Case-family RLS, change a table grant, mutate data,
+deploy application code or alter production.
 
 ## Account deletion boundary
 

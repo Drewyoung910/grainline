@@ -155,10 +155,7 @@ buyer, seller and staff detail pages through one strict typed validator. It
 removes mutable User-name joins from message labels and moves the direct
 message plus nested attachment reads to the converted ledger. The grouped
 recipient-read conversion also moves staff Case detail, the PIN-gated active
-count and three Order-to-Case relations behind fixed typed projections. The
-current live Case-family inventory is 45 references across 17 files, with
-thirty-five of the 80-reference baseline retained in the converted ledger.
-This remains preparation only; production Case-family RLS is still off.
+count and three Order-to-Case relations behind fixed typed projections.
 
 Keep the PII-free Case-detail projections separate from the cross-user staff
 queue. One Case by id, one Case by Order and the staff active count may remain
@@ -171,7 +168,15 @@ The staff Case queue is not one of those ordinary reads. It needs minimal
 buyer/seller contact fields for PIN-verified staff, which future self-only User
 RLS should hide from the runtime role. Keep it as a separate, narrow
 source-validating SECURITY DEFINER projection rather than granting broad User
-visibility or adding PII to the shared participant Case result.
+visibility or adding PII to the shared participant Case result. That projection
+and its strict typed application wrapper are now prepared in isolation. Count
+and page share one database snapshot; UTC timestamps, message counts, safe
+page and blank-name email fallback are database-derived; the result excludes
+User ids, Clerk ids, Case narrative, payment/refund evidence and object
+identifiers. The current live Case-family inventory is 42 references across
+16 files, with thirty-eight of the 80-reference baseline retained in the
+converted ledger. This remains preparation only; production Case-family RLS
+is still off.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and

@@ -59,12 +59,18 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     operationKind: "SOURCE_BOUND_READ",
     security: "DEFINER",
     runtimeExecute: true,
-    callerInputs: ["actorUserId", "statusFilter", "cursor", "boundedLimit"],
+    callerInputs: [
+      "actorUserId",
+      "statusFilter",
+      "requestedPage",
+      "boundedLimit",
+    ],
     applicationPreconditions: [
       "the staff actor completed the session-bound staff PIN challenge",
     ],
     databaseDerived: [
       "current staff role",
+      "total count and safe page",
       "bounded queue rows",
       "message counts",
       "minimal buyer and seller contact projection",
@@ -487,6 +493,15 @@ const freezeSource = (entry) => Object.freeze({
 // scanner stays an exact activation countdown while this ledger proves which
 // fixed operation replaced each removed reference.
 export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/app/admin/cases/page.tsx": freezeSource({
+    actors: ["STAFF"],
+    destinations: ["case_staff_queue"],
+    inventory: {
+      "Case.count": 1,
+      "Case.findMany": 1,
+      "CaseMessage.relation-reference": 1,
+    },
+  }),
   "src/app/admin/cases/[id]/page.tsx": freezeSource({
     actors: ["STAFF"],
     destinations: ["case_get", "case_message_page"],
@@ -587,15 +602,6 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
-  "src/app/admin/cases/page.tsx": freezeSource({
-    actors: ["STAFF"],
-    destinations: ["case_staff_queue"],
-    inventory: {
-      "Case.count": 1,
-      "Case.findMany": 1,
-      "CaseMessage.relation-reference": 1,
-    },
-  }),
   "src/app/admin/verification/page.tsx": freezeSource({
     actors: ["STAFF"],
     destinations: [

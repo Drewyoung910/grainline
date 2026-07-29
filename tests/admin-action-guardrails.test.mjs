@@ -82,7 +82,7 @@ describe("admin server action guardrails", () => {
       ["src/app/admin/orders/page.tsx", "prisma.order.findMany"],
       ["src/app/admin/orders/[id]/page.tsx", "prisma.order.findUnique"],
       ["src/app/admin/flagged/page.tsx", "prisma.order.findMany"],
-      ["src/app/admin/cases/page.tsx", "prisma.case.findMany"],
+      ["src/app/admin/cases/page.tsx", "getStaffCaseQueue"],
       ["src/app/admin/cases/[id]/page.tsx", "getVisibleCaseById"],
       ["src/app/admin/broadcasts/page.tsx", "prisma.sellerBroadcast.findMany"],
       ["src/app/admin/blog/page.tsx", "prisma.blogPost.findMany"],

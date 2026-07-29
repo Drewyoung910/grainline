@@ -953,6 +953,29 @@ leaving 45 current references across 17 files and thirty-five converted
 references. It is coexistence-safe preparation only and does not activate
 Case-family RLS, change grants, migrate production or deploy application code.
 
+Phase 4 PIN-gated staff queue authority and application candidate
+(2026-07-29): one narrow SECURITY DEFINER function replaces the staff queue's
+direct Case count, paginated Case read and nested message count. It accepts
+only the already-resolved local actor id, an optional fixed Case status, a
+bounded page and a bounded page size. PostgreSQL revalidates active
+EMPLOYEE/ADMIN authority, derives count plus clamped page from one statement
+snapshot, preserves the current resolved-last stable order, and emits only the
+minimal labels and Case metadata the queue renders. The explicit UTC timestamp
+and message count are database-derived; no User ids, Clerk ids, narrative,
+payment/refund evidence or private-object identifiers cross the boundary.
+
+The strict typed wrapper is the only Case-family call in the queue page and
+the existing `requireAdminPageAccess` plus session-bound staff PIN remain
+mandatory. The migration is coexistence-safe function preparation with an
+exact runtime EXECUTE grant only. This moves three more protected references,
+leaving 42 current references across 16 files and thirty-eight converted
+references. Production and Case-family RLS remain unchanged. Exact ephemeral
+PostgreSQL proof must still demonstrate staff/admin equivalence, foreign and
+disabled actor denial, forced-RLS isolation across Case/User/CaseMessage,
+filtering, page clamping, stable order, minimal contact fallback,
+transaction-local context, zero mutation and zero fixture residue before the
+checkpoint can be promoted.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

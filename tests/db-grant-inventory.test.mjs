@@ -913,6 +913,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_resolution_provider_record",
       "grainline_case_staff_resolution_reconcile",
       "grainline_case_staff_active_count",
+      "grainline_case_staff_queue",
       "grainline_case_stripe_dispute_apply",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
@@ -934,7 +935,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      91 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      92 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -951,6 +952,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_open",
       "grainline_case_reply",
       "grainline_case_staff_active_count",
+      "grainline_case_staff_queue",
       "grainline_case_staff_resolution_prepare",
       "grainline_case_staff_resolution_provider_record",
       "grainline_case_staff_resolution_finalize",

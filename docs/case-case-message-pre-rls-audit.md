@@ -53,10 +53,12 @@ route's final direct Case lookup and the private-evidence upload route's direct
 Case lookup. The bounded Case-message page application conversion removes one
 direct message read and one nested attachment relation. The grouped recipient
 read application conversion removes two more direct operations and three
-nested Order-to-Case relations. The current countdown is therefore 25 direct
-operations, 9 nested relation references and 11 raw SQL references: 45
-remaining protected references across 17 source files. The converted-source
-ledger now retains all thirty-five removed references.
+nested Order-to-Case relations. The PIN-gated staff queue conversion removes
+its direct Case count, paginated Case read and nested message-count relation.
+The current countdown is therefore 23 direct operations, 8 nested relation
+references and 11 raw SQL references: 42 remaining protected references
+across 16 source files. The converted-source ledger now retains all
+thirty-eight removed references.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
@@ -371,8 +373,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 45-reference current countdown
-  and thirty-five-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 42-reference current countdown
+  and thirty-eight-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
@@ -570,6 +572,23 @@ not the omitted raw Stripe refund object id. The live countdown is now 45
 references across 17 files with thirty-five retained in the converted ledger.
 This remains isolated compatible preparation and does not change production or
 Case-family RLS.
+
+The staff queue authority and application candidate then removes the queue's
+remaining three protected references. Its narrow
+`grainline_case_staff_queue` function is intentionally SECURITY DEFINER
+because PIN-verified staff need minimal buyer/seller labels that a later
+self-only User policy must hide from ordinary runtime reads. The function
+revalidates the current staff role, applies the optional Case-status filter,
+derives total count and clamped page from one snapshot, preserves the current
+resolved-last stable ordering, and emits no Case narrative, User identifier,
+Clerk identifier, payment field or private-object field. UTC timestamps and
+blank-name email fallback are database-derived. The typed wrapper rejects
+extra fields, inconsistent pagination, duplicate rows, invalid ids/enums,
+unbounded counts or display fields, and timestamps without an explicit
+offset. The live countdown is now 42 references across 16 files with
+thirty-eight retained in the converted ledger. This remains isolated
+compatible preparation: production, table grants and Case-family RLS are
+unchanged.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B
