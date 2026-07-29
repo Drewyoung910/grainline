@@ -393,7 +393,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "create or reopen target",
       "source-backed openedByPaymentEventId for a webhook-created Case",
       "UNDER_REVIEW state with stale Case resolution and refund snapshot cleared while durable OrderPaymentEvent history is retained",
-      "strict audit source",
+      "private CaseStripeDisputeApplication replay identity and co-committed non-authoritative SystemAuditLog observability",
     ],
     externalTrustBoundaries: [
       "the Stripe webhook route verifies the provider signature before recording the OrderPaymentEvent",
