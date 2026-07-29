@@ -37,9 +37,13 @@ files: 23 direct ORM operations, 8 nested relation references and 11 raw SQL
 references. The Case-aware Order conversion then moves three buyer
 delivery-confirmation references, two seller-fulfillment references, two
 seller-label references and the retention cron's raw Case reference behind
-three purpose-bound operations. The current exact inventory is therefore 34
-remaining references across 12 source files, with all forty-six removed
-references retained in the converted-source ledger. The executable catalog
+three purpose-bound operations. The seller-aggregate conversion then moves six
+verification, Guild and metrics references behind three purpose-bound
+aggregates. The account-export/private-evidence conversion moves four more
+references behind one bounded participant export page and the existing Case
+and DirectUpload reads. The current exact inventory is therefore 24 remaining
+references across 5 source files, with all fifty-six removed references
+retained in the converted-source ledger. The executable catalog
 deep-compares every remaining source and operation count with the live scanner.
 A source cannot disappear, appear or claim conversion without changing a test.
 
@@ -101,12 +105,12 @@ The machine-readable catalog contains 28 operations.
 | `case_message_page` | DEFINER | Source-bound, bounded stable `(createdAt,id)` history plus attachment metadata without object keys or User profile fields |
 | `case_staff_queue` | DEFINER | Source-validating bounded staff queue, message counts and minimal buyer/seller contact fields |
 | `case_staff_active_count` | INVOKER | Staff-only active Case count |
-| `case_export` | INVOKER | Complete participant Case/message export plus attachment metadata |
+| `case_export` | INVOKER | Bounded participant Case page; the application walks every page and reuses bounded message/attachment authority for a complete export |
 | `case_message_preflight` | DEFINER | Source-bound current authority, messageable status and counterparty availability before upload or reply |
 
-The interactive projection stays bounded. The account export is deliberately
-complete and remains a separate projection; it must not inherit the
-interactive page limit.
+The interactive projection stays bounded. Account export is also bounded per
+database statement but deliberately complete: it walks every Case page and
+every existing message page rather than imposing an overall history cap.
 
 The message preflight, bounded message page and PII-bearing staff queue are
 narrow source-validating exceptions to the remaining recipient projections.

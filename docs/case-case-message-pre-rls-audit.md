@@ -59,10 +59,11 @@ The Case-aware Order conversion removes eight more references from buyer
 delivery confirmation, seller fulfillment, label purchase and fixed PII
 retention. The seller-aggregate conversion removes six direct Case reads from
 Guild eligibility/revocation/reinstatement and seller metrics. The current
-countdown is therefore 17 direct operations, 3 nested relation references and
-8 raw SQL references: 28 remaining protected references across 7 source
-files. The converted-source ledger now retains all fifty-two removed
-references.
+account-export/private-evidence read conversion then removes two direct
+operations and two nested CaseMessage/attachment relations. The countdown is
+therefore 15 direct operations, 1 nested relation reference and 8 raw SQL
+references: 24 remaining protected references across 5 source files. The
+converted-source ledger now retains all fifty-six removed references.
 
 The seller-aggregate checkpoint passed exact-head disposable PostgreSQL 16 and
 full CI at `b029f0ab9fec927317ffca60b0f5d09a6e70e6f0`, run `30490356203`
@@ -383,8 +384,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 28-reference current countdown
-  and fifty-two-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 24-reference current countdown
+  and fifty-six-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
@@ -401,8 +402,8 @@ policy/authority SQL only when:
 
 The Phase 1A bounded-history conversion replaced three unbounded nested
 CaseMessage reads with one shared keyset reader. Subsequent compatible,
-purpose-bound conversions have reduced the live inventory to 17 direct ORM
-calls, 3 relation references and 8 raw SQL references (28 total across 7
+purpose-bound conversions have reduced the live inventory to 15 direct ORM
+calls, 1 relation reference and 8 raw SQL references (24 total across 5
 source files). The original 69-reference audit and expanded 80-reference
 Phase 4 baseline remain in the conversion ledger; no access path is silently
 removed.

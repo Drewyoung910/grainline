@@ -90,15 +90,20 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
   }),
   freezeOperation({
     id: "case_export",
-    candidateFunctionName: "grainline_case_export",
+    candidateFunctionName: "grainline_case_export_page",
     operationKind: "READ_PROJECTION",
     security: "INVOKER",
     runtimeExecute: true,
-    callerInputs: ["actorUserId"],
+    callerInputs: [
+      "actorUserId",
+      "createdAtCursor",
+      "idCursor",
+      "boundedLimit",
+    ],
     databaseDerived: [
-      "participant Cases",
-      "complete CaseMessage history",
-      "attachment metadata without object keys",
+      "bounded participant Case page",
+      "complete history through existing bounded CaseMessage pages",
+      "attachment metadata without object keys through existing message authority",
     ],
   }),
   freezeOperation({
@@ -533,6 +538,20 @@ const freezeSource = (entry) => Object.freeze({
 // scanner stays an exact activation countdown while this ledger proves which
 // fixed operation replaced each removed reference.
 export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/app/api/account/export/route.ts": freezeSource({
+    actors: ["PARTICIPANT"],
+    destinations: ["case_export", "case_message_page"],
+    inventory: {
+      "Case.findMany": 1,
+      "CaseMessage.relation-reference": 1,
+      "CaseMessageAttachment.relation-reference": 1,
+    },
+  }),
+  "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts": freezeSource({
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_get", "case_attachment_read"],
+    inventory: { "Case.findUnique": 1 },
+  }),
   "src/app/admin/verification/page.tsx": freezeSource({
     actors: ["STAFF"],
     destinations: [
@@ -696,20 +715,6 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
-  "src/app/api/account/export/route.ts": freezeSource({
-    actors: ["PARTICIPANT"],
-    destinations: ["case_export"],
-    inventory: {
-      "Case.findMany": 1,
-      "CaseMessage.relation-reference": 1,
-      "CaseMessageAttachment.relation-reference": 1,
-    },
-  }),
-  "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts": freezeSource({
-    actors: ["PARTICIPANT", "STAFF"],
-    destinations: ["case_attachment_read"],
-    inventory: { "Case.findUnique": 1 },
-  }),
   "src/app/api/cases/[id]/escalate/route.ts": freezeSource({
     actors: ["PARTICIPANT", "STAFF", "CRON"],
     destinations: ["case_escalate", "case_cron_transition_batch"],

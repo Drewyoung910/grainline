@@ -29,6 +29,7 @@ import { ownerSavedBlogPostExportRows } from "@/lib/savedBlogPostOwnerAccess";
 import { ownerCartExportRows } from "@/lib/cartOwnerAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { exportOwnedDirectUploads } from "@/lib/directUploadLifecycle";
+import { exportParticipantCases } from "@/lib/caseAccountExportAuthority";
 
 export const runtime = "nodejs";
 
@@ -357,44 +358,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
         })
       : [],
     exportActorMessages(user.id),
-    prisma.case.findMany({
-      where: { OR: [{ buyerId: user.id }, { sellerId: user.id }] },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        orderId: true,
-        buyerId: true,
-        sellerId: true,
-        reason: true,
-        description: true,
-        status: true,
-        resolution: true,
-        refundAmountCents: true,
-        sellerRespondBy: true,
-        resolvedAt: true,
-        createdAt: true,
-        updatedAt: true,
-        messages: {
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          select: {
-            id: true,
-            authorId: true,
-            authorKind: true,
-            body: true,
-            createdAt: true,
-            attachments: {
-              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-              select: {
-                id: true,
-                contentType: true,
-                byteSize: true,
-                createdAt: true,
-              },
-            },
-          },
-        },
-      },
-    }),
+    exportParticipantCases(user.id),
     prisma.review.findMany({
       where: { reviewerId: user.id },
       orderBy: { createdAt: "desc" },

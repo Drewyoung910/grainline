@@ -201,8 +201,16 @@ participants or narratives. Admin verification mutations must repeat the
 session-bound staff PIN check inside the server action, even when the enclosing
 page already passed the admin layout gate.
 
-The current Case-family preparation inventory is 28 references across 7 files,
-with fifty-two of the 80-reference baseline retained in the converted ledger.
+Account export must page Case rows and reuse the bounded Case-message
+projection rather than restore an unbounded nested Case read. Preserve complete
+export semantics and stable ordering; if real histories outgrow a materialized
+JSON response, move the entire multi-model export to a streaming archive
+instead of silently capping Case history. Private evidence download should
+reuse the existing participant/staff Case projection for staff-PIN mode and
+the existing source-bound DirectUpload reader for object authority.
+
+The current Case-family preparation inventory is 24 references across 5 files,
+with fifty-six of the 80-reference baseline retained in the converted ledger.
 This remains preparation only; production Case-family RLS is still off.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2

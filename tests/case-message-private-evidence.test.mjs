@@ -115,11 +115,18 @@ describe("private CaseMessage evidence", () => {
       "recipient availability must fail before private upload bytes are read",
     );
     assert.doesNotMatch(uploadRoute, /prisma\.case\.findUnique/);
-    assert.match(readRoute, /me\.id === caseRecord\.buyerId/);
-    assert.match(readRoute, /me\.id === caseRecord\.sellerId/);
-    assert.match(readRoute, /me\.role === "EMPLOYEE" \|\| me\.role === "ADMIN"/);
-    assert.match(readRoute, /requireStaffAdminPinForApi/);
-    assert.match(readRoute, /return privateJson\(\{ error: "Forbidden\."/);
+    assert.match(
+      readRoute,
+      /getVisibleCaseById\(\{[\s\S]*actorUserId: me\.id,[\s\S]*caseId: id/,
+    );
+    assert.match(
+      readRoute,
+      /if \(caseRecord\.actsAsStaff\)[\s\S]*requireStaffAdminPinForApi/,
+    );
+    assert.doesNotMatch(
+      readRoute,
+      /prisma\.case|me\.id === caseRecord|me\.role ===/,
+    );
     assert.match(uploadRoute, /uploadFileSignatureMatches/);
     assert.match(uploadRoute, /stripMetadata/);
     assert.match(
@@ -185,6 +192,12 @@ describe("private CaseMessage evidence", () => {
     const reply = source("src/components/CaseReplyBox.tsx");
     const history = source("src/lib/caseMessageHistory.ts");
     const exportRoute = source("src/app/api/account/export/route.ts");
+    const exportAuthority = source(
+      "src/lib/caseAccountExportAuthority.ts",
+    );
+    const exportMessageResult = source(
+      "src/lib/caseMessagePageResult.ts",
+    );
     const deletion = source("src/lib/accountDeletion.ts");
     const plan = source("docs/rls-case-case-message-plan.md");
 
@@ -193,7 +206,14 @@ describe("private CaseMessage evidence", () => {
     assert.match(reply, /attachmentKeys:/);
     assert.match(history, /listCaseMessagePage/);
     assert.doesNotMatch(history, /objectKey|directUploadId/);
-    assert.match(exportRoute, /attachments: \{[\s\S]*byteSize: true/);
+    assert.match(exportRoute, /exportParticipantCases\(user\.id\)/);
+    assert.match(exportAuthority, /listCaseMessagePage/);
+    assert.match(exportAuthority, /MESSAGE_EXPORT_PAGE_SIZE = 51/);
+    assert.match(exportMessageResult, /byteSize: number/);
+    assert.doesNotMatch(
+      `${exportAuthority}\n${exportMessageResult}`,
+      /objectKey|directUploadId/,
+    );
     assert.match(
       deletion,
       /Private Case evidence is retained with the dispute\/order record/,

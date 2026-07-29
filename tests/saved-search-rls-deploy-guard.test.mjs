@@ -39,6 +39,8 @@ import {
   CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION_TREE_SHA256,
   CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
   CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
+  CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION_TREE_SHA256,
   CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
   CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
   CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
@@ -149,6 +151,8 @@ const REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY =
   "case-order-active-authority-reviewed";
 const REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY =
   "case-seller-aggregate-authority-reviewed";
+const REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY =
+  "case-account-export-authority-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -235,6 +239,8 @@ function validate(
         CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION_TREE_SHA256,
       [REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY]:
         CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY]:
+        CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -292,6 +298,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     CASE_STAFF_QUEUE_AUTHORITY_MIGRATION,
     CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION,
     CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
+    CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -409,6 +416,10 @@ const REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS = [
   ...REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS,
   CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS,
+  CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -465,6 +476,8 @@ function migrationsFor(phase) {
       REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS,
     [REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY]:
       REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY]:
+      REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
   }[phase];
 }
 
@@ -721,6 +734,9 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.ok(
       currentMigrations.includes(CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION),
     );
+    assert.ok(
+      currentMigrations.includes(CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION),
+    );
     assert.throws(() => validate(undefined, currentMigrations), /is missing/);
     assert.throws(
       () => validate(RELEASE_ZERO, currentMigrations),
@@ -866,12 +882,20 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY, currentMigrations),
       /remain the latest migration/,
     );
+    assert.throws(
+      () =>
+        validate(
+          REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+          currentMigrations,
+        ),
+      /remain the latest migration/,
+    );
     assert.equal(
       validate(
-        REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
         currentMigrations,
       ).phase,
-      REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+      REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
     );
   });
 
@@ -1793,6 +1817,48 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact participant account-export authority after seller aggregates", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+        hasCaseRecipientReadAuthorityMigration: true,
+        hasCaseStaffQueueAuthorityMigration: true,
+        hasCaseOrderActiveAuthorityMigration: true,
+        hasCaseSellerAggregateAuthorityMigration: true,
+        hasCaseAccountExportAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
+      CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+            REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact seller aggregate boundary plus the compatible participant account-export authority migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -1822,6 +1888,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_CASE_STAFF_QUEUE_AUTHORITY,
     REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY,
     REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+    REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -1915,7 +1982,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current Case seller aggregate guard before CI migrations", () => {
+  it("runs the current Case account-export guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -1925,7 +1992,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify Case seller aggregate authority migration tree[\s\S]{0,240}SAVED_SEARCH_RLS_DEPLOY_PHASE: case-seller-aggregate-authority-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
+      /Verify Case account-export authority migration tree[\s\S]{0,240}SAVED_SEARCH_RLS_DEPLOY_PHASE: case-account-export-authority-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
     );
   });
 
@@ -1973,6 +2040,8 @@ describe("SavedSearch RLS production deploy guard", () => {
       "20260729058000_unreviewed_later_migration";
     const laterCaseSellerAggregateAuthorityMigration =
       "20260729059000_unreviewed_later_migration";
+    const laterCaseAccountExportAuthorityMigration =
+      "20260729060000_unreviewed_later_migration";
 
     assert.throws(
       () => validate(RELEASE_ZERO, [
@@ -2178,6 +2247,16 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /review or retire the temporary SavedSearch deploy guard/,
     );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+        [
+          ...REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
+          laterCaseAccountExportAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
   });
 
   it("pins the exact reviewed migration inventory and SQL contents", () => {
@@ -2367,6 +2446,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS,
       ),
       CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

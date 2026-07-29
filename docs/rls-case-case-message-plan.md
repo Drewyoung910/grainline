@@ -1074,8 +1074,52 @@ Case-aware Order review phase. The scanner itself reported the expected
 the seller-aggregate phase without weakening the production-workflow boundary;
 focused tests, the complete local suite, TypeScript, lint and the sealed
 release-artifact guard then passed. The PostgreSQL proof is intentionally not
-claimed locally because no loopback `grainline_ci` service is available in
-this worktree; exact-head CI must execute it.
+claimed as a local result because no loopback `grainline_ci` service is
+available in this worktree; exact-head CI subsequently executed it as recorded
+above.
+
+Phase 4 account-export and private-evidence read candidate (2026-07-29):
+account export must remain complete without asking PostgreSQL for every Case,
+message and attachment in one unbounded nested query. The participant-only
+`grainline_case_export_page` uses a stable `(createdAt,id)` keyset and a fixed
+25-row maximum. The application walks every Case page and reuses the existing
+51-row Case-message authority, retaining complete history and the existing
+four-attachment invariant while sorting each Case's messages back into the
+export's historical ascending order. No Case, message or attachment is
+silently capped; database work is bounded per statement.
+
+The private-evidence download route does not need a second new bypass. It uses
+the already-proven `grainline_case_get` result to distinguish participant
+access from staff access, repeats the session-bound staff PIN when
+`actsAsStaff` is true, then calls the existing source-bound DirectUpload
+attachment reader. That preserves the exact attachment/Case/source lifecycle
+validation while removing the route's direct Case lookup.
+
+This conversion moves four references to the retained ledger, leaving 24
+current references across 5 files and fifty-six converted references. It adds
+no policy, RLS posture, table grant, production migration authorization,
+provider resource or deployment. The account export still materializes the
+complete multi-model JSON response in application memory, as it did before.
+If real account histories make that response materially large, replace the
+route-level payload builder with a streaming archive as a separate
+cross-model scalability project; do not truncate a user's legal/privacy
+export to solve memory pressure.
+
+The first complete local suite after the conversion found two stale
+private-evidence source contracts: they still required the removed inline
+participant comparison and the removed nested Prisma attachment select. The
+application behavior was not failing. The contracts now assert the fixed
+Case projection, staff-PIN branch, participant export wrapper, bounded
+Case-message paging and attachment metadata validator instead. The focused
+suite and all 2,522 repository tests then passed locally; the disposable
+PostgreSQL execution remains an exact-head CI gate because no loopback
+`grainline_ci` service is available in this worktree.
+
+The local production build compiled and completed its TypeScript pass, then
+stopped during page-data collection because this disposable worktree
+intentionally has no `DATABASE_URL`. No application/build defect was inferred
+from that environment-only stop; the exact-head CI build supplies its
+loopback runtime database and remains the accepted build result.
 
 ## Phase 5: ENABLE activation
 

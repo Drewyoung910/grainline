@@ -911,7 +911,8 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_order_buyer_pii_prune_batch(integer)'),
     ('public.grainline_case_seller_active_count(text)'),
     ('public.grainline_case_seller_verification_eligibility(text,text)'),
-    ('public.grainline_case_guild_unresolved_guard(text)')
+    ('public.grainline_case_guild_unresolved_guard(text)'),
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM recipient_read
@@ -929,7 +930,8 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_order_buyer_pii_prune_batch(integer)'),
     ('public.grainline_case_seller_active_count(text)'),
     ('public.grainline_case_seller_verification_eligibility(text,text)'),
-    ('public.grainline_case_guild_unresolved_guard(text)')
+    ('public.grainline_case_guild_unresolved_guard(text)'),
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -951,7 +953,8 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_order_buyer_pii_prune_batch(integer)'),
     ('public.grainline_case_seller_active_count(text)'),
     ('public.grainline_case_seller_verification_eligibility(text,text)'),
-    ('public.grainline_case_guild_unresolved_guard(text)')
+    ('public.grainline_case_guild_unresolved_guard(text)'),
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
