@@ -254,9 +254,10 @@ async function seedFixtures(client) {
     ]) {
       await client.query(`
         INSERT INTO public."SellerProfile" (
-          id, "userId", "displayName", "displayNameNormalized"
+          id, "userId", "displayName", "displayNameNormalized",
+          "createdAt", "updatedAt"
         )
-        VALUES ($1, $2, $3, $4)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `, [id, userId, name, name.toLowerCase()]);
     }
 
@@ -267,9 +268,13 @@ async function seedFixtures(client) {
     ]) {
       await client.query(`
         INSERT INTO public."Listing" (
-          id, "sellerId", title, description, "priceCents"
+          id, "sellerId", title, description, "priceCents",
+          "createdAt", "updatedAt"
         )
-        VALUES ($1, $2, $3, 'Disposable proof listing.', 1000)
+        VALUES (
+          $1, $2, $3, 'Disposable proof listing.', 1000,
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
       `, [id, sellerId, id]);
     }
 
@@ -349,9 +354,13 @@ async function seedFixtures(client) {
     ].entries()) {
       await client.query(`
         INSERT INTO public."OrderShippingRateQuote" (
-          id, "orderId", "shipmentId", rates, "expiresAt"
+          id, "orderId", "shipmentId", rates, "expiresAt",
+          "createdAt", "updatedAt"
         )
-        VALUES ($1, $2, $3, '[]'::jsonb, CURRENT_TIMESTAMP)
+        VALUES (
+          $1, $2, $3, '[]'::jsonb, CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
       `, [
         `${PREFIX}-quote-${index}`,
         orderId,

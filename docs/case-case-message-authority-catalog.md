@@ -662,6 +662,17 @@ is compatible preparation only: the migration adds three exact functions and
 runtime EXECUTE grants, the application can coexist with the prior direct
 reads, and production Case-family RLS, table grants and data remain unchanged.
 
+First exact-head GitHub Actions attempt `30487848128` (job `90697898169`) is
+retained failed evidence. The complete migration tree, runtime-role grant
+convergence and every preceding Case authority proof passed; the new proof
+then stopped while seeding its first `SellerProfile` because the raw fixture
+omitted the Prisma-managed, database-required `updatedAt` column. No new
+authority assertion ran, and the disposable PostgreSQL container was
+destroyed. The correction supplies explicit database timestamps for every
+raw-seeded `@updatedAt` model (`SellerProfile`, `Listing` and
+`OrderShippingRateQuote`) and adds a class guard so the harness cannot repeat
+that schema-fixture mismatch.
+
 ## Account deletion boundary
 
 The redaction function does not accept a free `deletingUserId`. It accepts an

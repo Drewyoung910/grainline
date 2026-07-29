@@ -631,3 +631,11 @@ forty-six retained in the converted ledger. This is not activation evidence:
 disposable PostgreSQL authority, forced-RLS, grant, lock-race, rollback and
 zero-residue proofs remain required before the checkpoint is accepted.
 Production remains unchanged.
+
+Exact-head CI attempt `30487848128` reached the new proof only after the full
+migration tree and all predecessor Case proofs passed, then failed before its
+first authority check because the disposable raw-SQL `SellerProfile` fixture
+omitted required `updatedAt`. The container was torn down and production was
+unchanged. The proof now supplies explicit timestamps for every seeded model
+whose Prisma `@updatedAt` field has no database default, with a static
+class-wide fixture contract.

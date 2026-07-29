@@ -47,6 +47,18 @@ describe("Case-aware Order PostgreSQL proof", () => {
     assert.match(source, /caller-context-unchanged/);
     assert.match(source, /preflight-zero-residue/);
     assert.match(source, /Case-aware Order proof left fixture residue/);
+    for (const table of [
+      "SellerProfile",
+      "Listing",
+      "OrderShippingRateQuote",
+    ]) {
+      assert.match(
+        source,
+        new RegExp(
+          `INSERT INTO public\\."${table}" \\([\\s\\S]{0,260}"updatedAt"[\\s\\S]{0,260}CURRENT_TIMESTAMP`,
+        ),
+      );
+    }
     assert.doesNotMatch(source, /has_function_privilege\(\s*'PUBLIC'/);
   });
 

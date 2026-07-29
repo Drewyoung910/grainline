@@ -1015,6 +1015,12 @@ behavior, exact grants, FORCE isolation, locked Case races, fixed retention
 eligibility, rollback and zero residue. The Order/OrderShippingRateQuote
 mutation is an explicit dependency to re-review in their later RLS group.
 
+Failed proof evidence is not discarded: exact-head run `30487848128` applied
+the tree and passed all predecessor Case proofs, then a raw fixture omitted
+the required `SellerProfile.updatedAt` value and stopped before authority
+assertions. The corrected harness explicitly timestamps all raw-seeded
+`@updatedAt` models and pins that fixture/schema boundary in tests.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
