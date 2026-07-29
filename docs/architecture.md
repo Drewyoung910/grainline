@@ -48,11 +48,14 @@ independently reviewed RLS or least-privilege database groups roll out:
 - Webhooks and cron routes are middleware-public only because they authenticate with provider signatures or shared secrets inside the route.
 
 Notification and Conversation/Message are complete independent production
-groups. Case/CaseMessage is now in its pre-policy behavior/authority audit,
-with its 69-reference baseline and open findings recorded in
-`docs/case-case-message-pre-rls-audit.md`. Cases, orders/payment/shipping, and
-service/audit ledgers remain separate later activation groups; do not bundle
-their policies or grants.
+groups. Case/CaseMessage/CaseMessageAttachment is in compatible Phase 4
+authority conversion: its exact 80-reference baseline is retained, 26
+references have moved behind fixed operations, and 54 direct/nested/raw
+references remain. The current function-only Case-message preflight is a
+narrow source-validating `SECURITY DEFINER` read so later self-only User RLS
+cannot hide the counterparty state it must derive. Case-family RLS is still
+off. Cases, orders/payment/shipping, User, and service/audit ledgers remain
+separate later activation groups; do not bundle their policies or grants.
 
 ## Core Lifecycles
 

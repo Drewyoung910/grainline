@@ -92,10 +92,14 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       "case_staff_queue",
       "case_staff_active_count",
       "case_export",
-      "case_message_preflight",
     ]) {
       assert.equal(byId.get(id)?.security, "INVOKER", id);
     }
+    assert.equal(byId.get("case_message_preflight")?.security, "DEFINER");
+    assert.equal(
+      byId.get("case_message_preflight")?.operationKind,
+      "SOURCE_BOUND_READ",
+    );
     for (const operation of CASE_AUTHORITY_OPERATIONS) {
       assert.ok(operation.candidateFunctionName.startsWith("grainline_"));
       assert.ok(operation.callerInputs.length > 0);

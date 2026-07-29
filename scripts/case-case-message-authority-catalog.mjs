@@ -92,8 +92,8 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
   freezeOperation({
     id: "case_message_preflight",
     candidateFunctionName: "grainline_case_message_preflight",
-    operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    operationKind: "SOURCE_BOUND_READ",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId"],
     applicationPreconditions: [

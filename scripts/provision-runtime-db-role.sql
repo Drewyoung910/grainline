@@ -840,6 +840,34 @@ WHERE to_regprocedure(
 ) IS NOT NULL;
 \gexec
 
+-- Case-message preflight is absent before its compatible authority migration.
+-- Keep PUBLIC closed and converge only the exact recipient-scoped DEFINER
+-- projection; the final Case-reply function remains the write authority.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_message_preflight(text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_message_preflight(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_message_preflight(text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_message_preflight(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_message_preflight(text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_message_preflight(text,text)'
+) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.

@@ -822,6 +822,37 @@ preserves its ACL, and postflights owner, SECURITY DEFINER mode, pinned
 `search_path`, runtime grant, PUBLIC denial and source retirement. This does
 not stage or apply retirement, activation, RLS, grants or production changes.
 
+The Case-reply application and retirement-compatibility checkpoint passed
+exact-head normal CI run `30467976149` and dedicated DirectUpload PostgreSQL
+run `30467974830` at
+`4870908a8ff8df69a05acb52e4a7e2fffdfe91df`. The latter engine-executed the
+generated retirement candidate, including the rebuilt reply function, rather
+than treating regex coverage as database proof. Draft PR #99 is back on its
+intended stacked authority base. Production remains unchanged.
+
+Phase 4 Case-message preflight authority candidate (2026-07-29): add one
+coexistence-safe
+`grainline_case_message_preflight(actorUserId, caseId)` function shared by
+the reply and private-evidence upload routes. The fixed result contains only
+Case id, Order id, buyer/seller ids, status, source-derived author kind,
+non-party-staff mode, messageable state and the counterparty's fixed
+missing/deleted/suspended reason. Disabled, missing or unauthorized actors
+receive no row. The caller cannot assert role, recipient, author kind, status
+or availability.
+
+Hard review changed the planned function from INVOKER to a narrow SECURITY
+DEFINER source-bound read. INVOKER would couple Case messaging to broad runtime
+visibility of the counterparty User row and would break under later self-only
+User RLS. The DEFINER version validates the active actor and exact
+participant/current-staff relationship internally, exposes no User profile or
+contact field, pins `search_path`, denies PUBLIC and grants only the exact
+runtime signature. Clerk authentication, active-account resolution and the
+session-bound staff PIN remain outside PostgreSQL and load-bearing. The final
+reply function continues to lock and revalidate after preflight, so Case/status
+or counterparty races fail closed at the write boundary. This function-only
+checkpoint leaves the application inventory at 54 references and leaves all
+Case-family policies, grants and production state unchanged.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
