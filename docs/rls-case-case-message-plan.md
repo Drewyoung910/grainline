@@ -464,6 +464,13 @@ superseded sources. The migration does not enable participant RLS, revoke
 legacy Case grants, deploy application conversion or authorize production
 migration.
 
+Implementation checkpoint `3416516e29ea92868c7746c741030f0f0324f850`
+is pushed in draft PR `#88`. The PR is temporarily based on `main` so the
+repository's pull-request-only CI can run the full PostgreSQL 16 migration and
+rollback-only authority proof; it includes the exact PR `#87` schema
+prerequisite until that predecessor merges. This is a CI/review arrangement,
+not production migration or deployment authorization.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
