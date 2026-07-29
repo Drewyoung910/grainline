@@ -692,13 +692,25 @@ pull-request PostgreSQL workflow. Local TypeScript, lint, the focused authority
 contracts and the complete 2,336-test suite passed (2,333 pass, zero fail,
 three intentional skips).
 
-The same checkpoint's fresh dependency audit is retained as failed evidence:
-the 2026-07-23 high-severity `brace-expansion` advisory now reaches the ESLint
-development dependency chain. The audit recommends a breaking ESLint 10
-upgrade. This Case candidate neither runs `npm audit fix --force` nor weakens
-the blocking high-severity gate; dependency remediation remains a separate,
-reviewed change. Exact-head CI is still required, and the intended stacked PR
-base must be restored after its evidence is captured.
+A direct `npm audit --audit-level=high` invocation is retained as expected
+failed evidence for the 2026-07-23 high-severity `brace-expansion` advisory in
+the ESLint development chain. It is not the repository's reviewed gate. The
+repo gate, `npm run audit:dependencies`, separately blocks every high/critical
+production advisory and every unrecognized development advisory while
+allowlisting only this exact development-only GHSA and package path. The
+patched v5 package changes the CommonJS API required by current minimatch v3
+consumers, so neither a forced ESLint 10 upgrade nor an unsafe transitive
+override is mixed into this Case candidate.
+
+Exact candidate head `23a251f50a80bb55c47bb0c41b138d278222748a`
+subsequently passed GitHub Actions run `30433050043` in full. PostgreSQL 16
+applied the sealed migration tree, converged production-style runtime grants,
+passed the dedicated participant-resolution authority proof and every broader
+database proof. TypeScript, lint, all 2,336 tests, the reviewed dependency
+audit and the production build also passed. This is isolated CI evidence only;
+the intended stacked PR base must still be restored, and no merge, production
+migration, deployment, grant change or Case-family RLS activation is
+authorized.
 
 ## Phase 5: ENABLE activation
 
