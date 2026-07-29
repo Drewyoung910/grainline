@@ -173,6 +173,10 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       /CONFIRMED_NO_PROVIDER_EFFECT/,
     );
     assert.match(
+      reconcile.databaseDerived.join(" "),
+      /RELEASED_NO_PROVIDER_EFFECT/,
+    );
+    assert.match(
       reconcile.externalTrustBoundaries.join(" "),
       /PostgreSQL cannot attest/,
     );
@@ -281,6 +285,14 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     assert.match(
       normalizedCatalog,
       /Prisma `cuid\(\)` is a client default, not a database default/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /distinct terminal `RELEASED_NO_PROVIDER_EFFECT` state/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /It must not reuse `FINALIZED`/,
     );
     assert.match(
       normalizedCatalog,

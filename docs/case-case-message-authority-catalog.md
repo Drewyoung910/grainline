@@ -195,17 +195,23 @@ Reconciliation is itself a fixed operation. `RETRY_EXISTING_SCOPE` returns the
 same claim-derived idempotency scope and keeps the lease. Only a current
 PIN-verified `ADMIN` may choose `CONFIRMED_NO_PROVIDER_EFFECT`; the function
 requires no linked local payment evidence, records an immutable audit and then
-releases the claim/lease. The admin's provider review is an explicit human
-trust boundary, not a fact PostgreSQL claims to prove.
+advances the claim to the distinct terminal
+`RELEASED_NO_PROVIDER_EFFECT` state before releasing the Order lease. It must
+not reuse `FINALIZED`, because no Case resolution or provider effect was
+finalized. The admin's provider review is an explicit human trust boundary,
+not a fact PostgreSQL claims to prove.
 
 The ledger schema must store only the fixed workflow evidence: claim id, Case,
 Order, staff actor, resolution, bounded refund amount, database-derived stock
 plan, status, idempotency scope, optional exact payment-event link and
-created/provider-recorded/finalized clocks. A partial unique index permits only
-one non-final claim per Case and Order. Checks bind refund-only fields to refund
-resolutions, prohibit a payment event before `PROVIDER_RECORDED`, and prohibit
-finalization without the required evidence. Finalized claims remain with the
-Case/Order audit record; there is no generic cleanup lease.
+created/provider-recorded/finalized/reconciled clocks. A partial unique index
+permits only one claim whose state is neither `FINALIZED` nor
+`RELEASED_NO_PROVIDER_EFFECT` per Case and Order. Checks bind refund-only
+fields to refund resolutions, prohibit a payment event before
+`PROVIDER_RECORDED`, prohibit finalization without the required evidence and
+require no local payment evidence for `RELEASED_NO_PROVIDER_EFFECT`. Both
+terminal claim kinds remain with the Case/Order audit record; there is no
+generic cleanup lease.
 
 The fixed function proves the local ledger relationship, not Stripe itself.
 PostgreSQL does not independently attest Stripe. Signed webhook/client

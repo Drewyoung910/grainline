@@ -373,7 +373,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "locked unresolved CaseResolutionClaim, Order and Case",
       "existing payment-event absence or presence",
       "same claim idempotency scope for retry",
-      "lease release only for an explicit CONFIRMED_NO_PROVIDER_EFFECT action",
+      "RELEASED_NO_PROVIDER_EFFECT terminal state and lease release only for an explicit CONFIRMED_NO_PROVIDER_EFFECT action",
       "database-generated immutable reconciliation audit",
     ],
     externalTrustBoundaries: [

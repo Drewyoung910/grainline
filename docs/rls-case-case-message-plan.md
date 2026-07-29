@@ -372,7 +372,9 @@ privileges. Prepare, explicit bounded Stripe-evidence recording and finalize
 are separate fixed operations. A provider-pending claim is never released by
 timeout; retry/reconciliation reuses the exact claim-derived Stripe
 idempotency scope. Only a PIN-verified current ADMIN can make the explicitly
-audited human decision that Stripe has no provider effect and release it.
+audited human decision that Stripe has no provider effect and advance it to
+the distinct terminal `RELEASED_NO_PROVIDER_EFFECT` state. That state does not
+pretend the Case or provider action was finalized.
 
 Seller verification, seller metrics and guild-revocation predicates are three
 separate fixed operations. The review rejected one generic arbitrary-seller

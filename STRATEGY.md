@@ -57,7 +57,10 @@ generic provider results, free account-deletion targets and caller-selected
 cron rows; application PIN/provider verification remain explicit external
 trust boundaries. External refund resolution will use a private, FORCE-RLS,
 zero-policy `CaseResolutionClaim` service ledger so provider idempotency,
-recovery and finalization are database-bound rather than caller-asserted.
+recovery and finalization are database-bound rather than caller-asserted. An
+audited administrator finding of no provider effect uses a distinct
+`RELEASED_NO_PROVIDER_EFFECT` terminal state instead of falsely recording the
+claim as finalized.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,
