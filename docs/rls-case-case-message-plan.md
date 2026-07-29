@@ -1,8 +1,8 @@
-# Case and CaseMessage RLS Plan
+# Case, CaseMessage, and CaseMessageAttachment RLS Plan
 
 Opened 2026-07-26. Current phase: Phase 3 invariant and authority-catalog
-design after a clean Phase 2 production inspection. Production
-Case/CaseMessage RLS remains off.
+design after a clean Phase 2 production inspection. Production RLS remains
+off for Case, CaseMessage and CaseMessageAttachment.
 
 The behavior findings and current 80-reference source baseline live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
@@ -10,8 +10,9 @@ It contains no approved policy or function SQL.
 
 ## Scope boundary
 
-Case and CaseMessage may activate together because child visibility and write
-authority depend on the parent. They must not activate with Order,
+Case, CaseMessage and CaseMessageAttachment must activate together because
+both child visibility and write authority depend on the parent. They must not
+activate with Order,
 OrderItem, payment events, shipping quotes, SellerProfile, Notification or
 audit tables.
 
@@ -340,6 +341,54 @@ notification recipient/link and replay identity are derived from locked durable
 state. Staff resolution choice and bounded refund amount/stock restoration are
 authorized staff decisions, not ordinary participant input.
 
+Phase 3 catalog checkpoint (2026-07-28): the isolated candidate adds
+`scripts/case-case-message-authority-catalog.mjs`, its exact inventory-drift
+test and `docs/case-case-message-authority-catalog.md`. It maps all 80 current
+references across 29 sources to 26 fixed operations. The boundary explicitly
+includes CaseMessageAttachment rather than treating private evidence as an
+independent activation.
+
+The review rejected route-provided `staffPinWasVerified` booleans because
+PostgreSQL cannot attest a session-bound PIN. Staff functions revalidate the
+current database role while the PIN remains an authenticated-route
+precondition. Refund finalization binds to a database-generated resolution
+claim and exact durable local payment evidence instead of accepting a generic
+provider result. Account-deletion redaction derives its User from a locked
+`LOCAL_ANONYMIZE` side-effect row rather than taking a free mutation target.
+Cron target selection and transition are one bounded
+`FOR UPDATE SKIP LOCKED` database operation with per-row audit evidence, not a
+caller-selected claim/transition pair.
+
+The Phase 3 review also found that the current Stripe dispute helper can reopen
+a terminal Case while leaving `refundAmountCents` and `stripeRefundId` behind.
+The fixed dispute operation clears the complete Case-level terminal snapshot
+while retaining the durable Order payment/audit history. A webhook-created
+Case records its exact source in `Case.openedByPaymentEventId` and may begin
+without a falsely buyer-authored opening message; the ordinary buyer-open
+operation still creates its first message atomically.
+
+The catalog also records honest cross-group limits: PostgreSQL validates local
+payment evidence but does not independently attest Stripe, and
+Order/OrderPaymentEvent/AccountDeletionSideEffect direct-write hardening
+remains in later groups. New Case/message/audit identities must be generated
+inside PostgreSQL (UUID text is compatible with the opaque String ids); Prisma
+`cuid()` is a client default, not a database default.
+
+External staff refunds use a private `CaseResolutionClaim` service ledger,
+created FORCE-protected with zero policies and zero runtime/PUBLIC table
+privileges. Prepare, explicit bounded Stripe-evidence recording and finalize
+are separate fixed operations. A provider-pending claim is never released by
+timeout; retry/reconciliation reuses the exact claim-derived Stripe
+idempotency scope. Only a PIN-verified current ADMIN can make the explicitly
+audited human decision that Stripe has no provider effect and advance it to
+the distinct terminal `RELEASED_NO_PROVIDER_EFFECT` state. That state does not
+pretend the Case or provider action was finalized.
+
+Seller verification, seller metrics and guild-revocation predicates are three
+separate fixed operations. The review rejected one generic arbitrary-seller
+quality function because it exposed a broader dispute-count/timestamp oracle
+than any source requires.
+
 Exit: ephemeral PostgreSQL proves own/foreign/staff/no-context reads, direct
 DML denial, every write family, role drift, transition invariants, all race
 orderings, account deletion, cron/webhook/refund behavior and rollback.
@@ -347,8 +396,9 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 ## Phase 4: compatible application conversion
 
 - Deploy fixed functions while retaining old direct grants.
-- Convert every current protected reference to its explicit destination (83 in
-  the Phase 1B snapshot; the exact scanner gate controls later drift).
+- Convert every current protected reference to its explicit destination (80 in
+  the current exact scanner; earlier Phase 1B counts remain historical
+  evidence rather than an activation target).
 - Keep an exact zero-direct-access inventory gate.
 - Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,
   deletion, retention and metrics paths on the compatible database.
@@ -364,8 +414,8 @@ Exit: old and new app deployments can coexist with the preparation catalog.
 - Run exact catalog/grant audit, direct runtime denial, authenticated
   buyer/seller/staff smoke, cron/webhook-safe proof and rollback proof.
 
-Exit: initial Case/CaseMessage RLS is accepted in production with sanitized
-evidence and complete fixture/session/cache cleanup.
+Exit: initial Case/CaseMessage/CaseMessageAttachment RLS is accepted in
+production with sanitized evidence and complete fixture/session/cache cleanup.
 
 ## Phase 6: FORCE hardening
 
@@ -376,5 +426,6 @@ evidence and complete fixture/session/cache cleanup.
 - Apply through the protected manual-main production migration workflow.
 - Re-run actual pooled-runtime denial and authenticated route postflight.
 
-Exit: Case and CaseMessage are FORCE-hardened with retained rollback and
-postflight evidence. Only then begin the next sensitive group.
+Exit: Case, CaseMessage and CaseMessageAttachment are FORCE-hardened with
+retained rollback and postflight evidence. Only then begin the next sensitive
+group.
