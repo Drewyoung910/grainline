@@ -122,6 +122,14 @@ Message are complete; their retained record is
 Case/CaseMessage/CaseMessageAttachment record is
 `docs/case-case-message-pre-rls-audit.md`.
 
+Case message/upload preflight must remain a narrow source-validating database
+operation rather than depend on broad runtime visibility of the
+counterparty's `User` row. A self-only User RLS rollout would otherwise hide
+the suspended/deleted state that Case messaging must derive. Keep the fixed
+preflight output free of User profile/contact data, retain route-side Clerk and
+staff-PIN verification, and keep the final locked reply operation authoritative
+for every write and race.
+
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and
 aggregate-only. The two tracks rejoin before activation: DirectUpload must
@@ -967,7 +975,8 @@ Sanitized mode-0600 evidence
 retains no raw identifier or credential. Bucket B is complete; retain the
 protected preactivation backup through the rollback window. Conversation plus
 Message subsequently completed as the next separate production group;
-Case/CaseMessage is now the active pre-policy audit.
+Case/CaseMessage/CaseMessageAttachment is now the active compatible authority
+conversion, with policy activation still separate.
 
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped

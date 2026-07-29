@@ -90,11 +90,21 @@ The machine-readable catalog contains 26 operations.
 | `case_staff_queue` | INVOKER | Bounded staff queue and message counts |
 | `case_staff_active_count` | INVOKER | Staff-only active Case count |
 | `case_export` | INVOKER | Complete participant Case/message export plus attachment metadata |
-| `case_message_preflight` | INVOKER | Current authority, messageable status and counterparty availability before upload or reply |
+| `case_message_preflight` | DEFINER | Source-bound current authority, messageable status and counterparty availability before upload or reply |
 
 The interactive projection stays bounded. The account export is deliberately
 complete and remains a separate projection; it must not inherit the
 interactive page limit.
+
+The message preflight is deliberately the narrow exception to the other
+recipient projections. It must inspect the counterparty's suspended/deleted
+state without making that other User row generally visible. Keeping it
+`SECURITY INVOKER` would couple Case messaging to broad runtime `User` reads
+and would break when later self-only User RLS hides the counterparty. The
+`SECURITY DEFINER` function therefore validates the active actor, exact Case
+participant-or-current-staff relationship and fixed output internally; it
+returns no row for a missing, disabled or unauthorized actor and exposes no
+email, Clerk id, name or other User profile data.
 
 ### Narrow reads and predicates
 
@@ -420,7 +430,7 @@ head `904745864275c3899f91263137400113189d1e95` in GitHub Actions run
 `30465487551`.
 
 The compatible application successor retains one direct Case preflight read
-for the later `case_message_preflight` INVOKER conversion, but removes both
+for the later source-bound `case_message_preflight` conversion, but removes both
 direct CaseMessage replay reads, the Case update, the CaseMessage create and
 all five nested attachment references. It verifies R2 existence, size, type
 and signature before calling only `grainline_case_reply`; VERIFIED and CLAIMED
@@ -441,6 +451,34 @@ that drops the column, preserves its EXECUTE ACL, and postflights its owner,
 security mode, pinned search path, runtime-only grant and function definition.
 That keeps Case replies operable after the separately gated retirement rather
 than deferring a known post-retirement failure.
+
+Exact application-conversion head
+`4870908a8ff8df69a05acb52e4a7e2fffdfe91df` passed the complete GitHub
+Actions gate in run `30467976149`. The same head passed dedicated DirectUpload
+Authority PostgreSQL Proof run `30467974830`, which generated and
+engine-executed the changed compatibility-key retirement candidate instead of
+relying on static source checks. Draft PR #99 was then restored to its intended
+Case-reply-authority base. Vercel's draft-branch deploy refusal is expected;
+this evidence includes no deployment, migration apply or production change.
+
+The next compatible operation is
+`grainline_case_message_preflight(actorUserId, caseId)`. It returns exactly
+one fixed Case/Order/party/status/author/preflight shape only when the active
+actor is that Case's buyer, seller or a current employee/admin. Missing,
+disabled and unauthorized actors receive no row. PostgreSQL derives party
+precedence, messageable participant/staff status and the counterparty's
+missing/deleted/suspended state; no caller supplies role, author kind, status,
+recipient or availability.
+
+The initial INVOKER design was rejected during hard review. It would need broad
+runtime reads of the counterparty's User row and would silently break when a
+later self-only User RLS policy hides that row. The accepted narrow DEFINER
+shape validates the source relationship internally, exposes no name, email,
+Clerk id or profile field, pins `search_path = pg_catalog`, rejects PUBLIC
+execution and grants only the exact runtime signature. The route-side Clerk
+identity, active local account and session-bound staff PIN remain explicit
+application trust boundaries. The final `grainline_case_reply` operation still
+locks and revalidates the write, so the preflight never becomes race authority.
 
 ## Account deletion boundary
 

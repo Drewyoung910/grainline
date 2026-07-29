@@ -465,7 +465,7 @@ The separate compatible Case-reply application conversion then removes ten
 of those route references: two direct CaseMessage replay reads, the second
 Case read, the Case update, the CaseMessage create and five nested attachment
 references. One direct Case preflight remains explicitly assigned to the later
-`case_message_preflight` INVOKER projection. The route retains origin, Clerk,
+source-bound `case_message_preflight` projection. The route retains origin, Clerk,
 local-account, rate-limit, bounded-body, sanitized-text, participant/staff PIN,
 recipient-availability and R2 verification boundaries before the fixed write.
 It permits VERIFIED or CLAIMED objects only at the external byte/signature
@@ -476,6 +476,29 @@ replay stops before Notification/email, and post-authority identities come
 only from that result. The live countdown is now 54 references across 25 files
 with twenty-six retained in the converted ledger. Production and Case-family
 RLS remain unchanged.
+
+The Case-reply application and future DirectUpload retirement compatibility
+then passed at exact head
+`4870908a8ff8df69a05acb52e4a7e2fffdfe91df`: normal CI run
+`30467976149` completed the migration/grant/Case proof, all repository tests,
+dependency audit and production build, while dedicated PostgreSQL run
+`30467974830` engine-executed the changed retirement candidate. Neither run
+deployed or mutated production.
+
+The subsequent preflight audit found a future User-RLS dependency before SQL
+was sealed. An INVOKER function cannot reliably derive the other party's
+suspended/deleted state once a later self-only User policy hides that row; it
+would either require an overbroad User SELECT policy or misclassify an existing
+counterparty as missing. The corrected operation is therefore a narrow
+SECURITY DEFINER source-bound read. It validates an active actor and the exact
+Case participant/current-staff relationship internally, returns only fixed
+Case/Order/party/status/author/messageable/availability fields, and exposes no
+User profile or contact data. Its pinned search path, owner, runtime-only ACL,
+PUBLIC denial, forged/no-row behavior, participant-versus-staff lifecycle
+split, recipient state, transaction-local context, no-mutation guarantee and
+zero-residue cleanup are part of the disposable PostgreSQL proof. Application
+conversion remains separate, so the current 54-reference countdown does not
+change at this function-only checkpoint.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B
