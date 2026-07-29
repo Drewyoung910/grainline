@@ -773,3 +773,14 @@ references to catalog destinations and the scanner must reach exactly zero
 direct protected access. DirectUpload activation/private-bucket proof must
 also complete before Case evidence or the three-table Case boundary is
 enabled.
+
+The shared
+`grainline_account_deletion_redact_text_core(text, text[])` remains
+owner-internal: neither `PUBLIC` nor `grainline_app_runtime` receives
+`EXECUTE`. The Case account-deletion migration replaces it only to establish a
+general output-length invariant: after all source-derived replacements, the
+returned text is capped to `char_length(p_body)`. This closes the existing
+`varchar(5000)` expansion failure for both Conversation/Message and
+Case/CaseMessage without granting the runtime a generic redaction primitive.
+The fixed Case function remains the only runtime-executable entry point in
+this group and still accepts only the validated deletion side-effect id.

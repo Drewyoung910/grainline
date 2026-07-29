@@ -31,6 +31,7 @@ const ids = Object.freeze({
   sharedAliasMessage: `${PREFIX}-shared-alias-message`,
   targetSellerMessage: `${PREFIX}-target-seller-message`,
   sellerQuoteMessage: `${PREFIX}-seller-quote-message`,
+  lengthBoundaryMessage: `${PREFIX}-length-boundary-message`,
   unrelatedMessage: `${PREFIX}-unrelated-message`,
   source: `${PREFIX}-source`,
   wrongKindSource: `${PREFIX}-source-wrong-kind`,
@@ -41,11 +42,13 @@ const ids = Object.freeze({
 const TARGET_EMAIL = "target.unique@example.invalid";
 const TARGET_NAME = "Target Unique Person";
 const TARGET_SHIPPING_LINE = "987 Proof Avenue";
+const TARGET_SHORT_TOKEN = "CA";
 const TARGET_SHOP_NAME = "Target Unique Workshop";
 const SHARED_HISTORY_EMAIL = "shared.alias+old@gmail.com";
 const SHARED_ACTIVE_EMAIL = "sharedalias@gmail.com";
 const MESSAGE_DELETED = "[Message deleted]";
 const DESCRIPTION_DELETED = "[Case description deleted]";
+const LENGTH_BOUNDARY_BODY = `${`${TARGET_SHORT_TOKEN} `.repeat(1666)}${TARGET_SHORT_TOKEN}`;
 
 function safeError(error) {
   return (error instanceof Error ? error.message : String(error))
@@ -109,18 +112,26 @@ async function seedUser(
     email = `${id}@example.invalid`,
     name = `Name ${id}`,
     shippingLine1 = null,
+    shippingState = null,
   } = {},
 ) {
   await client.query(`
     INSERT INTO public."User" (
-      id, "clerkId", email, name, "shippingLine1",
+      id, "clerkId", email, name, "shippingLine1", "shippingState",
       "createdAt", "updatedAt"
     )
     VALUES (
-      $1, $2, $3, $4, $5,
+      $1, $2, $3, $4, $5, $6,
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
-  `, [id, `clerk-${id}`, email, name, shippingLine1]);
+  `, [
+    id,
+    `clerk-${id}`,
+    email,
+    name,
+    shippingLine1,
+    shippingState,
+  ]);
 }
 
 async function seedCase(
@@ -193,6 +204,7 @@ async function seedFixtures(client) {
       email: TARGET_EMAIL,
       name: TARGET_NAME,
       shippingLine1: TARGET_SHIPPING_LINE,
+      shippingState: TARGET_SHORT_TOKEN,
     });
     await seedUser(client, ids.counterpartyBuyer);
     await seedUser(client, ids.counterpartySeller);
@@ -295,6 +307,13 @@ async function seedFixtures(client) {
       body: `Shop ${TARGET_SHOP_NAME} belongs to ${TARGET_NAME}`,
     });
     await seedMessage(client, {
+      id: ids.lengthBoundaryMessage,
+      caseId: ids.sellerCase,
+      authorId: ids.counterpartyBuyer,
+      authorKind: "BUYER",
+      body: LENGTH_BOUNDARY_BODY,
+    });
+    await seedMessage(client, {
       id: ids.unrelatedMessage,
       caseId: ids.unrelatedCase,
       authorId: ids.outsider,
@@ -354,7 +373,7 @@ const SEEDED_COUNTS = Object.freeze({
   email_addresses: 2,
   orders: 4,
   cases: 4,
-  messages: 6,
+  messages: 7,
   side_effects: 4,
 });
 
@@ -460,6 +479,10 @@ function assertOriginalProtectedRows(rows) {
     `Authored by ${TARGET_SHOP_NAME}`,
   );
   assert.equal(
+    rows.messages[ids.lengthBoundaryMessage],
+    LENGTH_BOUNDARY_BODY,
+  );
+  assert.equal(
     rows.cases[ids.buyerCase],
     `${TARGET_NAME} at ${TARGET_SHIPPING_LINE}`,
   );
@@ -471,6 +494,14 @@ function assertRedactedProtectedRows(rows) {
   assert.equal(rows.messages[ids.targetSellerMessage], MESSAGE_DELETED);
   assert.doesNotMatch(rows.messages[ids.buyerQuoteMessage], /target\.unique|987 Proof/i);
   assert.doesNotMatch(rows.messages[ids.sellerQuoteMessage], /Target Unique/i);
+  assert.equal(
+    rows.messages[ids.lengthBoundaryMessage].length,
+    LENGTH_BOUNDARY_BODY.length,
+  );
+  assert.doesNotMatch(
+    rows.messages[ids.lengthBoundaryMessage],
+    /(?:^|[^A-Za-z0-9])ca(?:$|[^A-Za-z0-9])/i,
+  );
   assert.equal(
     rows.messages[ids.sharedAliasMessage],
     `Preserve claimed alias ${SHARED_HISTORY_EMAIL}`,
@@ -529,6 +560,8 @@ export async function runCaseAccountDeletionAuthorityProof(
         ) AS public_execute
         FROM pg_catalog.pg_proc AS procedure
        WHERE procedure.oid IN (
+         'public.grainline_account_deletion_redact_text_core(text,text[])'
+           ::pg_catalog.regprocedure,
          'public.grainline_case_account_deletion_blockers(text)'
            ::pg_catalog.regprocedure,
          'public.grainline_case_account_deletion_redact(text)'
@@ -537,6 +570,15 @@ export async function runCaseAccountDeletionAuthorityProof(
        ORDER BY procedure.proname
     `);
     assert.deepEqual(catalog.rows, [
+      {
+        proname: "grainline_account_deletion_redact_text_core",
+        prosecdef: true,
+        provolatile: "i",
+        proparallel: "s",
+        proconfig: ["search_path=pg_catalog"],
+        runtime_execute: false,
+        public_execute: false,
+      },
       {
         proname: "grainline_case_account_deletion_blockers",
         prosecdef: true,
@@ -644,7 +686,7 @@ export async function runCaseAccountDeletionAuthorityProof(
       sideEffectId: ids.source,
       userId: ids.target,
       authoredMessagesRedacted: 2,
-      quotedMessagesRedacted: 2,
+      quotedMessagesRedacted: 3,
       buyerDescriptionsRedacted: 1,
       participantDescriptionsRedacted: 1,
     }]);
@@ -677,12 +719,13 @@ export async function runCaseAccountDeletionAuthorityProof(
       sideEffectId: ids.source,
       userId: ids.target,
       authoredMessagesRedacted: 2,
-      quotedMessagesRedacted: 2,
+      quotedMessagesRedacted: 3,
       buyerDescriptionsRedacted: 1,
       participantDescriptionsRedacted: 1,
     }]);
     assertRedactedProtectedRows(await fetchProtectedRows(owner));
     checks.push("derived-redaction-commit");
+    checks.push("length-bounded-redaction");
 
     const retry = await redact(runtime);
     assert.deepEqual(retry.rows, [{
@@ -726,7 +769,7 @@ export async function runCaseAccountDeletionAuthorityProof(
     );
   }
   checks.push("cleanup-zero-residue");
-  assert.equal(checks.length, 15);
+  assert.equal(checks.length, 16);
   return Object.freeze({ checks: Object.freeze([...checks]) });
 }
 

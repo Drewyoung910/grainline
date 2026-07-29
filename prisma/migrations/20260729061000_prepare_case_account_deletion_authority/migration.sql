@@ -1,5 +1,6 @@
 -- Compatible fixed authority for the Case-family portions of account
--- deletion. This migration adds functions and exact EXECUTE grants only.
+-- deletion. This migration adds functions and exact EXECUTE grants and
+-- bounds the already-private shared text-redaction core to its input length.
 -- It does not enable Case-family RLS or revoke legacy table grants.
 
 BEGIN;
@@ -26,6 +27,57 @@ BEGIN
   END IF;
 END
 $grainline_case_account_deletion_prerequisites$;
+
+-- The shared core previously expanded every matched value to
+-- "[deleted account]". A valid 5,000-character Message/CaseMessage/Case
+-- value containing short needles such as a two-letter state could therefore
+-- exceed its varchar(5000) target during account deletion. Redact the complete
+-- value first, then cap only the already-redacted result to the original
+-- character length. This cannot reveal a removed suffix and makes the shared
+-- Conversation/Message and Case callers safe for every same-or-smaller target.
+CREATE OR REPLACE FUNCTION public.grainline_account_deletion_redact_text_core(
+  p_body text,
+  p_sensitive_values text[]
+)
+RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+PARALLEL SAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_account_deletion_redact_text_core$
+DECLARE
+  redacted text := p_body;
+  sensitive_value text;
+  escaped_value text;
+BEGIN
+  IF p_body IS NULL OR p_sensitive_values IS NULL THEN
+    RETURN p_body;
+  END IF;
+
+  FOREACH sensitive_value IN ARRAY p_sensitive_values LOOP
+    escaped_value :=
+      public.grainline_account_deletion_regex_escape_core(sensitive_value);
+    IF pg_catalog.char_length(sensitive_value) >= 3 THEN
+      redacted := pg_catalog.regexp_replace(
+        redacted,
+        escaped_value,
+        '[deleted account]',
+        'gi'
+      );
+    ELSE
+      redacted := pg_catalog.regexp_replace(
+        redacted,
+        '(?<![[:alnum:]])' || escaped_value || '(?![[:alnum:]])',
+        '[deleted account]',
+        'gi'
+      );
+    END IF;
+  END LOOP;
+
+  RETURN pg_catalog.left(redacted, pg_catalog.char_length(p_body));
+END;
+$grainline_account_deletion_redact_text_core$;
 
 CREATE FUNCTION public.grainline_case_account_deletion_blockers(
   p_actor_user_id text
@@ -327,6 +379,10 @@ BEGIN
   RETURN NEXT;
 END
 $grainline_case_account_deletion_redact$;
+
+REVOKE ALL ON FUNCTION
+  public.grainline_account_deletion_redact_text_core(text, text[])
+  FROM PUBLIC, grainline_app_runtime;
 
 REVOKE ALL ON FUNCTION
   public.grainline_case_account_deletion_blockers(text)

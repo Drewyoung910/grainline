@@ -45,6 +45,21 @@ describe("Case account-deletion authority migration", () => {
     }
   });
 
+  it("keeps the shared redaction core private and output-length bounded", () => {
+    assert.match(
+      normalized,
+      /CREATE OR REPLACE FUNCTION public\.grainline_account_deletion_redact_text_core\( p_body text, p_sensitive_values text\[\] \) RETURNS text LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE SECURITY DEFINER SET search_path = pg_catalog/,
+    );
+    assert.match(
+      normalized,
+      /RETURN pg_catalog\.left\(redacted, pg_catalog\.char_length\(p_body\)\)/,
+    );
+    assert.match(
+      normalized,
+      /REVOKE ALL ON FUNCTION public\.grainline_account_deletion_redact_text_core\(text, text\[\]\) FROM PUBLIC, grainline_app_runtime/,
+    );
+  });
+
   it("derives and revalidates the deletion source after the User lock", () => {
     const discovery = normalized.indexOf(
       'FROM public."AccountDeletionSideEffect" AS effect WHERE effect.id = p_account_deletion_side_effect_id;',

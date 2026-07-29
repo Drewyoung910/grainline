@@ -712,3 +712,23 @@ resolution races, rollback and zero residue. All earlier database proofs,
 final grant/RLS audit, TypeScript, lint, full tests, reviewed dependency audit
 and production build passed in the same run. Production and persistent
 staging remained unchanged.
+
+The first account-deletion proof at `4bf6b5b5` passed its 15 database checks,
+but the subsequent source audit found an unexercised varchar boundary. The
+shared private redaction core replaced every matched value with
+`[deleted account]`; a valid 5,000-character message containing a short
+two-character needle such as a state abbreviation could therefore expand
+beyond the `varchar(5000)` target and abort deletion with SQLSTATE `22001`.
+This affects both the already-live Conversation/Message caller and the new
+Case-family caller, so it is not deferred as Case-only cleanup.
+
+The forward compatible Case account-deletion migration now replaces the
+private shared core without widening its ACL. It redacts the complete value
+and then caps the already-redacted result to the original character length.
+That preserves the privacy property, cannot reveal a removed suffix, and
+ensures every same-column caller remains within its preexisting bound. The
+disposable proof now includes a real 5,000-character CaseMessage composed of
+the derived two-character state token, requires successful fixed-function
+commit, exact retained length, absence of the token, idempotency and zero
+residue. The earlier 15-check success remains useful authority evidence but is
+superseded for readiness by this 16-check boundary proof.

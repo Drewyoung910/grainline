@@ -1312,3 +1312,39 @@ production with sanitized evidence and complete fixture/session/cache cleanup.
 Exit: Case, CaseMessage and CaseMessageAttachment are FORCE-hardened with
 retained rollback and postflight evidence. Only then begin the next sensitive
 group.
+
+### Shared redaction-length correction (2026-07-29)
+
+The first exact-head account-deletion run `30499316513` (job
+`90735221125`) at `4bf6b5b5` completed all 15 database checks and the entire
+CI suite, but a deliberate post-proof source review found a boundary the
+fixtures had not covered. The private shared redaction core can expand a
+5,000-character value when a two-character source-derived needle is replaced
+by `[deleted account]`, causing the destination `varchar(5000)` update to fail.
+Because the same core serves the already-live Conversation/Message deletion
+function, accepting the Case proof without fixing the shared invariant would
+leave both deletion paths vulnerable to valid retained data.
+
+The candidate now redefines that existing private core in the forward Case
+account-deletion migration, retaining its immutable/parallel-safe
+SECURITY DEFINER shape, pinned search path and zero runtime/PUBLIC execute
+authority. It performs all redactions before capping the result to the
+original character length. The revised proof seeds a true 5,000-character
+CaseMessage with repeated, word-bounded `CA` tokens derived from the deleting
+User's shipping state. Readiness requires 16 checks, including successful
+redaction, exact bounded length, no surviving token, forced-RLS direct denial,
+rollback, locking, idempotency and zero residue. The migration-tree hash and
+exact-head CI evidence must be refreshed; the earlier run is retained as
+superseded evidence rather than relabeled.
+
+The revised migration SHA-256 is
+`5c23eadcf394917aae69527befa16462300e5c1182fef378c772c3b2f4f07a59`;
+the exact reviewed migration-tree fingerprint is
+`6554a1c4ad4d78fae5ff052a2c4c4786d203d2397aacb87084dcf600e1a23826`.
+Locally, the sealed-tree guard, complete test suite, TypeScript and lint pass.
+The sandboxed build reached successful compilation and TypeScript before
+correctly stopping because no production `DATABASE_URL` was supplied; the
+local dependency audit was also unable to reach the npm registry. The fresh
+exact-head CI run must therefore supply the final real PostgreSQL, dependency
+audit and production-build evidence rather than weakening either gate or
+connecting this workstation build to production.

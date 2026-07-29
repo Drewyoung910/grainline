@@ -56,6 +56,7 @@ describe("Case account-deletion PostgreSQL proof", () => {
       "transaction-rollback",
       "user-lock-serialization",
       "derived-redaction-commit",
+      "length-bounded-redaction",
       "idempotent-retry",
       "cleanup-zero-residue",
     ]) {
@@ -69,8 +70,10 @@ describe("Case account-deletion PostgreSQL proof", () => {
     assert.match(source, /25001/);
     assert.match(source, /55000/);
     assert.match(source, /SHARED_HISTORY_EMAIL/);
+    assert.match(source, /LENGTH_BOUNDARY_BODY/);
+    assert.match(source, /TARGET_SHORT_TOKEN/);
     assert.match(source, /assertRedactedProtectedRows/);
     assert.match(source, /fixture residue/);
-    assert.match(source, /assert\.equal\(checks\.length, 15\)/);
+    assert.match(source, /assert\.equal\(checks\.length, 16\)/);
   });
 });

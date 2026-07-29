@@ -1079,6 +1079,15 @@ Message subsequently completed as the next separate production group;
 Case/CaseMessage/CaseMessageAttachment is now the active compatible authority
 conversion, with policy activation still separate.
 
+Account-deletion redaction has one shared database invariant across sensitive
+text tables: a redaction result must never be longer than its original input.
+The Case conversion exposed that the existing fixed replacement marker could
+expand a maximum-length Message, CaseMessage or Case description when the
+derived sensitive value was short. Keep the shared core private, redact first,
+then cap only the already-redacted output to its original character length.
+Every future retained-text deletion path must prove its maximum-length and
+shortest-needle boundary in disposable PostgreSQL before activation.
+
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
 Vercel/database exceptions, disposable secrets, and provider resources were
