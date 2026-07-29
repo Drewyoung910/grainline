@@ -1134,6 +1134,45 @@ dependency audit and production build also passed. This remains preparation
 evidence only; it does not authorize merging the stacked chain, applying
 production migrations, deploying application code or activating Case-family
 RLS.
+The durable evidence-record head
+`985777a4d08dcc458e72dfb95e2089ea606835c2` then passed exact-head run
+`30492856829` (job `90714705449`) with the same complete gate. Temporary CI
+carrier PR #114 was closed unmerged after that success.
+
+Phase 4 staff-resolution application completion (2026-07-29): the route's
+remaining friendly preflight duplicated security-relevant Case, Order,
+payment-event, label and stock reads that
+`grainline_case_staff_resolution_prepare` already repeats under the reviewed
+actor-to-Order-to-Case lock protocol. Keeping those reads would both fail
+after narrow Case grants and retain a race-prone application snapshot that is
+not authoritative for the Stripe decision.
+
+The route now sends only the bounded, schema-validated resolution inputs to
+the fixed prepare operation. PostgreSQL derives and locks the parties, Order
+total, refund/dispute/label eligibility, existing resolution claim,
+fulfillment state and exact available stock; it canonicalizes the partial
+stock plan from locked OrderItem/Listing rows. Exact durable claims still
+replay before new-work refund guards. Provider work and finalization continue
+to use only the strictly validated function results and claim-bound
+idempotency scope.
+
+The admin client never consumed the successful Case graph: it only checked
+the status and returned to the queue. The route therefore returns a bounded
+success acknowledgement from the already-validated finalization result rather
+than re-reading Case with nested messages and Order after the transaction.
+This removes two direct Case reads and one nested CaseMessage reference,
+leaving 21 current references across 4 files and fifty-nine converted
+references. It changes no migration, policy, grant, RLS posture, provider
+resource, production data or deployment.
+
+The first complete local suite after this change found one stale
+source-ordering contract that still required the removed
+`prisma.case.findUnique` marker. The origin guard itself remained first in the
+route. The test now pins the guard before authentication, staff PIN, stale-lock
+cleanup, bounded parsing, fixed prepare and Stripe work without requiring a
+forbidden protected-table read. The focused authority/inventory/payment tests,
+TypeScript, lint and all 2,522 repository tests pass locally (2,516 pass and
+6 PostgreSQL-environment skips).
 
 ## Phase 5: ENABLE activation
 

@@ -78,7 +78,7 @@ describe("payment and fulfillment side-effect observability", () => {
     );
 
     assert.match(route, /canReverseTransfer: prepared\.canReverseTransfer/);
-    assert.match(route, /refundMayRestoreStock\(caseRecord\.order\)/);
+    assert.doesNotMatch(route, /refundMayRestoreStock/);
     assert.match(authority, /"caseResolutionClaimId" = claim_id/);
     assert.match(authority, /"sellerRefundId" = CASE/);
     assert.match(authority, /ELSE 'pending'/);
@@ -258,10 +258,6 @@ describe("payment and fulfillment side-effect observability", () => {
       /(?:await prisma|return tx)\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
     );
 
-    assert.match(caseRoute, /blockingRefundLedgerWhere/);
-    assert.match(caseRoute, /sellerRefundConflictResponse/);
-    assert.match(caseRoute, /orderHasRefundLedger/);
-
     assert.match(
       sellerRoute,
       /if \(orderHasRefundLedger\(orderForRefundState\)\)/,
@@ -270,7 +266,9 @@ describe("payment and fulfillment side-effect observability", () => {
       sellerRoute,
       /WHERE id = \$\{orderId\}[\s\S]*"sellerRefundId" IS NULL/s,
     );
-    assert.match(caseRoute, /if \(orderHasRefundLedger\(caseRecord\.order\)\)/);
+    assert.doesNotMatch(caseRoute, /blockingRefundLedgerWhere/);
+    assert.doesNotMatch(caseRoute, /sellerRefundConflictResponse/);
+    assert.doesNotMatch(caseRoute, /orderHasRefundLedger/);
     const caseAuthority = source(
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
     );
@@ -345,11 +343,7 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(sellerRoute, /labelStatus: true/);
 
-    assert.match(caseRoute, /orderHasPurchasedLabel/);
-    assert.match(
-      caseRoute,
-      /Cannot refund this order after a shipping label has been purchased/,
-    );
+    assert.doesNotMatch(caseRoute, /orderHasPurchasedLabel/);
     assert.match(
       source(
         "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
@@ -435,15 +429,19 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(
       route,
-      /requestedRefundStockRestoreQuantities\(\s*caseRecord\.order\.items,\s*requestedStockRestores,\s*\)/s,
+      /stockRestoreDecision:[\s\S]*resolution === "REFUND_PARTIAL"\s*\?\s*requestedStockRestores\s*:\s*\[\]/,
     );
     assert.match(
-      route,
-      /Stock cannot be restored after this order has shipped or been picked up/,
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /p_stock_restore_decision <> '\[\]'::jsonb[\s\S]*locked_order\."fulfillmentStatus" IN[\s\S]*Stock cannot be restored after fulfillment/,
     );
     assert.match(
-      route,
-      /stockRestoreDecision:[\s\S]*resolution === "REFUND_PARTIAL"\s*\?\s*canonicalStockDecision\s*:\s*\[\]/,
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /FROM pg_catalog\.jsonb_array_elements\(\s*p_stock_restore_decision[\s\S]*LEFT JOIN available USING \(listing_id\)[\s\S]*Stock-restoration target or quantity is invalid/,
     );
     assert.match(panel, /Restore inventory \(optional\)/);
     assert.match(

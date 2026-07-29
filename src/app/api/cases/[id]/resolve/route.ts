@@ -23,14 +23,7 @@ import {
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
-  blockingRefundLedgerWhere,
-  orderHasRefundLedger,
-  partialRefundExceedsOrderTotal,
   partialRefundInputError,
-  refundMayRestoreStock,
-  orderHasPurchasedLabel,
-  requestedRefundStockRestoreQuantities,
-  sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
 import {
   isInvalidJsonBodyError,
@@ -201,113 +194,8 @@ export async function POST(
       );
     }
 
-    // Friendly prechecks keep stable route errors. The fixed prepare function
-    // repeats every security-relevant check under actor -> Order -> Case locks.
-    const caseRecord = await prisma.case.findUnique({
-      where: { id },
-      include: {
-        order: {
-          include: {
-            items: {
-              include: {
-                listing: {
-                  select: {
-                    id: true,
-                    listingType: true,
-                    stockQuantity: true,
-                    status: true,
-                  },
-                },
-              },
-            },
-            paymentEvents: {
-              where: blockingRefundLedgerWhere(),
-              take: 1,
-              select: { eventType: true, status: true },
-            },
-          },
-        },
-      },
-    });
-    if (!caseRecord) {
-      return privateJson(
-        { error: "Case not found." },
-        { status: HTTP_STATUS.NOT_FOUND },
-      );
-    }
-    if (caseRecord.status === "RESOLVED" || caseRecord.status === "CLOSED") {
-      return privateJson(
-        { error: "Case is already resolved." },
-        { status: HTTP_STATUS.BAD_REQUEST },
-      );
-    }
-
     const refunding =
       resolution === "REFUND_FULL" || resolution === "REFUND_PARTIAL";
-    let canonicalStockDecision = requestedStockRestores;
-    if (resolution === "REFUND_PARTIAL" && requestedStockRestores.length > 0) {
-      if (!refundMayRestoreStock(caseRecord.order)) {
-        return privateJson(
-          {
-            error:
-              "Stock cannot be restored after this order has shipped or been picked up.",
-          },
-          { status: HTTP_STATUS.BAD_REQUEST },
-        );
-      }
-      const restoreValidation = requestedRefundStockRestoreQuantities(
-        caseRecord.order.items,
-        requestedStockRestores,
-      );
-      if (!restoreValidation.ok) {
-        return privateJson(
-          { error: restoreValidation.error },
-          { status: HTTP_STATUS.BAD_REQUEST },
-        );
-      }
-      canonicalStockDecision = restoreValidation.restores;
-    }
-
-    const hasActiveResolutionClaim =
-      Boolean(caseRecord.order.caseResolutionClaimId);
-    if (refunding && !hasActiveResolutionClaim) {
-      const refundConflict = sellerRefundConflictResponse(
-        caseRecord.order.sellerRefundId,
-      );
-      if (refundConflict) {
-        return privateJson(
-          { error: refundConflict.error },
-          { status: refundConflict.status },
-        );
-      }
-      if (orderHasRefundLedger(caseRecord.order)) {
-        return privateJson(
-          { error: "A refund has already been issued for this order." },
-          { status: HTTP_STATUS.BAD_REQUEST },
-        );
-      }
-      if (orderHasPurchasedLabel(caseRecord.order)) {
-        return privateJson(
-          {
-            error:
-              "Cannot refund this order after a shipping label has been purchased. Void or resolve the label first.",
-          },
-          { status: HTTP_STATUS.CONFLICT },
-        );
-      }
-    }
-    if (
-      partialRefundExceedsOrderTotal(
-        resolution,
-        refundAmountCents,
-        caseRecord.order,
-      )
-    ) {
-      return privateJson(
-        { error: "Refund amount exceeds order total." },
-        { status: HTTP_STATUS.BAD_REQUEST },
-      );
-    }
 
     let prepared;
     try {
@@ -318,7 +206,7 @@ export async function POST(
         partialRefundAmountCents:
           resolution === "REFUND_PARTIAL" ? refundAmountCents : null,
         stockRestoreDecision:
-          resolution === "REFUND_PARTIAL" ? canonicalStockDecision : [],
+          resolution === "REFUND_PARTIAL" ? requestedStockRestores : [],
       });
     } catch (error) {
       const response = authorityFailureResponse(error, "prepare");
@@ -520,14 +408,12 @@ export async function POST(
       });
     }
 
-    const updatedCase = await prisma.case.findUnique({
-      where: { id: finalized.caseId },
-      include: { messages: true, order: true },
+    return privateJson({
+      ok: true,
+      caseId: finalized.caseId,
+      orderId: finalized.orderId,
+      resolution: finalized.resolution,
     });
-    if (!updatedCase) {
-      throw new Error("Finalized Case could not be read.");
-    }
-    return privateJson(updatedCase);
   } catch (error) {
     const accountResponse = accountAccessErrorResponse(error);
     if (accountResponse) return accountResponse;

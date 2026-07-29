@@ -35,7 +35,6 @@ describe("Case staff-resolution application authority", () => {
       ["staff PIN", "await requireStaffAdminPinForApi("],
       ["rate limit", "await safeRateLimit("],
       ["bounded body", "await readBoundedJson("],
-      ["friendly Case preflight", "await prisma.case.findUnique("],
       ["database prepare", "await prepareCaseStaffResolution("],
       ["Stripe call", "await createMarketplaceRefund("],
       ["provider record", "await recordCaseStaffResolutionProvider("],
@@ -56,22 +55,24 @@ describe("Case staff-resolution application authority", () => {
     );
   });
 
-  it("lets an exact durable claim reach database replay instead of self-blocking", () => {
-    assert.match(
-      route,
-      /const hasActiveResolutionClaim =\s*Boolean\(caseRecord\.order\.caseResolutionClaimId\)/,
-    );
-    assert.match(
-      route,
-      /if \(refunding && !hasActiveResolutionClaim\) \{[\s\S]*sellerRefundConflictResponse\([\s\S]*orderHasRefundLedger\([\s\S]*orderHasPurchasedLabel\(/,
-    );
-    assert.ok(
-      route.indexOf("if (refunding && !hasActiveResolutionClaim)")
-        < route.indexOf("await prepareCaseStaffResolution("),
-    );
+  it("lets the locked database protocol decide fresh work and exact replay", () => {
+    assert.doesNotMatch(route, /prisma\.case\./);
+    assert.doesNotMatch(route, /blockingRefundLedgerWhere/);
+    assert.doesNotMatch(route, /sellerRefundConflictResponse/);
+    assert.doesNotMatch(route, /orderHasRefundLedger/);
+    assert.doesNotMatch(route, /orderHasPurchasedLabel/);
     assert.match(
       normalizedMigration,
       /IF locked_order\."caseResolutionClaimId" IS NOT NULL THEN[\s\S]*existing_claim\."caseId" IS DISTINCT FROM locked_case\.id[\s\S]*existing_claim\."staffActorId" IS DISTINCT FROM locked_actor\.id[\s\S]*existing_claim\.resolution IS DISTINCT FROM p_resolution[\s\S]*RETURN pg_catalog\.jsonb_build_object/,
+    );
+    assert.ok(
+      normalizedMigration.indexOf(
+        'IF locked_order."caseResolutionClaimId" IS NOT NULL THEN',
+      )
+        < normalizedMigration.indexOf(
+          'Case staff-resolution Order has refund activity',
+        ),
+      "an exact durable claim must replay before new-work refund guards",
     );
   });
 
@@ -86,13 +87,18 @@ describe("Case staff-resolution application authority", () => {
     assert.match(route, /reason: "requested_by_customer"/);
     assert.match(
       route,
-      /stockRestoreDecision:[\s\S]*canonicalStockDecision/,
+      /stockRestoreDecision:[\s\S]*resolution === "REFUND_PARTIAL"\s*\?\s*requestedStockRestores\s*:\s*\[\]/,
     );
     assert.match(route, /userId: finalized\.buyerUserId/);
     assert.match(route, /userId: finalized\.sellerUserId/);
     assert.match(route, /sourceId: finalized\.resolutionMessageId/);
-    assert.match(route, /where: \{ id: finalized\.caseId \}/);
+    assert.match(
+      route,
+      /return privateJson\(\{\s*ok: true,\s*caseId: finalized\.caseId,\s*orderId: finalized\.orderId,\s*resolution: finalized\.resolution,\s*\}\)/,
+    );
 
+    assert.doesNotMatch(route, /updatedCase/);
+    assert.doesNotMatch(route, /include: \{ messages: true, order: true \}/);
     assert.doesNotMatch(route, /refundIdempotencyKeyBase/);
     assert.doesNotMatch(route, /REFUND_LOCK_SENTINEL/);
     assert.doesNotMatch(route, /REFUND_AMBIGUOUS_SENTINEL/);

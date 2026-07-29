@@ -63,7 +63,15 @@ account-export/private-evidence read conversion then removes two direct
 operations and two nested CaseMessage/attachment relations. The countdown is
 therefore 15 direct operations, 1 nested relation reference and 8 raw SQL
 references: 24 remaining protected references across 5 source files. The
-converted-source ledger now retains all fifty-six removed references.
+staff-resolution application conversion then removes its two redundant direct
+Case reads and nested CaseMessage projection because the fixed
+prepare/finalize protocol revalidates the complete decision under database
+locks and the admin client consumes no returned Case graph. The exact current
+countdown is 13 direct operations, 0 nested relation references and 8 raw SQL
+references: 21 remaining protected references across 4 source files. The
+converted-source ledger now retains all fifty-nine removed references.
+The exact 80-reference conversion baseline, 21-reference current countdown
+and fifty-nine-reference converted ledger are pinned by tests.
 
 The seller-aggregate checkpoint passed exact-head disposable PostgreSQL 16 and
 full CI at `b029f0ab9fec927317ffca60b0f5d09a6e70e6f0`, run `30490356203`

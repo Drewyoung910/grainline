@@ -671,12 +671,14 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
       "case_staff_resolution_prepare",
       "case_staff_resolution_provider_record",
       "case_staff_resolution_finalize",
+      "case_staff_resolution_reconcile",
     ],
     inventory: {
-      "Case.findUnique": 1,
+      "Case.findUnique": 3,
       "Case.updateMany": 1,
       "CaseMessage.create": 1,
       "Case.findUniqueOrThrow": 1,
+      "CaseMessage.relation-reference": 1,
     },
   }),
   "src/app/api/cases/[id]/mark-resolved/route.ts": freezeSource({
@@ -722,19 +724,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "Case.findUnique": 1,
       "Case.updateMany": 1,
       "Case.raw-sql-reference": 1,
-    },
-  }),
-  "src/app/api/cases/[id]/resolve/route.ts": freezeSource({
-    actors: ["STAFF"],
-    destinations: [
-      "case_staff_resolution_prepare",
-      "case_staff_resolution_provider_record",
-      "case_staff_resolution_finalize",
-      "case_staff_resolution_reconcile",
-    ],
-    inventory: {
-      "Case.findUnique": 2,
-      "CaseMessage.relation-reference": 1,
     },
   }),
   "src/app/api/cron/case-auto-close/route.ts": freezeSource({

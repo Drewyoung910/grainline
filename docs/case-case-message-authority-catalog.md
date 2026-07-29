@@ -41,9 +41,14 @@ three purpose-bound operations. The seller-aggregate conversion then moves six
 verification, Guild and metrics references behind three purpose-bound
 aggregates. The account-export/private-evidence conversion moves four more
 references behind one bounded participant export page and the existing Case
-and DirectUpload reads. The current exact inventory is therefore 24 remaining
-references across 5 source files, with all fifty-six removed references
-retained in the converted-source ledger. The executable catalog
+and DirectUpload reads. The staff-resolution application conversion then
+removes the two redundant direct Case reads and nested CaseMessage projection:
+the already-reviewed prepare function repeats eligibility, refund, dispute,
+label, total, party and stock validation under database locks, while the
+client needs only a bounded success acknowledgement after finalization. The
+current exact inventory is therefore 21 remaining references across 4 source
+files, with all fifty-nine removed references retained in the converted-source
+ledger. The executable catalog
 deep-compares every remaining source and operation count with the live scanner.
 A source cannot disappear, appear or claim conversion without changing a test.
 

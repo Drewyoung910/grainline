@@ -12,10 +12,6 @@ const EXPECTED_BASELINE = {
     "Case.updateMany": 1,
     "Case.raw-sql-reference": 1,
   },
-  "src/app/api/cases/[id]/resolve/route.ts": {
-    "Case.findUnique": 2,
-    "CaseMessage.relation-reference": 1,
-  },
   "src/app/api/cron/case-auto-close/route.ts": {
     "Case.updateMany": 3,
     "Case.findMany": 3,
@@ -38,8 +34,8 @@ describe("Case and CaseMessage RLS inventory", () => {
   const inventory = collectCaseCaseMessageAccess();
 
   it("pins every current direct, relation, and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 15);
-    assert.equal(inventory.relationReferences.length, 1);
+    assert.equal(inventory.ormCalls.length, 13);
+    assert.equal(inventory.relationReferences.length, 0);
     assert.equal(inventory.rawSqlReferences.length, 8);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
@@ -70,7 +66,7 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /PDF evidence remains prohibited/);
     assert.match(
       audit,
-      /exact 80-reference conversion baseline, 24-reference current countdown\s+and fifty-six-reference converted ledger are pinned by tests/,
+      /exact 80-reference conversion baseline, 21-reference current countdown\s+and fifty-nine-reference converted ledger are pinned by tests/,
     );
     assert.match(
       audit,
