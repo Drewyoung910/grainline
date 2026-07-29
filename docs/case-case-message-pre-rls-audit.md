@@ -453,9 +453,11 @@ fixture before the fixed function ran. The follow-up pins that fixture status
 to `text`; it does not alter the migration. A subsequent proof extension
 requires the attachment's lifecycle to be `CLAIMED` after the first message,
 accepts the exact same-body/same-upload replay, rejects changed-body reuse of
-that claimed upload and proves the Case still has one message. The direct route
-references remain in the 64-reference countdown until the separate application
-conversion succeeds.
+that claimed upload and proves the Case still has one message. Exact head
+`904745864275c3899f91263137400113189d1e95` passed the extended 20-check
+PostgreSQL proof and every repository gate in run `30465487551`. The direct
+route references remain in the 64-reference countdown until the separate
+application conversion succeeds.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B

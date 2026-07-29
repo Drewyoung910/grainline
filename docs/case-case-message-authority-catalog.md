@@ -411,7 +411,9 @@ discarded. Before application conversion, the proof was extended to preserve
 the attachment-retry boundary explicitly: the first request claims the private
 upload, an exact same-body/same-upload retry returns the original message, and
 the same now-claimed upload with changed body fails without creating a second
-message.
+message. The extended 20-check proof and every repository gate passed at exact
+head `904745864275c3899f91263137400113189d1e95` in GitHub Actions run
+`30465487551`.
 
 ## Account deletion boundary
 

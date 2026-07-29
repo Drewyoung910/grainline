@@ -795,7 +795,9 @@ the authority function executed. The follow-up adds an explicit `text` cast
 and a static regression marker. Before application conversion, the proof also
 pins the claim/retry transition that the route depends on: first create changes
 the upload to `CLAIMED`, exact replay succeeds, and changed-body reuse fails
-without residue. This closes the authority proof gate but does not close the
+without residue. Exact head `904745864275c3899f91263137400113189d1e95`
+passed the extended 20-check PostgreSQL proof and every repository gate in run
+`30465487551`. This closes the authority proof gate but does not close the
 separate application conversion. Case-family RLS and production remain
 unchanged.
 
