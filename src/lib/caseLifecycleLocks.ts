@@ -4,7 +4,7 @@ type RowLockClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 function requireSingleLockRow(
   rows: Array<{ id: string }>,
-  target: "Case" | "Order",
+  target: "Case" | "Order" | "User",
   id: string,
 ) {
   if (rows.length > 1) {
@@ -14,6 +14,19 @@ function requireSingleLockRow(
     throw new Error(`${target} lock returned the wrong row`);
   }
   return rows.length === 1;
+}
+
+export async function lockUserForCaseLifecycle(
+  tx: RowLockClient,
+  userId: string,
+) {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT id
+    FROM "User"
+    WHERE id = ${userId}
+    FOR SHARE
+  `;
+  return requireSingleLockRow(rows, "User", userId);
 }
 
 export async function lockOrderForCaseLifecycle(

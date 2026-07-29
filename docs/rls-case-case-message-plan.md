@@ -6,7 +6,7 @@ authority/invariant proof. Production RLS remains off for Case, CaseMessage
 and CaseMessageAttachment.
 
 The behavior findings, 80-reference conversion baseline and current
-77-reference countdown live in
+75-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -435,9 +435,9 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
   Stripe-dispute operation also adds its own private immutable replay ledger;
   it is not bundled with Case participant policies or direct-grant revocation.
 - Convert every protected reference to its explicit destination (80 at the
-  fixed Phase 4 baseline; 77 remain after the first compatible app conversion,
-  while earlier Phase 1B counts remain historical evidence rather than an
-  activation target).
+  fixed Phase 4 baseline; 75 remain after the first two compatible app
+  conversions, while earlier Phase 1B counts remain historical evidence
+  rather than an activation target).
 - Keep an exact zero-direct-access inventory gate.
 - Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,
   deletion, retention and metrics paths on the compatible database.
@@ -497,18 +497,27 @@ the full/partial resolution, amount, provider id, timestamp and audit; and
 makes an already-applied source a non-mutating replay. NULL or malformed
 metadata, forged actor/source, mismatched amount/currency/provider id and
 direct ledger access fail closed. The private ledger is born ENABLE plus FORCE
-with zero policies and no PUBLIC/runtime table grants. This checkpoint does
-not yet convert the seller refund route, enable participant RLS, revoke legacy
-Case grants, authorize production migration or deploy.
+with zero policies and no PUBLIC/runtime table grants. The fixed authority
+checkpoint does not by itself enable participant RLS, revoke legacy Case
+grants, authorize production migration or deploy.
 
-The subsequent compatible application conversion must preserve the shared
-lock order. The seller refund route already acquires the Order lock for its
-provider/local-ledger transaction, so it must first lock the authenticated
-seller User, then acquire Order, record the exact local payment event and call
-the fixed function, which locks Case only after Order. `Order` and
+The compatible application conversion preserves the shared lock order: the
+seller-refund finalization transaction locks the authenticated seller User,
+then completes the Order, records and resolves the exact local payment event,
+and invokes the fixed function, which locks Case only after Order. It accepts
+only one complete relationship-consistent result and preserves the existing
+staff-reconciliation warning for a terminal Case. The route now has zero
+direct protected Case-table references, reducing the current inventory from
+77 to 75 and the remaining source files from 28 to 27. `Order` and
 `OrderPaymentEvent` still have broad runtime DML until their separate
 order/payment group; this remains an explicit threat-model dependency rather
 than a protection claim.
+
+Implementation checkpoint `e2c3620343e76cac291accba31ffbfcaa2af1d4f` is
+pushed in draft PR `#91`. It is temporarily based on `main` only because the
+repository runs pull-request CI for that base; the intended stack remains the
+seller-refund authority PR `#90`, which must precede this application
+conversion. This CI arrangement authorizes no merge or production change.
 
 The first exact-head CI run (`30422640445`) is retained as failed evidence. It
 applied the full migration tree and converged production-style runtime grants,
@@ -519,6 +528,14 @@ fixture now gives every `$4` reference the exact `varchar(255)` source-column
 type, and a focused static guard prevents another mixed-type edit. This run
 does not count as seller-refund authority proof; a fresh exact-head PostgreSQL
 CI pass is mandatory before application conversion.
+
+Fresh exact-head CI run `30422832630` for authority head
+`bc87c7b8b5d6d8adb41a49c32c97bb90784854c4` subsequently passed in full. It
+applied the migration tree, converged production-style runtime grants, passed
+the 29-check rollback-only PostgreSQL Case authority proof, final grant audit,
+typecheck, lint, 2,288-test suite, security audit and production build. That
+result permits this compatible application conversion; it is not production
+migration, deployment, participant RLS or activation evidence.
 
 ## Phase 5: ENABLE activation
 

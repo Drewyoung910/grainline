@@ -65,9 +65,10 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(route, /if \(orderUpdate\.count !== 1\)/);
     assert.match(route, /manualStripeReconciliationNeeded: true/);
-    assert.match(route, /const caseUpdate = await tx\.case\.updateMany/);
-    assert.match(route, /if \(caseUpdate\.count !== 1\)/);
+    assert.match(route, /grainline_case_seller_refund_apply/);
+    assert.match(route, /caseResult\.action === "terminal"/);
     assert.match(route, /Case auto-resolution did not update because case state changed/);
+    assert.doesNotMatch(route, /(?:prisma|tx)\.case\./);
   });
 
   it("records staff case refunds only while the refund lock is still held", () => {

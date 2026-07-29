@@ -32,6 +32,7 @@ import {
 import {
   databaseClockTimestamp,
   lockOrderForCaseLifecycle,
+  lockUserForCaseLifecycle,
 } from "@/lib/caseLifecycleLocks";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
@@ -369,13 +370,6 @@ export async function POST(
           : partialStockRestores;
       const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
 
-      // Resolve any open case on this order
-      const existingCase = await prisma.case.findUnique({
-        where: { orderId },
-        select: { id: true, status: true },
-      });
-
-      const now = new Date();
       const refundSummary =
         refundIds.length > 1
           ? `Stripe refunds ${refundIds.join(", ")}`
@@ -389,6 +383,12 @@ export async function POST(
       const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of ${refundAmountDisplay} via ${refundSummary}.${transferNote}${statusNote}`;
 
       const refundWrite = await prisma.$transaction(async (tx) => {
+        const actorExists = await lockUserForCaseLifecycle(tx, me.id);
+        if (!actorExists) {
+          throw new Error(
+            "Seller refund actor disappeared while recording Stripe refund.",
+          );
+        }
         const orderUpdate = await tx.order.updateMany({
           where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
           data: {
@@ -404,27 +404,77 @@ export async function POST(
             "Seller refund lock was no longer held while recording Stripe refund.",
           );
         }
-        if (refundId) {
-          await recordLocalRefundEvidence(tx, {
-            action: "SELLER_REFUND_RECORDED",
-            actorType: "system",
-            actorId: me.id,
-            orderId,
-            refundId,
-            refundIds,
-            amountCents: refundAmountCents,
-            currency: order.currency,
-            status: refund.refundStatuses[0] ?? null,
-            reason: "seller_refund",
-            description: reviewNote,
-            metadata: {
-              refundType: type,
-              notificationBody: refundNotificationBody,
-              refundAccounting: refund.accountingEvidence,
-              requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
-              requiresManualFollowUp: refund.requiresManualFollowUp,
-            },
-          });
+        if (!refundId) {
+          throw new Error(
+            "Seller refund completed without a primary refund identifier.",
+          );
+        }
+        await recordLocalRefundEvidence(tx, {
+          action: "SELLER_REFUND_RECORDED",
+          actorType: "system",
+          actorId: me.id,
+          orderId,
+          refundId,
+          refundIds,
+          amountCents: refundAmountCents,
+          currency: order.currency,
+          status: refund.refundStatuses[0] ?? null,
+          reason: "seller_refund",
+          description: reviewNote,
+          metadata: {
+            refundType: type,
+            notificationBody: refundNotificationBody,
+            refundAccounting: refund.accountingEvidence,
+            requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
+            requiresManualFollowUp: refund.requiresManualFollowUp,
+          },
+        });
+        const refundAuthoritySourceId = localRefundEvidenceEventId(
+          "SELLER_REFUND_RECORDED",
+          refundId,
+        );
+        const paymentEvent = await tx.orderPaymentEvent.findUnique({
+          where: { stripeEventId: refundAuthoritySourceId },
+          select: { id: true, orderId: true },
+        });
+        if (!paymentEvent || paymentEvent.orderId !== orderId) {
+          throw new Error("SELLER_REFUND_PAYMENT_EVENT_SOURCE_MISMATCH");
+        }
+        const caseResults = await tx.$queryRaw<Array<{
+          caseId: string | null;
+          orderId: string;
+          sellerUserId: string;
+          buyerUserId: string | null;
+          paymentEventId: string;
+          action: string;
+        }>>`
+          SELECT *
+          FROM public.grainline_case_seller_refund_apply(
+            ${me.id}::text,
+            ${paymentEvent.id}::text
+          )
+        `;
+        const caseResult = caseResults[0];
+        const actionIsValid =
+          caseResult?.action === "resolve"
+          || caseResult?.action === "terminal"
+          || caseResult?.action === "no_case"
+          || caseResult?.action === "replay";
+        const caseIdentityIsValid =
+          caseResult?.action === "no_case"
+            ? caseResult.caseId === null
+            : Boolean(caseResult?.caseId);
+        if (
+          caseResults.length !== 1
+          || !caseResult
+          || caseResult.orderId !== orderId
+          || caseResult.sellerUserId !== me.id
+          || caseResult.buyerUserId !== order.buyerId
+          || caseResult.paymentEventId !== paymentEvent.id
+          || !actionIsValid
+          || !caseIdentityIsValid
+        ) {
+          throw new Error("SELLER_REFUND_CASE_AUTHORITY_RESULT_INVALID");
         }
 
         if (refund.requiresManualTransferReconciliation) {
@@ -438,29 +488,13 @@ export async function POST(
           });
         }
 
-        if (existingCase) {
-          const caseUpdate = await tx.case.updateMany({
-            where: {
-              id: existingCase.id,
-              status: { notIn: ["RESOLVED", "CLOSED"] },
-            },
+        if (caseResult.action === "terminal") {
+          await tx.order.update({
+            where: { id: orderId },
             data: {
-              status: "RESOLVED",
-              resolution: type === "FULL" ? "REFUND_FULL" : "REFUND_PARTIAL",
-              refundAmountCents: refundAmountCents,
-              stripeRefundId: refundId,
-              resolvedAt: now,
-              resolvedById: me.id,
+              reviewNote: `${reviewNote} Case auto-resolution did not update because case state changed; staff must reconcile the case manually.`,
             },
           });
-          if (caseUpdate.count !== 1) {
-            await tx.order.update({
-              where: { id: orderId },
-              data: {
-                reviewNote: `${reviewNote} Case auto-resolution did not update because case state changed; staff must reconcile the case manually.`,
-              },
-            });
-          }
         }
 
         for (const restore of stockRestores) {

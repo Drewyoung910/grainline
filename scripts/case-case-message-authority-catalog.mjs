@@ -487,6 +487,14 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
       "Case.relation-reference": 1,
     },
   }),
+  "src/app/api/orders/[id]/refund/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_seller_refund_apply"],
+    inventory: {
+      "Case.findUnique": 1,
+      "Case.updateMany": 1,
+    },
+  }),
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
@@ -595,11 +603,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
     actors: ["CRON"],
     destinations: ["case_guild_unresolved_guard"],
     inventory: { "Case.findFirst": 1 },
-  }),
-  "src/app/api/orders/[id]/refund/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_seller_refund_apply"],
-    inventory: { "Case.findUnique": 1, "Case.updateMany": 1 },
   }),
   "src/app/api/verification/apply/route.ts": freezeSource({
     actors: ["SELLER"],
