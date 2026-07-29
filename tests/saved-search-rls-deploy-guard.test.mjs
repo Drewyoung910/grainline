@@ -25,6 +25,8 @@ import {
   CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
   CASE_OPEN_AUTHORITY_MIGRATION,
   CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_REPLY_AUTHORITY_MIGRATION,
+  CASE_REPLY_AUTHORITY_MIGRATION_TREE_SHA256,
   CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
   CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
   CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
@@ -121,6 +123,8 @@ const REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY =
   "case-participant-resolution-authority-reviewed";
 const REVIEWED_CASE_OPEN_AUTHORITY =
   "case-open-authority-reviewed";
+const REVIEWED_CASE_REPLY_AUTHORITY =
+  "case-reply-authority-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -193,6 +197,8 @@ function validate(
         CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
       [REVIEWED_CASE_OPEN_AUTHORITY]:
         CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_REPLY_AUTHORITY]:
+        CASE_REPLY_AUTHORITY_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -243,6 +249,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION,
     CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION,
     CASE_OPEN_AUTHORITY_MIGRATION,
+    CASE_REPLY_AUTHORITY_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -332,6 +339,10 @@ const REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS = [
   ...REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS,
   CASE_OPEN_AUTHORITY_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
+  CASE_REPLY_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -374,6 +385,8 @@ function migrationsFor(phase) {
       REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS,
     [REVIEWED_CASE_OPEN_AUTHORITY]:
       REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_REPLY_AUTHORITY]:
+      REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
   }[phase];
 }
 
@@ -611,6 +624,7 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
     );
     assert.ok(currentMigrations.includes(CASE_OPEN_AUTHORITY_MIGRATION));
+    assert.ok(currentMigrations.includes(CASE_REPLY_AUTHORITY_MIGRATION));
     assert.throws(() => validate(undefined, currentMigrations), /is missing/);
     assert.throws(
       () => validate(RELEASE_ZERO, currentMigrations),
@@ -716,9 +730,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         ),
       /remain the latest migration/,
     );
+    assert.throws(
+      () => validate(REVIEWED_CASE_OPEN_AUTHORITY, currentMigrations),
+      /remain the latest migration/,
+    );
     assert.equal(
-      validate(REVIEWED_CASE_OPEN_AUTHORITY, currentMigrations).phase,
-      REVIEWED_CASE_OPEN_AUTHORITY,
+      validate(REVIEWED_CASE_REPLY_AUTHORITY, currentMigrations).phase,
+      REVIEWED_CASE_REPLY_AUTHORITY,
     );
   });
 
@@ -1374,6 +1392,41 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact compatible Case-reply authority after buyer Case-open", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_REPLY_AUTHORITY,
+        REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_REPLY_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_OPEN_AUTHORITY_MIGRATION,
+      CASE_REPLY_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_REPLY_AUTHORITY,
+            REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact buyer Case-open boundary plus the compatible Case-reply authority migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -1396,6 +1449,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY,
     REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY,
     REVIEWED_CASE_OPEN_AUTHORITY,
+    REVIEWED_CASE_REPLY_AUTHORITY,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -1489,7 +1543,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current buyer Case-open authority guard before CI migrations", () => {
+  it("runs the current Case-reply authority guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -1499,7 +1553,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify buyer Case-open authority migration tree[\s\S]{0,220}SAVED_SEARCH_RLS_DEPLOY_PHASE: case-open-authority-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
+      /Verify Case-reply authority migration tree[\s\S]{0,220}SAVED_SEARCH_RLS_DEPLOY_PHASE: case-reply-authority-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
     );
   });
 
@@ -1533,6 +1587,8 @@ describe("SavedSearch RLS production deploy guard", () => {
       "20260729050000_unreviewed_later_migration";
     const laterCaseOpenAuthorityMigration =
       "20260729052000_unreviewed_later_migration";
+    const laterCaseReplyAuthorityMigration =
+      "20260729053000_unreviewed_later_migration";
 
     assert.throws(
       () => validate(RELEASE_ZERO, [
@@ -1664,6 +1720,16 @@ describe("SavedSearch RLS production deploy guard", () => {
         [
           ...REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
           laterCaseOpenAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_REPLY_AUTHORITY,
+        [
+          ...REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
+          laterCaseReplyAuthorityMigration,
         ],
       ),
       /review or retire the temporary SavedSearch deploy guard/,
@@ -1808,6 +1874,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
       ),
       CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_REPLY_AUTHORITY_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

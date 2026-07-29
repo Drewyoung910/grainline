@@ -361,6 +361,42 @@ references into the converted ledger and reduces the activation countdown to
 64; it does not authorize merge, production migration, deployment, grant
 revocation or Case-family RLS activation.
 
+## Case-reply authority checkpoint
+
+The next isolated compatible candidate adds
+`grainline_case_reply(actorUserId, caseId, body, directUploadIds)`. The
+function locks the active actor User before the exact parent Case, rederives
+party-versus-staff authority with party precedence, fences the current Case
+status and participant availability, and derives author kind, Case transition,
+UTC time, message/attachment identities and attachment metadata. A seller's
+first `OPEN` reply starts discussion and the 48-hour escalation clock; a party
+reply to `PENDING_CLOSE` returns the Case to `IN_DISCUSSION` and clears both
+resolution marks.
+
+The caller controls only sanitized text and at most four DirectUpload
+identities. Each attachment must be the actor's verified private
+`caseEvidenceImage`, must be scoped by object key to the locked Case, and must
+derive content type, byte size and object key from the lifecycle row. The
+existing deferred reference trigger then establishes the exclusive
+`CASE_MESSAGE_ATTACHMENT` claim atomically with the message. R2 object
+existence and signature verification remain an explicit application/provider
+precondition because PostgreSQL cannot inspect the object store.
+
+Replay identity is database-derived from the locked Case, actor, exact body
+and sorted upload set. An advisory transaction lock serializes identical
+requests, while the parent Case lock serializes every differing reply and
+lifecycle transition. A retry within 30 seconds returns the original message
+only when the body and complete attachment set match; no recipient, author
+kind, transition, dedup token, timestamp, content metadata or generated id is
+caller-supplied.
+
+This migration is functions-only and coexistence-safe. It changes no
+Case-family RLS posture or legacy table grant. The application reply route,
+notifications/email behavior, merge, production migration, deployment,
+direct-grant revocation and Case-family activation remain separate and
+unauthorized until the exact PostgreSQL proof and subsequent route conversion
+pass independently.
+
 ## Account deletion boundary
 
 The redaction function does not accept a free `deletingUserId`. It accepts an

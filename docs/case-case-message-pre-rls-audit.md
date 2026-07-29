@@ -428,6 +428,24 @@ files with sixteen references retained in the converted ledger. Case-family
 RLS, direct-grant revocation, merge, production migration and deployment
 remain unauthorized.
 
+The next compatible authority candidate (2026-07-29) replaces the reply
+route's eventual direct Case/message/attachment write boundary with
+`grainline_case_reply`. The fixed operation follows the reviewed actor-User
+then Case lock order, derives party/staff status and author kind from locked
+rows, and makes the seller-first and pending-close transitions atomic with the
+new message. It derives the clock, message/attachment ids, content metadata
+and exact 30-second replay identity inside PostgreSQL.
+
+Private evidence ids remain caller references rather than caller authority.
+Each is locked and validated against actor ownership, verified private
+lifecycle state, accepted endpoint/type/size and the exact Case segment in the
+object key. The deferred lifecycle trigger establishes the exclusive
+attachment reference before commit. R2 byte/signature verification remains a
+route-side external precondition. This closes the fixed-function portion of
+CC-A04/CC-A09 only after the disposable PostgreSQL proof passes; the direct
+route references remain in the 64-reference countdown until the separate
+application conversion succeeds.
+
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B
 compatible migration adds the exact index and a nullable durable author-kind

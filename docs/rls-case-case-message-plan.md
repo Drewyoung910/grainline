@@ -763,6 +763,32 @@ dependency audit and production build. This is exact-head isolated CI evidence
 for draft PR #97 only; it is not merge, production migration, deployment,
 grant-revocation or Case-family activation evidence.
 
+Phase 4 Case-reply authority candidate (2026-07-29): the compatible
+`grainline_case_reply` operation accepts the active actor, exact Case,
+sanitized body and at most four DirectUpload ids. PostgreSQL locks the actor
+before the parent Case, rederives party/staff authority and status, then
+derives author kind, transition effects, UTC clock, ids, attachment metadata
+and replay identity. Party precedence prevents an employee/admin who is also
+a participant from bypassing participant lifecycle rules.
+
+Attachment authority is tied to the existing private DirectUpload lifecycle:
+the upload must belong to the actor, be verified and private, use the
+`caseEvidenceImage` endpoint and key scope for the locked Case, and meet the
+accepted image/size bounds. The existing deferred trigger creates the
+exclusive lifecycle reference in the same transaction. PostgreSQL does not
+replace the route's R2 byte/signature verification, which remains an external
+precondition before the fixed write.
+
+Identical retries serialize on a database-derived advisory key and must match
+the exact recent body plus complete sorted attachment set. Every reply also
+serializes on the parent Case, preserving the already-reviewed different-body,
+seller-first and pending-close transition ordering. The sealed migration-tree
+phase, grant convergence, static SQL contract and a loopback-only PostgreSQL
+proof are included in the isolated candidate. The proof must pass forged
+actor, status, recipient, upload-source, transition, replay, real lock-wait,
+rollback and zero-residue checks before any application conversion begins.
+Case-family RLS and production remain unchanged.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

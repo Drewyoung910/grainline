@@ -30,7 +30,7 @@ test("Case seller-refund authority is CI-reviewed but not production-authorized"
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-open-authority-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-reply-authority-reviewed/,
   );
   assert.match(
     productionWorkflow,
