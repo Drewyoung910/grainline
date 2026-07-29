@@ -105,9 +105,11 @@ describe("request origin guard", () => {
     ]);
     assertGuardBefore("src/app/api/cases/[id]/resolve/route.ts", [
       "await auth()",
-      "requireStaffAdminPinForApi(req",
+      "await requireStaffAdminPinForApi(",
       "readBoundedJson(req",
       "prisma.case.findUnique",
+      "prepareCaseStaffResolution({",
+      "createMarketplaceRefund({",
     ]);
   });
 

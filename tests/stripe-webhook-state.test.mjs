@@ -635,6 +635,31 @@ describe("Stripe webhook state helpers", () => {
     });
   });
 
+  it("does not let charge.refunded steal a stale sentinel from an active Case claim", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 3_500,
+      latestRefund: {
+        id: "re_case_claim",
+        amount: 3_500,
+        status: "succeeded",
+        created: 10,
+      },
+      order: {
+        currency: "usd",
+        sellerRefundId: "pending",
+        sellerRefundLockedAt: new Date(0),
+        caseResolutionClaimId: "case_resolution_claim_1",
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.ledger.reason, "local_refund_pending_confirmation");
+    assert.equal(state.ledger.metadata.pendingLocalRefundLock, true);
+    assert.equal(state.orderUpdate, null);
+  });
+
   it("lets charge.refunded resolve ambiguous local refund attempts", () => {
     const state = chargeRefundLedgerState({
       chargeId: "ch_1",

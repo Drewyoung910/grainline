@@ -189,12 +189,18 @@ describe("admin PIN cookie secret configuration", () => {
 
     assert.match(resolve, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
     assert.match(resolve, /const \{ userId, sessionId \} = await auth\(\)/);
-    assert.match(resolve, /const pinResponse = await requireStaffAdminPinForApi\(req, userId, sessionId\)/);
+    assert.match(
+      resolve,
+      /const pinResponse = await requireStaffAdminPinForApi\(\s*req,\s*userId,\s*sessionId,\s*\)/,
+    );
+    const resolvePinStart = resolve.indexOf(
+      "await requireStaffAdminPinForApi(",
+    );
     assert.ok(
       resolve.indexOf('me.role !== "EMPLOYEE"') <
-        resolve.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)") &&
-        resolve.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)") <
-          resolve.indexOf("safeRateLimit(refundRatelimit"),
+        resolvePinStart &&
+        resolvePinStart <
+          resolve.indexOf("await safeRateLimit("),
       "staff case resolution should require admin PIN before rate limit and refund mutation",
     );
 

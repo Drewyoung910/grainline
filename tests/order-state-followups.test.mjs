@@ -138,14 +138,37 @@ describe("order-state audit follow-up guardrails", () => {
   });
 
   it("keeps staff case resolution atomic and persists computed full-refund amounts", () => {
-    const text = source("src/app/api/cases/[id]/resolve/route.ts");
-    assert.match(text, /persistedRefundAmountCents = refunding \? refundAmountForOrder : null/);
-    assert.match(text, /tx\.case\.updateMany/);
-    assert.match(text, /status: \{ notIn: \["RESOLVED", "CLOSED"\] \}/);
-    assert.match(text, /resolvedAt: null/);
-    assert.match(text, /CASE_RESOLUTION_CONFLICT/);
-    assert.match(text, /refundAmountCents: persistedRefundAmountCents/);
-    assert.doesNotMatch(text, /refundAmountCents: refundAmountCents \?\? null/);
+    const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const authority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    ).replace(/\s+/g, " ");
+
+    assert.match(
+      authority,
+      /p_resolution = 'REFUND_FULL'::public\."CaseResolution" THEN[\s\S]*refund_amount_cents := order_total_cents::integer/,
+    );
+    assert.match(
+      authority,
+      /locked_case\.status IN \(\s*'RESOLVED'::public\."CaseStatus",\s*'CLOSED'::public\."CaseStatus"\s*\)/,
+    );
+    assert.match(
+      authority,
+      /UPDATE public\."Case" AS case_row SET status = 'RESOLVED'/,
+    );
+    assert.match(
+      authority,
+      /"refundAmountCents" = locked_claim\."refundAmountCents"/,
+    );
+    assert.match(
+      route,
+      /amountCents: prepared\.refundAmountCents!/,
+    );
+    assert.match(
+      route,
+      /finalized = await finalizeCaseStaffResolution\(me\.id, prepared\)/,
+    );
+    assert.doesNotMatch(route, /refundAmountCents: refundAmountCents \?\? null/);
+    assert.doesNotMatch(route, /(?:prisma|tx)\.case\.update/);
   });
 
   it("keeps quote, token-rejection, and case-resolution UI hardening in place", () => {

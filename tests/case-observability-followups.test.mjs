@@ -60,24 +60,25 @@ describe("case route observability follow-ups", () => {
 
   it("co-commits case resolution history and staff audit before notification side effects", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
-    const transactionStart = route.indexOf("const caseWrite = await prisma.$transaction");
-    const resolutionMessage = route.indexOf("const resolutionMessage = await tx.caseMessage.create");
-    const auditWrite = route.indexOf("await logAdminActionOrThrow");
+    const authority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
+    const finalize = route.indexOf("await finalizeCaseStaffResolution");
     const sellerNotification = route.indexOf("source: \"case_seller_resolution_notification\"");
 
     assert.match(route, /source: "case_resolved_email"/);
-    assert.match(route, /authorKind: "STAFF"/);
-    assert.match(route, /action: "RESOLVE_CASE"/);
     assert.match(route, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/);
-    assert.match(route, /source: "case_refund_orphaned_review_update_failed"/);
-    assert.match(route, /source: "case_refund_lock_release_failed"/);
+    assert.match(authority, /'STAFF'::public\."CaseMessageAuthorKind"/);
+    assert.match(authority, /'RESOLVE_CASE'/);
+    assert.match(authority, /INSERT INTO public\."CaseMessage"/);
+    assert.match(authority, /INSERT INTO public\."AdminAuditLog"/);
+    assert.match(authority, /status = 'FINALIZED'/);
+    assert.match(route, /source: "case_refund_provider_record_failed"/);
+    assert.match(route, /source: "case_refund_ambiguous_record_failed"/);
     assert.doesNotMatch(route, /catch\s*\{\s*\/\* non-fatal \*\/\s*\}/);
     assert.doesNotMatch(route, /\.catch\(\(\) => \{\}\)/);
     assert.ok(
-      transactionStart >= 0
-        && resolutionMessage > transactionStart
-        && auditWrite > resolutionMessage
-        && sellerNotification > auditWrite,
+      finalize >= 0 && sellerNotification > finalize,
       "resolution message and audit must commit before seller notification",
     );
   });

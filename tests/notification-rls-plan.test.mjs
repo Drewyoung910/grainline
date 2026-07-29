@@ -201,10 +201,13 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(caseMarkResolved, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_RESOLUTION_MARK,\s*sourceId: authoritySourceId/);
     assert.match(caseMarkResolved, /prisma\.\$transaction\(async \(tx\) =>[\s\S]{0,4500}logAdminActionOrThrow\(\{[\s\S]{0,180}client: tx/);
     assert.match(caseMarkResolved, /action: "MARK_CASE_RESOLVED"[\s\S]{0,180}actorKind: "user"/);
-    assert.match(caseResolve, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: id/);
     assert.match(
       caseResolve,
-      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE,\s*sourceId: resolutionMessageId/,
+      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: finalized\.caseId/,
+    );
+    assert.match(
+      caseResolve,
+      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE,\s*sourceId: finalized\.resolutionMessageId/,
     );
     assert.equal((caseAutoClose.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_SYSTEM_ACTION/g) ?? []).length, 6);
     assert.equal((caseAutoClose.match(/const auditLogId = await logSystemActionOrThrow/g) ?? []).length, 3);

@@ -6,7 +6,7 @@ authority/invariant proof. Production RLS remains off for Case, CaseMessage
 and CaseMessageAttachment.
 
 The behavior findings, 80-reference conversion baseline and current
-75-reference countdown live in
+71-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -445,7 +445,7 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
   Stripe-dispute operation also adds its own private immutable replay ledger;
   it is not bundled with Case participant policies or direct-grant revocation.
 - Convert every protected reference to its explicit destination (80 at the
-  fixed Phase 4 baseline; 75 remain after the first two compatible app
+  fixed Phase 4 baseline; 71 remain after the first three compatible app
   conversions, while earlier Phase 1B counts remain historical evidence
   rather than an activation target).
 - Keep an exact zero-direct-access inventory gate.
@@ -596,6 +596,38 @@ audit and production build. This proves the compatible database authority
 candidate in isolated CI only; it does not authorize a production migration,
 application conversion, merge, direct-grant revocation or Case RLS
 activation.
+
+Phase 4 staff-resolution application-conversion candidate (2026-07-29): the
+PIN-gated route now uses the fixed prepare, provider-record/ambiguous and
+finalize functions. PostgreSQL derives the claim, parties, amount, payment
+intent, transfer posture, idempotency scope, stock plan, terminal message,
+audit and response identities. The application supplies only the reviewed
+staff decision and Stripe's bounded response, validates every returned
+identity, and performs notifications/email only after finalization.
+
+Hard review found that the generic stale-refund cleanup and
+`charge.refunded` recovery could steal a `pending` sentinel from a durable
+Case claim. Both now treat `caseResolutionClaimId` as a non-expiring lease.
+The same review found that the route's friendly refund prechecks would block
+its own crash-recovery replay after prepare or provider record. Those
+heuristics now apply only when no claim exists; the fixed prepare function
+locks and verifies any exact existing claim before returning its replay state.
+The route retains no direct Case/CaseMessage write. The exact inventory is 71
+remaining references and nine converted references; production remains
+unchanged and the application candidate still requires exact-head CI before
+any merge, migration or deployment decision.
+
+The application conversion is preserved in commit `1cc1d468` on draft PR
+`#93`. The draft is temporarily eligible for `main`-targeted CI only; its
+intended stacked base remains the unmerged staff-resolution authority branch.
+Neither the checkpoint nor CI targeting authorizes a merge, migration,
+deployment, grant change or Case-family RLS activation.
+
+Exact candidate head `c57bfdac` passed GitHub Actions run `30428708830`,
+including migration application to disposable PostgreSQL, runtime-grant audit,
+rollback-only Case proofs, TypeScript, lint, the full test suite, dependency
+audit and production build. The Vercel preview remains intentionally blocked
+by the runtime database environment guard and is not release evidence.
 
 ## Phase 5: ENABLE activation
 

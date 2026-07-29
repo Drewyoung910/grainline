@@ -32,7 +32,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /source: "case_resolved_notification"/);
     assert.match(route, /source: "case_resolved_email"/);
     assert.match(route, /notificationError/);
-    assert.match(route, /buyerId: caseRecord\.buyerId/);
+    assert.match(route, /buyerId: finalized\.buyerUserId/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
@@ -73,21 +73,30 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("records staff case refunds only while the refund lock is still held", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const authority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
 
-    assert.match(
-      route,
-      /sellerProfile: \{ select: \{ id: true \} \}/,
-    );
-    assert.match(route, /canReverseTransfer: Boolean\(caseRecord\.order\.stripeTransferId\)/);
-    assert.doesNotMatch(route, /Boolean\(caseRecord\.seller\.sellerProfile\?\.stripeAccountId\)/);
+    assert.match(route, /canReverseTransfer: prepared\.canReverseTransfer/);
     assert.match(route, /refundMayRestoreStock\(caseRecord\.order\)/);
+    assert.match(authority, /"caseResolutionClaimId" = claim_id/);
+    assert.match(authority, /"sellerRefundId" = CASE/);
+    assert.match(authority, /ELSE 'pending'/);
     assert.match(
-      route,
-      /tx\.order\.updateMany\(\{\s*where: \{ id: caseRecord\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/s,
+      authority,
+      /WHERE orders\.id = locked_order\.id[\s\S]*orders\."sellerRefundId" IS NULL/,
     );
-    assert.match(route, /if \(orderUpdate\.count !== 1\)/);
-    assert.match(route, /CASE_REFUND_LOCK_LOST/);
-    assert.match(route, /manualStripeReconciliationNeeded: true/);
+    assert.match(
+      authority,
+      /locked_order\."caseResolutionClaimId"[\s\S]*IS DISTINCT FROM locked_claim\.id/,
+    );
+    assert.match(
+      authority,
+      /locked_order\."sellerRefundId" IS DISTINCT FROM 'pending'/,
+    );
+    assert.match(authority, /Case staff-resolution lease acquisition failed/);
+    assert.match(authority, /Case provider-record refund lease was lost/);
+    assert.doesNotMatch(route, /Boolean\(caseRecord\.order\.stripeTransferId\)/);
   });
 
   it("keeps seller and case orphan refund markers retryable until local state is durable", () => {
@@ -111,23 +120,16 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(sellerOrphanBlock, /Sentry\.captureException\(dbError/);
     assert.match(sellerOrphanBlock, /throw dbError/);
 
-    const caseOrphanStart = caseRoute.indexOf('source: "case_refund_orphaned_review_update_failed"');
-    assert.ok(caseOrphanStart > 0, "case refund orphan marker failures should be observable");
-    const caseOrphanBlock = caseRoute.slice(
-      caseRoute.lastIndexOf("try {", caseOrphanStart),
-      caseRoute.indexOf("} else if (refunding)", caseOrphanStart),
+    assert.match(caseRoute, /source: "case_refund_provider_record_failed"/);
+    assert.match(
+      caseRoute,
+      /await recordCaseStaffResolutionProvider\([\s\S]*refund\.primaryRefundId[\s\S]*refund\.refundIds/,
     );
-    assert.match(caseOrphanBlock, /await prisma\.\$transaction\(async \(tx\) => \{/);
-    assert.match(caseOrphanBlock, /const orphanRecord = await tx\.order\.updateMany/);
-    assert.match(caseOrphanBlock, /where: \{ id: caseRecord\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/);
-    assert.match(caseOrphanBlock, /if \(orphanRecord\.count !== 1\)/);
-    assert.match(caseOrphanBlock, /Case refund orphan record was not written/);
-    assert.match(caseOrphanBlock, /recordLocalRefundEvidence\(tx, \{/);
-    assert.match(caseOrphanBlock, /action: "CASE_REFUND_RECORDED"/);
-    assert.match(caseOrphanBlock, /orphanRecovery: true/);
-    assert.match(caseOrphanBlock, /Case refund orphan amount was unavailable/);
-    assert.match(caseOrphanBlock, /Sentry\.captureException\(reviewUpdateError/);
-    assert.match(caseOrphanBlock, /throw reviewUpdateError/);
+    assert.match(
+      caseRoute,
+      /authorityFailureResponse\(error, "provider"\)[\s\S]*throw error/,
+    );
+    assert.doesNotMatch(caseRoute, /case_refund_orphaned_review_update_failed/);
   });
 
   it("marks no-refund-id Stripe failures as ambiguous instead of reopening refund attempts", () => {
@@ -139,9 +141,23 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(sellerRoute, /ambiguous Stripe outcome/);
     assert.doesNotMatch(sellerRoute, /source: "seller_refund_lock_release_failed"/);
 
-    assert.match(caseRoute, /REFUND_AMBIGUOUS_SENTINEL/);
     assert.match(caseRoute, /case_refund_ambiguous_record_failed/);
-    assert.match(caseRoute, /ambiguous Stripe outcome/);
+    assert.match(
+      caseRoute,
+      /catch \(stripeError\)[\s\S]*recordAmbiguousCaseStaffResolutionProvider\([\s\S]*throw stripeError/,
+    );
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /'RECONCILIATION_REQUIRED'::public\."CaseResolutionClaimStatus"/,
+    );
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /Ambiguous provider outcome cannot assert evidence/,
+    );
   });
 
   it("derives first-party refund reversal eligibility from the order transfer", () => {
@@ -149,12 +165,18 @@ describe("payment and fulfillment side-effect observability", () => {
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
 
     assert.match(sellerRoute, /canReverseTransfer: Boolean\(order\.stripeTransferId\)/);
-    assert.match(caseRoute, /canReverseTransfer: Boolean\(caseRecord\.order\.stripeTransferId\)/);
+    assert.match(caseRoute, /canReverseTransfer: prepared\.canReverseTransfer/);
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /'canReverseTransfer', locked_order\."stripeTransferId" IS NOT NULL/,
+    );
 
     assert.doesNotMatch(sellerRoute, /stripeAccountId: true/);
     assert.doesNotMatch(sellerRoute, /Boolean\(seller\.stripeAccountId\)/);
     assert.doesNotMatch(caseRoute, /stripeAccountId: true/);
-    assert.doesNotMatch(caseRoute, /Boolean\(caseRecord\.seller\.sellerProfile\?\.stripeAccountId\)/);
+    assert.doesNotMatch(caseRoute, /Boolean\(caseRecord\.order\.stripeTransferId\)/);
   });
 
   it("records transfer-reversal accounting evidence for first-party refunds", () => {
@@ -169,7 +191,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(helper, /platformFundedRefundCents/);
     assert.match(helper, /originalTransferAmountCents/);
 
-    for (const route of [sellerRoute, caseRoute, webhookRoute]) {
+    for (const route of [sellerRoute, webhookRoute]) {
       assert.match(route, /let refundAccountingEvidence: Prisma\.InputJsonObject \| null = null/);
       assert.match(route, /refundAccountingEvidence = refund\.accountingEvidence/);
       assert.match(route, /refundAccounting: (?:refund\.accountingEvidence|refundAccountingEvidence)/);
@@ -178,43 +200,67 @@ describe("payment and fulfillment side-effect observability", () => {
         "normal and orphan refund evidence paths should include refundAccounting metadata",
       );
     }
+    assert.match(
+      caseRoute,
+      /transferReversalId:\s*refund\.accountingEvidence\.transferReversalId/,
+    );
+    assert.match(
+      caseRoute,
+      /transferReversalAmountCents:\s*refund\.accountingEvidence\.transferReversalAmountCents/,
+    );
+    const caseAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
+    assert.match(caseAuthority, /'transferReversalId', p_transfer_reversal_id/);
+    assert.match(
+      caseAuthority,
+      /'transferReversalAmountCents',\s*p_transfer_reversal_amount_cents/,
+    );
   });
 
   it("serializes staff case refunds and dismissals before Stripe moves money", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const authority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    ).replace(/\s+/g, " ");
+    const prepareStart = route.indexOf("await prepareCaseStaffResolution(");
+    const stripeStart = route.indexOf("await createMarketplaceRefund(");
+    const finalizeStart = route.indexOf("await finalizeCaseStaffResolution(");
 
-    const refundLockStart = route.indexOf('SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL}');
-    const caseRecheckStart = route.indexOf("const caseStatusBeforeRefund = await prisma.case.findUnique");
-    const stripeRefundStart = route.indexOf("const refund = await createMarketplaceRefund({");
-    assert.ok(refundLockStart >= 0, "case refunds must acquire the order refund sentinel");
-    assert.ok(caseRecheckStart > refundLockStart, "case status should be rechecked after the refund sentinel is held");
-    assert.ok(stripeRefundStart > caseRecheckStart, "Stripe refunds should happen only after the post-lock case recheck");
-    assert.match(route, /Case status changed before this refund could be issued/);
-
-    const caseWriteStart = route.indexOf("const caseWrite = await prisma.$transaction");
-    const nonRefundGuardStart = route.indexOf("const orderResolutionGuard = await tx.order.updateMany", caseWriteStart);
-    const caseUpdateStart = route.indexOf("const caseUpdate = await tx.case.updateMany", caseWriteStart);
-    assert.ok(nonRefundGuardStart > caseWriteStart, "non-refund case resolutions should check order refund state");
-    assert.ok(caseUpdateStart > nonRefundGuardStart, "non-refund case resolution guard should run before the case update");
-    assert.match(route, /sellerRefundId: \{ not: REFUND_LOCK_SENTINEL \}/);
-    assert.match(route, /CASE_RESOLUTION_REFUND_IN_PROGRESS/);
+    assert.ok(prepareStart >= 0 && stripeStart > prepareStart);
+    assert.ok(finalizeStart > stripeStart);
+    assert.match(
+      authority,
+      /FROM public\."Order" AS orders WHERE orders\.id = source_order_id FOR UPDATE[\s\S]*FROM public\."Case" AS case_row[\s\S]*FOR UPDATE/,
+    );
+    assert.match(
+      authority,
+      /orders\."caseResolutionClaimId" IS NULL[\s\S]*orders\."sellerRefundId" IS NULL[\s\S]*orders\."sellerRefundLockedAt" IS NULL/,
+    );
+    assert.match(
+      authority,
+      /Case staff-resolution Order has refund activity/,
+    );
+    assert.doesNotMatch(route, /prisma\.\$transaction/);
   });
 
   it("keeps seller and staff refund entrypoints single-refund per order", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
 
-    for (const route of [sellerRoute, caseRoute]) {
-      assert.match(route, /blockingRefundLedgerWhere/);
-      assert.match(route, /blockingRefundOrDisputeLedgerWhere/);
-      assert.match(route, /blockingRefundOrLatestOpenDisputeLedgerExistsSql/);
-      assert.match(route, /sellerRefundConflictResponse/);
-      assert.match(route, /orderHasRefundLedger/);
-      assert.match(
-        route,
-        /(?:await prisma|return tx)\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
-      );
-    }
+    assert.match(sellerRoute, /blockingRefundLedgerWhere/);
+    assert.match(sellerRoute, /blockingRefundOrDisputeLedgerWhere/);
+    assert.match(sellerRoute, /blockingRefundOrLatestOpenDisputeLedgerExistsSql/);
+    assert.match(sellerRoute, /sellerRefundConflictResponse/);
+    assert.match(sellerRoute, /orderHasRefundLedger/);
+    assert.match(
+      sellerRoute,
+      /(?:await prisma|return tx)\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
+    );
+
+    assert.match(caseRoute, /blockingRefundLedgerWhere/);
+    assert.match(caseRoute, /sellerRefundConflictResponse/);
+    assert.match(caseRoute, /orderHasRefundLedger/);
 
     assert.match(
       sellerRoute,
@@ -225,9 +271,16 @@ describe("payment and fulfillment side-effect observability", () => {
       /WHERE id = \$\{orderId\}[\s\S]*"sellerRefundId" IS NULL/s,
     );
     assert.match(caseRoute, /if \(orderHasRefundLedger\(caseRecord\.order\)\)/);
+    const caseAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
     assert.match(
-      caseRoute,
-      /WHERE id = \$\{caseRecord\.orderId\}[\s\S]*"sellerRefundId" IS NULL/s,
+      caseAuthority,
+      /WHERE orders\.id = locked_order\.id[\s\S]*orders\."sellerRefundId" IS NULL[\s\S]*Case staff-resolution lease acquisition failed/,
+    );
+    assert.match(
+      caseAuthority,
+      /FROM public\."OrderPaymentEvent" AS refund_event[\s\S]*refund_event\."eventType" = 'REFUND'/,
     );
   });
 
@@ -250,7 +303,6 @@ describe("payment and fulfillment side-effect observability", () => {
 
     for (const [route, action] of [
       [sellerRoute, "SELLER_REFUND_RECORDED"],
-      [caseRoute, "CASE_REFUND_RECORDED"],
       [webhookRoute, "BLOCKED_CHECKOUT_REFUND_RECORDED"],
     ]) {
       assert.match(route, /recordLocalRefundEvidence\(tx, \{/);
@@ -262,10 +314,13 @@ describe("payment and fulfillment side-effect observability", () => {
         sellerRoute.indexOf('action: "SELLER_REFUND_RECORDED"'),
       "seller refund evidence should be recorded in the final transaction",
     );
-    assert.ok(
-      caseRoute.indexOf("const caseWrite = await prisma.$transaction") <
-        caseRoute.indexOf('action: "CASE_REFUND_RECORDED"'),
-      "case refund evidence should be recorded in the final transaction",
+    const caseAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
+    assert.match(caseRoute, /await recordCaseStaffResolutionProvider\(/);
+    assert.match(
+      caseAuthority,
+      /INSERT INTO public\."OrderPaymentEvent"[\s\S]*'CASE_REFUND_RECORDED'[\s\S]*INSERT INTO public\."SystemAuditLog"/,
     );
     assert.ok(
       webhookRoute.indexOf("const stockStatusRestoredCount = await prisma.$transaction") <
@@ -279,18 +334,28 @@ describe("payment and fulfillment side-effect observability", () => {
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
 
-    for (const route of [sellerRoute, caseRoute]) {
-      assert.match(route, /orderHasPurchasedLabel/);
-      assert.match(
-        route,
-        /Cannot refund this order after a shipping label has been purchased/,
-      );
-      assert.match(
-        route,
-        /"labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus"/,
-      );
-      assert.match(route, /labelStatus: true/);
-    }
+    assert.match(sellerRoute, /orderHasPurchasedLabel/);
+    assert.match(
+      sellerRoute,
+      /Cannot refund this order after a shipping label has been purchased/,
+    );
+    assert.match(
+      sellerRoute,
+      /"labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus"/,
+    );
+    assert.match(sellerRoute, /labelStatus: true/);
+
+    assert.match(caseRoute, /orderHasPurchasedLabel/);
+    assert.match(
+      caseRoute,
+      /Cannot refund this order after a shipping label has been purchased/,
+    );
+    assert.match(
+      source(
+        "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      ),
+      /locked_order\."labelStatus" =\s*'PURCHASED'::public\."LabelStatus"/,
+    );
 
     assert.match(labelRoute, /"sellerRefundId" IS NULL/);
     assert.match(labelRoute, /"sellerRefundLockedAt" IS NULL/);
@@ -373,7 +438,7 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(
       route,
-      /resolution === "REFUND_PARTIAL"[\s\S]*\? partialStockRestores/,
+      /stockRestoreDecision:[\s\S]*resolution === "REFUND_PARTIAL"\s*\?\s*canonicalStockDecision\s*:\s*\[\]/,
     );
     assert.match(panel, /Restore inventory \(optional\)/);
     assert.match(
@@ -602,7 +667,7 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("does not tag ordinary staff case refunds as fraudulent Stripe refunds", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
-    const refundStart = route.indexOf("const refund = await createMarketplaceRefund({");
+    const refundStart = route.indexOf("await createMarketplaceRefund({");
     const refundEnd = route.indexOf("});", refundStart);
     const refundCall = route.slice(refundStart, refundEnd);
 

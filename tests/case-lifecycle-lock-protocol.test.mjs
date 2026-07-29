@@ -185,11 +185,11 @@ describe("Case and Order lifecycle lock protocol", () => {
       "src/app/api/cases/[id]/mark-resolved/route.ts",
     );
     const staffResolve = source("src/app/api/cases/[id]/resolve/route.ts");
+    const staffAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    ).replace(/\s+/g, " ");
     const markWrite = markResolved.slice(
       markResolved.indexOf("const result = await prisma.$transaction"),
-    );
-    const staffWrite = staffResolve.slice(
-      staffResolve.indexOf("const caseWrite = await prisma.$transaction"),
     );
 
     assertOrdered(markWrite, [
@@ -207,27 +207,30 @@ describe("Case and Order lifecycle lock protocol", () => {
     assert.match(markWrite, /if \(lockedOrder\.sellerRefundId\)/);
     assert.match(markWrite, /"updatedAt" = \$\{transitionAt\}/);
 
-    assertOrdered(staffWrite, [
-      ["staff transaction", "const caseWrite = await prisma.$transaction"],
-      ["staff Order lock", "await lockOrderForCaseLifecycle"],
-      ["staff Case lock", "await lockCaseForLifecycle"],
-      ["staff fresh Case read", "await tx.case.findUnique"],
-      ["staff fresh actor read", "await tx.user.findUnique"],
+    assertOrdered(staffResolve, [
+      ["staff prepare", "await prepareCaseStaffResolution("],
+      ["staff provider", "await createMarketplaceRefund("],
+      ["staff provider record", "await recordCaseStaffResolutionProvider("],
+      ["staff finalize", "await finalizeCaseStaffResolution("],
+    ]);
+    assertOrdered(staffAuthority, [
+      [
+        "staff Order lock",
+        'FROM public."Order" AS orders WHERE orders.id = source_order_id FOR UPDATE',
+      ],
+      [
+        "staff Case lock",
+        'FROM public."Case" AS case_row WHERE case_row.id = p_case_id AND case_row."orderId" = locked_order.id',
+      ],
       [
         "staff post-lock timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
+        "transition_at := pg_catalog.clock_timestamp()",
       ],
-      ["staff Case transition", "const caseUpdate = await tx.case.updateMany"],
-      [
-        "staff resolution message",
-        "const resolutionMessage = await tx.caseMessage.create",
-      ],
-      ["staff audit", "await logAdminActionOrThrow"],
     ]);
-    assert.match(staffWrite, /createdAt: transitionAt/);
-    assert.match(staffWrite, /resolvedAt: transitionAt/);
-    assert.match(staffWrite, /updatedAt: transitionAt/);
-    assert.match(staffWrite, /CASE_RESOLUTION_AUTHORITY_CHANGED/);
+    assert.match(staffAuthority, /INSERT INTO public\."CaseMessage"/);
+    assert.match(staffAuthority, /INSERT INTO public\."AdminAuditLog"/);
+    assert.match(staffAuthority, /resolvedAt" = transition_at/);
+    assert.doesNotMatch(staffResolve, /prisma\.\$transaction/);
   });
 
   it("uses per-row PostgreSQL clock time for bulk cron escalation", () => {

@@ -65,6 +65,7 @@ export type ChargeRefundOrderState = {
   currency: string;
   sellerRefundId: string | null;
   sellerRefundLockedAt?: Date | null;
+  caseResolutionClaimId?: string | null;
   sellerRefundAmountCents: number | null;
   itemsSubtotalCents?: number | null;
   shippingAmountCents?: number | null;
@@ -521,10 +522,13 @@ export function chargeRefundLedgerState({
     !order.sellerRefundId.startsWith("external:");
   const hasFreshLocalRefundLock =
     order.sellerRefundId === REFUND_LOCK_SENTINEL &&
-    !isStaleRefundLock({
-      sellerRefundId: order.sellerRefundId,
-      sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
-    });
+    (
+      Boolean(order.caseResolutionClaimId)
+      || !isStaleRefundLock({
+        sellerRefundId: order.sellerRefundId,
+        sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
+      })
+    );
   const isKnownLocalRefund = hasLocalRefundAudit && order.sellerRefundId === latestRefundId;
   const isAdditionalExternalRefund = hasLocalRefundAudit && !isKnownLocalRefund;
   const reason =
