@@ -7,10 +7,6 @@ import {
 } from "../scripts/case-case-message-rls-inventory.mjs";
 
 const EXPECTED_BASELINE = {
-  "src/app/admin/verification/page.tsx": {
-    "Case.count": 1,
-    "Case.findFirst": 1,
-  },
   "src/app/api/account/export/route.ts": {
     "Case.findMany": 1,
     "CaseMessage.relation-reference": 1,
@@ -32,11 +28,6 @@ const EXPECTED_BASELINE = {
     "Case.updateMany": 3,
     "Case.findMany": 3,
   },
-  "src/app/api/cron/guild-member-check/route.ts": {
-    "Case.findFirst": 1,
-  },
-  "src/app/api/verification/apply/route.ts": { "Case.count": 1 },
-  "src/app/dashboard/verification/page.tsx": { "Case.count": 1 },
   "src/lib/accountDeletion.ts": {
     "CaseMessage.update": 1,
     "Case.update": 1,
@@ -46,22 +37,7 @@ const EXPECTED_BASELINE = {
     "CaseMessage.raw-sql-reference": 2,
     "Case.raw-sql-reference": 4,
   },
-  "src/lib/metrics.ts": { "Case.count": 1 },
   "src/lib/caseLifecycleLocks.ts": {
-    "Case.raw-sql-reference": 1,
-  },
-  "src/app/api/orders/[id]/confirm-delivery/route.ts": {
-    "Case.relation-reference": 3,
-  },
-  "src/app/api/orders/[id]/fulfillment/route.ts": {
-    "Case.relation-reference": 1,
-    "Case.raw-sql-reference": 1,
-  },
-  "src/app/api/orders/[id]/label/route.ts": {
-    "Case.relation-reference": 1,
-    "Case.raw-sql-reference": 1,
-  },
-  "src/lib/orderPiiRetention.ts": {
     "Case.raw-sql-reference": 1,
   },
 };
@@ -70,9 +46,9 @@ describe("Case and CaseMessage RLS inventory", () => {
   const inventory = collectCaseCaseMessageAccess();
 
   it("pins every current direct, relation, and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 23);
-    assert.equal(inventory.relationReferences.length, 8);
-    assert.equal(inventory.rawSqlReferences.length, 11);
+    assert.equal(inventory.ormCalls.length, 17);
+    assert.equal(inventory.relationReferences.length, 3);
+    assert.equal(inventory.rawSqlReferences.length, 8);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
       EXPECTED_BASELINE,
@@ -102,7 +78,7 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /PDF evidence remains prohibited/);
     assert.match(
       audit,
-      /exact 80-reference conversion baseline, 42-reference current countdown\s+and thirty-eight-reference converted ledger are pinned by tests/,
+      /exact 80-reference conversion baseline, 28-reference current countdown\s+and fifty-two-reference converted ledger are pinned by tests/,
     );
     assert.match(
       audit,

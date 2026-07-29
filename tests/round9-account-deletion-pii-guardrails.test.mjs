@@ -29,7 +29,9 @@ const ORDER_PII_FIELDS = [
 describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs retained order address, tracking, label, and seller-note PII on delete and retention prune", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const retention = source("src/lib/orderPiiRetention.ts");
+    const retention = source(
+      "prisma/migrations/20260729057000_prepare_case_order_active_authority/migration.sql",
+    );
 
     for (const field of ORDER_PII_FIELDS) {
       assert.match(deletion, new RegExp(`${field}: null`), `account deletion must clear ${field}`);
@@ -38,13 +40,22 @@ describe("Round 9 account deletion PII guardrails", () => {
     }
 
     assert.match(deletion, /buyerDataPurgedAt: now/);
-    assert.match(retention, /"buyerDataPurgedAt" = NOW\(\)/);
+    assert.match(
+      retention,
+      /"buyerDataPurgedAt" =\s*pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'/,
+    );
     assert.match(deletion, /tx\.orderShippingRateQuote\.deleteMany\(\{/);
     assert.match(deletion, /order: \{ buyerId: user\.id \}/);
     assert.match(deletion, /some: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
     assert.match(deletion, /every: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
-    assert.match(retention, /EXISTS \(\s*SELECT 1\s*FROM "OrderShippingRateQuote" quote/s);
-    assert.match(retention, /DELETE FROM "OrderShippingRateQuote" quote/s);
+    assert.match(
+      retention,
+      /EXISTS \(\s*SELECT 1\s*FROM public\."OrderShippingRateQuote" AS quote/s,
+    );
+    assert.match(
+      retention,
+      /DELETE FROM public\."OrderShippingRateQuote" AS quote/s,
+    );
     assert.match(retention, /WHERE quote\."orderId" = pii_candidates\.id/);
   });
 

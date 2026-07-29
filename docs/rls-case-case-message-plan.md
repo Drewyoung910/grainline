@@ -976,6 +976,107 @@ filtering, page clamping, stable order, minimal contact fallback,
 transaction-local context, zero mutation and zero fixture residue before the
 checkpoint can be promoted.
 
+Phase 4 Case-aware Order authority candidate (2026-07-29): do not implement
+the catalog's earlier generic `orderId -> active Case` predicate. The shared
+runtime credential would gain an unnecessary arbitrary-Order dispute-state
+oracle. Use separate
+`grainline_case_order_active_for_buyer(actorUserId, orderId)` and
+`grainline_case_order_active_for_seller(actorUserId, orderId)` operations.
+The first derives active buyer ownership; the second derives an active seller
+and requires at least one Order item with no item owned by a different seller.
+Both return `NULL` for missing/unauthorized targets and otherwise only one
+boolean. They do not set or replace `app.user_id`; the PostgreSQL proof must
+seed a caller context and prove it is unchanged after the fixed predicate.
+
+Delivery confirmation, seller fulfillment and label purchase retain their
+existing Clerk/account/origin/rate/refund/state checks. They call the fixed
+predicate for user-facing feedback, then lock the exact Order and call it again
+inside the transaction before changing delivery, fulfillment or label state.
+Case creation also locks the Order first, so this makes the database check
+authoritative against Case-open/transition races without leaving direct Case
+relations or raw SQL in those routes.
+
+The retention source needs a distinct lifecycle operation, not either
+participant predicate. `grainline_order_buyer_pii_prune_batch(batchSize)`
+derives the fixed 90-day cutoff from the PostgreSQL UTC clock and selects only
+old delivered/picked-up, non-review, PII-bearing Orders. It excludes active
+Cases while acquiring each Order lock with `FOR UPDATE SKIP LOCKED`, then
+deletes only same-Order rate quotes and clears the already-reviewed PII field
+set. The runtime cannot supply Order ids or a cutoff. A retention-policy change
+therefore requires migration review rather than a caller argument. The
+application keeps its bounded time loop and strictly validates count and
+database cutoff results.
+
+This compatible candidate adds no policy, RLS posture or table grant. It moves
+eight references to the durable conversion ledger, leaving 34 current
+references across 12 files and forty-six converted references. Before it can
+be accepted, disposable PostgreSQL 16 must prove buyer/seller/foreign/disabled
+behavior, exact grants, FORCE isolation, locked Case races, fixed retention
+eligibility, rollback and zero residue. The Order/OrderShippingRateQuote
+mutation is an explicit dependency to re-review in their later RLS group.
+
+Failed proof evidence is not discarded: exact-head run `30487848128` applied
+the tree and passed all predecessor Case proofs, then a raw fixture omitted
+the required `SellerProfile.updatedAt` value and stopped before authority
+assertions. The corrected harness explicitly timestamps all raw-seeded
+`@updatedAt` models and pins that fixture/schema boundary in tests.
+
+Corrected run `30488100064` (job `90698760535`) accepted the candidate engine
+behavior: all 13 Case-aware Order checks and the complete repository CI gate
+passed against disposable PostgreSQL. This is preparation evidence only; it
+does not authorize merging the stacked chain, applying production migrations
+or activating Case-family RLS.
+
+Phase 4 seller-aggregate authority candidate (2026-07-29): seller metrics,
+Guild eligibility and Guild revocation/reinstatement need three distinct
+purpose-bound operations rather than one generic seller-to-Case aggregate.
+`grainline_case_seller_active_count` resolves one current active seller
+profile and returns only its active unresolved count. The verification
+operation binds the actor to that seller or a current staff user, derives the
+fixed 60-day cutoff from the PostgreSQL UTC clock and returns only the aged
+unresolved count. The Guild guard accepts one seller profile only when its
+current Guild or reinstatement state is eligible, derives the fixed 90-day
+cutoff from the database clock and locks the exact oldest blocking Case in
+stable `(createdAt,id)` order before returning one boolean.
+
+No cutoff timestamp, Case id, participant id, narrative or lifecycle row is
+caller-supplied or returned. This also avoids exporting
+`timestamp without time zone` evidence for application parsing. The admin
+verification server actions now repeat the session-bound staff PIN check
+inside the action before using staff authority; the admin layout is not
+treated as sufficient server-action authorization.
+
+The Guild cron and staff reinstatement paths re-run the fixed guard inside
+their mutation transaction. Direct Case relation filters are removed from the
+SellerProfile update so future Case RLS cannot silently hide the guard; the
+function's blocking Case row lock is the database authority boundary. The
+candidate adds no policy, RLS posture, table grant, production migration
+authorization or deployment. It moves six references to the retained ledger,
+leaving 28 current references across 7 files and fifty-two converted
+references. Its loopback PostgreSQL proof covers grants, forced-RLS source
+isolation, seller/staff/foreign behavior, Guild state binding, the real
+blocking-row lock, context preservation and zero residue.
+
+Exact authority head
+`b029f0ab9fec927317ffca60b0f5d09a6e70e6f0` passed GitHub Actions run
+`30490356203` (job `90706405419`). PostgreSQL 16 applied the sealed migration,
+converged production-style grants and passed all 13 seller-aggregate checks,
+including the real blocking-row lock and forced-RLS source isolation. Every
+predecessor RLS proof, migration status, final grant audit, TypeScript, lint,
+full tests, dependency audit and production build also passed. This is
+preparation evidence only; it does not authorize merging the stacked chain,
+applying production migrations or activating Case-family RLS.
+
+The first full local suite after this conversion failed only in three
+repository contracts that still pinned the prior 42-reference inventory and
+Case-aware Order review phase. The scanner itself reported the expected
+17 direct, 3 relation and 8 raw references. The contracts were advanced to
+the seller-aggregate phase without weakening the production-workflow boundary;
+focused tests, the complete local suite, TypeScript, lint and the sealed
+release-artifact guard then passed. The PostgreSQL proof is intentionally not
+claimed locally because no loopback `grainline_ci` service is available in
+this worktree; exact-head CI must execute it.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

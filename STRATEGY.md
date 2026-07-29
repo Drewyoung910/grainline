@@ -53,7 +53,7 @@ CaseMessages, attachments or anomaly counts, so no legacy cleanup/backfill is
 needed; Phase 3 invariant and authority-catalog proof is complete and Phase 4
 compatible schema/application conversion is active while production RLS
 remains off. The catalog pins the 80-reference Phase 4 baseline across 29
-sources to 26 fixed operations. Its first two compatible app conversions move
+sources to 28 fixed operations. Its first two compatible app conversions move
 all three Stripe dispute webhook references and both seller-refund Case
 references to fixed database functions, so 75 direct/nested/raw references
 across 27 sources remain; all five removed references stay in a
@@ -173,10 +173,37 @@ and its strict typed application wrapper are now prepared in isolation. Count
 and page share one database snapshot; UTC timestamps, message counts, safe
 page and blank-name email fallback are database-derived; the result excludes
 User ids, Clerk ids, Case narrative, payment/refund evidence and object
-identifiers. The current live Case-family inventory is 42 references across
-16 files, with thirty-eight of the 80-reference baseline retained in the
-converted ledger. This remains preparation only; production Case-family RLS
-is still off.
+identifiers. At the staff-queue checkpoint, the Case-family inventory was 42
+references across 16 files, with thirty-eight of the 80-reference baseline
+retained in the converted ledger.
+
+Case-aware Order checks must remain purpose-bound. Do not grant one generic
+`orderId -> active Case` runtime predicate. Buyer delivery confirmation uses an
+actor-bound buyer predicate; seller fulfillment and label purchase use an
+actor-bound complete-seller-ownership predicate. Each route repeats the check
+after taking the Order lock so Case opening cannot race the transition. The
+predicates must not change transaction-local RLS context; their actor input is
+validated against the purpose-bound relationship without adding a context
+side effect. The
+retention cron uses a separate fixed 90-day database prune batch: its cutoff,
+eligible locked Orders, active-Case exclusion and exact PII targets are
+database-derived, and callers cannot choose Order ids or shorten the window.
+Re-review that shared lifecycle function when Order and
+OrderShippingRateQuote enter their own RLS group.
+
+Seller verification, Guild enforcement and seller metrics must not share a
+generic seller-to-dispute oracle. Keep three minimal Case aggregate
+operations: active count for the fixed metrics computation; an actor-bound
+seller/staff verification count with a database-derived 60-day cutoff; and a
+Guild-state-bound predicate with a database-derived 90-day cutoff and a lock
+on the exact blocking Case. Do not return cutoff timestamps, Case ids,
+participants or narratives. Admin verification mutations must repeat the
+session-bound staff PIN check inside the server action, even when the enclosing
+page already passed the admin layout gate.
+
+The current Case-family preparation inventory is 28 references across 7 files,
+with fifty-two of the 80-reference baseline retained in the converted ledger.
+This remains preparation only; production Case-family RLS is still off.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and

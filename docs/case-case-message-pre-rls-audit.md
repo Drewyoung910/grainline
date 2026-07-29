@@ -55,10 +55,20 @@ direct message read and one nested attachment relation. The grouped recipient
 read application conversion removes two more direct operations and three
 nested Order-to-Case relations. The PIN-gated staff queue conversion removes
 its direct Case count, paginated Case read and nested message-count relation.
-The current countdown is therefore 23 direct operations, 8 nested relation
-references and 11 raw SQL references: 42 remaining protected references
-across 16 source files. The converted-source ledger now retains all
-thirty-eight removed references.
+The Case-aware Order conversion removes eight more references from buyer
+delivery confirmation, seller fulfillment, label purchase and fixed PII
+retention. The seller-aggregate conversion removes six direct Case reads from
+Guild eligibility/revocation/reinstatement and seller metrics. The current
+countdown is therefore 17 direct operations, 3 nested relation references and
+8 raw SQL references: 28 remaining protected references across 7 source
+files. The converted-source ledger now retains all fifty-two removed
+references.
+
+The seller-aggregate checkpoint passed exact-head disposable PostgreSQL 16 and
+full CI at `b029f0ab9fec927317ffca60b0f5d09a6e70e6f0`, run `30490356203`
+(job `90706405419`). This is compatible preparation evidence only; production
+Case-family RLS remains off and no production migration or deployment is
+authorized by that result.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
@@ -373,8 +383,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 42-reference current countdown
-  and thirty-eight-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 28-reference current countdown
+  and fifty-two-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
@@ -389,11 +399,13 @@ policy/authority SQL only when:
 
 ## Compatibility progress
 
-The Phase 1A bounded-history conversion replaces three unbounded nested
-CaseMessage reads with one shared keyset reader. Its current inventory is 42
-direct ORM calls, 15 relation references and 10 raw SQL references (67 total
-across 26 source files). The original 69-reference checkpoint remains the
-conversion ledger; no access path was silently removed.
+The Phase 1A bounded-history conversion replaced three unbounded nested
+CaseMessage reads with one shared keyset reader. Subsequent compatible,
+purpose-bound conversions have reduced the live inventory to 17 direct ORM
+calls, 3 relation references and 8 raw SQL references (28 total across 7
+source files). The original 69-reference audit and expanded 80-reference
+Phase 4 baseline remain in the conversion ledger; no access path is silently
+removed.
 
 The reader is correct with the existing `(caseId, createdAt)` index and uses
 `id` as a stable tie-breaker. The exact `(caseId, createdAt, id)` index migration
@@ -596,3 +608,54 @@ compatible migration adds the exact index and a nullable durable author-kind
 column. Nullable is deliberate until the protected aggregate-only inspection
 classifies every legacy message; every new application creation path must set
 the source-derived kind meanwhile.
+
+The next audit found that the planned generic
+`grainline_case_order_active(orderId)` predicate was broader than any caller
+needed. It would let the ordinary runtime credential probe active-dispute
+state for an arbitrary Order. The corrected compatible candidate uses separate
+buyer and seller predicates. Each validates the active local actor and derives
+the exact buyer-owned or complete seller-owned Order before returning one
+boolean; missing and unauthorized targets return no authority. Buyer delivery
+confirmation, seller fulfillment and label purchase call the predicate once
+for specific feedback and again after the existing Order lifecycle lock. The
+locked call replaces the relation/raw-SQL Case checks and preserves the
+Order-then-Case serialization used by Case opening.
+Neither predicate changes `app.user_id`; disposable PostgreSQL must prove a
+pre-existing caller context remains byte-for-byte unchanged across the
+function call. This avoids adding a context-setting side effect to the fixed
+predicate without overstating the broader boundary: the shared runtime role
+can already supply application context, so Clerk and route-side actor
+resolution remain load-bearing.
+
+The same pass converts the retention cron's raw Case reference without granting
+it a generic Case oracle. A fixed SECURITY DEFINER prune batch derives the
+90-day cutoff, eligible Order targets, active-Case exclusion, exact PII fields,
+rate-quote deletion and UTC purge timestamp inside PostgreSQL. Candidate
+Orders are locked with `FOR UPDATE SKIP LOCKED`; callers provide only a bounded
+batch size and cannot select Order ids or shorten the retention window. This
+is a narrow shared lifecycle boundary that must be re-reviewed when Order and
+OrderShippingRateQuote receive their own RLS.
+
+The isolated candidate removes eight protected references: three from buyer
+delivery confirmation, two from fulfillment, two from label purchase and one
+from retention. The live countdown is now 34 references across 12 files with
+forty-six retained in the converted ledger. This is not activation evidence:
+disposable PostgreSQL authority, forced-RLS, grant, lock-race, rollback and
+zero-residue proofs remain required before the checkpoint is accepted.
+Production remains unchanged.
+
+Exact-head CI attempt `30487848128` reached the new proof only after the full
+migration tree and all predecessor Case proofs passed, then failed before its
+first authority check because the disposable raw-SQL `SellerProfile` fixture
+omitted required `updatedAt`. The container was torn down and production was
+unchanged. The proof now supplies explicit timestamps for every seeded model
+whose Prisma `@updatedAt` field has no database default, with a static
+class-wide fixture contract.
+
+The corrected candidate passed exact-head run `30488100064`, job
+`90698760535`. Its 13-check PostgreSQL proof covered catalog/grants, forced-RLS
+source isolation, authorized and foreign actors, fixed retention/rollback,
+both lock races, unchanged caller context and zero residue. The same run
+passed all preceding RLS proofs, final runtime grant audit, TypeScript, lint,
+the full tests, dependency audit and production build. No production or
+persistent staging state changed.

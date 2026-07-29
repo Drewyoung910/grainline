@@ -902,12 +902,17 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_resolution_claim_lease_valid",
       "grainline_case_get",
       "grainline_case_get_by_order",
+      "grainline_case_guild_unresolved_guard",
       "grainline_case_message_page",
       "grainline_case_message_preflight",
       "grainline_case_open",
+      "grainline_case_order_active_for_buyer",
+      "grainline_case_order_active_for_seller",
       "grainline_case_reply",
       "grainline_case_mark_resolved",
       "grainline_case_seller_refund_apply",
+      "grainline_case_seller_active_count",
+      "grainline_case_seller_verification_eligibility",
       "grainline_case_staff_resolution_finalize",
       "grainline_case_staff_resolution_prepare",
       "grainline_case_staff_resolution_provider_record",
@@ -915,6 +920,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_active_count",
       "grainline_case_staff_queue",
       "grainline_case_stripe_dispute_apply",
+      "grainline_order_buyer_pii_prune_batch",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
       "grainline_message_participants_match_conversation",
@@ -935,7 +941,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      92 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      98 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -947,16 +953,22 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_mark_resolved",
       "grainline_case_get",
       "grainline_case_get_by_order",
+      "grainline_case_guild_unresolved_guard",
       "grainline_case_message_page",
       "grainline_case_message_preflight",
       "grainline_case_open",
+      "grainline_case_order_active_for_buyer",
+      "grainline_case_order_active_for_seller",
       "grainline_case_reply",
+      "grainline_case_seller_active_count",
+      "grainline_case_seller_verification_eligibility",
       "grainline_case_staff_active_count",
       "grainline_case_staff_queue",
       "grainline_case_staff_resolution_prepare",
       "grainline_case_staff_resolution_provider_record",
       "grainline_case_staff_resolution_finalize",
       "grainline_case_staff_resolution_reconcile",
+      "grainline_order_buyer_pii_prune_batch",
     ]) {
       assert.equal(
         inventory.publicRevokes.some((statement) => (

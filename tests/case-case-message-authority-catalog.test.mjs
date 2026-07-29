@@ -18,14 +18,14 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
   const inventory = collectCaseCaseMessageAccess();
   const summary = summarizeCaseCaseMessageAccess(inventory);
 
-  it("classifies all 42 remaining references and retains the 38 converted references", () => {
-    assert.equal(caseAuthorityReferenceCount(), 42);
-    assert.equal(caseAuthorityConvertedReferenceCount(), 38);
+  it("classifies all 28 remaining references and retains the 52 converted references", () => {
+    assert.equal(caseAuthorityReferenceCount(), 28);
+    assert.equal(caseAuthorityConvertedReferenceCount(), 52);
     assert.equal(
       caseAuthorityReferenceCount() + caseAuthorityConvertedReferenceCount(),
       80,
     );
-    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 16);
+    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 7);
     assert.deepEqual(
       Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).sort(),
       Object.keys(summary).sort(),
@@ -60,7 +60,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       new Set(CASE_AUTHORITY_OPERATION_IDS).size,
       CASE_AUTHORITY_OPERATION_IDS.length,
     );
-    assert.equal(CASE_AUTHORITY_OPERATIONS.length, 26);
+    assert.equal(CASE_AUTHORITY_OPERATIONS.length, 28);
     const referenced = new Set(
       Object.values(CASE_AUTHORITY_SOURCE_DESTINATIONS)
         .concat(Object.values(CASE_CONVERTED_SOURCE_DESTINATIONS))
@@ -96,6 +96,12 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     assert.equal(byId.get("case_message_preflight")?.security, "DEFINER");
     assert.equal(byId.get("case_message_page")?.security, "DEFINER");
     assert.equal(byId.get("case_staff_queue")?.security, "DEFINER");
+    assert.equal(byId.get("case_order_active_buyer")?.security, "DEFINER");
+    assert.equal(byId.get("case_order_active_seller")?.security, "DEFINER");
+    assert.equal(
+      byId.get("case_order_pii_retention_prune")?.operationKind,
+      "LIFECYCLE_WRITE",
+    );
     assert.equal(
       byId.get("case_message_preflight")?.operationKind,
       "SOURCE_BOUND_READ",
@@ -317,11 +323,11 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     );
     assert.match(
       normalizedCatalog,
-      /current exact inventory is therefore 42 remaining references across 16 source files/,
+      /current exact inventory is therefore 34 remaining references across 12 source files/,
     );
     assert.match(
       normalizedCatalog,
-      /machine-readable catalog contains 26 operations/,
+      /machine-readable catalog contains 28 operations/,
     );
     assert.match(
       normalizedCatalog,

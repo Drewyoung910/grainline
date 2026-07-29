@@ -47,6 +47,8 @@
     "audit:rls-case-message-page": "node scripts/case-message-page-authority-postgres-proof.mjs",
     "audit:rls-case-recipient-read": "node scripts/case-recipient-read-authority-postgres-proof.mjs",
     "audit:rls-case-staff-queue": "node scripts/case-staff-queue-authority-postgres-proof.mjs",
+    "audit:rls-case-order-active": "node scripts/case-order-active-authority-postgres-proof.mjs",
+    "audit:rls-case-seller-aggregate": "node scripts/case-seller-aggregate-authority-postgres-proof.mjs",
     "audit:rls-direct-upload-authority": "node scripts/direct-upload-authority-postgres-proof.mjs",
     "audit:rls-direct-upload-legacy-repair": "node scripts/direct-upload-legacy-repair-postgres-proof.mjs",
     "audit:rls-direct-upload-retirement-candidate": "node scripts/stage-direct-upload-retirement-migration.mjs",
