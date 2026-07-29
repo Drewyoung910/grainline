@@ -91,7 +91,7 @@ export default async function AdminCaseDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ caseBefore?: string | string[] }>;
 }) {
-  await requireAdminPageAccess();
+  const staff = await requireAdminPageAccess();
   const [{ id }, { caseBefore }] = await Promise.all([params, searchParams]);
 
   const caseRecord = await prisma.case.findUnique({
@@ -128,6 +128,7 @@ export default async function AdminCaseDetailPage({
 
   if (!caseRecord) notFound();
   const caseMessageHistory = await findCaseMessageHistoryPage(
+    staff.id,
     caseRecord.id,
     caseBefore,
   );
@@ -262,10 +263,9 @@ export default async function AdminCaseDetailPage({
             {caseMessageHistory.messages.map((msg) => {
               const label = caseMessageAuthorLabel({
                 authorKind: msg.authorKind,
-                authorId: msg.author.id,
+                authorId: msg.authorId,
                 buyerId: caseRecord.buyerId,
                 sellerId: caseRecord.sellerId,
-                legacyAuthorRole: msg.author.role,
               });
               return (
                 <li key={msg.id} className="py-3 space-y-1">
@@ -281,8 +281,6 @@ export default async function AdminCaseDetailPage({
                     >
                       {label}
                     </span>
-                    <span>·</span>
-                    <span>{msg.author.name ?? "Participant"}</span>
                     <span>·</span>
                     <span>{msg.createdAt.toLocaleString("en-US")}</span>
                   </div>

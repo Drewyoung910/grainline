@@ -25,16 +25,18 @@ references. The Case-reply application conversion then moves ten more
 protected references behind `grainline_case_reply`. The Case-message preflight
 application conversion then moves the final direct Case lookup from the reply
 route and the direct Case lookup from the private-evidence upload route behind
-`grainline_case_message_preflight`. The current exact inventory is therefore
-52 remaining references across 23 source files: 28 direct ORM operations, 13
+`grainline_case_message_preflight`. The bounded Case-message page application
+conversion then moves its direct message read and nested attachment relation
+behind `grainline_case_message_page`. The current exact inventory is therefore
+50 remaining references across 22 source files: 27 direct ORM operations, 12
 nested relation references and 11 raw SQL references. The executable catalog
 deep-compares every remaining source and operation count with the live scanner
-and retains all twenty-eight removed
+and retains all thirty removed
 references (three from the Stripe webhook, two from the seller-refund route,
 four from staff resolution, three from participant mark-resolved, four from
-buyer Case opening, ten from Case reply and two from Case-message preflight) in
-a separate converted-source ledger. A source cannot disappear, appear or claim
-conversion without changing a test.
+buyer Case opening, ten from Case reply, two from Case-message preflight and
+two from Case-message page history) in a separate converted-source ledger. A
+source cannot disappear, appear or claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication`,
@@ -502,7 +504,7 @@ the full test suite, dependency audit and production build. Draft PR #100 was
 restored to its intended Case-reply application base afterward. No production
 migration or deployment occurred.
 
-The separate application conversion replaces the two remaining direct Case
+The separate preflight application conversion replaces the two remaining direct Case
 preflight lookups in the reply and private-evidence upload routes. Both routes
 call one typed wrapper, accept either no row or one exact validated result, and
 derive the staff-PIN gate, messageable status and recipient availability only
@@ -512,8 +514,22 @@ Case/actor/party drift, inconsistent author/staff identity, invalid recipient
 state and a messageable flag that disagrees with the returned lifecycle state.
 The reply function remains the locked final authority after external evidence
 verification. This moves two references to the converted ledger, leaving 52
-current references across 23 files and twenty-eight converted references;
-production and Case-family RLS remain unchanged.
+current references across 23 files and twenty-eight converted references at
+that checkpoint; production and Case-family RLS remain unchanged.
+
+The bounded Case-message page application conversion replaces the final direct
+interactive `CaseMessage.findMany` plus its nested attachment relation with one
+typed `grainline_case_message_page` wrapper. The buyer, seller and staff pages
+pass their already-resolved local actor id; each receives only the fixed
+projection and no longer joins mutable User profile fields for message labels.
+The strict validator rejects extra fields, more than 51 messages, more than
+four attachments per message, duplicate or unstable ordering, invalid author
+kinds, overlong bodies, unsupported evidence types, impossible byte sizes and
+attachment timestamps without an explicit UTC offset. A null legacy author
+kind stays unlabeled. This moves two more references to the durable converted
+ledger, leaving 50 current references across 22 files and thirty converted
+references. It is an isolated compatible app candidate: production and
+Case-family RLS remain unchanged.
 
 ## Account deletion boundary
 

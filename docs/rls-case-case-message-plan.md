@@ -903,6 +903,20 @@ denial, page bound and tie-stable cursor behavior, minimal attachment output,
 legacy author derivation, transaction-local context, read-only state and zero
 residue.
 
+Phase 4 bounded Case-message page application conversion candidate
+(2026-07-29): the buyer, seller and staff detail pages pass their authenticated
+local actor id to one typed `grainline_case_message_page` wrapper. The wrapper
+pins the exact fixed projection and rejects extra or malformed fields,
+timezone-less attachment timestamps, more than 51 messages, more than four
+attachments per message, duplicate ids and unstable message or attachment
+ordering. The pages no longer join mutable User profile data to label message
+authors; they display only durable Buyer, Seller or Grainline Staff labels and
+leave an unknown legacy author unlabeled. The conversion moves the direct
+message read and nested attachment relation to the durable converted ledger,
+leaving 50 current protected references across 22 files and thirty converted
+references. This is compatible app preparation only: no production migration,
+deployment, Case-family policy or RLS state changes.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

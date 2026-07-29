@@ -50,10 +50,11 @@ original 69-reference audit nor the 80-reference Phase 4 baseline is discarded.
 
 The Case-message preflight application conversion then removes the reply
 route's final direct Case lookup and the private-evidence upload route's direct
-Case lookup. The current countdown is therefore 28 direct operations, 13 nested
-relation references and 11 raw SQL references: 52 remaining protected
-references across 23 source files. The converted-source ledger now retains all
-twenty-eight removed references.
+Case lookup. The bounded Case-message page application conversion removes one
+direct message read and one nested attachment relation. The current countdown
+is therefore 27 direct operations, 12 nested relation references and 11 raw SQL
+references: 50 remaining protected references across 22 source files. The
+converted-source ledger now retains all thirty removed references.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
@@ -355,8 +356,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 52-reference current countdown
-  and twenty-eight-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 50-reference current countdown
+  and thirty-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
@@ -530,10 +531,19 @@ verification and the final locked reply function. It removes the duplicated
 application-derived participant, role, status and counterparty checks, treats a
 missing/disabled/unauthorized preflight row as a non-enumerating 404, and
 strictly validates every returned field before making external object calls.
-The resulting live countdown is 52 references across 23 files with twenty-eight
-retained in the converted ledger. This remains an isolated application
-candidate; it does not apply the function migration, deploy, enable evidence or
-change Case-family RLS.
+The resulting live countdown at the preflight checkpoint was 52 references
+across 23 files with twenty-eight retained in the converted ledger. This
+remains an isolated application candidate; it does not apply the function
+migration, deploy, enable evidence or change Case-family RLS.
+
+The bounded Case-message page app candidate completes CC-A05's interactive
+history conversion for the buyer, seller and staff detail pages. One typed
+wrapper invokes `grainline_case_message_page`; its validator pins the exact
+projection, UTC-aware attachment timestamps, message and attachment bounds,
+stable order, uniqueness and durable author-kind vocabulary. The pages no
+longer fetch or display mutable per-message User profile names. The live
+countdown is now 50 references across 22 files with thirty retained in the
+converted ledger. Production and Case-family RLS remain unchanged.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B

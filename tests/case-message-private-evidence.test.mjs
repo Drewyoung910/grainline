@@ -191,7 +191,8 @@ describe("private CaseMessage evidence", () => {
     assert.match(reply, /MAX_CASE_MESSAGE_ATTACHMENTS/);
     assert.match(reply, /accept="image\/jpeg,image\/png,image\/webp"/);
     assert.match(reply, /attachmentKeys:/);
-    assert.match(history, /attachments: \{[\s\S]*byteSize: true/);
+    assert.match(history, /listCaseMessagePage/);
+    assert.doesNotMatch(history, /objectKey|directUploadId/);
     assert.match(exportRoute, /attachments: \{[\s\S]*byteSize: true/);
     assert.match(
       deletion,
