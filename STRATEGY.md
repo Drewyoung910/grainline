@@ -60,7 +60,10 @@ zero-policy `CaseResolutionClaim` service ledger so provider idempotency,
 recovery and finalization are database-bound rather than caller-asserted. An
 audited administrator finding of no provider effect uses a distinct
 `RELEASED_NO_PROVIDER_EFFECT` terminal state instead of falsely recording the
-claim as finalized.
+claim as finalized. Stripe-dispute-created Cases record their exact durable
+payment-event source rather than fabricating a buyer-authored message, and
+dispute reopen clears the complete stale Case-level resolution/refund snapshot
+while retaining the Order payment/audit history.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,

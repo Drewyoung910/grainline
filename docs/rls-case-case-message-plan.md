@@ -359,6 +359,14 @@ Cron target selection and transition are one bounded
 `FOR UPDATE SKIP LOCKED` database operation with per-row audit evidence, not a
 caller-selected claim/transition pair.
 
+The Phase 3 review also found that the current Stripe dispute helper can reopen
+a terminal Case while leaving `refundAmountCents` and `stripeRefundId` behind.
+The fixed dispute operation clears the complete Case-level terminal snapshot
+while retaining the durable Order payment/audit history. A webhook-created
+Case records its exact source in `Case.openedByPaymentEventId` and may begin
+without a falsely buyer-authored opening message; the ordinary buyer-open
+operation still creates its first message atomically.
+
 The catalog also records honest cross-group limits: PostgreSQL validates local
 payment evidence but does not independently attest Stripe, and
 Order/OrderPaymentEvent/AccountDeletionSideEffect direct-write hardening

@@ -180,6 +180,17 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       reconcile.externalTrustBoundaries.join(" "),
       /PostgreSQL cannot attest/,
     );
+    const dispute = CASE_AUTHORITY_OPERATIONS.find(
+      (operation) => operation.id === "case_stripe_dispute_apply",
+    );
+    assert.match(
+      dispute.databaseDerived.join(" "),
+      /openedByPaymentEventId/,
+    );
+    assert.match(
+      dispute.databaseDerived.join(" "),
+      /resolution and refund snapshot cleared/,
+    );
     const deletion = CASE_AUTHORITY_OPERATIONS.find(
       (operation) => operation.id === "case_account_deletion_redact",
     );
@@ -293,6 +304,14 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     assert.match(
       normalizedCatalog,
       /It must not reuse `FINALIZED`/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /Case\.openedByPaymentEventId/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /current direct webhook clears only the first three fields/,
     );
     assert.match(
       normalizedCatalog,

@@ -126,7 +126,7 @@ enforces its own byte/character bounds and accepted enums; the word
 
 | Operation | Source binding |
 |---|---|
-| `case_stripe_dispute_apply` | Exact durable `OrderPaymentEvent` produced after signed Stripe webhook verification |
+| `case_stripe_dispute_apply` | Exact durable `OrderPaymentEvent` produced after signed Stripe webhook verification; a webhook-created Case records that source, while a reopened Case clears stale Case-level resolution/refund snapshots but retains durable Order payment history |
 | `case_seller_refund_apply` | Exact seller-owned Order plus committed local refund event |
 | `case_cron_transition_batch` | Database-selected due rows by a fixed transition family and bounded limit |
 | `case_account_deletion_redact` | Exact locked `LOCAL_ANONYMIZE` `AccountDeletionSideEffect`; the deleting User is derived |
@@ -220,6 +220,18 @@ handling is an external trust boundary.
 of the later order/payment group. The Case proof must nevertheless reject an
 event for another Order, actor, action, amount, currency, resolution claim or
 provider object.
+
+A Stripe-dispute-created Case is not falsely attributed to the buyer as a
+human-authored opening message. It records the exact durable source in a
+nullable, unique `Case.openedByPaymentEventId` relationship. Therefore the
+normal buyer-open operation still creates its opening message atomically,
+while a source-backed webhook Case may begin with no human-authored messages.
+Reopening any prior Case clears the Case-level `resolution`, `resolvedAt`,
+`resolvedById`, `refundAmountCents` and `stripeRefundId` snapshot before moving
+to `UNDER_REVIEW`; the immutable OrderPaymentEvent/AdminAuditLog history is
+retained. The current direct webhook clears only the first three fields, so
+that path must be converted before invariant activation rather than frozen as
+correct behavior.
 
 ## Account deletion boundary
 

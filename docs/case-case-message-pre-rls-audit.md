@@ -103,8 +103,10 @@ credentials.
   `UNDER_REVIEW`, and resolve a Case.
 - Mutual participant resolution records `DISMISSED`; staff resolution may
   dismiss or issue a full/partial Stripe refund.
-- Stripe dispute webhooks may create a new `UNDER_REVIEW` Case or reopen an
-  existing non-terminal Case.
+- Stripe dispute webhooks may create a new source-backed `UNDER_REVIEW` Case
+  or reopen an existing Case. A webhook-created Case is not falsely presented
+  as a buyer-authored opening message; it records the exact
+  `OrderPaymentEvent` source and may have no human-authored messages yet.
 - The daily Case job closes stale `PENDING_CLOSE` records and escalates stale
   `OPEN`/`IN_DISCUSSION` records.
 - Account export includes participant Cases and messages. Account deletion
@@ -174,6 +176,7 @@ credentials.
 | CC-A13 | High/Product | Staff resolution notified/emailed the buyer only. The seller received no Case decision notice even when a staff refund changed seller financial state. The live Notification Case-source function permits staff-resolution recipients only when the recipient is the buyer. | Resolved in the isolated compatible branch without widening that function: create a fixed-copy staff `CaseMessage` atomically with resolution, then use the existing source-validating CaseMessage Notification family to derive the seller, route, copy and replay identity. |
 | CC-A14 | High/Audit | Transition audit atomicity was inconsistent. The isolated compatible branch now co-commits strict human audit evidence for Case creation, participant escalation and staff resolution; participant mark-resolved and cron transitions already did so. | Preserve these pairings in fixed database operations and preserve Stripe orphan reconciliation when a refund has already left the database boundary. |
 | CC-A15 | High/Concurrency | Review of the first green 14-ordering proof found that three harness paths were stronger than their real routes: participant mark-resolved and bulk cron used post-wait database clocks while the application used pre-wait JavaScript timestamps, and staff resolution was not contended against replies. A waiting mutation could therefore commit a regressed Case timestamp or an older staff resolution message. | Keep participant mark-resolved and staff resolution on the reviewed Order-then-Case lock order, derive transition/audit/message time after the locks from PostgreSQL, make bulk cron use per-row PostgreSQL time, and accept only an exact-head disposable run of the expanded 21-ordering harness. The later fixed-function review still owns the final shared Case/User authority-lock design. |
+| CC-A16 | High/Integrity | `disputeCaseAction()` can reopen any existing Case, including a terminal refund Case. The current webhook clears `resolution`, `resolvedAt` and `resolvedById`, but leaves `refundAmountCents` and `stripeRefundId`, producing an active Case with stale terminal evidence. A newly webhook-created Case also has no initial CaseMessage, although the earlier audit treated every empty Case as corrupt. | The fixed dispute operation must bind to one durable `OrderPaymentEvent`, record it in `Case.openedByPaymentEventId` for a webhook-created Case, and explicitly allow that source-backed Case to begin without a human-authored message. On reopen it clears all five Case-level resolution/refund snapshot fields while retaining the durable Order payment/audit history. Convert the direct webhook before invariant activation. |
 
 CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
 a separate non-public R2 bucket, never the generic public message uploader.
