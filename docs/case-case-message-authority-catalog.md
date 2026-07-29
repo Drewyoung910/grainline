@@ -600,6 +600,17 @@ compatible migration adds only the function and its exact runtime EXECUTE
 grant. It does not enable Case-family RLS, change a table grant, mutate data,
 deploy application code or alter production.
 
+The first exact-head CI attempt, run `30484750466` (job `90687499390`), passed
+the migration-tree guard, migration application, production-style grant
+convergence and every preceding Case authority proof, then failed inside the
+new proof's catalog query before exercising the queue. The probe supplied
+uppercase string `'PUBLIC'` to `has_function_privilege`; PostgreSQL treated it
+as a case-sensitive role name and returned `role "PUBLIC" does not exist`.
+The migration and function were not the failure. The probe now uses the
+repository's already-proven lowercase `'public'` pseudo-role spelling and a
+static regression test rejects the uppercase form. This is retained as failed
+evidence rather than erased or mislabeled as a database-authority failure.
+
 ## Account deletion boundary
 
 The redaction function does not accept a free `deletingUserId`. It accepts an

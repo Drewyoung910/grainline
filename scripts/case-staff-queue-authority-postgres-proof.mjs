@@ -301,12 +301,12 @@ export async function runCaseStaffQueueProof(env = process.env) {
           'grainline_app_runtime',
           procedure.oid,
           'EXECUTE'
-        ) AS runtime_execute,
-        pg_catalog.has_function_privilege(
-          'PUBLIC',
-          procedure.oid,
-          'EXECUTE'
-        ) AS public_execute
+      ) AS runtime_execute,
+      pg_catalog.has_function_privilege(
+        'public',
+        procedure.oid,
+        'EXECUTE'
+      ) AS public_execute
         FROM pg_catalog.pg_proc AS procedure
        WHERE procedure.oid =
          'public.grainline_case_staff_queue(text,text,integer,integer)'::pg_catalog.regprocedure

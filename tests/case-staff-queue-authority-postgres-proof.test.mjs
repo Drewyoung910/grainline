@@ -57,6 +57,14 @@ test("Case staff queue proof exercises the authority and privacy boundary", () =
     assert.match(proof, pattern);
   }
   assert.match(proof, /ALTER TABLE public\."\$\{table\}" FORCE ROW LEVEL SECURITY/);
+  assert.match(
+    proof,
+    /has_function_privilege\(\s*'public',\s*procedure\.oid,\s*'EXECUTE'/,
+  );
+  assert.doesNotMatch(
+    proof,
+    /has_function_privilege\(\s*'PUBLIC'/,
+  );
   assert.match(proof, /Case staff queue proof changed protected state/);
   assert.match(proof, /Case staff queue proof left fixture residue/);
 });
