@@ -69,6 +69,7 @@ test("Case-reply proof covers authority, source binding, replay, locks, rollback
     "foreign_upload_rejected",
     "wrong_case_upload_rejected",
     "unverified_upload_rejected",
+    "\\$4::text",
     "CASE_MESSAGE_ATTACHMENT",
     "proveReplay",
     "waitForLock",

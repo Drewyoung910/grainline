@@ -235,8 +235,8 @@ async function seedUpload(client, id, {
     )
     VALUES (
       $1, $2, 'caseEvidenceImage', $3, NULL, 'PRIVATE',
-      'image/webp', 2048, $4,
-      CASE WHEN $4 = 'VERIFIED' THEN CURRENT_TIMESTAMP ELSE NULL END,
+      'image/webp', 2048, $4::text,
+      CASE WHEN $4::text = 'VERIFIED' THEN CURRENT_TIMESTAMP ELSE NULL END,
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [id, uploadKey(caseId, id), ownerId, status]);
@@ -259,7 +259,6 @@ async function seedFixtures(client) {
   await seedUpload(client, ids.wrongCaseUpload, { caseId: ids.replayCase });
   await seedUpload(client, ids.unverifiedUpload, { status: "PRESIGNED" });
   await seedUpload(client, ids.rollbackUpload, { caseId: ids.rollbackCase });
-  await client.query("SET CONSTRAINTS ALL IMMEDIATE");
 }
 
 async function cleanupFixtures(client) {
