@@ -71,5 +71,6 @@ describe("Case account-deletion PostgreSQL proof", () => {
     assert.match(source, /SHARED_HISTORY_EMAIL/);
     assert.match(source, /assertRedactedProtectedRows/);
     assert.match(source, /fixture residue/);
+    assert.match(source, /assert\.equal\(checks\.length, 15\)/);
   });
 });

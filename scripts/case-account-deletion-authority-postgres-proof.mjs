@@ -726,7 +726,7 @@ export async function runCaseAccountDeletionAuthorityProof(
     );
   }
   checks.push("cleanup-zero-residue");
-  assert.equal(checks.length, 14);
+  assert.equal(checks.length, 15);
   return Object.freeze({ checks: Object.freeze([...checks]) });
 }
 
