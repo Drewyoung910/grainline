@@ -237,11 +237,12 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId"],
     databaseDerived: [
+      "current non-banned and non-deleted participant actor",
       "locked Order then Case",
       "participant side",
-      "refund conflict",
+      "seller-refund and every staged staff-resolution claim conflict",
       "PENDING_CLOSE or mutual DISMISSED transition",
-      "transition timestamp and strict audit",
+      "post-lock UTC transition timestamp, deterministic strict audit and stable replay identity",
     ],
   }),
   freezeOperation({

@@ -629,6 +629,26 @@ rollback-only Case proofs, TypeScript, lint, the full test suite, dependency
 audit and production build. The Vercel preview remains intentionally blocked
 by the runtime database environment guard and is not release evidence.
 
+Phase 4 participant mark-resolved authority candidate (2026-07-29): one
+compatible pinned `SECURITY DEFINER` function accepts only actor plus Case,
+locks active User then Order then Case, and derives participant side,
+pending-close or mutual-dismissal state, post-lock UTC clock and deterministic
+audit/replay identity. It keeps the existing Notification source contract
+without accepting recipient, link, status, time or audit id from the caller.
+
+The authority review found that the legacy route checked only
+`sellerRefundId`. A staged staff dismissal uses
+`caseResolutionClaimId` without a refund sentinel, leaving a race between
+staff prepare/finalize and a participant resolution mark. The fixed operation
+fences both lease columns under the Order lock. Nullable retained buyer ids are
+normalized to strict booleans, and replay validation explicitly rejects a
+missing status rather than allowing SQL `NULL` through `NOT IN`. The dedicated
+loopback PostgreSQL proof must pass foreign denial, sequential/replay
+semantics, both lease fences, nullable-buyer behavior, malformed replay,
+two-session lock waiting, rollback and complete cleanup before the route is
+converted. This checkpoint authorizes no production migration, deployment,
+direct-grant revocation or Case-family RLS activation.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

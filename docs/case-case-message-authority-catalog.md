@@ -112,7 +112,7 @@ caller needs.
 |---|---|---|
 | `case_open` | actor, Order, reason, bounded text | Locked Order, buyer, one distinct seller, eligibility/refund state, Case/message/audit ids, clocks, BUYER author kind and audit metadata |
 | `case_reply` | actor, Case, bounded text, bounded upload ids | Fresh participant/staff authority, author kind, status effects, message/attachment/audit ids, replay identity and exclusive private-upload binding |
-| `case_mark_resolved` | actor and Case | Participant side, Order/refund conflict, pending-close or mutual dismissal state, clock and audit |
+| `case_mark_resolved` | actor and Case | Current active participant, Order/refund/staff-claim conflicts, pending-close or mutual dismissal state, UTC clock, deterministic audit and stable replay identity |
 | `case_escalate` | actor and Case | Participant deadline or current staff authority, counterparty state, transition clock and audit |
 | `case_staff_resolution_prepare` | staff resolution, bounded refund amount and bounded stock decision | Current staff, Order→Case locks, eligibility, amount cap, resolution claim, refund lease and provider idempotency scope |
 | `case_staff_resolution_provider_record` | claim, fixed `RECORDED` or `AMBIGUOUS` outcome, and bounded Stripe fields only for `RECORDED` | Same claim actor, locked claim/Order/Case and claim-derived amount/currency/reason; `RECORDED` creates local payment evidence, while `AMBIGUOUS` creates none and freezes the claim for reconciliation |
@@ -268,6 +268,28 @@ to `UNDER_REVIEW`; the immutable OrderPaymentEvent/AdminAuditLog history is
 retained. The current direct webhook clears only the first three fields, so
 that path must be converted before invariant activation rather than frozen as
 correct behavior.
+
+## Participant resolution authority checkpoint
+
+The isolated Phase 4 successor adds one compatible
+`grainline_case_mark_resolved(actorUserId, caseId)` operation. It locks the
+current active actor, then the Case's Order and exact Case; re-derives the
+participant side; and permits only `OPEN`, `IN_DISCUSSION` or
+`PENDING_CLOSE`. PostgreSQL derives the pending-close or mutual-dismissal
+transition, post-lock UTC clock, resolver and deterministic strict audit. A retry
+reuses the same audit identity so the already-live Notification source retains
+one stable event.
+
+The review found CC-A19 before application conversion: a staged staff
+`DISMISSED` claim carries `Order.caseResolutionClaimId` without
+`sellerRefundId`, so the legacy participant route could mutate the Case
+between staff prepare and finalize. The fixed operation rejects either lease
+after taking the Order lock. It also normalizes nullable legacy participant
+ids to strict booleans and explicitly rejects missing replay status instead of
+depending on PostgreSQL `NOT IN` three-valued behavior. The migration retains
+all legacy Case table grants and does not enable participant RLS; engine proof,
+application conversion, merge, production migration and deployment remain
+separate and unauthorized.
 
 ## Account deletion boundary
 

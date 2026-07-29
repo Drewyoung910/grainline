@@ -757,6 +757,33 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Participant Case resolution is absent before its compatible authority
+-- migration. Keep PUBLIC closed and converge only the exact fixed operation.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_mark_resolved(text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_mark_resolved(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_mark_resolved(text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_mark_resolved(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_mark_resolved(text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_mark_resolved(text,text)'
+) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.
