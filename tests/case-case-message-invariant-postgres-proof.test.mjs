@@ -93,6 +93,18 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /replayedAfterTerminal/);
 });
 
+test("seller-refund proof parameters have one explicit PostgreSQL type", () => {
+  const sellerRefundProof = proof.match(
+    /async function proveSellerRefundAuthority\(client\) \{([\s\S]*?)\n\}\n\nasync function proveClaimLedger/,
+  )?.[1] ?? "";
+  assert.equal(
+    (sellerRefundProof.match(/\$4::varchar\(255\)/g) ?? []).length,
+    4,
+  );
+  assert.doesNotMatch(sellerRefundProof, /\$4(?!::varchar\(255\))/);
+  assert.doesNotMatch(sellerRefundProof, /\$4::text/);
+});
+
 test("Case invariant proof is rollback-only and emits no credentials", () => {
   assert.match(proof, /await client\.query\("BEGIN"\)/);
   assert.match(proof, /await client\.query\("ROLLBACK"\)/);

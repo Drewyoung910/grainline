@@ -510,6 +510,16 @@ the fixed function, which locks Case only after Order. `Order` and
 order/payment group; this remains an explicit threat-model dependency rather
 than a protection claim.
 
+The first exact-head CI run (`30422640445`) is retained as failed evidence. It
+applied the full migration tree and converged production-style runtime grants,
+then PostgreSQL rejected the new rollback-only proof fixture with `42P08`
+because parameter `$4` was inferred as both `varchar(255)` and `text` inside
+one prepared INSERT. No migration, grant or production state changed. The
+fixture now gives every `$4` reference the exact `varchar(255)` source-column
+type, and a focused static guard prevents another mixed-type edit. This run
+does not count as seller-refund authority proof; a fresh exact-head PostgreSQL
+CI pass is mandatory before application conversion.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

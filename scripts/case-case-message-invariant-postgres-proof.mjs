@@ -623,13 +623,13 @@ async function proveSellerRefundAuthority(client) {
       status, reason, metadata, "createdAt", "updatedAt"
     )
     VALUES (
-      $1, $2, $3, $4,
+      $1, $2, $3, $4::varchar(255),
       'refund', 'REFUND', 10000, 'usd',
       'succeeded', 'seller_refund',
       pg_catalog.jsonb_build_object(
         'localAction', 'SELLER_REFUND_RECORDED',
         'refundType', 'FULL',
-        'refundIds', pg_catalog.jsonb_build_array($4::text)
+        'refundIds', pg_catalog.jsonb_build_array($4::varchar(255))
       ),
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
@@ -751,13 +751,13 @@ async function proveSellerRefundAuthority(client) {
       status, reason, metadata, "createdAt", "updatedAt"
     )
     VALUES (
-      $1, $2, $3, $4,
+      $1, $2, $3, $4::varchar(255),
       'refund', 'REFUND', 9999, 'usd',
       'succeeded', 'seller_refund',
       pg_catalog.jsonb_build_object(
         'localAction', 'SELLER_REFUND_RECORDED',
         'refundType', 'PARTIAL',
-        'refundIds', pg_catalog.jsonb_build_array($4::text)
+        'refundIds', pg_catalog.jsonb_build_array($4::varchar(255))
       ),
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
