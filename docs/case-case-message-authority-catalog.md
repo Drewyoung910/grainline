@@ -17,14 +17,15 @@ This is one tightly coupled three-table visibility and write-integrity group:
 
 The Phase 4 baseline is 80 protected references across 29 source files: 46
 direct ORM operations, 22 nested relation references and 12 raw SQL
-references. After converting the Stripe dispute webhook and seller-refund
-route, the current exact inventory is 75 remaining references across 27 source
-files: 42 direct ORM operations, 21 nested relation references and 12 raw SQL
-references. The executable catalog deep-compares every remaining source and
-operation count with the live scanner and retains all five removed references
-(three from the Stripe webhook and two from the seller-refund route) in a
-separate converted-source ledger. A source cannot disappear, appear or claim
-conversion without changing a test.
+references. After converting the Stripe dispute webhook, seller-refund route
+and staff Case-resolution write path, the current exact inventory is 71
+remaining references across 27 source files: 38 direct ORM operations, 21
+nested relation references and 12 raw SQL references. The executable catalog
+deep-compares every remaining source and operation count with the live scanner
+and retains all nine removed references (three from the Stripe webhook, two
+from the seller-refund route and four from staff resolution) in a separate
+converted-source ledger. A source cannot disappear, appear or claim conversion
+without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication` and
@@ -217,6 +218,24 @@ advances the claim to the distinct terminal
 not reuse `FINALIZED`, because no Case resolution or provider effect was
 finalized. The admin's provider review is an explicit human trust boundary,
 not a fact PostgreSQL claims to prove.
+
+The compatible staff-resolution application candidate replaces four
+protected route references with the fixed claim protocol and leaves only two
+friendly Case reads plus the final nested message projection on that route.
+It validates a nonempty, bounded, duplicate-free Stripe refund set, requires
+the primary refund in that set, validates returned claim/Case/Order identities
+against the prepared result and uses only database-derived values for the
+provider call and post-commit side effects.
+
+A durable Case claim now fences generic stale-refund cleanup and
+`charge.refunded` recovery regardless of wall-clock age. Ordinary
+seller-refund/ledger/label conflict heuristics run only when the Order has no
+active resolution claim; otherwise the fixed prepare function validates exact
+claim ownership and replay state. This is required for crash recovery before
+Stripe, after Stripe, and after provider recording. It does not grant the
+application a reconciliation path: `RECONCILIATION_REQUIRED` remains
+fail-closed until a separately audited ADMIN surface invokes the already
+reviewed reconciliation operation.
 
 The ledger schema must store only the fixed workflow evidence: claim id, Case,
 Order, staff actor, resolution, bounded refund amount, database-derived stock

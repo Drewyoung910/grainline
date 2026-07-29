@@ -33,12 +33,13 @@ baseline at 46 direct operations, 22 nested relation references and 12 raw SQL
 references: 80 total protected references across 29 source files. The first
 compatible application conversions replace the Stripe dispute webhook's two
 direct Case writes and one nested Case read with
-`grainline_case_stripe_dispute_apply`, and replace the seller-refund route's
-Case read plus guarded update with `grainline_case_seller_refund_apply`. The
-current countdown is therefore 42 direct operations, 21 nested relation
-references and 12 raw SQL references: 75 remaining protected references
-across 27 source files. The executable catalog retains all five removed
-references in a converted-source ledger;
+`grainline_case_stripe_dispute_apply`, replace the seller-refund route's Case
+read plus guarded update with `grainline_case_seller_refund_apply`, and replace
+four staff-resolution writes/reads with its fixed claim protocol. The current
+countdown is therefore 38 direct operations, 21 nested relation references and
+12 raw SQL references: 71 remaining protected references across 27 source
+files. The executable catalog retains all nine removed references in a
+converted-source ledger;
 neither the original 69-reference audit nor the 80-reference Phase 4 baseline
 is discarded.
 
@@ -201,6 +202,7 @@ credentials.
 | CC-A15 | High/Concurrency | Review of the first green 14-ordering proof found that three harness paths were stronger than their real routes: participant mark-resolved and bulk cron used post-wait database clocks while the application used pre-wait JavaScript timestamps, and staff resolution was not contended against replies. A waiting mutation could therefore commit a regressed Case timestamp or an older staff resolution message. | Keep participant mark-resolved and staff resolution on the reviewed Order-then-Case lock order, derive transition/audit/message time after the locks from PostgreSQL, make bulk cron use per-row PostgreSQL time, and accept only an exact-head disposable run of the expanded 21-ordering harness. The later fixed-function review still owns the final shared Case/User authority-lock design. |
 | CC-A16 | High/Integrity | `disputeCaseAction()` can reopen any existing Case, including a terminal refund Case. The current webhook clears `resolution`, `resolvedAt` and `resolvedById`, but leaves `refundAmountCents` and `stripeRefundId`, producing an active Case with stale terminal evidence. A newly webhook-created Case also has no initial CaseMessage, although the earlier audit treated every empty Case as corrupt. | The fixed dispute operation must bind to one durable `OrderPaymentEvent`, record it in `Case.openedByPaymentEventId` for a webhook-created Case, and explicitly allow that source-backed Case to begin without a human-authored message. On reopen it clears all five Case-level resolution/refund snapshot fields while retaining the durable Order payment/audit history. Convert the direct webhook before invariant activation. |
 | CC-A17 | High/Authority | The first fixed dispute draft treated deterministic `SystemAuditLog` identity as replay authority even though runtime still has broad CRUD on that table, and it did not independently reject a valid but older Stripe event after a newer dispute event had been recorded. | Use a private FORCE/zero-policy/zero-table-grant `CaseStripeDisputeApplication` ledger for immutable replay identity. Keep the audit row as observability only. Validate bounded provider time and reject older sources plus same-time open sources superseded by terminal dispute state before mutating Case. Prove rejection leaves no Case or replay-ledger residue. |
+| CC-A18 | High/Recovery | The first staff-resolution app conversion exposed two lease-recovery collisions. Generic 15-minute stale-refund cleanup and `charge.refunded` recovery could reclaim a `pending` Order sentinel even while a durable `CaseResolutionClaim` owned it. The route's friendly prechecks could also reject that claim's own pending, ambiguous or recorded refund state before the fixed prepare function could replay or finalize it. | Treat a non-null `caseResolutionClaimId` as a durable non-expiring lease in both cleanup and webhook state. Let the fixed prepare function validate and replay the exact actor/Case/resolution/stock claim before applying ordinary no-claim refund-conflict heuristics. Pin crash points before Stripe, after Stripe, after provider record and after finalization in the app/static and PostgreSQL proof. |
 
 CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
 a separate non-public R2 bucket, never the generic public message uploader.
@@ -330,8 +332,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 75-reference current countdown
-  and five-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 71-reference current countdown
+  and nine-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A10 and CC-A13 through CC-A15 are fixed or have an accepted

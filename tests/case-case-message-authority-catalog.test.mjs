@@ -18,9 +18,9 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
   const inventory = collectCaseCaseMessageAccess();
   const summary = summarizeCaseCaseMessageAccess(inventory);
 
-  it("classifies all 75 remaining references and retains the 5 converted references", () => {
-    assert.equal(caseAuthorityReferenceCount(), 75);
-    assert.equal(caseAuthorityConvertedReferenceCount(), 5);
+  it("classifies all 71 remaining references and retains the 9 converted references", () => {
+    assert.equal(caseAuthorityReferenceCount(), 71);
+    assert.equal(caseAuthorityConvertedReferenceCount(), 9);
     assert.equal(
       caseAuthorityReferenceCount() + caseAuthorityConvertedReferenceCount(),
       80,
@@ -47,7 +47,6 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     for (const [source, classification] of Object.entries(
       CASE_CONVERTED_SOURCE_DESTINATIONS,
     )) {
-      assert.equal(summary[source], undefined, `${source} still has direct protected access`);
       assert.ok(classification.actors.length > 0, `${source} has no actor`);
       assert.ok(
         classification.destinations.length > 0,

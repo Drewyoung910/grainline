@@ -2279,6 +2279,7 @@ export async function POST(req: Request) {
                 currency: true,
                 sellerRefundId: true,
                 sellerRefundLockedAt: true,
+                caseResolutionClaimId: true,
                 sellerRefundAmountCents: true,
                 itemsSubtotalCents: true,
                 shippingAmountCents: true,

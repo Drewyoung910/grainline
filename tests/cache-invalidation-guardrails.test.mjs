@@ -132,9 +132,15 @@ describe("public cache invalidation guardrails", () => {
     assert.match(refund, /const stockStatusUpdate = await tx\.listing\.updateMany/);
     assert.match(refund, /refundWrite\.stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
-    assert.match(caseResolve, /const caseWrite = await prisma\.\$transaction/);
-    assert.match(caseResolve, /const stockStatusUpdate = await tx\.listing\.updateMany/);
-    assert.match(caseResolve, /stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(
+      caseResolve,
+      /finalized = await finalizeCaseStaffResolution\(me\.id, prepared\)/,
+    );
+    assert.match(
+      caseResolve,
+      /finalized\.stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/,
+    );
+    assert.doesNotMatch(caseResolve, /(?:prisma|tx)\.listing\.updateMany/);
 
     assert.match(stockRestore, /import \{ revalidateFeaturedMakerCaches, revalidateListingSearchCaches \}/);
     assert.match(stockRestore, /return restoreReservedStockItems\(tx, items\)/);
