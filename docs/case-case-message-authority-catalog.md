@@ -336,6 +336,17 @@ returning the original identities. The compatible migration changes no Case
 family RLS posture or legacy table grant; application conversion, merge,
 production migration and deployment remain separate and unauthorized.
 
+Implementation commit `f7aa25a50191f84b6ec09be3709fe0abad25cc0e`
+passed GitHub Actions run `30436133437` against disposable PostgreSQL 16.
+The run applied the sealed migration tree, converged production-style runtime
+grants, passed the forged-buyer/unpaid/multi-seller/refund/timing/replay
+denials, proved the real two-session Order lock wait, rolled the proof back
+with zero residue, and passed the final grant/RLS catalog audit. TypeScript,
+lint, the full repository suite, the reviewed dependency audit and the
+production build also passed. This is engine proof for the isolated draft
+authority in PR #96; it is not application conversion, merge, production
+migration, deployment or Case RLS activation evidence.
+
 ## Account deletion boundary
 
 The redaction function does not accept a free `deletingUserId`. It accepts an
