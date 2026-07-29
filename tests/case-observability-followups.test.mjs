@@ -17,37 +17,44 @@ describe("case route observability follow-ups", () => {
 
   it("serializes duplicate case message submits before notification side effects", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
-    const transactionStart = route.indexOf("const messageResult = await prisma.$transaction");
+    const migration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
+    );
+    const authorityStart = route.indexOf("await replyToCaseWithFixedAuthority({");
     const notificationStart = route.indexOf("// Notify the appropriate party/parties");
 
-    assert.match(route, /CASE_MESSAGE_DEDUP_WINDOW_MS = 30_000/);
-    assert.match(route, /pg_advisory_xact_lock\(hashtext/);
+    assert.match(migration, /duplicate_cutoff := transition_at - INTERVAL '30 seconds'/);
+    assert.match(migration, /pg_catalog\.pg_advisory_xact_lock/);
     assert.match(
-      route,
-      /caseMessage\.findMany\(\{\s*where: \{\s*caseId: id,\s*authorId: lockedActor\.id,\s*body: messageBody,\s*createdAt: \{ gte: duplicateCutoff \}/s,
+      migration,
+      /message\."caseId" = locked_case\.id[\s\S]*message\."authorId" = locked_actor\.id[\s\S]*message\.body = p_body/,
+    );
+    assert.match(
+      migration,
+      /pg_catalog\.array_agg\([\s\S]*row\."directUploadId"[\s\S]*\) = normalized_upload_ids/,
     );
     assert.match(
       route,
-      /duplicateCandidates\.find\(\(candidate\) =>\s*attachmentKeysMatch\(candidate\.attachments, attachmentKeys\)/s,
+      /if \(result\.action === "replay"\) \{\s*return privateJson\(message, \{ status: 200 \}\)/,
     );
-    assert.match(
-      route,
-      /if \(messageResult\.duplicate\) \{\s*return privateJson\(caseMessageResponse\(messageResult\.message\), \{\s*status: 200,/s,
-    );
-    assert.ok(transactionStart !== -1 && notificationStart !== -1 && transactionStart < notificationStart);
+    assert.ok(authorityStart !== -1 && notificationStart > authorityStart);
   });
 
   it("keeps under-review case messages staff-only at the API boundary", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
+    const migration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
+    );
 
     assert.match(
-      route,
-      /lockedActsAsStaff = lockedIsStaff && !lockedIsParty/,
+      migration,
+      /actor_acts_as_staff :=\s*NOT actor_is_party/,
     );
     assert.match(
-      route,
-      /canCreateCaseMessageForStatus\(lockedCase\.status, \{\s*isStaff: lockedActsAsStaff/s,
+      migration,
+      /actor_acts_as_staff[\s\S]*'UNDER_REVIEW'::public\."CaseStatus"[\s\S]*NOT actor_acts_as_staff/,
     );
+    assert.match(route, /isNonPartyStaff = isStaff && !isParty/);
   });
 
   it("renders admin case deadlines with client-local dates", () => {

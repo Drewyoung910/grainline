@@ -158,33 +158,30 @@ describe("Case and Order lifecycle lock protocol", () => {
 
   it("serializes different Case replies on the parent and shares one database timestamp", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
-    const write = route.slice(
-      route.indexOf("const messageResult = await prisma.$transaction"),
+    const migration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
     );
 
-    assertOrdered(write, [
-      ["Case lock", "await lockCaseForLifecycle(tx, id)"],
-      ["fresh Case read", "tx.case.findUnique"],
-      ["fresh actor read", "tx.user.findUnique"],
-      [
-        "database timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
-      ],
-      ["Case update", "await tx.case.update"],
-      ["message create", "await tx.caseMessage.create"],
+    assertOrdered(migration, [
+      ["actor User lock", 'FROM public."User" AS actor'],
+      ["parent Case lock", 'FROM public."Case" AS case_row'],
+      ["database timestamp", "transition_at := pg_catalog.timezone("],
+      ["replay serialization", "pg_catalog.pg_advisory_xact_lock("],
+      ["Case update", 'UPDATE public."Case"'],
+      ["message create", 'INSERT INTO public."CaseMessage"'],
+    ]);
+    assert.match(migration, /"updatedAt" = transition_at/);
+    assert.match(migration, /transition_at\s*\);/);
+    assert.match(
+      migration,
+      /actor_acts_as_staff :=\s*NOT actor_is_party/,
+    );
+    assertOrdered(route, [
+      ["staff PIN", "await requireStaffAdminPinForApi(req, userId, sessionId)"],
+      ["fixed authority", "await replyToCaseWithFixedAuthority({"],
       ["notification boundary", "// Notify the appropriate party/parties"],
     ]);
-    assert.match(write, /updatedAt: transitionAt/);
-    assert.match(write, /createdAt: transitionAt/);
-    assert.match(
-      write,
-      /lockedActsAsStaff = lockedIsStaff && !lockedIsParty/,
-    );
-    assert.match(
-      write,
-      /lockedActsAsStaff && !nonPartyStaffPinVerified/,
-    );
-    assert.doesNotMatch(write, /CASE_STATUS_CHANGED|tx\.case\.updateMany/);
+    assert.doesNotMatch(route, /prisma\.\$transaction|tx\.(?:case|caseMessage)/);
   });
 
   it("locks Order then Case for participant resolution marks and staff resolution", () => {

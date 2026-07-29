@@ -39,12 +39,14 @@ four staff-resolution writes/reads with its fixed claim protocol. The current
 participant conversion also replaces two direct Case reads and one raw Case
 update with `grainline_case_mark_resolved`. The buyer Case-open conversion
 replaces one direct create, one nested Case read and two nested CaseMessage
-references with `grainline_case_open`. The countdown is therefore 35 direct
-operations, 18 nested relation references and 11 raw SQL references: 64
-remaining protected references across 25 source files. The executable catalog
-retains all sixteen removed references in a converted-source ledger; neither
-the original 69-reference audit nor the 80-reference Phase 4 baseline is
-discarded.
+references with `grainline_case_open`. The Case-reply conversion replaces a
+second Case read, two direct CaseMessage replay reads, one Case update, one
+CaseMessage create and five nested attachment references with
+`grainline_case_reply`. The countdown is therefore 30 direct operations, 13
+nested relation references and 11 raw SQL references: 54 remaining protected
+references across 25 source files. The executable catalog retains all
+twenty-six removed references in a converted-source ledger; neither the
+original 69-reference audit nor the 80-reference Phase 4 baseline is discarded.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
@@ -337,8 +339,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 64-reference current countdown
-  and sixteen-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 54-reference current countdown
+  and twenty-six-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
@@ -458,6 +460,22 @@ that claimed upload and proves the Case still has one message. Exact head
 PostgreSQL proof and every repository gate in run `30465487551`. The direct
 route references remain in the 64-reference countdown until the separate
 application conversion succeeds.
+
+The separate compatible Case-reply application conversion then removes ten
+of those route references: two direct CaseMessage replay reads, the second
+Case read, the Case update, the CaseMessage create and five nested attachment
+references. One direct Case preflight remains explicitly assigned to the later
+`case_message_preflight` INVOKER projection. The route retains origin, Clerk,
+local-account, rate-limit, bounded-body, sanitized-text, participant/staff PIN,
+recipient-availability and R2 verification boundaries before the fixed write.
+It permits VERIFIED or CLAIMED objects only at the external byte/signature
+check so an exact retry can be reverified; PostgreSQL still returns the exact
+replay before upload freshness validation and rejects changed reuse of a
+CLAIMED source. The result validator binds the complete database projection,
+replay stops before Notification/email, and post-authority identities come
+only from that result. The live countdown is now 54 references across 25 files
+with twenty-six retained in the converted ledger. Production and Case-family
+RLS remain unchanged.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B

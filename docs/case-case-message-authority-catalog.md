@@ -19,15 +19,19 @@ The Phase 4 baseline is 80 protected references across 29 source files: 46
 direct ORM operations, 22 nested relation references and 12 raw SQL
 references. After converting the Stripe dispute webhook, seller-refund route,
 staff Case-resolution write path, participant mark-resolved route and buyer
-Case-open route, the current exact inventory is 64 remaining references
-across 25 source files: 35 direct ORM operations, 18 nested relation
-references and 11 raw SQL references. The executable catalog deep-compares
-every remaining source and operation count with the live scanner and retains
-all sixteen removed references (three from the Stripe webhook, two from the
-seller-refund route, four from staff resolution, three from participant
-mark-resolved and four from buyer Case opening) in a separate converted-source
-ledger. A source cannot disappear, appear or claim conversion without
-changing a test.
+Case-open route, the inventory was 64 remaining references across 25 source
+files: 35 direct ORM operations, 18 nested relation references and 11 raw SQL
+references. The Case-reply application conversion then moves ten more
+protected references behind `grainline_case_reply`. The current exact
+inventory is therefore 54 remaining references across 25 source files: 30
+direct ORM operations, 13 nested relation references and 11 raw SQL
+references. The executable catalog deep-compares every remaining source and
+operation count with the live scanner and retains all twenty-six removed
+references (three from the Stripe webhook, two from the seller-refund route,
+four from staff resolution, three from participant mark-resolved, four from
+buyer Case opening and ten from Case reply) in a separate converted-source
+ledger. A source cannot disappear, appear or claim conversion without changing
+a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication`,
@@ -414,6 +418,29 @@ the same now-claimed upload with changed body fails without creating a second
 message. The extended 20-check proof and every repository gate passed at exact
 head `904745864275c3899f91263137400113189d1e95` in GitHub Actions run
 `30465487551`.
+
+The compatible application successor retains one direct Case preflight read
+for the later `case_message_preflight` INVOKER conversion, but removes both
+direct CaseMessage replay reads, the Case update, the CaseMessage create and
+all five nested attachment references. It verifies R2 existence, size, type
+and signature before calling only `grainline_case_reply`; VERIFIED and CLAIMED
+objects may reach that external check so exact retries can be re-verified, but
+the fixed database function alone decides exact replay and rejects changed
+reuse. One strict result validator binds the returned actor, parties, Case,
+Order, status, author kind, timestamp and attachment metadata. A replay returns
+before Notification or email, and every security-relevant identity used after
+the function comes from the database result. This moves ten references to the
+converted ledger and leaves 54 current references; production and Case-family
+RLS remain unchanged.
+
+The conversion also closes a future compatibility trap in the disposable
+DirectUpload `objectKey` retirement candidate. Before retirement the authority
+function dual-writes the compatibility column. The retirement candidate now
+rebuilds that exact fixed function without `objectKey` in the same transaction
+that drops the column, preserves its EXECUTE ACL, and postflights its owner,
+security mode, pinned search path, runtime-only grant and function definition.
+That keeps Case replies operable after the separately gated retirement rather
+than deferring a known post-retirement failure.
 
 ## Account deletion boundary
 

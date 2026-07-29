@@ -220,16 +220,18 @@ describe("admin PIN cookie secret configuration", () => {
     assert.match(messages, /const isNonPartyStaff = isStaff && !isParty/);
     assert.match(messages, /if \(isNonPartyStaff\) \{/);
     assert.match(messages, /requireStaffAdminPinForApi\(req, userId, sessionId\)/);
-    assert.match(messages, /const nonPartyStaffPinVerified = isNonPartyStaff/);
-    assert.match(messages, /lockedActsAsStaff && !nonPartyStaffPinVerified/);
     assert.ok(
       messages.indexOf("if (!isParty && !isStaff)") <
         messages.indexOf("if (isNonPartyStaff)") &&
         messages.indexOf("if (isNonPartyStaff)") <
           messages.indexOf("for (const key of attachmentKeys)") &&
         messages.indexOf("if (isNonPartyStaff)") <
-          messages.indexOf("const messageResult = await prisma.$transaction"),
+          messages.indexOf("await replyToCaseWithFixedAuthority({"),
       "only staff non-party case messages should require the admin PIN before evidence reads and message creation",
+    );
+    assert.match(
+      messages,
+      /const isNonPartyStaff = isStaff && !isParty[\s\S]*requireStaffAdminPinForApi[\s\S]*replyToCaseWithFixedAuthority/,
     );
   });
 });

@@ -18,9 +18,9 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
   const inventory = collectCaseCaseMessageAccess();
   const summary = summarizeCaseCaseMessageAccess(inventory);
 
-  it("classifies all 64 remaining references and retains the 16 converted references", () => {
-    assert.equal(caseAuthorityReferenceCount(), 64);
-    assert.equal(caseAuthorityConvertedReferenceCount(), 16);
+  it("classifies all 54 remaining references and retains the 26 converted references", () => {
+    assert.equal(caseAuthorityReferenceCount(), 54);
+    assert.equal(caseAuthorityConvertedReferenceCount(), 26);
     assert.equal(
       caseAuthorityReferenceCount() + caseAuthorityConvertedReferenceCount(),
       80,
@@ -306,6 +306,10 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     assert.match(
       normalizedCatalog,
       /80 protected references across 29 source files/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /current exact inventory is therefore 54 remaining references across 25 source files/,
     );
     assert.match(
       normalizedCatalog,

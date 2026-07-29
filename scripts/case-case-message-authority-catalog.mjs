@@ -529,6 +529,17 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
       "CaseMessage.relation-reference": 2,
     },
   }),
+  "src/app/api/cases/[id]/messages/route.ts": freezeSource({
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_reply"],
+    inventory: {
+      "Case.findUnique": 1,
+      "CaseMessage.findMany": 2,
+      "Case.update": 1,
+      "CaseMessage.create": 1,
+      "CaseMessageAttachment.relation-reference": 5,
+    },
+  }),
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
@@ -589,14 +600,8 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
   }),
   "src/app/api/cases/[id]/messages/route.ts": freezeSource({
     actors: ["PARTICIPANT", "STAFF"],
-    destinations: ["case_message_preflight", "case_reply"],
-    inventory: {
-      "Case.findUnique": 2,
-      "CaseMessage.findMany": 2,
-      "Case.update": 1,
-      "CaseMessage.create": 1,
-      "CaseMessageAttachment.relation-reference": 5,
-    },
+    destinations: ["case_message_preflight"],
+    inventory: { "Case.findUnique": 1 },
   }),
   "src/app/api/cases/[id]/resolve/route.ts": freezeSource({
     actors: ["STAFF"],
