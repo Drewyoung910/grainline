@@ -49,13 +49,15 @@ independently reviewed RLS or least-privilege database groups roll out:
 
 Notification and Conversation/Message are complete independent production
 groups. Case/CaseMessage/CaseMessageAttachment is in compatible Phase 4
-authority conversion: its exact 80-reference baseline is retained, 26
-references have moved behind fixed operations, and 54 direct/nested/raw
-references remain. The current function-only Case-message preflight is a
-narrow source-validating `SECURITY DEFINER` read so later self-only User RLS
-cannot hide the counterparty state it must derive. Case-family RLS is still
-off. Cases, orders/payment/shipping, User, and service/audit ledgers remain
-separate later activation groups; do not bundle their policies or grants.
+authority conversion: its exact 80-reference baseline is retained, 28
+references have moved behind fixed operations, and 52 direct/nested/raw
+references remain. The current Case-message preflight is a narrow
+source-validating `SECURITY DEFINER` read so later self-only User RLS cannot
+hide the counterparty state it must derive; its separate application
+conversion uses one strict result in the reply and private-evidence upload
+routes. Case-family RLS is still off. Cases, orders/payment/shipping, User, and
+service/audit ledgers remain separate later activation groups; do not bundle
+their policies or grants.
 
 ## Core Lifecycles
 

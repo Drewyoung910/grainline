@@ -6,7 +6,7 @@ authority/invariant proof. Production RLS remains off for Case, CaseMessage
 and CaseMessageAttachment.
 
 The behavior findings, 80-reference conversion baseline and current
-54-reference countdown live in
+52-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -852,6 +852,26 @@ reply function continues to lock and revalidate after preflight, so Case/status
 or counterparty races fail closed at the write boundary. This function-only
 checkpoint leaves the application inventory at 54 references and leaves all
 Case-family policies, grants and production state unchanged.
+
+Exact function-only head `67b899c714c5248c1a87df209bb01ca0e29c64b5`
+passed full GitHub Actions run `30470489003` (job `90639134941`), including
+disposable PostgreSQL migration/application, runtime-role authority and cleanup
+proof, grant/RLS audit, repository tests, dependency audit and production
+build. Draft PR #100 is back on its intended stacked base; nothing was applied
+or deployed to production.
+
+Phase 4 Case-message preflight application conversion candidate (2026-07-29):
+replace the reply and private-evidence upload routes' remaining direct Case
+lookups with one typed `grainline_case_message_preflight` wrapper. No row and
+invalid ids return the same non-enumerating 404. One exact result must pass a
+strict shape, identity, actor/party, staff-mode, lifecycle/messageable and
+recipient-state validator before either route proceeds. Both routes retain
+origin, Clerk/local-account, rate-limit and staff-PIN gates; the reply route
+also retains bounded/sanitized input, R2 byte verification and the final locked
+`grainline_case_reply` authority. The conversion moves two references to the
+durable converted ledger, leaving 52 remaining references across 23 files and
+twenty-eight converted references. It does not apply migrations, enable
+evidence, deploy or change Case-family RLS.
 
 ## Phase 5: ENABLE activation
 

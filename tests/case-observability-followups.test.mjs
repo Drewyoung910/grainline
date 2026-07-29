@@ -54,7 +54,8 @@ describe("case route observability follow-ups", () => {
       migration,
       /actor_acts_as_staff[\s\S]*'UNDER_REVIEW'::public\."CaseStatus"[\s\S]*NOT actor_acts_as_staff/,
     );
-    assert.match(route, /isNonPartyStaff = isStaff && !isParty/);
+    assert.match(route, /if \(preflight\.actsAsStaff\)/);
+    assert.match(route, /if \(!preflight\.canCreateMessage\)/);
   });
 
   it("renders admin case deadlines with client-local dates", () => {

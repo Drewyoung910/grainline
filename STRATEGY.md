@@ -130,6 +130,15 @@ preflight output free of User profile/contact data, retain route-side Clerk and
 staff-PIN verification, and keep the final locked reply operation authoritative
 for every write and race.
 
+The compatible Case-message preflight application conversion must use one
+strict typed result in both the reply and private-evidence upload routes. Keep
+missing and unauthorized rows non-enumerating, preserve the route-side staff
+PIN and external evidence checks, and never let preflight replace the final
+locked reply authority. After this conversion the live Case inventory is 52
+references across 23 files, with twenty-eight of the 80-reference baseline
+retained in the converted ledger. This remains preparation, not production
+activation.
+
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and
 aggregate-only. The two tracks rejoin before activation: DirectUpload must

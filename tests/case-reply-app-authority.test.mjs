@@ -65,7 +65,7 @@ describe("Case-reply application authority", () => {
       ["local actor", "await ensureUserByClerkId(userId)"],
       ["bounded body", "await readBoundedJson(req, CASE_MESSAGE_BODY_MAX_BYTES)"],
       ["sanitization", "sanitizeRichText(parsed.body.trim())"],
-      ["preflight", "await prisma.case.findUnique({"],
+      ["preflight", "await getCaseMessagePreflight({"],
       ["staff PIN", "await requireStaffAdminPinForApi(req, userId, sessionId)"],
       ["R2 verification", "await verifyPrivateCaseEvidenceForReply({"],
       ["fixed authority", "await replyToCaseWithFixedAuthority({"],
@@ -73,7 +73,7 @@ describe("Case-reply application authority", () => {
       ["notification", "// Notify the appropriate party/parties"],
       ["created response", "return privateJson(message, { status: 201 })"],
     ]);
-    assert.equal(route.match(/prisma\.case\.findUnique/g)?.length, 1);
+    assert.doesNotMatch(route, /prisma\.case\.findUnique/);
     assert.doesNotMatch(route, /prisma\.caseMessage|tx\.(?:case|caseMessage)/);
     assert.doesNotMatch(route, /prisma\.\$transaction|referenceDirectUploadCaseAttachment/);
   });

@@ -48,6 +48,13 @@ references across 25 source files. The executable catalog retains all
 twenty-six removed references in a converted-source ledger; neither the
 original 69-reference audit nor the 80-reference Phase 4 baseline is discarded.
 
+The Case-message preflight application conversion then removes the reply
+route's final direct Case lookup and the private-evidence upload route's direct
+Case lookup. The current countdown is therefore 28 direct operations, 13 nested
+relation references and 11 raw SQL references: 52 remaining protected
+references across 23 source files. The converted-source ledger now retains all
+twenty-eight removed references.
+
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
 reference still needs an actor, purpose and migration destination.
@@ -339,8 +346,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 54-reference current countdown
-  and twenty-six-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 52-reference current countdown
+  and twenty-eight-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
@@ -499,6 +506,25 @@ split, recipient state, transaction-local context, no-mutation guarantee and
 zero-residue cleanup are part of the disposable PostgreSQL proof. Application
 conversion remains separate, so the current 54-reference countdown does not
 change at this function-only checkpoint.
+
+Exact function-only head `67b899c714c5248c1a87df209bb01ca0e29c64b5`
+passed GitHub Actions run `30470489003` (job `90639134941`), including
+disposable migration deployment, production-style grant convergence, the
+runtime-role Case-message preflight proof, zero-residue cleanup, final grant
+audit and all repository gates. Draft PR #100 was restored to its stacked
+Case-reply application base. Production remained unchanged.
+
+The separate application conversion uses that fixed result in both routes.
+It preserves Clerk/local-account authentication, origin and rate-limit gates,
+the non-party staff PIN, bounded/sanitized message input, private-object byte
+verification and the final locked reply function. It removes the duplicated
+application-derived participant, role, status and counterparty checks, treats a
+missing/disabled/unauthorized preflight row as a non-enumerating 404, and
+strictly validates every returned field before making external object calls.
+The resulting live countdown is 52 references across 23 files with twenty-eight
+retained in the converted ledger. This remains an isolated application
+candidate; it does not apply the function migration, deploy, enable evidence or
+change Case-family RLS.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B

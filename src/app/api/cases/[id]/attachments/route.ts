@@ -11,8 +11,8 @@ import {
   MAX_CASE_MESSAGE_ATTACHMENTS,
 } from "@/lib/caseEvidence";
 import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
-import { canCreateCaseMessageForStatus } from "@/lib/caseMessagingState";
-import { prisma } from "@/lib/db";
+import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
+import { unavailableCaseRecipientMessage } from "@/lib/caseMessagingState";
 import { recordDirectUploadVerified } from "@/lib/directUploadLifecycle";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { HTTP_STATUS } from "@/lib/httpStatus";
@@ -47,6 +47,7 @@ import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
 import { uploadFileSignatureMatches } from "@/lib/uploadVerificationToken";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -124,31 +125,38 @@ export async function POST(
     );
   }
 
-  const caseRecord = await prisma.case.findUnique({
-    where: { id },
-    select: {
-      buyerId: true,
-      sellerId: true,
-      status: true,
-    },
-  });
-  if (!caseRecord) {
+  let preflight;
+  try {
+    preflight = await getCaseMessagePreflight({
+      actorUserId: me.id,
+      caseId: id,
+    });
+  } catch (error) {
+    if (getPrismaRawSqlState(error) === "22023") {
+      return privateJson({ error: "Case not found." }, { status: 404 });
+    }
+    throw error;
+  }
+  if (!preflight) {
     return privateJson({ error: "Case not found." }, { status: 404 });
   }
 
-  const isParty =
-    me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
-  const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
-  const actsAsStaff = isStaff && !isParty;
-  if (!isParty && !isStaff) {
-    return privateJson({ error: "Forbidden." }, { status: 403 });
-  }
-  if (actsAsStaff) {
+  if (preflight.actsAsStaff) {
     const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
     if (pinResponse) return pinResponse;
   }
-  if (!canCreateCaseMessageForStatus(caseRecord.status, { isStaff: actsAsStaff })) {
+  if (!preflight.canCreateMessage) {
     return privateJson({ error: "This case is closed." }, { status: 400 });
+  }
+  if (preflight.recipientUnavailableReason) {
+    return privateJson(
+      {
+        error: unavailableCaseRecipientMessage(
+          preflight.recipientUnavailableReason,
+        ),
+      },
+      { status: 409 },
+    );
   }
 
   let form: FormData;
