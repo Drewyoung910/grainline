@@ -64,6 +64,12 @@ countdown is therefore 17 direct operations, 3 nested relation references and
 files. The converted-source ledger now retains all fifty-two removed
 references.
 
+The seller-aggregate checkpoint passed exact-head disposable PostgreSQL 16 and
+full CI at `b029f0ab9fec927317ffca60b0f5d09a6e70e6f0`, run `30490356203`
+(job `90706405419`). This is compatible preparation evidence only; production
+Case-family RLS remains off and no production migration or deployment is
+authorized by that result.
+
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
 reference still needs an actor, purpose and migration destination.

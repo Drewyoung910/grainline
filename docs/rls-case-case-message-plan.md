@@ -1055,8 +1055,17 @@ authorization or deployment. It moves six references to the retained ledger,
 leaving 28 current references across 7 files and fifty-two converted
 references. Its loopback PostgreSQL proof covers grants, forced-RLS source
 isolation, seller/staff/foreign behavior, Guild state binding, the real
-blocking-row lock, context preservation and zero residue. Exact-head CI
-execution remains required before this checkpoint is accepted.
+blocking-row lock, context preservation and zero residue.
+
+Exact authority head
+`b029f0ab9fec927317ffca60b0f5d09a6e70e6f0` passed GitHub Actions run
+`30490356203` (job `90706405419`). PostgreSQL 16 applied the sealed migration,
+converged production-style grants and passed all 13 seller-aggregate checks,
+including the real blocking-row lock and forced-RLS source isolation. Every
+predecessor RLS proof, migration status, final grant audit, TypeScript, lint,
+full tests, dependency audit and production build also passed. This is
+preparation evidence only; it does not authorize merging the stacked chain,
+applying production migrations or activating Case-family RLS.
 
 The first full local suite after this conversion failed only in three
 repository contracts that still pinned the prior 42-reference inventory and
