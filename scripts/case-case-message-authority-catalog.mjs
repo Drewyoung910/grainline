@@ -329,6 +329,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     callerInputs: [
       "actorUserId",
       "resolutionClaimId",
+      "providerOutcome",
       "primaryRefundId",
       "boundedRefundIds",
       "boundedRefundStatuses",
@@ -345,11 +346,12 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "current staff role and exact same claim actor",
       "locked PROVIDER_PENDING CaseResolutionClaim, Order and Case",
       "claim-bound refund amount, currency, reason and accounting expectations",
-      "database-generated OrderPaymentEvent and strict audit identities",
-      "PROVIDER_RECORDED claim state linked to the exact local payment event",
+      "RECORDED outcome validates bounded provider evidence, creates database-generated OrderPaymentEvent and strict audit identities, and advances to PROVIDER_RECORDED",
+      "AMBIGUOUS outcome forbids asserted provider evidence, creates no payment event, and advances to RECONCILIATION_REQUIRED with the Order refund sentinel preserved",
     ],
     externalTrustBoundaries: [
-      "bounded refund and transfer identifiers and statuses come from the trusted Stripe client response",
+      "the bounded RECORDED or AMBIGUOUS outcome classification comes from the trusted Stripe client",
+      "bounded refund and transfer identifiers and statuses for RECORDED come from the trusted Stripe client response",
       "PostgreSQL validates their shape and claim relationship but does not independently attest Stripe",
     ],
   }),
@@ -393,7 +395,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "create or reopen target",
       "source-backed openedByPaymentEventId for a webhook-created Case",
       "UNDER_REVIEW state with stale Case resolution and refund snapshot cleared while durable OrderPaymentEvent history is retained",
-      "strict audit source",
+      "private CaseStripeDisputeApplication replay identity and co-committed non-authoritative SystemAuditLog observability",
     ],
     externalTrustBoundaries: [
       "the Stripe webhook route verifies the provider signature before recording the OrderPaymentEvent",
@@ -408,13 +410,17 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     runtimeExecute: true,
     callerInputs: ["actorUserId", "orderPaymentEventId"],
     databaseDerived: [
-      "exact seller-owned Order and committed refund evidence",
-      "active Case target",
-      "refund resolution fields and timestamp",
+      "current non-banned and non-deleted seller actor",
+      "exact seller-owned Order and complete seller graph",
+      "same-Order local refund event whose object id, amount, currency and refund kind match the locked completed Order refund",
+      "active, terminal or absent Case disposition",
+      "refund resolution fields, timestamp and seller resolver",
+      "private CaseSellerRefundApplication replay identity and co-committed non-authoritative SystemAuditLog observability",
     ],
     externalTrustBoundaries: [
       "the local payment ledger records the trusted Stripe client result; PostgreSQL does not independently attest Stripe",
-      "OrderPaymentEvent direct-write hardening remains a dependency of the later order-payment RLS group",
+      "Order and OrderPaymentEvent direct-write hardening remains a dependency of the later order-payment RLS group",
+      "the compatible application must lock the authenticated seller User before its existing Order refund transaction so the shared User then Order then Case lock order is preserved",
     ],
   }),
   freezeOperation({
@@ -467,6 +473,30 @@ const freezeSource = (entry) => Object.freeze({
   actors: Object.freeze([...entry.actors]),
   destinations: Object.freeze([...entry.destinations]),
   inventory: Object.freeze({ ...entry.inventory }),
+});
+
+// Once a source has no direct protected-table references, move its former
+// inventory here rather than deleting its authority history. The current
+// scanner stays an exact activation countdown while this ledger proves which
+// fixed operation replaced each removed reference.
+export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/app/api/stripe/webhook/route.ts": freezeSource({
+    actors: ["STRIPE_WEBHOOK"],
+    destinations: ["case_stripe_dispute_apply"],
+    inventory: {
+      "Case.updateMany": 1,
+      "Case.create": 1,
+      "Case.relation-reference": 1,
+    },
+  }),
+  "src/app/api/orders/[id]/refund/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_seller_refund_apply"],
+    inventory: {
+      "Case.findUnique": 1,
+      "Case.updateMany": 1,
+    },
+  }),
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
@@ -576,20 +606,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
     destinations: ["case_guild_unresolved_guard"],
     inventory: { "Case.findFirst": 1 },
   }),
-  "src/app/api/orders/[id]/refund/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_seller_refund_apply"],
-    inventory: { "Case.findUnique": 1, "Case.updateMany": 1 },
-  }),
-  "src/app/api/stripe/webhook/route.ts": freezeSource({
-    actors: ["STRIPE_WEBHOOK"],
-    destinations: ["case_stripe_dispute_apply"],
-    inventory: {
-      "Case.updateMany": 1,
-      "Case.create": 1,
-      "Case.relation-reference": 1,
-    },
-  }),
   "src/app/api/verification/apply/route.ts": freezeSource({
     actors: ["SELLER"],
     destinations: ["case_seller_verification_eligibility"],
@@ -680,6 +696,16 @@ export const CASE_AUTHORITY_OPERATION_IDS = Object.freeze(
 
 export function caseAuthorityReferenceCount() {
   return Object.values(CASE_AUTHORITY_SOURCE_DESTINATIONS)
+    .reduce(
+      (total, source) =>
+        total + Object.values(source.inventory)
+          .reduce((sourceTotal, count) => sourceTotal + count, 0),
+      0,
+    );
+}
+
+export function caseAuthorityConvertedReferenceCount() {
+  return Object.values(CASE_CONVERTED_SOURCE_DESTINATIONS)
     .reduce(
       (total, source) =>
         total + Object.values(source.inventory)

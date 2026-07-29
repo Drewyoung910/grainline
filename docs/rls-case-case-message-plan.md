@@ -1,10 +1,12 @@
 # Case, CaseMessage, and CaseMessageAttachment RLS Plan
 
-Opened 2026-07-26. Current phase: Phase 3 invariant and authority-catalog
-design after a clean Phase 2 production inspection. Production RLS remains
-off for Case, CaseMessage and CaseMessageAttachment.
+Opened 2026-07-26. Current phase: Phase 4 compatible schema and application
+conversion after a clean Phase 2 production inspection and completed Phase 3
+authority/invariant proof. Production RLS remains off for Case, CaseMessage
+and CaseMessageAttachment.
 
-The behavior findings and current 80-reference source baseline live in
+The behavior findings, 80-reference conversion baseline and current
+75-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -343,8 +345,8 @@ authorized staff decisions, not ordinary participant input.
 
 Phase 3 catalog checkpoint (2026-07-28): the isolated candidate adds
 `scripts/case-case-message-authority-catalog.mjs`, its exact inventory-drift
-test and `docs/case-case-message-authority-catalog.md`. It maps all 80 current
-references across 29 sources to 26 fixed operations. The boundary explicitly
+test and `docs/case-case-message-authority-catalog.md`. It maps the initial 80
+Phase 4 references across 29 sources to 26 fixed operations. The boundary explicitly
 includes CaseMessageAttachment rather than treating private evidence as an
 independent activation.
 
@@ -366,6 +368,17 @@ while retaining the durable Order payment/audit history. A webhook-created
 Case records its exact source in `Case.openedByPaymentEventId` and may begin
 without a falsely buyer-authored opening message; the ordinary buyer-open
 operation still creates its first message atomically.
+
+Extra-High review of the first compatible operation found two authority gaps
+before merge. `SystemAuditLog` still has broad runtime CRUD and therefore
+cannot be the immutable replay boundary. Stripe delivery is also unordered, so
+a valid but superseded `charge.dispute.created` source cannot be accepted only
+because its signature was verified earlier. The corrected candidate uses a
+separate zero-policy, zero-table-grant
+`CaseStripeDisputeApplication` replay ledger, and the function rejects an
+older event or an open event superseded at the same provider timestamp by a
+terminal dispute event. `SystemAuditLog` remains co-committed observability,
+not authority.
 
 The catalog also records honest cross-group limits: PostgreSQL validates local
 payment evidence but does not independently attest Stripe, and
@@ -401,6 +414,16 @@ audited human decision that Stripe has no provider effect and advance it to
 the distinct terminal `RELEASED_NO_PROVIDER_EFFECT` state. That state does not
 pretend the Case or provider action was finalized.
 
+Staff-resolution authority review (2026-07-29) closed an ambiguous-provider
+gap before SQL implementation. The fixed provider-record operation accepts
+only `RECORDED` or `AMBIGUOUS`. `RECORDED` requires bounded Stripe evidence and
+is the only branch allowed to create `OrderPaymentEvent` authority.
+`AMBIGUOUS` requires all asserted provider-evidence fields to be absent,
+creates no payment event and moves the claim plus Order refund sentinel into
+reconciliation. A later retry reuses the same idempotency scope; only the
+separate ADMIN reconciliation decision may attest no provider effect and
+release the lease.
+
 Seller verification, seller metrics and guild-revocation predicates are three
 separate fixed operations. The review rejected one generic arbitrary-seller
 quality function because it exposed a broader dispute-count/timestamp oracle
@@ -412,16 +435,167 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 
 ## Phase 4: compatible application conversion
 
-- Deploy fixed functions while retaining old direct grants.
-- Convert every current protected reference to its explicit destination (80 in
-  the current exact scanner; earlier Phase 1B counts remain historical
-  evidence rather than an activation target).
+- First add the nullable exact Stripe-dispute source and private
+  `CaseResolutionClaim` ledger in one coexistence-safe preparation migration.
+  The new ledger is born ENABLE plus FORCE with zero policies and zero
+  runtime/PUBLIC table privileges; the migration does not add strict
+  Case/CaseMessage triggers, participant policies or callable resolution
+  operations.
+- Add each reviewed fixed operation while retaining old direct grants. The
+  Stripe-dispute operation also adds its own private immutable replay ledger;
+  it is not bundled with Case participant policies or direct-grant revocation.
+- Convert every protected reference to its explicit destination (80 at the
+  fixed Phase 4 baseline; 75 remain after the first two compatible app
+  conversions, while earlier Phase 1B counts remain historical evidence
+  rather than an activation target).
 - Keep an exact zero-direct-access inventory gate.
 - Prove buyer, seller, staff, cron, Stripe, refund, fulfillment, export,
   deletion, retention and metrics paths on the compatible database.
 - Run authenticated route smoke without enabling RLS.
 
 Exit: old and new app deployments can coexist with the preparation catalog.
+
+Phase 4 compatible-schema checkpoint (2026-07-28): the candidate migration
+adds `Case.openedByPaymentEventId`, exact same-Order composite foreign keys,
+the nullable `Order.caseResolutionClaimId` lease and the private
+`CaseResolutionClaim` provider-handshake ledger. Its enum is removed from
+PUBLIC and granted only the runtime USAGE needed for later typed fixed
+functions; the table and invariant trigger functions remain runtime-private.
+The strict Case/CaseMessage invariant draft now consumes this prepared shape
+instead of attempting to recreate it. This checkpoint is code-only:
+production migrations, Case RLS and app deployment remain unchanged.
+
+Phase 4 Stripe-dispute authority checkpoint (2026-07-28): the isolated,
+unmerged candidate accepts only one exact same-Order `OrderPaymentEvent`,
+locks Order, payment source, complete seller graph and Case in canonical
+order, derives all participants/linkage inside PostgreSQL, and clears the
+complete terminal Case snapshot on a legitimate reopen. Replay identity is
+held in private `CaseStripeDisputeApplication` rather than caller-writable
+`SystemAuditLog`. The function rejects malformed, wrong-charge, terminal and
+superseded sources. The migration does not enable participant RLS, revoke
+legacy Case grants, deploy application conversion or authorize production
+migration.
+
+Implementation checkpoint `3416516e29ea92868c7746c741030f0f0324f850`
+is pushed in draft PR `#88`. The PR is temporarily based on `main` so the
+repository's pull-request-only CI can run the full PostgreSQL 16 migration and
+rollback-only authority proof; it includes the exact PR `#87` schema
+prerequisite until that predecessor merges. This is a CI/review arrangement,
+not production migration or deployment authorization.
+
+Phase 4 Stripe-dispute application-conversion checkpoint (2026-07-28): the
+isolated successor removes two direct Case writes and one nested Case read from
+the signed webhook, reducing the exact current inventory from 80 to 77. The
+route records the durable payment event, resolves its local id, invokes only
+`grainline_case_stripe_dispute_apply`, verifies the one exact returned
+Order/payment relationship and uses database-derived buyer/seller identities.
+It keeps the Stripe event id separate for the already-live Notification
+`order_payment` source contract. The old JavaScript Case transition helper is
+removed, and the catalog retains all three replaced references in a
+machine-checked converted-source ledger. This is compatible application work:
+the fixed-function migration must precede its deployment; no production
+migration, deployment, direct-grant revocation or Case RLS activation is
+authorized here.
+
+Phase 4 seller-refund authority checkpoint (2026-07-28): the isolated
+successor adds one compatible fixed operation and private immutable
+`CaseSellerRefundApplication` ledger. The runtime may execute
+`grainline_case_seller_refund_apply(actorUserId, orderPaymentEventId)` but has
+no direct ledger access. PostgreSQL locks and validates the active actor,
+Order, exact local refund event, complete one-seller graph and Case; derives
+the full/partial resolution, amount, provider id, timestamp and audit; and
+makes an already-applied source a non-mutating replay. NULL or malformed
+metadata, forged actor/source, mismatched amount/currency/provider id and
+direct ledger access fail closed. The private ledger is born ENABLE plus FORCE
+with zero policies and no PUBLIC/runtime table grants. The fixed authority
+checkpoint does not by itself enable participant RLS, revoke legacy Case
+grants, authorize production migration or deploy.
+
+The compatible application conversion preserves the shared lock order: the
+seller-refund finalization transaction locks the authenticated seller User,
+then completes the Order, records and resolves the exact local payment event,
+and invokes the fixed function, which locks Case only after Order. It accepts
+only one complete relationship-consistent result and preserves the existing
+staff-reconciliation warning for a terminal Case. The route now has zero
+direct protected Case-table references, reducing the current inventory from
+77 to 75 and the remaining source files from 28 to 27. `Order` and
+`OrderPaymentEvent` still have broad runtime DML until their separate
+order/payment group; this remains an explicit threat-model dependency rather
+than a protection claim.
+
+Implementation checkpoint `e2c3620343e76cac291accba31ffbfcaa2af1d4f` is
+pushed in draft PR `#91`. It is temporarily based on `main` only because the
+repository runs pull-request CI for that base; the intended stack remains the
+seller-refund authority PR `#90`, which must precede this application
+conversion. This CI arrangement authorizes no merge or production change.
+
+The first exact-head CI run (`30422640445`) is retained as failed evidence. It
+applied the full migration tree and converged production-style runtime grants,
+then PostgreSQL rejected the new rollback-only proof fixture with `42P08`
+because parameter `$4` was inferred as both `varchar(255)` and `text` inside
+one prepared INSERT. No migration, grant or production state changed. The
+fixture now gives every `$4` reference the exact `varchar(255)` source-column
+type, and a focused static guard prevents another mixed-type edit. This run
+does not count as seller-refund authority proof; a fresh exact-head PostgreSQL
+CI pass is mandatory before application conversion.
+
+Fresh exact-head CI run `30422832630` for authority head
+`bc87c7b8b5d6d8adb41a49c32c97bb90784854c4` subsequently passed in full. It
+applied the migration tree, converged production-style runtime grants, passed
+the 29-check rollback-only PostgreSQL Case authority proof, final grant audit,
+typecheck, lint, 2,288-test suite, security audit and production build. That
+result permits this compatible application conversion; it is not production
+migration, deployment, participant RLS or activation evidence.
+
+Phase 4 staff-resolution authority checkpoint (2026-07-29): the isolated
+`agent/case-staff-resolution-authority-20260729` successor adds the compatible
+`20260729045000_prepare_case_staff_resolution_authority` migration. Four
+runtime-executable, pinned `SECURITY DEFINER` operations stage staff resolution:
+prepare, provider record, finalize and ADMIN reconciliation. Finalization takes
+only actor plus claim id; Case, Order, resolution, refund amount, payment
+event, stock targets, message identity and audit identity are derived from the
+locked private claim and exact durable sources.
+
+The hard review found and closed four issues before PostgreSQL CI:
+
+- an ambiguous Stripe response had no fixed claim transition, so provider
+  record now accepts only `RECORDED` or `AMBIGUOUS`; `AMBIGUOUS` forbids all
+  asserted provider evidence and creates no payment event;
+- final stock validation now locks the complete current OrderItem/Listing
+  source graph, not only the target Listing rows, before revalidating and
+  restoring the immutable claim plan;
+- an ADMIN retry is valid only from `RECONCILIATION_REQUIRED`, keeps the exact
+  idempotency scope and writes an immutable audit; ordinary
+  `PROVIDER_PENDING` request replay does not masquerade as reconciliation.
+- PostgreSQL three-valued logic would let a null provider outcome or null
+  reconciliation action skip a bare `NOT IN` check, so both fixed
+  discriminators now reject null explicitly and the engine proof exercises
+  both denials.
+
+The rollback-only PostgreSQL proof is extended from 29 to 43 checks covering
+dismissal prepare/finalize/replay, forged staff/provider actors, full-refund
+payment and stock evidence, ambiguous evidence denial, ambiguous replay,
+admin-only retry with the same scope, provider recording after retry,
+no-provider-effect release, zero release payment events and terminal lease
+cleanup. Static authority, special-form, grant-inventory and deploy-guard tests
+pass locally, as do the complete repository test suite, TypeScript and lint.
+The local Next production build compiled and completed its TypeScript phase,
+then correctly stopped at page-data collection because this disposable
+worktree has no `DATABASE_URL`; the protected CI run supplies only its
+loopback PostgreSQL service URL. At that checkpoint the engine migration/proof
+still required a fresh exact-head PostgreSQL 16 CI run, and production
+migrations, app conversion, direct-grant revocation, Case RLS, merge and
+deployment remained unauthorized and unchanged.
+
+Exact-head CI run `30426358816` subsequently passed for authority head
+`c5f649abae36e8a7200fb5e92316dccf0ed77de0`. PostgreSQL 16 applied the complete
+sealed migration tree, converged production-style runtime grants, and passed
+the 43-check rollback-only Case authority proof plus migration status, final
+grant/catalog audit, TypeScript, lint, complete repository tests, dependency
+audit and production build. This proves the compatible database authority
+candidate in isolated CI only; it does not authorize a production migration,
+application conversion, merge, direct-grant revocation or Case RLS
+activation.
 
 ## Phase 5: ENABLE activation
 

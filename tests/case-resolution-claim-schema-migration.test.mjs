@@ -2,19 +2,61 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const DRAFT_PATH =
-  "docs/rls-drafts/case-resolution-claim-ledger.sql";
-const sql = fs.readFileSync(DRAFT_PATH, "utf8");
+const MIGRATION_PATH =
+  "prisma/migrations/20260729024500_prepare_case_resolution_claim_schema/migration.sql";
+const sql = fs.readFileSync(MIGRATION_PATH, "utf8");
 const normalizedSql = sql.replace(/\s+/g, " ");
 
-test("CaseResolutionClaim remains a draft outside the migration tree", () => {
-  assert.equal(
-    fs.existsSync(
-      "prisma/migrations/20260729000000_prepare_case_resolution_claim/migration.sql",
-    ),
-    false,
+test("CaseResolutionClaim preparation is additive and coexistence-safe", () => {
+  assert.equal(fs.existsSync(MIGRATION_PATH), true);
+  assert.match(
+    sql,
+    /Coexistence-safe Case resolution preparation/,
   );
-  assert.match(sql, /DRAFT ONLY\. Do not apply to any persistent database/);
+  assert.doesNotMatch(sql, /DRAFT ONLY/);
+  assert.doesNotMatch(
+    normalizedSql,
+    /CREATE POLICY .* ON public\."(?:Case|CaseMessage|CaseMessageAttachment)"/i,
+  );
+  assert.doesNotMatch(
+    normalizedSql,
+    /grainline_case_relationship_valid|grainline_case_message_author_valid/,
+  );
+});
+
+test("Case claim preparation remains a reviewed predecessor but not production-authorized", () => {
+  const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  const productionWorkflow = fs.readFileSync(
+    ".github/workflows/production-migrations.yml",
+    "utf8",
+  );
+  assert.match(
+    ciWorkflow,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-staff-resolution-authority-reviewed/,
+  );
+  assert.match(
+    productionWorkflow,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-legacy-repair-reviewed/,
+  );
+  assert.doesNotMatch(
+    productionWorkflow,
+    /case-resolution-claim-preparation-reviewed/,
+  );
+});
+
+test("Stripe-dispute source is nullable and bound to the exact Order", () => {
+  assert.match(
+    normalizedSql,
+    /ALTER TABLE public\."OrderPaymentEvent" ADD CONSTRAINT "OrderPaymentEvent_id_orderId_key" UNIQUE \(id, "orderId"\)/,
+  );
+  assert.match(
+    normalizedSql,
+    /ALTER TABLE public\."Case" ADD COLUMN "openedByPaymentEventId" TEXT/,
+  );
+  assert.match(
+    normalizedSql,
+    /FOREIGN KEY \("openedByPaymentEventId", "orderId"\) REFERENCES public\."OrderPaymentEvent"\(id, "orderId"\)/,
+  );
 });
 
 test("CaseResolutionClaim is private FORCE RLS with no user policy", () => {
@@ -37,6 +79,14 @@ test("CaseResolutionClaim is private FORCE RLS with no user policy", () => {
   assert.match(
     normalizedSql,
     /policy_count <> 0/,
+  );
+  assert.match(
+    normalizedSql,
+    /REVOKE ALL ON TYPE public\."CaseResolutionClaimStatus" FROM PUBLIC/,
+  );
+  assert.match(
+    normalizedSql,
+    /GRANT USAGE ON TYPE public\."CaseResolutionClaimStatus" TO grainline_app_runtime/,
   );
 });
 

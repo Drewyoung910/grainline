@@ -73,7 +73,6 @@ import {
   checkoutItemsSubtotalCents,
   checkoutInvalidReasonState,
   checkoutPriceDriftState,
-  disputeCaseAction,
   isLikelyThinStripeEventObject,
   isStaleStripeEvent,
   latestSuccessfulRefund,
@@ -2364,28 +2363,13 @@ export async function POST(req: Request) {
               select: {
                 id: true,
                 currency: true,
-                buyerId: true,
                 sellerRefundId: true,
                 sellerRefundLockedAt: true,
-                case: { select: { id: true, status: true } },
-                items: {
-                  take: 1,
-                  select: {
-                    listing: {
-                      select: {
-                        seller: {
-                          select: { userId: true },
-                        },
-                      },
-                    },
-                  },
-                },
               },
             });
             if (!order) {
               throw new Error("Stripe dispute webhook could not find a Grainline order for charge.");
             }
-            const sellerUserId = order.items[0]?.listing.seller.userId;
             const disputeLedger = chargeDisputeLedgerState({
               chargeId,
               eventType: event.type,
@@ -2457,42 +2441,51 @@ export async function POST(req: Request) {
                 data: orderUpdate,
               });
             }
-            let disputeCaseActionName = "none";
-            if (disputeSideEffectsApplied && event.type === "charge.dispute.created" && order.buyerId && sellerUserId) {
-              const caseAction = disputeCaseAction({
-                eventType: event.type,
-                existingCase: order.case,
-                dispute,
+            let disputeCaseResult: {
+              caseId: string;
+              orderId: string;
+              sellerUserId: string;
+              buyerUserId: string;
+              paymentEventId: string;
+              action: "create" | "reopen";
+            } | null = null;
+            if (disputeSideEffectsApplied && event.type === "charge.dispute.created") {
+              const paymentEvent = await tx.orderPaymentEvent.findUnique({
+                where: { stripeEventId: event.id },
+                select: { id: true, orderId: true },
               });
-              disputeCaseActionName = caseAction.action;
-              if (caseAction.action === "update") {
-                const caseUpdate = await tx.case.updateMany({
-                  where: { id: caseAction.caseId, status: caseAction.expectedStatus },
-                  data: {
-                    status: caseAction.status,
-                    resolution: null,
-                    resolvedAt: null,
-                    resolvedById: null,
-                    buyerMarkedResolved: false,
-                    sellerMarkedResolved: false,
-                  },
-                });
-                if (caseUpdate.count !== 1) {
-                  throw new Error("STRIPE_DISPUTE_CASE_UPDATE_CONFLICT");
-                }
-              } else if (caseAction.action === "create") {
-                await tx.case.create({
-                  data: {
-                    orderId: order.id,
-                    buyerId: order.buyerId,
-                    sellerId: sellerUserId,
-                    reason: "OTHER",
-                    description: caseAction.description,
-                    status: caseAction.status,
-                    sellerRespondBy: caseAction.sellerRespondBy,
-                  },
-                });
+              if (!paymentEvent || paymentEvent.orderId !== order.id) {
+                throw new Error("STRIPE_DISPUTE_PAYMENT_EVENT_SOURCE_MISMATCH");
               }
+
+              const caseResults = await tx.$queryRaw<Array<{
+                caseId: string;
+                orderId: string;
+                sellerUserId: string;
+                buyerUserId: string;
+                paymentEventId: string;
+                action: string;
+              }>>`
+                SELECT *
+                FROM public.grainline_case_stripe_dispute_apply(${paymentEvent.id}::text)
+              `;
+              const caseResult = caseResults[0];
+              if (
+                caseResults.length !== 1 ||
+                !caseResult ||
+                !caseResult.caseId ||
+                caseResult.orderId !== order.id ||
+                !caseResult.sellerUserId ||
+                !caseResult.buyerUserId ||
+                caseResult.paymentEventId !== paymentEvent.id ||
+                (caseResult.action !== "create" && caseResult.action !== "reopen")
+              ) {
+                throw new Error("STRIPE_DISPUTE_CASE_AUTHORITY_RESULT_INVALID");
+              }
+              disputeCaseResult = {
+                ...caseResult,
+                action: caseResult.action,
+              };
             }
             if (disputeLedgerCreated) {
               await logSystemActionOrThrow({
@@ -2510,7 +2503,7 @@ export async function POST(req: Request) {
                   amountCents: disputeLedger.ledger.amountCents,
                   currency: disputeLedger.ledger.currency,
                   status: disputeLedger.ledger.status,
-                  caseAction: disputeCaseActionName,
+                  caseAction: disputeCaseResult?.action ?? "none",
                   hasOrderUpdate: disputeSideEffectsApplied && Object.keys(orderUpdate).length > 0,
                   disputeSideEffectsApplied,
                   latestRecordedStripeEventId: latestDisputeEvent?.stripeEventId ?? null,
@@ -2520,8 +2513,13 @@ export async function POST(req: Request) {
                 },
               });
             }
-            return disputeSideEffectsApplied && event.type === "charge.dispute.created" && sellerUserId
-              ? { sellerUserId, orderId: order.id, buyerUserId: order.buyerId, paymentEventId: event.id }
+            return disputeCaseResult
+              ? {
+                  sellerUserId: disputeCaseResult.sellerUserId,
+                  orderId: disputeCaseResult.orderId,
+                  buyerUserId: disputeCaseResult.buyerUserId,
+                  notificationPaymentSourceId: event.id,
+                }
               : null;
           });
           if (notifySellerUserId) {
@@ -2533,7 +2531,7 @@ export async function POST(req: Request) {
               link: `/dashboard/sales/${notifySellerUserId.orderId}`,
               dedupScope: `stripe-dispute:${dispute.id ?? event.id}:created`,
               sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
-              sourceId: notifySellerUserId.paymentEventId,
+              sourceId: notifySellerUserId.notificationPaymentSourceId,
               relatedUserId: notifySellerUserId.buyerUserId ?? undefined,
             });
             Sentry.captureMessage("Stripe dispute opened", {

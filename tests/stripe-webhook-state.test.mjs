@@ -9,7 +9,6 @@ const {
   checkoutItemsSubtotalCents,
   checkoutInvalidReasonState,
   checkoutPriceDriftState,
-  disputeCaseAction,
   invalidCheckoutBuyerReason,
   invalidCheckoutListingReason,
   invalidCheckoutSellerReason,
@@ -220,7 +219,7 @@ describe("Stripe webhook state helpers", () => {
     const sideEffectGate = disputeBranch.indexOf("const applyDisputeSideEffects = shouldApplyDisputeWebhookSideEffects");
     const ledgerWrite = disputeBranch.indexOf("const disputeLedgerCreated = await recordOrderPaymentEvent");
     const orderUpdate = disputeBranch.indexOf("await tx.order.update");
-    const caseAction = disputeBranch.indexOf('event.type === "charge.dispute.created"');
+    const caseAction = disputeBranch.indexOf("grainline_case_stripe_dispute_apply");
     const notification = disputeBranch.indexOf('type: "PAYMENT_DISPUTE"');
 
     assert.ok(latestQuery >= 0, "dispute webhook should read existing dispute ledgers");
@@ -231,8 +230,23 @@ describe("Stripe webhook state helpers", () => {
     assert.match(disputeBranch, /const disputeSideEffectsApplied = disputeLedgerCreated && applyDisputeSideEffects/);
     assert.match(disputeBranch, /if \(disputeSideEffectsApplied\) \{[\s\S]*await tx\.order\.update/);
     assert.match(disputeBranch, /if \(disputeSideEffectsApplied && event\.type === "charge\.dispute\.created"/);
+    assert.match(
+      disputeBranch,
+      /const paymentEvent = await tx\.orderPaymentEvent\.findUnique\(\{[\s\S]*where: \{ stripeEventId: event\.id \},[\s\S]*select: \{ id: true, orderId: true \}/,
+    );
+    assert.match(
+      disputeBranch,
+      /FROM public\.grainline_case_stripe_dispute_apply\(\$\{paymentEvent\.id\}::text\)/,
+    );
+    assert.match(
+      disputeBranch,
+      /!caseResult\.caseId[\s\S]*caseResult\.orderId !== order\.id[\s\S]*!caseResult\.sellerUserId[\s\S]*!caseResult\.buyerUserId[\s\S]*caseResult\.paymentEventId !== paymentEvent\.id[\s\S]*caseResult\.action !== "create"[\s\S]*caseResult\.action !== "reopen"/,
+    );
+    assert.doesNotMatch(disputeBranch, /tx\.case\.(?:create|update|updateMany|upsert|delete|deleteMany)\(/);
+    assert.doesNotMatch(disputeBranch, /case:\s*\{\s*select:/);
     assert.ok(notification > caseAction, "seller dispute notification should remain after guarded case promotion");
-    assert.match(disputeBranch, /return disputeSideEffectsApplied && event\.type === "charge\.dispute\.created" && sellerUserId/);
+    assert.match(disputeBranch, /notificationPaymentSourceId: event\.id/);
+    assert.match(disputeBranch, /return disputeCaseResult/);
   });
 
   it("applies refund webhook order side effects only when the refund ledger is new", () => {
@@ -743,64 +757,6 @@ describe("Stripe webhook state helpers", () => {
       reviewNote: "Stripe dispute charge.dispute.closed: fraudulent",
       sellerRefundLockedAt: null,
     });
-  });
-
-  it("moves existing cases back under review for new Stripe disputes", () => {
-    assert.deepEqual(
-      disputeCaseAction({
-        eventType: "charge.dispute.created",
-        existingCase: { id: "case_1", status: "OPEN" },
-        dispute: { id: "dp_1" },
-      }),
-      { action: "update", caseId: "case_1", expectedStatus: "OPEN", status: "UNDER_REVIEW" },
-    );
-    assert.deepEqual(
-      disputeCaseAction({
-        eventType: "charge.dispute.created",
-        existingCase: { id: "case_1", status: "PENDING_CLOSE" },
-        dispute: { id: "dp_1" },
-      }),
-      { action: "update", caseId: "case_1", expectedStatus: "PENDING_CLOSE", status: "UNDER_REVIEW" },
-    );
-    assert.deepEqual(
-      disputeCaseAction({
-        eventType: "charge.dispute.created",
-        existingCase: { id: "case_1", status: "RESOLVED" },
-        dispute: { id: "dp_1" },
-      }),
-      { action: "update", caseId: "case_1", expectedStatus: "RESOLVED", status: "UNDER_REVIEW" },
-    );
-    assert.deepEqual(
-      disputeCaseAction({
-        eventType: "charge.dispute.created",
-        existingCase: { id: "case_1", status: "CLOSED" },
-        dispute: { id: "dp_1" },
-      }),
-      { action: "update", caseId: "case_1", expectedStatus: "CLOSED", status: "UNDER_REVIEW" },
-    );
-    assert.deepEqual(
-      disputeCaseAction({
-        eventType: "charge.dispute.closed",
-        existingCase: null,
-        dispute: { id: "dp_1" },
-      }),
-      { action: "none" },
-    );
-  });
-
-  it("creates a case action for new Stripe disputes without an existing case", () => {
-    const now = new Date("2026-04-29T12:00:00.000Z");
-    const action = disputeCaseAction({
-      eventType: "charge.dispute.created",
-      existingCase: null,
-      dispute: { id: "dp_1", reason: "product_not_received" },
-      now,
-    });
-
-    assert.equal(action.action, "create");
-    assert.equal(action.status, "UNDER_REVIEW");
-    assert.equal(action.description, "Stripe payment dispute dp_1: product_not_received");
-    assert.equal(action.sellerRespondBy.toISOString(), "2026-05-01T12:00:00.000Z");
   });
 
   it("builds durable payout-failure ledger state and seller notification copy", () => {

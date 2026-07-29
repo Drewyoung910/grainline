@@ -7,18 +7,9 @@
 
 BEGIN;
 
-ALTER TABLE public."OrderPaymentEvent"
-  ADD CONSTRAINT "OrderPaymentEvent_id_orderId_key"
-  UNIQUE (id, "orderId");
-
-ALTER TABLE public."Case"
-  ADD COLUMN "openedByPaymentEventId" TEXT,
-  ADD CONSTRAINT "Case_openedByPaymentEventId_key"
-    UNIQUE ("openedByPaymentEventId"),
-  ADD CONSTRAINT "Case_openedByPaymentEvent_order_fkey"
-    FOREIGN KEY ("openedByPaymentEventId", "orderId")
-    REFERENCES public."OrderPaymentEvent"(id, "orderId")
-    ON DELETE RESTRICT ON UPDATE CASCADE;
+-- The compatible preparation migration already adds the nullable
+-- Case.openedByPaymentEventId source and its exact same-Order foreign key.
+-- This draft adds only the later strict lifecycle and relationship invariants.
 
 DO $grainline_case_invariant_preflight$
 BEGIN
@@ -258,7 +249,7 @@ DECLARE
   order_buyer_id text;
   seller_count integer;
   only_seller_user_id text;
-  dispute_event_type text;
+  dispute_event record;
 BEGIN
   SELECT orders."buyerId"
     INTO order_buyer_id
@@ -303,14 +294,25 @@ BEGIN
   END IF;
 
   IF NEW."openedByPaymentEventId" IS NOT NULL THEN
-    SELECT event."eventType"
-      INTO dispute_event_type
+    SELECT
+      event."eventType",
+      event."stripeObjectType",
+      event."stripeObjectId",
+      event.metadata
+      INTO dispute_event
       FROM public."OrderPaymentEvent" AS event
      WHERE event.id = NEW."openedByPaymentEventId"
        AND event."orderId" = NEW."orderId"
      FOR SHARE;
     IF NOT FOUND
-       OR dispute_event_type <> 'charge.dispute.created'
+       OR dispute_event."eventType" <> 'DISPUTE'
+       OR dispute_event."stripeObjectType" IS DISTINCT FROM 'dispute'
+       OR dispute_event."stripeObjectId" IS NULL
+       OR pg_catalog.jsonb_typeof(dispute_event.metadata) <> 'object'
+       OR dispute_event.metadata->>'stripeEventType'
+            IS DISTINCT FROM 'charge.dispute.created'
+       OR dispute_event.metadata->>'disputeId'
+            IS DISTINCT FROM dispute_event."stripeObjectId"
        OR NEW.reason <> 'OTHER'::public."CaseReason" THEN
       RAISE EXCEPTION 'Case webhook opening source is invalid'
         USING ERRCODE = '23514';

@@ -65,9 +65,10 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(route, /if \(orderUpdate\.count !== 1\)/);
     assert.match(route, /manualStripeReconciliationNeeded: true/);
-    assert.match(route, /const caseUpdate = await tx\.case\.updateMany/);
-    assert.match(route, /if \(caseUpdate\.count !== 1\)/);
+    assert.match(route, /grainline_case_seller_refund_apply/);
+    assert.match(route, /caseResult\.action === "terminal"/);
     assert.match(route, /Case auto-resolution did not update because case state changed/);
+    assert.doesNotMatch(route, /(?:prisma|tx)\.case\./);
   });
 
   it("records staff case refunds only while the refund lock is still held", () => {
@@ -619,17 +620,23 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /delete orderUpdate\.sellerRefundLockedAt/);
   });
 
-  it("keeps Stripe dispute case promotion retryable on stale case status", () => {
+  it("serializes Stripe dispute Case promotion inside the fixed database operation", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
+    const authority = source(
+      "prisma/migrations/20260729043000_prepare_case_stripe_dispute_authority/migration.sql",
+    );
     const disputeBranch = route.slice(
       route.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))"),
       route.indexOf('if (event.type === "payout.failed")'),
     );
 
-    assert.match(disputeBranch, /const caseUpdate = await tx\.case\.updateMany/);
-    assert.match(disputeBranch, /where: \{ id: caseAction\.caseId, status: caseAction\.expectedStatus \}/);
-    assert.match(disputeBranch, /if \(caseUpdate\.count !== 1\)/);
-    assert.match(disputeBranch, /throw new Error\("STRIPE_DISPUTE_CASE_UPDATE_CONFLICT"\)/);
+    assert.match(disputeBranch, /grainline_case_stripe_dispute_apply\(\$\{paymentEvent\.id\}::text\)/);
+    assert.doesNotMatch(disputeBranch, /tx\.case\.(?:create|update|updateMany)\(/);
+    assert.match(
+      authority,
+      /FROM public\."Case" AS case_row\s+WHERE case_row\."orderId" = locked_order\.id\s+FOR UPDATE;/,
+    );
+    assert.match(authority, /RAISE EXCEPTION 'Case Stripe dispute target disappeared'\s+USING ERRCODE = '40001'/);
   });
 
   it("deduplicates seller dispute notifications across webhook retries", () => {
