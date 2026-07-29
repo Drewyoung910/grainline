@@ -156,7 +156,8 @@ describe("Round 10 state-machine guardrails", () => {
       escalate,
       /status = 'IN_DISCUSSION'::"CaseStatus"[\s\S]*"escalateUnlocksAt" < pg_catalog\.clock_timestamp\(\)/,
     );
-    assert.match(refund, /tx\.case\.updateMany\(\{\s*where: \{\s*id: existingCase\.id,\s*status: \{ notIn: \["RESOLVED", "CLOSED"\] \},\s*\}/s);
+    assert.match(refund, /grainline_case_seller_refund_apply/);
+    assert.doesNotMatch(refund, /(?:prisma|tx)\.case\.(?:findUnique|updateMany)\(/);
     assert.match(webhook, /grainline_case_stripe_dispute_apply\(\$\{paymentEvent\.id\}::text\)/);
     assert.doesNotMatch(webhook, /tx\.case\.(?:create|update|updateMany)\(/);
     assert.match(disputeAuthority, /status = 'UNDER_REVIEW'::public\."CaseStatus"/);

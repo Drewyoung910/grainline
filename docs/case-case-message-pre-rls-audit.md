@@ -31,12 +31,14 @@ The Phase 1B private-evidence and lifecycle-integrity draft expanded the
 scanner to `CaseMessageAttachment` and established the Phase 4 conversion
 baseline at 46 direct operations, 22 nested relation references and 12 raw SQL
 references: 80 total protected references across 29 source files. The first
-compatible application conversion replaces the Stripe dispute webhook's two
+compatible application conversions replace the Stripe dispute webhook's two
 direct Case writes and one nested Case read with
-`grainline_case_stripe_dispute_apply`. The current countdown is therefore 44
-direct operations, 21 nested relation references and 12 raw SQL references:
-77 remaining protected references across 28 source files. The executable
-catalog retains the three removed references in a converted-source ledger;
+`grainline_case_stripe_dispute_apply`, and replace the seller-refund route's
+Case read plus guarded update with `grainline_case_seller_refund_apply`. The
+current countdown is therefore 42 direct operations, 21 nested relation
+references and 12 raw SQL references: 75 remaining protected references
+across 27 source files. The executable catalog retains all five removed
+references in a converted-source ledger;
 neither the original 69-reference audit nor the 80-reference Phase 4 baseline
 is discarded.
 
@@ -55,10 +57,12 @@ transition. It accepts only the current actor and one exact local
 Case, verifies the completed Order refund snapshot, derives full/partial Case
 resolution fields, and stores replay authority in private
 `CaseSellerRefundApplication`. A stale replay cannot resolve a later reopened
-Case. The app route conversion remains pending, so the live scanner still
-reports 77 protected references. The conversion must lock User before its
-existing Order refund transaction and then call the fixed function after the
-local refund event commits within that transaction. Order/payment direct-write
+Case. The compatible route conversion now locks the seller User before
+completing the Order refund, writes and resolves the exact local payment-event
+source, invokes the fixed function in the same transaction, and validates the
+complete returned Order/seller/buyer/source/disposition relationship. Terminal
+Cases retain the prior staff-reconciliation warning. The live scanner records
+no protected Case-table reference in the route. Order/payment direct-write
 hardening remains deferred to its own sensitive group.
 
 ## Phase 2 aggregate classification boundary
@@ -326,8 +330,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 77-reference current countdown
-  and three-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 75-reference current countdown
+  and five-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A10 and CC-A13 through CC-A15 are fixed or have an accepted

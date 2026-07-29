@@ -22,6 +22,10 @@ describe("Case and Order lifecycle lock protocol", () => {
 
     assert.match(
       locks,
+      /SELECT id\s+FROM "User"\s+WHERE id = \$\{userId\}\s+FOR SHARE/s,
+    );
+    assert.match(
+      locks,
       /SELECT id\s+FROM "Order"\s+WHERE id = \$\{orderId\}\s+FOR UPDATE/s,
     );
     assert.match(
@@ -100,6 +104,26 @@ describe("Case and Order lifecycle lock protocol", () => {
         "const lockedAt = await databaseClockTimestamp(tx)",
       ],
       ["refund reservation", 'UPDATE "Order"'],
+    ]);
+  });
+
+  it("locks seller User before Order and Case authority in refund finalization", () => {
+    const refund = source("src/app/api/orders/[id]/refund/route.ts");
+    const finalization = refund.slice(
+      refund.indexOf("const refundWrite = await prisma.$transaction"),
+    );
+
+    assertOrdered(finalization, [
+      [
+        "seller User lock",
+        "await lockUserForCaseLifecycle(tx, me.id)",
+      ],
+      ["Order completion", "const orderUpdate = await tx.order.updateMany"],
+      ["payment evidence", "await recordLocalRefundEvidence(tx, {"],
+      [
+        "Case authority",
+        "FROM public.grainline_case_seller_refund_apply(",
+      ],
     ]);
   });
 
