@@ -153,6 +153,25 @@ export function parseCaseLegacyInspectionConfig(env = process.env) {
   });
 }
 
+export function buildCaseLegacyInspectionClientOptions(config) {
+  if (
+    typeof config?.directUrl !== "string"
+    || config.directUrl.length === 0
+  ) {
+    throw new TypeError(
+      "Case/CaseMessage legacy inspection config must include directUrl",
+    );
+  }
+  return Object.freeze({
+    application_name: "grainline-case-legacy-inspection",
+    connectionString: config.directUrl,
+    connectionTimeoutMillis: 10_000,
+    query_timeout: 55_000,
+    statement_timeout: 50_000,
+    ...postgresChannelBindingClientOptions(new URL(config.directUrl)),
+  });
+}
+
 export function readCaseLegacyInspectionGitState(cwd = process.cwd()) {
   const run = (args) =>
     execFileSync("git", args, {
@@ -1159,14 +1178,9 @@ async function main() {
     readCaseLegacyInspectionGitState(),
     config.releaseCommit,
   );
-  const client = new Client({
-    application_name: "grainline-case-legacy-inspection",
-    connectionString: config.directUrl,
-    connectionTimeoutMillis: 10_000,
-    query_timeout: 55_000,
-    statement_timeout: 50_000,
-    ...postgresChannelBindingClientOptions(config.identity.parsed),
-  });
+  const client = new Client(
+    buildCaseLegacyInspectionClientOptions(config),
+  );
   let posture;
   let inventory;
   try {

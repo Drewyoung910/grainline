@@ -65,6 +65,13 @@ production operator classifies the live rows; the protected production
 inspection must still run and then stop. No inferred repair, backfill,
 constraint, policy or grant is pre-authorized by a predicted zero count.
 
+The first protected production dispatch (`30412359026`, exact main
+`7767ae3ae7380ff91a74db0e8a1830f17c8d8b84`) failed before connection because
+the client-options call passed the identity summary where its helper requires a
+parsed `URL`. PostgreSQL was not queried, no evidence artifact was written and
+production was unchanged. Client-option construction is now an exported,
+focused-test boundary derived from the previously validated direct URL.
+
 ## Confirmed product contract
 
 - One Case exists per Order.
