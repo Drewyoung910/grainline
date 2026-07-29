@@ -31,18 +31,14 @@ describe("order buyer PII retention helpers", () => {
     );
   });
 
-  it("does not prune fulfilled-order buyer PII while review or active case holds remain", () => {
+  it("delegates pruning to the fixed database authority instead of raw Case access", () => {
     const retention = source("src/lib/orderPiiRetention.ts");
-    const candidateStart = retention.indexOf("WITH pii_candidates AS (");
-    const candidateEnd = retention.indexOf("ORDER BY COALESCE", candidateStart);
-    const candidateSql = retention.slice(candidateStart, candidateEnd);
-
-    assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);
-    assert.match(candidateSql, /"reviewNeeded" = false/);
-    assert.match(candidateSql, /NOT EXISTS \(/);
-    assert.match(candidateSql, /FROM "Case" c/);
-    assert.match(candidateSql, /c\."orderId" = "Order"\.id/);
-    assert.match(candidateSql, /c\.status IN \('OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE', 'UNDER_REVIEW'\)/);
+    assert.match(retention, /grainline_order_buyer_pii_prune_batch/);
+    assert.match(
+      retention,
+      /retentionDays !== ORDER_BUYER_PII_RETENTION_DAYS/,
+    );
+    assert.doesNotMatch(retention, /FROM "Case"|\$executeRaw/);
   });
 
   it("keeps privacy-policy retention copy aligned with fulfilled-order PII pruning", () => {

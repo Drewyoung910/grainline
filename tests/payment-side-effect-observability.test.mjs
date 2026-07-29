@@ -366,8 +366,13 @@ describe("payment and fulfillment side-effect observability", () => {
         labelRoute.indexOf("if (order.labelStatus ==="),
       "label route should release stale refund locks before label/refund guards",
     );
-    assert.match(labelRoute, /SELECT 1 FROM "Case" c/);
-    assert.match(labelRoute, /c\."status"::text IN \(\$\{Prisma\.join\(\[\.\.\.ACTIVE_CASE_STATUSES\]\)\}\)/);
+    assert.match(labelRoute, /caseOrderActiveForSeller/);
+    assert.match(
+      labelRoute,
+      /lockOrderForCaseLifecycle\(tx, order\.id\)[\s\S]*caseOrderActiveForSeller\([\s\S]*tx,/,
+    );
+    assert.doesNotMatch(labelRoute, /SELECT 1 FROM "Case" c/);
+    assert.doesNotMatch(labelRoute, /\bACTIVE_CASE_STATUSES\b/);
     assert.match(labelRoute, /ope\."status" IS NULL/);
     assert.match(labelRoute, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
     assert.match(labelRoute, /latestOpenDisputeLedgerExistsSql/);

@@ -50,20 +50,6 @@ const EXPECTED_BASELINE = {
   "src/lib/caseLifecycleLocks.ts": {
     "Case.raw-sql-reference": 1,
   },
-  "src/app/api/orders/[id]/confirm-delivery/route.ts": {
-    "Case.relation-reference": 3,
-  },
-  "src/app/api/orders/[id]/fulfillment/route.ts": {
-    "Case.relation-reference": 1,
-    "Case.raw-sql-reference": 1,
-  },
-  "src/app/api/orders/[id]/label/route.ts": {
-    "Case.relation-reference": 1,
-    "Case.raw-sql-reference": 1,
-  },
-  "src/lib/orderPiiRetention.ts": {
-    "Case.raw-sql-reference": 1,
-  },
 };
 
 describe("Case and CaseMessage RLS inventory", () => {
@@ -71,8 +57,8 @@ describe("Case and CaseMessage RLS inventory", () => {
 
   it("pins every current direct, relation, and raw SQL access path", () => {
     assert.equal(inventory.ormCalls.length, 23);
-    assert.equal(inventory.relationReferences.length, 8);
-    assert.equal(inventory.rawSqlReferences.length, 11);
+    assert.equal(inventory.relationReferences.length, 3);
+    assert.equal(inventory.rawSqlReferences.length, 8);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
       EXPECTED_BASELINE,

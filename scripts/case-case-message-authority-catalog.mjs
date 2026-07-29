@@ -136,13 +136,51 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     ],
   }),
   freezeOperation({
-    id: "case_order_active",
-    candidateFunctionName: "grainline_case_order_active",
+    id: "case_order_active_buyer",
+    candidateFunctionName: "grainline_case_order_active_for_buyer",
     operationKind: "BOUNDED_PREDICATE",
     security: "DEFINER",
     runtimeExecute: true,
-    callerInputs: ["orderId"],
-    databaseDerived: ["whether the exact Order has an active Case"],
+    callerInputs: ["actorUserId", "orderId"],
+    databaseDerived: [
+      "current active buyer",
+      "exact buyer-owned Order",
+      "whether the exact Order has an active Case",
+    ],
+  }),
+  freezeOperation({
+    id: "case_order_active_seller",
+    candidateFunctionName: "grainline_case_order_active_for_seller",
+    operationKind: "BOUNDED_PREDICATE",
+    security: "DEFINER",
+    runtimeExecute: true,
+    callerInputs: ["actorUserId", "orderId"],
+    databaseDerived: [
+      "current active seller",
+      "complete exact seller-owned Order graph",
+      "whether the exact Order has an active Case",
+    ],
+  }),
+  freezeOperation({
+    id: "case_order_pii_retention_prune",
+    candidateFunctionName: "grainline_order_buyer_pii_prune_batch",
+    operationKind: "LIFECYCLE_WRITE",
+    security: "DEFINER",
+    runtimeExecute: true,
+    callerInputs: ["boundedBatchSize"],
+    applicationPreconditions: [
+      "the application verified the signed order-PII retention cron request",
+    ],
+    databaseDerived: [
+      "fixed 90-day cutoff from the database clock",
+      "eligible fulfilled and non-review Order targets",
+      "active Case exclusion after taking each Order lock",
+      "exact buyer PII, fulfillment-provider fields and rate-quote deletion targets",
+      "UTC buyerDataPurgedAt timestamp",
+    ],
+    externalTrustBoundaries: [
+      "Order and OrderShippingRateQuote RLS remain a dependency of their later sensitive-data group",
+    ],
   }),
   freezeOperation({
     id: "case_seller_active_count",
@@ -493,6 +531,32 @@ const freezeSource = (entry) => Object.freeze({
 // scanner stays an exact activation countdown while this ledger proves which
 // fixed operation replaced each removed reference.
 export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/app/api/orders/[id]/confirm-delivery/route.ts": freezeSource({
+    actors: ["BUYER"],
+    destinations: ["case_order_active_buyer"],
+    inventory: { "Case.relation-reference": 3 },
+  }),
+  "src/app/api/orders/[id]/fulfillment/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_order_active_seller"],
+    inventory: {
+      "Case.relation-reference": 1,
+      "Case.raw-sql-reference": 1,
+    },
+  }),
+  "src/app/api/orders/[id]/label/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_order_active_seller"],
+    inventory: {
+      "Case.relation-reference": 1,
+      "Case.raw-sql-reference": 1,
+    },
+  }),
+  "src/lib/orderPiiRetention.ts": freezeSource({
+    actors: ["RETENTION_CRON"],
+    destinations: ["case_order_pii_retention_prune"],
+    inventory: { "Case.raw-sql-reference": 1 },
+  }),
   "src/app/admin/cases/page.tsx": freezeSource({
     actors: ["STAFF"],
     destinations: ["case_staff_queue"],
@@ -684,35 +748,9 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
     destinations: ["case_seller_active_count"],
     inventory: { "Case.count": 1 },
   }),
-  "src/app/api/orders/[id]/confirm-delivery/route.ts": freezeSource({
-    actors: ["BUYER"],
-    destinations: ["case_order_active"],
-    inventory: { "Case.relation-reference": 3 },
-  }),
-  "src/app/api/orders/[id]/fulfillment/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_order_active"],
-    inventory: {
-      "Case.relation-reference": 1,
-      "Case.raw-sql-reference": 1,
-    },
-  }),
-  "src/app/api/orders/[id]/label/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_order_active"],
-    inventory: {
-      "Case.relation-reference": 1,
-      "Case.raw-sql-reference": 1,
-    },
-  }),
   "src/lib/caseLifecycleLocks.ts": freezeSource({
     actors: ["PRIVATE_CORE"],
     destinations: ["case_lock_core"],
-    inventory: { "Case.raw-sql-reference": 1 },
-  }),
-  "src/lib/orderPiiRetention.ts": freezeSource({
-    actors: ["RETENTION_CRON"],
-    destinations: ["case_order_active"],
     inventory: { "Case.raw-sql-reference": 1 },
   }),
 });

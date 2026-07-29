@@ -596,3 +596,38 @@ compatible migration adds the exact index and a nullable durable author-kind
 column. Nullable is deliberate until the protected aggregate-only inspection
 classifies every legacy message; every new application creation path must set
 the source-derived kind meanwhile.
+
+The next audit found that the planned generic
+`grainline_case_order_active(orderId)` predicate was broader than any caller
+needed. It would let the ordinary runtime credential probe active-dispute
+state for an arbitrary Order. The corrected compatible candidate uses separate
+buyer and seller predicates. Each validates the active local actor and derives
+the exact buyer-owned or complete seller-owned Order before returning one
+boolean; missing and unauthorized targets return no authority. Buyer delivery
+confirmation, seller fulfillment and label purchase call the predicate once
+for specific feedback and again after the existing Order lifecycle lock. The
+locked call replaces the relation/raw-SQL Case checks and preserves the
+Order-then-Case serialization used by Case opening.
+Neither predicate changes `app.user_id`; disposable PostgreSQL must prove a
+pre-existing caller context remains byte-for-byte unchanged across the
+function call. This avoids adding a context-setting side effect to the fixed
+predicate without overstating the broader boundary: the shared runtime role
+can already supply application context, so Clerk and route-side actor
+resolution remain load-bearing.
+
+The same pass converts the retention cron's raw Case reference without granting
+it a generic Case oracle. A fixed SECURITY DEFINER prune batch derives the
+90-day cutoff, eligible Order targets, active-Case exclusion, exact PII fields,
+rate-quote deletion and UTC purge timestamp inside PostgreSQL. Candidate
+Orders are locked with `FOR UPDATE SKIP LOCKED`; callers provide only a bounded
+batch size and cannot select Order ids or shorten the retention window. This
+is a narrow shared lifecycle boundary that must be re-reviewed when Order and
+OrderShippingRateQuote receive their own RLS.
+
+The isolated candidate removes eight protected references: three from buyer
+delivery confirmation, two from fulfillment, two from label purchase and one
+from retention. The live countdown is now 34 references across 12 files with
+forty-six retained in the converted ledger. This is not activation evidence:
+disposable PostgreSQL authority, forced-RLS, grant, lock-race, rollback and
+zero-residue proofs remain required before the checkpoint is accepted.
+Production remains unchanged.

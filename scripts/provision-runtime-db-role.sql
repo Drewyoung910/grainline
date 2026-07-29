@@ -905,7 +905,10 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_get(text,text)'),
     ('public.grainline_case_get_by_order(text,text)'),
     ('public.grainline_case_staff_active_count(text)'),
-    ('public.grainline_case_staff_queue(text,text,integer,integer)')
+    ('public.grainline_case_staff_queue(text,text,integer,integer)'),
+    ('public.grainline_case_order_active_for_buyer(text,text)'),
+    ('public.grainline_case_order_active_for_seller(text,text)'),
+    ('public.grainline_order_buyer_pii_prune_batch(integer)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM recipient_read
@@ -917,7 +920,10 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_get(text,text)'),
     ('public.grainline_case_get_by_order(text,text)'),
     ('public.grainline_case_staff_active_count(text)'),
-    ('public.grainline_case_staff_queue(text,text,integer,integer)')
+    ('public.grainline_case_staff_queue(text,text,integer,integer)'),
+    ('public.grainline_case_order_active_for_buyer(text,text)'),
+    ('public.grainline_case_order_active_for_seller(text,text)'),
+    ('public.grainline_order_buyer_pii_prune_batch(integer)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -933,7 +939,10 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_get(text,text)'),
     ('public.grainline_case_get_by_order(text,text)'),
     ('public.grainline_case_staff_active_count(text)'),
-    ('public.grainline_case_staff_queue(text,text,integer,integer)')
+    ('public.grainline_case_staff_queue(text,text,integer,integer)'),
+    ('public.grainline_case_order_active_for_buyer(text,text)'),
+    ('public.grainline_case_order_active_for_seller(text,text)'),
+    ('public.grainline_order_buyer_pii_prune_batch(integer)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

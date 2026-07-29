@@ -976,6 +976,45 @@ filtering, page clamping, stable order, minimal contact fallback,
 transaction-local context, zero mutation and zero fixture residue before the
 checkpoint can be promoted.
 
+Phase 4 Case-aware Order authority candidate (2026-07-29): do not implement
+the catalog's earlier generic `orderId -> active Case` predicate. The shared
+runtime credential would gain an unnecessary arbitrary-Order dispute-state
+oracle. Use separate
+`grainline_case_order_active_for_buyer(actorUserId, orderId)` and
+`grainline_case_order_active_for_seller(actorUserId, orderId)` operations.
+The first derives active buyer ownership; the second derives an active seller
+and requires at least one Order item with no item owned by a different seller.
+Both return `NULL` for missing/unauthorized targets and otherwise only one
+boolean. They do not set or replace `app.user_id`; the PostgreSQL proof must
+seed a caller context and prove it is unchanged after the fixed predicate.
+
+Delivery confirmation, seller fulfillment and label purchase retain their
+existing Clerk/account/origin/rate/refund/state checks. They call the fixed
+predicate for user-facing feedback, then lock the exact Order and call it again
+inside the transaction before changing delivery, fulfillment or label state.
+Case creation also locks the Order first, so this makes the database check
+authoritative against Case-open/transition races without leaving direct Case
+relations or raw SQL in those routes.
+
+The retention source needs a distinct lifecycle operation, not either
+participant predicate. `grainline_order_buyer_pii_prune_batch(batchSize)`
+derives the fixed 90-day cutoff from the PostgreSQL UTC clock and selects only
+old delivered/picked-up, non-review, PII-bearing Orders. It excludes active
+Cases while acquiring each Order lock with `FOR UPDATE SKIP LOCKED`, then
+deletes only same-Order rate quotes and clears the already-reviewed PII field
+set. The runtime cannot supply Order ids or a cutoff. A retention-policy change
+therefore requires migration review rather than a caller argument. The
+application keeps its bounded time loop and strictly validates count and
+database cutoff results.
+
+This compatible candidate adds no policy, RLS posture or table grant. It moves
+eight references to the durable conversion ledger, leaving 34 current
+references across 12 files and forty-six converted references. Before it can
+be accepted, disposable PostgreSQL 16 must prove buyer/seller/foreign/disabled
+behavior, exact grants, FORCE isolation, locked Case races, fixed retention
+eligibility, rollback and zero residue. The Order/OrderShippingRateQuote
+mutation is an explicit dependency to re-review in their later RLS group.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

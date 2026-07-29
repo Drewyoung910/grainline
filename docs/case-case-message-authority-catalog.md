@@ -31,17 +31,17 @@ behind `grainline_case_message_page`. The grouped recipient-read application
 conversion then moves the staff Case detail lookup, staff active-count query
 and three nested Order-to-Case reads behind the fixed recipient projections.
 The PIN-gated staff queue conversion then moves its Case count, paginated Case
-read and nested message count behind `grainline_case_staff_queue`. The current
-exact inventory is therefore 42 remaining references across 16 source files:
-23 direct ORM operations, 8 nested relation references and 11 raw SQL
-references. The executable catalog deep-compares every remaining source and
-operation count with the live scanner and retains all thirty-eight removed
-references (three from the Stripe webhook, two from the seller-refund route,
-four from staff resolution, three from participant mark-resolved, four from
-buyer Case opening, ten from Case reply, two from Case-message preflight, two
-from Case-message page history, five from grouped recipient reads and three
-from the staff queue) in a separate converted-source ledger. A source cannot
-disappear, appear or claim conversion without changing a test.
+read and nested message count behind `grainline_case_staff_queue`. At that
+checkpoint the exact inventory was 42 remaining references across 16 source
+files: 23 direct ORM operations, 8 nested relation references and 11 raw SQL
+references. The Case-aware Order conversion then moves three buyer
+delivery-confirmation references, two seller-fulfillment references, two
+seller-label references and the retention cron's raw Case reference behind
+three purpose-bound operations. The current exact inventory is therefore 34
+remaining references across 12 source files, with all forty-six removed
+references retained in the converted-source ledger. The executable catalog
+deep-compares every remaining source and operation count with the live scanner.
+A source cannot disappear, appear or claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication`,
@@ -90,7 +90,7 @@ against arbitrary runtime compromise.
 
 ## Operation catalog
 
-The machine-readable catalog contains 26 operations.
+The machine-readable catalog contains 28 operations.
 
 ### Recipient and staff projections
 
@@ -133,7 +133,9 @@ to staff from mutable current role.
 | Operation | Security | Purpose |
 |---|---|---|
 | `case_attachment_read` | DEFINER | Existing source-validating private-object lookup through attachment → message → Case |
-| `case_order_active` | DEFINER | One boolean for an exact Order transition/retention guard |
+| `case_order_active_buyer` | DEFINER | One active-Case boolean only after deriving the active buyer and exact buyer-owned Order |
+| `case_order_active_seller` | DEFINER | One active-Case boolean only after deriving the active seller and complete seller-owned Order graph |
+| `case_order_pii_retention_prune` | DEFINER | Fixed 90-day fulfilled-Order PII prune batch whose locked targets and active-Case exclusion are database-derived |
 | `case_seller_active_count` | DEFINER | Active unresolved count for the exact SellerProfile metrics path |
 | `case_seller_verification_eligibility` | DEFINER | Aged unresolved count only after deriving the seller and verifying self-or-staff authority |
 | `case_guild_unresolved_guard` | DEFINER | One aged-unresolved predicate for a seller in the exact guild/reinstatement state |
@@ -143,7 +145,10 @@ These functions do not expose arbitrary Case rows. Their result shapes must be
 fixed and minimal. Seller verification, metrics and guild-revocation checks
 stay separate: one generic `sellerUserId + optionalCreatedBefore` function
 would be an avoidable dispute-quality oracle with more authority than any one
-caller needs.
+caller needs. The same rule applies to Order guards: no generic
+`orderId -> dispute state` runtime oracle exists. The buyer and seller
+predicates validate their exact relationship internally. Retention is a fixed
+lifecycle write rather than a caller-selected list of Order ids or cutoff.
 
 ### Participant and staff writes
 
@@ -621,6 +626,42 @@ either absent or `''` after the transaction ends. The proof now accepts only
 those two non-actor states and still fails if any actor id leaks. No function,
 grant or application authority was relaxed.
 
+The Case-aware Order authority candidate rejects the earlier generic
+`grainline_case_order_active(orderId)` design because it would expose an
+arbitrary Order dispute-state oracle to the shared runtime credential. Buyer
+delivery confirmation uses
+`grainline_case_order_active_for_buyer(actorUserId, orderId)`; fulfillment and
+label purchase use
+`grainline_case_order_active_for_seller(actorUserId, orderId)`. Both functions
+revalidate an active actor, derive the exact buyer-owned or complete
+seller-owned Order graph, return `NULL` for missing or unauthorized targets
+and expose only one boolean. Each route performs the fixed check both for
+specific user feedback and again after taking the Order lifecycle lock. Case
+opening follows the same Order-first lock order, so the second check is the
+authoritative race boundary.
+
+The predicates do not call `set_config` or otherwise change the caller's
+transaction-local RLS context. Actor arguments remain application-resolved
+inputs under the general runtime-credential threat boundary documented in the
+Case plan, but a predicate call must not introduce an additional context
+side effect that a later statement could inherit.
+
+The retention cron no longer selects Case rows or accepts a caller-selected
+cutoff/target. `grainline_order_buyer_pii_prune_batch(batchSize)` derives the
+90-day cutoff from the PostgreSQL UTC clock, locks only eligible fulfilled
+Orders with `FOR UPDATE SKIP LOCKED`, excludes active Cases in that locked
+selection and clears only the existing reviewed buyer/fulfillment PII plus
+same-Order rate quotes. The caller can choose only a batch size from 1 through
+1000; a policy-window change requires reviewed migration SQL. This operation
+is a named dependency of the later Order and OrderShippingRateQuote RLS group,
+not a claim that those tables are already protected.
+
+This candidate moves eight protected references to the durable ledger, leaving
+34 current references across 12 files and forty-six converted references. It
+is compatible preparation only: the migration adds three exact functions and
+runtime EXECUTE grants, the application can coexist with the prior direct
+reads, and production Case-family RLS, table grants and data remain unchanged.
+
 ## Account deletion boundary
 
 The redaction function does not accept a free `deletingUserId`. It accepts an
@@ -640,7 +681,7 @@ resistance from the side-effect row alone.
 Before compatible function SQL can be accepted:
 
 - freeze exact signatures, return types, volatility, parallel safety and
-  runtime/private grants for all 26 operations;
+  runtime/private grants for all 28 operations;
 - define one shared lock order across User, Order, Case, DirectUpload and
   dependent rows;
 - define and database-enforce the Case relationship, lifecycle and author-kind

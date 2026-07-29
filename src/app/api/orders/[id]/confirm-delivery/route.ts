@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { CaseStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -13,16 +12,9 @@ import {
   databaseClockTimestamp,
   lockOrderForCaseLifecycle,
 } from "@/lib/caseLifecycleLocks";
+import { caseOrderActiveForBuyer } from "@/lib/caseOrderActiveAuthority";
 
 export const runtime = "nodejs";
-
-const ACTIVE_CASE_STATUSES = [
-  CaseStatus.OPEN,
-  CaseStatus.IN_DISCUSSION,
-  CaseStatus.PENDING_CLOSE,
-  CaseStatus.UNDER_REVIEW,
-] as const;
-const ACTIVE_CASE_STATUS_SET = new Set<CaseStatus>(ACTIVE_CASE_STATUSES);
 
 export async function POST(
   req: Request,
@@ -58,7 +50,6 @@ export async function POST(
         fulfillmentMethod: true,
         fulfillmentStatus: true,
         sellerRefundId: true,
-        case: { select: { status: true } },
         paymentEvents: {
           where: blockingRefundLedgerWhere(),
           take: 1,
@@ -69,7 +60,14 @@ export async function POST(
 
     if (!order) return privateJson({ error: "Order not found." }, { status: 404 });
     if (order.buyerId !== me.id) return privateJson({ error: "Forbidden." }, { status: 403 });
-    if (order.case && ACTIVE_CASE_STATUS_SET.has(order.case.status)) {
+    const activeCase = await caseOrderActiveForBuyer({
+      actorUserId: me.id,
+      orderId: id,
+    });
+    if (activeCase === null) {
+      return privateJson({ error: "Forbidden." }, { status: 403 });
+    }
+    if (activeCase) {
       return privateJson(
         { error: "Resolve the open case before confirming delivery." },
         { status: 409 },
@@ -88,6 +86,11 @@ export async function POST(
     const updatedCount = await prisma.$transaction(async (tx) => {
       const orderExists = await lockOrderForCaseLifecycle(tx, id);
       if (!orderExists) return 0;
+      const lockedActiveCase = await caseOrderActiveForBuyer(
+        { actorUserId: me.id, orderId: id },
+        tx,
+      );
+      if (lockedActiveCase !== false) return 0;
       const deliveredAt = await databaseClockTimestamp(tx);
       const updated = await tx.order.updateMany({
         where: {
@@ -101,12 +104,6 @@ export async function POST(
               OR: [
                 { fulfillmentMethod: "SHIPPING" },
                 { fulfillmentMethod: null },
-              ],
-            },
-            {
-              OR: [
-                { case: { is: null } },
-                { case: { is: { status: { notIn: [...ACTIVE_CASE_STATUSES] } } } },
               ],
             },
           ],
