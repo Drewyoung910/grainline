@@ -684,6 +684,22 @@ candidate remains stacked on the participant-authority draft; it does not
 authorize a merge, migration, deployment, provider change, direct-grant
 revocation or Case-family RLS activation.
 
+Implementation checkpoint
+`ed4f2840409134fa6cd9dc6baf9582e06ce3b646` is pushed in draft PR `#95`.
+Its intended base is the unmerged participant-resolution authority PR `#94`;
+the draft is temporarily targeted at `main` only to trigger the repository's
+pull-request PostgreSQL workflow. Local TypeScript, lint, the focused authority
+contracts and the complete 2,336-test suite passed (2,333 pass, zero fail,
+three intentional skips).
+
+The same checkpoint's fresh dependency audit is retained as failed evidence:
+the 2026-07-23 high-severity `brace-expansion` advisory now reaches the ESLint
+development dependency chain. The audit recommends a breaking ESLint 10
+upgrade. This Case candidate neither runs `npm audit fix --force` nor weakens
+the blocking high-severity gate; dependency remediation remains a separate,
+reviewed change. Exact-head CI is still required, and the intended stacked PR
+base must be restored after its evidence is captured.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
