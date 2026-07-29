@@ -649,6 +649,14 @@ two-session lock waiting, rollback and complete cleanup before the route is
 converted. This checkpoint authorizes no production migration, deployment,
 direct-grant revocation or Case-family RLS activation.
 
+Implementation checkpoint
+`4419669bc2bbb75352da68125be20bc1181d3985` is pushed in draft PR `#94`.
+The draft is temporarily based on `main` only to trigger the repository's
+pull-request PostgreSQL 16 workflow; its intended stacked base remains
+`agent/case-staff-resolution-app-20260729`. This CI arrangement authorizes no
+merge, production migration, deployment, provider change or Case-family RLS
+activation.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
