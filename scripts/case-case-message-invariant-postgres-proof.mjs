@@ -10,8 +10,6 @@ const PROOF_ENV = "CASE_INVARIANT_PROOF_DATABASE_URL";
 const DATABASE_NAME = "grainline_ci";
 const INVARIANT_DRAFT =
   "docs/rls-drafts/case-case-message-invariants.sql";
-const CLAIM_DRAFT =
-  "docs/rls-drafts/case-resolution-claim-ledger.sql";
 
 const ids = Object.freeze({
   buyer: "case-invariant-proof-buyer",
@@ -624,7 +622,6 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("BEGIN");
     began = true;
     await client.query(readDraftTransactionBody(INVARIANT_DRAFT));
-    await client.query(readDraftTransactionBody(CLAIM_DRAFT));
     await seedBaseFixtures(client);
     await proveCaseAndMessageInvariants(client);
     await proveClaimLedger(client);
@@ -636,7 +633,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
-      proofMode: "ephemeral-loopback-draft-rollback",
+      proofMode: "ephemeral-loopback-migration-plus-draft-rollback",
       status: "passed",
     });
   } finally {

@@ -7,18 +7,9 @@
 
 BEGIN;
 
-ALTER TABLE public."OrderPaymentEvent"
-  ADD CONSTRAINT "OrderPaymentEvent_id_orderId_key"
-  UNIQUE (id, "orderId");
-
-ALTER TABLE public."Case"
-  ADD COLUMN "openedByPaymentEventId" TEXT,
-  ADD CONSTRAINT "Case_openedByPaymentEventId_key"
-    UNIQUE ("openedByPaymentEventId"),
-  ADD CONSTRAINT "Case_openedByPaymentEvent_order_fkey"
-    FOREIGN KEY ("openedByPaymentEventId", "orderId")
-    REFERENCES public."OrderPaymentEvent"(id, "orderId")
-    ON DELETE RESTRICT ON UPDATE CASCADE;
+-- The compatible preparation migration already adds the nullable
+-- Case.openedByPaymentEventId source and its exact same-Order foreign key.
+-- This draft adds only the later strict lifecycle and relationship invariants.
 
 DO $grainline_case_invariant_preflight$
 BEGIN

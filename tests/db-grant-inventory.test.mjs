@@ -407,8 +407,12 @@ describe("database grant inventory guardrails", () => {
       requiredRuntimeTablePrivileges("DirectUploadReference", phaseAInventory),
       [],
     );
-    assert.deepEqual(RUNTIME_PRIVATE_TABLES, ["DirectUploadReference"]);
+    assert.deepEqual(RUNTIME_PRIVATE_TABLES, [
+      "CaseResolutionClaim",
+      "DirectUploadReference",
+    ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
+      "CaseResolutionClaim",
       "DirectUploadReference",
     ]);
     assert.equal(
@@ -417,7 +421,7 @@ describe("database grant inventory guardrails", () => {
     );
     assert.deepEqual(
       policylessServiceRlsTableNames(directUploadActivationInventory),
-      ["DirectUploadReference", "DirectUpload"],
+      ["CaseResolutionClaim", "DirectUploadReference", "DirectUpload"],
     );
     const activatedPrivateFunctions = runtimePrivateFunctionNames(
       directUploadActivationInventory,
@@ -552,29 +556,47 @@ describe("database grant inventory guardrails", () => {
     );
   });
 
-  it("pins the policyless DirectUpload service ledger to ENABLE plus FORCE", () => {
-    const inventory = { tables: ["DirectUpload", "DirectUploadReference"] };
-    const exact = [{
-      table_name: "DirectUploadReference",
-      rls_enabled: true,
-      rls_forced: true,
-      policy_count: 0,
-    }];
+  it("pins policyless service ledgers to ENABLE plus FORCE", () => {
+    const inventory = {
+      tables: [
+        "CaseResolutionClaim",
+        "DirectUpload",
+        "DirectUploadReference",
+      ],
+    };
+    const exact = [
+      {
+        table_name: "CaseResolutionClaim",
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      },
+      {
+        table_name: "DirectUploadReference",
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      },
+    ];
     assert.deepEqual(collectPolicylessServiceRlsIssues(exact, inventory), []);
     assert.deepEqual(
       collectPolicylessServiceRlsIssues([], inventory),
       [
+        "service-only table CaseResolutionClaim must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
         "service-only table DirectUploadReference must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
       ],
     );
     assert.deepEqual(
       collectPolicylessServiceRlsIssues(
-        [{
-          table_name: "DirectUploadReference",
-          rls_enabled: false,
-          rls_forced: false,
-          policy_count: 1,
-        }],
+        [
+          exact[0],
+          {
+            table_name: "DirectUploadReference",
+            rls_enabled: false,
+            rls_forced: false,
+            policy_count: 1,
+          },
+        ],
         inventory,
       ),
       [
@@ -842,9 +864,11 @@ describe("database grant inventory guardrails", () => {
         (entry) => inventory.functions.includes(entry.name),
       );
 
-    assert.equal(inventory.tables.length, 60);
-    assert.equal(inventory.enums.length, 21);
+    assert.equal(inventory.tables.length, 61);
+    assert.equal(inventory.enums.length, 22);
     assert.deepEqual(inventory.functions, [
+      "grainline_case_resolution_claim_immutable",
+      "grainline_case_resolution_claim_lease_valid",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
       "grainline_message_participants_match_conversation",
@@ -865,7 +889,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      70 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      74 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -904,6 +928,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       inventory.rlsForceTables,
       [
+        "CaseResolutionClaim",
         "Conversation",
         "DirectUploadReference",
         "Message",
@@ -1791,7 +1816,20 @@ describe("database grant inventory guardrails", () => {
         (tableName) => !RUNTIME_PRIVATE_TABLES.includes(tableName),
       ),
     );
-    assert.deepEqual(provisionedObjects(provision, "TYPE"), inventory.enums);
+    assert.deepEqual(
+      provisionedObjects(provision, "TYPE"),
+      inventory.enums.filter(
+        (typeName) => typeName !== "CaseResolutionClaimStatus",
+      ),
+    );
+    assert.match(
+      provision,
+      /to_regtype\('public\."CaseResolutionClaimStatus"'\) IS NOT NULL[\s\S]*\\gexec/,
+    );
+    assert.match(
+      provision,
+      /GRANT USAGE ON TYPE public\."CaseResolutionClaimStatus" TO %I/,
+    );
     for (const fn of inventory.functions) {
       const quoted = `public\\."${escapeRegExp(fn)}"`;
       const unquoted = `public\\.${escapeRegExp(fn)}`;

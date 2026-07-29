@@ -1,11 +1,24 @@
--- DRAFT ONLY. Do not apply to any persistent database.
+-- Coexistence-safe Case resolution preparation.
 --
--- Private provider-handshake ledger for staff Case resolution. This table is
--- not participant-readable. It is born ENABLE + FORCE with zero policies and
--- zero ordinary-runtime/PUBLIC table privileges. Reviewed fixed
--- SECURITY DEFINER functions are its only intended access path.
+-- This migration adds only nullable Case/Order source fields plus a new
+-- private provider-handshake ledger. It deliberately does not install strict
+-- Case/CaseMessage triggers, participant RLS policies or fixed application
+-- operations. Old and new application deployments can therefore coexist.
 
 BEGIN;
+
+ALTER TABLE public."OrderPaymentEvent"
+  ADD CONSTRAINT "OrderPaymentEvent_id_orderId_key"
+  UNIQUE (id, "orderId");
+
+ALTER TABLE public."Case"
+  ADD COLUMN "openedByPaymentEventId" TEXT,
+  ADD CONSTRAINT "Case_openedByPaymentEventId_key"
+    UNIQUE ("openedByPaymentEventId"),
+  ADD CONSTRAINT "Case_openedByPaymentEvent_order_fkey"
+    FOREIGN KEY ("openedByPaymentEventId", "orderId")
+    REFERENCES public."OrderPaymentEvent"(id, "orderId")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
 
 CREATE TYPE public."CaseResolutionClaimStatus" AS ENUM (
   'LOCAL_READY',
@@ -15,6 +28,10 @@ CREATE TYPE public."CaseResolutionClaimStatus" AS ENUM (
   'FINALIZED',
   'RELEASED_NO_PROVIDER_EFFECT'
 );
+
+REVOKE ALL ON TYPE public."CaseResolutionClaimStatus" FROM PUBLIC;
+GRANT USAGE ON TYPE public."CaseResolutionClaimStatus"
+  TO grainline_app_runtime;
 
 -- The redundant pair is the target for the composite claim FK. It makes the
 -- claim's Case/Order relationship an engine-enforced fact rather than a

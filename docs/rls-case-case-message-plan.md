@@ -1,8 +1,9 @@
 # Case, CaseMessage, and CaseMessageAttachment RLS Plan
 
-Opened 2026-07-26. Current phase: Phase 3 invariant and authority-catalog
-design after a clean Phase 2 production inspection. Production RLS remains
-off for Case, CaseMessage and CaseMessageAttachment.
+Opened 2026-07-26. Current phase: Phase 4 compatible schema and application
+conversion after a clean Phase 2 production inspection and completed Phase 3
+authority/invariant proof. Production RLS remains off for Case, CaseMessage
+and CaseMessageAttachment.
 
 The behavior findings and current 80-reference source baseline live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
@@ -412,6 +413,12 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 
 ## Phase 4: compatible application conversion
 
+- First add the nullable exact Stripe-dispute source and private
+  `CaseResolutionClaim` ledger in one coexistence-safe preparation migration.
+  The new ledger is born ENABLE plus FORCE with zero policies and zero
+  runtime/PUBLIC table privileges; the migration does not add strict
+  Case/CaseMessage triggers, participant policies or callable resolution
+  operations.
 - Deploy fixed functions while retaining old direct grants.
 - Convert every current protected reference to its explicit destination (80 in
   the current exact scanner; earlier Phase 1B counts remain historical
@@ -422,6 +429,16 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
 - Run authenticated route smoke without enabling RLS.
 
 Exit: old and new app deployments can coexist with the preparation catalog.
+
+Phase 4 compatible-schema checkpoint (2026-07-28): the candidate migration
+adds `Case.openedByPaymentEventId`, exact same-Order composite foreign keys,
+the nullable `Order.caseResolutionClaimId` lease and the private
+`CaseResolutionClaim` provider-handshake ledger. Its enum is removed from
+PUBLIC and granted only the runtime USAGE needed for later typed fixed
+functions; the table and invariant trigger functions remain runtime-private.
+The strict Case/CaseMessage invariant draft now consumes this prepared shape
+instead of attempting to recreate it. This checkpoint is code-only:
+production migrations, Case RLS and app deployment remain unchanged.
 
 ## Phase 5: ENABLE activation
 

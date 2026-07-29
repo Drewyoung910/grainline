@@ -97,7 +97,7 @@ describe("CaseMessage durable author kind", () => {
       "prisma/migrations/20260726183600_drop_legacy_case_message_history_indexes/migration.sql",
     );
     assert.match(schema, /enum CaseMessageAuthorKind \{\s*BUYER\s*SELLER\s*STAFF\s*\}/s);
-    assert.match(schema, /authorKind CaseMessageAuthorKind\?/);
+    assert.match(schema, /authorKind\s+CaseMessageAuthorKind\?/);
     assert.match(schema, /@@index\(\[caseId, createdAt, id\]\)/);
     assert.match(authorMigration, /authorKind is intentionally nullable/);
     assert.match(authorMigration, /\bBEGIN;/);

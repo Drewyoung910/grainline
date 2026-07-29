@@ -45,15 +45,16 @@ test("Case invariant proof refuses persistent database targets", () => {
 });
 
 test("Case invariant proof strips only reviewed transaction wrappers", () => {
-  for (const path of [
+  const body = readDraftTransactionBody(
     "docs/rls-drafts/case-case-message-invariants.sql",
-    "docs/rls-drafts/case-resolution-claim-ledger.sql",
-  ]) {
-    const body = readDraftTransactionBody(path);
-    assert.match(body, /DRAFT ONLY/);
-    assert.doesNotMatch(body, /^\s*BEGIN;/m);
-    assert.doesNotMatch(body, /^\s*COMMIT;/m);
-  }
+  );
+  assert.match(body, /DRAFT ONLY/);
+  assert.doesNotMatch(body, /^\s*BEGIN;/m);
+  assert.doesNotMatch(body, /^\s*COMMIT;/m);
+  assert.doesNotMatch(
+    proof,
+    /readDraftTransactionBody\(CLAIM_DRAFT\)/,
+  );
 });
 
 test("Case invariant proof exercises the high-risk rejection paths", () => {

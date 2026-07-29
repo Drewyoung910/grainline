@@ -20,14 +20,7 @@ test("Case invariant SQL remains an unapplied draft", () => {
 });
 
 test("Stripe-dispute openings bind to an exact same-Order payment event", () => {
-  assert.match(
-    normalizedSql,
-    /ADD COLUMN "openedByPaymentEventId" TEXT/,
-  );
-  assert.match(
-    normalizedSql,
-    /FOREIGN KEY \("openedByPaymentEventId", "orderId"\) REFERENCES public\."OrderPaymentEvent"\(id, "orderId"\)/,
-  );
+  assert.match(normalizedSql, /compatible preparation migration already adds/);
   assert.match(
     normalizedSql,
     /dispute_event_type <> 'charge\.dispute\.created'/,
