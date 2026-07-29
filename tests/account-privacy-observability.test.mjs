@@ -331,7 +331,7 @@ describe("account and privacy route observability guardrails", () => {
       unsubscribeRoute.indexOf("async function handlePost", validateStart),
     );
 
-    assert.match(schema, /emailPreferenceOptInAt DateTime\?/);
+    assert.match(schema, /emailPreferenceOptInAt\s+DateTime\?/);
     assert.match(
       migration,
       /ADD COLUMN "emailPreferenceOptInAt" TIMESTAMP\(3\)/,

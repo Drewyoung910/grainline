@@ -50,8 +50,9 @@ through FORCE and actual pooled-runtime proof. `Case` + `CaseMessage` +
 `CaseMessageAttachment` is the active tightly coupled group. Its protected
 Phase 2 aggregate-only production inspection completed with zero Cases,
 CaseMessages, attachments or anomaly counts, so no legacy cleanup/backfill is
-needed; Phase 3 invariant and authority-catalog design is now active while
-production RLS remains off. The current catalog pins all 80 references across
+needed; Phase 3 invariant and authority-catalog proof is complete and Phase 4
+compatible schema/application conversion is active while production RLS
+remains off. The current catalog pins all 80 references across
 29 sources to 26 fixed operations. It rejects caller-asserted staff-PIN flags,
 generic provider results, free account-deletion targets and caller-selected
 cron rows; application PIN/provider verification remain explicit external
@@ -63,7 +64,12 @@ audited administrator finding of no provider effect uses a distinct
 claim as finalized. Stripe-dispute-created Cases record their exact durable
 payment-event source rather than fabricating a buyer-authored message, and
 dispute reopen clears the complete stale Case-level resolution/refund snapshot
-while retaining the Order payment/audit history.
+while retaining the Order payment/audit history. Its replay identity belongs
+in a separate private, FORCE-RLS, zero-policy
+`CaseStripeDisputeApplication` ledger because broadly writable
+`SystemAuditLog` is evidence/observability rather than security authority.
+The fixed operation must also reject valid but superseded Stripe events; signed
+delivery does not imply event ordering.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,

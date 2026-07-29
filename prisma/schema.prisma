@@ -68,22 +68,22 @@ model User {
   welcomeEmailSentAt DateTime?
 
   // Buyer shipping address
-  shippingName       String?   @db.VarChar(100)
-  shippingLine1      String?   @db.VarChar(200)
-  shippingLine2      String?   @db.VarChar(200)
-  shippingCity       String?   @db.VarChar(100)
-  shippingState      String?   @db.VarChar(50)
-  shippingPostalCode String?   @db.VarChar(20)
-  shippingPhone      String?   @db.VarChar(30)
+  shippingName       String? @db.VarChar(100)
+  shippingLine1      String? @db.VarChar(200)
+  shippingLine2      String? @db.VarChar(200)
+  shippingCity       String? @db.VarChar(100)
+  shippingState      String? @db.VarChar(50)
+  shippingPostalCode String? @db.VarChar(20)
+  shippingPhone      String? @db.VarChar(30)
 
   conversationsAsA Conversation[] @relation("ConvoA")
   conversationsAsB Conversation[] @relation("ConvoB")
   messagesSent     Message[]      @relation("MessagesFromUser")
   messagesReceived Message[]      @relation("MessagesToUser")
 
-  sellerProfile SellerProfile?
-  favorites     Favorite[]
-  reviews       Review[]
+  sellerProfile  SellerProfile?
+  favorites      Favorite[]
+  reviews        Review[]
   emailAddresses UserEmailAddress[]
 
   // Orders & review votes
@@ -94,12 +94,12 @@ model User {
   cart Cart?
 
   // Cases
-  casesAsBuyer  Case[]        @relation("CasesByBuyer")
-  casesAsSeller Case[]        @relation("CasesBySeller")
-  casesResolved Case[]        @relation("CasesResolvedBy")
-  caseMessages  CaseMessage[] @relation("CaseMessages")
+  casesAsBuyer           Case[]                  @relation("CasesByBuyer")
+  casesAsSeller          Case[]                  @relation("CasesBySeller")
+  casesResolved          Case[]                  @relation("CasesResolvedBy")
+  caseMessages           CaseMessage[]           @relation("CaseMessages")
   caseMessageAttachments CaseMessageAttachment[] @relation("CaseMessageAttachments")
-  directUploads DirectUpload[]
+  directUploads          DirectUpload[]
 
   savedSearches      SavedSearch[]
   stockNotifications StockNotification[]
@@ -110,17 +110,17 @@ model User {
   blogComments        BlogComment[]       @relation("BlogCommentsAuthored")
   notifications       Notification[]
 
-  follows            Follow[]            @relation("UserFollows")
-  savedBlogPosts     SavedBlogPost[]
-  commissionRequests CommissionRequest[] @relation("CommissionRequests")
+  follows                Follow[]            @relation("UserFollows")
+  savedBlogPosts         SavedBlogPost[]
+  commissionRequests     CommissionRequest[] @relation("CommissionRequests")
   supportRequests        SupportRequest[]
-  supportRequestClosures SupportRequest[] @relation("SupportRequestClosureEvidence")
+  supportRequestClosures SupportRequest[]    @relation("SupportRequestClosureEvidence")
 
   // Raw DB function grainline_notification_preferences_valid() enforces known
   // boolean keys. Update that migration-managed function when adding keys in
   // src/lib/notificationPreferenceKeys.ts.
   notificationPreferences Json      @default("{}")
-  emailPreferenceOptInAt DateTime?
+  emailPreferenceOptInAt  DateTime?
 
   banned       Boolean         @default(false)
   bannedAt     DateTime?
@@ -138,14 +138,14 @@ model User {
 }
 
 model UserEmailAddress {
-  id          String   @id @default(cuid())
-  userId      String   @db.VarChar(191)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  email       String   @db.VarChar(254)
-  source      String?  @db.VarChar(80)
-  isCurrent   Boolean  @default(false)
-  firstSeenAt DateTime @default(now())
-  lastSeenAt  DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String   @db.VarChar(191)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email          String   @db.VarChar(254)
+  source         String?  @db.VarChar(80)
+  isCurrent      Boolean  @default(false)
+  firstSeenAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
   currentSinceAt DateTime @default(now())
 
   @@unique([userId, email])
@@ -154,28 +154,28 @@ model UserEmailAddress {
 }
 
 model SellerProfile {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  displayName    String   @db.VarChar(100)
-  displayNameNormalized String @db.VarChar(100)
-  bio            String?  @db.VarChar(500)
-  city           String?  @db.VarChar(100)
-  state          String?  @db.VarChar(50)
-  lat            Float?
-  lng            Float?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  radiusMeters   Int?
-  publicMapOptIn Boolean  @default(false)
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName           String   @db.VarChar(100)
+  displayNameNormalized String   @db.VarChar(100)
+  bio                   String?  @db.VarChar(500)
+  city                  String?  @db.VarChar(100)
+  state                 String?  @db.VarChar(50)
+  lat                   Float?
+  lng                   Float?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  radiusMeters          Int?
+  publicMapOptIn        Boolean  @default(false)
 
   // Stripe Connect
-  stripeAccountId                   String? @unique @db.VarChar(255)
-  chargesEnabled                    Boolean @default(false)
-  stripeAccountVersion              String? @db.VarChar(20)
-  stripeControllerType              String? @db.VarChar(100)
-  manualStripeReconciliationNeeded  Boolean @default(false)
-  manualStripeReconciliationNote    String? @db.VarChar(1000)
+  stripeAccountId                  String? @unique @db.VarChar(255)
+  chargesEnabled                   Boolean @default(false)
+  stripeAccountVersion             String? @db.VarChar(20)
+  stripeControllerType             String? @db.VarChar(100)
+  manualStripeReconciliationNeeded Boolean @default(false)
+  manualStripeReconciliationNote   String? @db.VarChar(1000)
 
   // Flat-rate shipping (legacy/simple fallback)
   shippingFlatRateCents Int?
@@ -257,8 +257,8 @@ model SellerProfile {
   featuredUntil DateTime?
 
   // Founding Maker badge — auto-granted to the first 250 sellers
-  isFoundingMaker     Boolean   @default(false)
-  foundingMakerNumber Int?      @unique // 1..250 when granted; null otherwise
+  isFoundingMaker     Boolean             @default(false)
+  foundingMakerNumber Int?                @unique // 1..250 when granted; null otherwise
   foundingMakerAt     DateTime?
   foundingMakerGrant  FoundingMakerGrant?
 
@@ -313,18 +313,18 @@ model FoundingMakerGrant {
 }
 
 model Listing {
-  id          String        @id @default(cuid())
-  sellerId    String
-  seller      SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-  title       String        @db.VarChar(150)
-  description String        @db.VarChar(5000)
-  priceCents  Int
-  priceVersion Int        @default(1)
-  currency    String        @default("usd") @db.VarChar(3)
-  status      ListingStatus @default(ACTIVE)
-  videoUrl    String?       @db.VarChar(2048)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  sellerId     String
+  seller       SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  title        String        @db.VarChar(150)
+  description  String        @db.VarChar(5000)
+  priceCents   Int
+  priceVersion Int           @default(1)
+  currency     String        @default("usd") @db.VarChar(3)
+  status       ListingStatus @default(ACTIVE)
+  videoUrl     String?       @db.VarChar(2048)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   // Processing time
   processingTimeMinDays Int?
@@ -361,11 +361,11 @@ model Listing {
   packagedWidthCm     Float?
   packagedHeightCm    Float?
 
-  contextConversations Conversation[]      @relation("ConversationContextListing")
-  contextMessages      Message[]           @relation("MessageContextListing")
-  customOrderConversation Conversation?   @relation("ListingCustomOrderConversation", fields: [customOrderConversationId], references: [id], onDelete: SetNull)
-  stockNotifications   StockNotification[]
-  viewDailies          ListingViewDaily[]
+  contextConversations    Conversation[]      @relation("ConversationContextListing")
+  contextMessages         Message[]           @relation("MessageContextListing")
+  customOrderConversation Conversation?       @relation("ListingCustomOrderConversation", fields: [customOrderConversationId], references: [id], onDelete: SetNull)
+  stockNotifications      StockNotification[]
+  viewDailies             ListingViewDaily[]
 
   // Custom order fields
   isPrivate                 Boolean @default(false)
@@ -381,7 +381,7 @@ model Listing {
   rejectionReason String?   @db.VarChar(1000)
 
   // SEO & product details
-  metaDescription String?   @db.VarChar(320)
+  metaDescription String?  @db.VarChar(320)
   materials       String[] @default([])
   productLengthIn Float?
   productWidthIn  Float?
@@ -417,20 +417,20 @@ model Listing {
 }
 
 model Photo {
-  id        String   @id @default(cuid())
-  listingId String
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  id          String   @id @default(cuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Restrict)
   // Currently-displayed image (may be a re-cropped version of originalUrl)
-  url       String   @db.VarChar(2048)
+  url         String   @db.VarChar(2048)
   // Pre-crop source preserved so re-crop can zoom back out to the full
   // original frame. Nullable for legacy photos uploaded before this field
   // existed — first re-crop after this column lands lazily backfills it
   // from the current url. New uploads always populate originalUrl = url
   // since uploads don't crop, only re-crop does.
-  originalUrl String? @db.VarChar(2048)
-  altText   String?  @db.VarChar(200)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
+  originalUrl String?  @db.VarChar(2048)
+  altText     String?  @db.VarChar(200)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
 
   @@index([listingId, sortOrder])
 }
@@ -471,22 +471,22 @@ model Review {
 }
 
 model Conversation {
-  id        String    @id @default(cuid())
-  userAId   String
-  userBId   String
-  userA     User      @relation("ConvoA", fields: [userAId], references: [id], onDelete: Restrict)
-  userB     User      @relation("ConvoB", fields: [userBId], references: [id], onDelete: Restrict)
-  messages  Message[]
+  id                  String               @id @default(cuid())
+  userAId             String
+  userBId             String
+  userA               User                 @relation("ConvoA", fields: [userAId], references: [id], onDelete: Restrict)
+  userB               User                 @relation("ConvoB", fields: [userBId], references: [id], onDelete: Restrict)
+  messages            Message[]
   commissionInterests CommissionInterest[] @relation("CommissionInterestConversation")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
-  contextListingId String?
-  contextListing   Listing?  @relation("ConversationContextListing", fields: [contextListingId], references: [id], onDelete: SetNull)
-  customOrderListings Listing[] @relation("ListingCustomOrderConversation")
-  archivedAAt      DateTime?
-  archivedBAt      DateTime?
-  firstResponseAt  DateTime?
+  contextListingId       String?
+  contextListing         Listing?  @relation("ConversationContextListing", fields: [contextListingId], references: [id], onDelete: SetNull)
+  customOrderListings    Listing[] @relation("ListingCustomOrderConversation")
+  archivedAAt            DateTime?
+  archivedBAt            DateTime?
+  firstResponseAt        DateTime?
   lastMessageEmailSentAt DateTime?
 
   // App code stores participant pairs in canonical order and Prisma needs this
@@ -503,20 +503,20 @@ model Conversation {
 }
 
 model Message {
-  id              String       @id @default(cuid())
-  conversationId  String
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderId        String
-  sender          User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Restrict)
-  recipientId     String
-  recipient       User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Restrict)
+  id               String       @id @default(cuid())
+  conversationId   String
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId         String
+  sender           User         @relation("MessagesFromUser", fields: [senderId], references: [id], onDelete: Restrict)
+  recipientId      String
+  recipient        User         @relation("MessagesToUser", fields: [recipientId], references: [id], onDelete: Restrict)
   contextListingId String?
   contextListing   Listing?     @relation("MessageContextListing", fields: [contextListingId], references: [id], onDelete: SetNull)
-  body            String       @db.VarChar(5000)
-  kind            String?      @db.VarChar(50)
-  isSystemMessage Boolean      @default(false)
-  readAt          DateTime?
-  createdAt       DateTime     @default(now())
+  body             String       @db.VarChar(5000)
+  kind             String?      @db.VarChar(50)
+  isSystemMessage  Boolean      @default(false)
+  readAt           DateTime?
+  createdAt        DateTime     @default(now())
 
   // Raw-managed triggers require the exact opposing Conversation participants,
   // make routing immutable, and monotonically bump/unarchive the parent thread.
@@ -601,13 +601,13 @@ model Order {
   // 🆕 Fulfillment
   fulfillmentMethod FulfillmentMethod?
   fulfillmentStatus FulfillmentStatus  @default(PENDING)
-  trackingCarrier   String? @db.VarChar(100)
-  trackingNumber    String? @db.VarChar(100)
+  trackingCarrier   String?            @db.VarChar(100)
+  trackingNumber    String?            @db.VarChar(100)
   pickupReadyAt     DateTime?
   pickedUpAt        DateTime?
   shippedAt         DateTime?
   deliveredAt       DateTime?
-  sellerNotes       String? @db.VarChar(2000)
+  sellerNotes       String?            @db.VarChar(2000)
 
   items OrderItem[]
 
@@ -616,11 +616,15 @@ model Order {
   processingDeadline    DateTime? // when seller should ship by
 
   // Case back-relation
-  case Case?
+  case                  Case?
+  // Raw-migration-managed active resolution lease. The private
+  // CaseResolutionClaim table is accessible only through reviewed fixed
+  // database operations; ordinary runtime code must not query it directly.
+  caseResolutionClaimId String? @unique
 
   // Snapshot of the *selected* shipping service
-  shippingCarrier String? @db.VarChar(100) // e.g., "UPS"
-  shippingService String? @db.VarChar(100) // e.g., "Ground"
+  shippingCarrier String?   @db.VarChar(100) // e.g., "UPS"
+  shippingService String?   @db.VarChar(100) // e.g., "Ground"
   shippingEta     DateTime? // carrier ETA if provided
 
   /// What we quoted *before* Checkout (from your site/UI)
@@ -653,18 +657,18 @@ model Order {
   sellerRefundLockedAt    DateTime?
 
   // Shippo label
-  shippoShipmentId    String? @db.VarChar(255)
-  shippoRateObjectId  String? @db.VarChar(255)
-  shippoTransactionId String? @db.VarChar(255)
-  labelUrl            String? @db.VarChar(2048)
-  labelCarrier        String? @db.VarChar(100)
-  labelTrackingNumber String? @db.VarChar(100)
-  labelPurchasedAt    DateTime?
-  labelCostCents      Int?
-  labelStatus         LabelStatus?
-  labelClawbackStatus        String?   @db.VarChar(50)
-  labelClawbackReversalId    String?   @db.VarChar(255)
-  labelClawbackRetryCount    Int       @default(0)
+  shippoShipmentId           String?      @db.VarChar(255)
+  shippoRateObjectId         String?      @db.VarChar(255)
+  shippoTransactionId        String?      @db.VarChar(255)
+  labelUrl                   String?      @db.VarChar(2048)
+  labelCarrier               String?      @db.VarChar(100)
+  labelTrackingNumber        String?      @db.VarChar(100)
+  labelPurchasedAt           DateTime?
+  labelCostCents             Int?
+  labelStatus                LabelStatus?
+  labelClawbackStatus        String?      @db.VarChar(50)
+  labelClawbackReversalId    String?      @db.VarChar(255)
+  labelClawbackRetryCount    Int          @default(0)
   labelClawbackLastAttemptAt DateTime?
   labelClawbackNextAttemptAt DateTime?
   labelClawbackResolvedAt    DateTime?
@@ -706,24 +710,27 @@ model OrderShippingRateQuote {
 }
 
 model OrderPaymentEvent {
-  id               String   @id @default(cuid())
-  orderId          String
-  order            Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  stripeEventId    String   @unique @db.VarChar(255)
-  stripeObjectId   String?  @db.VarChar(255)
-  stripeObjectType String?  @db.VarChar(100)
-  eventType        String   @db.VarChar(100)
-  amountCents      Int?
-  currency         String   @default("usd") @db.VarChar(3)
-  status           String?  @db.VarChar(100)
-  reason           String?  @db.VarChar(255)
-  description      String?  @db.VarChar(5000)
+  id                            String                         @id @default(cuid())
+  orderId                       String
+  order                         Order                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  stripeEventId                 String                         @unique @db.VarChar(255)
+  stripeObjectId                String?                        @db.VarChar(255)
+  stripeObjectType              String?                        @db.VarChar(100)
+  eventType                     String                         @db.VarChar(100)
+  amountCents                   Int?
+  currency                      String                         @default("usd") @db.VarChar(3)
+  status                        String?                        @db.VarChar(100)
+  reason                        String?                        @db.VarChar(255)
+  description                   String?                        @db.VarChar(5000)
   // Bounded Stripe payment/refund/dispute event context. Store safe ids and
   // small status details only, not full provider payloads.
-  metadata         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  metadata                      Json?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  caseStripeDisputeApplications CaseStripeDisputeApplication[]
 
+  // Supports same-Order composite evidence foreign keys managed by raw SQL.
+  @@unique([id, orderId])
   @@index([orderId, createdAt])
   @@index([eventType, createdAt])
   @@index([stripeObjectId])
@@ -880,6 +887,15 @@ enum CaseResolution {
   DISMISSED
 }
 
+enum CaseResolutionClaimStatus {
+  LOCAL_READY
+  PROVIDER_PENDING
+  PROVIDER_RECORDED
+  RECONCILIATION_REQUIRED
+  FINALIZED
+  RELEASED_NO_PROVIDER_EFFECT
+}
+
 enum CaseMessageAuthorKind {
   BUYER
   SELLER
@@ -887,46 +903,96 @@ enum CaseMessageAuthorKind {
 }
 
 model Case {
-  id                   String          @id @default(cuid())
-  orderId              String          @unique
-  order                Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  buyerId              String?
-  buyer                User?           @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
-  sellerId             String
-  seller               User            @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  reason               CaseReason
-  description          String          @db.VarChar(5000)
-  status               CaseStatus      @default(OPEN)
-  resolution           CaseResolution?
-  refundAmountCents    Int?
-  stripeRefundId       String?         @db.VarChar(255)
-  sellerRespondBy      DateTime
-  discussionStartedAt  DateTime?
-  escalateUnlocksAt    DateTime?
-  buyerMarkedResolved  Boolean         @default(false)
-  sellerMarkedResolved Boolean         @default(false)
-  resolvedAt           DateTime?
-  resolvedById         String?
-  resolvedBy           User?           @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
-  messages             CaseMessage[]
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  id                        String                         @id @default(cuid())
+  orderId                   String                         @unique
+  order                     Order                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  buyerId                   String?
+  buyer                     User?                          @relation("CasesByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  sellerId                  String
+  seller                    User                           @relation("CasesBySeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  reason                    CaseReason
+  description               String                         @db.VarChar(5000)
+  status                    CaseStatus                     @default(OPEN)
+  resolution                CaseResolution?
+  refundAmountCents         Int?
+  stripeRefundId            String?                        @db.VarChar(255)
+  sellerRespondBy           DateTime
+  discussionStartedAt       DateTime?
+  escalateUnlocksAt         DateTime?
+  buyerMarkedResolved       Boolean                        @default(false)
+  sellerMarkedResolved      Boolean                        @default(false)
+  resolvedAt                DateTime?
+  resolvedById              String?
+  resolvedBy                User?                          @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  // Nullable during the compatibility release. The fixed Stripe-dispute
+  // operation later derives this exact same-Order event inside PostgreSQL.
+  openedByPaymentEventId    String?                        @unique
+  stripeDisputeApplications CaseStripeDisputeApplication[]
+  messages                  CaseMessage[]
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
 
+  // Supports private claim same-Order binding managed by raw SQL.
+  @@unique([id, orderId])
   @@index([buyerId])
   @@index([sellerId])
   @@index([resolvedById])
   @@index([status, createdAt])
 }
 
+// Private service ledger for staff Case resolution/provider reconciliation.
+// Raw migration SQL owns its composite foreign keys, partial unique indexes,
+// deferred Order lease and FORCE/zero-policy posture. Runtime table access is
+// intentionally absent; reviewed fixed functions are the only access path.
+model CaseResolutionClaim {
+  id                   String                    @id
+  caseId               String
+  orderId              String
+  staffActorId         String
+  resolution           CaseResolution
+  refundAmountCents    Int?
+  currency             String                    @db.VarChar(3)
+  stockRestorePlan     Json                      @default("[]")
+  status               CaseResolutionClaimStatus
+  idempotencyScope     String?                   @unique @db.VarChar(191)
+  orderPaymentEventId  String?                   @unique
+  providerRecordedAt   DateTime?
+  finalizedAt          DateTime?
+  reconciledAt         DateTime?
+  reconciledById       String?
+  reconciliationAction String?                   @db.VarChar(40)
+  reconciliationReason String?                   @db.VarChar(1000)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// Private immutable replay ledger for the fixed Stripe-dispute Case
+// operation. Runtime table access is intentionally absent; the reviewed
+// SECURITY DEFINER operation is its only application path.
+model CaseStripeDisputeApplication {
+  paymentEventId String            @id
+  paymentEvent   OrderPaymentEvent @relation(fields: [paymentEventId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  caseId         String
+  orderId        String
+  case           Case              @relation(fields: [caseId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  action         String            @db.VarChar(10)
+  createdAt      DateTime          @default(now())
+
+  @@index([caseId, createdAt])
+  @@index([orderId])
+}
+
 model CaseMessage {
-  id         String                 @id @default(cuid())
-  caseId     String
-  case       Case                   @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  authorId   String
-  author     User                   @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
-  authorKind CaseMessageAuthorKind?
-  body       String                 @db.VarChar(5000)
-  createdAt  DateTime               @default(now())
+  id          String                  @id @default(cuid())
+  caseId      String
+  case        Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User                    @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
+  authorKind  CaseMessageAuthorKind?
+  body        String                  @db.VarChar(5000)
+  createdAt   DateTime                @default(now())
   attachments CaseMessageAttachment[]
 
   @@index([caseId, createdAt, id])
@@ -1308,27 +1374,27 @@ enum SupportRequestStatus {
 }
 
 model SupportRequest {
-  id             String               @id @default(cuid())
-  userId         String?
-  user           User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
-  kind           SupportRequestKind
-  status         SupportRequestStatus @default(OPEN)
-  name           String?              @db.VarChar(100)
-  email          String               @db.VarChar(254)
-  topic          String               @db.VarChar(80)
-  orderId        String?              @db.VarChar(80)
-  listingId      String?              @db.VarChar(80)
-  message        String               @db.VarChar(4000)
-  slaDueAt       DateTime
-  emailSentAt    DateTime?
-  emailLastError String?              @db.VarChar(1000)
+  id                  String               @id @default(cuid())
+  userId              String?
+  user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kind                SupportRequestKind
+  status              SupportRequestStatus @default(OPEN)
+  name                String?              @db.VarChar(100)
+  email               String               @db.VarChar(254)
+  topic               String               @db.VarChar(80)
+  orderId             String?              @db.VarChar(80)
+  listingId           String?              @db.VarChar(80)
+  message             String               @db.VarChar(4000)
+  slaDueAt            DateTime
+  emailSentAt         DateTime?
+  emailLastError      String?              @db.VarChar(1000)
   closedAt            DateTime?
-  closureEvidence     String?         @db.VarChar(4000)
+  closureEvidence     String?              @db.VarChar(4000)
   closureEvidenceAt   DateTime?
   closureEvidenceById String?
-  closureEvidenceBy   User?           @relation("SupportRequestClosureEvidence", fields: [closureEvidenceById], references: [id], onDelete: SetNull)
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  closureEvidenceBy   User?                @relation("SupportRequestClosureEvidence", fields: [closureEvidenceById], references: [id], onDelete: SetNull)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   @@index([kind, status, slaDueAt])
   @@index([userId, createdAt])
@@ -1421,19 +1487,19 @@ enum NotificationType {
 }
 
 model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   relatedUserId String?
-  type      NotificationType
-  title     String           @db.VarChar(200)
-  body      String           @db.VarChar(1000)
-  link      String?          @db.VarChar(2048)
-  sourceType String?         @db.VarChar(80)
-  sourceId   String?         @db.VarChar(191)
-  dedupKey  String           @default(dbgenerated("md5(random()::text || clock_timestamp()::text)")) @db.VarChar(64)
-  read      Boolean          @default(false)
-  createdAt DateTime         @default(now())
+  type          NotificationType
+  title         String           @db.VarChar(200)
+  body          String           @db.VarChar(1000)
+  link          String?          @db.VarChar(2048)
+  sourceType    String?          @db.VarChar(80)
+  sourceId      String?          @db.VarChar(191)
+  dedupKey      String           @default(dbgenerated("md5(random()::text || clock_timestamp()::text)")) @db.VarChar(64)
+  read          Boolean          @default(false)
+  createdAt     DateTime         @default(now())
 
   @@unique([userId, type, dedupKey])
   @@index([userId, read])
@@ -1561,7 +1627,7 @@ model CommissionInterest {
   sellerProfileId     String
   sellerProfile       SellerProfile     @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
   conversationId      String?
-  conversation        Conversation?      @relation("CommissionInterestConversation", fields: [conversationId], references: [id], onDelete: SetNull)
+  conversation        Conversation?     @relation("CommissionInterestConversation", fields: [conversationId], references: [id], onDelete: SetNull)
   createdAt           DateTime          @default(now())
 
   @@unique([commissionRequestId, sellerProfileId])

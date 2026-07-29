@@ -315,7 +315,11 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     );
     assert.match(
       normalizedCatalog,
-      /keep all draft SQL outside `prisma\/migrations`/,
+      /keep invariant\/activation SQL outside `prisma\/migrations`/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /compatible operation migrations remain unmerged and unapplied/,
     );
   });
 });
