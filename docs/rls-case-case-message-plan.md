@@ -1,7 +1,7 @@
 # Case and CaseMessage RLS Plan
 
-Opened 2026-07-26. Current phase: Phase 1B compatible integrity work.
-Production Case/CaseMessage RLS remains off.
+Opened 2026-07-26. Current phase: Phase 2 aggregate-only legacy inspection
+preparation. Production Case/CaseMessage RLS remains off.
 
 The behavior findings and 69-reference source baseline live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
@@ -256,6 +256,31 @@ provider proof.
   state is exactly classified.
 
 Exit: zero unclassified anomalies and a passed production invariant postflight.
+
+Phase 2 scaffold checkpoint (2026-07-28): the isolated candidate adds
+`scripts/case-case-message-legacy-inspect.mjs` plus a manual-main protected
+workflow. It pins the exact production endpoint, owner/runtime roles, protected
+URL digest, dispatched main commit, clean checkout and a fresh mode-0600
+evidence path. The one repeatable-read, engine-attested read-only transaction
+returns only fixed aggregate counts and bounded enum distributions; it does not
+export Case ids, message text, participant ids or private object keys.
+
+The exact aggregate SQL also runs after the complete migration tree in the
+PostgreSQL 16 CI service through
+`scripts/case-case-message-legacy-inspection-postgres-proof.mjs`. That proof is
+hard-limited to loopback `grainline_ci`, executes the production query rather
+than merely matching its text, validates the exact result schema and rolls
+back. This scaffold does **not** claim a production inspection, classified
+legacy state, cleanup, invariant, policy, grant or RLS change.
+
+The production inspection must run before the separately staged DirectUpload
+compatibility-key retirement: it deliberately asserts the compatible
+pre-retirement `CaseMessageAttachment.objectKey` column and DirectUpload
+RLS-off posture. The cleanup-only R2 credential proof remains an independent
+gate for DirectUpload activation and private Case evidence; it does not block
+this read-only Case classification work. Stop after reporting production
+counts. Any backfill, repair or constraint is a later evidence-driven mutation
+with its own backup and rollback boundary.
 
 ## Phase 3: authority catalog design at Extra High
 

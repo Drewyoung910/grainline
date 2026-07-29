@@ -1,0 +1,57 @@
+name: Case and CaseMessage Legacy Inspection
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character reviewed main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type inspect-prelaunch-case-case-message-legacy-state
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Aggregate-only production Case inspection
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    env:
+      CASE_LEGACY_INSPECT_CONFIRM: ${{ inputs.confirmation }}
+      CASE_LEGACY_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      CASE_LEGACY_PREREQUISITES_CONFIRMED: case-compatible-app-and-direct-upload-preparation-passed
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Inspect aggregate Case legacy state in a read-only transaction
+        run: npm run ops:case-legacy-inspect
+        env:
+          CASE_LEGACY_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/case-case-message-legacy-inspection-${{ inputs.release_commit }}.json
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Upload sanitized aggregate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: case-case-message-legacy-inspection-${{ github.sha }}
+          path: ${{ runner.temp }}/case-case-message-legacy-inspection-${{ github.sha }}.json
+          if-no-files-found: error
+          retention-days: 30
