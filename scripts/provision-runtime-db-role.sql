@@ -784,6 +784,34 @@ WHERE to_regprocedure(
 ) IS NOT NULL;
 \gexec
 
+-- Buyer Case opening is absent before its compatible authority migration.
+-- Keep PUBLIC closed and converge only the exact fixed operation; the private
+-- replay ledger remains table-inaccessible.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_open(text, text, text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_open(text,text,text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_open(text, text, text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_open(text,text,text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_open(text, text, text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_open(text,text,text,text)'
+) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.
@@ -833,6 +861,7 @@ FROM (
     ('CaseResolutionClaim'),
     ('CaseStripeDisputeApplication'),
     ('CaseSellerRefundApplication'),
+    ('CaseOpenApplication'),
     ('DirectUploadReference')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;

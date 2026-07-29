@@ -75,6 +75,8 @@ export const CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION =
   "20260729045000_prepare_case_staff_resolution_authority";
 export const CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION =
   "20260729050000_prepare_case_participant_resolution_authority";
+export const CASE_OPEN_AUTHORITY_MIGRATION =
+  "20260729051000_prepare_case_open_authority";
 export const RELEASE_ZERO_MIGRATION_TREE_SHA256 =
   "3e9111525735043266cf6f18b790641ad3103126804836f4a7cccd8e5e29ff29";
 export const PHASE_A_MIGRATION_TREE_SHA256 =
@@ -115,6 +117,8 @@ export const CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256 =
   "930beeab7be44e503c52cc8c7c7f944adbd999aac19db0b760b9426869bc6e51";
 export const CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256 =
   "bc8e4c966f24564dfabd9203f80ca5450e90eafa33bd972962784cb5a31a4f0b";
+export const CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256 =
+  "32973f5b235843cd98ea03e4df4c6366102e225b7c0bb2237466e0da355ad92d";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -167,6 +171,8 @@ const REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY =
   "case-staff-resolution-authority-reviewed";
 const REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY =
   "case-participant-resolution-authority-reviewed";
+const REVIEWED_CASE_OPEN_AUTHORITY =
+  "case-open-authority-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
 const TEST_SOURCE_ROOTS = ["tests"];
 const TEST_SOURCE_EXTENSIONS = new Set([
@@ -452,6 +458,8 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
       CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
     [REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY]:
       CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
+    [REVIEWED_CASE_OPEN_AUTHORITY]:
+      CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
   }[phase];
   if (migrationTreeSha256 !== expected) {
     throw new Error(
@@ -728,6 +736,9 @@ export function validateSavedSearchRlsDeployShape({
   );
   const hasCaseParticipantResolutionAuthorityMigration = migrations.has(
     CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION,
+  );
+  const hasCaseOpenAuthorityMigration = migrations.has(
+    CASE_OPEN_AUTHORITY_MIGRATION,
   );
 
   if (phase === RELEASE_ZERO_PHASE) {
@@ -1585,9 +1596,57 @@ export function validateSavedSearchRlsDeployShape({
     };
   }
 
+  if (phase === REVIEWED_CASE_OPEN_AUTHORITY) {
+    if (
+      !hasConversationMessageForceMigration
+      || !hasCaseMessageAuthorKindMigration
+      || !hasCaseMessageHistoryIndexMigration
+      || !hasCaseMessageHistoryIndexCleanupMigration
+      || !hasCaseMessagePrivateAttachmentsMigration
+      || !hasDirectUploadReferenceLedgerMigration
+      || !hasDirectUploadAuthorityMigration
+      || !hasDirectUploadPublicReferencesMigration
+      || !hasDirectUploadLegacyRepairMigration
+      || !hasCaseResolutionClaimPreparationMigration
+      || !hasCaseStripeDisputeAuthorityMigration
+      || !hasCaseSellerRefundAuthorityMigration
+      || !hasCaseStaffResolutionAuthorityMigration
+      || !hasCaseParticipantResolutionAuthorityMigration
+      || !hasCaseOpenAuthorityMigration
+    ) {
+      throw new Error(
+        `${REVIEWED_CASE_OPEN_AUTHORITY} requires the exact participant-resolution boundary plus the compatible buyer Case-open authority migration`,
+      );
+    }
+
+    assertNoLaterMigration(
+      migrationNames,
+      CASE_OPEN_AUTHORITY_MIGRATION,
+      phase,
+    );
+    assertReviewedMigrationTree(phase, migrationTreeSha256);
+    assertReviewedPrismaMigrationConfig(prismaConfigSha256);
+    assertProductionArtifactExcludesContextGate({
+      phase,
+      contextGateRouteExists,
+      contextGateRunnerTestExists: runnerTestExists,
+      middlewareSource,
+    });
+
+    return {
+      phase,
+      hasCaseResolutionClaimPreparationMigration,
+      hasCaseStripeDisputeAuthorityMigration,
+      hasCaseSellerRefundAuthorityMigration,
+      hasCaseStaffResolutionAuthorityMigration,
+      hasCaseParticipantResolutionAuthorityMigration,
+      hasCaseOpenAuthorityMigration,
+    };
+  }
+
   const received = phase === undefined || phase === "" ? "missing" : phase;
   throw new Error(
-    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, ${REVIEWED_NOTIFICATION_FORCE}, ${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY}, ${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS}, ${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP}, ${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION}, ${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION}, ${REVIEWED_CONVERSATION_MESSAGE_FORCE}, ${REVIEWED_CASE_MESSAGE_COMPATIBILITY}, ${REVIEWED_DIRECT_UPLOAD_PREPARATION}, ${REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR}, ${REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION}, ${REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY}, ${REVIEWED_CASE_SELLER_REFUND_AUTHORITY}, ${REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY}, or ${REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY}`,
+    `${SAVED_SEARCH_RLS_DEPLOY_PHASE_ENV} is ${received}; expected ${RELEASE_ZERO_PHASE}, ${REVIEWED_PHASE_A}, ${REVIEWED_PHASE_B}, ${REVIEWED_NOTIFICATION_PREPARATION}, ${REVIEWED_NOTIFICATION_ACTIVATION}, ${REVIEWED_NOTIFICATION_FORCE}, ${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY}, ${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS}, ${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP}, ${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION}, ${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION}, ${REVIEWED_CONVERSATION_MESSAGE_FORCE}, ${REVIEWED_CASE_MESSAGE_COMPATIBILITY}, ${REVIEWED_DIRECT_UPLOAD_PREPARATION}, ${REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR}, ${REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION}, ${REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY}, ${REVIEWED_CASE_SELLER_REFUND_AUTHORITY}, ${REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY}, ${REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY}, or ${REVIEWED_CASE_OPEN_AUTHORITY}`,
   );
 }
 

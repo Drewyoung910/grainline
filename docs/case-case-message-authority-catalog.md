@@ -29,12 +29,13 @@ separate converted-source ledger. A source cannot disappear, appear or claim
 conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
-Stripe resolution handshake. `CaseStripeDisputeApplication` and
-`CaseSellerRefundApplication` are separate immutable replay ledgers for,
-respectively, source-bound dispute create/reopen and seller-refund Case
-application. None has a user-facing read path or is a participant-content
-table. Each is created FORCE-protected with zero policies and no `PUBLIC` or
-runtime table privileges; only its exact fixed Case function may use it.
+Stripe resolution handshake. `CaseStripeDisputeApplication`,
+`CaseSellerRefundApplication` and `CaseOpenApplication` are separate immutable
+replay ledgers for, respectively, source-bound dispute create/reopen,
+seller-refund Case application and one exact buyer Case opening. None has a
+user-facing read path or is a participant-content table. Each is created
+FORCE-protected with zero policies and no `PUBLIC` or runtime table privileges;
+only its exact fixed Case function may use it.
 
 `DirectUpload`, `Order`, `OrderPaymentEvent`, `Notification`,
 `AccountDeletionSideEffect`, `AdminAuditLog` and `SystemAuditLog` remain
@@ -305,6 +306,46 @@ path. Notification recipient, event kind and link remain source-derived by the
 already-live Notification function from the returned audit identity. The
 converted-source ledger retains all three removed references rather than
 silently reducing the baseline.
+
+## Buyer Case-open authority checkpoint
+
+The next isolated compatible candidate adds
+`grainline_case_open(actorUserId, orderId, reason, description)`. It follows
+the shared actor-User then Order lock order, locks the full item/listing/seller
+relationship before deriving one seller, and accepts user-authored text only
+within the route-compatible trimmed length and byte bounds. Buyer, seller,
+target Case, opening message, audit ids, UTC clock and replay identity are
+database-derived.
+
+CC-A20 was found during this review rather than frozen into the authority: the
+legacy route never checks `Order.paidAt`. Because `reviewNeeded` and
+seller-unavailable Orders intentionally bypass the normal pending/future
+delivery blocks, an unpaid Order could otherwise become disputable. The fixed
+function requires `paidAt`, then independently fences seller refund state,
+every staff-resolution claim, blocking refund events, active label purchase,
+pending fulfillment, future estimates and the 30-day close boundary. Timing
+exceptions remain available only after payment.
+
+`CaseOpenApplication` is an owner-operated immutable replay ledger. Its
+composite Case/Order binding plus buyer, seller, opening-message, audit, reason
+and description-hash fields prevent a broadly writable audit row or
+caller-chosen idempotency token from becoming authority. ENABLE plus FORCE,
+zero policies and zero table grants deny runtime inspection or mutation. A
+retry validates the Case, message, ledger and exact audit metadata before
+returning the original identities. The compatible migration changes no Case
+family RLS posture or legacy table grant; application conversion, merge,
+production migration and deployment remain separate and unauthorized.
+
+Implementation commit `f7aa25a50191f84b6ec09be3709fe0abad25cc0e`
+passed GitHub Actions run `30436133437` against disposable PostgreSQL 16.
+The run applied the sealed migration tree, converged production-style runtime
+grants, passed the forged-buyer/unpaid/multi-seller/refund/timing/replay
+denials, proved the real two-session Order lock wait, rolled the proof back
+with zero residue, and passed the final grant/RLS catalog audit. TypeScript,
+lint, the full repository suite, the reviewed dependency audit and the
+production build also passed. This is engine proof for the isolated draft
+authority in PR #96; it is not application conversion, merge, production
+migration, deployment or Case RLS activation evidence.
 
 ## Account deletion boundary
 

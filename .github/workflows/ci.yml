@@ -82,9 +82,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify Case participant-resolution authority migration tree
+      - name: Verify buyer Case-open authority migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-participant-resolution-authority-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-open-authority-reviewed
         run: npm run verify:rls-release-artifact
       - name: Verify Conversation and Message authority proof equivalence
         run: npm run audit:rls-conversation-message-authority-release
@@ -112,6 +112,10 @@ jobs:
         run: npm run audit:rls-case-participant-resolution
         env:
           CASE_PARTICIPANT_RESOLUTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove buyer Case-open authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-open-authority
+        env:
+          CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Case invariant drafts in rollback-only PostgreSQL
         run: npm run audit:rls-case-invariant-drafts
         env:
