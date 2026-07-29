@@ -1121,6 +1121,20 @@ intentionally has no `DATABASE_URL`. No application/build defect was inferred
 from that environment-only stop; the exact-head CI build supplies its
 loopback runtime database and remains the accepted build result.
 
+Exact authority head
+`ae34610711885862b4cca5b30a94345fba7448a9` passed GitHub Actions run
+`30492571639` (job `90713758178`). PostgreSQL 16 applied the complete sealed
+migration tree, converged production-style grants and passed all 11
+account-export checks: exact catalog/ACLs, forced participant policies,
+tie-stable keyset pages, buyer/seller equivalence, outsider/disabled/missing
+denial, invalid-input denial, unset-context direct-read denial,
+transaction-local context, read-only state and zero residue. Every predecessor
+RLS proof, migration status, final grant audit, TypeScript, lint, all tests,
+dependency audit and production build also passed. This remains preparation
+evidence only; it does not authorize merging the stacked chain, applying
+production migrations, deploying application code or activating Case-family
+RLS.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
