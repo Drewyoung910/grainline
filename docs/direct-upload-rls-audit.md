@@ -920,6 +920,18 @@ must not be reused or copied into the cleanup environment. Until that
 credential is created and provider deletion is proved, the cleanup worker and
 DirectUpload activation remain blocked.
 
+The pre-activation R2 credential proof is a separate manual-only, main-only
+workflow because the cleanup worker correctly requires both DirectUpload
+tables to have ENABLE plus FORCE RLS before it may lease a row. The proof
+receives only the cleanup-specific R2 credential and exact account/bucket
+variables; it explicitly rejects application R2 and every database credential.
+For each bucket it creates one random operator-prefix text object, verifies the
+object metadata, deletes it, and verifies absence. It performs no list request,
+never retains an object key or raw target identifier, writes only hashes and
+bounded result codes to mode-0600 evidence, and attempts immediate deletion if
+a provider request fails after creation. A run with any possible residue is
+failed evidence and cannot satisfy the activation gate.
+
 The first protected production provisioning run, `30398188163` (job
 `90406279837`) at exact main `a816af9a`, passed the Node owner/source/database
 preflight and then failed before opening the `psql` connection. The runner's

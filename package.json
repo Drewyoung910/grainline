@@ -23,6 +23,7 @@
     "ops:direct-upload-cleanup-role-provision": "node scripts/direct-upload-cleanup-role-production-provision.mjs",
     "ops:direct-upload-cleanup-role-provider-remediation": "node scripts/direct-upload-cleanup-role-provider-remediation.mjs",
     "ops:direct-upload-cleanup-worker": "node scripts/direct-upload-cleanup-worker.mjs",
+    "ops:direct-upload-r2-credential-proof": "node scripts/direct-upload-r2-credential-proof.mjs",
     "ops:verify-db-separation": "node scripts/runtime-db-credential-separation-postflight.mjs",
     "ops:converge-local-runtime-db": "node scripts/converge-local-runtime-db-env.mjs",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.mjs",
