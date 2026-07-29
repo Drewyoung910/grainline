@@ -411,12 +411,14 @@ describe("database grant inventory guardrails", () => {
       "CaseResolutionClaim",
       "CaseStripeDisputeApplication",
       "CaseSellerRefundApplication",
+      "CaseOpenApplication",
       "DirectUploadReference",
     ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
       "CaseResolutionClaim",
       "CaseStripeDisputeApplication",
       "CaseSellerRefundApplication",
+      "CaseOpenApplication",
       "DirectUploadReference",
     ]);
     assert.equal(
@@ -429,6 +431,7 @@ describe("database grant inventory guardrails", () => {
         "CaseResolutionClaim",
         "CaseStripeDisputeApplication",
         "CaseSellerRefundApplication",
+        "CaseOpenApplication",
         "DirectUploadReference",
         "DirectUpload",
       ],
@@ -571,6 +574,7 @@ describe("database grant inventory guardrails", () => {
       tables: [
         "CaseResolutionClaim",
         "CaseStripeDisputeApplication",
+        "CaseOpenApplication",
         "DirectUpload",
         "DirectUploadReference",
       ],
@@ -589,6 +593,12 @@ describe("database grant inventory guardrails", () => {
         policy_count: 0,
       },
       {
+        table_name: "CaseOpenApplication",
+        rls_enabled: true,
+        rls_forced: true,
+        policy_count: 0,
+      },
+      {
         table_name: "DirectUploadReference",
         rls_enabled: true,
         rls_forced: true,
@@ -601,6 +611,7 @@ describe("database grant inventory guardrails", () => {
       [
         "service-only table CaseResolutionClaim must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
         "service-only table CaseStripeDisputeApplication must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
+        "service-only table CaseOpenApplication must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
         "service-only table DirectUploadReference must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
       ],
     );
@@ -609,6 +620,7 @@ describe("database grant inventory guardrails", () => {
         [
           exact[0],
           exact[1],
+          exact[2],
           {
             table_name: "DirectUploadReference",
             rls_enabled: false,
@@ -883,11 +895,12 @@ describe("database grant inventory guardrails", () => {
         (entry) => inventory.functions.includes(entry.name),
       );
 
-    assert.equal(inventory.tables.length, 63);
+    assert.equal(inventory.tables.length, 64);
     assert.equal(inventory.enums.length, 22);
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
+      "grainline_case_open",
       "grainline_case_mark_resolved",
       "grainline_case_seller_refund_apply",
       "grainline_case_staff_resolution_finalize",
@@ -915,7 +928,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      83 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      85 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -925,6 +938,7 @@ describe("database grant inventory guardrails", () => {
     ));
     for (const functionName of [
       "grainline_case_mark_resolved",
+      "grainline_case_open",
       "grainline_case_staff_resolution_prepare",
       "grainline_case_staff_resolution_provider_record",
       "grainline_case_staff_resolution_finalize",
@@ -969,6 +983,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       inventory.rlsForceTables,
       [
+        "CaseOpenApplication",
         "CaseResolutionClaim",
         "CaseSellerRefundApplication",
         "CaseStripeDisputeApplication",

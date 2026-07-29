@@ -712,6 +712,24 @@ the intended stacked PR base must still be restored, and no merge, production
 migration, deployment, grant change or Case-family RLS activation is
 authorized.
 
+Phase 4 buyer Case-open authority candidate (2026-07-29): review of the next
+remaining write found that the legacy route does not require `Order.paidAt`.
+The compatible fixed operation corrects that integrity gap before conversion,
+then derives the buyer and one exact seller from locked source rows; fences
+refund, staff-claim, label and delivery-window conflicts; and atomically writes
+the Case, initial buyer message, strict audit and private replay ledger.
+
+The new `CaseOpenApplication` ledger is supporting authority, not a fourth
+participant table. It is ENABLE+FORCE with zero policies and no runtime/PUBLIC
+table privileges. Its exact Order/Case/buyer/seller/message/audit bindings and
+description hash let retries validate durable source state without trusting a
+caller-provided Case id, seller, replay key, clock or audit. The compatible
+migration leaves Case, CaseMessage and CaseMessageAttachment RLS and legacy
+grants unchanged. Disposable PostgreSQL 16 must still execute the exact
+migration and prove paid creation/replay, unpaid and forged denial, lifecycle
+fences, runtime ledger denial, real two-session lock waiting, rollback and zero
+residue before the authority checkpoint can be accepted.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

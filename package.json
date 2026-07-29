@@ -41,6 +41,7 @@
     "audit:rls-case-legacy-inspection": "node scripts/case-case-message-legacy-inspection-postgres-proof.mjs",
     "audit:rls-case-invariant-drafts": "node scripts/case-case-message-invariant-postgres-proof.mjs",
     "audit:rls-case-participant-resolution": "node scripts/case-participant-resolution-postgres-proof.mjs",
+    "audit:rls-case-open-authority": "node scripts/case-open-authority-postgres-proof.mjs",
     "audit:rls-direct-upload-authority": "node scripts/direct-upload-authority-postgres-proof.mjs",
     "audit:rls-direct-upload-legacy-repair": "node scripts/direct-upload-legacy-repair-postgres-proof.mjs",
     "audit:rls-direct-upload-retirement-candidate": "node scripts/stage-direct-upload-retirement-migration.mjs",

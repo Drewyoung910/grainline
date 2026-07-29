@@ -99,6 +99,8 @@ model User {
   casesResolved          Case[]                  @relation("CasesResolvedBy")
   caseMessages           CaseMessage[]           @relation("CaseMessages")
   caseMessageAttachments CaseMessageAttachment[] @relation("CaseMessageAttachments")
+  caseOpeningsAsBuyer    CaseOpenApplication[]   @relation("CaseOpenApplicationBuyer")
+  caseOpeningsAsSeller   CaseOpenApplication[]   @relation("CaseOpenApplicationSeller")
   directUploads          DirectUpload[]
 
   savedSearches      SavedSearch[]
@@ -617,10 +619,11 @@ model Order {
 
   // Case back-relation
   case                  Case?
+  caseOpenApplication   CaseOpenApplication?
   // Raw-migration-managed active resolution lease. The private
   // CaseResolutionClaim table is accessible only through reviewed fixed
   // database operations; ordinary runtime code must not query it directly.
-  caseResolutionClaimId String? @unique
+  caseResolutionClaimId String?              @unique
 
   // Snapshot of the *selected* shipping service
   shippingCarrier String?   @db.VarChar(100) // e.g., "UPS"
@@ -930,6 +933,7 @@ model Case {
   openedByPaymentEventId    String?                        @unique
   stripeDisputeApplications CaseStripeDisputeApplication[]
   sellerRefundApplications  CaseSellerRefundApplication[]
+  openApplication           CaseOpenApplication?
   messages                  CaseMessage[]
   createdAt                 DateTime                       @default(now())
   updatedAt                 DateTime                       @updatedAt
@@ -1002,16 +1006,42 @@ model CaseSellerRefundApplication {
   @@index([orderId])
 }
 
+// Private immutable replay ledger for the fixed buyer Case-opening operation.
+// Runtime table access is intentionally absent; the reviewed SECURITY
+// DEFINER operation is its only application path.
+model CaseOpenApplication {
+  orderId           String        @id
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  caseId            String        @unique
+  case              Case          @relation(fields: [caseId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  buyerUserId       String
+  buyerUser         User          @relation("CaseOpenApplicationBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  sellerUserId      String
+  sellerUser        User          @relation("CaseOpenApplicationSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  openingMessageId  String        @unique
+  openingMessage    CaseMessage   @relation(fields: [openingMessageId], references: [id], onDelete: Restrict)
+  reason            CaseReason
+  descriptionSha256 String        @db.VarChar(64)
+  auditLogId        String        @unique
+  auditLog          AdminAuditLog @relation(fields: [auditLogId], references: [id], onDelete: Restrict)
+  createdAt         DateTime      @default(now())
+
+  @@unique([caseId, orderId])
+  @@index([buyerUserId, createdAt])
+  @@index([sellerUserId, createdAt])
+}
+
 model CaseMessage {
-  id          String                  @id @default(cuid())
-  caseId      String
-  case        Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  authorId    String
-  author      User                    @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
-  authorKind  CaseMessageAuthorKind?
-  body        String                  @db.VarChar(5000)
-  createdAt   DateTime                @default(now())
-  attachments CaseMessageAttachment[]
+  id                 String                  @id @default(cuid())
+  caseId             String
+  case               Case                    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId           String
+  author             User                    @relation("CaseMessages", fields: [authorId], references: [id], onDelete: Restrict)
+  authorKind         CaseMessageAuthorKind?
+  body               String                  @db.VarChar(5000)
+  createdAt          DateTime                @default(now())
+  attachments        CaseMessageAttachment[]
+  openingApplication CaseOpenApplication?
 
   @@index([caseId, createdAt, id])
   @@index([authorId])
@@ -1684,20 +1714,21 @@ model Metro {
 }
 
 model AdminAuditLog {
-  id           String    @id @default(cuid())
-  adminId      String
-  admin        User      @relation("AdminActions", fields: [adminId], references: [id])
-  action       String    @db.VarChar(100)
-  targetType   String    @db.VarChar(100)
-  targetId     String    @db.VarChar(255)
-  reason       String?   @db.VarChar(1000)
+  id                  String               @id @default(cuid())
+  adminId             String
+  admin               User                 @relation("AdminActions", fields: [adminId], references: [id])
+  caseOpenApplication CaseOpenApplication?
+  action              String               @db.VarChar(100)
+  targetType          String               @db.VarChar(100)
+  targetId            String               @db.VarChar(255)
+  reason              String?              @db.VarChar(1000)
   // Bounded action metadata; keep bulky evidence in purpose-built tables.
-  metadata     Json      @default("{}")
-  undone       Boolean   @default(false)
-  undoneAt     DateTime?
-  undoneBy     String?   @db.VarChar(255)
-  undoneReason String?   @db.VarChar(1000)
-  createdAt    DateTime  @default(now())
+  metadata            Json                 @default("{}")
+  undone              Boolean              @default(false)
+  undoneAt            DateTime?
+  undoneBy            String?              @db.VarChar(255)
+  undoneReason        String?              @db.VarChar(1000)
+  createdAt           DateTime             @default(now())
 
   @@index([adminId])
   @@index([targetType, targetId])

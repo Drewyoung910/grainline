@@ -205,6 +205,7 @@ credentials.
 | CC-A17 | High/Authority | The first fixed dispute draft treated deterministic `SystemAuditLog` identity as replay authority even though runtime still has broad CRUD on that table, and it did not independently reject a valid but older Stripe event after a newer dispute event had been recorded. | Use a private FORCE/zero-policy/zero-table-grant `CaseStripeDisputeApplication` ledger for immutable replay identity. Keep the audit row as observability only. Validate bounded provider time and reject older sources plus same-time open sources superseded by terminal dispute state before mutating Case. Prove rejection leaves no Case or replay-ledger residue. |
 | CC-A18 | High/Recovery | The first staff-resolution app conversion exposed two lease-recovery collisions. Generic 15-minute stale-refund cleanup and `charge.refunded` recovery could reclaim a `pending` Order sentinel even while a durable `CaseResolutionClaim` owned it. The route's friendly prechecks could also reject that claim's own pending, ambiguous or recorded refund state before the fixed prepare function could replay or finalize it. | Treat a non-null `caseResolutionClaimId` as a durable non-expiring lease in both cleanup and webhook state. Let the fixed prepare function validate and replay the exact actor/Case/resolution/stock claim before applying ordinary no-claim refund-conflict heuristics. Pin crash points before Stripe, after Stripe, after provider record and after finalization in the app/static and PostgreSQL proof. |
 | CC-A19 | High/Concurrency | Participant mark-resolved fenced `sellerRefundId` but not `Order.caseResolutionClaimId`. A staged staff `DISMISSED` resolution deliberately has no refund sentinel, so the direct participant path could change the Case between staff prepare and finalize. The fixed-function review also found that a nullable retained buyer id could propagate SQL `NULL` into resolution flags, and that a missing audit status could evade a bare `NOT IN` replay check. | The compatible mark-resolved function locks the active actor, Order and Case in the shared order; rejects both refund and every staff-resolution claim lease before a new transition; normalizes nullable participant comparisons to strict booleans; derives the clock, state and deterministic audit inside PostgreSQL; and explicitly null-rejects replay metadata. Disposable PostgreSQL must prove foreign denial, both lease fences, nullable-buyer behavior, malformed-replay denial, serial marks, a real lock wait, rollback and zero residue before app conversion. |
+| CC-A20 | High/Integrity | The buyer Case-open route did not require `Order.paidAt`. Its ordinary pending-fulfillment checks usually rejected an unpaid Order, but `reviewNeeded` or an unavailable seller intentionally bypasses those timing checks, leaving a path to open a dispute against an unpaid Order row. | The fixed Case-open operation must lock the Order and require `paidAt` before creating any Case artifact. It must also derive the one seller from a locked complete OrderItem/Listing/SellerProfile graph, reject refund/staff-claim evidence, preserve the reviewed timing exceptions only for paid Orders, and prove unpaid denial plus zero residue in PostgreSQL. |
 
 CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
 a separate non-public R2 bucket, never the generic public message uploader.
@@ -338,7 +339,7 @@ policy/authority SQL only when:
   and twelve-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
-- CC-A01 through CC-A10 and CC-A13 through CC-A15 are fixed or have an accepted
+- CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
   proof-backed design;
 - the accepted CC-A11 attachment requirement is implemented and proven;
 - legacy-data inspection queries exist and are read-only by default;
@@ -387,6 +388,28 @@ are absent. This reduces the live conversion countdown to 68 references while
 retaining all twelve removed references in the converted ledger. It does not
 enable Case-family RLS or authorize production migration, deployment or grant
 revocation.
+
+The next Phase 4 authority candidate (2026-07-29) addresses buyer Case opening
+before any application conversion. The static audit found CC-A20: the current
+route never requires `Order.paidAt`, so its deliberate `reviewNeeded` and
+seller-unavailable timing exceptions can admit an unpaid Order row. The
+compatible `grainline_case_open(actorUserId, orderId, reason, description)`
+function now requires a paid, buyer-owned locked Order; locks the complete
+OrderItem/Listing/SellerProfile graph; derives exactly one distinct seller;
+and rejects self-party, refund-event, seller-refund, staff-claim, active-label,
+too-early and expired-window states. It co-commits one Case, buyer opening
+message and strict audit with PostgreSQL-derived ids and UTC time.
+
+Replay authority is not caller-supplied and does not rely on broadly writable
+audit data. Private `CaseOpenApplication` binds the exact Order, Case, buyer,
+seller, opening message, input reason/description hash and audit. It is born
+with ENABLE plus FORCE RLS, zero policies and no runtime or PUBLIC table
+grants. A retry succeeds only when the ledger, immutable Case opening fields,
+message and exact audit metadata all agree; changed input or a missing/tampered
+artifact fails closed. This compatible migration does not enable RLS or change
+legacy grants on Case, CaseMessage or CaseMessageAttachment. The 68-reference
+application countdown therefore remains unchanged until the route itself is
+converted.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B
