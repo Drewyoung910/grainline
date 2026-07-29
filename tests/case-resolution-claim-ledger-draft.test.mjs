@@ -61,6 +61,18 @@ test("CaseResolutionClaim binds Case, Order, actor and payment evidence", () => 
     normalizedSql,
     /FOREIGN KEY \("caseResolutionClaimId"\) REFERENCES public\."CaseResolutionClaim"\(id\)/,
   );
+  assert.match(
+    normalizedSql,
+    /CREATE CONSTRAINT TRIGGER grainline_case_resolution_claim_lease_valid .* DEFERRABLE INITIALLY DEFERRED/s,
+  );
+  assert.match(
+    normalizedSql,
+    /CREATE CONSTRAINT TRIGGER grainline_order_case_resolution_claim_lease_valid .* DEFERRABLE INITIALLY DEFERRED/s,
+  );
+  assert.match(
+    normalizedSql,
+    /order_claim_id IS DISTINCT FROM active_claim_id/,
+  );
 });
 
 test("CaseResolutionClaim has distinct truthful terminal states", () => {
@@ -119,6 +131,10 @@ test("CaseResolutionClaim evidence and authority fields are immutable", () => {
   assert.match(
     normalizedSql,
     /Invalid CaseResolutionClaim status transition/,
+  );
+  assert.match(
+    normalizedSql,
+    /CaseResolutionClaim Order lease is inconsistent/,
   );
   assert.match(
     normalizedSql,

@@ -328,6 +328,28 @@ async function proveClaimLedger(client) {
   await insertParticipantCase(client, ids.refundCase, ids.refundOrder);
   await insertParticipantCase(client, ids.releaseCase, ids.releaseOrder);
 
+  await expectPostgresError(
+    client,
+    "claim_without_order_lease",
+    async () => {
+      await client.query(`
+        INSERT INTO public."CaseResolutionClaim" (
+          id, "caseId", "orderId", "staffActorId", resolution,
+          currency, "stockRestorePlan", status, "createdAt", "updatedAt"
+        )
+        VALUES (
+          'case-invariant-proof-missing-lease-claim',
+          $1, $2, $3, 'DISMISSED',
+          'usd', '[]'::jsonb, 'LOCAL_READY',
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+      `, [ids.ordinaryCase, ids.ordinaryOrder, ids.staff]);
+      await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+    },
+    /CaseResolutionClaim Order lease is inconsistent/,
+  );
+  await client.query("SET CONSTRAINTS ALL DEFERRED");
+
   await client.query(`
     INSERT INTO public."CaseResolutionClaim" (
       id, "caseId", "orderId", "staffActorId", resolution,
@@ -348,6 +370,7 @@ async function proveClaimLedger(client) {
            'case-invariant-proof-refund-claim'
      WHERE id = $1
   `, [ids.refundOrder]);
+  await setConstraintsImmediate(client);
 
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
@@ -404,6 +427,12 @@ async function proveClaimLedger(client) {
            "updatedAt" = CURRENT_TIMESTAMP
      WHERE id = 'case-invariant-proof-refund-claim'
   `);
+  await client.query(`
+    UPDATE public."Order"
+       SET "caseResolutionClaimId" = NULL
+     WHERE id = $1
+  `, [ids.refundOrder]);
+  await setConstraintsImmediate(client);
 
   await expectPostgresError(
     client,
@@ -430,6 +459,13 @@ async function proveClaimLedger(client) {
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [ids.releaseCase, ids.releaseOrder, ids.staff]);
+  await client.query(`
+    UPDATE public."Order"
+       SET "caseResolutionClaimId" =
+           'case-invariant-proof-release-claim'
+     WHERE id = $1
+  `, [ids.releaseOrder]);
+  await setConstraintsImmediate(client);
 
   await expectPostgresError(
     client,
@@ -454,6 +490,12 @@ async function proveClaimLedger(client) {
            "updatedAt" = CURRENT_TIMESTAMP
      WHERE id = 'case-invariant-proof-release-claim'
   `, [ids.staff]);
+  await client.query(`
+    UPDATE public."Order"
+       SET "caseResolutionClaimId" = NULL
+     WHERE id = $1
+  `, [ids.releaseOrder]);
+  await setConstraintsImmediate(client);
 
   const terminalStates = await client.query(`
     SELECT status::text, pg_catalog.count(*)::integer AS count
@@ -538,7 +580,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 12,
+      checks: 13,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

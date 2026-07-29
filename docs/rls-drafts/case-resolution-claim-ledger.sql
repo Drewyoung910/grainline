@@ -306,6 +306,73 @@ BEFORE UPDATE ON public."CaseResolutionClaim"
 FOR EACH ROW
 EXECUTE FUNCTION public.grainline_case_resolution_claim_immutable();
 
+CREATE OR REPLACE FUNCTION
+  public.grainline_case_resolution_claim_lease_valid()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_case_resolution_claim_lease_valid$
+DECLARE
+  target_order_id text;
+  order_claim_id text;
+  active_claim_id text;
+BEGIN
+  target_order_id := CASE
+    WHEN TG_TABLE_NAME = 'Order' THEN COALESCE(NEW.id, OLD.id)
+    ELSE COALESCE(NEW."orderId", OLD."orderId")
+  END;
+
+  SELECT orders."caseResolutionClaimId"
+    INTO order_claim_id
+    FROM public."Order" AS orders
+   WHERE orders.id = target_order_id;
+  IF NOT FOUND THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  SELECT claim.id
+    INTO active_claim_id
+    FROM public."CaseResolutionClaim" AS claim
+   WHERE claim."orderId" = target_order_id
+     AND claim.status NOT IN (
+       'FINALIZED'::public."CaseResolutionClaimStatus",
+       'RELEASED_NO_PROVIDER_EFFECT'::public."CaseResolutionClaimStatus"
+     );
+
+  IF order_claim_id IS DISTINCT FROM active_claim_id THEN
+    RAISE EXCEPTION 'CaseResolutionClaim Order lease is inconsistent'
+      USING ERRCODE = '23514';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END
+$grainline_case_resolution_claim_lease_valid$;
+
+REVOKE ALL ON FUNCTION
+  public.grainline_case_resolution_claim_lease_valid()
+  FROM PUBLIC, grainline_app_runtime;
+
+CREATE CONSTRAINT TRIGGER grainline_case_resolution_claim_lease_valid
+AFTER INSERT OR UPDATE OR DELETE ON public."CaseResolutionClaim"
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW
+EXECUTE FUNCTION public.grainline_case_resolution_claim_lease_valid();
+
+CREATE CONSTRAINT TRIGGER grainline_order_case_resolution_claim_lease_valid
+AFTER UPDATE OF "caseResolutionClaimId" ON public."Order"
+DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW
+EXECUTE FUNCTION public.grainline_case_resolution_claim_lease_valid();
+
 ALTER TABLE public."CaseResolutionClaim" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public."CaseResolutionClaim" FORCE ROW LEVEL SECURITY;
 
