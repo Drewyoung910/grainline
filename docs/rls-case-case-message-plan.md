@@ -513,6 +513,12 @@ direct protected Case-table references, reducing the current inventory from
 order/payment group; this remains an explicit threat-model dependency rather
 than a protection claim.
 
+Implementation checkpoint `e2c3620343e76cac291accba31ffbfcaa2af1d4f` is
+pushed in draft PR `#91`. It is temporarily based on `main` only because the
+repository runs pull-request CI for that base; the intended stack remains the
+seller-refund authority PR `#90`, which must precede this application
+conversion. This CI arrangement authorizes no merge or production change.
+
 The first exact-head CI run (`30422640445`) is retained as failed evidence. It
 applied the full migration tree and converged production-style runtime grants,
 then PostgreSQL rejected the new rollback-only proof fixture with `42P08`
