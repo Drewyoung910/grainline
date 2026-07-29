@@ -673,6 +673,17 @@ raw-seeded `@updatedAt` model (`SellerProfile`, `Listing` and
 `OrderShippingRateQuote`) and adds a class guard so the harness cannot repeat
 that schema-fixture mismatch.
 
+Corrected exact-head run `30488100064` (job `90698760535`) passed. PostgreSQL
+applied the complete migration tree, converged the production-style runtime
+grants and passed all 13 Case-aware Order authority checks: exact catalog and
+ACLs, forced-RLS source isolation, buyer/seller ownership, foreign and
+disabled denial, invalid input, fixed retention selection and rollback,
+`SKIP LOCKED`, a real Order-lock/Case-open serialization race, unchanged caller
+context and zero residue. Every predecessor database proof, final grant/RLS
+audit, TypeScript, lint, full test suite, high-severity dependency audit and
+production build also passed. Only the disposable GitHub PostgreSQL service
+changed; production and persistent staging were untouched.
+
 ## Account deletion boundary
 
 The redaction function does not accept a free `deletingUserId`. It accepts an

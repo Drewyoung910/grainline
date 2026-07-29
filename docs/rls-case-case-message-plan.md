@@ -1021,6 +1021,12 @@ the required `SellerProfile.updatedAt` value and stopped before authority
 assertions. The corrected harness explicitly timestamps all raw-seeded
 `@updatedAt` models and pins that fixture/schema boundary in tests.
 
+Corrected run `30488100064` (job `90698760535`) accepted the candidate engine
+behavior: all 13 Case-aware Order checks and the complete repository CI gate
+passed against disposable PostgreSQL. This is preparation evidence only; it
+does not authorize merging the stacked chain, applying production migrations
+or activating Case-family RLS.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

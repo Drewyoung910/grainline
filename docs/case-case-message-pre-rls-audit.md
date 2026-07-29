@@ -639,3 +639,11 @@ omitted required `updatedAt`. The container was torn down and production was
 unchanged. The proof now supplies explicit timestamps for every seeded model
 whose Prisma `@updatedAt` field has no database default, with a static
 class-wide fixture contract.
+
+The corrected candidate passed exact-head run `30488100064`, job
+`90698760535`. Its 13-check PostgreSQL proof covered catalog/grants, forced-RLS
+source isolation, authorized and foreign actors, fixed retention/rollback,
+both lock races, unchanged caller context and zero residue. The same run
+passed all preceding RLS proofs, final runtime grant audit, TypeScript, lint,
+the full tests, dependency audit and production build. No production or
+persistent staging state changed.
