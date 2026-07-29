@@ -165,7 +165,7 @@ export default async function BuyerOrderDetailPage({
     .filter((value): value is number => typeof value === "number");
   const activeCase = order.case;
   const caseMessageHistory = activeCase
-    ? await findCaseMessageHistoryPage(activeCase.id, caseBefore)
+    ? await findCaseMessageHistoryPage(me.id, activeCase.id, caseBefore)
     : null;
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
@@ -526,11 +526,10 @@ export default async function BuyerOrderDetailPage({
                     <span className="font-medium text-neutral-700">
                       {caseMessageAuthorLabel({
                         authorKind: msg.authorKind,
-                        authorId: msg.author.id,
+                        authorId: msg.authorId,
                         buyerId: activeCase.buyerId,
                         sellerId: activeCase.sellerId,
                         viewerId: me.id,
-                        legacyAuthorRole: msg.author.role,
                       })}
                     </span>
                     <span>·</span>

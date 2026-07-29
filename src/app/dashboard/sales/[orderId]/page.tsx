@@ -167,7 +167,7 @@ export default async function SellerOrderDetailPage({
 
   const activeCase = order.case;
   const caseMessageHistory = activeCase
-    ? await findCaseMessageHistoryPage(activeCase.id, caseBefore)
+    ? await findCaseMessageHistoryPage(me.id, activeCase.id, caseBefore)
     : null;
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const now = new Date();
@@ -372,11 +372,10 @@ export default async function SellerOrderDetailPage({
               {caseMessageHistory.messages.map((msg) => {
                 const label = caseMessageAuthorLabel({
                   authorKind: msg.authorKind,
-                  authorId: msg.author.id,
+                  authorId: msg.authorId,
                   buyerId,
                   sellerId: activeCase.sellerId,
                   viewerId: meId,
-                  legacyAuthorRole: msg.author.role,
                 });
                 const isMe = label === "You (Seller)";
                 return (

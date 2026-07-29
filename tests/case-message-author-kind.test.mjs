@@ -141,6 +141,7 @@ describe("CaseMessage durable author kind", () => {
       /actor_kind := CASE[\s\S]*'BUYER'::public\."CaseMessageAuthorKind"[\s\S]*'SELLER'::public\."CaseMessageAuthorKind"[\s\S]*'STAFF'::public\."CaseMessageAuthorKind"/,
     );
     assert.match(replyMigration, /INSERT INTO public\."CaseMessage"[\s\S]*actor_kind/);
-    assert.match(history, /authorKind: true/);
+    assert.match(history, /listCaseMessagePage/);
+    assert.doesNotMatch(history, /author:\s*\{/);
   });
 });

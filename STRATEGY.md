@@ -134,7 +134,7 @@ The compatible Case-message preflight application conversion must use one
 strict typed result in both the reply and private-evidence upload routes. Keep
 missing and unauthorized rows non-enumerating, preserve the route-side staff
 PIN and external evidence checks, and never let preflight replace the final
-locked reply authority. After this conversion the live Case inventory is 52
+locked reply authority. At that preflight checkpoint the Case inventory was 52
 references across 23 files, with twenty-eight of the 80-reference baseline
 retained in the converted ledger. This remains preparation, not production
 activation.
@@ -149,6 +149,14 @@ never return User profile/contact fields, DirectUpload ids or object keys.
 Retain the 51-row hard cap and stable `(createdAt,id)` cursor. Unknown legacy
 non-party authors remain unlabeled rather than being inferred as staff from
 mutable current role.
+
+The compatible Case-message page application candidate uses this operation for
+buyer, seller and staff detail pages through one strict typed validator. It
+removes mutable User-name joins from message labels and moves the direct
+message plus nested attachment reads to the converted ledger. The current live
+Case-family inventory is 50 references across 22 files, with thirty of the
+80-reference baseline retained in the converted ledger. This remains
+preparation only; production Case-family RLS is still off.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and

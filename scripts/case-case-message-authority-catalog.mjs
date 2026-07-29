@@ -482,6 +482,14 @@ const freezeSource = (entry) => Object.freeze({
 // scanner stays an exact activation countdown while this ledger proves which
 // fixed operation replaced each removed reference.
 export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/lib/caseMessageHistory.ts": freezeSource({
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_message_page"],
+    inventory: {
+      "CaseMessage.findMany": 1,
+      "CaseMessageAttachment.relation-reference": 1,
+    },
+  }),
   "src/app/api/stripe/webhook/route.ts": freezeSource({
     actors: ["STRIPE_WEBHOOK"],
     destinations: ["case_stripe_dispute_apply"],
@@ -643,14 +651,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "Case.updateMany": 1,
       "CaseMessage.raw-sql-reference": 2,
       "Case.raw-sql-reference": 4,
-    },
-  }),
-  "src/lib/caseMessageHistory.ts": freezeSource({
-    actors: ["PARTICIPANT", "STAFF"],
-    destinations: ["case_message_page"],
-    inventory: {
-      "CaseMessage.findMany": 1,
-      "CaseMessageAttachment.relation-reference": 1,
     },
   }),
   "src/lib/metrics.ts": freezeSource({
