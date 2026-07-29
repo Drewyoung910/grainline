@@ -32,9 +32,11 @@ export const NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES = ["read:UPDATE"];
 export const CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
+  "CaseResolutionClaim",
   "DirectUploadReference",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
+  "CaseResolutionClaim",
   "DirectUploadReference",
 ]);
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
@@ -165,6 +167,8 @@ const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
 // exception explicit instead of treating every grainline_* function as a
 // runtime RPC.
 export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
+  "grainline_case_resolution_claim_immutable",
+  "grainline_case_resolution_claim_lease_valid",
   "grainline_conversation_participants_immutable",
   "grainline_message_participants_match_conversation",
   "grainline_message_route_immutable",
