@@ -108,6 +108,10 @@ jobs:
         run: npx prisma migrate deploy
       - name: Converge production-style runtime grants after migrations
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Prove Case invariant drafts in rollback-only PostgreSQL
+        run: npm run audit:rls-case-invariant-drafts
+        env:
+          CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Case and CaseMessage legacy inspection SQL in ephemeral PostgreSQL
         run: npm run audit:rls-case-legacy-inspection
         env:
