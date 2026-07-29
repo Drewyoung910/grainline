@@ -617,6 +617,72 @@ GRANT USAGE ON TYPE
   public."VerificationStatus"
 TO :"runtime_role";
 
+-- CaseResolutionClaimStatus is absent before the compatible Case preparation
+-- migration. Keep provisioning valid on either side of that database-first
+-- boundary while preserving its no-PUBLIC type posture.
+SELECT format(
+  'GRANT USAGE ON TYPE public."CaseResolutionClaimStatus" TO %I',
+  :'runtime_role'
+)
+WHERE to_regtype('public."CaseResolutionClaimStatus"') IS NOT NULL;
+\gexec
+
+-- The first compatible Case service operation is absent before its
+-- operation-and-private-ledger preparation migration. Converge it to zero PUBLIC/direct
+-- runtime authority, then grant only EXECUTE when it exists.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_stripe_dispute_apply(text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_stripe_dispute_apply(text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_stripe_dispute_apply(text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
+-- The seller-refund Case operation is absent before its compatible
+-- operation-and-private-ledger migration. Preserve zero PUBLIC/direct table
+-- authority and grant only the exact fixed function when present.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_seller_refund_apply(text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_seller_refund_apply(text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_seller_refund_apply(text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.
@@ -624,6 +690,8 @@ GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(json
 -- converge both inherited/public and direct runtime EXECUTE to none.
 WITH private_trigger(function_signature) AS (
   VALUES
+    ('public."grainline_case_resolution_claim_immutable"()'),
+    ('public."grainline_case_resolution_claim_lease_valid"()'),
     ('public."grainline_conversation_participants_immutable"()'),
     ('public."grainline_message_participants_match_conversation"()'),
     ('public."grainline_message_route_immutable"()'),
@@ -636,6 +704,8 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
 
 WITH private_trigger(function_signature) AS (
   VALUES
+    ('public."grainline_case_resolution_claim_immutable"()'),
+    ('public."grainline_case_resolution_claim_lease_valid"()'),
     ('public."grainline_conversation_participants_immutable"()'),
     ('public."grainline_message_participants_match_conversation"()'),
     ('public."grainline_message_route_immutable"()'),
@@ -650,14 +720,21 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
--- DirectUploadReference is an owner-operated ledger behind fixed functions.
--- It intentionally has FORCE RLS with zero policies and no runtime/PUBLIC
--- table authority. Keep the compatible DirectUpload table grants separate.
+-- These owner-operated ledgers sit behind fixed functions. They intentionally
+-- have FORCE RLS with zero policies and no runtime/PUBLIC table authority.
 SELECT format(
-  'REVOKE ALL ON TABLE public."DirectUploadReference" FROM PUBLIC, %I',
+  'REVOKE ALL ON TABLE public.%I FROM PUBLIC, %I',
+  private_table.table_name,
   :'runtime_role'
 )
-WHERE to_regclass('public."DirectUploadReference"') IS NOT NULL;
+FROM (
+  VALUES
+    ('CaseResolutionClaim'),
+    ('CaseStripeDisputeApplication'),
+    ('CaseSellerRefundApplication'),
+    ('DirectUploadReference')
+) AS private_table(table_name)
+WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec
 
 -- DirectUpload preparation may be absent before its reviewed migrations.
