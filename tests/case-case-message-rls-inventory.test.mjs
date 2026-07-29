@@ -7,15 +7,11 @@ import {
 } from "../scripts/case-case-message-rls-inventory.mjs";
 
 const EXPECTED_BASELINE = {
-  "src/app/admin/cases/[id]/page.tsx": {
-    "Case.findUnique": 1,
-  },
   "src/app/admin/cases/page.tsx": {
     "Case.count": 1,
     "Case.findMany": 1,
     "CaseMessage.relation-reference": 1,
   },
-  "src/app/admin/layout.tsx": { "Case.count": 1 },
   "src/app/admin/verification/page.tsx": {
     "Case.count": 1,
     "Case.findFirst": 1,
@@ -59,9 +55,6 @@ const EXPECTED_BASELINE = {
   "src/lib/caseLifecycleLocks.ts": {
     "Case.raw-sql-reference": 1,
   },
-  "src/app/admin/orders/[id]/page.tsx": {
-    "Case.relation-reference": 1,
-  },
   "src/app/api/orders/[id]/confirm-delivery/route.ts": {
     "Case.relation-reference": 3,
   },
@@ -73,12 +66,6 @@ const EXPECTED_BASELINE = {
     "Case.relation-reference": 1,
     "Case.raw-sql-reference": 1,
   },
-  "src/app/dashboard/orders/[id]/page.tsx": {
-    "Case.relation-reference": 1,
-  },
-  "src/app/dashboard/sales/[orderId]/page.tsx": {
-    "Case.relation-reference": 1,
-  },
   "src/lib/orderPiiRetention.ts": {
     "Case.raw-sql-reference": 1,
   },
@@ -88,8 +75,8 @@ describe("Case and CaseMessage RLS inventory", () => {
   const inventory = collectCaseCaseMessageAccess();
 
   it("pins every current direct, relation, and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 27);
-    assert.equal(inventory.relationReferences.length, 12);
+    assert.equal(inventory.ormCalls.length, 25);
+    assert.equal(inventory.relationReferences.length, 9);
     assert.equal(inventory.rawSqlReferences.length, 11);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
@@ -120,7 +107,7 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /PDF evidence remains prohibited/);
     assert.match(
       audit,
-      /exact 80-reference conversion baseline, 50-reference current countdown\s+and thirty-reference converted ledger are pinned by tests/,
+      /exact 80-reference conversion baseline, 45-reference current countdown\s+and thirty-five-reference converted ledger are pinned by tests/,
     );
     assert.match(
       audit,

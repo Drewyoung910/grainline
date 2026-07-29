@@ -208,10 +208,17 @@ describe("message and case policy guardrails", () => {
     ]) {
       const page = source(pagePath);
 
-      assert.match(page, /unavailableCaseMessageRecipientReason/);
+      assert.match(page, /getCaseMessagePreflight/);
+      assert.match(page, /caseMessagePreflight\?\.recipientUnavailableReason/);
       assert.match(page, /unavailableCaseRecipientMessage/);
-      assert.match(page, /buyer: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/);
-      assert.match(page, /seller: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/);
+      assert.doesNotMatch(
+        page,
+        /buyer: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/,
+      );
+      assert.doesNotMatch(
+        page,
+        /seller: \{ select: \{ id: true, banned: true, deletedAt: true \} \}/,
+      );
       assert.match(page, /caseReplyUnavailableMessage \? \(/);
       assert.match(
         page,

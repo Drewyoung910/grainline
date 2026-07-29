@@ -487,6 +487,31 @@ const freezeSource = (entry) => Object.freeze({
 // scanner stays an exact activation countdown while this ledger proves which
 // fixed operation replaced each removed reference.
 export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/app/admin/cases/[id]/page.tsx": freezeSource({
+    actors: ["STAFF"],
+    destinations: ["case_get", "case_message_page"],
+    inventory: { "Case.findUnique": 1 },
+  }),
+  "src/app/admin/layout.tsx": freezeSource({
+    actors: ["STAFF"],
+    destinations: ["case_staff_active_count"],
+    inventory: { "Case.count": 1 },
+  }),
+  "src/app/admin/orders/[id]/page.tsx": freezeSource({
+    actors: ["STAFF"],
+    destinations: ["case_get_by_order"],
+    inventory: { "Case.relation-reference": 1 },
+  }),
+  "src/app/dashboard/orders/[id]/page.tsx": freezeSource({
+    actors: ["BUYER"],
+    destinations: ["case_get_by_order", "case_message_page"],
+    inventory: { "Case.relation-reference": 1 },
+  }),
+  "src/app/dashboard/sales/[orderId]/page.tsx": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_get_by_order", "case_message_page"],
+    inventory: { "Case.relation-reference": 1 },
+  }),
   "src/lib/caseMessageHistory.ts": freezeSource({
     actors: ["PARTICIPANT", "STAFF"],
     destinations: ["case_message_page"],
@@ -562,11 +587,6 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
-  "src/app/admin/cases/[id]/page.tsx": freezeSource({
-    actors: ["STAFF"],
-    destinations: ["case_get", "case_message_page"],
-    inventory: { "Case.findUnique": 1 },
-  }),
   "src/app/admin/cases/page.tsx": freezeSource({
     actors: ["STAFF"],
     destinations: ["case_staff_queue"],
@@ -575,11 +595,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "Case.findMany": 1,
       "CaseMessage.relation-reference": 1,
     },
-  }),
-  "src/app/admin/layout.tsx": freezeSource({
-    actors: ["STAFF"],
-    destinations: ["case_staff_active_count"],
-    inventory: { "Case.count": 1 },
   }),
   "src/app/admin/verification/page.tsx": freezeSource({
     actors: ["STAFF"],
@@ -663,11 +678,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
     destinations: ["case_seller_active_count"],
     inventory: { "Case.count": 1 },
   }),
-  "src/app/admin/orders/[id]/page.tsx": freezeSource({
-    actors: ["STAFF"],
-    destinations: ["case_get_by_order"],
-    inventory: { "Case.relation-reference": 1 },
-  }),
   "src/app/api/orders/[id]/confirm-delivery/route.ts": freezeSource({
     actors: ["BUYER"],
     destinations: ["case_order_active"],
@@ -688,16 +698,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "Case.relation-reference": 1,
       "Case.raw-sql-reference": 1,
     },
-  }),
-  "src/app/dashboard/orders/[id]/page.tsx": freezeSource({
-    actors: ["BUYER"],
-    destinations: ["case_get_by_order", "case_message_page"],
-    inventory: { "Case.relation-reference": 1 },
-  }),
-  "src/app/dashboard/sales/[orderId]/page.tsx": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_get_by_order", "case_message_page"],
-    inventory: { "Case.relation-reference": 1 },
   }),
   "src/lib/caseLifecycleLocks.ts": freezeSource({
     actors: ["PRIVATE_CORE"],

@@ -39,7 +39,7 @@ describe("status label guardrails", () => {
     assert.equal(orderPaymentEventTypeLabel("FUTURE_EVENT"), "Payment event");
 
     const adminOrder = source("src/app/admin/orders/[id]/page.tsx");
-    assert.match(adminOrder, /caseResolutionLabel\(order\.case\.resolution\)/);
+    assert.match(adminOrder, /caseResolutionLabel\(caseRecord\.resolution\)/);
     assert.match(adminOrder, /orderPaymentEventTypeLabel\(event\.eventType\)/);
     assert.doesNotMatch(adminOrder, /replaceAll\("_", " "\)/);
   });

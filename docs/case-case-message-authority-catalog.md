@@ -27,15 +27,18 @@ application conversion then moves the final direct Case lookup from the reply
 route and the direct Case lookup from the private-evidence upload route behind
 `grainline_case_message_preflight`. The bounded Case-message page application
 conversion then moves its direct message read and nested attachment relation
-behind `grainline_case_message_page`. The current exact inventory is therefore
-50 remaining references across 22 source files: 27 direct ORM operations, 12
-nested relation references and 11 raw SQL references. The executable catalog
-deep-compares every remaining source and operation count with the live scanner
-and retains all thirty removed
+behind `grainline_case_message_page`. The grouped recipient-read application
+conversion then moves the staff Case detail lookup, staff active-count query
+and three nested Order-to-Case reads behind the fixed recipient projections.
+The current exact inventory is therefore 45 remaining references across 17
+source files: 25 direct ORM operations, 9 nested relation references and 11
+raw SQL references. The executable catalog deep-compares every remaining
+source and operation count with the live scanner and retains all thirty-five removed
 references (three from the Stripe webhook, two from the seller-refund route,
 four from staff resolution, three from participant mark-resolved, four from
-buyer Case opening, ten from Case reply, two from Case-message preflight and
-two from Case-message page history) in a separate converted-source ledger. A
+buyer Case opening, ten from Case reply, two from Case-message preflight, two
+from Case-message page history and five from grouped recipient reads) in a
+separate converted-source ledger. A
 source cannot disappear, appear or claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
@@ -554,6 +557,21 @@ DEFINER design: the queue needs minimal cross-user buyer/seller contact data,
 which a later self-only User RLS policy must hide from ordinary INVOKER
 queries. The queue is not implemented by this migration and may not be folded
 into the PII-free shared Case projection.
+
+The grouped recipient-read application conversion uses those fixed operations
+in the buyer and seller Order detail pages, the staff Case and Order detail
+pages, and the PIN-gated staff navigation count. Participant pages obtain
+counterparty availability from the already-proven
+`grainline_case_message_preflight` result instead of joining mutable User
+status through Case. Staff Case detail loads Order and minimal party contact
+data separately only after `grainline_case_get` proves Case visibility. Raw
+Stripe refund object ids no longer cross the shared Case projection or act as
+application refund-state flags; the pages use the durable
+`REFUND_FULL`/`REFUND_PARTIAL` resolution, while staff can still inspect the
+separate payment-event ledger. This moves five references to the converted
+ledger, leaving 45 current references across 17 files and thirty-five
+converted references. It remains compatible app preparation only: no policy,
+RLS posture, table grant, deployment or production data changes.
 
 ## Account deletion boundary
 
