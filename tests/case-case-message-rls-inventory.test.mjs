@@ -7,15 +7,6 @@ import {
 } from "../scripts/case-case-message-rls-inventory.mjs";
 
 const EXPECTED_BASELINE = {
-  "src/app/api/cases/[id]/escalate/route.ts": {
-    "Case.findUnique": 1,
-    "Case.updateMany": 1,
-    "Case.raw-sql-reference": 1,
-  },
-  "src/app/api/cron/case-auto-close/route.ts": {
-    "Case.updateMany": 3,
-    "Case.findMany": 3,
-  },
   "src/lib/accountDeletion.ts": {
     "CaseMessage.update": 1,
     "Case.update": 1,
@@ -34,9 +25,9 @@ describe("Case and CaseMessage RLS inventory", () => {
   const inventory = collectCaseCaseMessageAccess();
 
   it("pins every current direct, relation, and raw SQL access path", () => {
-    assert.equal(inventory.ormCalls.length, 13);
+    assert.equal(inventory.ormCalls.length, 5);
     assert.equal(inventory.relationReferences.length, 0);
-    assert.equal(inventory.rawSqlReferences.length, 8);
+    assert.equal(inventory.rawSqlReferences.length, 7);
     assert.deepEqual(
       summarizeCaseCaseMessageAccess(inventory),
       EXPECTED_BASELINE,
@@ -60,13 +51,16 @@ describe("Case and CaseMessage RLS inventory", () => {
     assert.match(audit, /durable source-derived author kind/);
     assert.match(audit, /same Order lock before (?:their|its) conflict\s+predicates/);
     assert.match(audit, /bounded `\(createdAt,id\)` keyset history/);
-    assert.match(audit, /scheduled transition must use the expired `sellerRespondBy` boundary/);
+    assert.match(
+      audit,
+      /makes expired `sellerRespondBy` one of three exact database-selected cron families/,
+    );
     assert.match(audit, /Include a private-object-backed `CaseMessageAttachment` image model/);
     assert.match(audit, /persist an opaque object key rather than a public URL/);
     assert.match(audit, /PDF evidence remains prohibited/);
     assert.match(
       audit,
-      /exact 80-reference conversion baseline, 21-reference current countdown\s+and fifty-nine-reference converted ledger are pinned by tests/,
+      /exact 80-reference\s+conversion baseline, 12-reference current countdown\s+and sixty-eight-reference\s+converted ledger are pinned by tests/,
     );
     assert.match(
       audit,

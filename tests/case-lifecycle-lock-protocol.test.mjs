@@ -136,23 +136,33 @@ describe("Case and Order lifecycle lock protocol", () => {
 
   it("serializes participant escalation and co-commits its actor audit", () => {
     const route = source("src/app/api/cases/[id]/escalate/route.ts");
-    const single = route.slice(route.indexOf("// Single case escalation"));
+    const migration = source(
+      "prisma/migrations/20260729060000_prepare_case_escalation_cron_authority/migration.sql",
+    );
+    const single = migration.slice(
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.grainline_case_escalate"),
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.grainline_case_cron_transition_batch"),
+    );
 
     assertOrdered(single, [
-      ["single-case transaction", "const result = await prisma.$transaction"],
-      ["Case lock", "await lockCaseForLifecycle(tx, id)"],
-      ["fresh Case read", "await tx.case.findUnique"],
+      ["actor User lock", 'FROM public."User" AS actor'],
+      ["stable party locks", 'FROM public."User" AS party'],
+      ["Order lock", 'FROM public."Order" AS orders'],
       [
-        "post-lock timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
+        "Case lock",
+        'WHERE case_row.id = p_case_id\n     AND case_row."orderId" = locked_order.id',
       ],
-      ["Case transition", "await tx.case.updateMany"],
-      ["strict user audit", "await logUserAuditActionOrThrow"],
+      ["post-lock timestamp", "transition_at := pg_catalog.timezone("],
+      ["Case transition", 'UPDATE public."Case" AS case_row'],
+      ["staff audit", 'INSERT INTO public."SystemAuditLog"'],
+      ["participant audit", 'INSERT INTO public."AdminAuditLog"'],
     ]);
-    assert.match(single, /metadata: \{[\s\S]{0,180}orderId: caseRecord\.orderId/);
+    assert.match(single, /locked_case\."escalateUnlocksAt" > transition_at/);
+    assert.match(single, /"caseResolutionClaimId" IS NOT NULL/);
+    assert.match(route, /await escalateCaseWithFixedAuthority\(\{/);
     assert.doesNotMatch(
-      single,
-      /:\s*await prisma\.case\.updateMany\(\{\s*where: \{ id, status:/s,
+      route,
+      /\bprisma\.|verifyCronRequest|id === "all"/,
     );
   });
 
@@ -258,23 +268,35 @@ describe("Case and Order lifecycle lock protocol", () => {
     assert.doesNotMatch(staffResolve, /prisma\.\$transaction/);
   });
 
-  it("uses per-row PostgreSQL clock time for bulk cron escalation", () => {
-    const route = source("src/app/api/cases/[id]/escalate/route.ts");
-    const bulk = route.slice(
-      route.indexOf("// Bulk escalation: staff/cron only"),
-      route.indexOf("// Single case escalation"),
+  it("derives bounded cron targets and co-commits audit and notifications", () => {
+    const migration = source(
+      "prisma/migrations/20260729060000_prepare_case_escalation_cron_authority/migration.sql",
+    );
+    const cron = migration.slice(
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.grainline_case_cron_transition_batch"),
     );
 
-    assert.match(bulk, /UPDATE "Case"/);
-    assert.match(bulk, /"updatedAt" = pg_catalog\.clock_timestamp\(\)/);
-    assert.match(
-      bulk,
-      /"sellerRespondBy" < pg_catalog\.clock_timestamp\(\)/,
-    );
-    assert.match(
-      bulk,
-      /"escalateUnlocksAt" < pg_catalog\.clock_timestamp\(\)/,
-    );
-    assert.doesNotMatch(bulk, /const now = new Date\(\)/);
+    assertOrdered(cron, [
+      ["database clock", "transition_at := pg_catalog.timezone("],
+      ["database-selected candidates", 'FROM public."Case" AS case_row'],
+      ["stable party locks", 'FROM public."User" AS party'],
+      ["Order skip lock", "FOR UPDATE SKIP LOCKED"],
+      [
+        "Case skip lock",
+        'WHERE case_row.id = candidate.id\n       AND case_row."orderId" = locked_order.id',
+      ],
+      ["Case transition", 'UPDATE public."Case" AS case_row'],
+      ["per-row audit", 'INSERT INTO public."SystemAuditLog"'],
+      [
+        "atomic Notification",
+        "public.grainline_notification_create_case_event(",
+      ],
+    ]);
+    assert.match(cron, /p_limit > 100/);
+    assert.match(cron, /transition_at - INTERVAL '7 days'/);
+    assert.match(cron, /transition_at - INTERVAL '30 days'/);
+    assert.match(cron, /"sellerRespondBy" < transition_cutoff/);
+    assert.match(cron, /"caseResolutionClaimId" IS NOT NULL/);
+    assert.match(cron, /'case_system_action'/);
   });
 });

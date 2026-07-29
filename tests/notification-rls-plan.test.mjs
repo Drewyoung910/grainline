@@ -214,8 +214,9 @@ describe("Bucket B Notification RLS inventory", () => {
       /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE,\s*sourceId: finalized\.resolutionMessageId/,
     );
     assert.equal((caseAutoClose.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_SYSTEM_ACTION/g) ?? []).length, 6);
-    assert.equal((caseAutoClose.match(/const auditLogId = await logSystemActionOrThrow/g) ?? []).length, 3);
-    assert.equal((caseAutoClose.match(/return auditLogId/g) ?? []).length, 3);
+    assert.equal((caseAutoClose.match(/sourceId: row\.auditLogId/g) ?? []).length, 6);
+    assert.equal((caseAutoClose.match(/runCaseCronTransitionBatch\(\{/g) ?? []).length, 3);
+    assert.doesNotMatch(caseAutoClose, /logSystemActionOrThrow|prisma\.case\./);
     assert.match(commissionInterest, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_INTEREST,\s*sourceId: result\.commissionInterestId/);
     assert.match(commissionStatus, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST,\s*sourceId: id/);
     assert.equal((commissionExpire.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST/g) ?? []).length, 2);

@@ -209,9 +209,20 @@ instead of silently capping Case history. Private evidence download should
 reuse the existing participant/staff Case projection for staff-PIN mode and
 the existing source-bound DirectUpload reader for object authority.
 
-The current Case-family preparation inventory is 24 references across 5 files,
-with fifty-six of the 80-reference baseline retained in the converted ledger.
-This remains preparation only; production Case-family RLS is still off.
+The current Case-family preparation inventory is 12 references across 2 files,
+with sixty-eight of the 80-reference baseline retained in the converted
+ledger. Interactive escalation now requires a real authenticated actor and
+keeps non-party staff behind the session-bound PIN; the obsolete
+`CRON_SECRET`/`id="all"` arbitrary-target surface is removed. Scheduled Case
+transitions accept only one of three fixed families and a bounded limit.
+PostgreSQL derives due rows, cutoffs, targets, audit evidence, recipients and
+notification payload authority under User -> Order -> Case locks, with the
+primary notifications atomic to the transition and application calls retained
+only as deduplicated recovery replays. State-specific partial indexes keep the
+three due scans bounded as terminal Case history grows. The last ordinary application
+conversion is account deletion; the other remaining reference is the private
+non-runtime Case lock core. This remains preparation only; production
+Case-family RLS is still off.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and

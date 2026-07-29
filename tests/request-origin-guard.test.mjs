@@ -127,10 +127,9 @@ describe("request origin guard", () => {
       "getCaseMessagePreflight({",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/escalate/route.ts", [
-      "verifyCronRequest(req)",
       "await auth()",
-      "tx.case.findUnique",
-      "tx.case.updateMany",
+      "safeRateLimit(",
+      "await escalateCaseWithFixedAuthority({",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/mark-resolved/route.ts", [
       "await auth()",

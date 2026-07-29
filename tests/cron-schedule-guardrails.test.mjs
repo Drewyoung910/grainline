@@ -38,7 +38,7 @@ describe("cron schedule guardrails", () => {
       const jobName = path.split("/").at(-1);
       const route = source(`src/app${path}/route.ts`);
       const monitorPattern = new RegExp(
-        `withSentryCronMonitor\\("${escapeRegExp(jobName)}", \\{ value: "${escapeRegExp(schedule)}"`,
+        `withSentryCronMonitor\\(\\s*"${escapeRegExp(jobName)}"\\s*,\\s*\\{\\s*value:\\s*"${escapeRegExp(schedule)}"`,
       );
 
       assert.match(route, monitorPattern, `${path} should report the same cron schedule to Sentry`);

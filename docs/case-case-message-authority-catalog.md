@@ -46,9 +46,11 @@ removes the two redundant direct Case reads and nested CaseMessage projection:
 the already-reviewed prepare function repeats eligibility, refund, dispute,
 label, total, party and stock validation under database locks, while the
 client needs only a bounded success acknowledgement after finalization. The
-current exact inventory is therefore 21 remaining references across 4 source
-files, with all fifty-nine removed references retained in the converted-source
-ledger. The executable catalog
+interactive escalation and scheduled Case-transition conversion then moves
+the route's direct read, guarded update and obsolete bulk raw update plus six
+cron reads/writes behind two fixed operations. The current exact inventory is
+therefore 12 remaining references across 2 source files, with all sixty-eight
+removed references retained in the converted-source ledger. The executable catalog
 deep-compares every remaining source and operation count with the live scanner.
 A source cannot disappear, appear or claim conversion without changing a test.
 
@@ -189,21 +191,27 @@ enforces its own byte/character bounds and accepted enums; the word
 |---|---|
 | `case_stripe_dispute_apply` | Exact durable `OrderPaymentEvent` produced after signed Stripe webhook verification; rejects wrong-charge, terminal and superseded sources; a webhook-created Case records that source, while a reopened Case clears stale Case-level resolution/refund snapshots; immutable replay authority is stored in private `CaseStripeDisputeApplication`, while `SystemAuditLog` remains non-authoritative observability |
 | `case_seller_refund_apply` | Current seller actor plus exact same-Order local `OrderPaymentEvent` whose id, amount, currency, refund kind and provider id match the locked completed Order refund; derives the active Case transition, terminal/no-Case disposition, immutable `CaseSellerRefundApplication` replay identity and co-committed audit |
-| `case_cron_transition_batch` | Database-selected due rows by a fixed transition family and bounded limit |
+| `case_cron_transition_batch` | Database-selected due rows by one of three fixed transition families and a bounded limit |
 | `case_account_deletion_redact` | Exact locked `LOCAL_ANONYMIZE` `AccountDeletionSideEffect`; the deleting User is derived |
 | `case_lock_core` | Private exact Case-row lock; never runtime-executable |
 
 The cron operation performs target selection, fresh eligibility checks,
 transition and per-row `SystemAuditLog` insertion in one bounded statement. It
 uses stable ordering plus `FOR UPDATE SKIP LOCKED`; the caller cannot claim a
-Case id or timestamp. It returns bounded audit and recipient metadata for the
-already-live source-validating Notification wrappers. The SQL proof must cover
-concurrent cron invocations and every cron/reply/resolution winner ordering.
+Case id, cutoff, timestamp, target state, recipient or audit identity. It
+atomically creates both recipient notifications through the already-live
+source-validating Notification wrapper and returns bounded durable source
+metadata. Three state-specific partial indexes and fixed `UNION ALL` candidate
+branches keep each due scan indexable without dynamic SQL. The SQL proof must
+cover concurrent cron invocations and every
+cron/reply/resolution winner ordering.
 
 The cron conversion must preserve notification retryability. A committed
 transition has a durable audit source; retry logic may replay the same source
-through the existing deduplicating Notification wrapper. It must not depend on
-an in-memory list that is lost after the transition commits.
+through the existing deduplicating Notification wrapper. The application
+performs those post-commit calls only as harmless recovery replays; primary
+notification creation no longer depends on an in-memory list that can be lost
+after the Case transition commits.
 
 ## Staff PIN boundary
 

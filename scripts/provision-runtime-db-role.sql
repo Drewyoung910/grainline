@@ -897,7 +897,7 @@ WHERE to_regprocedure(
 \gexec
 
 -- Recipient Case projections are absent before their compatible authority
--- migration. Keep PUBLIC closed and converge only the three exact invoker
+-- migrations. Keep PUBLIC closed and converge only exact reviewed Case
 -- operations; direct Case reads remain available until the later app
 -- conversion and RLS activation.
 WITH recipient_read(function_signature) AS (
@@ -912,7 +912,9 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_seller_active_count(text)'),
     ('public.grainline_case_seller_verification_eligibility(text,text)'),
     ('public.grainline_case_guild_unresolved_guard(text)'),
-    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)')
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
+    ('public.grainline_case_escalate(text,text)'),
+    ('public.grainline_case_cron_transition_batch(text,integer)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM recipient_read
@@ -931,7 +933,9 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_seller_active_count(text)'),
     ('public.grainline_case_seller_verification_eligibility(text,text)'),
     ('public.grainline_case_guild_unresolved_guard(text)'),
-    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)')
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
+    ('public.grainline_case_escalate(text,text)'),
+    ('public.grainline_case_cron_transition_batch(text,integer)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -954,7 +958,9 @@ WITH recipient_read(function_signature) AS (
     ('public.grainline_case_seller_active_count(text)'),
     ('public.grainline_case_seller_verification_eligibility(text,text)'),
     ('public.grainline_case_guild_unresolved_guard(text)'),
-    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)')
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
+    ('public.grainline_case_escalate(text,text)'),
+    ('public.grainline_case_cron_transition_batch(text,integer)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

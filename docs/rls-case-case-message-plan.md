@@ -1174,6 +1174,55 @@ forbidden protected-table read. The focused authority/inventory/payment tests,
 TypeScript, lint and all 2,522 repository tests pass locally (2,516 pass and
 6 PostgreSQL-environment skips).
 
+Exact staff-resolution application head
+`d2b30d765af3c8b55a68949073c489c72ac192bb` passed GitHub Actions run
+`30493654183` (job `90717324313`). The temporary validation PR #115 was
+closed unmerged after that exact-head success. This is compatible preparation
+evidence only; production Case-family RLS remains off.
+
+Phase 4 escalation and scheduled-transition candidate (2026-07-29): the
+interactive route no longer accepts `CRON_SECRET` as authority for an
+arbitrary caller-selected Case or retains the unused `id="all"` bulk surface.
+It requires an authenticated local actor; non-party staff still pass the
+session-bound PIN before the fixed operation. PostgreSQL revalidates the
+current participant or staff role, counterparty availability, eligibility,
+refund/resolution fences and replay evidence under the shared
+User -> Order -> Case lock order. It derives the transition clock, audit
+target, metadata and deterministic retry identity.
+
+The scheduled job invokes one bounded function for each exact family:
+`PENDING_CLOSE_EXPIRED`, `OPEN_RESPONSE_DUE` and `STALE_DISCUSSION`. The
+caller supplies no Case id, cutoff, target state, recipient, audit identity or
+notification payload. PostgreSQL selects stable due rows, locks users then
+each Order and Case with `SKIP LOCKED`, rechecks the lifecycle predicates,
+co-commits the Case transition and strict system audit, and creates both
+source-validated notifications in the same transaction. The application
+retains its six notification calls only as deduplicated post-commit recovery
+replays, so delivery no longer depends on volatile in-memory transition rows.
+Three partial due-row indexes and index-friendly fixed `UNION ALL` branches
+bound the pending-close, open-response and stale-discussion scans as terminal
+Case history grows.
+
+This conversion moves nine protected references to the retained ledger,
+leaving 12 current references across 2 files and sixty-eight converted
+references. The remaining application surface is the account-deletion
+lifecycle conversion; the final raw reference is the private Case lock core,
+which is not a runtime-executable operation. This candidate adds no Case
+policy, table-grant revocation or production authorization. Acceptance still
+requires the exact-head PostgreSQL catalog, forced direct-denial, atomic
+audit/notification, replay, lock-skip, concurrent-worker, reply-race,
+rollback and zero-residue proof.
+
+The first complete local suite after this conversion found two stale
+repository contracts rather than application failures. The cron schedule
+guard assumed `withSentryCronMonitor` stayed on one source line, and the
+derived grant inventory still pinned the prior function count. The schedule
+matcher now tolerates formatting-only whitespace and the grant inventory
+explicitly includes both new functions and PUBLIC revocations. The corrected
+complete suite passes all 2,538 tests locally (2,531 pass and 7
+PostgreSQL-environment skips), together with focused authority contracts,
+TypeScript, lint and the exact sealed migration-tree guard.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

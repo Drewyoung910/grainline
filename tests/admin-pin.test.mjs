@@ -206,13 +206,16 @@ describe("admin PIN cookie secret configuration", () => {
 
     assert.match(escalate, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
     assert.match(escalate, /const \{ userId, sessionId \} = await auth\(\)/);
-    assert.match(escalate, /verifyCronRequest\(req\)/);
+    assert.doesNotMatch(escalate, /verifyCronRequest\(req\)|validCron/);
     assert.match(escalate, /if \(me\.role === "EMPLOYEE" \|\| me\.role === "ADMIN"\) \{/);
-    assert.match(escalate, /requireStaffAdminPinForApi\(req, userId, sessionId\)/);
+    assert.match(
+      escalate,
+      /requireStaffAdminPinForApi\(\s*req,\s*userId,\s*sessionId,\s*\)/,
+    );
     assert.ok(
-      escalate.indexOf("if (!validCron)") <
-        escalate.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)"),
-      "cron escalation should not require a Clerk admin PIN cookie",
+      escalate.indexOf("await requireStaffAdminPinForApi(")
+        < escalate.indexOf("await escalateCaseWithFixedAuthority({"),
+      "staff escalation should require the PIN before fixed authority",
     );
 
     assert.match(messages, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);

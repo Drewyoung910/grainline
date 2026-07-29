@@ -70,14 +70,37 @@ locks and the admin client consumes no returned Case graph. The exact current
 countdown is 13 direct operations, 0 nested relation references and 8 raw SQL
 references: 21 remaining protected references across 4 source files. The
 converted-source ledger now retains all fifty-nine removed references.
-The exact 80-reference conversion baseline, 21-reference current countdown
-and fifty-nine-reference converted ledger are pinned by tests.
+The escalation and cron-transition conversion then removes the interactive
+route's direct read, guarded write and bulk raw update plus all six scheduled
+cron reads/writes. Its fixed functions derive current participant/staff
+authority, due families, clocks, audits and notification sources under stable
+User -> Order -> Case locks. The exact current countdown is 5 direct
+operations, 0 nested relation references and 7 raw SQL references: 12
+remaining protected references across 2 source files. The converted-source
+ledger now retains all sixty-eight removed references. The exact 80-reference
+conversion baseline, 12-reference current countdown and sixty-eight-reference
+converted ledger are pinned by tests.
+
+The Extra-High escalation review rejected two first-draft replay details
+before commit. A bare `NOT IN` check would not reject a missing
+`previousStatus` because SQL `NULL` is not true, and a delimiter-only MD5
+material was needlessly ambiguous and collision-weak. Both staff and
+participant replay paths now explicitly reject null metadata, and the
+deterministic identity uses length-framed UTF-8 inputs with SHA-256. The
+disposable PostgreSQL harness deliberately removes the metadata key and
+requires a fail-closed replay error before restoring the synthetic fixture.
 
 The seller-aggregate checkpoint passed exact-head disposable PostgreSQL 16 and
 full CI at `b029f0ab9fec927317ffca60b0f5d09a6e70e6f0`, run `30490356203`
 (job `90706405419`). This is compatible preparation evidence only; production
 Case-family RLS remains off and no production migration or deployment is
 authorized by that result.
+
+The later staff-resolution application checkpoint passed exact-head full CI
+at `d2b30d765af3c8b55a68949073c489c72ac192bb`, run `30493654183`
+(job `90717324313`). Temporary PR #115 was closed unmerged. The current
+escalation/cron migration, application conversion and PostgreSQL harness are a
+new candidate and do not inherit that proof.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
@@ -226,7 +249,7 @@ credentials.
 | CC-A03 | High | Case creation previously checked Order/refund/case state and later inserted without locking the Order. The isolated compatible branch now uses one exact Order-row lock protocol for Case creation, label purchase, fulfillment, buyer delivery confirmation and seller-refund reservations, with fresh checks after lock acquisition. | Prove both race orderings in PostgreSQL, retain the protocol in the fixed database operations, and cover any additional conflicting transition found by the final inventory review. |
 | CC-A04 | High | Reply deduplication previously serialized only identical `(case, author, body)` attempts. The isolated compatible branch now serializes every reply on the parent Case and shares one post-lock PostgreSQL timestamp across Case/message state. | Prove different-body, seller-first-reply, pending-close and cron race orderings in PostgreSQL, then preserve the same lock/timestamp rule in the fixed write operation. |
 | CC-A05 | Medium/Scale | Buyer, seller and admin detail pages load the entire CaseMessage history ordered only by `createdAt`. Account export intentionally includes every participant Case/message as part of a much broader per-account export. Long disputes can create unbounded interactive query, render and payload cost, and equal timestamps lack a stable tie-breaker. | Use bounded `(createdAt,id)` keyset history for interactive pages and add a `(caseId,createdAt,id)` index. Keep account export complete through a dedicated participant projection; do not truncate legal export data. Move the whole-account export to an async streamed artifact if production evidence shows either a 10-second generation time or a 25 MiB uncompressed payload for one account. |
-| CC-A06 | High/Product | Public and email copy gives the seller 48 hours to respond. The scheduled job does not escalate an `OPEN` Case when `sellerRespondBy` expires; it waits until that deadline is another 14 days old. Parties normally cannot escalate `OPEN` because it has no discussion unlock timestamp. The separate bulk route that uses the deadline is not scheduled. | Choose and document the actual policy. The current public 48-hour contract implies the scheduled transition must use the expired `sellerRespondBy` boundary, with idempotent audit/notification proof. |
+| CC-A06 | High/Product | Public and email copy gives the seller 48 hours to respond. The prior scheduled job did not escalate an `OPEN` Case when `sellerRespondBy` expired; it waited until that deadline was another 14 days old. Parties normally cannot escalate `OPEN` because it has no discussion unlock timestamp. The isolated candidate now makes expired `sellerRespondBy` one of three exact database-selected cron families and removes the unused arbitrary-target bulk route. | Accept only after exact-head PostgreSQL proves the 48-hour family, atomic audit/notifications, deduplicated replay, concurrent workers and reply/cron winner orderings. |
 | CC-A07 | High | The database has only a non-negative refund check. It does not enforce coherent lifecycle fields: active versus terminal resolution data, resolved timestamps/actor, discussion/unlock timestamps, resolution marks, or refund fields matching resolution type. | Inspect legacy combinations, define the state invariant, repair only classified rows, then add checks/triggers and prove every valid transition plus forged-state rejection. |
 | CC-A08 | Expected gap | The original audit found 69 direct/relation/raw protected references; the current scanner pins 80 after private evidence, compatible lifecycle work, and replacement of three attachment-download relation reads with a fixed source-validating function. Participant RLS alone would break context-free cron/webhook/metrics/retention flows, while permissive service policies would recreate broad authority. | Convert all current references to explicit participant, staff, webhook, cron, lifecycle or aggregate destinations. Revoke direct runtime INSERT/UPDATE/DELETE before activation and keep no-context reads denied. |
 | CC-A09 | High | The isolated reply route now re-reads the Case and actor role/account state after the Case lock, treats a staff user who is also a party as that party, and derives author kind/status effects from the fresh rows. It does not yet provide a database function boundary against a caller holding the runtime credential, nor a final shared Case/User lock order. | Fixed write functions must derive the author and current authority after the reviewed lock order. Caller input may include user-authored body only; recipient, author kind, status side effects and event identity are database-derived. |

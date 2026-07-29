@@ -139,23 +139,33 @@ describe("Round 10 state-machine guardrails", () => {
   it("keeps stalled cases, refunds, and Stripe disputes on guarded transitions", () => {
     const autoClose = source("src/app/api/cron/case-auto-close/route.ts");
     const escalate = source("src/app/api/cases/[id]/escalate/route.ts");
+    const transitionAuthority = source(
+      "prisma/migrations/20260729060000_prepare_case_escalation_cron_authority/migration.sql",
+    );
     const refund = source("src/app/api/orders/[id]/refund/route.ts");
     const webhook = source("src/app/api/stripe/webhook/route.ts");
     const disputeAuthority = source(
       "prisma/migrations/20260729043000_prepare_case_stripe_dispute_authority/migration.sql",
     );
 
-    assert.match(autoClose, /const STALE_DISCUSSION_DAYS = 30/);
-    assert.match(autoClose, /const sellerResponseCutoff = new Date\(\)/);
-    assert.match(autoClose, /status: "OPEN",[\s\S]*sellerRespondBy: \{ lt: sellerResponseCutoff \}/);
-    assert.doesNotMatch(autoClose, /openCutoff/);
-    assert.doesNotMatch(autoClose, /14\+ days past sellerRespondBy/);
-    assert.match(autoClose, /status: "IN_DISCUSSION", updatedAt: \{ lt: discussionCutoff \}/);
-    assert.match(autoClose, /staleDiscussionEscalated\+\+/);
+    assert.match(autoClose, /family: "OPEN_RESPONSE_DUE"/);
+    assert.match(autoClose, /family: "STALE_DISCUSSION"/);
+    assert.match(transitionAuthority, /transition_at - INTERVAL '30 days'/);
     assert.match(
-      escalate,
-      /status = 'IN_DISCUSSION'::"CaseStatus"[\s\S]*"escalateUnlocksAt" < pg_catalog\.clock_timestamp\(\)/,
+      transitionAuthority,
+      /case_row\."sellerRespondBy" < transition_cutoff/,
     );
+    assert.doesNotMatch(transitionAuthority, /14 days|14\+ days/);
+    assert.match(
+      transitionAuthority,
+      /case_row\.status = 'IN_DISCUSSION'::public\."CaseStatus"[\s\S]*case_row\."updatedAt" < transition_cutoff/,
+    );
+    assert.match(autoClose, /staleDiscussionEscalated \+= rows\.length/);
+    assert.match(
+      transitionAuthority,
+      /locked_case\."escalateUnlocksAt" > transition_at/,
+    );
+    assert.doesNotMatch(escalate, /verifyCronRequest|id === "all"/);
     assert.match(refund, /grainline_case_seller_refund_apply/);
     assert.doesNotMatch(refund, /(?:prisma|tx)\.case\.(?:findUnique|updateMany)\(/);
     assert.match(webhook, /grainline_case_stripe_dispute_apply\(\$\{paymentEvent\.id\}::text\)/);

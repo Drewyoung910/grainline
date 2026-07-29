@@ -714,12 +714,9 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
     destinations: ["case_message_preflight"],
     inventory: { "Case.findUnique": 1 },
   }),
-});
-
-export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
   "src/app/api/cases/[id]/escalate/route.ts": freezeSource({
-    actors: ["PARTICIPANT", "STAFF", "CRON"],
-    destinations: ["case_escalate", "case_cron_transition_batch"],
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_escalate"],
     inventory: {
       "Case.findUnique": 1,
       "Case.updateMany": 1,
@@ -731,6 +728,9 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
     destinations: ["case_cron_transition_batch"],
     inventory: { "Case.updateMany": 3, "Case.findMany": 3 },
   }),
+});
+
+export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
   "src/lib/accountDeletion.ts": freezeSource({
     actors: ["ACCOUNT_LIFECYCLE"],
     destinations: ["case_account_deletion_blockers", "case_account_deletion_redact"],
