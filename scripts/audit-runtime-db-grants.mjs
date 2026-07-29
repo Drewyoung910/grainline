@@ -34,11 +34,13 @@ export const CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
+  "CaseSellerRefundApplication",
   "DirectUploadReference",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
+  "CaseSellerRefundApplication",
   "DirectUploadReference",
 ]);
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];

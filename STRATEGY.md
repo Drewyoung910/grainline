@@ -73,6 +73,14 @@ in a separate private, FORCE-RLS, zero-policy
 `SystemAuditLog` is evidence/observability rather than security authority.
 The fixed operation must also reject valid but superseded Stripe events; signed
 delivery does not imply event ordering.
+The next compatible Case slice is seller-refund application. Its fixed
+operation accepts only the authenticated seller actor and one exact committed
+local refund event, derives the Case resolution and stores immutable replay
+authority in a private zero-policy `CaseSellerRefundApplication` ledger. The
+later app conversion must preserve the shared User then Order then Case lock
+order. This does not pull Order/payment into the Case activation:
+`Order`/`OrderPaymentEvent` direct-write hardening remains a named dependency
+of that later independent sensitive group.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,

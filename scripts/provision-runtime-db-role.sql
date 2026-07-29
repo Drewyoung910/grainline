@@ -655,6 +655,34 @@ WHERE to_regprocedure(
 ) IS NOT NULL;
 \gexec
 
+-- The seller-refund Case operation is absent before its compatible
+-- operation-and-private-ledger migration. Preserve zero PUBLIC/direct table
+-- authority and grant only the exact fixed function when present.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_seller_refund_apply(text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_seller_refund_apply(text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_seller_refund_apply(text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.
@@ -703,6 +731,7 @@ FROM (
   VALUES
     ('CaseResolutionClaim'),
     ('CaseStripeDisputeApplication'),
+    ('CaseSellerRefundApplication'),
     ('DirectUploadReference')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;

@@ -487,6 +487,29 @@ the fixed-function migration must precede its deployment; no production
 migration, deployment, direct-grant revocation or Case RLS activation is
 authorized here.
 
+Phase 4 seller-refund authority checkpoint (2026-07-28): the isolated
+successor adds one compatible fixed operation and private immutable
+`CaseSellerRefundApplication` ledger. The runtime may execute
+`grainline_case_seller_refund_apply(actorUserId, orderPaymentEventId)` but has
+no direct ledger access. PostgreSQL locks and validates the active actor,
+Order, exact local refund event, complete one-seller graph and Case; derives
+the full/partial resolution, amount, provider id, timestamp and audit; and
+makes an already-applied source a non-mutating replay. NULL or malformed
+metadata, forged actor/source, mismatched amount/currency/provider id and
+direct ledger access fail closed. The private ledger is born ENABLE plus FORCE
+with zero policies and no PUBLIC/runtime table grants. This checkpoint does
+not yet convert the seller refund route, enable participant RLS, revoke legacy
+Case grants, authorize production migration or deploy.
+
+The subsequent compatible application conversion must preserve the shared
+lock order. The seller refund route already acquires the Order lock for its
+provider/local-ledger transaction, so it must first lock the authenticated
+seller User, then acquire Order, record the exact local payment event and call
+the fixed function, which locks Case only after Order. `Order` and
+`OrderPaymentEvent` still have broad runtime DML until their separate
+order/payment group; this remains an explicit threat-model dependency rather
+than a protection claim.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

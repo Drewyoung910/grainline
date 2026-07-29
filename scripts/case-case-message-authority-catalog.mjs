@@ -408,13 +408,17 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     runtimeExecute: true,
     callerInputs: ["actorUserId", "orderPaymentEventId"],
     databaseDerived: [
-      "exact seller-owned Order and committed refund evidence",
-      "active Case target",
-      "refund resolution fields and timestamp",
+      "current non-banned and non-deleted seller actor",
+      "exact seller-owned Order and complete seller graph",
+      "same-Order local refund event whose object id, amount, currency and refund kind match the locked completed Order refund",
+      "active, terminal or absent Case disposition",
+      "refund resolution fields, timestamp and seller resolver",
+      "private CaseSellerRefundApplication replay identity and co-committed non-authoritative SystemAuditLog observability",
     ],
     externalTrustBoundaries: [
       "the local payment ledger records the trusted Stripe client result; PostgreSQL does not independently attest Stripe",
-      "OrderPaymentEvent direct-write hardening remains a dependency of the later order-payment RLS group",
+      "Order and OrderPaymentEvent direct-write hardening remains a dependency of the later order-payment RLS group",
+      "the compatible application must lock the authenticated seller User before its existing Order refund transaction so the shared User then Order then Case lock order is preserved",
     ],
   }),
   freezeOperation({

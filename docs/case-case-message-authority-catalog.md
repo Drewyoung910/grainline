@@ -1,9 +1,9 @@
 # Case, CaseMessage, and CaseMessageAttachment Authority Catalog
 
-Opened 2026-07-28. Status: Phase 3 design and executable catalog only. This
-document and `scripts/case-case-message-authority-catalog.mjs` contain no
-policy, grant, trigger, function body or production-migration authorization.
-Production RLS remains off for all three tables.
+Opened 2026-07-28. Status: Phase 4 compatible operation conversion. This
+document and `scripts/case-case-message-authority-catalog.mjs` authorize no
+production migration, deployment, participant policy, direct-grant revocation
+or activation. Production RLS remains off for all three participant tables.
 
 ## Fixed boundary
 
@@ -26,11 +26,12 @@ in a separate converted-source ledger. A source cannot disappear, appear or
 claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
-Stripe resolution handshake. `CaseStripeDisputeApplication` is the separate
-immutable replay ledger for source-bound dispute create/reopen. Neither has a
-user-facing read path or is a participant-content table. Both are created
-FORCE-protected with zero policies and no `PUBLIC` or runtime table
-privileges; only their fixed Case functions may use them.
+Stripe resolution handshake. `CaseStripeDisputeApplication` and
+`CaseSellerRefundApplication` are separate immutable replay ledgers for,
+respectively, source-bound dispute create/reopen and seller-refund Case
+application. None has a user-facing read path or is a participant-content
+table. Each is created FORCE-protected with zero policies and no `PUBLIC` or
+runtime table privileges; only its exact fixed Case function may use it.
 
 `DirectUpload`, `Order`, `OrderPaymentEvent`, `Notification`,
 `AccountDeletionSideEffect`, `AdminAuditLog` and `SystemAuditLog` remain
@@ -132,7 +133,7 @@ enforces its own byte/character bounds and accepted enums; the word
 | Operation | Source binding |
 |---|---|
 | `case_stripe_dispute_apply` | Exact durable `OrderPaymentEvent` produced after signed Stripe webhook verification; rejects wrong-charge, terminal and superseded sources; a webhook-created Case records that source, while a reopened Case clears stale Case-level resolution/refund snapshots; immutable replay authority is stored in private `CaseStripeDisputeApplication`, while `SystemAuditLog` remains non-authoritative observability |
-| `case_seller_refund_apply` | Exact seller-owned Order plus committed local refund event |
+| `case_seller_refund_apply` | Current seller actor plus exact same-Order local `OrderPaymentEvent` whose id, amount, currency, refund kind and provider id match the locked completed Order refund; derives the active Case transition, terminal/no-Case disposition, immutable `CaseSellerRefundApplication` replay identity and co-committed audit |
 | `case_cron_transition_batch` | Database-selected due rows by a fixed transition family and bounded limit |
 | `case_account_deletion_redact` | Exact locked `LOCAL_ANONYMIZE` `AccountDeletionSideEffect`; the deleting User is derived |
 | `case_lock_core` | Private exact Case-row lock; never runtime-executable |
@@ -267,6 +268,10 @@ Before compatible function SQL can be accepted:
 - keep Stripe-dispute replay identity in private
   `CaseStripeDisputeApplication`, never in broadly writable
   `SystemAuditLog`, and reject valid-but-superseded provider events;
+- keep seller-refund replay identity in private
+  `CaseSellerRefundApplication`; derive the Case target, resolution, amount,
+  provider id and audit from one locked local refund source rather than
+  accepting any of them from the caller;
 - make cron notification replay durable and bounded;
 - prove every actor/foreign/no-context read, every valid/invalid transition,
   attachment binding, provider-event mismatch, account-deletion source

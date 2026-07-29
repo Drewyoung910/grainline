@@ -71,8 +71,11 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "unattested_no_effect_release",
     "runtime_direct_claim_read",
     "runtime_direct_dispute_application_read",
+    "runtime_direct_seller_refund_application_read",
     "forged_dispute_order_charge",
     "superseded_dispute_source",
+    "forged_seller_refund_actor",
+    "forged_seller_refund_source",
   ]) {
     assert.match(proof, new RegExp(`"${check}"`), check);
   }
@@ -82,6 +85,9 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /openedByPaymentEventId/);
   assert.match(proof, /CaseStripeDisputeApplication/);
   assert.match(proof, /grainline_case_stripe_dispute_apply/);
+  assert.match(proof, /CaseSellerRefundApplication/);
+  assert.match(proof, /grainline_case_seller_refund_apply/);
+  assert.match(proof, /CASE_SELLER_REFUND_APPLIED/);
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);

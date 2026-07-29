@@ -728,6 +728,7 @@ model OrderPaymentEvent {
   createdAt                     DateTime                       @default(now())
   updatedAt                     DateTime                       @updatedAt
   caseStripeDisputeApplications CaseStripeDisputeApplication[]
+  caseSellerRefundApplications  CaseSellerRefundApplication[]
 
   // Supports same-Order composite evidence foreign keys managed by raw SQL.
   @@unique([id, orderId])
@@ -928,6 +929,7 @@ model Case {
   // operation later derives this exact same-Order event inside PostgreSQL.
   openedByPaymentEventId    String?                        @unique
   stripeDisputeApplications CaseStripeDisputeApplication[]
+  sellerRefundApplications  CaseSellerRefundApplication[]
   messages                  CaseMessage[]
   createdAt                 DateTime                       @default(now())
   updatedAt                 DateTime                       @updatedAt
@@ -972,6 +974,22 @@ model CaseResolutionClaim {
 // operation. Runtime table access is intentionally absent; the reviewed
 // SECURITY DEFINER operation is its only application path.
 model CaseStripeDisputeApplication {
+  paymentEventId String            @id
+  paymentEvent   OrderPaymentEvent @relation(fields: [paymentEventId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  caseId         String
+  orderId        String
+  case           Case              @relation(fields: [caseId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
+  action         String            @db.VarChar(10)
+  createdAt      DateTime          @default(now())
+
+  @@index([caseId, createdAt])
+  @@index([orderId])
+}
+
+// Private immutable replay ledger for the fixed seller-refund Case
+// operation. Runtime table access is intentionally absent; the reviewed
+// SECURITY DEFINER operation is its only application path.
+model CaseSellerRefundApplication {
   paymentEventId String            @id
   paymentEvent   OrderPaymentEvent @relation(fields: [paymentEventId, orderId], references: [id, orderId], onDelete: Restrict, onUpdate: Cascade)
   caseId         String

@@ -22,10 +22,12 @@ const ids = Object.freeze({
   sourceOrder: "case-invariant-proof-order-source",
   refundOrder: "case-invariant-proof-order-refund",
   releaseOrder: "case-invariant-proof-order-release",
+  sellerRefundOrder: "case-invariant-proof-order-seller-refund",
   ordinaryCase: "case-invariant-proof-case-ordinary",
   sourceCase: "case-invariant-proof-case-source",
   refundCase: "case-invariant-proof-case-refund",
   releaseCase: "case-invariant-proof-case-release",
+  sellerRefundCase: "case-invariant-proof-case-seller-refund",
 });
 
 function safeError(error) {
@@ -136,6 +138,7 @@ async function seedBaseFixtures(client) {
     ids.sourceOrder,
     ids.refundOrder,
     ids.releaseOrder,
+    ids.sellerRefundOrder,
   ].entries()) {
     await client.query(`
       INSERT INTO public."Order" (id, "buyerId", "stripeChargeId")
@@ -594,6 +597,195 @@ async function proveStripeDisputeAuthority(client) {
   );
 }
 
+async function proveSellerRefundAuthority(client) {
+  const refundId = "re_case_invariant_seller_refund";
+  const paymentEventId = "case-invariant-proof-seller-refund-event";
+  await insertParticipantCase(
+    client,
+    ids.sellerRefundCase,
+    ids.sellerRefundOrder,
+  );
+  await client.query(`
+    UPDATE public."Order"
+       SET "itemsSubtotalCents" = 10000,
+           "shippingAmountCents" = 0,
+           "giftWrappingPriceCents" = NULL,
+           "taxAmountCents" = 0,
+           "sellerRefundId" = $2,
+           "sellerRefundAmountCents" = 10000,
+           "sellerRefundLockedAt" = NULL
+     WHERE id = $1
+  `, [ids.sellerRefundOrder, refundId]);
+  await client.query(`
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", "amountCents", currency,
+      status, reason, metadata, "createdAt", "updatedAt"
+    )
+    VALUES (
+      $1, $2, $3, $4,
+      'refund', 'REFUND', 10000, 'usd',
+      'succeeded', 'seller_refund',
+      pg_catalog.jsonb_build_object(
+        'localAction', 'SELLER_REFUND_RECORDED',
+        'refundType', 'FULL',
+        'refundIds', pg_catalog.jsonb_build_array($4::text)
+      ),
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [
+    paymentEventId,
+    ids.sellerRefundOrder,
+    `local:seller_refund_recorded:${refundId}`,
+    refundId,
+  ]);
+
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  await expectPostgresError(
+    client,
+    "forged_seller_refund_actor",
+    () => client.query(`
+      SELECT *
+        FROM public.grainline_case_seller_refund_apply($1, $2)
+    `, [ids.foreign, paymentEventId]),
+    /Case seller-refund Order has invalid seller authority/,
+  );
+  const applied = await client.query(`
+    SELECT *
+      FROM public.grainline_case_seller_refund_apply($1, $2)
+  `, [ids.seller, paymentEventId]);
+  await client.query("RESET ROLE");
+  assert.deepEqual(applied.rows, [{
+    caseId: ids.sellerRefundCase,
+    orderId: ids.sellerRefundOrder,
+    sellerUserId: ids.seller,
+    buyerUserId: ids.buyer,
+    paymentEventId,
+    action: "resolve",
+  }]);
+  await setConstraintsImmediate(client);
+
+  const resolved = await client.query(`
+    SELECT
+      status::text,
+      resolution::text,
+      "refundAmountCents",
+      "stripeRefundId",
+      "resolvedById",
+      "buyerMarkedResolved",
+      "sellerMarkedResolved"
+      FROM public."Case"
+     WHERE id = $1
+  `, [ids.sellerRefundCase]);
+  assert.deepEqual(resolved.rows[0], {
+    status: "RESOLVED",
+    resolution: "REFUND_FULL",
+    refundAmountCents: 10000,
+    stripeRefundId: refundId,
+    resolvedById: ids.seller,
+    buyerMarkedResolved: false,
+    sellerMarkedResolved: false,
+  });
+
+  const immutableEvidence = await client.query(`
+    SELECT
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."CaseSellerRefundApplication"
+         WHERE "paymentEventId" = $1
+           AND "caseId" = $2
+           AND "orderId" = $3
+           AND action = 'resolve'
+      ) AS application_count,
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."SystemAuditLog"
+         WHERE action = 'CASE_SELLER_REFUND_APPLIED'
+           AND metadata->>'orderPaymentEventId' = $1
+           AND metadata->>'caseAction' = 'resolve'
+      ) AS audit_count
+  `, [paymentEventId, ids.sellerRefundCase, ids.sellerRefundOrder]);
+  assert.deepEqual(immutableEvidence.rows[0], {
+    application_count: 1,
+    audit_count: 1,
+  });
+
+  // Model a later provider dispute reopening the Case. Replaying the old local
+  // refund source must not resolve the newly active Case again.
+  await client.query(`
+    UPDATE public."Case"
+       SET status = 'UNDER_REVIEW',
+           resolution = NULL,
+           "refundAmountCents" = NULL,
+           "stripeRefundId" = NULL,
+           "resolvedAt" = NULL,
+           "resolvedById" = NULL,
+           "buyerMarkedResolved" = false,
+           "sellerMarkedResolved" = false,
+           "updatedAt" = CURRENT_TIMESTAMP
+     WHERE id = $1
+  `, [ids.sellerRefundCase]);
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  const replayed = await client.query(`
+    SELECT *
+      FROM public.grainline_case_seller_refund_apply($1, $2)
+  `, [ids.seller, paymentEventId]);
+  await client.query("RESET ROLE");
+  assert.equal(replayed.rows[0]?.action, "replay");
+  const replayState = await client.query(`
+    SELECT status::text, resolution
+      FROM public."Case"
+     WHERE id = $1
+  `, [ids.sellerRefundCase]);
+  assert.deepEqual(replayState.rows[0], {
+    status: "UNDER_REVIEW",
+    resolution: null,
+  });
+
+  const invalidEventId = "case-invariant-proof-invalid-seller-refund-event";
+  const invalidRefundId = "re_case_invariant_invalid_seller_refund";
+  await client.query(`
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", "amountCents", currency,
+      status, reason, metadata, "createdAt", "updatedAt"
+    )
+    VALUES (
+      $1, $2, $3, $4,
+      'refund', 'REFUND', 9999, 'usd',
+      'succeeded', 'seller_refund',
+      pg_catalog.jsonb_build_object(
+        'localAction', 'SELLER_REFUND_RECORDED',
+        'refundType', 'PARTIAL',
+        'refundIds', pg_catalog.jsonb_build_array($4::text)
+      ),
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [
+    invalidEventId,
+    ids.sellerRefundOrder,
+    `local:seller_refund_recorded:${invalidRefundId}`,
+    invalidRefundId,
+  ]);
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  await expectPostgresError(
+    client,
+    "forged_seller_refund_source",
+    () => client.query(`
+      SELECT *
+        FROM public.grainline_case_seller_refund_apply($1, $2)
+    `, [ids.seller, invalidEventId]),
+    /Case seller-refund source is invalid/,
+  );
+  await client.query("RESET ROLE");
+  const invalidResidue = await client.query(`
+    SELECT pg_catalog.count(*)::integer AS count
+      FROM public."CaseSellerRefundApplication"
+     WHERE "paymentEventId" = $1
+  `, [invalidEventId]);
+  assert.equal(invalidResidue.rows[0]?.count, 0);
+}
+
 async function proveClaimLedger(client) {
   await insertParticipantCase(client, ids.refundCase, ids.refundOrder);
   await insertParticipantCase(client, ids.releaseCase, ids.releaseOrder);
@@ -838,6 +1030,7 @@ async function provePrivatePosture(client) {
   for (const privateTable of [
     "CaseResolutionClaim",
     "CaseStripeDisputeApplication",
+    "CaseSellerRefundApplication",
   ]) {
     const posture = await client.query(`
       SELECT
@@ -889,6 +1082,17 @@ async function provePrivatePosture(client) {
     },
     /permission denied for table CaseStripeDisputeApplication/,
   );
+  await expectPostgresError(
+    client,
+    "runtime_direct_seller_refund_application_read",
+    async () => {
+      await client.query("SET LOCAL ROLE grainline_app_runtime");
+      await client.query(
+        'SELECT pg_catalog.count(*) FROM public."CaseSellerRefundApplication"',
+      );
+    },
+    /permission denied for table CaseSellerRefundApplication/,
+  );
   const identity = await client.query(
     "SELECT current_user AS current_user",
   );
@@ -913,12 +1117,13 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await seedBaseFixtures(client);
     await proveCaseAndMessageInvariants(client);
     await proveStripeDisputeAuthority(client);
+    await proveSellerRefundAuthority(client);
     await proveClaimLedger(client);
     await provePrivatePosture(client);
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 24,
+      checks: 29,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

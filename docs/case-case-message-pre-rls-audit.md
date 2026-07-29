@@ -49,6 +49,18 @@ current tree. Compatible source and fixed-operation migrations do exist on
 isolated, unmerged branches. Direct runtime table access is therefore an
 expected pre-activation gap, not evidence that the table is ready.
 
+The second compatible fixed-operation candidate is the seller-refund Case
+transition. It accepts only the current actor and one exact local
+`OrderPaymentEvent`; PostgreSQL derives and locks the Order, seller graph and
+Case, verifies the completed Order refund snapshot, derives full/partial Case
+resolution fields, and stores replay authority in private
+`CaseSellerRefundApplication`. A stale replay cannot resolve a later reopened
+Case. The app route conversion remains pending, so the live scanner still
+reports 77 protected references. The conversion must lock User before its
+existing Order refund transaction and then call the fixed function after the
+local refund event commits within that transaction. Order/payment direct-write
+hardening remains deferred to its own sensitive group.
+
 ## Phase 2 aggregate classification boundary
 
 The 2026-07-28 Phase 2 candidate inventories the production legacy shape

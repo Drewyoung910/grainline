@@ -30,7 +30,7 @@ test("Case Stripe dispute authority is CI-reviewed but not production-authorized
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-stripe-dispute-authority-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-seller-refund-authority-reviewed/,
   );
   assert.match(
     productionWorkflow,
