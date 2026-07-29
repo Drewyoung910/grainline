@@ -58,8 +58,10 @@ by the ordinary runtime role:
 
 - no-context and foreign-user reads return no rows;
 - direct runtime `INSERT`, `UPDATE` and `DELETE` are absent after activation;
-- recipient reads set transaction-local actor context and run as
-  `SECURITY INVOKER`;
+- recipient reads set transaction-local actor context; ordinary self-owned
+  projections may run as `SECURITY INVOKER`, while cross-user/source-bound
+  projections use a minimal validated `SECURITY DEFINER` function instead of
+  broad runtime table visibility;
 - exceptional writes use fixed `SECURITY DEFINER` functions with a pinned
   `search_path`, schema-qualified objects, no dynamic SQL and exact EXECUTE
   grants;
@@ -89,7 +91,7 @@ The machine-readable catalog contains 26 operations.
 |---|---|---|
 | `case_get` | INVOKER | One Case by id for a participant or current staff member |
 | `case_get_by_order` | INVOKER | One visible Case by exact Order id |
-| `case_message_page` | INVOKER | Bounded stable `(createdAt,id)` history plus attachment metadata without object keys |
+| `case_message_page` | DEFINER | Source-bound, bounded stable `(createdAt,id)` history plus attachment metadata without object keys or User profile fields |
 | `case_staff_queue` | INVOKER | Bounded staff queue and message counts |
 | `case_staff_active_count` | INVOKER | Staff-only active Case count |
 | `case_export` | INVOKER | Complete participant Case/message export plus attachment metadata |
@@ -99,15 +101,23 @@ The interactive projection stays bounded. The account export is deliberately
 complete and remains a separate projection; it must not inherit the
 interactive page limit.
 
-The message preflight is deliberately the narrow exception to the other
-recipient projections. It must inspect the counterparty's suspended/deleted
-state without making that other User row generally visible. Keeping it
-`SECURITY INVOKER` would couple Case messaging to broad runtime `User` reads
-and would break when later self-only User RLS hides the counterparty. The
-`SECURITY DEFINER` function therefore validates the active actor, exact Case
-participant-or-current-staff relationship and fixed output internally; it
-returns no row for a missing, disabled or unauthorized actor and exposes no
-email, Clerk id, name or other User profile data.
+The message preflight and bounded message page are narrow source-validating
+exceptions to the remaining recipient projections. The preflight must inspect
+the counterparty's suspended/deleted state, while the page must cross the
+Case/CaseMessage/attachment boundary for both participants and staff. Keeping
+either operation `SECURITY INVOKER` would couple Case messaging to broad
+runtime table visibility and would break as later User and Case-family RLS
+narrows direct reads.
+
+Both `SECURITY DEFINER` functions validate the active actor and exact
+participant-or-current-staff relationship internally. The message page returns
+only stable message fields, durable or relationship-derived author kind, and
+attachment id/content type/size/time. It deliberately drops the redundant
+per-message author name and exposes no email, Clerk id, User profile field,
+DirectUpload id or private object key. A legacy row without durable author kind
+is labeled only when its author is the Case buyer or seller; an unknown
+non-party legacy author remains `null`/`Participant` rather than being promoted
+to staff from mutable current role.
 
 ### Narrow reads and predicates
 

@@ -38,8 +38,8 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
   freezeOperation({
     id: "case_message_page",
     candidateFunctionName: "grainline_case_message_page",
-    operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    operationKind: "SOURCE_BOUND_READ",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId", "createdAtCursor", "idCursor", "boundedLimit"],
     applicationPreconditions: [
@@ -49,6 +49,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "current actor role",
       "Case participation",
       "stable message order",
+      "durable or relationship-derived author kind",
       "attachment metadata without object keys",
     ],
   }),

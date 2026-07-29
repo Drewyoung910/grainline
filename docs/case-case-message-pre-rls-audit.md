@@ -218,6 +218,15 @@ credentials.
 | CC-A19 | High/Concurrency | Participant mark-resolved fenced `sellerRefundId` but not `Order.caseResolutionClaimId`. A staged staff `DISMISSED` resolution deliberately has no refund sentinel, so the direct participant path could change the Case between staff prepare and finalize. The fixed-function review also found that a nullable retained buyer id could propagate SQL `NULL` into resolution flags, and that a missing audit status could evade a bare `NOT IN` replay check. | The compatible mark-resolved function locks the active actor, Order and Case in the shared order; rejects both refund and every staff-resolution claim lease before a new transition; normalizes nullable participant comparisons to strict booleans; derives the clock, state and deterministic audit inside PostgreSQL; and explicitly null-rejects replay metadata. Disposable PostgreSQL must prove foreign denial, both lease fences, nullable-buyer behavior, malformed-replay denial, serial marks, a real lock wait, rollback and zero residue before app conversion. |
 | CC-A20 | High/Integrity | The buyer Case-open route did not require `Order.paidAt`. Its ordinary pending-fulfillment checks usually rejected an unpaid Order, but `reviewNeeded` or an unavailable seller intentionally bypasses those timing checks, leaving a path to open a dispute against an unpaid Order row. | The fixed Case-open operation must lock the Order and require `paidAt` before creating any Case artifact. It must also derive the one seller from a locked complete OrderItem/Listing/SellerProfile graph, reject refund/staff-claim evidence, preserve the reviewed timing exceptions only for paid Orders, and prove unpaid denial plus zero residue in PostgreSQL. |
 
+CC-A05 authority correction (2026-07-29): the bounded message page cannot
+remain an ordinary INVOKER projection because it must cross exact
+Case/CaseMessage/attachment rows for both participants and staff. The
+function-only candidate uses a source-validating SECURITY DEFINER projection
+with a 51-row maximum and `(createdAt,id)` cursor. It intentionally omits
+author profile/contact data and private object identifiers. This closes the
+database-authority design portion of CC-A05; the three interactive page
+callers still require conversion before the finding is complete.
+
 CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
 a separate non-public R2 bucket, never the generic public message uploader.
 Its first compatible writer records an opaque key in
