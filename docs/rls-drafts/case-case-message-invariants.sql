@@ -568,10 +568,11 @@ AS $grainline_case_opening_evidence_valid$
 DECLARE
   target_case_id text;
 BEGIN
-  target_case_id := CASE
-    WHEN TG_TABLE_NAME = 'Case' THEN NEW.id
-    ELSE OLD."caseId"
-  END;
+  IF TG_RELID = 'public."Case"'::pg_catalog.regclass THEN
+    target_case_id := NEW.id;
+  ELSE
+    target_case_id := OLD."caseId";
+  END IF;
 
   IF EXISTS (
     SELECT 1

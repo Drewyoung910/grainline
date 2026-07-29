@@ -320,10 +320,11 @@ DECLARE
   order_claim_id text;
   active_claim_id text;
 BEGIN
-  target_order_id := CASE
-    WHEN TG_TABLE_NAME = 'Order' THEN COALESCE(NEW.id, OLD.id)
-    ELSE COALESCE(NEW."orderId", OLD."orderId")
-  END;
+  IF TG_RELID = 'public."Order"'::pg_catalog.regclass THEN
+    target_order_id := COALESCE(NEW.id, OLD.id);
+  ELSE
+    target_order_id := COALESCE(NEW."orderId", OLD."orderId");
+  END IF;
 
   SELECT orders."caseResolutionClaimId"
     INTO order_claim_id

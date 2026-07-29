@@ -167,6 +167,11 @@ test("ordinary Case openings retain a message while webhook openings remain hone
     normalizedSql,
     /CREATE CONSTRAINT TRIGGER grainline_case_message_delete_keeps_opening_evidence/,
   );
+  assert.match(
+    normalizedSql,
+    /TG_RELID = 'public\."Case"'::pg_catalog\.regclass/,
+  );
+  assert.doesNotMatch(normalizedSql, /TG_TABLE_NAME = 'Case'/);
   assert.equal(
     (normalizedSql.match(/DEFERRABLE INITIALLY DEFERRED/g) ?? []).length,
     2,

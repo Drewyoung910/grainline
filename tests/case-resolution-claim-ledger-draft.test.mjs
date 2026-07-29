@@ -73,6 +73,11 @@ test("CaseResolutionClaim binds Case, Order, actor and payment evidence", () => 
     normalizedSql,
     /order_claim_id IS DISTINCT FROM active_claim_id/,
   );
+  assert.match(
+    normalizedSql,
+    /TG_RELID = 'public\."Order"'::pg_catalog\.regclass/,
+  );
+  assert.doesNotMatch(normalizedSql, /TG_TABLE_NAME = 'Order'/);
 });
 
 test("CaseResolutionClaim has distinct truthful terminal states", () => {
