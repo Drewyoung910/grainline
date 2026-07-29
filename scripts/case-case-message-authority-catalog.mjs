@@ -329,6 +329,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     callerInputs: [
       "actorUserId",
       "resolutionClaimId",
+      "providerOutcome",
       "primaryRefundId",
       "boundedRefundIds",
       "boundedRefundStatuses",
@@ -345,11 +346,12 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "current staff role and exact same claim actor",
       "locked PROVIDER_PENDING CaseResolutionClaim, Order and Case",
       "claim-bound refund amount, currency, reason and accounting expectations",
-      "database-generated OrderPaymentEvent and strict audit identities",
-      "PROVIDER_RECORDED claim state linked to the exact local payment event",
+      "RECORDED outcome validates bounded provider evidence, creates database-generated OrderPaymentEvent and strict audit identities, and advances to PROVIDER_RECORDED",
+      "AMBIGUOUS outcome forbids asserted provider evidence, creates no payment event, and advances to RECONCILIATION_REQUIRED with the Order refund sentinel preserved",
     ],
     externalTrustBoundaries: [
-      "bounded refund and transfer identifiers and statuses come from the trusted Stripe client response",
+      "the bounded RECORDED or AMBIGUOUS outcome classification comes from the trusted Stripe client",
+      "bounded refund and transfer identifiers and statuses for RECORDED come from the trusted Stripe client response",
       "PostgreSQL validates their shape and claim relationship but does not independently attest Stripe",
     ],
   }),

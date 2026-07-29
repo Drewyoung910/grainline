@@ -114,7 +114,7 @@ caller needs.
 | `case_mark_resolved` | actor and Case | Participant side, Order/refund conflict, pending-close or mutual dismissal state, clock and audit |
 | `case_escalate` | actor and Case | Participant deadline or current staff authority, counterparty state, transition clock and audit |
 | `case_staff_resolution_prepare` | staff resolution, bounded refund amount and bounded stock decision | Current staff, Order→Case locks, eligibility, amount cap, resolution claim, refund lease and provider idempotency scope |
-| `case_staff_resolution_provider_record` | claim plus explicit bounded Stripe refund/reversal ids and statuses | Same claim actor, locked claim/Order/Case, claim-derived amount/currency/reason, local payment event/audit ids and PROVIDER_RECORDED state |
+| `case_staff_resolution_provider_record` | claim, fixed `RECORDED` or `AMBIGUOUS` outcome, and bounded Stripe fields only for `RECORDED` | Same claim actor, locked claim/Order/Case and claim-derived amount/currency/reason; `RECORDED` creates local payment evidence, while `AMBIGUOUS` creates none and freezes the claim for reconciliation |
 | `case_staff_resolution_finalize` | actor and resolution claim | Claimed Case/Order/decision, held lease, claim-linked local refund evidence, Case fields, fixed staff message, audit and exact stock targets |
 | `case_staff_resolution_reconcile` | admin, unresolved claim, bounded reason and fixed reconciliation action | Current ADMIN, claim/Order/Case, evidence presence, retry scope or audited no-provider-effect lease release |
 
@@ -179,10 +179,14 @@ run inside PostgreSQL:
    exact refund lease when needed and returns a claim-derived Stripe
    idempotency scope.
 2. The trusted application calls Stripe with that exact scope.
-3. For a refund, `case_staff_resolution_provider_record` accepts explicit
-   bounded refund/reversal ids and statuses, re-locks the same claim/Order/Case,
-   derives the amount/currency/reason, writes local `OrderPaymentEvent` and
-   audit evidence and advances the claim to `PROVIDER_RECORDED`.
+3. For a refund, `case_staff_resolution_provider_record` accepts one fixed
+   provider outcome and re-locks the same claim/Order/Case. `RECORDED` requires
+   explicit bounded refund/reversal ids and statuses, derives the
+   amount/currency/reason, writes local `OrderPaymentEvent` and audit evidence
+   and advances the claim to `PROVIDER_RECORDED`. `AMBIGUOUS` requires every
+   asserted provider-evidence field to be absent, writes no payment event and
+   advances the claim to `RECONCILIATION_REQUIRED` while retaining the Order
+   lease and ambiguous refund sentinel.
 4. `case_staff_resolution_finalize` accepts only the actor and claim id, then
    re-locks/revalidates everything. It never accepts a generic
    `providerResult`, Case target, payment-event target, refund amount, stock
@@ -197,6 +201,12 @@ never automatically expired or released: if the request fails before or during
 Stripe, retry uses the exact same idempotency scope and records the eventual
 result. An explicit staff reconciliation operation, not elapsed wall time, is
 required to release an unresolved claim.
+
+`AMBIGUOUS` is intentionally not a generic provider-result escape hatch. The
+runtime may fail closed into reconciliation, but it cannot use that branch to
+assert a refund, transfer reversal or successful Case resolution. Only
+`RECORDED` may create payment evidence, and only a claim with that exact linked
+evidence may finalize a refund.
 
 Reconciliation is itself a fixed operation. `RETRY_EXISTING_SCOPE` returns the
 same claim-derived idempotency scope and keeps the lease. Only a current

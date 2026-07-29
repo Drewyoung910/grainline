@@ -683,6 +683,80 @@ WHERE to_regprocedure(
 ) IS NOT NULL;
 \gexec
 
+-- Staged staff Case resolution is absent before its compatible four-operation
+-- authority migration. Converge each exact signature without granting direct
+-- access to the private CaseResolutionClaim ledger.
+WITH staff_resolution_rpc(function_signature) AS (
+  VALUES
+    (
+      'public.grainline_case_staff_resolution_prepare(text, text, public."CaseResolution", integer, jsonb)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_finalize(text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    )
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM staff_resolution_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH staff_resolution_rpc(function_signature) AS (
+  VALUES
+    (
+      'public.grainline_case_staff_resolution_prepare(text, text, public."CaseResolution", integer, jsonb)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_finalize(text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    )
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM staff_resolution_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH staff_resolution_rpc(function_signature) AS (
+  VALUES
+    (
+      'public.grainline_case_staff_resolution_prepare(text, text, public."CaseResolution", integer, jsonb)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_finalize(text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    )
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM staff_resolution_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.

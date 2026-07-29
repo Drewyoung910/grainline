@@ -889,6 +889,10 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_resolution_claim_immutable",
       "grainline_case_resolution_claim_lease_valid",
       "grainline_case_seller_refund_apply",
+      "grainline_case_staff_resolution_finalize",
+      "grainline_case_staff_resolution_prepare",
+      "grainline_case_staff_resolution_provider_record",
+      "grainline_case_staff_resolution_reconcile",
       "grainline_case_stripe_dispute_apply",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
@@ -910,7 +914,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      78 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      82 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -918,6 +922,20 @@ describe("database grant inventory guardrails", () => {
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_list(text, integer, text) FROM PUBLIC",
     ));
+    for (const functionName of [
+      "grainline_case_staff_resolution_prepare",
+      "grainline_case_staff_resolution_provider_record",
+      "grainline_case_staff_resolution_finalize",
+      "grainline_case_staff_resolution_reconcile",
+    ]) {
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution`,
+      );
+    }
     for (const functionName of [
       ...NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
       ...NOTIFICATION_SERVICE_RPC_FUNCTIONS,

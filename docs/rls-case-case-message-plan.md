@@ -414,6 +414,16 @@ audited human decision that Stripe has no provider effect and advance it to
 the distinct terminal `RELEASED_NO_PROVIDER_EFFECT` state. That state does not
 pretend the Case or provider action was finalized.
 
+Staff-resolution authority review (2026-07-29) closed an ambiguous-provider
+gap before SQL implementation. The fixed provider-record operation accepts
+only `RECORDED` or `AMBIGUOUS`. `RECORDED` requires bounded Stripe evidence and
+is the only branch allowed to create `OrderPaymentEvent` authority.
+`AMBIGUOUS` requires all asserted provider-evidence fields to be absent,
+creates no payment event and moves the claim plus Order refund sentinel into
+reconciliation. A later retry reuses the same idempotency scope; only the
+separate ADMIN reconciliation decision may attest no provider effect and
+release the lease.
+
 Seller verification, seller metrics and guild-revocation predicates are three
 separate fixed operations. The review rejected one generic arbitrary-seller
 quality function because it exposed a broader dispute-count/timestamp oracle
@@ -536,6 +546,47 @@ the 29-check rollback-only PostgreSQL Case authority proof, final grant audit,
 typecheck, lint, 2,288-test suite, security audit and production build. That
 result permits this compatible application conversion; it is not production
 migration, deployment, participant RLS or activation evidence.
+
+Phase 4 staff-resolution authority checkpoint (2026-07-29): the isolated
+`agent/case-staff-resolution-authority-20260729` successor adds the compatible
+`20260729045000_prepare_case_staff_resolution_authority` migration. Four
+runtime-executable, pinned `SECURITY DEFINER` operations stage staff resolution:
+prepare, provider record, finalize and ADMIN reconciliation. Finalization takes
+only actor plus claim id; Case, Order, resolution, refund amount, payment
+event, stock targets, message identity and audit identity are derived from the
+locked private claim and exact durable sources.
+
+The hard review found and closed four issues before PostgreSQL CI:
+
+- an ambiguous Stripe response had no fixed claim transition, so provider
+  record now accepts only `RECORDED` or `AMBIGUOUS`; `AMBIGUOUS` forbids all
+  asserted provider evidence and creates no payment event;
+- final stock validation now locks the complete current OrderItem/Listing
+  source graph, not only the target Listing rows, before revalidating and
+  restoring the immutable claim plan;
+- an ADMIN retry is valid only from `RECONCILIATION_REQUIRED`, keeps the exact
+  idempotency scope and writes an immutable audit; ordinary
+  `PROVIDER_PENDING` request replay does not masquerade as reconciliation.
+- PostgreSQL three-valued logic would let a null provider outcome or null
+  reconciliation action skip a bare `NOT IN` check, so both fixed
+  discriminators now reject null explicitly and the engine proof exercises
+  both denials.
+
+The rollback-only PostgreSQL proof is extended from 29 to 43 checks covering
+dismissal prepare/finalize/replay, forged staff/provider actors, full-refund
+payment and stock evidence, ambiguous evidence denial, ambiguous replay,
+admin-only retry with the same scope, provider recording after retry,
+no-provider-effect release, zero release payment events and terminal lease
+cleanup. Static authority, special-form, grant-inventory and deploy-guard tests
+pass locally, as do the complete repository test suite, TypeScript and lint.
+The local Next production build compiled and completed its TypeScript phase,
+then correctly stopped at page-data collection because this disposable
+worktree has no `DATABASE_URL`; the protected CI run supplies only its
+loopback PostgreSQL service URL. The engine migration/proof is still pending a
+fresh exact-head PostgreSQL 16 CI run; until that passes, the SQL remains an
+unproven isolated candidate. Production migrations, app conversion,
+direct-grant revocation, Case RLS, merge and deployment remain unauthorized
+and unchanged.
 
 ## Phase 5: ENABLE activation
 

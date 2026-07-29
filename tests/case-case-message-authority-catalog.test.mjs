@@ -174,6 +174,19 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       "actorUserId",
       "resolutionClaimId",
     ]);
+    assert.ok(providerRecord.callerInputs.includes("providerOutcome"));
+    assert.match(
+      providerRecord.databaseDerived.join(" "),
+      /RECORDED.*PROVIDER_RECORDED/,
+    );
+    assert.match(
+      providerRecord.databaseDerived.join(" "),
+      /AMBIGUOUS.*RECONCILIATION_REQUIRED/,
+    );
+    assert.match(
+      providerRecord.databaseDerived.join(" "),
+      /forbids asserted provider evidence/,
+    );
     assert.doesNotMatch(
       providerRecord.callerInputs.join(" "),
       /refundAmountCents|caseId|orderId|staffResolution|stock/i,

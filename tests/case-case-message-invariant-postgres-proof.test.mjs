@@ -76,6 +76,13 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "superseded_dispute_source",
     "forged_seller_refund_actor",
     "forged_seller_refund_source",
+    "forged_staff_resolution_finalizer",
+    "null_provider_outcome",
+    "ambiguous_provider_cannot_assert_refund",
+    "forged_provider_record_actor",
+    "null_provider_reconciliation_action",
+    "non_admin_provider_reconciliation",
+    "released_claim_cannot_finalize",
   ]) {
     assert.match(proof, new RegExp(`"${check}"`), check);
   }
@@ -88,6 +95,12 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /CaseSellerRefundApplication/);
   assert.match(proof, /grainline_case_seller_refund_apply/);
   assert.match(proof, /CASE_SELLER_REFUND_APPLIED/);
+  assert.match(proof, /grainline_case_staff_resolution_prepare/);
+  assert.match(proof, /grainline_case_staff_resolution_provider_record/);
+  assert.match(proof, /grainline_case_staff_resolution_finalize/);
+  assert.match(proof, /grainline_case_staff_resolution_reconcile/);
+  assert.match(proof, /RECONCILIATION_REQUIRED/);
+  assert.match(proof, /release_payment_event_count: 0/);
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);
@@ -95,7 +108,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
 
 test("seller-refund proof parameters have one explicit PostgreSQL type", () => {
   const sellerRefundProof = proof.match(
-    /async function proveSellerRefundAuthority\(client\) \{([\s\S]*?)\n\}\n\nasync function proveClaimLedger/,
+    /async function proveSellerRefundAuthority\(client\) \{([\s\S]*?)\n\}\n\nasync function proveStaffResolutionAuthority/,
   )?.[1] ?? "";
   assert.equal(
     (sellerRefundProof.match(/\$4::varchar\(255\)/g) ?? []).length,
