@@ -611,6 +611,16 @@ repository's already-proven lowercase `'public'` pseudo-role spelling and a
 static regression test rejects the uppercase form. This is retained as failed
 evidence rather than erased or mislabeled as a database-authority failure.
 
+The corrected second attempt, run `30484932502` (job `90688109558`), reached
+the transaction-local context assertion after the function, grants,
+staff/admin equivalence, pagination, filtering and denial checks had passed.
+PostgreSQL returned an empty custom-GUC placeholder after commit rather than
+`NULL`. This is the documented engine behavior already handled by the
+Case-message preflight and page proofs: a locally set custom GUC may read as
+either absent or `''` after the transaction ends. The proof now accepts only
+those two non-actor states and still fails if any actor id leaks. No function,
+grant or application authority was relaxed.
+
 ## Account deletion boundary
 
 The redaction function does not accept a free `deletingUserId`. It accepts an

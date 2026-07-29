@@ -473,7 +473,11 @@ export async function runCaseStaffQueueProof(env = process.env) {
       runtime,
       "SELECT pg_catalog.current_setting('app.user_id', true) AS actor",
     );
-    assert.equal(leakedContext.rows[0].actor, null);
+    assert.ok(
+      leakedContext.rows[0].actor === null
+        || leakedContext.rows[0].actor === "",
+      "Case staff queue actor context leaked after commit",
+    );
     checks.push("transaction-local-context");
 
     assert.deepEqual(

@@ -67,6 +67,10 @@ test("Case staff queue proof exercises the authority and privacy boundary", () =
   );
   assert.match(proof, /Case staff queue proof changed protected state/);
   assert.match(proof, /Case staff queue proof left fixture residue/);
+  assert.match(
+    proof,
+    /actor === null[\s\S]*actor === ""[\s\S]*actor context leaked after commit/,
+  );
 });
 
 test("Case staff queue proof is credential-safe and restores RLS", () => {
