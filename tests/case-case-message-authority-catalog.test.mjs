@@ -18,14 +18,14 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
   const inventory = collectCaseCaseMessageAccess();
   const summary = summarizeCaseCaseMessageAccess(inventory);
 
-  it("classifies all 71 remaining references and retains the 9 converted references", () => {
-    assert.equal(caseAuthorityReferenceCount(), 71);
-    assert.equal(caseAuthorityConvertedReferenceCount(), 9);
+  it("classifies all 68 remaining references and retains the 12 converted references", () => {
+    assert.equal(caseAuthorityReferenceCount(), 68);
+    assert.equal(caseAuthorityConvertedReferenceCount(), 12);
     assert.equal(
       caseAuthorityReferenceCount() + caseAuthorityConvertedReferenceCount(),
       80,
     );
-    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 27);
+    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 26);
     assert.deepEqual(
       Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).sort(),
       Object.keys(summary).sort(),

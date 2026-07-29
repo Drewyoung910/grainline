@@ -6,7 +6,7 @@ authority/invariant proof. Production RLS remains off for Case, CaseMessage
 and CaseMessageAttachment.
 
 The behavior findings, 80-reference conversion baseline and current
-71-reference countdown live in
+68-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -445,7 +445,7 @@ orderings, account deletion, cron/webhook/refund behavior and rollback.
   Stripe-dispute operation also adds its own private immutable replay ledger;
   it is not bundled with Case participant policies or direct-grant revocation.
 - Convert every protected reference to its explicit destination (80 at the
-  fixed Phase 4 baseline; 71 remain after the first three compatible app
+  fixed Phase 4 baseline; 68 remain after the first four compatible app
   conversions, while earlier Phase 1B counts remain historical evidence
   rather than an activation target).
 - Keep an exact zero-direct-access inventory gate.
@@ -666,6 +666,51 @@ RLS catalog proofs. TypeScript, lint, the complete test suite, dependency
 audit and production build also passed. This is disposable CI evidence only;
 production migrations, deployment, direct-grant revocation and Case-family
 RLS remain unchanged and unauthorized.
+
+Phase 4 participant mark-resolved application-conversion candidate
+(2026-07-29): the route retains the origin, authentication, account-state and
+rate-limit boundaries, then invokes only the fixed authority. It performs no
+direct Case/CaseMessage read or write and creates no application-side audit.
+The application accepts exactly one ten-key result whose actor, Case,
+participant side, deterministic audit identity and state are validated
+fail-closed. Counterparty notification and the response use database-returned
+identities; the already-live Notification authority independently derives
+recipient, link and copy from the strict audit source.
+
+This conversion moves the route's two direct reads and one raw update into the
+converted-source ledger. The exact current inventory is 68 remaining
+references across 26 source files and twelve converted references. The
+candidate remains stacked on the participant-authority draft; it does not
+authorize a merge, migration, deployment, provider change, direct-grant
+revocation or Case-family RLS activation.
+
+Implementation checkpoint
+`ed4f2840409134fa6cd9dc6baf9582e06ce3b646` is pushed in draft PR `#95`.
+Its intended base is the unmerged participant-resolution authority PR `#94`;
+the draft is temporarily targeted at `main` only to trigger the repository's
+pull-request PostgreSQL workflow. Local TypeScript, lint, the focused authority
+contracts and the complete 2,336-test suite passed (2,333 pass, zero fail,
+three intentional skips).
+
+A direct `npm audit --audit-level=high` invocation is retained as expected
+failed evidence for the 2026-07-23 high-severity `brace-expansion` advisory in
+the ESLint development chain. It is not the repository's reviewed gate. The
+repo gate, `npm run audit:dependencies`, separately blocks every high/critical
+production advisory and every unrecognized development advisory while
+allowlisting only this exact development-only GHSA and package path. The
+patched v5 package changes the CommonJS API required by current minimatch v3
+consumers, so neither a forced ESLint 10 upgrade nor an unsafe transitive
+override is mixed into this Case candidate.
+
+Exact candidate head `23a251f50a80bb55c47bb0c41b138d278222748a`
+subsequently passed GitHub Actions run `30433050043` in full. PostgreSQL 16
+applied the sealed migration tree, converged production-style runtime grants,
+passed the dedicated participant-resolution authority proof and every broader
+database proof. TypeScript, lint, all 2,336 tests, the reviewed dependency
+audit and the production build also passed. This is isolated CI evidence only;
+the intended stacked PR base must still be restored, and no merge, production
+migration, deployment, grant change or Case-family RLS activation is
+authorized.
 
 ## Phase 5: ENABLE activation
 
