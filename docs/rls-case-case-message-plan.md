@@ -657,6 +657,16 @@ pull-request PostgreSQL 16 workflow; its intended stacked base remains
 merge, production migration, deployment, provider change or Case-family RLS
 activation.
 
+Exact candidate head `99a57368ec184b5e9db4c653f0a533a523a9920c` passed
+GitHub Actions run `30431012342`. PostgreSQL 16 applied the sealed migration
+tree, converged production-style runtime grants, passed the 12-check
+participant-resolution authority proof (including real two-session lock
+waiting and zero residue), and passed the broader Case, migration, grant and
+RLS catalog proofs. TypeScript, lint, the complete test suite, dependency
+audit and production build also passed. This is disposable CI evidence only;
+production migrations, deployment, direct-grant revocation and Case-family
+RLS remain unchanged and unauthorized.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
