@@ -754,6 +754,15 @@ converted references. It remains stacked on the unmerged buyer Case-open
 authority draft; no merge, production migration, deployment, grant change or
 Case-family RLS activation is authorized.
 
+Implementation commit `1ecab9eed5b4587757de8c2cb45dd2a74b351e16`
+passed GitHub Actions run `30437725318`. Disposable PostgreSQL 16 applied the
+sealed authority migration tree, converged production-style runtime grants,
+passed the buyer Case-open authority and broader Case/grant/RLS proofs, then
+passed TypeScript, lint, the complete repository suite, the reviewed
+dependency audit and production build. This is exact-head isolated CI evidence
+for draft PR #97 only; it is not merge, production migration, deployment,
+grant-revocation or Case-family activation evidence.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
