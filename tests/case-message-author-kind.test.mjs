@@ -121,10 +121,17 @@ describe("CaseMessage durable author kind", () => {
 
   it("sets the kind on every current CaseMessage creation path", () => {
     const createRoute = source("src/app/api/cases/route.ts");
+    const caseOpenMigration = source(
+      "prisma/migrations/20260729051000_prepare_case_open_authority/migration.sql",
+    );
     const replyRoute = source("src/app/api/cases/[id]/messages/route.ts");
     const history = source("src/lib/caseMessageHistory.ts");
 
-    assert.match(createRoute, /authorKind: "BUYER"/);
+    assert.match(createRoute, /await openCaseWithFixedAuthority\(/);
+    assert.match(
+      caseOpenMigration,
+      /'BUYER'::public\."CaseMessageAuthorKind"/,
+    );
     assert.match(replyRoute, /caseMessageAuthorKindForActor/);
     assert.match(replyRoute, /authorKind,\s*body: messageBody/s);
     assert.match(history, /authorKind: true/);

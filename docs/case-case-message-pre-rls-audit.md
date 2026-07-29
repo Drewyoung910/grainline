@@ -37,12 +37,14 @@ direct Case writes and one nested Case read with
 read plus guarded update with `grainline_case_seller_refund_apply`, and replace
 four staff-resolution writes/reads with its fixed claim protocol. The current
 participant conversion also replaces two direct Case reads and one raw Case
-update with `grainline_case_mark_resolved`. The countdown is therefore 36
-direct operations, 21 nested relation references and 11 raw SQL references:
-68 remaining protected references across 26 source files. The executable
-catalog retains all twelve removed references in a converted-source ledger;
-neither the original 69-reference audit nor the 80-reference Phase 4 baseline
-is discarded.
+update with `grainline_case_mark_resolved`. The buyer Case-open conversion
+replaces one direct create, one nested Case read and two nested CaseMessage
+references with `grainline_case_open`. The countdown is therefore 35 direct
+operations, 18 nested relation references and 11 raw SQL references: 64
+remaining protected references across 25 source files. The executable catalog
+retains all sixteen removed references in a converted-source ledger; neither
+the original 69-reference audit nor the 80-reference Phase 4 baseline is
+discarded.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
@@ -335,8 +337,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 68-reference current countdown
-  and twelve-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 64-reference current countdown
+  and sixteen-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
@@ -407,9 +409,24 @@ with ENABLE plus FORCE RLS, zero policies and no runtime or PUBLIC table
 grants. A retry succeeds only when the ledger, immutable Case opening fields,
 message and exact audit metadata all agree; changed input or a missing/tampered
 artifact fails closed. This compatible migration does not enable RLS or change
-legacy grants on Case, CaseMessage or CaseMessageAttachment. The 68-reference
-application countdown therefore remains unchanged until the route itself is
-converted.
+legacy grants on Case, CaseMessage or CaseMessageAttachment. The
+64-reference application countdown is established only by the separate route
+conversion below.
+
+The fifth Phase 4 application conversion (2026-07-29) removes the buyer
+Case-open route's direct Case create, nested Case read and two nested
+CaseMessage references. The route retains origin, authentication,
+local-account, user-scoped rate-limit, bounded-body and sanitized-description
+boundaries before calling only `grainline_case_open`. A fail-closed validator
+requires one exact nine-key result with the requested Order, actor and reason;
+distinct database-generated Case/message/audit identities; one different
+seller; `OPEN` status; and a reviewed create/replay action. Replay returns the
+existing friendly conflict before Notification or email side effects. New
+notifications, seller email lookup, observability and the response use
+database-returned identities. The countdown is now 64 references across 25
+files with sixteen references retained in the converted ledger. Case-family
+RLS, direct-grant revocation, merge, production migration and deployment
+remain unauthorized.
 
 CC-A05's interactive-read portion and CC-A06's 48-hour query correction merged
 to main at `8fcd6949`. Exact-head CI run `30211089240` passed. The Phase 1B
