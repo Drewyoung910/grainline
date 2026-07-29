@@ -939,6 +939,20 @@ the inventory remains 50 current references across 22 files with thirty in
 the converted ledger. No RLS, table grant, deployment or production state is
 changed.
 
+Phase 4 grouped Case recipient-read application conversion candidate
+(2026-07-29): the buyer and seller Order detail pages, staff Case and Order
+detail pages, and PIN-gated staff active count now use the fixed typed
+recipient projections. Participant message-recipient availability comes from
+the already-proven source-bound preflight instead of a Case-to-User join.
+Staff Case detail resolves its Order and minimal party contact records only
+after the Case projection proves visibility. Shared pages no longer use or
+display the raw Stripe refund object id; durable refund resolution is the
+state signal, and provider evidence remains on the staff payment-event ledger.
+The conversion moves five protected references to the retained ledger,
+leaving 45 current references across 17 files and thirty-five converted
+references. It is coexistence-safe preparation only and does not activate
+Case-family RLS, change grants, migrate production or deploy application code.
+
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.

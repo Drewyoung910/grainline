@@ -162,4 +162,36 @@ describe("Case recipient-read application authority", () => {
       /prisma\.(?:case|caseMessage)|\\$transaction|\\$queryRawUnsafe/,
     );
   });
+
+  it("routes all grouped application reads through fixed projections", () => {
+    const groupedSources = [
+      "src/app/admin/cases/[id]/page.tsx",
+      "src/app/admin/layout.tsx",
+      "src/app/admin/orders/[id]/page.tsx",
+      "src/app/dashboard/orders/[id]/page.tsx",
+      "src/app/dashboard/sales/[orderId]/page.tsx",
+    ].map((path) => [path, fs.readFileSync(path, "utf8")]);
+    for (const [path, source] of groupedSources) {
+      assert.doesNotMatch(source, /prisma\.case\./, path);
+      assert.doesNotMatch(source, /stripeRefundId/, path);
+    }
+
+    const adminCase = groupedSources[0][1];
+    const adminLayout = groupedSources[1][1];
+    const adminOrder = groupedSources[2][1];
+    const buyerOrder = groupedSources[3][1];
+    const sellerOrder = groupedSources[4][1];
+    assert.match(adminCase, /getVisibleCaseById/);
+    assert.match(adminLayout, /getStaffActiveCaseCount/);
+    assert.match(adminOrder, /getVisibleCaseByOrderId/);
+    for (const participantPage of [buyerOrder, sellerOrder]) {
+      assert.match(participantPage, /getVisibleCaseByOrderId/);
+      assert.match(participantPage, /getCaseMessagePreflight/);
+      assert.match(participantPage, /recipientUnavailableReason/);
+      assert.doesNotMatch(
+        participantPage,
+        /unavailableCaseMessageRecipientReason/,
+      );
+    }
+  });
 });

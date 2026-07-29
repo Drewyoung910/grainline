@@ -7,6 +7,7 @@ import { Package, AlertTriangle, Shield, Edit, Rss, Eye, User, Star, File } from
 import AdminMobileNav from "@/components/AdminMobileNav";
 import AdminPinGate from "@/components/AdminPinGate";
 import { ADMIN_PIN_COOKIE_NAME, verifyAdminPinCookieValue } from "@/lib/adminPin";
+import { getStaffActiveCaseCount } from "@/lib/caseReadAuthority";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Defense in depth: re-check role here in addition to middleware
@@ -15,7 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const user = await prisma.user.findUnique({
     where: { clerkId: userId },
-    select: { role: true, banned: true, deletedAt: true },
+    select: { id: true, role: true, banned: true, deletedAt: true },
   });
   if (!user || user.banned || user.deletedAt || (user.role !== "EMPLOYEE" && user.role !== "ADMIN")) redirect("/");
 
@@ -30,15 +31,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return <AdminPinGate />;
   }
 
-  const [openCaseCount, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount] = await Promise.all([
-    prisma.case.count({
-      where: { status: { in: ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] } },
-    }),
+  const [openCaseCountResult, pendingVerificationCount, pendingCommentCount, pendingReviewCount, openSupportRequestCount] = await Promise.all([
+    getStaffActiveCaseCount(user.id),
     prisma.makerVerification.count({ where: { status: "PENDING" } }),
     prisma.blogComment.count({ where: { approved: false } }),
     prisma.listing.count({ where: { status: "PENDING_REVIEW" } }),
     prisma.supportRequest.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
   ]);
+  if (openCaseCountResult === null) redirect("/");
+  const openCaseCount = openCaseCountResult;
 
   return (
     <div className="flex flex-col md:flex-row min-h-[100svh] bg-neutral-100">

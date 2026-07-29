@@ -153,10 +153,12 @@ mutable current role.
 The compatible Case-message page application candidate uses this operation for
 buyer, seller and staff detail pages through one strict typed validator. It
 removes mutable User-name joins from message labels and moves the direct
-message plus nested attachment reads to the converted ledger. The current live
-Case-family inventory is 50 references across 22 files, with thirty of the
-80-reference baseline retained in the converted ledger. This remains
-preparation only; production Case-family RLS is still off.
+message plus nested attachment reads to the converted ledger. The grouped
+recipient-read conversion also moves staff Case detail, the PIN-gated active
+count and three Order-to-Case relations behind fixed typed projections. The
+current live Case-family inventory is 45 references across 17 files, with
+thirty-five of the 80-reference baseline retained in the converted ledger.
+This remains preparation only; production Case-family RLS is still off.
 
 Keep the PII-free Case-detail projections separate from the cross-user staff
 queue. One Case by id, one Case by Order and the staff active count may remain

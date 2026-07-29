@@ -17,6 +17,7 @@ import type { CaseStatus } from "@prisma/client";
 import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
 import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 import CaseMessageAttachments from "@/components/CaseMessageAttachments";
+import { getVisibleCaseById } from "@/lib/caseReadAuthority";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -94,39 +95,59 @@ export default async function AdminCaseDetailPage({
   const staff = await requireAdminPageAccess();
   const [{ id }, { caseBefore }] = await Promise.all([params, searchParams]);
 
-  const caseRecord = await prisma.case.findUnique({
-    where: { id },
-    include: {
-      order: {
-        select: {
-          id: true,
-          currency: true,
-          itemsSubtotalCents: true,
-          shippingAmountCents: true,
-          giftWrappingPriceCents: true,
-          taxAmountCents: true,
-          fulfillmentStatus: true,
-          items: {
-            select: {
-              listingId: true,
-              quantity: true,
-              priceCents: true,
-              listing: {
-                select: {
-                  title: true,
-                  listingType: true,
-                },
+  const visibleCase = await getVisibleCaseById({
+    actorUserId: staff.id,
+    caseId: id,
+  });
+
+  if (!visibleCase) notFound();
+
+  const [order, buyer, seller] = await Promise.all([
+    prisma.order.findUnique({
+      where: { id: visibleCase.orderId },
+      select: {
+        id: true,
+        currency: true,
+        itemsSubtotalCents: true,
+        shippingAmountCents: true,
+        giftWrappingPriceCents: true,
+        taxAmountCents: true,
+        fulfillmentStatus: true,
+        items: {
+          select: {
+            listingId: true,
+            quantity: true,
+            priceCents: true,
+            listing: {
+              select: {
+                title: true,
+                listingType: true,
               },
             },
           },
         },
       },
-      buyer: { select: { id: true, name: true, email: true } },
-      seller: { select: { id: true, name: true, email: true } },
-    },
-  });
+    }),
+    visibleCase.buyerId
+      ? prisma.user.findUnique({
+          where: { id: visibleCase.buyerId },
+          select: { id: true, name: true, email: true },
+        })
+      : null,
+    prisma.user.findUnique({
+      where: { id: visibleCase.sellerId },
+      select: { id: true, name: true, email: true },
+    }),
+  ]);
 
-  if (!caseRecord) notFound();
+  if (!order || !seller) notFound();
+
+  const caseRecord = {
+    ...visibleCase,
+    order,
+    buyer,
+    seller,
+  };
   const caseMessageHistory = await findCaseMessageHistoryPage(
     staff.id,
     caseRecord.id,
@@ -348,9 +369,6 @@ export default async function AdminCaseDetailPage({
                 label="Refund amount"
                 value={fmtMoney(caseRecord.refundAmountCents, currency)}
               />
-            )}
-            {caseRecord.stripeRefundId && (
-              <Field label="Stripe refund ID" value={caseRecord.stripeRefundId} />
             )}
             {caseRecord.resolvedAt && (
               <Field label="Resolved at" value={caseRecord.resolvedAt.toLocaleString("en-US")} />
