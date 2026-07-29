@@ -26,6 +26,7 @@ import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
+import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -55,8 +56,6 @@ async function getGuildMemberEligibility({
   sellerUserId: string;
   accountCreatedAt: Date | null | undefined;
 }) {
-  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-
   const [listingCount, salesRows, caseCount] = await Promise.all([
     prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false } }),
     prisma.$queryRaw<Array<{ totalSalesCents: bigint | null }>>`
@@ -70,12 +69,14 @@ async function getGuildMemberEligibility({
         AND o."sellerRefundId" IS NULL
         ${BLOCKING_REFUND_LEDGER_SQL}
     `,
-    prisma.case.count({
-      where: {
-        sellerId: sellerUserId,
-        status: { notIn: ["RESOLVED", "CLOSED"] },
-        createdAt: { lt: sixtyDaysAgo },
-      },
+    getCaseSellerVerificationEligibility({
+      actorUserId: sellerUserId,
+      sellerProfileId,
+    }).then((result) => {
+      if (!result) {
+        throw new Error("Case seller verification authority denied seller access");
+      }
+      return result.agedUnresolvedCount;
     }),
   ]);
 

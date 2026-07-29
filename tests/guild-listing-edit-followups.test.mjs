@@ -52,16 +52,16 @@ describe("guild and listing-edit audit follow-ups", () => {
     const revocationState = source("src/lib/guildMemberRevocationState.ts");
     const adminVerification = source("src/app/admin/verification/page.tsx");
 
-    assert.match(metrics, /status: \{ notIn: \["RESOLVED", "CLOSED"\] \}/);
-    assert.doesNotMatch(metrics, /status: \{ notIn: \["RESOLVED", "CLOSED"\] \},\s*createdAt: \{ gte: periodStart \}/);
+    assert.match(metrics, /getCaseSellerActiveCount\(sellerProfileId, db\)/);
+    assert.doesNotMatch(metrics, /\b(?:db|prisma)\.case\./);
     assert.match(metrics, /from "@\/lib\/metricsState"/);
     assert.match(metricsState, /export const METRICS_PERIOD_DAYS_PER_MONTH = 30/);
     assert.match(metrics, /const now = new Date\(\)/);
     assert.match(metrics, /metricsPeriodStart\(now, periodMonths\)/);
     assert.doesNotMatch(metricsState, /setMonth\(/);
-    assert.match(revocationState, /CaseStatus\.UNDER_REVIEW/);
-    assert.match(adminVerification, /guildMemberRevocationCaseWhere/);
-    assert.match(adminVerification, /caseCreatedBefore: ninetyDaysAgo/);
+    assert.doesNotMatch(revocationState, /casesAsSeller|Prisma\.CaseWhereInput/);
+    assert.match(adminVerification, /getCaseGuildUnresolvedGuard/);
+    assert.match(adminVerification, /longCase\.blocked/);
     assert.match(adminVerification, /activeListings < 5/);
   });
 

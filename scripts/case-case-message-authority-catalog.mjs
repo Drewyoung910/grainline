@@ -200,13 +200,14 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     operationKind: "BOUNDED_AGGREGATE",
     security: "DEFINER",
     runtimeExecute: true,
-    callerInputs: ["actorUserId", "sellerProfileId", "createdBefore"],
+    callerInputs: ["actorUserId", "sellerProfileId"],
     applicationPreconditions: [
       "a staff actor completed the session-bound staff PIN challenge",
     ],
     databaseDerived: [
       "exact SellerProfile user",
       "current actor is that seller or current staff",
+      "fixed 60-day cutoff from the database clock",
       "aged unresolved Case count only",
     ],
   }),
@@ -216,12 +217,13 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     operationKind: "BOUNDED_PREDICATE",
     security: "DEFINER",
     runtimeExecute: true,
-    callerInputs: ["sellerProfileId", "caseCreatedBefore"],
+    callerInputs: ["sellerProfileId"],
     applicationPreconditions: [
       "the caller is the authenticated guild cron or a PIN-verified staff reinstatement path",
     ],
     databaseDerived: [
       "exact SellerProfile user and current guild or reinstatement state",
+      "fixed 90-day cutoff from the database clock",
       "whether an aged unresolved Case exists",
     ],
   }),
@@ -531,6 +533,34 @@ const freezeSource = (entry) => Object.freeze({
 // scanner stays an exact activation countdown while this ledger proves which
 // fixed operation replaced each removed reference.
 export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/app/admin/verification/page.tsx": freezeSource({
+    actors: ["STAFF"],
+    destinations: [
+      "case_seller_verification_eligibility",
+      "case_guild_unresolved_guard",
+    ],
+    inventory: { "Case.count": 1, "Case.findFirst": 1 },
+  }),
+  "src/app/api/cron/guild-member-check/route.ts": freezeSource({
+    actors: ["CRON"],
+    destinations: ["case_guild_unresolved_guard"],
+    inventory: { "Case.findFirst": 1 },
+  }),
+  "src/app/api/verification/apply/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_seller_verification_eligibility"],
+    inventory: { "Case.count": 1 },
+  }),
+  "src/app/dashboard/verification/page.tsx": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_seller_verification_eligibility"],
+    inventory: { "Case.count": 1 },
+  }),
+  "src/lib/metrics.ts": freezeSource({
+    actors: ["METRICS"],
+    destinations: ["case_seller_active_count"],
+    inventory: { "Case.count": 1 },
+  }),
   "src/app/api/orders/[id]/confirm-delivery/route.ts": freezeSource({
     actors: ["BUYER"],
     destinations: ["case_order_active_buyer"],
@@ -666,14 +696,6 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
 });
 
 export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
-  "src/app/admin/verification/page.tsx": freezeSource({
-    actors: ["STAFF"],
-    destinations: [
-      "case_seller_verification_eligibility",
-      "case_guild_unresolved_guard",
-    ],
-    inventory: { "Case.count": 1, "Case.findFirst": 1 },
-  }),
   "src/app/api/account/export/route.ts": freezeSource({
     actors: ["PARTICIPANT"],
     destinations: ["case_export"],
@@ -715,21 +737,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
     destinations: ["case_cron_transition_batch"],
     inventory: { "Case.updateMany": 3, "Case.findMany": 3 },
   }),
-  "src/app/api/cron/guild-member-check/route.ts": freezeSource({
-    actors: ["CRON"],
-    destinations: ["case_guild_unresolved_guard"],
-    inventory: { "Case.findFirst": 1 },
-  }),
-  "src/app/api/verification/apply/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_seller_verification_eligibility"],
-    inventory: { "Case.count": 1 },
-  }),
-  "src/app/dashboard/verification/page.tsx": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_seller_verification_eligibility"],
-    inventory: { "Case.count": 1 },
-  }),
   "src/lib/accountDeletion.ts": freezeSource({
     actors: ["ACCOUNT_LIFECYCLE"],
     destinations: ["case_account_deletion_blockers", "case_account_deletion_redact"],
@@ -742,11 +749,6 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "CaseMessage.raw-sql-reference": 2,
       "Case.raw-sql-reference": 4,
     },
-  }),
-  "src/lib/metrics.ts": freezeSource({
-    actors: ["METRICS"],
-    destinations: ["case_seller_active_count"],
-    inventory: { "Case.count": 1 },
   }),
   "src/lib/caseLifecycleLocks.ts": freezeSource({
     actors: ["PRIVATE_CORE"],

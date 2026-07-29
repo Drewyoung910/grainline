@@ -55,10 +55,14 @@ direct message read and one nested attachment relation. The grouped recipient
 read application conversion removes two more direct operations and three
 nested Order-to-Case relations. The PIN-gated staff queue conversion removes
 its direct Case count, paginated Case read and nested message-count relation.
-The current countdown is therefore 23 direct operations, 8 nested relation
-references and 11 raw SQL references: 42 remaining protected references
-across 16 source files. The converted-source ledger now retains all
-thirty-eight removed references.
+The Case-aware Order conversion removes eight more references from buyer
+delivery confirmation, seller fulfillment, label purchase and fixed PII
+retention. The seller-aggregate conversion removes six direct Case reads from
+Guild eligibility/revocation/reinstatement and seller metrics. The current
+countdown is therefore 17 direct operations, 3 nested relation references and
+8 raw SQL references: 28 remaining protected references across 7 source
+files. The converted-source ledger now retains all fifty-two removed
+references.
 
 The scanner records direct calls, nested relation projections/filters and raw
 SQL separately. It does not treat this count as authority approval. Every
@@ -373,8 +377,8 @@ committed with green validation. The three-table
 Case/CaseMessage/CaseMessageAttachment boundary is ready for reviewed
 policy/authority SQL only when:
 
-- the exact 80-reference conversion baseline, 42-reference current countdown
-  and thirty-eight-reference converted ledger are pinned by tests (the original 69
+- the exact 80-reference conversion baseline, 28-reference current countdown
+  and fifty-two-reference converted ledger are pinned by tests (the original 69
   remains historical audit evidence);
 - every reference has an actor and destination;
 - CC-A01 through CC-A11 and CC-A13 through CC-A20 are fixed or have an accepted
@@ -389,11 +393,13 @@ policy/authority SQL only when:
 
 ## Compatibility progress
 
-The Phase 1A bounded-history conversion replaces three unbounded nested
-CaseMessage reads with one shared keyset reader. Its current inventory is 42
-direct ORM calls, 15 relation references and 10 raw SQL references (67 total
-across 26 source files). The original 69-reference checkpoint remains the
-conversion ledger; no access path was silently removed.
+The Phase 1A bounded-history conversion replaced three unbounded nested
+CaseMessage reads with one shared keyset reader. Subsequent compatible,
+purpose-bound conversions have reduced the live inventory to 17 direct ORM
+calls, 3 relation references and 8 raw SQL references (28 total across 7
+source files). The original 69-reference audit and expanded 80-reference
+Phase 4 baseline remain in the conversion ledger; no access path is silently
+removed.
 
 The reader is correct with the existing `(caseId, createdAt)` index and uses
 `id` as a stable tie-breaker. The exact `(caseId, createdAt, id)` index migration

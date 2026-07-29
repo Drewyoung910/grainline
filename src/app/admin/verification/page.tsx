@@ -2,6 +2,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
@@ -20,7 +21,6 @@ import ActionForm, { SubmitButton } from "@/components/ActionForm";
 import { publicSellerPath } from "@/lib/publicPaths";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { adminActionRatelimit, safeRateLimit } from "@/lib/ratelimit";
-import { guildMemberRevocationCaseWhere } from "@/lib/guildMemberRevocationState";
 import {
   GUILD_MASTER_REVOKABLE_VERIFICATION_STATUSES,
   GUILD_MEMBER_REINSTATABLE_VERIFICATION_STATUSES,
@@ -34,6 +34,14 @@ import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { formatCurrencyCents } from "@/lib/money";
+import {
+  getCaseGuildUnresolvedGuard,
+  getCaseSellerVerificationEligibility,
+} from "@/lib/caseSellerAggregateAuthority";
+import {
+  ADMIN_PIN_COOKIE_NAME,
+  verifyAdminPinCookieValue,
+} from "@/lib/adminPin";
 
 type ActionState = { ok: boolean; error?: string };
 
@@ -134,10 +142,17 @@ function guildMasterFailureDetails(
 
 // ── Shared auth helpers ─────────────────────────────────────────────────────
 async function requireStaff() {
-  const { userId } = await auth();
+  const { userId, sessionId } = await auth();
   if (!userId) redirect("/");
   const { success } = await safeRateLimit(adminActionRatelimit, userId);
   if (!success) redirect("/");
+  const cookieStore = await cookies();
+  const pinVerified = await verifyAdminPinCookieValue(
+    cookieStore.get(ADMIN_PIN_COOKIE_NAME)?.value,
+    userId,
+    sessionId,
+  );
+  if (!pinVerified) redirect("/admin");
   const me = await prisma.user.findUnique({
     where: { clerkId: userId },
     select: { id: true, role: true, banned: true, deletedAt: true },
@@ -182,7 +197,6 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
     return { ok: false, error: "This seller account is suspended or deleted. Resolve the account state before approval." };
   }
 
-  const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
   const [activeListings, salesRows, longCaseCount] = await Promise.all([
     prisma.listing.count({
       where: { sellerId: verification.sellerProfileId, status: "ACTIVE", isPrivate: false },
@@ -198,12 +212,14 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
         AND o."sellerRefundId" IS NULL
         ${BLOCKING_REFUND_LEDGER_SQL}
     `,
-    prisma.case.count({
-      where: {
-        sellerId: verification.sellerProfile.userId,
-        status: { notIn: ["RESOLVED", "CLOSED"] },
-        createdAt: { lt: sixtyDaysAgo },
-      },
+    getCaseSellerVerificationEligibility({
+      actorUserId: me.id,
+      sellerProfileId: verification.sellerProfileId,
+    }).then((result) => {
+      if (!result) {
+        throw new Error("Case seller verification authority denied staff access");
+      }
+      return result.agedUnresolvedCount;
     }),
   ]);
   const totalSalesCents = Number(salesRows[0]?.total ?? 0);
@@ -767,7 +783,6 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
   if (!sellerProfileId) return { ok: false, error: "Seller profile is missing. Refresh and try again." };
 
   const reinstatedAt = new Date();
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   let reinstatedSeller: { userId: string; displayName: string; auditLogId: string } | null = null;
   try {
     reinstatedSeller = await prisma.$transaction(async (tx) => {
@@ -781,14 +796,11 @@ async function reinstateGuildMember(_prevState: unknown, formData: FormData): Pr
       });
       if (!seller || seller.user.banned || seller.user.deletedAt) return null;
 
-      const longCase = await tx.case.findFirst({
-        where: guildMemberRevocationCaseWhere(seller.userId, {
-          kind: "unresolved_case",
-          caseCreatedBefore: ninetyDaysAgo,
-        }),
-        select: { id: true },
-      });
-      if (longCase) return null;
+      const longCase = await getCaseGuildUnresolvedGuard(
+        sellerProfileId,
+        tx,
+      );
+      if (!longCase || longCase.blocked) return null;
 
       const activeListings = await tx.listing.count({
         where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false },

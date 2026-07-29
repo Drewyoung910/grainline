@@ -191,9 +191,19 @@ database-derived, and callers cannot choose Order ids or shorten the window.
 Re-review that shared lifecycle function when Order and
 OrderShippingRateQuote enter their own RLS group.
 
-The current live Case-family inventory is 34 references across 12 files, with
-forty-six of the 80-reference baseline retained in the converted ledger. This
-remains preparation only; production Case-family RLS is still off.
+Seller verification, Guild enforcement and seller metrics must not share a
+generic seller-to-dispute oracle. Keep three minimal Case aggregate
+operations: active count for the fixed metrics computation; an actor-bound
+seller/staff verification count with a database-derived 60-day cutoff; and a
+Guild-state-bound predicate with a database-derived 90-day cutoff and a lock
+on the exact blocking Case. Do not return cutoff timestamps, Case ids,
+participants or narratives. Admin verification mutations must repeat the
+session-bound staff PIN check inside the server action, even when the enclosing
+page already passed the admin layout gate.
+
+The current Case-family preparation inventory is 28 references across 7 files,
+with fifty-two of the 80-reference baseline retained in the converted ledger.
+This remains preparation only; production Case-family RLS is still off.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and
