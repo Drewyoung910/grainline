@@ -6,7 +6,7 @@ authority/invariant proof. Production RLS remains off for Case, CaseMessage
 and CaseMessageAttachment.
 
 The behavior findings, 80-reference conversion baseline and current
-64-reference countdown live in
+54-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
 
@@ -800,6 +800,27 @@ passed the extended 20-check PostgreSQL proof and every repository gate in run
 `30465487551`. This closes the authority proof gate but does not close the
 separate application conversion. Case-family RLS and production remain
 unchanged.
+
+Phase 4 Case-reply application conversion candidate (2026-07-29): the route
+keeps one direct Case preflight for later `case_message_preflight` conversion
+and moves its other ten protected references to `grainline_case_reply`. It
+retains the existing request, actor, participant/staff PIN, recipient and R2
+verification gates. External object verification accepts VERIFIED or CLAIMED
+only so an exact retry can re-check R2 bytes and signature; the fixed database
+operation remains final authority for exact replay versus fresh VERIFIED-only
+creation. The application accepts one strict database result, returns replay
+before Notification/email and uses only returned identities afterward. The
+countdown is 54 remaining references across 25 files and twenty-six converted
+references.
+
+This application checkpoint also updates the still-disposable DirectUpload
+compatibility-key retirement generator. Because the compatible reply function
+dual-writes `CaseMessageAttachment.objectKey`, dropping that column without
+replacing the function would break replies. The generated retirement now
+recreates the fixed function without that column in the same transaction,
+preserves its ACL, and postflights owner, SECURITY DEFINER mode, pinned
+`search_path`, runtime grant, PUBLIC denial and source retirement. This does
+not stage or apply retirement, activation, RLS, grants or production changes.
 
 ## Phase 5: ENABLE activation
 

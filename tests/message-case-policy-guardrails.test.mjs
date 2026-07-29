@@ -37,16 +37,18 @@ describe("message and case policy guardrails", () => {
   });
 
   it("reopens pending-close cases before accepting a new party message", () => {
-    const route = source("src/app/api/cases/[id]/messages/route.ts");
-
-    assert.match(route, /caseMessageStatusTransition/);
-    assert.match(route, /statusTransition === "party_reopened_pending_close"/);
-    assert.match(
-      route,
-      /statusTransition === "party_reopened_pending_close"[\s\S]{0,180}status: "IN_DISCUSSION" as const/,
+    const migration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
     );
-    assert.match(route, /buyerMarkedResolved: false/);
-    assert.match(route, /sellerMarkedResolved: false/);
+
+    assert.match(migration, /locked_case\.status = 'PENDING_CLOSE'::public\."CaseStatus"/);
+    assert.match(migration, /AND actor_is_party/);
+    assert.match(
+      migration,
+      /resulting_status := 'IN_DISCUSSION'::public\."CaseStatus"/,
+    );
+    assert.match(migration, /"buyerMarkedResolved" = false/);
+    assert.match(migration, /"sellerMarkedResolved" = false/);
   });
 
   it("keeps blocked and archived conversations out of visible unread counts before caps", () => {

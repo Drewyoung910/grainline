@@ -125,6 +125,9 @@ describe("CaseMessage durable author kind", () => {
       "prisma/migrations/20260729051000_prepare_case_open_authority/migration.sql",
     );
     const replyRoute = source("src/app/api/cases/[id]/messages/route.ts");
+    const replyMigration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
+    );
     const history = source("src/lib/caseMessageHistory.ts");
 
     assert.match(createRoute, /await openCaseWithFixedAuthority\(/);
@@ -132,8 +135,12 @@ describe("CaseMessage durable author kind", () => {
       caseOpenMigration,
       /'BUYER'::public\."CaseMessageAuthorKind"/,
     );
-    assert.match(replyRoute, /caseMessageAuthorKindForActor/);
-    assert.match(replyRoute, /authorKind,\s*body: messageBody/s);
+    assert.match(replyRoute, /replyToCaseWithFixedAuthority/);
+    assert.match(
+      replyMigration,
+      /actor_kind := CASE[\s\S]*'BUYER'::public\."CaseMessageAuthorKind"[\s\S]*'SELLER'::public\."CaseMessageAuthorKind"[\s\S]*'STAFF'::public\."CaseMessageAuthorKind"/,
+    );
+    assert.match(replyMigration, /INSERT INTO public\."CaseMessage"[\s\S]*actor_kind/);
     assert.match(history, /authorKind: true/);
   });
 });
