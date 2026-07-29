@@ -158,6 +158,19 @@ Case-family inventory is 50 references across 22 files, with thirty of the
 80-reference baseline retained in the converted ledger. This remains
 preparation only; production Case-family RLS is still off.
 
+Keep the PII-free Case-detail projections separate from the cross-user staff
+queue. One Case by id, one Case by Order and the staff active count may remain
+SECURITY INVOKER after setting transaction-local actor context. Their fixed
+result must not expose the raw Stripe refund id, User contact/profile fields,
+payment-source provenance or attachment/object identifiers, and UTC database
+timestamps must cross the SQL boundary as `timestamptz`.
+
+The staff Case queue is not one of those ordinary reads. It needs minimal
+buyer/seller contact fields for PIN-verified staff, which future self-only User
+RLS should hide from the runtime role. Keep it as a separate, narrow
+source-validating SECURITY DEFINER projection rather than granting broad User
+visibility or adding PII to the shared participant Case result.
+
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and
 aggregate-only. The two tracks rejoin before activation: DirectUpload must

@@ -896,6 +896,51 @@ WHERE to_regprocedure(
 ) IS NOT NULL;
 \gexec
 
+-- Recipient Case projections are absent before their compatible authority
+-- migration. Keep PUBLIC closed and converge only the three exact invoker
+-- operations; direct Case reads remain available until the later app
+-- conversion and RLS activation.
+WITH recipient_read(function_signature) AS (
+  VALUES
+    ('public.grainline_case_get(text,text)'),
+    ('public.grainline_case_get_by_order(text,text)'),
+    ('public.grainline_case_staff_active_count(text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM recipient_read
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH recipient_read(function_signature) AS (
+  VALUES
+    ('public.grainline_case_get(text,text)'),
+    ('public.grainline_case_get_by_order(text,text)'),
+    ('public.grainline_case_staff_active_count(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM recipient_read
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH recipient_read(function_signature) AS (
+  VALUES
+    ('public.grainline_case_get(text,text)'),
+    ('public.grainline_case_get_by_order(text,text)'),
+    ('public.grainline_case_staff_active_count(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM recipient_read
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.

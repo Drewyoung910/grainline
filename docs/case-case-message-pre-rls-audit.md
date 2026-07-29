@@ -218,6 +218,7 @@ credentials.
 | CC-A18 | High/Recovery | The first staff-resolution app conversion exposed two lease-recovery collisions. Generic 15-minute stale-refund cleanup and `charge.refunded` recovery could reclaim a `pending` Order sentinel even while a durable `CaseResolutionClaim` owned it. The route's friendly prechecks could also reject that claim's own pending, ambiguous or recorded refund state before the fixed prepare function could replay or finalize it. | Treat a non-null `caseResolutionClaimId` as a durable non-expiring lease in both cleanup and webhook state. Let the fixed prepare function validate and replay the exact actor/Case/resolution/stock claim before applying ordinary no-claim refund-conflict heuristics. Pin crash points before Stripe, after Stripe, after provider record and after finalization in the app/static and PostgreSQL proof. |
 | CC-A19 | High/Concurrency | Participant mark-resolved fenced `sellerRefundId` but not `Order.caseResolutionClaimId`. A staged staff `DISMISSED` resolution deliberately has no refund sentinel, so the direct participant path could change the Case between staff prepare and finalize. The fixed-function review also found that a nullable retained buyer id could propagate SQL `NULL` into resolution flags, and that a missing audit status could evade a bare `NOT IN` replay check. | The compatible mark-resolved function locks the active actor, Order and Case in the shared order; rejects both refund and every staff-resolution claim lease before a new transition; normalizes nullable participant comparisons to strict booleans; derives the clock, state and deterministic audit inside PostgreSQL; and explicitly null-rejects replay metadata. Disposable PostgreSQL must prove foreign denial, both lease fences, nullable-buyer behavior, malformed-replay denial, serial marks, a real lock wait, rollback and zero residue before app conversion. |
 | CC-A20 | High/Integrity | The buyer Case-open route did not require `Order.paidAt`. Its ordinary pending-fulfillment checks usually rejected an unpaid Order, but `reviewNeeded` or an unavailable seller intentionally bypasses those timing checks, leaving a path to open a dispute against an unpaid Order row. | The fixed Case-open operation must lock the Order and require `paidAt` before creating any Case artifact. It must also derive the one seller from a locked complete OrderItem/Listing/SellerProfile graph, reject refund/staff-claim evidence, preserve the reviewed timing exceptions only for paid Orders, and prove unpaid denial plus zero residue in PostgreSQL. |
+| CC-A21 | High/Privacy and compatibility | A first shared Case read projection included the raw Stripe refund object id, and the catalog treated the staff queue as INVOKER even though it needs buyer/seller contact fields. The former exceeded participant UI need; the latter would either require broad runtime User visibility or silently break under later self-only User RLS. Timestamp-without-time-zone results also need explicit UTC treatment at the SQL boundary. | Exclude provider ids and all User PII from the shared recipient Case projection; convert its UTC database timestamps to `timestamptz`; keep PII-bearing staff queue work separate as a narrow source-validating SECURITY DEFINER projection with route-side staff PIN enforcement. |
 
 CC-A05 authority correction (2026-07-29): the bounded message page cannot
 remain an ordinary INVOKER projection because it must cross exact
@@ -227,6 +228,18 @@ with a 51-row maximum and `(createdAt,id)` cursor. It intentionally omits
 author profile/contact data and private object identifiers. This closes the
 database-authority design portion of CC-A05; the three interactive page
 callers still require conversion before the finding is complete.
+
+CC-A21 correction (2026-07-29): the grouped recipient-read authority candidate
+now returns only the Case lifecycle fields actually shared by participant and
+staff detail surfaces. It omits `stripeRefundId`, User profile/contact fields,
+Order detail, payment-event provenance and attachment/object identifiers.
+Database UTC timestamps return as `timestamptz`; the typed validator rejects
+extra fields, identity/authority drift, malformed enums, invalid dates and
+negative or non-integral refund amounts. The separate staff queue is
+reclassified to SECURITY DEFINER because its minimal buyer/seller contact
+projection must remain available to PIN-verified current staff after self-only
+User RLS. This authority-only checkpoint leaves the inventory at 50 current
+references across 22 files and does not activate RLS or convert app callers.
 
 CC-A11 implementation boundary (2026-07-26): the isolated Phase 1B branch uses
 a separate non-public R2 bucket, never the generic public message uploader.
