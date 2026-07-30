@@ -166,7 +166,7 @@ async function seedCase(
         ELSE NULL
       END,
       $6,
-      CURRENT_TIMESTAMP
+      GREATEST(CURRENT_TIMESTAMP, $6::timestamp)
     )
   `, [
     caseId,

@@ -126,6 +126,15 @@ original assertions: one attachment reply, two distinct replay-test replies,
 and zero reply/attachment residue after rollback. The fixture compatibility
 guard requires all three exclusions.
 
+Exact-head CI run `30516516364` (job `90787495312`) passed the complete
+Case-reply proof and every proof through the Case-aware Order check, then
+rejected the seller-aggregate proof's recent Case clock. That harness began a
+transaction, later constructed `createdAt` from the JavaScript wall clock,
+and paired it with PostgreSQL `CURRENT_TIMESTAMP`, which remains fixed at the
+earlier transaction start. The fixture now derives `updatedAt` as the greater
+of those two values. A class audit found no other direct fixture combining a
+post-BEGIN JavaScript Case clock with an earlier database transaction clock.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:

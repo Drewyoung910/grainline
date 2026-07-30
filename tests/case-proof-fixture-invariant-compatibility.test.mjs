@@ -72,3 +72,18 @@ test("post-migration Case-reply fixtures order lifecycle clocks consistently", (
   );
   assert.match(source, /function openingMessageId\(caseId\)/);
 });
+
+test("post-migration seller aggregate fixtures cannot regress updatedAt behind a JavaScript clock", () => {
+  const source = fs.readFileSync(
+    "scripts/case-seller-aggregate-authority-postgres-proof.mjs",
+    "utf8",
+  );
+  const seedCase = source.match(
+    /async function seedCase\([\s\S]+?\n}\n\nasync function seedFixtures/,
+  )?.[0];
+  assert.ok(seedCase, "Case seller-aggregate seedCase function is missing");
+  assert.match(
+    seedCase,
+    /GREATEST\(CURRENT_TIMESTAMP, \$6::timestamp\)/,
+  );
+});
