@@ -9,6 +9,7 @@ import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { getSellerMessageResponseMetrics } from "@/lib/conversationMessageAuthority";
+import { getCaseSellerActiveCount } from "@/lib/caseSellerAggregateAuthority";
 
 const SELLER_METRICS_LOCK_NAMESPACE = 913344;
 
@@ -199,13 +200,7 @@ async function calculateSellerMetricsWithoutLock(
           )
       `,
 
-      // Active (open) cases
-      db.case.count({
-        where: {
-          sellerId: seller.userId,
-          status: { notIn: ["RESOLVED", "CLOSED"] },
-        },
-      }),
+      getCaseSellerActiveCount(sellerProfileId, db),
 
       getSellerMessageResponseMetrics(seller.userId, periodStart, db),
     ]);

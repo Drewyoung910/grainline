@@ -4,7 +4,6 @@ import { auth } from "@clerk/nextjs/server";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { requireStaffAdminPinForApi } from "@/lib/adminPinApi";
 import { caseEvidenceAttachmentsEnabled } from "@/lib/caseEvidenceRelease";
-import { prisma } from "@/lib/db";
 import { readDirectUploadCaseAttachment } from "@/lib/directUploadLifecycle";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
@@ -14,6 +13,7 @@ import {
   safeRateLimit,
 } from "@/lib/ratelimit";
 import { privateR2BucketName, r2 } from "@/lib/r2";
+import { getVisibleCaseById } from "@/lib/caseReadAuthority";
 
 export const runtime = "nodejs";
 
@@ -54,24 +54,15 @@ export async function GET(
     throw error;
   }
 
-  const caseRecord = await prisma.case.findUnique({
-    where: { id },
-    select: {
-      buyerId: true,
-      sellerId: true,
-    },
+  const caseRecord = await getVisibleCaseById({
+    actorUserId: me.id,
+    caseId: id,
   });
   if (!caseRecord) {
     return privateJson({ error: "Case not found." }, { status: 404 });
   }
 
-  const isParty =
-    me.id === caseRecord.buyerId || me.id === caseRecord.sellerId;
-  const isStaff = me.role === "EMPLOYEE" || me.role === "ADMIN";
-  if (!isParty && !isStaff) {
-    return privateJson({ error: "Forbidden." }, { status: 403 });
-  }
-  if (!isParty && isStaff) {
+  if (caseRecord.actsAsStaff) {
     const pinResponse = await requireStaffAdminPinForApi(req, userId, sessionId);
     if (pinResponse) return pinResponse;
   }

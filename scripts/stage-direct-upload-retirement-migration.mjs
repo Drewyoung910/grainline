@@ -14,7 +14,46 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function buildRetiredCaseReplyFunction() {
+  const sourcePath = path.join(
+    root,
+    "prisma",
+    "migrations",
+    "20260729052000_prepare_case_reply_authority",
+    "migration.sql",
+  );
+  const source = fs.readFileSync(sourcePath, "utf8");
+  const start = source.indexOf(
+    "CREATE OR REPLACE FUNCTION public.grainline_case_reply(",
+  );
+  const terminator = "$grainline_case_reply$;";
+  const end = source.indexOf(terminator, start);
+  if (start < 0 || end < 0) {
+    throw new Error("Case-reply authority definition is unavailable for retirement");
+  }
+  const definition = source.slice(start, end + terminator.length);
+  const retired = definition
+    .replace(
+      '      "directUploadId",\n      "objectKey",\n      "contentType",',
+      '      "directUploadId",\n      "contentType",',
+    )
+    .replace(
+      '      upload.id,\n      upload.key,\n      upload."contentType",',
+      '      upload.id,\n      upload."contentType",',
+    );
+  if (
+    (definition.match(/"objectKey"/g) ?? []).length !== 1
+    || retired === definition
+    || /"objectKey"/.test(retired)
+    || !/INSERT INTO public\."CaseMessageAttachment"/.test(retired)
+  ) {
+    throw new Error("Case-reply objectKey retirement transform drifted");
+  }
+  return retired;
+}
+
 export function buildDirectUploadRetirementCandidate() {
+  const retiredCaseReplyFunction = buildRetiredCaseReplyFunction();
   const migration = `-- Generated disposable DirectUpload compatibility-key retirement candidate.
 -- Do not apply outside the loopback grainline_ci proof workflow.
 -- Production promotion requires compatible-app drain plus separately approved
@@ -237,6 +276,11 @@ ALTER TABLE public."CaseMessageAttachment"
   DROP CONSTRAINT "CaseMessageAttachment_objectKey_check",
   DROP COLUMN "objectKey";
 
+-- The compatible Case-reply function dual-writes objectKey before retirement.
+-- Replace it in the same transaction so replies remain valid once the column
+-- is absent. CREATE OR REPLACE preserves its already-reviewed EXECUTE ACL.
+${retiredCaseReplyFunction}
+
 CREATE OR REPLACE FUNCTION
   public.grainline_direct_upload_case_attachment_bind()
 RETURNS trigger
@@ -306,6 +350,7 @@ DO $grainline_direct_upload_retirement_postflight$
 DECLARE
   unvalidated_constraint_count integer;
   bind_function record;
+  case_reply_function record;
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -374,6 +419,47 @@ BEGIN
      OR bind_function.public_execute THEN
     RAISE EXCEPTION
       'CaseMessageAttachment binding authority drifted after retirement';
+  END IF;
+
+  SELECT
+    procedure.prosecdef,
+    procedure.proleakproof,
+    procedure.proconfig,
+    pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
+    pg_catalog.has_function_privilege(
+      'grainline_app_runtime', procedure.oid, 'EXECUTE'
+    ) AS runtime_execute,
+    pg_catalog.strpos(
+      pg_catalog.pg_get_functiondef(procedure.oid),
+      '"objectKey"'
+    ) = 0 AS object_key_retired,
+    EXISTS (
+      SELECT 1
+        FROM pg_catalog.aclexplode(
+          COALESCE(
+            procedure.proacl,
+            pg_catalog.acldefault('f', procedure.proowner)
+          )
+        ) AS acl
+       WHERE acl.grantee = 0
+         AND acl.privilege_type = 'EXECUTE'
+    ) AS public_execute
+    INTO case_reply_function
+    FROM pg_catalog.pg_proc AS procedure
+   WHERE procedure.oid = pg_catalog.to_regprocedure(
+     'public.grainline_case_reply(text,text,text,text[])'
+   );
+  IF NOT FOUND
+     OR NOT case_reply_function.prosecdef
+     OR case_reply_function.proleakproof
+     OR case_reply_function.proconfig IS DISTINCT FROM
+       ARRAY['search_path=pg_catalog']::text[]
+     OR case_reply_function.owner_name IS DISTINCT FROM current_user
+     OR NOT case_reply_function.runtime_execute
+     OR NOT case_reply_function.object_key_retired
+     OR case_reply_function.public_execute THEN
+    RAISE EXCEPTION
+      'Case-reply authority drifted after objectKey retirement';
   END IF;
 
   IF NOT EXISTS (

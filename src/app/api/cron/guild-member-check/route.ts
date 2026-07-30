@@ -14,10 +14,10 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import {
-  guildMemberRevocationCaseWhere,
   guildMemberRevocationSellerWhere,
   type GuildMemberRevocationGuard,
 } from "@/lib/guildMemberRevocationState";
+import { getCaseGuildUnresolvedGuard } from "@/lib/caseSellerAggregateAuthority";
 import {
   GUILD_MEMBER_REVOKABLE_VERIFICATION_STATUSES,
   assertGuildVerificationTransition,
@@ -122,12 +122,11 @@ async function checkGuildMemberSeller(
     kind: "unresolved_case",
     caseCreatedBefore: ninetyDaysAgo,
   };
-  const longCase = await prisma.case.findFirst({
-    where: guildMemberRevocationCaseWhere(seller.userId, unresolvedCaseGuard),
-    select: { id: true },
-  });
-
-  if (longCase) {
+  const longCase = await getCaseGuildUnresolvedGuard(seller.id);
+  if (!longCase) {
+    throw new Error("Case Guild unresolved guard denied current Guild Member");
+  }
+  if (longCase.blocked) {
     return revokeMember(seller, "An unresolved dispute has been open for over 90 days.", unresolvedCaseGuard, now);
   }
 
@@ -160,6 +159,10 @@ async function revokeMember(
   let revocationAuditId: string | null = null;
   try {
     revocationAuditId = await prisma.$transaction(async (tx) => {
+      if (guard.kind === "unresolved_case") {
+        const longCase = await getCaseGuildUnresolvedGuard(seller.id, tx);
+        if (!longCase || !longCase.blocked) return null;
+      }
       const verificationUpdated = await tx.makerVerification.updateMany({
         where: {
           sellerProfileId: seller.id,
@@ -170,7 +173,7 @@ async function revokeMember(
       if (verificationUpdated.count === 0) return null;
 
       const updated = await tx.sellerProfile.updateMany({
-        where: guildMemberRevocationSellerWhere(seller.id, seller.userId, guard),
+        where: guildMemberRevocationSellerWhere(seller.id, guard),
         data: {
           guildLevel: "NONE",
           isVerifiedMaker: false,

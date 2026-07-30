@@ -1,4 +1,3 @@
-import type { CaseStatus } from "@prisma/client";
 import { DEFAULT_CURRENCY } from "./money.ts";
 import {
   REFUND_AMBIGUOUS_SENTINEL,
@@ -66,6 +65,7 @@ export type ChargeRefundOrderState = {
   currency: string;
   sellerRefundId: string | null;
   sellerRefundLockedAt?: Date | null;
+  caseResolutionClaimId?: string | null;
   sellerRefundAmountCents: number | null;
   itemsSubtotalCents?: number | null;
   shippingAmountCents?: number | null;
@@ -140,11 +140,6 @@ export type LatestDisputeLedgerEventState = {
   status?: string | null;
   stripeEventCreated?: number | bigint | null;
 };
-
-export type DisputeCaseAction =
-  | { action: "none" }
-  | { action: "update"; caseId: string; expectedStatus: CaseStatus; status: "UNDER_REVIEW" }
-  | { action: "create"; status: "UNDER_REVIEW"; sellerRespondBy: Date; description: string };
 
 export type StripePayoutFailureLike = {
   id: string;
@@ -527,10 +522,13 @@ export function chargeRefundLedgerState({
     !order.sellerRefundId.startsWith("external:");
   const hasFreshLocalRefundLock =
     order.sellerRefundId === REFUND_LOCK_SENTINEL &&
-    !isStaleRefundLock({
-      sellerRefundId: order.sellerRefundId,
-      sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
-    });
+    (
+      Boolean(order.caseResolutionClaimId)
+      || !isStaleRefundLock({
+        sellerRefundId: order.sellerRefundId,
+        sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
+      })
+    );
   const isKnownLocalRefund = hasLocalRefundAudit && order.sellerRefundId === latestRefundId;
   const isAdditionalExternalRefund = hasLocalRefundAudit && !isKnownLocalRefund;
   const reason =
@@ -646,34 +644,6 @@ export function chargeDisputeLedgerState({
       reviewNote: description,
       ...(shouldClearRefundLock ? { sellerRefundLockedAt: null } : {}),
     },
-  };
-}
-
-export function disputeCaseAction({
-  eventType,
-  existingCase,
-  dispute,
-  now = new Date(),
-}: {
-  eventType: string;
-  existingCase?: { id: string; status: CaseStatus } | null;
-  dispute: StripeDisputeLike;
-  now?: Date;
-}): DisputeCaseAction {
-  if (eventType !== "charge.dispute.created") return { action: "none" };
-  if (existingCase) {
-    return {
-      action: "update",
-      caseId: existingCase.id,
-      expectedStatus: existingCase.status,
-      status: "UNDER_REVIEW",
-    };
-  }
-  return {
-    action: "create",
-    status: "UNDER_REVIEW",
-    sellerRespondBy: new Date(now.getTime() + 48 * 60 * 60 * 1000),
-    description: `Stripe payment dispute ${dispute.id ?? ""}${dispute.reason ? `: ${dispute.reason}` : ""}`.trim(),
   };
 }
 

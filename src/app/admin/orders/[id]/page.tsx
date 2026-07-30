@@ -11,6 +11,7 @@ import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { caseResolutionLabel } from "@/lib/caseLabels";
 import { orderPaymentEventTypeLabel } from "@/lib/orderPaymentEventLabels";
+import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -93,7 +94,7 @@ export default async function AdminOrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdminPageAccess();
+  const staff = await requireAdminPageAccess();
   const { id } = await params;
 
   const order = await prisma.order.findUnique({
@@ -110,16 +111,6 @@ export default async function AdminOrderDetailPage({
           },
         },
       },
-      case: {
-        select: {
-          id: true,
-          status: true,
-          resolution: true,
-          stripeRefundId: true,
-          refundAmountCents: true,
-          resolvedAt: true,
-        },
-      },
       paymentEvents: {
         orderBy: { createdAt: "desc" },
         take: 25,
@@ -128,6 +119,13 @@ export default async function AdminOrderDetailPage({
   });
 
   if (!order) notFound();
+  const caseRecord = await getVisibleCaseByOrderId({
+    actorUserId: staff.id,
+    orderId: order.id,
+  });
+  const hasCaseRefund =
+    caseRecord?.resolution === "REFUND_FULL"
+    || caseRecord?.resolution === "REFUND_PARTIAL";
 
   const currency = order.currency ?? DEFAULT_CURRENCY;
   const total = orderTotalCents(order);
@@ -316,23 +314,20 @@ export default async function AdminOrderDetailPage({
               </span>
             </div>
           ) : null}
-          {order.case?.stripeRefundId && (
+          {hasCaseRefund && caseRecord && (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
               <span>
                 Case refund
-                {order.case.resolution && (
+                {caseRecord.resolution && (
                   <span className="ml-1 text-xs text-neutral-500 font-normal">
-                    ({caseResolutionLabel(order.case.resolution)})
+                    ({caseResolutionLabel(caseRecord.resolution)})
                   </span>
                 )}
-                <span className="ml-1 text-xs text-neutral-500 font-normal">
-                  ({order.case.stripeRefundId})
-                </span>
               </span>
-              <span className="font-medium">{fmtMoney(order.case.refundAmountCents, currency)}</span>
+              <span className="font-medium">{fmtMoney(caseRecord.refundAmountCents, currency)}</span>
             </div>
           )}
-          {!order.sellerRefundId && !order.case?.stripeRefundId && externalRefund && (
+          {!order.sellerRefundId && !hasCaseRefund && externalRefund && (
             <div className="flex justify-between text-amber-700 border-t border-neutral-100 pt-2">
               <span>
                 External Stripe refund

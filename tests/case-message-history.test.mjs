@@ -42,9 +42,10 @@ describe("CaseMessage history pagination", () => {
   it("keeps the database query bounded and tie-stable", () => {
     const source = fs.readFileSync("src/lib/caseMessageHistory.ts", "utf8");
     assert.equal(CASE_MESSAGE_PAGE_SIZE, 50);
-    assert.match(source, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(source, /take: CASE_MESSAGE_PAGE_SIZE \+ 1/);
-    assert.match(source, /\{ createdAt: cursor\.createdAt, id: \{ lt: cursor\.id \} \}/);
+    assert.match(source, /listCaseMessagePage\(\{/);
+    assert.match(source, /cursor,/);
+    assert.match(source, /limit: CASE_MESSAGE_PAGE_SIZE \+ 1/);
+    assert.doesNotMatch(source, /prisma\.caseMessage/);
     assert.match(source, /messages: descendingPage\.reverse\(\)/);
   });
 

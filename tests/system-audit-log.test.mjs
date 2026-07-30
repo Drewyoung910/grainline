@@ -38,6 +38,9 @@ describe("system audit logging", () => {
     const guildMetrics = source("src/app/api/cron/guild-metrics/route.ts");
     const caseAutoClose = source("src/app/api/cron/case-auto-close/route.ts");
     const caseEscalate = source("src/app/api/cases/[id]/escalate/route.ts");
+    const caseTransitionAuthority = source(
+      "prisma/migrations/20260729060000_prepare_case_escalation_cron_authority/migration.sql",
+    );
 
     assert.match(guildMember, /logSystemActionOrThrow/);
     assert.match(guildMember, /action: "AUTO_REVOKE_GUILD_MEMBER"/);
@@ -47,13 +50,22 @@ describe("system audit logging", () => {
     assert.match(guildMetrics, /action: "PRUNE_LISTING_VIEW_DAILY"/);
     assert.match(guildMetrics, /client: tx/);
 
-    assert.match(caseAutoClose, /action: "AUTO_CLOSE_CASE"/);
-    assert.match(caseAutoClose, /action: "AUTO_ESCALATE_CASE"/);
-    assert.match(caseAutoClose, /client: tx/);
+    assert.match(caseAutoClose, /runCaseCronTransitionBatch/);
+    assert.doesNotMatch(caseAutoClose, /logSystemActionOrThrow|prisma\.case\./);
+    assert.match(caseTransitionAuthority, /audit_action := 'AUTO_CLOSE_CASE'/);
+    assert.match(caseTransitionAuthority, /audit_action := 'AUTO_ESCALATE_CASE'/);
+    assert.match(
+      caseTransitionAuthority,
+      /INSERT INTO public\."SystemAuditLog"/,
+    );
 
-    assert.match(caseEscalate, /action: "BULK_ESCALATE_CASES"/);
-    assert.match(caseEscalate, /action: "ESCALATE_CASE"/);
-    assert.match(caseEscalate, /actorType: validCron \? "cron" : "staff"/);
+    assert.match(caseEscalate, /escalateCaseWithFixedAuthority/);
+    assert.doesNotMatch(
+      caseEscalate,
+      /BULK_ESCALATE_CASES|logSystemActionOrThrow|logUserAuditActionOrThrow/,
+    );
+    assert.match(caseTransitionAuthority, /'ESCALATE_CASE'/);
+    assert.match(caseTransitionAuthority, /'staff'/);
   });
 
   it("audits Stripe webhook financial state transitions through SystemAuditLog", () => {

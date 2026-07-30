@@ -26,7 +26,6 @@ import {
 } from "@/lib/caseCreateState";
 import { caseEscalationAvailable } from "@/lib/caseActionState";
 import {
-  unavailableCaseMessageRecipientReason,
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
@@ -37,6 +36,8 @@ import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
 import { findCaseMessageHistoryPage } from "@/lib/caseMessageHistory";
 import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 import CaseMessageAttachments from "@/components/CaseMessageAttachments";
+import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
+import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -123,12 +124,6 @@ export default async function BuyerOrderDetailPage({
           },
         },
       },
-      case: {
-        include: {
-          buyer: { select: { id: true, banned: true, deletedAt: true } },
-          seller: { select: { id: true, banned: true, deletedAt: true } },
-        },
-      },
       paymentEvents: {
         where: blockingRefundLedgerWhere(),
         orderBy: { createdAt: "desc" },
@@ -163,13 +158,28 @@ export default async function BuyerOrderDetailPage({
   const processingMaxes = order.items
     .map((item) => item.listing.processingTimeMaxDays)
     .filter((value): value is number => typeof value === "number");
-  const activeCase = order.case;
-  const caseMessageHistory = activeCase
-    ? await findCaseMessageHistoryPage(activeCase.id, caseBefore)
-    : null;
+  const activeCase = await getVisibleCaseByOrderId({
+    actorUserId: me.id,
+    orderId: order.id,
+  });
+  const [caseMessageHistory, caseMessagePreflight] = activeCase
+    ? await Promise.all([
+        findCaseMessageHistoryPage(me.id, activeCase.id, caseBefore),
+        getCaseMessagePreflight({
+          actorUserId: me.id,
+          caseId: activeCase.id,
+        }),
+      ])
+    : [null, null];
+  if (activeCase && !caseMessagePreflight) {
+    throw new TypeError("Case message preflight denied a visible buyer case");
+  }
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
-  const hasRefund = sellerRefundIssued || !!activeCase?.stripeRefundId || !!externalRefund;
+  const hasCaseRefund =
+    activeCase?.resolution === "REFUND_FULL"
+    || activeCase?.resolution === "REFUND_PARTIAL";
+  const hasRefund = sellerRefundIssued || hasCaseRefund || !!externalRefund;
 
   // Case eligibility
   const now = new Date();
@@ -197,14 +207,8 @@ export default async function BuyerOrderDetailPage({
     (activeCase.status === "OPEN" ||
       activeCase.status === "IN_DISCUSSION" ||
       activeCase.status === "PENDING_CLOSE");
-  const caseReplyUnavailableReason = activeCase
-    ? unavailableCaseMessageRecipientReason({
-        senderId: me.id,
-        buyer: activeCase.buyer,
-        seller: activeCase.seller,
-        isStaff: false,
-      })
-    : null;
+  const caseReplyUnavailableReason =
+    caseMessagePreflight?.recipientUnavailableReason ?? null;
   const caseReplyUnavailableMessage = caseReplyUnavailableReason
     ? unavailableCaseRecipientMessage(caseReplyUnavailableReason)
     : null;
@@ -526,11 +530,10 @@ export default async function BuyerOrderDetailPage({
                     <span className="font-medium text-neutral-700">
                       {caseMessageAuthorLabel({
                         authorKind: msg.authorKind,
-                        authorId: msg.author.id,
+                        authorId: msg.authorId,
                         buyerId: activeCase.buyerId,
                         sellerId: activeCase.sellerId,
                         viewerId: me.id,
-                        legacyAuthorRole: msg.author.role,
                       })}
                     </span>
                     <span>·</span>

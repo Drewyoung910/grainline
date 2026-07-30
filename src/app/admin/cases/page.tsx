@@ -1,10 +1,11 @@
 // src/app/admin/cases/page.tsx
-import { prisma } from "@/lib/db";
 import Link from "next/link";
 import type { CaseStatus } from "@prisma/client";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { redirect } from "next/navigation";
+import { getStaffCaseQueue } from "@/lib/caseStaffQueueAuthority";
 
 const PAGE_SIZE = 25;
 
@@ -50,7 +51,7 @@ export default async function AdminCasesPage({
 }: {
   searchParams: Promise<{ page?: string; status?: string }>;
 }) {
-  await requireAdminPageAccess();
+  const staff = await requireAdminPageAccess();
   const { page: pageParam, status: statusParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 
@@ -59,28 +60,17 @@ export default async function AdminCasesPage({
       ? (statusParam as CaseStatus)
       : undefined;
 
-  const where = statusFilter ? { status: statusFilter } : undefined;
-
-  const total = await prisma.case.count({ where });
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const safePage = Math.min(requestedPage, totalPages);
-  const cases = await prisma.case.findMany({
-    where,
-    // Sort: active cases (resolvedAt = null) first, then by newest stable row.
-    orderBy: [
-      { resolvedAt: { sort: "asc", nulls: "first" } },
-      { createdAt: "desc" },
-      { id: "desc" },
-    ],
-    skip: (safePage - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    include: {
-      order: { select: { id: true } },
-      buyer: { select: { name: true, email: true } },
-      seller: { select: { name: true, email: true } },
-      _count: { select: { messages: true } },
-    },
+  const queue = await getStaffCaseQueue({
+    actorUserId: staff.id,
+    statusFilter: statusFilter ?? null,
+    requestedPage,
+    pageSize: PAGE_SIZE,
   });
+  if (!queue) redirect("/");
+  const total = queue.totalCount;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = queue.safePage;
+  const cases = queue.cases;
 
   function pagerHref(p: number) {
     const params = new URLSearchParams();
@@ -158,18 +148,20 @@ export default async function AdminCasesPage({
                       #{c.id.slice(-8)}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-neutral-500">
-                      #{c.order.id.slice(-8)}
+                      #{c.orderId.slice(-8)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-neutral-800">
-                        {c.buyer?.name ?? c.buyer?.email ?? "Deleted buyer"}
+                        {c.buyerLabel}
                       </div>
-                      {c.buyer?.name && (
-                        <div className="text-xs text-neutral-500">{c.buyer.email}</div>
+                      {c.buyerSecondaryEmail && (
+                        <div className="text-xs text-neutral-500">
+                          {c.buyerSecondaryEmail}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-neutral-700">
-                      {c.seller.name ?? c.seller.email}
+                      {c.sellerLabel}
                     </td>
                     <td className="px-4 py-3 text-neutral-600 text-xs">
                       {REASON_LABELS[c.reason] ?? c.reason}
@@ -178,7 +170,7 @@ export default async function AdminCasesPage({
                       <CaseStatusBadge status={c.status} />
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-neutral-500 text-xs">
-                      {c._count.messages}
+                      {c.messageCount}
                     </td>
                     <td className="px-4 py-3 text-xs text-neutral-500 whitespace-nowrap">
                       {c.createdAt.toLocaleDateString("en-US")}

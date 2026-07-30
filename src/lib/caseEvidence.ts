@@ -66,7 +66,7 @@ async function objectPrefixBytes(key: string) {
   return body.transformToByteArray();
 }
 
-export async function verifyPrivateCaseEvidenceForPersistence({
+export async function verifyPrivateCaseEvidenceForReply({
   key,
   clerkUserId,
   accountUserId,
@@ -90,7 +90,13 @@ export async function verifyPrivateCaseEvidenceForPersistence({
     || lifecycle.endpoint !== CASE_EVIDENCE_UPLOAD_ENDPOINT
     || lifecycle.publicUrl !== null
     || lifecycle.storageClass !== CASE_EVIDENCE_STORAGE_CLASS
-    || lifecycle.status !== DIRECT_UPLOAD_STATUS.VERIFIED
+    // CLAIMED is accepted here only so an exact HTTP retry can re-verify the
+    // private R2 object. The fixed database authority decides whether that
+    // claimed upload is the exact replay and rejects every changed-body reuse.
+    || (
+      lifecycle.status !== DIRECT_UPLOAD_STATUS.VERIFIED
+      && lifecycle.status !== DIRECT_UPLOAD_STATUS.CLAIMED
+    )
     || !IMAGE_UPLOAD_TYPES.includes(
       lifecycle.contentType as (typeof IMAGE_UPLOAD_TYPES)[number],
     )

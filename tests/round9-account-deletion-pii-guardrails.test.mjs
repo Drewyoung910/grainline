@@ -29,7 +29,9 @@ const ORDER_PII_FIELDS = [
 describe("Round 9 account deletion PII guardrails", () => {
   it("scrubs retained order address, tracking, label, and seller-note PII on delete and retention prune", () => {
     const deletion = source("src/lib/accountDeletion.ts");
-    const retention = source("src/lib/orderPiiRetention.ts");
+    const retention = source(
+      "prisma/migrations/20260729057000_prepare_case_order_active_authority/migration.sql",
+    );
 
     for (const field of ORDER_PII_FIELDS) {
       assert.match(deletion, new RegExp(`${field}: null`), `account deletion must clear ${field}`);
@@ -38,13 +40,22 @@ describe("Round 9 account deletion PII guardrails", () => {
     }
 
     assert.match(deletion, /buyerDataPurgedAt: now/);
-    assert.match(retention, /"buyerDataPurgedAt" = NOW\(\)/);
+    assert.match(
+      retention,
+      /"buyerDataPurgedAt" =\s*pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'/,
+    );
     assert.match(deletion, /tx\.orderShippingRateQuote\.deleteMany\(\{/);
     assert.match(deletion, /order: \{ buyerId: user\.id \}/);
     assert.match(deletion, /some: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
     assert.match(deletion, /every: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
-    assert.match(retention, /EXISTS \(\s*SELECT 1\s*FROM "OrderShippingRateQuote" quote/s);
-    assert.match(retention, /DELETE FROM "OrderShippingRateQuote" quote/s);
+    assert.match(
+      retention,
+      /EXISTS \(\s*SELECT 1\s*FROM public\."OrderShippingRateQuote" AS quote/s,
+    );
+    assert.match(
+      retention,
+      /DELETE FROM public\."OrderShippingRateQuote" AS quote/s,
+    );
     assert.match(retention, /WHERE quote\."orderId" = pii_candidates\.id/);
   });
 
@@ -105,23 +116,41 @@ describe("Round 9 account deletion PII guardrails", () => {
     const deletion = source("src/lib/accountDeletion.ts");
     const authority = source("src/lib/conversationMessageAuthority.ts");
     const serviceSql = source("docs/rls-drafts/conversation-message-service-authority.sql");
+    const caseDeletionMigration = source(
+      "prisma/migrations/20260729061000_prepare_case_account_deletion_authority/migration.sql",
+    );
     const messageRedactionFunction = serviceSql.slice(
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_message_redact_for_account_deletion"),
       serviceSql.indexOf("CREATE OR REPLACE FUNCTION public.grainline_seller_message_response_metrics"),
     );
 
-    assert.match(deletion, /function bodyTextMatchSql\(value: string\)/);
-    assert.match(deletion, /function caseDescriptionTextMatchSql\(value: string\)/);
     assert.match(authority, /public\.grainline_message_redact_for_account_deletion/);
     assert.match(messageRedactionFunction, /UPDATE public\."Message" AS message\s*SET body = '\[Message deleted\]'/);
     assert.match(messageRedactionFunction, /message\."senderId" <> p_actor_id\s*AND message\."recipientId" = p_actor_id/);
     assert.match(messageRedactionFunction, /grainline_account_deletion_redact_text_core/);
-    assert.match(deletion, /FROM "CaseMessage"[\s\S]*"authorId" <> \$\{deletedUserId\}[\s\S]*"caseId" IN \([\s\S]*FROM "Case"[\s\S]*"buyerId" = \$\{deletedUserId\}[\s\S]*OR "sellerId" = \$\{deletedUserId\}/);
-    assert.match(deletion, /FROM "Case"[\s\S]*\("buyerId" = \$\{deletedUserId\} OR "sellerId" = \$\{deletedUserId\}\)/);
+    assert.match(
+      caseDeletionMigration,
+      /UPDATE public\."CaseMessage" AS message[\s\S]*message\."authorId" = locked_user\.id/,
+    );
+    assert.match(
+      caseDeletionMigration,
+      /message\."authorId" IS DISTINCT FROM locked_user\.id[\s\S]*FROM public\."Case" AS parent_case[\s\S]*parent_case\."buyerId" = locked_user\.id[\s\S]*OR parent_case\."sellerId" = locked_user\.id/,
+    );
+    assert.match(
+      caseDeletionMigration,
+      /UPDATE public\."Case" AS case_row[\s\S]*case_row\."buyerId" = locked_user\.id/,
+    );
+    assert.match(
+      caseDeletionMigration,
+      /grainline_account_deletion_redact_text_core\([\s\S]*case_row\.description,[\s\S]*sensitive_values/,
+    );
     assert.match(deletion, /redactActorMessagesForAccountDeletion\(user\.id, tx\)/);
     assert.doesNotMatch(deletion, /FROM "Message"|tx\.message\./);
-    assert.match(deletion, /redactCaseMessagesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
-    assert.match(deletion, /redactCasesAboutDeletedAccount\(tx, user\.id, accountSensitiveValues\)/);
+    assert.match(deletion, /redactCaseDataForAccountDeletion\(/);
+    assert.doesNotMatch(
+      deletion,
+      /FROM "(?:Case|CaseMessage)"|tx\.(?:case|caseMessage)\./,
+    );
   });
 
   it("redacts deleted-account values from retained order review notes", () => {

@@ -27,7 +27,7 @@ import {
 } from "@/lib/requestBody";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { CaseStatus, Prisma, type FulfillmentStatus } from "@prisma/client";
+import { Prisma, type FulfillmentStatus } from "@prisma/client";
 import { z } from "zod";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logServerError } from "@/lib/serverErrorLogger";
@@ -37,6 +37,7 @@ import {
   DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN,
   orderHasDeauthorizedSellerReviewHold,
 } from "@/lib/orderReviewHolds";
+import { caseOrderActiveForSeller } from "@/lib/caseOrderActiveAuthority";
 
 const FulfillmentSchema = z.object({
   action: z.enum(["ready_for_pickup", "picked_up", "shipped", "delivered", "update_notes"]),
@@ -51,13 +52,6 @@ export const maxDuration = 30;
 const VALID_TRACKING_CARRIERS = new Set(["UPS", "USPS", "FedEx", "DHL", "Other"]);
 const TRACKING_NUMBER_RE = /^[A-Za-z0-9][A-Za-z0-9 -]{4,99}$/;
 const BUYER_DELIVERY_CONFIRMATION_ERROR = "Buyers confirm delivery for shipped orders.";
-const ACTIVE_CASE_STATUSES = [
-  CaseStatus.OPEN,
-  CaseStatus.IN_DISCUSSION,
-  CaseStatus.PENDING_CLOSE,
-  CaseStatus.UNDER_REVIEW,
-] as const;
-const ACTIVE_CASE_STATUS_SET = new Set<CaseStatus>(ACTIVE_CASE_STATUSES);
 const FULFILLMENT_JSON_BODY_MAX_BYTES = 24 * 1024;
 const FULFILLMENT_FORM_BODY_MAX_BYTES = 24 * 1024;
 
@@ -103,7 +97,6 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      case: { select: { status: true } },
       paymentEvents: {
         where: blockingRefundLedgerWhere(),
         take: 1,
@@ -180,11 +173,20 @@ export async function POST(
     }
 
     const action = payload.action;
-    if (action !== "update_notes" && authz.order.case && ACTIVE_CASE_STATUS_SET.has(authz.order.case.status)) {
-      return privateJson(
-        { error: "Resolve the open case before changing fulfillment." },
-        { status: 409 },
-      );
+    if (action !== "update_notes") {
+      const activeCase = await caseOrderActiveForSeller({
+        actorUserId: authz.seller.userId,
+        orderId: id,
+      });
+      if (activeCase === null) {
+        return privateJson({ error: "Forbidden" }, { status: 403 });
+      }
+      if (activeCase) {
+        return privateJson(
+          { error: "Resolve the open case before changing fulfillment." },
+          { status: 409 },
+        );
+      }
     }
     if (action !== "update_notes" && orderHasRefundLedger(authz.order)) {
       return privateJson(
@@ -331,6 +333,13 @@ export async function POST(
         if (!orderExists) {
           return { count: 0, auditLogId: null as string | null };
         }
+        const lockedActiveCase = await caseOrderActiveForSeller(
+          { actorUserId: authz.seller.userId, orderId: id },
+          tx,
+        );
+        if (lockedActiveCase !== false) {
+          return { count: 0, auditLogId: null as string | null };
+        }
         const transitionAt = await databaseClockTimestamp(tx);
         const mutationSql =
           action === "ready_for_pickup"
@@ -360,11 +369,6 @@ export async function POST(
             AND NOT (${blockingRefundLedgerExistsSql(Prisma.sql`"Order".id`)})
             ${allowedStatusSql}
             ${labelStatusSql}
-            AND NOT EXISTS (
-              SELECT 1 FROM "Case" c
-              WHERE c."orderId" = "Order".id
-                AND c."status"::text IN (${Prisma.join([...ACTIVE_CASE_STATUSES])})
-            )
             AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
             AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
         `;

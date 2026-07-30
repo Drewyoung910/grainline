@@ -83,10 +83,22 @@ describe("notification email preferences", () => {
     const emailStart = caseResolve.indexOf("const emailPreferenceKey = refunding");
     const emailBlock = caseResolve.slice(emailStart, caseResolve.indexOf("} catch (emailError)", emailStart));
 
-    assert.match(emailBlock, /const emailPreferenceKey = refunding \? "EMAIL_REFUND_ISSUED" : "EMAIL_CASE_RESOLVED"/);
-    assert.match(emailBlock, /shouldSendEmail\(caseRecord\.buyerId, emailPreferenceKey\)/);
-    assert.ok(emailBlock.indexOf("shouldSendEmail(caseRecord.buyerId, emailPreferenceKey)") < emailBlock.indexOf("await sendCaseResolved"));
-    assert.doesNotMatch(emailBlock, /shouldSendEmail\(caseRecord\.buyerId, "EMAIL_CASE_RESOLVED"\)/);
+    assert.match(
+      emailBlock,
+      /const emailPreferenceKey = refunding\s*\?\s*"EMAIL_REFUND_ISSUED"\s*:\s*"EMAIL_CASE_RESOLVED"/,
+    );
+    assert.match(
+      emailBlock,
+      /shouldSendEmail\(\s*finalized\.buyerUserId,\s*emailPreferenceKey,\s*\)/,
+    );
+    assert.ok(
+      emailBlock.indexOf("shouldSendEmail(")
+        < emailBlock.indexOf("await sendCaseResolved"),
+    );
+    assert.doesNotMatch(
+      emailBlock,
+      /shouldSendEmail\([^)]*"EMAIL_CASE_RESOLVED"/,
+    );
   });
 
   it("exposes the shared custom-order email preference on buyer and seller settings", () => {
