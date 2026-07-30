@@ -149,7 +149,7 @@ async function seedUsers(client) {
     )
     VALUES (
       $1, $2, 'Case-reply proof seller', 'case-reply proof seller',
-      CURRENT_TIMESTAMP - INTERVAL '2 hours', CURRENT_TIMESTAMP
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [ids.sellerProfile, ids.seller]);
   await client.query(`
@@ -215,7 +215,7 @@ async function seedCase(client, caseId, status, {
         THEN CURRENT_TIMESTAMP
         ELSE NULL
       END,
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      CURRENT_TIMESTAMP - INTERVAL '2 hours', CURRENT_TIMESTAMP
     )
   `, [
     caseId,

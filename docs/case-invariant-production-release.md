@@ -110,6 +110,13 @@ regression test records that clock ordering. This was another disposable
 fixture-only failure; the promoted migration, application, production and
 persistent staging remained unchanged.
 
+The first attempted repair at `25938c05e8b70ca456c2936e12f253d4247d5c5a`
+matched an earlier identical timestamp pair in the seller-profile seed rather
+than the Case insert; exact-head CI run `30516019868` (job `90785894074`)
+correctly repeated the same failure. The corrected assertion first isolates
+the `seedCase` function body, preventing unrelated matching text from
+satisfying it. The stray seller-profile timestamp change was reverted.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:

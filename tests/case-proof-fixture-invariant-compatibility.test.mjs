@@ -53,12 +53,16 @@ test("post-migration Case-reply fixtures order lifecycle clocks consistently", (
     "scripts/case-reply-authority-postgres-proof.mjs",
     "utf8",
   );
+  const seedCase = source.match(
+    /async function seedCase\([\s\S]+?\n}\n\nfunction uploadKey/,
+  )?.[0];
+  assert.ok(seedCase, "Case-reply seedCase function is missing");
   assert.match(
-    source,
+    seedCase,
     /CURRENT_TIMESTAMP - INTERVAL '2 hours', CURRENT_TIMESTAMP/,
   );
   assert.match(
-    source,
+    seedCase,
     /CURRENT_TIMESTAMP - INTERVAL '1 hour'/,
   );
 });
