@@ -355,7 +355,7 @@ async function proveCatalog(observer) {
   for (const row of result.rows) {
     assert.deepEqual(row, {
       proname: row.proname,
-      security_definer: false,
+      security_definer: true,
       leakproof: false,
       provolatile: "v",
       proparallel: "u",

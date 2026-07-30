@@ -44,6 +44,7 @@
     "audit:rls-case-legacy-inspection": "node scripts/case-case-message-legacy-inspection-postgres-proof.mjs",
     "audit:rls-case-invariant-drafts": "node scripts/case-case-message-invariant-postgres-proof.mjs",
     "audit:rls-case-invariant-candidate": "node scripts/stage-case-invariant-migration.mjs --verify",
+    "audit:rls-case-read-mode-candidate": "node scripts/stage-case-read-mode-migration.mjs --verify",
     "audit:rls-case-participant-resolution": "node scripts/case-participant-resolution-postgres-proof.mjs",
     "audit:rls-case-open-authority": "node scripts/case-open-authority-postgres-proof.mjs",
     "audit:rls-case-reply-authority": "node scripts/case-reply-authority-postgres-proof.mjs",

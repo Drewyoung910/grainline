@@ -32,11 +32,11 @@ test("Case claim preparation is included only through the compatible authority b
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-invariant-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-read-mode-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-invariant-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-read-mode-reviewed/,
   );
   assert.doesNotMatch(
     productionWorkflow,

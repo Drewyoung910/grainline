@@ -10,8 +10,6 @@ const PROOF_ENV = "CASE_INVARIANT_PROOF_DATABASE_URL";
 const DATABASE_NAME = "grainline_ci";
 const INVARIANT_DRAFT =
   "docs/rls-drafts/case-case-message-invariants.sql";
-const READ_MODE_DRAFT =
-  "docs/rls-drafts/case-case-message-read-mode.sql";
 const ACTIVATION_DRAFT =
   "docs/rls-drafts/case-case-message-activation.sql";
 const ACTIVATION_ROLLBACK_DRAFT =
@@ -1820,7 +1818,6 @@ async function provePrivatePosture(client) {
 
 async function provePolicylessActivation(
   client,
-  readModeBody,
   activationBody,
   activationRollbackBody,
   forceBody,
@@ -1832,7 +1829,6 @@ async function provePolicylessActivation(
     ids.activationOrder,
   );
 
-  await client.query(readModeBody);
   await client.query(activationBody);
 
   const activatedCatalog = await client.query(`
@@ -2071,7 +2067,6 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
   let began = false;
   try {
     const draftBody = readDraftTransactionBody(INVARIANT_DRAFT);
-    const readModeBody = readDraftTransactionBody(READ_MODE_DRAFT);
     const activationBody = readDraftTransactionBody(ACTIVATION_DRAFT);
     const activationRollbackBody = readDraftTransactionBody(
       ACTIVATION_ROLLBACK_DRAFT,
@@ -2092,7 +2087,6 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await provePrivatePosture(client);
     await provePolicylessActivation(
       client,
-      readModeBody,
       activationBody,
       activationRollbackBody,
       forceBody,

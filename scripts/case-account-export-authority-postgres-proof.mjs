@@ -416,7 +416,7 @@ export async function runCaseAccountExportAuthorityProof(
            ::pg_catalog.regprocedure
     `);
     assert.deepEqual(catalog.rows, [{
-      prosecdef: false,
+      prosecdef: true,
       provolatile: "v",
       proparallel: "u",
       proconfig: ["search_path=pg_catalog"],

@@ -77,7 +77,7 @@ test("compatible migrations do not activate or revoke direct Case-family access"
   }
 });
 
-test("later activation artifacts remain drafts and the operator stops at invariants", () => {
+test("read mode is promoted while activation artifacts remain drafts", () => {
   for (const draft of [
     "case-case-message-read-mode.sql",
     "case-case-message-activation.sql",
@@ -90,15 +90,15 @@ test("later activation artifacts remain drafts and the operator stops at invaria
 
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*case-invariant-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*case-read-mode-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /Verify exact Case invariant migration tree/,
+    /Verify exact Case read-mode migration tree/,
   );
   assert.doesNotMatch(
     productionWorkflow,
-    /case-(?:read-mode|activation|force)-reviewed/,
+    /case-(?:activation|force)-reviewed/,
   );
   assert.match(
     packageDoc,

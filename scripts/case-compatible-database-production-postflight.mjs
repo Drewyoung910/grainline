@@ -77,11 +77,7 @@ const CASE_PRIVATE_TABLES = Object.freeze([
   "CaseStripeDisputeApplication",
 ]);
 const SECURITY_INVOKER_FUNCTIONS = new Set([
-  "grainline_case_export_page",
-  "grainline_case_get",
-  "grainline_case_get_by_order",
   "grainline_case_resolution_claim_immutable",
-  "grainline_case_staff_active_count",
 ]);
 
 function required(env, key) {

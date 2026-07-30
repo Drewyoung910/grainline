@@ -1,4 +1,5 @@
--- DRAFT ONLY. Do not apply to any persistent database.
+-- Compatible Case recipient-projection read-mode convergence.
+-- RLS flags, policies, table grants and row data remain unchanged.
 --
 -- Compatible pre-activation convergence for the four Case projections that
 -- were originally prepared as SECURITY INVOKER. The completed application
