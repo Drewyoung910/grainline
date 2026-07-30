@@ -91,7 +91,7 @@ async function expectRuntimeError(client, name, sql, params, pattern) {
   assert.match(safeError(caught), pattern, name);
 }
 
-async function seedFixtures(client) {
+async function seedFixturesBody(client) {
   await client.query(`
     INSERT INTO public."User" (
       id, "clerkId", email, name, role, "createdAt", "updatedAt"
@@ -190,6 +190,17 @@ async function seedFixtures(client) {
      WHERE id = $1
   `, [ids.nullableBuyerCase]);
   await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+}
+
+async function seedFixtures(client) {
+  await client.query("BEGIN");
+  try {
+    await seedFixturesBody(client);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function cleanupFixtures(client) {

@@ -77,6 +77,15 @@ residue.
 That disposable result proves the reviewed design but does not replace the
 fresh exact-head CI required for this promoted migration.
 
+The first promoted exact-head CI run, `30514664290` (job `90781719972`),
+successfully applied the migration and converged runtime grants, then failed
+closed in the older participant-resolution proof. That harness had inserted
+each Case and its opening CaseMessage in separate autocommit transactions, so
+the new deferred opening-evidence trigger correctly rejected the temporarily
+empty Case. The proof seed is now one explicit transaction with rollback on
+failure. This was disposable CI only; production and persistent staging were
+unchanged.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:
