@@ -1542,6 +1542,25 @@ the application environment. Store them only as
 environment, then run the reviewed disposable-object proof before claiming
 the provider gate complete.
 
+Protected proof run `30565266171` (job `90948091342`) at exact main
+`60e4da2f38f6bb53c33acb35193d87f7db938c88` is failed evidence and must not be
+replayed as proof. The operator passed its exact-source, protected-environment
+and secret-shape gates, then failed closed on the first public-bucket
+preflight `HEAD` with bounded code `R2_PUBLIC_PREFLIGHT_HEAD_403_UNKNOWN`.
+No `PUT` request ran, cleanup was not required, the private-bucket step did
+not run and the artifact records `residualPossible=false`. The sanitized
+artifact
+`direct-upload-r2-credential-proof-30565266171-1.json` has SHA-256
+`6d3ef0851e719d8b0fba8584af477ce49d2851539bef02a115f80f7e081c8786`.
+Independent Wrangler metadata reads still reached both exact buckets:
+`grainline-uploads` retained 257 objects / 283 MB and
+`grainline-private` retained zero objects / zero bytes. Treat the failure as a
+credential permission or bucket-scope defect. Revoke the rejected credential,
+replace it with a fresh R2 User API token carrying only `Object Read & Write`
+for both exact buckets, overwrite both protected secrets and require a fresh
+proof run. No database, object, application deployment, cleanup-worker or RLS
+state changed.
+
 ## Exit
 
 Keep Extra High through the cleanup-only R2 credential/delete proof and the
