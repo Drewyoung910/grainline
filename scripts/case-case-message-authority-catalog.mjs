@@ -15,7 +15,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     id: "case_get",
     candidateFunctionName: "grainline_case_get",
     operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId"],
     applicationPreconditions: [
@@ -27,7 +27,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     id: "case_get_by_order",
     candidateFunctionName: "grainline_case_get_by_order",
     operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "orderId"],
     applicationPreconditions: [
@@ -80,7 +80,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     id: "case_staff_active_count",
     candidateFunctionName: "grainline_case_staff_active_count",
     operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId"],
     applicationPreconditions: [
@@ -92,7 +92,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     id: "case_export",
     candidateFunctionName: "grainline_case_export_page",
     operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: [
       "actorUserId",

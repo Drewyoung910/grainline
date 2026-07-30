@@ -156,13 +156,13 @@ describe("Case compatible database production postflight", () => {
     assert.match(source, /grainline_account_deletion_redact_text_core/);
     assert.match(
       source,
-      /const SECURITY_INVOKER_FUNCTIONS = new Set\(\[[\s\S]{0,500}grainline_case_get_by_order[\s\S]{0,500}grainline_case_resolution_claim_immutable[\s\S]{0,500}\]\);/,
+      /const SECURITY_INVOKER_FUNCTIONS = new Set\(\[\s*"grainline_case_resolution_claim_immutable",\s*\]\);/,
     );
     assert.doesNotMatch(
       source.match(
         /const SECURITY_INVOKER_FUNCTIONS = new Set\(\[[\s\S]*?\]\);/,
       )?.[0] ?? "",
-      /grainline_case_(?:message_page|message_preflight|staff_queue)/,
+      /grainline_case_(?:export_page|get|get_by_order|message_page|message_preflight|staff_active_count|staff_queue)/,
     );
     assert.match(source, /"42501"/);
     assert.match(source, /productionChangedByPostflight: false/);

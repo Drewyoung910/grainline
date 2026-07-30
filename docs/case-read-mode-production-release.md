@@ -1,0 +1,102 @@
+# Case read-mode production release
+
+Status: reviewed compatible candidate only. The migration is staged in the
+repository for PostgreSQL and CI proof; it is not applied to production.
+Case, CaseMessage and CaseMessageAttachment RLS remains off, FORCE remains
+off, zero policies exist, and the predecessor runtime table grants remain
+unchanged.
+
+## Exact scope
+
+This release adds exactly one migration:
+
+- `20260730020000_converge_case_read_modes`
+- source draft:
+  `docs/rls-drafts/case-case-message-read-mode.sql`
+- source draft SHA-256:
+  `4ad69bc9a72b877ce4b35c8795d41ecd4213195bc6c9c4d2e1ed691f62c5300b`
+- migration SHA-256:
+  `3feeae96ab81fb26a746e01983b1bdb086192dd8319e87add19d42f7805f5193`
+- complete reviewed migration-tree SHA-256:
+  `92a514c7bd87e3fbbfa51769f1f06c61d200e8ead7357a0171cb687d507b8482`
+
+`scripts/stage-case-read-mode-migration.mjs` byte-pins the accepted draft and
+mechanically derives the migration. Verification is read-only. Staging or
+unstaging requires an explicit acknowledgement and a loopback
+`/grainline_ci` database URL; unstage refuses any drifted destination.
+
+The migration changes only these exact functions from `SECURITY INVOKER` to
+`SECURITY DEFINER`:
+
+- `grainline_case_get(text,text)`
+- `grainline_case_get_by_order(text,text)`
+- `grainline_case_staff_active_count(text)`
+- `grainline_case_export_page(text,timestamp,text,integer)`
+
+It preserves the function bodies, pinned `search_path=pg_catalog`, owner,
+volatility, parallel posture, bounded inputs and fixed outputs. It revokes and
+regrants only the exact function EXECUTE privileges so `PUBLIC` remains
+denied and `grainline_app_runtime` remains the sole runtime caller.
+
+The migration contains no function body replacement, dynamic SQL, RLS
+statement, policy, Case-family table or column grant change, row DML,
+application change, provider variable change, or deployment.
+
+## Why this release is separate
+
+The completed 80-reference inventory has 79 converted references plus one
+retired unused helper. Ordinary application access uses 27 reviewed fixed
+operations. Four bounded Case projections were originally INVOKER and would
+therefore stop working after the later policyless activation revokes direct
+Case-family table privileges. Converging those four projections first keeps
+the currently deployed application compatible with both the predecessor and
+later activation postures.
+
+This does not make the database authenticate the human actor. The pooled
+runtime can still pass a syntactically valid local User id to any granted
+function. Clerk authentication, server-side actor resolution, request-origin
+controls, rate limits, staff re-verification and the session-bound staff PIN
+remain load-bearing. The SQL independently validates current user state,
+participant relationships and staff role, but it does not claim protection
+against arbitrary compromise of the runtime process.
+
+## Accepted predecessor
+
+The required predecessor is the live invariant boundary recorded in
+`docs/case-invariant-production-release.md`:
+
+- exact production source
+  `13091acd428d86aa7da8ada143695ed66a3c6947`;
+- protected Production Migrations run `30552049441`, job `90902923987`;
+- only `20260730010000_enforce_case_message_invariants` was applied;
+- pooled-runtime postflight evidence
+  `case-invariant-production-postflight-13091acd428d86aa7da8ada143695ed66a3c6947.json`;
+- evidence SHA-256
+  `e27f287d6cf797dc2bc91b5805322c633263a6202ecf9968365831d547646847`;
+- RLS off, FORCE off, zero policies, and predecessor table CRUD retained.
+
+## Required proof before any production migration
+
+The candidate must pass:
+
+1. byte-equivalence and migration-tree guards;
+2. focused static staging, workflow, authority-catalog and postflight tests;
+3. the full repository test, TypeScript, lint, dependency-audit and production
+   build gates;
+4. disposable PostgreSQL application of the full migration tree, including
+   the complete Case authority/invariant/activation/rollback proof; and
+5. an Extra-High SQL/ACL review of the exact candidate bytes.
+
+If it is later applied, rerun
+`npm run ops:case-compatible-db-postflight` through the real pooled
+`grainline_app_runtime` credential in a repeatable-read read-only transaction.
+The postflight must prove the exact four functions are DEFINER, owner-held,
+runtime-executable, not PUBLIC-executable and still pinned to
+`search_path=pg_catalog`. It must also prove Case-family RLS remains off with
+zero policies and unchanged predecessor CRUD. Retain sanitized mode-0600
+evidence bound to the exact main commit and migration run.
+
+Do not combine this migration with policyless ENABLE, table-grant revocation,
+FORCE, Case-evidence enablement, a Vercel deploy, or provider changes. ENABLE
+and FORCE remain separate later releases with their own live pooled-runtime
+proofs.

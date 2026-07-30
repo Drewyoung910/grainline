@@ -115,12 +115,12 @@ The machine-readable catalog contains 27 operations.
 
 | Operation | Security | Purpose |
 |---|---|---|
-| `case_get` | INVOKER | One Case by id for a participant or current staff member |
-| `case_get_by_order` | INVOKER | One visible Case by exact Order id |
+| `case_get` | DEFINER | One Case by id for a participant or current staff member |
+| `case_get_by_order` | DEFINER | One visible Case by exact Order id |
 | `case_message_page` | DEFINER | Source-bound, bounded stable `(createdAt,id)` history plus attachment metadata without object keys or User profile fields |
 | `case_staff_queue` | DEFINER | Source-validating bounded staff queue, message counts and minimal buyer/seller contact fields |
-| `case_staff_active_count` | INVOKER | Staff-only active Case count |
-| `case_export` | INVOKER | Bounded participant Case page; the application walks every page and reuses bounded message/attachment authority for a complete export |
+| `case_staff_active_count` | DEFINER | Staff-only active Case count |
+| `case_export` | DEFINER | Bounded participant Case page; the application walks every page and reuses bounded message/attachment authority for a complete export |
 | `case_message_preflight` | DEFINER | Source-bound current authority, messageable status and counterparty availability before upload or reply |
 
 The interactive projection stays bounded. Account export is also bounded per
@@ -882,3 +882,13 @@ Although it reads party identity, the later thread-maintenance trigger updates
 that same Case. Taking only `FOR SHARE` would let concurrent direct inserts
 both hold shared row locks and then deadlock while upgrading; the fixed reply
 operation already serializes on the same parent update lock.
+
+Read-mode promotion checkpoint (2026-07-30): the accepted compatible candidate
+changes exactly `grainline_case_get`, `grainline_case_get_by_order`,
+`grainline_case_staff_active_count` and `grainline_case_export_page` from
+INVOKER to DEFINER without replacing their bodies or changing their fixed
+inputs and outputs. The staged migration contains no RLS, policy, table grant
+or row change. This lets the later policyless activation remove all direct
+Case-family table privileges without breaking the already-deployed
+application. It does not authenticate the human actor: Clerk actor resolution,
+request controls and the session-bound staff PIN remain load-bearing.

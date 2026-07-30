@@ -90,7 +90,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     }
   });
 
-  it("keeps ordinary recipient reads invoker-scoped and source-bound exceptions narrow", () => {
+  it("keeps every runtime operation on the reviewed fixed-function boundary", () => {
     const byId = new Map(
       CASE_AUTHORITY_OPERATIONS.map((operation) => [
         operation.id,
@@ -103,7 +103,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       "case_staff_active_count",
       "case_export",
     ]) {
-      assert.equal(byId.get(id)?.security, "INVOKER", id);
+      assert.equal(byId.get(id)?.security, "DEFINER", id);
     }
     assert.equal(byId.get("case_message_preflight")?.security, "DEFINER");
     assert.equal(byId.get("case_message_page")?.security, "DEFINER");
@@ -145,27 +145,33 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
   });
 
   it("keeps projection security classifications aligned with the migration SQL", () => {
+    const readModeMigration = fs.readFileSync(
+      "prisma/migrations/20260730020000_converge_case_read_modes/migration.sql",
+      "utf8",
+    );
+    for (const functionName of [
+      "grainline_case_get",
+      "grainline_case_get_by_order",
+      "grainline_case_staff_active_count",
+      "grainline_case_export_page",
+    ]) {
+      assert.match(
+        readModeMigration,
+        new RegExp(
+          `ALTER FUNCTION public\\.${functionName}\\([\\s\\S]{0,180}?\\)\\s+SECURITY DEFINER`,
+        ),
+        functionName,
+      );
+      assert.equal(
+        CASE_AUTHORITY_OPERATIONS.find(
+          (operation) => operation.candidateFunctionName === functionName,
+        )?.security,
+        "DEFINER",
+        functionName,
+      );
+    }
+
     const expectations = [
-      [
-        "grainline_case_get",
-        "INVOKER",
-        "prisma/migrations/20260729055000_prepare_case_recipient_read_authority/migration.sql",
-      ],
-      [
-        "grainline_case_get_by_order",
-        "INVOKER",
-        "prisma/migrations/20260729055000_prepare_case_recipient_read_authority/migration.sql",
-      ],
-      [
-        "grainline_case_staff_active_count",
-        "INVOKER",
-        "prisma/migrations/20260729055000_prepare_case_recipient_read_authority/migration.sql",
-      ],
-      [
-        "grainline_case_export_page",
-        "INVOKER",
-        "prisma/migrations/20260729059000_prepare_case_account_export_authority/migration.sql",
-      ],
       [
         "grainline_case_message_page",
         "DEFINER",

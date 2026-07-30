@@ -1526,3 +1526,17 @@ application or provider change. The production guard advances only to
 `case-invariant-reviewed`; read-mode, ENABLE and FORCE remain rejected as
 later releases. The operator and exact evidence contract are recorded in
 `docs/case-invariant-production-release.md`.
+
+### Compatible read-mode convergence (2026-07-30)
+
+The invariant-only production migration and pooled-runtime proof are accepted.
+The next isolated candidate promotes only
+`20260730020000_converge_case_read_modes`. It mechanically derives from the
+accepted read-mode draft and changes exactly four bounded Case projections
+from INVOKER to DEFINER. It changes no body, RLS flag, policy, table grant or
+row. The current reviewed migration-tree fingerprint is
+`92a514c7bd87e3fbbfa51769f1f06c61d200e8ead7357a0171cb687d507b8482`.
+The production guard advances only to `case-read-mode-reviewed`; policyless
+ENABLE and FORCE remain rejected as later releases. Exact scope, threat limit,
+proof requirements and evidence contract are in
+`docs/case-read-mode-production-release.md`.
