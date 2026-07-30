@@ -74,6 +74,10 @@ describe("Case participant-resolution PostgreSQL proof", () => {
   it("cleans every fixture and runs after migration/grant convergence in CI", () => {
     assert.match(proof, /async function cleanupFixtures/);
     assert.match(proof, /await cleanupFixtures\(observer\)/);
+    assert.match(
+      proof,
+      /async function seedFixtures\(client\) \{\s+await client\.query\("BEGIN"\);\s+try \{\s+await seedFixturesBody\(client\);\s+await client\.query\("COMMIT"\)/,
+    );
     assert.equal(
       packageJson.scripts["audit:rls-case-participant-resolution"],
       "node scripts/case-participant-resolution-postgres-proof.mjs",

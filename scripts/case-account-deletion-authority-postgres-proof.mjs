@@ -16,6 +16,9 @@ const ids = Object.freeze({
   outsider: `${PREFIX}-outsider`,
   sharedAliasOwner: `${PREFIX}-shared-alias-owner`,
   targetSellerProfile: `${PREFIX}-target-seller-profile`,
+  counterpartySellerProfile: `${PREFIX}-counterparty-seller-profile`,
+  targetListing: `${PREFIX}-target-listing`,
+  counterpartyListing: `${PREFIX}-counterparty-listing`,
   targetEmailHistory: `${PREFIX}-target-email-history`,
   sharedEmailHistory: `${PREFIX}-shared-email-history`,
   buyerOrder: `${PREFIX}-buyer-order`,
@@ -26,6 +29,7 @@ const ids = Object.freeze({
   sellerCase: `${PREFIX}-seller-case`,
   unrelatedCase: `${PREFIX}-unrelated-case`,
   activeCase: `${PREFIX}-active-case`,
+  activeOpeningMessage: `${PREFIX}-active-opening-message`,
   targetBuyerMessage: `${PREFIX}-target-buyer-message`,
   buyerQuoteMessage: `${PREFIX}-buyer-quote-message`,
   sharedAliasMessage: `${PREFIX}-shared-alias-message`,
@@ -150,16 +154,37 @@ async function seedCase(
     [orderId, buyerId],
   );
   await client.query(`
+    INSERT INTO public."OrderItem" (
+      id, "orderId", "listingId", quantity, "priceCents"
+    )
+    VALUES ($1, $2, $3, 1, 1000)
+  `, [
+    `${orderId}-item`,
+    orderId,
+    sellerId === ids.target
+      ? ids.targetListing
+      : ids.counterpartyListing,
+  ]);
+  await client.query(`
     INSERT INTO public."Case" (
       id, "orderId", "buyerId", "sellerId", reason, description,
-      status, "sellerRespondBy", "createdAt", "updatedAt"
+      status, resolution, "sellerRespondBy", "resolvedAt",
+      "createdAt", "updatedAt"
     )
     VALUES (
       $1, $2, $3, $4,
       'OTHER'::public."CaseReason",
       $5,
       $6::public."CaseStatus",
+      CASE WHEN $6 IN ('RESOLVED', 'CLOSED')
+        THEN 'DISMISSED'::public."CaseResolution"
+        ELSE NULL
+      END,
       CURRENT_TIMESTAMP + INTERVAL '48 hours',
+      CASE WHEN $6 IN ('RESOLVED', 'CLOSED')
+        THEN CURRENT_TIMESTAMP
+        ELSE NULL
+      END,
       CURRENT_TIMESTAMP,
       CURRENT_TIMESTAMP
     )
@@ -217,12 +242,35 @@ async function seedFixtures(client) {
         id, "userId", "displayName", "displayNameNormalized",
         "createdAt", "updatedAt"
       )
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      VALUES
+        ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ($5, $6, 'Counterparty seller', 'counterparty seller',
+         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `, [
       ids.targetSellerProfile,
       ids.target,
       TARGET_SHOP_NAME,
       TARGET_SHOP_NAME.toLowerCase(),
+      ids.counterpartySellerProfile,
+      ids.counterpartySeller,
+    ]);
+    await client.query(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", title, description, "priceCents",
+        "createdAt", "updatedAt"
+      )
+      VALUES
+        ($1, $2, 'Target proof listing',
+         'Disposable Case account-deletion authority proof.',
+         1000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ($3, $4, 'Counterparty proof listing',
+         'Disposable Case account-deletion authority proof.',
+         1000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `, [
+      ids.targetListing,
+      ids.targetSellerProfile,
+      ids.counterpartyListing,
+      ids.counterpartySellerProfile,
     ]);
     await client.query(`
       INSERT INTO public."UserEmailAddress" (
@@ -320,6 +368,13 @@ async function seedFixtures(client) {
       authorKind: "BUYER",
       body: `Unrelated record mentions ${TARGET_EMAIL}`,
     });
+    await seedMessage(client, {
+      id: ids.activeOpeningMessage,
+      caseId: ids.activeCase,
+      authorId: ids.target,
+      authorKind: "BUYER",
+      body: "Disposable active Case opening evidence.",
+    });
 
     await seedSideEffect(client, {
       id: ids.source,
@@ -354,9 +409,13 @@ async function fixtureCounts(client) {
       (SELECT pg_catalog.count(*)::integer
          FROM public."SellerProfile" WHERE id LIKE $1) AS seller_profiles,
       (SELECT pg_catalog.count(*)::integer
+         FROM public."Listing" WHERE id LIKE $1) AS listings,
+      (SELECT pg_catalog.count(*)::integer
          FROM public."UserEmailAddress" WHERE id LIKE $1) AS email_addresses,
       (SELECT pg_catalog.count(*)::integer
          FROM public."Order" WHERE id LIKE $1) AS orders,
+      (SELECT pg_catalog.count(*)::integer
+         FROM public."OrderItem" WHERE id LIKE $1) AS order_items,
       (SELECT pg_catalog.count(*)::integer
          FROM public."Case" WHERE id LIKE $1) AS cases,
       (SELECT pg_catalog.count(*)::integer
@@ -369,19 +428,23 @@ async function fixtureCounts(client) {
 
 const SEEDED_COUNTS = Object.freeze({
   users: 5,
-  seller_profiles: 1,
+  seller_profiles: 2,
+  listings: 2,
   email_addresses: 2,
   orders: 4,
+  order_items: 4,
   cases: 4,
-  messages: 7,
+  messages: 8,
   side_effects: 4,
 });
 
 const ZERO_COUNTS = Object.freeze({
   users: 0,
   seller_profiles: 0,
+  listings: 0,
   email_addresses: 0,
   orders: 0,
+  order_items: 0,
   cases: 0,
   messages: 0,
   side_effects: 0,
@@ -399,7 +462,19 @@ async function cleanupFixtures(client) {
       [`${PREFIX}%`],
     );
     await client.query(
+      'DELETE FROM public."OrderItem" WHERE "orderId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Order" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."Listing" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."SellerProfile" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(
@@ -625,14 +700,29 @@ export async function runCaseAccountDeletionAuthorityProof(
     assertOriginalProtectedRows(await fetchProtectedRows(owner));
     checks.push("active-case-fail-closed");
 
-    await owner.query(
-      'DELETE FROM public."Case" WHERE id = $1',
-      [ids.activeCase],
-    );
-    await owner.query(
-      'DELETE FROM public."Order" WHERE id = $1',
-      [ids.activeOrder],
-    );
+    await owner.query("BEGIN");
+    try {
+      await owner.query(
+        'DELETE FROM public."CaseMessage" WHERE id = $1',
+        [ids.activeOpeningMessage],
+      );
+      await owner.query(
+        'DELETE FROM public."Case" WHERE id = $1',
+        [ids.activeCase],
+      );
+      await owner.query(
+        'DELETE FROM public."OrderItem" WHERE "orderId" = $1',
+        [ids.activeOrder],
+      );
+      await owner.query(
+        'DELETE FROM public."Order" WHERE id = $1',
+        [ids.activeOrder],
+      );
+      await owner.query("COMMIT");
+    } catch (error) {
+      await owner.query("ROLLBACK").catch(() => {});
+      throw error;
+    }
     assert.equal(await blockerCount(runtime), 0);
     checks.push("blocker-clears-only-after-active-case-removal");
 
@@ -744,7 +834,9 @@ export async function runCaseAccountDeletionAuthorityProof(
       {
         ...SEEDED_COUNTS,
         orders: 3,
+        order_items: 3,
         cases: 3,
+        messages: 7,
       },
       "Case account-deletion proof changed protected row identity",
     );

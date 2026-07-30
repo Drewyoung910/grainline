@@ -1,4 +1,5 @@
--- DRAFT ONLY. Do not apply to any persistent database.
+-- Durable Case, CaseMessage and CaseMessageAttachment invariants.
+-- RLS, policies and table-grant changes remain intentionally absent.
 --
 -- Durable row-shape and source-binding invariants for the tightly coupled
 -- Case, CaseMessage and CaseMessageAttachment group. RLS and grant changes

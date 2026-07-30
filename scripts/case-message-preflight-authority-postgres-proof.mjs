@@ -65,6 +65,14 @@ function orderId(caseId) {
   return caseId.replace("-case-", "-order-");
 }
 
+function sellerProfileId(userId) {
+  return `${userId}-profile`;
+}
+
+function listingId(userId) {
+  return `${userId}-listing`;
+}
+
 async function runtimeQuery(client, sql, params = []) {
   await client.query("BEGIN");
   try {
@@ -120,6 +128,38 @@ async function seedUsers(client) {
   }
 }
 
+async function seedSellerRelationship(client, userId) {
+  await client.query(`
+    INSERT INTO public."SellerProfile" (
+      id, "userId", "displayName", "displayNameNormalized",
+      "createdAt", "updatedAt"
+    )
+    VALUES (
+      $1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [
+    sellerProfileId(userId),
+    userId,
+    `Seller ${userId}`,
+    `seller ${userId}`,
+  ]);
+  await client.query(`
+    INSERT INTO public."Listing" (
+      id, "sellerId", title, description, "priceCents",
+      "createdAt", "updatedAt"
+    )
+    VALUES (
+      $1, $2, $3,
+      'Disposable loopback-only Case-message preflight proof.',
+      1000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [
+    listingId(userId),
+    sellerProfileId(userId),
+    `Listing ${userId}`,
+  ]);
+}
+
 async function seedCase(client, caseId, status, buyerId, sellerId) {
   const targetOrderId = orderId(caseId);
   await client.query(`
@@ -127,82 +167,142 @@ async function seedCase(client, caseId, status, buyerId, sellerId) {
     VALUES ($1, $2)
   `, [targetOrderId, buyerId]);
   await client.query(`
+    INSERT INTO public."OrderItem" (
+      id, "orderId", "listingId", quantity, "priceCents"
+    )
+    VALUES ($1, $2, $3, 1, 1000)
+  `, [
+    `${targetOrderId}-item`,
+    targetOrderId,
+    listingId(sellerId),
+  ]);
+  await client.query(`
     INSERT INTO public."Case" (
       id, "orderId", "buyerId", "sellerId", reason, description,
-      status, "sellerRespondBy", "createdAt", "updatedAt"
+      status, resolution, "sellerRespondBy", "resolvedAt",
+      "createdAt", "updatedAt"
     )
     VALUES (
       $1, $2, $3, $4, 'OTHER',
       'Disposable loopback-only Case-message preflight proof.',
       $5::public."CaseStatus",
+      CASE WHEN $5 IN ('RESOLVED', 'CLOSED')
+        THEN 'DISMISSED'::public."CaseResolution"
+        ELSE NULL
+      END,
       CURRENT_TIMESTAMP + INTERVAL '48 hours',
+      CASE WHEN $5 IN ('RESOLVED', 'CLOSED')
+        THEN CURRENT_TIMESTAMP
+        ELSE NULL
+      END,
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [caseId, targetOrderId, buyerId, sellerId, status]);
+  const sellerCanOpen = sellerId !== ids.suspendedSeller;
+  await client.query(`
+    INSERT INTO public."CaseMessage" (
+      id, "caseId", "authorId", "authorKind", body, "createdAt"
+    )
+    VALUES (
+      $1, $2, $3, $4::public."CaseMessageAuthorKind",
+      'Disposable opening evidence for the Case-message preflight proof.',
+      CURRENT_TIMESTAMP
+    )
+  `, [
+    `${caseId}-opening-message`,
+    caseId,
+    sellerCanOpen ? sellerId : buyerId,
+    sellerCanOpen ? "SELLER" : "BUYER",
+  ]);
 }
 
 async function seedFixtures(client) {
-  await seedUsers(client);
-  await seedCase(
-    client,
-    ids.openCase,
-    "OPEN",
-    ids.buyer,
-    ids.seller,
-  );
-  await seedCase(
-    client,
-    ids.underReviewCase,
-    "UNDER_REVIEW",
-    ids.buyer,
-    ids.seller,
-  );
-  await seedCase(
-    client,
-    ids.closedCase,
-    "CLOSED",
-    ids.buyer,
-    ids.seller,
-  );
-  await seedCase(
-    client,
-    ids.missingBuyerCase,
-    "IN_DISCUSSION",
-    null,
-    ids.seller,
-  );
-  await seedCase(
-    client,
-    ids.deletedBuyerCase,
-    "IN_DISCUSSION",
-    ids.deletedBuyer,
-    ids.seller,
-  );
-  await seedCase(
-    client,
-    ids.suspendedSellerCase,
-    "IN_DISCUSSION",
-    ids.buyer,
-    ids.suspendedSeller,
-  );
-  await seedCase(
-    client,
-    ids.suspendedActorCase,
-    "IN_DISCUSSION",
-    ids.suspendedActor,
-    ids.seller,
-  );
+  await client.query("BEGIN");
+  try {
+    await seedUsers(client);
+    await seedSellerRelationship(client, ids.seller);
+    await seedSellerRelationship(client, ids.suspendedSeller);
+    await seedCase(
+      client,
+      ids.openCase,
+      "OPEN",
+      ids.buyer,
+      ids.seller,
+    );
+    await seedCase(
+      client,
+      ids.underReviewCase,
+      "UNDER_REVIEW",
+      ids.buyer,
+      ids.seller,
+    );
+    await seedCase(
+      client,
+      ids.closedCase,
+      "CLOSED",
+      ids.buyer,
+      ids.seller,
+    );
+    await seedCase(
+      client,
+      ids.missingBuyerCase,
+      "IN_DISCUSSION",
+      null,
+      ids.seller,
+    );
+    await seedCase(
+      client,
+      ids.deletedBuyerCase,
+      "IN_DISCUSSION",
+      ids.deletedBuyer,
+      ids.seller,
+    );
+    await seedCase(
+      client,
+      ids.suspendedSellerCase,
+      "IN_DISCUSSION",
+      ids.buyer,
+      ids.suspendedSeller,
+    );
+    await seedCase(
+      client,
+      ids.suspendedActorCase,
+      "IN_DISCUSSION",
+      ids.suspendedActor,
+      ids.seller,
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function cleanupFixtures(client) {
   await client.query("BEGIN");
   try {
     await client.query(
+      'DELETE FROM public."CaseMessage" WHERE "caseId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Case" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(
+      'DELETE FROM public."OrderItem" WHERE "orderId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Order" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."Listing" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."SellerProfile" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(

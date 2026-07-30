@@ -200,6 +200,7 @@ async function seedOrderItem(client, orderId, listingId, suffix) {
 }
 
 async function seedCase(client, orderId, status, suffix) {
+  const caseId = `${PREFIX}-case-${suffix}`;
   await client.query(`
     INSERT INTO public."Case" (
       id, "orderId", "buyerId", "sellerId", reason, description,
@@ -230,11 +231,22 @@ async function seedCase(client, orderId, status, suffix) {
       FROM public."Order" AS order_row
      WHERE order_row.id = $4
   `, [
-    `${PREFIX}-case-${suffix}`,
+    caseId,
     ids.sellerUser,
     status,
     orderId,
   ]);
+  await client.query(`
+    INSERT INTO public."CaseMessage" (
+      id, "caseId", "authorId", "authorKind", body, "createdAt"
+    )
+    SELECT
+      $1, $2, order_row."buyerId", 'BUYER',
+      'Disposable opening evidence for the Case-aware Order proof.',
+      CURRENT_TIMESTAMP
+      FROM public."Order" AS order_row
+     WHERE order_row.id = $3
+  `, [`${caseId}-opening-message`, caseId, orderId]);
 }
 
 async function seedFixtures(client) {
@@ -434,6 +446,10 @@ async function cleanupFixtures(client) {
   try {
     await client.query(
       'DELETE FROM public."OrderShippingRateQuote" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."CaseMessage" WHERE "caseId" LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(

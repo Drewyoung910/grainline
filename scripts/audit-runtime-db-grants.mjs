@@ -21,6 +21,9 @@ import {
 import {
   DIRECT_UPLOAD_ACTIVATION_FUNCTIONS,
 } from "./direct-upload-activation-catalog.mjs";
+import {
+  CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
+} from "./case-invariant-catalog.mjs";
 
 const { Client } = pg;
 
@@ -175,6 +178,7 @@ const NOTIFICATION_PRIVATE_RPC_FUNCTIONS = new Set([
 export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_case_resolution_claim_immutable",
   "grainline_case_resolution_claim_lease_valid",
+  ...CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
   "grainline_conversation_participants_immutable",
   "grainline_message_participants_match_conversation",
   "grainline_message_route_immutable",

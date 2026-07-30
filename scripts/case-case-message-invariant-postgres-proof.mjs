@@ -100,6 +100,130 @@ async function expectPostgresError(client, name, work, pattern) {
   assert.match(safeError(caught), pattern, name);
 }
 
+async function resetPromotedInvariantForProof(client) {
+  const catalog = await client.query(`
+    SELECT
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.pg_constraint AS constraint_state
+         WHERE constraint_state.conname IN (
+           'Case_distinct_participants_check',
+           'Case_clock_order_check',
+           'Case_lifecycle_evidence_check',
+           'Case_resolution_shape_check',
+           'Case_resolution_marks_check',
+           'CaseMessage_body_check'
+         )
+           AND constraint_state.conrelid IN (
+             'public."Case"'::pg_catalog.regclass,
+             'public."CaseMessage"'::pg_catalog.regclass
+           )
+      ) AS constraint_count,
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.pg_proc AS procedure
+          JOIN pg_catalog.pg_namespace AS namespace
+            ON namespace.oid = procedure.pronamespace
+         WHERE namespace.nspname = 'public'
+           AND procedure.proname IN (
+             'grainline_case_relationship_valid',
+             'grainline_case_authority_fields_immutable',
+             'grainline_case_status_transition_valid',
+             'grainline_case_message_author_valid',
+             'grainline_case_message_authority_fields_immutable',
+             'grainline_case_message_maintain_thread',
+             'grainline_case_opening_evidence_valid',
+             'grainline_case_attachment_parent_valid'
+           )
+           AND pg_catalog.pg_get_function_identity_arguments(
+                 procedure.oid
+               ) = ''
+      ) AS function_count,
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.pg_trigger AS trigger
+          JOIN pg_catalog.pg_class AS relation
+            ON relation.oid = trigger.tgrelid
+          JOIN pg_catalog.pg_namespace AS namespace
+            ON namespace.oid = relation.relnamespace
+         WHERE namespace.nspname = 'public'
+           AND NOT trigger.tgisinternal
+           AND trigger.tgname IN (
+             'grainline_case_relationship_valid',
+             'grainline_case_authority_fields_immutable',
+             'grainline_case_status_transition_valid',
+             'grainline_case_message_author_valid',
+             'grainline_case_message_authority_fields_immutable',
+             'grainline_case_message_maintain_thread',
+             'grainline_case_opening_evidence_valid',
+             'grainline_case_message_delete_keeps_opening_evidence',
+             'grainline_case_attachment_parent_valid'
+           )
+      ) AS trigger_count,
+      (
+        SELECT attribute.attnotnull
+          FROM pg_catalog.pg_attribute AS attribute
+         WHERE attribute.attrelid =
+                 'public."CaseMessage"'::pg_catalog.regclass
+           AND attribute.attname = 'authorKind'
+           AND attribute.attnum > 0
+           AND NOT attribute.attisdropped
+      ) AS author_kind_not_null
+  `);
+  const state = catalog.rows[0];
+  const installedCount =
+    state.constraint_count + state.function_count + state.trigger_count;
+  if (installedCount === 0 && !state.author_kind_not_null) return false;
+  assert.deepEqual(state, {
+    constraint_count: 6,
+    function_count: 8,
+    trigger_count: 9,
+    author_kind_not_null: true,
+  });
+
+  await client.query(`
+    DROP TRIGGER grainline_case_relationship_valid
+      ON public."Case";
+    DROP TRIGGER grainline_case_authority_fields_immutable
+      ON public."Case";
+    DROP TRIGGER grainline_case_status_transition_valid
+      ON public."Case";
+    DROP TRIGGER grainline_case_message_author_valid
+      ON public."CaseMessage";
+    DROP TRIGGER grainline_case_message_authority_fields_immutable
+      ON public."CaseMessage";
+    DROP TRIGGER grainline_case_message_maintain_thread
+      ON public."CaseMessage";
+    DROP TRIGGER grainline_case_opening_evidence_valid
+      ON public."Case";
+    DROP TRIGGER grainline_case_message_delete_keeps_opening_evidence
+      ON public."CaseMessage";
+    DROP TRIGGER grainline_case_attachment_parent_valid
+      ON public."CaseMessageAttachment";
+
+    DROP FUNCTION public.grainline_case_relationship_valid();
+    DROP FUNCTION public.grainline_case_authority_fields_immutable();
+    DROP FUNCTION public.grainline_case_status_transition_valid();
+    DROP FUNCTION public.grainline_case_message_author_valid();
+    DROP FUNCTION
+      public.grainline_case_message_authority_fields_immutable();
+    DROP FUNCTION public.grainline_case_message_maintain_thread();
+    DROP FUNCTION public.grainline_case_opening_evidence_valid();
+    DROP FUNCTION public.grainline_case_attachment_parent_valid();
+
+    ALTER TABLE public."Case"
+      DROP CONSTRAINT "Case_distinct_participants_check",
+      DROP CONSTRAINT "Case_clock_order_check",
+      DROP CONSTRAINT "Case_lifecycle_evidence_check",
+      DROP CONSTRAINT "Case_resolution_shape_check",
+      DROP CONSTRAINT "Case_resolution_marks_check";
+    ALTER TABLE public."CaseMessage"
+      DROP CONSTRAINT "CaseMessage_body_check",
+      ALTER COLUMN "authorKind" DROP NOT NULL;
+  `);
+  return true;
+}
+
 async function setConstraintsImmediate(client) {
   await client.query("SET CONSTRAINTS ALL IMMEDIATE");
   await client.query("SET CONSTRAINTS ALL DEFERRED");
@@ -195,6 +319,7 @@ async function expectLegacyPreflightError(
 ) {
   await client.query("BEGIN");
   try {
+    await resetPromotedInvariantForProof(client);
     await seedBaseFixtures(client);
     await seedInvalidLegacyState();
     let caught;
@@ -314,6 +439,23 @@ async function proveCaseAndMessageInvariants(client) {
        WHERE id = $1
     `, [ids.ordinaryCase]),
     /Case_lifecycle_evidence_check/,
+  );
+
+  await expectPostgresError(
+    client,
+    "blank_refund_provider_evidence",
+    () => client.query(`
+      UPDATE public."Case"
+         SET status = 'RESOLVED',
+             resolution = 'REFUND_FULL',
+             "refundAmountCents" = 10000,
+             "stripeRefundId" = '   ',
+             "resolvedAt" = CURRENT_TIMESTAMP,
+             "resolvedById" = $2,
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $1
+    `, [ids.ordinaryCase, ids.staff]),
+    /Case_resolution_shape_check/,
   );
 
   await client.query(`
@@ -1939,6 +2081,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await proveLegacyPreflightRejects(client, draftBody);
     await client.query("BEGIN");
     began = true;
+    await resetPromotedInvariantForProof(client);
     await client.query(draftBody);
     await seedBaseFixtures(client);
     await proveCaseAndMessageInvariants(client);
@@ -1958,11 +2101,12 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 54,
+      checks: 55,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
-      proofMode: "ephemeral-loopback-migration-plus-draft-rollback",
+      proofMode:
+        "ephemeral-loopback-promoted-migration-plus-draft-rollback",
       status: "passed",
     });
   } finally {

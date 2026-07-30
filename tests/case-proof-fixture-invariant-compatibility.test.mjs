@@ -1,0 +1,89 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+
+const PROOFS_WITH_DIRECT_CASE_FIXTURES = Object.freeze([
+  "scripts/case-reply-authority-postgres-proof.mjs",
+  "scripts/case-message-preflight-authority-postgres-proof.mjs",
+  "scripts/case-message-page-authority-postgres-proof.mjs",
+  "scripts/case-recipient-read-authority-postgres-proof.mjs",
+  "scripts/case-staff-queue-authority-postgres-proof.mjs",
+  "scripts/case-order-active-authority-postgres-proof.mjs",
+  "scripts/case-seller-aggregate-authority-postgres-proof.mjs",
+  "scripts/case-account-export-authority-postgres-proof.mjs",
+  "scripts/case-escalation-cron-authority-postgres-proof.mjs",
+  "scripts/case-account-deletion-authority-postgres-proof.mjs",
+]);
+
+test("post-migration Case proof fixtures preserve durable opening and seller evidence", () => {
+  for (const path of PROOFS_WITH_DIRECT_CASE_FIXTURES) {
+    const source = fs.readFileSync(path, "utf8");
+    assert.match(
+      source,
+      /async function seedFixtures\(client\) \{[\s\S]{0,220}client\.query\("BEGIN"\)/,
+      `${path} must seed its deferred Case evidence atomically`,
+    );
+    assert.match(
+      source,
+      /INSERT INTO public\."OrderItem"/,
+      `${path} must seed the exact Order seller relationship`,
+    );
+    assert.match(
+      source,
+      /INSERT INTO public\."CaseMessage"/,
+      `${path} must seed durable human opening evidence`,
+    );
+  }
+});
+
+test("post-migration Case-message page proof cannot recreate retired null author kinds", () => {
+  const source = fs.readFileSync(
+    "scripts/case-message-page-authority-postgres-proof.mjs",
+    "utf8",
+  );
+  assert.doesNotMatch(
+    source,
+    /"authorKind", body, "createdAt"\s*\)\s*VALUES\s*\(\s*\$1, \$2, \$3, NULL/,
+  );
+  assert.match(source, /proveCanonicalAuthorKindProjection/);
+});
+
+test("post-migration Case-reply fixtures order lifecycle clocks consistently", () => {
+  const source = fs.readFileSync(
+    "scripts/case-reply-authority-postgres-proof.mjs",
+    "utf8",
+  );
+  const seedCase = source.match(
+    /async function seedCase\([\s\S]+?\n}\n\nfunction uploadKey/,
+  )?.[0];
+  assert.ok(seedCase, "Case-reply seedCase function is missing");
+  assert.match(
+    seedCase,
+    /CURRENT_TIMESTAMP - INTERVAL '2 hours', CURRENT_TIMESTAMP/,
+  );
+  assert.match(
+    seedCase,
+    /CURRENT_TIMESTAMP - INTERVAL '1 hour'/,
+  );
+  assert.equal(
+    [...source.matchAll(/AND id <> \$[23]/g)].length,
+    3,
+    "Case-reply side-effect counts must exclude durable opening evidence",
+  );
+  assert.match(source, /function openingMessageId\(caseId\)/);
+});
+
+test("post-migration seller aggregate fixtures cannot regress updatedAt behind a JavaScript clock", () => {
+  const source = fs.readFileSync(
+    "scripts/case-seller-aggregate-authority-postgres-proof.mjs",
+    "utf8",
+  );
+  const seedCase = source.match(
+    /async function seedCase\([\s\S]+?\n}\n\nasync function seedFixtures/,
+  )?.[0];
+  assert.ok(seedCase, "Case seller-aggregate seedCase function is missing");
+  assert.match(
+    seedCase,
+    /GREATEST\(CURRENT_TIMESTAMP, \$6::timestamp\)/,
+  );
+});

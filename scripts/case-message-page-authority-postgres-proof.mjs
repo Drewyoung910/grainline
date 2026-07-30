@@ -18,6 +18,8 @@ const ids = Object.freeze({
   suspended: `${PREFIX}-suspended`,
   deleted: `${PREFIX}-deleted`,
   order: `${PREFIX}-order`,
+  sellerProfile: `${PREFIX}-seller-profile`,
+  listing: `${PREFIX}-listing`,
   case: `${PREFIX}-case`,
 });
 
@@ -142,6 +144,34 @@ async function seedFixtures(client) {
       [ids.order, ids.buyer],
     );
     await client.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, 'Case-message page proof seller',
+        'case-message page proof seller',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.sellerProfile, ids.seller]);
+    await client.query(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", title, description, "priceCents",
+        "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, 'Case-message page proof listing',
+        'Disposable Case-message page authority proof.',
+        1000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.listing, ids.sellerProfile]);
+    await client.query(`
+      INSERT INTO public."OrderItem" (
+        id, "orderId", "listingId", quantity, "priceCents"
+      )
+      VALUES ($1, $2, $3, 1, 1000)
+    `, [`${PREFIX}-order-item`, ids.order, ids.listing]);
+    await client.query(`
       INSERT INTO public."Case" (
         id, "orderId", "buyerId", "sellerId", reason, description,
         status, "sellerRespondBy", "createdAt", "updatedAt"
@@ -185,32 +215,11 @@ async function seedFixtures(client) {
       ]);
     }
 
-    await client.query(`
-      INSERT INTO public."CaseMessage" (
-        id, "caseId", "authorId", "authorKind", body, "createdAt"
-      )
-      VALUES (
-        $1, $2, $3, NULL,
-        'Legacy relationship-derived buyer message.',
-        $4::timestamp - INTERVAL '1 second'
-      )
-    `, [`${PREFIX}-legacy-buyer`, ids.case, ids.buyer, CREATED_AT]);
-    await client.query(`
-      INSERT INTO public."CaseMessage" (
-        id, "caseId", "authorId", "authorKind", body, "createdAt"
-      )
-      VALUES (
-        $1, $2, $3, NULL,
-        'Legacy unknown non-party message.',
-        $4::timestamp - INTERVAL '2 seconds'
-      )
-    `, [`${PREFIX}-legacy-unknown`, ids.case, ids.foreign, CREATED_AT]);
-
     for (let position = 0; position < 5; position += 1) {
       const objectKey =
         `caseEvidenceImage/clerk-${ids.buyer}/${ids.case}/proof-${position}.webp`;
       const attachmentCreatedAt =
-        new Date(CREATED_AT.getTime() + position);
+        new Date(CREATED_AT.getTime() + 27_000 + position);
       await client.query(`
         INSERT INTO public."DirectUpload" (
           id, key, endpoint, "userId", "publicUrl", "storageClass",
@@ -271,7 +280,19 @@ async function cleanupFixtures(client) {
       [`${PREFIX}%`],
     );
     await client.query(
+      'DELETE FROM public."OrderItem" WHERE "orderId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Order" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."Listing" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."SellerProfile" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(
@@ -421,18 +442,16 @@ async function proveMinimalAttachmentProjection(runtime) {
   );
 }
 
-async function proveLegacyAuthorDerivation(runtime) {
-  const rows = await page(runtime, ids.buyer, {
-    cursorCreatedAt: CREATED_AT,
-    cursorId: `${PREFIX}-000`,
-    limit: 3,
-  });
-  const buyer = rows.rows.find((row) => row.id === `${PREFIX}-legacy-buyer`);
-  const unknown = rows.rows.find(
-    (row) => row.id === `${PREFIX}-legacy-unknown`,
+async function proveCanonicalAuthorKindProjection(runtime) {
+  const rows = await page(runtime, ids.buyer, { limit: 3 });
+  assert.deepEqual(
+    rows.rows.map((row) => [row.id, row.authorKind]),
+    [
+      [messageId(54), "BUYER"],
+      [messageId(53), "STAFF"],
+      [messageId(52), "SELLER"],
+    ],
   );
-  assert.equal(buyer?.authorKind, "BUYER");
-  assert.equal(unknown?.authorKind, null);
 }
 
 async function proveTransactionLocalContext(runtime) {
@@ -505,7 +524,7 @@ export async function runCaseMessagePageAuthorityPostgresProof(
     await proveRecipientAuthority(runtime);
     await proveStableBoundedPage(runtime);
     await proveMinimalAttachmentProjection(runtime);
-    await proveLegacyAuthorDerivation(runtime);
+    await proveCanonicalAuthorKindProjection(runtime);
     await proveTransactionLocalContext(runtime);
     await proveInvalidInputs(runtime);
     const after = await snapshotCaseFamily(observer);

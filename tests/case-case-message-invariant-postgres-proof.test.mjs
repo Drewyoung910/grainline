@@ -68,6 +68,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   for (const check of [
     "forged_buyer_author",
     "mixed_active_refund_evidence",
+    "blank_refund_provider_evidence",
     "stale_refund_snapshot_on_reopen",
     "empty_participant_opening",
     "wrong_order_payment_evidence",
@@ -116,7 +117,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);
-  assert.match(proof, /checks: 54/);
+  assert.match(proof, /checks: 55/);
   assert.match(proof, /provePolicylessActivation/);
   assert.match(proof, /case_force_candidate/);
 });
@@ -141,6 +142,25 @@ test("Case invariant proof is rollback-only and emits no credentials", () => {
   assert.match(proof, /productionChanged: false/);
   assert.doesNotMatch(proof, /process\.env\.DATABASE_URL/);
   assert.doesNotMatch(proof, /console\.log\(databaseUrl\)/);
+});
+
+test("promoted invariant proof reconstructs pre-migration state only inside rollback transactions", () => {
+  assert.match(
+    proof,
+    /async function resetPromotedInvariantForProof\(client\)/,
+  );
+  assert.match(proof, /constraint_count: 6/);
+  assert.match(proof, /function_count: 8/);
+  assert.match(proof, /trigger_count: 9/);
+  assert.match(
+    proof,
+    /await resetPromotedInvariantForProof\(client\);\s+await seedBaseFixtures/,
+  );
+  assert.match(
+    proof,
+    /await client\.query\("BEGIN"\);\s+began = true;\s+await resetPromotedInvariantForProof\(client\);\s+await client\.query\(draftBody\)/,
+  );
+  assert.doesNotMatch(proof, /process\.env\.DIRECT_URL/);
 });
 
 test("Case invariant proof flushes deferred triggers before the later FORCE release", () => {

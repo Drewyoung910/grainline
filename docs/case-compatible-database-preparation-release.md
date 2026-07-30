@@ -1,8 +1,9 @@
 # Case compatible database preparation release
 
-Status: candidate package and fail-closed operator only. No production
-migration, deployment, merge, Case-family RLS activation, or FORCE release is
-authorized by this document.
+Status: completed production-compatible database and application boundary.
+The protected database preparation and compatible application are live.
+Case-family RLS, read-mode convergence, ENABLE and FORCE remain separate later
+releases.
 
 ## Purpose
 
@@ -104,13 +105,18 @@ Orders, payments and shipping remain a separate RLS group. Case functions that
 validate Order and payment evidence do not claim those source tables are
 already RLS-protected.
 
-## Production boundary at packaging time
+## Current production boundary
 
 - Case-family RLS: off.
 - DirectUpload RLS: off.
-- Case compatible application conversion: isolated, not deployed.
-- Candidate production migration workflow: advances only through the compatible
-  Case account-deletion authority boundary; it has not run or changed
-  production.
-- Production and persistent staging: unchanged by package construction and
-  disposable proof.
+- Compatible database preparation: live at exact main
+  `4728f673fdf0a11d38aaac384f3d9afe2cf86117` through protected migration run
+  `30511805499`.
+- Compatible application conversion: live at exact merge
+  `f2f6861b177a47d22ed304714372584b79a0a0b0` through Vercel deployment
+  `dpl_Gvsge8MWYW8DfDRSom34YPwsY8rH`.
+- Case evidence: disabled because
+  `CASE_EVIDENCE_ATTACHMENTS_ENABLED` remains absent.
+- Next release: the invariant-only package documented in
+  `docs/case-invariant-production-release.md`; no read-mode, ENABLE or FORCE
+  SQL is included in that release.

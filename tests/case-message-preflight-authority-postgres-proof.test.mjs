@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 import {
   parseCaseMessagePreflightProofConfig,
@@ -40,4 +41,15 @@ test("Case-message preflight proof accepts loopback grainline_ci", () => {
     }).databaseUrl,
     "postgresql://user:secret@127.0.0.1:5432/grainline_ci",
   );
+});
+
+test("Case-message preflight fixtures satisfy promoted Case invariants atomically", () => {
+  const source = fs.readFileSync(
+    "scripts/case-message-preflight-authority-postgres-proof.mjs",
+    "utf8",
+  );
+  assert.match(source, /async function seedFixtures\(client\) \{\s+await client\.query\("BEGIN"\)/);
+  assert.match(source, /INSERT INTO public\."OrderItem"/);
+  assert.match(source, /opening-message/);
+  assert.match(source, /'DISMISSED'::public\."CaseResolution"/);
 });

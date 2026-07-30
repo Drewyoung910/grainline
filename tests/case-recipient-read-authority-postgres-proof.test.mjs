@@ -54,6 +54,8 @@ describe("Case recipient-read PostgreSQL proof", () => {
     assert.match(proof, /proveStaffActiveCount/);
     assert.match(proof, /proveTransactionLocalContext/);
     assert.match(proof, /proveInvalidInputs/);
+    assert.match(proof, /INSERT INTO public\."OrderItem"/);
+    assert.match(proof, /opening-message/);
     assert.match(proof, /row\.createdAt\.toISOString\(\)/);
     assert.match(proof, /row\.sellerRespondBy\.toISOString\(\)/);
     assert.match(proof, /Case recipient reads changed protected state/);

@@ -54,6 +54,8 @@ describe("Case account-export PostgreSQL proof", () => {
       /CREATE POLICY case_account_export_proof_case_participant/,
     );
     assert.match(source, /Case account-export proof left fixture residue/);
+    assert.match(source, /INSERT INTO public\."OrderItem"/);
+    assert.match(source, /opening-message/);
     assert.doesNotMatch(source, /has_function_privilege\(\s*'PUBLIC'/);
   });
 
