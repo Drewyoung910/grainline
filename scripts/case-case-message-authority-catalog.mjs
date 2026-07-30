@@ -39,7 +39,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     id: "case_message_page",
     candidateFunctionName: "grainline_case_message_page",
     operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId", "createdAtCursor", "idCursor", "boundedLimit"],
     applicationPreconditions: [
@@ -56,7 +56,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     id: "case_staff_queue",
     candidateFunctionName: "grainline_case_staff_queue",
     operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "statusFilter", "cursor", "boundedLimit"],
     applicationPreconditions: [
@@ -93,7 +93,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     id: "case_message_preflight",
     candidateFunctionName: "grainline_case_message_preflight",
     operationKind: "READ_PROJECTION",
-    security: "INVOKER",
+    security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId"],
     applicationPreconditions: [

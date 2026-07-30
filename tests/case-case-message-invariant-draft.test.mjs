@@ -19,18 +19,72 @@ test("Case invariant SQL remains an unapplied draft", () => {
   assert.doesNotMatch(sql, /\bGRANT\b/);
 });
 
+test("target rows are frozen and every trigger-only legacy shape is rechecked", () => {
+  assert.match(normalizedSql, /SET LOCAL lock_timeout = '10s'/);
+  assert.match(normalizedSql, /SET LOCAL statement_timeout = '60s'/);
+  assert.match(
+    normalizedSql,
+    /pg_catalog\.pg_advisory_xact_lock\( pg_catalog\.hashtextextended\('grainline\.case\.rls\.activation', 0\) \)/,
+  );
+  assert.match(
+    normalizedSql,
+    /LOCK TABLE public\."Case", public\."CaseMessage", public\."CaseMessageAttachment" IN SHARE ROW EXCLUSIVE MODE/,
+  );
+  assert.match(
+    normalizedSql,
+    /Case relationship preflight found incompatible rows/,
+  );
+  assert.match(
+    normalizedSql,
+    /Case opening-source preflight found incompatible rows/,
+  );
+  assert.match(
+    normalizedSql,
+    /CaseMessage relationship preflight found incompatible rows/,
+  );
+  assert.match(
+    normalizedSql,
+    /CaseMessageAttachment relationship preflight found incompatible rows/,
+  );
+  assert.match(
+    normalizedSql,
+    /summary\.seller_count IS DISTINCT FROM 1/,
+  );
+  assert.match(
+    normalizedSql,
+    /message\."createdAt" > case_row\."updatedAt"/,
+  );
+});
+
 test("Stripe-dispute openings bind to an exact same-Order payment event", () => {
+  assert.match(normalizedSql, /compatible preparation migration already adds/);
   assert.match(
     normalizedSql,
-    /ADD COLUMN "openedByPaymentEventId" TEXT/,
+    /dispute_event\."eventType" <> 'DISPUTE'/,
   );
   assert.match(
     normalizedSql,
-    /FOREIGN KEY \("openedByPaymentEventId", "orderId"\) REFERENCES public\."OrderPaymentEvent"\(id, "orderId"\)/,
+    /dispute_event\.metadata->>'stripeEventType' IS DISTINCT FROM 'charge\.dispute\.created'/,
   );
   assert.match(
     normalizedSql,
-    /dispute_event_type <> 'charge\.dispute\.created'/,
+    /dispute_event\.metadata->>'disputeId' IS DISTINCT FROM dispute_event\."stripeObjectId"/,
+  );
+  assert.match(
+    normalizedSql,
+    /dispute_event\.metadata->>'chargeId' IS DISTINCT FROM order_stripe_charge_id/,
+  );
+  assert.match(
+    normalizedSql,
+    /dispute_event\.metadata->>'stripeEventCreated' !~ '\^\[0-9\]\{1,12\}\$'/,
+  );
+  assert.match(
+    normalizedSql,
+    /pg_catalog\.lower\(COALESCE\(dispute_event\.status, ''\)\) IN \( 'won', 'lost', 'prevented', 'warning_closed' \)/,
+  );
+  assert.match(
+    normalizedSql,
+    /dispute_event\.currency !~ '\^\[a-z\]\{3\}\$'/,
   );
   assert.match(
     normalizedSql,
@@ -74,7 +128,7 @@ test("Case lifecycle constraints reject mixed active and terminal evidence", () 
 test("Case parties and immutable authority fields are database checked", () => {
   assert.match(
     normalizedSql,
-    /CREATE OR REPLACE FUNCTION public\.grainline_case_relationship_valid\(\)/,
+    /CREATE FUNCTION public\.grainline_case_relationship_valid\(\)/,
   );
   assert.match(
     normalizedSql,
@@ -98,7 +152,7 @@ test("Case parties and immutable authority fields are database checked", () => {
   );
   assert.match(
     normalizedSql,
-    /CREATE OR REPLACE FUNCTION public\.grainline_case_authority_fields_immutable\(\)/,
+    /CREATE FUNCTION public\.grainline_case_authority_fields_immutable\(\)/,
   );
   for (const field of [
     '"orderId"',
@@ -114,7 +168,7 @@ test("Case parties and immutable authority fields are database checked", () => {
 test("Case status graph reserves review reopen for the later fixed operation", () => {
   assert.match(
     normalizedSql,
-    /CREATE OR REPLACE FUNCTION public\.grainline_case_status_transition_valid\(\)/,
+    /CREATE FUNCTION public\.grainline_case_status_transition_valid\(\)/,
   );
   assert.match(normalizedSql, /Invalid Case status transition/);
   assert.match(
@@ -142,7 +196,7 @@ test("CaseMessage author kind is durable and source-derived", () => {
   );
   assert.match(
     normalizedSql,
-    /CREATE OR REPLACE FUNCTION public\.grainline_case_message_author_valid\(\)/,
+    /CREATE FUNCTION public\.grainline_case_message_author_valid\(\)/,
   );
   assert.match(
     normalizedSql,
@@ -162,7 +216,7 @@ test("CaseMessage author kind is durable and source-derived", () => {
   );
   assert.match(
     normalizedSql,
-    /FROM public\."User" AS actor WHERE actor\.id = NEW\."authorId" FOR SHARE.*FROM public\."Case" AS case_row WHERE case_row\.id = NEW\."caseId" FOR SHARE/s,
+    /FROM public\."User" AS actor WHERE actor\.id = NEW\."authorId" FOR SHARE.*FROM public\."Case" AS case_row WHERE case_row\.id = NEW\."caseId" FOR UPDATE/s,
   );
   assert.doesNotMatch(
     normalizedSql,
@@ -187,6 +241,10 @@ test("ordinary Case openings retain a message while webhook openings remain hone
     normalizedSql,
     /TG_RELID = 'public\."Case"'::pg_catalog\.regclass/,
   );
+  assert.match(
+    normalizedSql,
+    /FROM public\."Case" AS case_row WHERE case_row\.id = target_case_id FOR UPDATE/,
+  );
   assert.doesNotMatch(normalizedSql, /TG_TABLE_NAME = 'Case'/);
   assert.equal(
     (normalizedSql.match(/DEFERRABLE INITIALLY DEFERRED/g) ?? []).length,
@@ -197,7 +255,7 @@ test("ordinary Case openings retain a message while webhook openings remain hone
 test("CaseMessageAttachment is bound to the author and parent clock", () => {
   assert.match(
     normalizedSql,
-    /CREATE OR REPLACE FUNCTION public\.grainline_case_attachment_parent_valid\(\)/,
+    /CREATE FUNCTION public\.grainline_case_attachment_parent_valid\(\)/,
   );
   assert.match(
     normalizedSql,
@@ -206,6 +264,10 @@ test("CaseMessageAttachment is bound to the author and parent clock", () => {
   assert.match(
     normalizedSql,
     /NEW\."createdAt" < parent\."createdAt"/,
+  );
+  assert.match(
+    normalizedSql,
+    /FROM public\."CaseMessage" AS message WHERE message\.id = NEW\."caseMessageId" FOR UPDATE/,
   );
 });
 
@@ -231,6 +293,7 @@ test("invariant trigger helpers are pinned and runtime-inaccessible", () => {
     (normalizedSql.match(/SET search_path = pg_catalog/g) ?? []).length,
     functionNames.length,
   );
+  assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION/);
   assert.doesNotMatch(sql, /pg_catalog\.greatest/i);
   assert.match(sql, /\bGREATEST\(/);
   assert.doesNotMatch(sql, /\bEXECUTE\s+(?!FUNCTION\b)/i);

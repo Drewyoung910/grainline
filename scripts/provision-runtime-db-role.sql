@@ -617,6 +617,366 @@ GRANT USAGE ON TYPE
   public."VerificationStatus"
 TO :"runtime_role";
 
+-- CaseResolutionClaimStatus is absent before the compatible Case preparation
+-- migration. Keep provisioning valid on either side of that database-first
+-- boundary while preserving its no-PUBLIC type posture.
+SELECT format(
+  'GRANT USAGE ON TYPE public."CaseResolutionClaimStatus" TO %I',
+  :'runtime_role'
+)
+WHERE to_regtype('public."CaseResolutionClaimStatus"') IS NOT NULL;
+\gexec
+
+-- The first compatible Case service operation is absent before its
+-- operation-and-private-ledger preparation migration. Converge it to zero PUBLIC/direct
+-- runtime authority, then grant only EXECUTE when it exists.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_stripe_dispute_apply(text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_stripe_dispute_apply(text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_stripe_dispute_apply(text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_stripe_dispute_apply(text)'
+) IS NOT NULL;
+\gexec
+
+-- The seller-refund Case operation is absent before its compatible
+-- operation-and-private-ledger migration. Preserve zero PUBLIC/direct table
+-- authority and grant only the exact fixed function when present.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_seller_refund_apply(text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_seller_refund_apply(text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_seller_refund_apply(text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_seller_refund_apply(text,text)'
+) IS NOT NULL;
+\gexec
+
+-- Staged staff Case resolution is absent before its compatible four-operation
+-- authority migration. Converge each exact signature without granting direct
+-- access to the private CaseResolutionClaim ledger.
+WITH staff_resolution_rpc(function_signature) AS (
+  VALUES
+    (
+      'public.grainline_case_staff_resolution_prepare(text, text, public."CaseResolution", integer, jsonb)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_finalize(text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    )
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM staff_resolution_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH staff_resolution_rpc(function_signature) AS (
+  VALUES
+    (
+      'public.grainline_case_staff_resolution_prepare(text, text, public."CaseResolution", integer, jsonb)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_finalize(text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    )
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM staff_resolution_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH staff_resolution_rpc(function_signature) AS (
+  VALUES
+    (
+      'public.grainline_case_staff_resolution_prepare(text, text, public."CaseResolution", integer, jsonb)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_provider_record(text, text, text, text, text[], text[], text, integer, boolean, boolean)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_finalize(text, text)'
+    ),
+    (
+      'public.grainline_case_staff_resolution_reconcile(text, text, text, text)'
+    )
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM staff_resolution_rpc
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Participant Case resolution is absent before its compatible authority
+-- migration. Keep PUBLIC closed and converge only the exact fixed operation.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_mark_resolved(text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_mark_resolved(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_mark_resolved(text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_mark_resolved(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_mark_resolved(text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_mark_resolved(text,text)'
+) IS NOT NULL;
+\gexec
+
+-- Buyer Case opening is absent before its compatible authority migration.
+-- Keep PUBLIC closed and converge only the exact fixed operation; the private
+-- replay ledger remains table-inaccessible.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_open(text, text, text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_open(text,text,text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_open(text, text, text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_open(text,text,text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_open(text, text, text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_open(text,text,text,text)'
+) IS NOT NULL;
+\gexec
+
+-- Case replies are absent before their compatible authority migration. Keep
+-- PUBLIC closed and converge only the exact fixed operation; attachment
+-- metadata and Case transitions remain source-derived inside the function.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_reply(text, text, text, text[]) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_reply(text,text,text,text[])'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_reply(text, text, text, text[]) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_reply(text,text,text,text[])'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_reply(text, text, text, text[]) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_reply(text,text,text,text[])'
+) IS NOT NULL;
+\gexec
+
+-- Case-message preflight is absent before its compatible authority migration.
+-- Keep PUBLIC closed and converge only the exact recipient-scoped DEFINER
+-- projection; the final Case-reply function remains the write authority.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_message_preflight(text, text) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_message_preflight(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_message_preflight(text, text) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_message_preflight(text,text)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_message_preflight(text, text) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_message_preflight(text,text)'
+) IS NOT NULL;
+\gexec
+
+-- Case-message history is absent before its compatible authority migration.
+-- Keep PUBLIC closed and converge only the exact bounded source-validating
+-- projection; direct Case-family reads remain unchanged until activation.
+SELECT
+  'REVOKE ALL ON FUNCTION public.grainline_case_message_page(text, text, timestamp, text, integer) FROM PUBLIC'
+WHERE to_regprocedure(
+  'public.grainline_case_message_page(text,text,timestamp without time zone,text,integer)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'REVOKE ALL ON FUNCTION public.grainline_case_message_page(text, text, timestamp, text, integer) FROM %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_message_page(text,text,timestamp without time zone,text,integer)'
+) IS NOT NULL;
+\gexec
+
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.grainline_case_message_page(text, text, timestamp, text, integer) TO %I',
+  :'runtime_role'
+)
+WHERE to_regprocedure(
+  'public.grainline_case_message_page(text,text,timestamp without time zone,text,integer)'
+) IS NOT NULL;
+\gexec
+
+-- Recipient Case projections are absent before their compatible authority
+-- migrations. Keep PUBLIC closed and converge only exact reviewed Case
+-- operations; direct Case reads remain available until the later app
+-- conversion and RLS activation.
+WITH recipient_read(function_signature) AS (
+  VALUES
+    ('public.grainline_case_get(text,text)'),
+    ('public.grainline_case_get_by_order(text,text)'),
+    ('public.grainline_case_staff_active_count(text)'),
+    ('public.grainline_case_staff_queue(text,text,integer,integer)'),
+    ('public.grainline_case_order_active_for_buyer(text,text)'),
+    ('public.grainline_case_order_active_for_seller(text,text)'),
+    ('public.grainline_order_buyer_pii_prune_batch(integer)'),
+    ('public.grainline_case_seller_active_count(text)'),
+    ('public.grainline_case_seller_verification_eligibility(text,text)'),
+    ('public.grainline_case_guild_unresolved_guard(text)'),
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
+    ('public.grainline_case_escalate(text,text)'),
+    ('public.grainline_case_cron_transition_batch(text,integer)'),
+    ('public.grainline_case_account_deletion_blockers(text)'),
+    ('public.grainline_case_account_deletion_redact(text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM recipient_read
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH recipient_read(function_signature) AS (
+  VALUES
+    ('public.grainline_case_get(text,text)'),
+    ('public.grainline_case_get_by_order(text,text)'),
+    ('public.grainline_case_staff_active_count(text)'),
+    ('public.grainline_case_staff_queue(text,text,integer,integer)'),
+    ('public.grainline_case_order_active_for_buyer(text,text)'),
+    ('public.grainline_case_order_active_for_seller(text,text)'),
+    ('public.grainline_order_buyer_pii_prune_batch(integer)'),
+    ('public.grainline_case_seller_active_count(text)'),
+    ('public.grainline_case_seller_verification_eligibility(text,text)'),
+    ('public.grainline_case_guild_unresolved_guard(text)'),
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
+    ('public.grainline_case_escalate(text,text)'),
+    ('public.grainline_case_cron_transition_batch(text,integer)'),
+    ('public.grainline_case_account_deletion_blockers(text)'),
+    ('public.grainline_case_account_deletion_redact(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM recipient_read
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH recipient_read(function_signature) AS (
+  VALUES
+    ('public.grainline_case_get(text,text)'),
+    ('public.grainline_case_get_by_order(text,text)'),
+    ('public.grainline_case_staff_active_count(text)'),
+    ('public.grainline_case_staff_queue(text,text,integer,integer)'),
+    ('public.grainline_case_order_active_for_buyer(text,text)'),
+    ('public.grainline_case_order_active_for_seller(text,text)'),
+    ('public.grainline_order_buyer_pii_prune_batch(integer)'),
+    ('public.grainline_case_seller_active_count(text)'),
+    ('public.grainline_case_seller_verification_eligibility(text,text)'),
+    ('public.grainline_case_guild_unresolved_guard(text)'),
+    ('public.grainline_case_export_page(text,timestamp without time zone,text,integer)'),
+    ('public.grainline_case_escalate(text,text)'),
+    ('public.grainline_case_cron_transition_batch(text,integer)'),
+    ('public.grainline_case_account_deletion_blockers(text)'),
+    ('public.grainline_case_account_deletion_redact(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM recipient_read
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(jsonb) TO :"runtime_role";
 
 -- Trigger functions are owner-internal invariants, not application RPCs.
@@ -624,6 +984,8 @@ GRANT EXECUTE ON FUNCTION public."grainline_notification_preferences_valid"(json
 -- converge both inherited/public and direct runtime EXECUTE to none.
 WITH private_trigger(function_signature) AS (
   VALUES
+    ('public."grainline_case_resolution_claim_immutable"()'),
+    ('public."grainline_case_resolution_claim_lease_valid"()'),
     ('public."grainline_conversation_participants_immutable"()'),
     ('public."grainline_message_participants_match_conversation"()'),
     ('public."grainline_message_route_immutable"()'),
@@ -636,6 +998,8 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
 
 WITH private_trigger(function_signature) AS (
   VALUES
+    ('public."grainline_case_resolution_claim_immutable"()'),
+    ('public."grainline_case_resolution_claim_lease_valid"()'),
     ('public."grainline_conversation_participants_immutable"()'),
     ('public."grainline_message_participants_match_conversation"()'),
     ('public."grainline_message_route_immutable"()'),
@@ -650,14 +1014,22 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
--- DirectUploadReference is an owner-operated ledger behind fixed functions.
--- It intentionally has FORCE RLS with zero policies and no runtime/PUBLIC
--- table authority. Keep the compatible DirectUpload table grants separate.
+-- These owner-operated ledgers sit behind fixed functions. They intentionally
+-- have FORCE RLS with zero policies and no runtime/PUBLIC table authority.
 SELECT format(
-  'REVOKE ALL ON TABLE public."DirectUploadReference" FROM PUBLIC, %I',
+  'REVOKE ALL ON TABLE public.%I FROM PUBLIC, %I',
+  private_table.table_name,
   :'runtime_role'
 )
-WHERE to_regclass('public."DirectUploadReference"') IS NOT NULL;
+FROM (
+  VALUES
+    ('CaseResolutionClaim'),
+    ('CaseStripeDisputeApplication'),
+    ('CaseSellerRefundApplication'),
+    ('CaseOpenApplication'),
+    ('DirectUploadReference')
+) AS private_table(table_name)
+WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec
 
 -- DirectUpload preparation may be absent before its reviewed migrations.

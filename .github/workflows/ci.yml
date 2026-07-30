@@ -82,9 +82,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify DirectUpload legacy repair migration tree
+      - name: Verify Case account-deletion authority migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-legacy-repair-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-account-deletion-authority-reviewed
         run: npm run verify:rls-release-artifact
       - name: Verify Conversation and Message authority proof equivalence
         run: npm run audit:rls-conversation-message-authority-release
@@ -108,6 +108,54 @@ jobs:
         run: npx prisma migrate deploy
       - name: Converge production-style runtime grants after migrations
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Prove participant Case resolution authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-participant-resolution
+        env:
+          CASE_PARTICIPANT_RESOLUTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove buyer Case-open authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-open-authority
+        env:
+          CASE_OPEN_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case-reply authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-reply-authority
+        env:
+          CASE_REPLY_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case-message preflight authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-message-preflight
+        env:
+          CASE_MESSAGE_PREFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case-message page authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-message-page
+        env:
+          CASE_MESSAGE_PAGE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case recipient-read authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-recipient-read
+        env:
+          CASE_RECIPIENT_READ_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case staff queue authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-staff-queue
+        env:
+          CASE_STAFF_QUEUE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case-aware Order authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-order-active
+        env:
+          CASE_ORDER_ACTIVE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case seller aggregate authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-seller-aggregate
+        env:
+          CASE_SELLER_AGGREGATE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case account-export authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-account-export
+        env:
+          CASE_ACCOUNT_EXPORT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case escalation and cron-transition authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-escalation-cron
+        env:
+          CASE_ESCALATION_CRON_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case account-deletion authority in ephemeral PostgreSQL
+        run: npm run audit:rls-case-account-deletion
+        env:
+          CASE_ACCOUNT_DELETION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Case invariant drafts in rollback-only PostgreSQL
         run: npm run audit:rls-case-invariant-drafts
         env:

@@ -950,6 +950,18 @@ protected preactivation backup through the rollback window. Conversation plus
 Message subsequently completed as the next separate production group;
 Case/CaseMessage is now the active pre-policy audit.
 
+The Case authority design subsequently reached an accepted disposable-engine
+proof, but release packaging must preserve the coexistence boundary. Merge and
+apply the additive schema, private ledgers and 27 fixed operations before
+shipping the converted application; promote invariants/read mode and activate
+`Case`, `CaseMessage` and `CaseMessageAttachment` only afterward. The database
+preparation package must contain no converted app source and no promoted
+ENABLE/FORCE migration. DirectUpload activation and pooled-runtime postflight
+remain a prerequisite for Case activation, while Orders/payments/shipping
+remain their own later RLS group. The exact package inventory, proof references
+and release order live in
+`docs/case-compatible-database-preparation-release.md`.
+
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
 Vercel/database exceptions, disposable secrets, and provider resources were
