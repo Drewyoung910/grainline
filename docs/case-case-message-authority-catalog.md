@@ -40,8 +40,9 @@ by the ordinary runtime role:
 
 - no-context and foreign-user reads return no rows;
 - direct runtime `INSERT`, `UPDATE` and `DELETE` are absent after activation;
-- recipient reads set transaction-local actor context and run as
-  `SECURITY INVOKER`;
+- four simple projections initially run as `SECURITY INVOKER` while compatible
+  direct table reads remain; bounded message history, staff queue and message
+  preflight already run as source-validating `SECURITY DEFINER` functions;
 - exceptional writes use fixed `SECURITY DEFINER` functions with a pinned
   `search_path`, schema-qualified objects, no dynamic SQL and exact EXECUTE
   grants;
@@ -71,15 +72,23 @@ The machine-readable catalog contains 26 operations.
 |---|---|---|
 | `case_get` | INVOKER | One Case by id for a participant or current staff member |
 | `case_get_by_order` | INVOKER | One visible Case by exact Order id |
-| `case_message_page` | INVOKER | Bounded stable `(createdAt,id)` history plus attachment metadata without object keys |
-| `case_staff_queue` | INVOKER | Bounded staff queue and message counts |
+| `case_message_page` | DEFINER | Bounded stable `(createdAt,id)` history plus attachment metadata without object keys |
+| `case_staff_queue` | DEFINER | Bounded staff queue and message counts |
 | `case_staff_active_count` | INVOKER | Staff-only active Case count |
 | `case_export` | INVOKER | Complete participant Case/message export plus attachment metadata |
-| `case_message_preflight` | INVOKER | Current authority, messageable status and counterparty availability before upload or reply |
+| `case_message_preflight` | DEFINER | Current authority, messageable status and counterparty availability before upload or reply |
 
 The interactive projection stays bounded. The account export is deliberately
 complete and remains a separate projection; it must not inherit the
 interactive page limit.
+
+This is the compatible pre-activation posture, not the final activation
+posture. `case_get`, `case_get_by_order`, `case_staff_active_count`, and
+`case_export` remain INVOKER only while predecessor direct SELECT grants exist.
+The separately reviewed read-mode convergence converts those exact four to
+DEFINER before policyless Case-family activation removes every direct runtime
+table grant. All seven projections still validate the actor and return fixed,
+bounded shapes; PostgreSQL `PUBLIC` has no EXECUTE grant.
 
 ### Narrow reads and predicates
 
