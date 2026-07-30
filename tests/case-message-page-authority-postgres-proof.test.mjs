@@ -46,7 +46,7 @@ describe("Case-message page PostgreSQL proof", () => {
       "proveRecipientAuthority",
       "proveStableBoundedPage",
       "proveMinimalAttachmentProjection",
-      "proveLegacyAuthorDerivation",
+      "proveCanonicalAuthorKindProjection",
       "proveTransactionLocalContext",
       "proveInvalidInputs",
       "Case-message page changed protected table state",
@@ -56,6 +56,9 @@ describe("Case-message page PostgreSQL proof", () => {
       assert.match(source, new RegExp(marker));
     }
     assert.match(source, /SET LOCAL ROLE grainline_app_runtime/);
+    assert.match(source, /INSERT INTO public\."OrderItem"/);
+    assert.match(source, /27_000 \+ position/);
+    assert.doesNotMatch(source, /authorKind", body, "createdAt"\s*\)\s*VALUES\s*\(\s*\$1, \$2, \$3, NULL/);
     assert.match(source, /objectKey\|directUploadId\|caseEvidenceImage/);
     assert.match(source, /rowCount, 51/);
   });

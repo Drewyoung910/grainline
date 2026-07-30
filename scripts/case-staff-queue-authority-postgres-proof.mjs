@@ -19,6 +19,8 @@ const ids = Object.freeze({
   foreign: `${PREFIX}-foreign`,
   suspendedStaff: `${PREFIX}-suspended-staff`,
   deletedStaff: `${PREFIX}-deleted-staff`,
+  sellerProfile: `${PREFIX}-seller-profile`,
+  listing: `${PREFIX}-listing`,
 });
 
 function safeError(error) {
@@ -128,6 +130,28 @@ async function seedFixtures(client) {
       role: "ADMIN",
       deletedAt: BASE_TIME,
     });
+    await client.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, 'Case staff queue proof seller',
+        'case staff queue proof seller',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.sellerProfile, ids.seller]);
+    await client.query(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", title, description, "priceCents",
+        "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, 'Case staff queue proof listing',
+        'Disposable Case staff queue authority proof.',
+        1000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.listing, ids.sellerProfile]);
 
     for (let index = 0; index < 27; index += 1) {
       const suffix = String(index).padStart(2, "0");
@@ -144,6 +168,12 @@ async function seedFixtures(client) {
         'INSERT INTO public."Order" (id, "buyerId") VALUES ($1, $2)',
         [orderId, buyerId ?? ids.buyer],
       );
+      await client.query(`
+        INSERT INTO public."OrderItem" (
+          id, "orderId", "listingId", quantity, "priceCents"
+        )
+        VALUES ($1, $2, $3, 1, 1000)
+      `, [`${orderId}-item`, orderId, ids.listing]);
       await client.query(`
         INSERT INTO public."Case" (
           id, "orderId", "buyerId", "sellerId", reason, description,
@@ -170,6 +200,24 @@ async function seedFixtures(client) {
         createdAt,
         isResolved ? new Date(createdAt.getTime() + 60_000) : null,
       ]);
+      if (index !== 0) {
+        await client.query(`
+          INSERT INTO public."CaseMessage" (
+            id, "caseId", "authorId", "authorKind", body, "createdAt"
+          )
+          VALUES (
+            $1, $2, $3, $4::public."CaseMessageAuthorKind",
+            'Disposable opening evidence for the Case staff queue proof.',
+            $5
+          )
+        `, [
+          `${caseId}-opening-message`,
+          caseId,
+          buyerId ?? ids.seller,
+          buyerId === null ? "SELLER" : "BUYER",
+          createdAt,
+        ]);
+      }
     }
 
     for (const [id, authorId, authorKind, body] of [
@@ -252,7 +300,19 @@ async function cleanupFixtures(client) {
       [`${PREFIX}%`],
     );
     await client.query(
+      'DELETE FROM public."OrderItem" WHERE "orderId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Order" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."Listing" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."SellerProfile" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(
@@ -482,7 +542,7 @@ export async function runCaseStaffQueueProof(env = process.env) {
 
     assert.deepEqual(
       await countFixtures(owner),
-      { users: 8, orders: 27, cases: 27, messages: 2 },
+      { users: 8, orders: 27, cases: 27, messages: 28 },
       "Case staff queue proof changed protected state",
     );
     checks.push("read-only-state");

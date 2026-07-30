@@ -86,6 +86,21 @@ empty Case. The proof seed is now one explicit transaction with rollback on
 failure. This was disposable CI only; production and persistent staging were
 unchanged.
 
+The next exact-head CI run, `30514921138` (job `90782496635`), confirmed the
+participant-resolution repair and the buyer Case-open proof, then failed
+closed in the older Case-reply fixture for the same reason: it created Cases
+without durable opening messages. A class-wide audit found the same
+pre-promotion fixture assumption in later Case proof harnesses. The repair
+updates only disposable proof seeding and cleanup: every directly seeded Case
+now lives in an explicit transaction, has one exact `OrderItem` seller
+relationship, has durable opening evidence from a valid participant, and
+uses a valid terminal lifecycle shape. The Case-message page proof also
+retires its synthetic null-`authorKind` rows because the promoted migration
+makes those rows impossible. A central static inventory now fails if any of
+the ten post-migration proof fixtures drops atomic seeding, exact seller
+evidence or opening-message evidence. No policy, authority function,
+application path, migration byte or production state changed in this repair.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:

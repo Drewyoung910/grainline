@@ -63,6 +63,10 @@ test("Case-reply proof covers authority, source binding, replay, locks, rollback
     "utf8",
   );
   for (const marker of [
+    "seedFixturesBody",
+    'await client.query\\("BEGIN"\\)',
+    "opening-message",
+    "'DISMISSED'::public\\.\"CaseResolution\"",
     "forged_actor_rejected",
     "party_under_review_rejected",
     "suspended_recipient_rejected",

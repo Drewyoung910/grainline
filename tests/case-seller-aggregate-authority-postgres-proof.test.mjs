@@ -52,6 +52,8 @@ describe("Case seller aggregate PostgreSQL proof", () => {
       assert.match(source, new RegExp(marker));
     }
     assert.match(source, /Case seller aggregate proof left fixture residue/);
+    assert.match(source, /INSERT INTO public\."OrderItem"/);
+    assert.match(source, /opening-message/);
     assert.match(
       source,
       /INSERT INTO public\."SellerProfile" \([\s\S]{0,280}"updatedAt"[\s\S]{0,280}CURRENT_TIMESTAMP/,

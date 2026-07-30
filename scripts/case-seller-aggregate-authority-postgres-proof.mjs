@@ -26,6 +26,7 @@ const ids = Object.freeze({
   oldActiveOrder: `${PREFIX}-order-old-active`,
   recentActiveOrder: `${PREFIX}-order-recent-active`,
   oldClosedOrder: `${PREFIX}-order-old-closed`,
+  listing: `${PREFIX}-listing`,
 });
 
 function safeError(error) {
@@ -136,6 +137,13 @@ async function seedCase(
     [orderId, ids.buyer],
   );
   await client.query(`
+    INSERT INTO public."OrderItem" (
+      id, "orderId", "listingId", quantity, "priceCents"
+    )
+    VALUES ($1, $2, $3, 1, 1000)
+  `, [`${orderId}-item`, orderId, ids.listing]);
+  const caseId = `${PREFIX}-case-${suffix}`;
+  await client.query(`
     INSERT INTO public."Case" (
       id, "orderId", "buyerId", "sellerId", reason, description,
       status, resolution, "sellerRespondBy", "resolvedAt",
@@ -161,13 +169,23 @@ async function seedCase(
       CURRENT_TIMESTAMP
     )
   `, [
-    `${PREFIX}-case-${suffix}`,
+    caseId,
     orderId,
     ids.buyer,
     ids.sellerUser,
     status,
     createdAt,
   ]);
+  await client.query(`
+    INSERT INTO public."CaseMessage" (
+      id, "caseId", "authorId", "authorKind", body, "createdAt"
+    )
+    VALUES (
+      $1, $2, $3, 'BUYER',
+      'Disposable opening evidence for the Case seller aggregate proof.',
+      $4
+    )
+  `, [`${caseId}-opening-message`, caseId, ids.buyer, createdAt]);
 }
 
 async function seedFixtures(client) {
@@ -197,6 +215,17 @@ async function seedFixtures(client) {
     );
     await seedSeller(client, ids.plainSeller, ids.plainUser);
     await seedSeller(client, ids.bannedSeller, ids.bannedUser);
+    await client.query(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", title, description, "priceCents",
+        "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, 'Case seller aggregate proof listing',
+        'Disposable seller aggregate authority proof.',
+        1000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.listing, ids.seller]);
 
     await seedCase(client, {
       orderId: ids.oldActiveOrder,
@@ -231,9 +260,15 @@ async function fixtureCounts(client) {
       (SELECT pg_catalog.count(*)::integer
          FROM public."SellerProfile" WHERE id LIKE $1) AS sellers,
       (SELECT pg_catalog.count(*)::integer
+         FROM public."Listing" WHERE id LIKE $1) AS listings,
+      (SELECT pg_catalog.count(*)::integer
          FROM public."Order" WHERE id LIKE $1) AS orders,
       (SELECT pg_catalog.count(*)::integer
-         FROM public."Case" WHERE id LIKE $1) AS cases
+         FROM public."OrderItem" WHERE id LIKE $1) AS items,
+      (SELECT pg_catalog.count(*)::integer
+         FROM public."Case" WHERE id LIKE $1) AS cases,
+      (SELECT pg_catalog.count(*)::integer
+         FROM public."CaseMessage" WHERE "caseId" LIKE $1) AS messages
   `, [`${PREFIX}%`]);
   return result.rows[0];
 }
@@ -264,11 +299,23 @@ async function cleanupFixtures(client) {
   await client.query("BEGIN");
   try {
     await client.query(
+      'DELETE FROM public."CaseMessage" WHERE "caseId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Case" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(
+      'DELETE FROM public."OrderItem" WHERE "orderId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Order" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."Listing" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(
@@ -335,7 +382,15 @@ export async function runCaseSellerAggregateProof(env = process.env) {
   try {
     assert.deepEqual(
       await fixtureCounts(owner),
-      { users: 0, sellers: 0, orders: 0, cases: 0 },
+      {
+        users: 0,
+        sellers: 0,
+        listings: 0,
+        orders: 0,
+        items: 0,
+        cases: 0,
+        messages: 0,
+      },
       "Case seller aggregate proof found pre-existing fixtures",
     );
     checks.push("preflight-zero-residue");
@@ -542,7 +597,15 @@ export async function runCaseSellerAggregateProof(env = process.env) {
 
     assert.deepEqual(
       await fixtureCounts(owner),
-      { users: 8, sellers: 4, orders: 3, cases: 3 },
+      {
+        users: 8,
+        sellers: 4,
+        listings: 1,
+        orders: 3,
+        items: 3,
+        cases: 3,
+        messages: 3,
+      },
       "Case seller aggregate proof changed protected state",
     );
     checks.push("expected-state-before-cleanup");
@@ -561,7 +624,15 @@ export async function runCaseSellerAggregateProof(env = process.env) {
     ]);
     assert.deepEqual(
       residue,
-      { users: 0, sellers: 0, orders: 0, cases: 0 },
+      {
+        users: 0,
+        sellers: 0,
+        listings: 0,
+        orders: 0,
+        items: 0,
+        cases: 0,
+        messages: 0,
+      },
       "Case seller aggregate proof left fixture residue",
     );
   }

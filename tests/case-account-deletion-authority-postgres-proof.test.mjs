@@ -73,6 +73,8 @@ describe("Case account-deletion PostgreSQL proof", () => {
     assert.match(source, /LENGTH_BOUNDARY_BODY/);
     assert.match(source, /TARGET_SHORT_TOKEN/);
     assert.match(source, /assertRedactedProtectedRows/);
+    assert.match(source, /INSERT INTO public\."OrderItem"/);
+    assert.match(source, /activeOpeningMessage/);
     assert.match(source, /fixture residue/);
     assert.match(source, /assert\.equal\(checks\.length, 16\)/);
   });

@@ -60,6 +60,8 @@ describe("Case escalation and cron-transition PostgreSQL proof", () => {
     assert.match(source, /FOR UPDATE/);
     assert.match(source, /Case is closed/);
     assert.match(source, /assertZeroResidue/);
+    assert.match(source, /seedFixturesBody/);
+    assert.match(source, /opening-message/);
   });
 
   const databaseUrl =

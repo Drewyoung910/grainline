@@ -66,6 +66,8 @@ test("Case staff queue proof exercises the authority and privacy boundary", () =
     /has_function_privilege\(\s*'PUBLIC'/,
   );
   assert.match(proof, /Case staff queue proof changed protected state/);
+  assert.match(proof, /INSERT INTO public\."OrderItem"/);
+  assert.match(proof, /opening-message/);
   assert.match(proof, /Case staff queue proof left fixture residue/);
   assert.match(
     proof,

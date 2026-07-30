@@ -196,7 +196,8 @@ async function seedCase(client, caseId, status, {
       id, "orderId", "buyerId", "sellerId", reason, description,
       status, "sellerRespondBy", "discussionStartedAt",
       "escalateUnlocksAt", "buyerMarkedResolved",
-      "sellerMarkedResolved", "createdAt", "updatedAt"
+      "sellerMarkedResolved", resolution, "resolvedAt",
+      "createdAt", "updatedAt"
     )
     VALUES (
       $1, $2, $3, $4, 'OTHER',
@@ -205,7 +206,16 @@ async function seedCase(client, caseId, status, {
       CURRENT_TIMESTAMP + INTERVAL '48 hours',
       CASE WHEN $5 = 'OPEN' THEN NULL ELSE CURRENT_TIMESTAMP - INTERVAL '1 hour' END,
       CASE WHEN $5 = 'OPEN' THEN NULL ELSE CURRENT_TIMESTAMP + INTERVAL '47 hours' END,
-      $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      $6, $7,
+      CASE WHEN $5 IN ('RESOLVED', 'CLOSED')
+        THEN 'DISMISSED'::public."CaseResolution"
+        ELSE NULL
+      END,
+      CASE WHEN $5 IN ('RESOLVED', 'CLOSED')
+        THEN CURRENT_TIMESTAMP
+        ELSE NULL
+      END,
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [
     caseId,
@@ -216,6 +226,16 @@ async function seedCase(client, caseId, status, {
     buyerMarkedResolved,
     sellerMarkedResolved,
   ]);
+  await client.query(`
+    INSERT INTO public."CaseMessage" (
+      id, "caseId", "authorId", "authorKind", body, "createdAt"
+    )
+    VALUES (
+      $1, $2, $3, 'BUYER',
+      'Disposable opening evidence for the Case-reply authority proof.',
+      CURRENT_TIMESTAMP
+    )
+  `, [`${caseId}-opening-message`, caseId, ids.buyer]);
 }
 
 function uploadKey(caseId, suffix) {
@@ -242,7 +262,7 @@ async function seedUpload(client, id, {
   `, [id, uploadKey(caseId, id), ownerId, status]);
 }
 
-async function seedFixtures(client) {
+async function seedFixturesBody(client) {
   await seedUsers(client);
   await seedCase(client, ids.openCase, "OPEN");
   await seedCase(client, ids.pendingCase, "PENDING_CLOSE", {
@@ -259,6 +279,17 @@ async function seedFixtures(client) {
   await seedUpload(client, ids.wrongCaseUpload, { caseId: ids.replayCase });
   await seedUpload(client, ids.unverifiedUpload, { status: "PRESIGNED" });
   await seedUpload(client, ids.rollbackUpload, { caseId: ids.rollbackCase });
+}
+
+async function seedFixtures(client) {
+  await client.query("BEGIN");
+  try {
+    await seedFixturesBody(client);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function cleanupFixtures(client) {

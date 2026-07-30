@@ -167,7 +167,7 @@ async function cleanupFixtures(client) {
   }
 }
 
-async function seedFixtures(client) {
+async function seedFixturesBody(client) {
   await client.query(`
     INSERT INTO public."User" (
       id, "clerkId", email, name, role, "createdAt", "updatedAt"
@@ -279,6 +279,16 @@ async function seedFixtures(client) {
       status,
       status === "PENDING_CLOSE",
     ]);
+    await client.query(`
+      INSERT INTO public."CaseMessage" (
+        id, "caseId", "authorId", "authorKind", body, "createdAt"
+      )
+      VALUES (
+        $1, $2, $3, 'BUYER',
+        'Disposable opening evidence for the escalation and cron proof.',
+        CURRENT_TIMESTAMP - INTERVAL '40 days'
+      )
+    `, [`${caseId}-opening-message`, caseId, ids.buyer]);
   }
   await client.query(`
     UPDATE public."Order"
@@ -286,6 +296,17 @@ async function seedFixtures(client) {
      WHERE id = $1
   `, [orderId(ids.leaseEscalation)]);
   await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+}
+
+async function seedFixtures(client) {
+  await client.query("BEGIN");
+  try {
+    await seedFixturesBody(client);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function installProofRls(client) {

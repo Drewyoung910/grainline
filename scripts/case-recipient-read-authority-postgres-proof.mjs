@@ -20,6 +20,8 @@ const ids = Object.freeze({
   deleted: `${PREFIX}-deleted`,
   activeOrder: `${PREFIX}-active-order`,
   resolvedOrder: `${PREFIX}-resolved-order`,
+  sellerProfile: `${PREFIX}-seller-profile`,
+  listing: `${PREFIX}-listing`,
   activeCase: `${PREFIX}-active-case`,
   resolvedCase: `${PREFIX}-resolved-case`,
 });
@@ -149,6 +151,42 @@ async function seedFixtures(client) {
       [ids.activeOrder, ids.buyer, ids.resolvedOrder, ids.buyer],
     );
     await client.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, 'Case recipient-read proof seller',
+        'case recipient-read proof seller',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.sellerProfile, ids.seller]);
+    await client.query(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", title, description, "priceCents",
+        "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, 'Case recipient-read proof listing',
+        'Disposable Case recipient-read authority proof.',
+        1000, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.listing, ids.sellerProfile]);
+    await client.query(`
+      INSERT INTO public."OrderItem" (
+        id, "orderId", "listingId", quantity, "priceCents"
+      )
+      VALUES
+        ($1, $2, $3, 1, 1000),
+        ($4, $5, $3, 1, 1000)
+    `, [
+      `${ids.activeOrder}-item`,
+      ids.activeOrder,
+      ids.listing,
+      `${ids.resolvedOrder}-item`,
+      ids.resolvedOrder,
+    ]);
+    await client.query(`
       INSERT INTO public."Case" (
         id, "orderId", "buyerId", "sellerId", reason, description,
         status, "sellerRespondBy", "createdAt", "updatedAt"
@@ -186,6 +224,24 @@ async function seedFixtures(client) {
       ids.seller,
       CREATED_AT,
     ]);
+    await client.query(`
+      INSERT INTO public."CaseMessage" (
+        id, "caseId", "authorId", "authorKind", body, "createdAt"
+      )
+      VALUES
+        ($1, $2, $3, 'BUYER',
+         'Disposable active Case opening evidence.', $4::timestamp),
+        ($5, $6, $7, 'SELLER',
+         'Disposable resolved Case opening evidence.', $4::timestamp)
+    `, [
+      `${ids.activeCase}-opening-message`,
+      ids.activeCase,
+      ids.buyer,
+      CREATED_AT,
+      `${ids.resolvedCase}-opening-message`,
+      ids.resolvedCase,
+      ids.seller,
+    ]);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
@@ -197,11 +253,27 @@ async function cleanupFixtures(client) {
   await client.query("BEGIN");
   try {
     await client.query(
+      'DELETE FROM public."CaseMessage" WHERE "caseId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Case" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(
+      'DELETE FROM public."OrderItem" WHERE "orderId" LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
       'DELETE FROM public."Order" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."Listing" WHERE id LIKE $1',
+      [`${PREFIX}%`],
+    );
+    await client.query(
+      'DELETE FROM public."SellerProfile" WHERE id LIKE $1',
       [`${PREFIX}%`],
     );
     await client.query(

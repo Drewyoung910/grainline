@@ -44,6 +44,7 @@ describe("Case-aware Order PostgreSQL proof", () => {
     assert.match(source, /fixed-retention-targets-and-rollback/);
     assert.match(source, /retention-skip-locked-race/);
     assert.match(source, /order-lock-serializes-case-open/);
+    assert.match(source, /opening-message/);
     assert.match(source, /caller-context-unchanged/);
     assert.match(source, /preflight-zero-residue/);
     assert.match(source, /Case-aware Order proof left fixture residue/);
