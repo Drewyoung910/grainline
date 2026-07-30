@@ -153,6 +153,24 @@ test("Case read-mode release records the threat boundary and live predecessor", 
   );
 });
 
+test("Case read-mode release records the exact accepted production proof", () => {
+  assert.match(
+    release,
+    /eadfe234e6543790953d1737bb78b4cdfc366d5a/,
+  );
+  assert.match(release, /30558713676/);
+  assert.match(release, /90925844061/);
+  assert.match(release, /30559726020/);
+  assert.match(release, /90929329701/);
+  assert.match(
+    release,
+    /a61462f355c46b161932261ed75031875c8022f20a490e50f32166a870267d9a/,
+  );
+  assert.match(release, /repeatable-read, read-only/);
+  assert.match(release, /RLS off, FORCE off,\s+zero policies/);
+  assert.match(release, /postflight changed no production state/);
+});
+
 test("Case read-mode release keeps downstream PostgreSQL catalog proofs aligned", () => {
   assert.match(recipientReadProof, /security_definer: true/);
   assert.doesNotMatch(recipientReadProof, /security_definer: false/);

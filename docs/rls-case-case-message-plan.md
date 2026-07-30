@@ -1530,13 +1530,18 @@ later releases. The operator and exact evidence contract are recorded in
 ### Compatible read-mode convergence (2026-07-30)
 
 The invariant-only production migration and pooled-runtime proof are accepted.
-The next isolated candidate promotes only
-`20260730020000_converge_case_read_modes`. It mechanically derives from the
-accepted read-mode draft and changes exactly four bounded Case projections
-from INVOKER to DEFINER. It changes no body, RLS flag, policy, table grant or
-row. The current reviewed migration-tree fingerprint is
+The compatible read-mode convergence is also live and postflighted from exact
+main commit `eadfe234e6543790953d1737bb78b4cdfc366d5a`: protected migration run
+`30559726020` applied only
+`20260730020000_converge_case_read_modes`, and pooled-runtime evidence SHA-256
+`a61462f355c46b161932261ed75031875c8022f20a490e50f32166a870267d9a`
+proved the exact catalog in a read-only transaction. It mechanically derives
+from the accepted read-mode draft and changes exactly four bounded Case
+projections from INVOKER to DEFINER. It changes no body, RLS flag, policy,
+table grant or row. The reviewed migration-tree fingerprint is
 `e0dfa816c70aa0aee6ccf3e6aa72e6412dc0e9f3d20413152caa236744dd6e4c`.
-The production guard advances only to `case-read-mode-reviewed`; policyless
-ENABLE and FORCE remain rejected as later releases. Exact scope, threat limit,
-proof requirements and evidence contract are in
+Case-family RLS remains off, FORCE remains off, zero policies exist, and
+predecessor CRUD remains temporarily compatible. Policyless ENABLE and FORCE
+remain separate later releases. Exact scope, threat limit, proof and evidence
+are in
 `docs/case-read-mode-production-release.md`.

@@ -1,10 +1,11 @@
 # Case read-mode production release
 
-Status: reviewed compatible candidate only. The migration is staged in the
-repository for PostgreSQL and CI proof; it is not applied to production.
-Case, CaseMessage and CaseMessageAttachment RLS remains off, FORCE remains
-off, zero policies exist, and the predecessor runtime table grants remain
-unchanged.
+Status: live compatible preparation in production. The exact migration was
+applied from main commit
+`eadfe234e6543790953d1737bb78b4cdfc366d5a`; no application deploy,
+policyless ENABLE, FORCE, policy, Case-family table-grant or provider change
+was included. Case-family RLS remains off with zero policies; FORCE remains
+off, and the predecessor runtime table grants remain unchanged.
 
 ## Exact scope
 
@@ -45,6 +46,35 @@ to any other role.
 The migration contains no function body replacement, dynamic SQL, RLS
 statement, policy, Case-family table or column grant change, row DML,
 application change, provider variable change, or deployment.
+
+## Accepted production result
+
+Exact main commit
+`eadfe234e6543790953d1737bb78b4cdfc366d5a` passed main CI run
+`30558713676` (job `90925844061`). Protected Production Migrations run
+`30559726020` (job `90929329701`) then applied exactly
+`20260730020000_converge_case_read_modes`. The workflow verified the exact
+source and release bytes before migration, reported the database schema
+current afterward, and passed the final runtime grant and RLS catalog audit.
+It did not deploy application code.
+
+The independent postflight used the real pooled `grainline_app_runtime`
+credential inside a PostgreSQL-attested repeatable-read, read-only
+transaction. It proved:
+
+- all 26 compatible runtime functions have their exact reviewed authority,
+  ACL and pinned search path, including the four converged projections;
+- all three private helper functions remain runtime-inaccessible;
+- all four private Case service ledgers retain ENABLE plus FORCE with zero
+  policies and no runtime table access;
+- Case, CaseMessage and CaseMessageAttachment retain RLS off, FORCE off,
+  zero policies and their compatible predecessor CRUD grants; and
+- the postflight changed no production state.
+
+Sanitized evidence is stored outside the repository as
+`case-compatible-database-production-postflight-eadfe234e6543790953d1737bb78b4cdfc366d5a.json`,
+mode `0600`, with SHA-256
+`a61462f355c46b161932261ed75031875c8022f20a490e50f32166a870267d9a`.
 
 ## Why this release is separate
 
@@ -127,14 +157,10 @@ policyless activation and FORCE drafts directly against the actual migrated
 read-mode posture. A static release assertion prevents the promoted read-mode
 draft from being replayed after migrations again. Production was unchanged.
 
-If it is later applied, rerun
-`npm run ops:case-compatible-db-postflight` through the real pooled
-`grainline_app_runtime` credential in a repeatable-read read-only transaction.
-The postflight must prove the exact four functions are DEFINER, owner-held,
-runtime-executable, not PUBLIC-executable and still pinned to
-`search_path=pg_catalog`. It must also prove Case-family RLS remains off with
-zero policies and unchanged predecessor CRUD. Retain sanitized mode-0600
-evidence bound to the exact main commit and migration run.
+The required `npm run ops:case-compatible-db-postflight` run is complete and
+accepted in the production result above. Any later Case preparation that
+changes this catalog must produce fresh evidence rather than reusing this
+snapshot.
 
 Do not combine this migration with policyless ENABLE, table-grant revocation,
 FORCE, Case-evidence enablement, a Vercel deploy, or provider changes. ENABLE
