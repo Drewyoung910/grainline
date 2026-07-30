@@ -101,6 +101,15 @@ the ten post-migration proof fixtures drops atomic seeding, exact seller
 evidence or opening-message evidence. No policy, authority function,
 application path, migration byte or production state changed in this repair.
 
+Exact-head CI run `30515681220` (job `90784835276`) then reached the repaired
+Case-reply proof and rejected one non-OPEN fixture whose
+`discussionStartedAt` preceded its synthetic `createdAt`. The fixture now
+models a Case opened two hours earlier and discussion started one hour
+earlier, while preserving the same authority assertions. A focused static
+regression test records that clock ordering. This was another disposable
+fixture-only failure; the promoted migration, application, production and
+persistent staging remained unchanged.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:

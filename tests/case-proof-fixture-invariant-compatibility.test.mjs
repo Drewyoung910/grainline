@@ -47,3 +47,18 @@ test("post-migration Case-message page proof cannot recreate retired null author
   );
   assert.match(source, /proveCanonicalAuthorKindProjection/);
 });
+
+test("post-migration Case-reply fixtures order lifecycle clocks consistently", () => {
+  const source = fs.readFileSync(
+    "scripts/case-reply-authority-postgres-proof.mjs",
+    "utf8",
+  );
+  assert.match(
+    source,
+    /CURRENT_TIMESTAMP - INTERVAL '2 hours', CURRENT_TIMESTAMP/,
+  );
+  assert.match(
+    source,
+    /CURRENT_TIMESTAMP - INTERVAL '1 hour'/,
+  );
+});
