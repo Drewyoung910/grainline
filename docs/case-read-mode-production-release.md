@@ -87,6 +87,16 @@ The candidate must pass:
    the complete Case authority/invariant/activation/rollback proof; and
 5. an Extra-High SQL/ACL review of the exact candidate bytes.
 
+The first PR CI run (`30556373625`, job `90917762851`) stopped in the
+recipient-read PostgreSQL proof before any production action. The full
+migration tree had correctly converted the three recipient-read functions to
+DEFINER, while that older proof still expected their predecessor INVOKER
+catalog posture. Review found the same stale predecessor expectation in the
+later account-export proof. Both proof harnesses now require DEFINER, and the
+release test pins both expectations so this migration-mode drift cannot recur
+silently. This was proof-code drift, not a failed runtime authority check;
+production was unchanged.
+
 If it is later applied, rerun
 `npm run ops:case-compatible-db-postflight` through the real pooled
 `grainline_app_runtime` credential in a repeatable-read read-only transaction.

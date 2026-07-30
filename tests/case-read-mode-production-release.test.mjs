@@ -20,6 +20,14 @@ const workflow = fs.readFileSync(
   ".github/workflows/production-migrations.yml",
   "utf8",
 );
+const recipientReadProof = fs.readFileSync(
+  "scripts/case-recipient-read-authority-postgres-proof.mjs",
+  "utf8",
+);
+const accountExportProof = fs.readFileSync(
+  "scripts/case-account-export-authority-postgres-proof.mjs",
+  "utf8",
+);
 
 test("Case read-mode release pins exact source, migration, and tree bytes", () => {
   const candidate = buildCaseReadModeCandidate();
@@ -101,4 +109,11 @@ test("Case read-mode release records the threat boundary and live predecessor", 
     release,
     /Do not combine this migration with policyless ENABLE/,
   );
+});
+
+test("Case read-mode release keeps downstream PostgreSQL catalog proofs aligned", () => {
+  assert.match(recipientReadProof, /security_definer: true/);
+  assert.doesNotMatch(recipientReadProof, /security_definer: false/);
+  assert.match(accountExportProof, /prosecdef: true/);
+  assert.doesNotMatch(accountExportProof, /prosecdef: false/);
 });

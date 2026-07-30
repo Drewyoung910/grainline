@@ -45,9 +45,9 @@ describe("Case recipient-read PostgreSQL proof", () => {
     );
   });
 
-  it("proves runtime INVOKER authority, projection minimality, context, and cleanup", () => {
+  it("proves runtime DEFINER authority, projection minimality, context, and cleanup", () => {
     assert.match(proof, /SET LOCAL ROLE grainline_app_runtime/);
-    assert.match(proof, /security_definer: false/);
+    assert.match(proof, /security_definer: true/);
     assert.match(proof, /public_execute: false/);
     assert.match(proof, /runtime_execute: true/);
     assert.match(proof, /proveRecipientAuthority/);
