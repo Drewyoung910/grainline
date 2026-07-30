@@ -30,7 +30,7 @@ test("Case invariant release pins exact source, migration, and tree bytes", () =
   assert.equal(migration, candidate.migration);
   assert.equal(
     createHash("sha256").update(migration).digest("hex"),
-    "85aa6826f50d5af0be938fd455e7d42999e6715e40bdf7b4c864416d9191d8e8",
+    "4557c044740a6cee0d30b78ebe1d9bb300b43613cf979fba01d2571e3c4d1fa1",
   );
   const migrationNames = fs.readdirSync(
     "prisma/migrations",

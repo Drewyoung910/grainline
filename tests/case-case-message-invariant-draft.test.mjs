@@ -121,7 +121,7 @@ test("Case lifecycle constraints reject mixed active and terminal evidence", () 
   );
   assert.match(
     normalizedSql,
-    /resolution IN \( 'REFUND_FULL'.*'REFUND_PARTIAL'.*AND "refundAmountCents" > 0.*AND "stripeRefundId" IS NOT NULL/s,
+    /resolution IN \( 'REFUND_FULL'.*'REFUND_PARTIAL'.*AND "refundAmountCents" > 0.*AND "stripeRefundId" IS NOT NULL.*AND pg_catalog\.btrim\("stripeRefundId"\) <> ''/s,
   );
 });
 

@@ -1517,9 +1517,9 @@ compatibility window.
 The next isolated candidate promotes only
 `20260730010000_enforce_case_message_invariants`. Its SQL is mechanically
 derived from the byte-pinned accepted draft, with migration SHA-256
-`85aa6826f50d5af0be938fd455e7d42999e6715e40bdf7b4c864416d9191d8e8`
+`4557c044740a6cee0d30b78ebe1d9bb300b43613cf979fba01d2571e3c4d1fa1`
 and reviewed tree SHA-256
-`1e553c9e8253f25ef1c6a0bd4eff64c4ed154343500ad9d1f0bf0ed707ee1dad`.
+`91815465852a6ce8aafbd05ac3a6775925da5303284360b71d6f84f3a20f3b64`.
 It contains six validated constraints, eight runtime-private trigger
 functions and nine triggers. It contains no RLS, policy, table/column grant,
 application or provider change. The production guard advances only to

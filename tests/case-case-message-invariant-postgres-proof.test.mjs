@@ -68,6 +68,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   for (const check of [
     "forged_buyer_author",
     "mixed_active_refund_evidence",
+    "blank_refund_provider_evidence",
     "stale_refund_snapshot_on_reopen",
     "empty_participant_opening",
     "wrong_order_payment_evidence",
@@ -116,7 +117,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);
-  assert.match(proof, /checks: 54/);
+  assert.match(proof, /checks: 55/);
   assert.match(proof, /provePolicylessActivation/);
   assert.match(proof, /case_force_candidate/);
 });

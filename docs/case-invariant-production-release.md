@@ -10,14 +10,14 @@ The release contains exactly one new migration:
 
 - `20260730010000_enforce_case_message_invariants`
 - migration SHA-256:
-  `85aa6826f50d5af0be938fd455e7d42999e6715e40bdf7b4c864416d9191d8e8`
+  `4557c044740a6cee0d30b78ebe1d9bb300b43613cf979fba01d2571e3c4d1fa1`
 - complete reviewed migration-tree SHA-256:
-  `1e553c9e8253f25ef1c6a0bd4eff64c4ed154343500ad9d1f0bf0ed707ee1dad`
+  `91815465852a6ce8aafbd05ac3a6775925da5303284360b71d6f84f3a20f3b64`
 
 `scripts/stage-case-invariant-migration.mjs` derives the migration from the
 byte-pinned draft
 `docs/rls-drafts/case-case-message-invariants.sql` (SHA-256
-`08d635abe68a2a3b0bd926989d579ad3f339825ac7a33508085e1d792b259393`).
+`a9b0a944f071717cda64c56b92050ef9fe696ca6b9e5b04750831ce14da42eb7`).
 The generator rejects source drift, an existing destination, any Case-family
 RLS/policy/table-grant statement, and catalog-count drift. Staging or
 unstaging requires the explicit acknowledgement plus a loopback
@@ -134,6 +134,14 @@ and paired it with PostgreSQL `CURRENT_TIMESTAMP`, which remains fixed at the
 earlier transaction start. The fixture now derives `updatedAt` as the greater
 of those two values. A class audit found no other direct fixture combining a
 post-BEGIN JavaScript Case clock with an earlier database transaction clock.
+
+The Extra-High promoted-SQL review then found that
+`Case_resolution_shape_check` rejected an empty refund provider ID but not a
+whitespace-only value. Both the legacy preflight and durable check now use
+`pg_catalog.btrim`, and the rollback-only engine proof adds an explicit
+`blank_refund_provider_evidence` rejection as check 55. This security
+strengthening changed only the still-unapplied invariant draft/candidate and
+their exact hashes; production remained unchanged.
 
 ## Production postflight contract
 

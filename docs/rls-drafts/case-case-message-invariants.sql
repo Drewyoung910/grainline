@@ -164,6 +164,7 @@ BEGIN
        AND (
          COALESCE(case_row."refundAmountCents", 0) <= 0
          OR case_row."stripeRefundId" IS NULL
+         OR pg_catalog.btrim(case_row."stripeRefundId") = ''
        )
      )
      OR (
@@ -322,7 +323,7 @@ ALTER TABLE public."Case"
         )
         AND "refundAmountCents" > 0
         AND "stripeRefundId" IS NOT NULL
-        AND "stripeRefundId" <> ''
+        AND pg_catalog.btrim("stripeRefundId") <> ''
       )
     )
     NOT VALID,

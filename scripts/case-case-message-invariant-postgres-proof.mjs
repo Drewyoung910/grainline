@@ -441,6 +441,23 @@ async function proveCaseAndMessageInvariants(client) {
     /Case_lifecycle_evidence_check/,
   );
 
+  await expectPostgresError(
+    client,
+    "blank_refund_provider_evidence",
+    () => client.query(`
+      UPDATE public."Case"
+         SET status = 'RESOLVED',
+             resolution = 'REFUND_FULL',
+             "refundAmountCents" = 10000,
+             "stripeRefundId" = '   ',
+             "resolvedAt" = CURRENT_TIMESTAMP,
+             "resolvedById" = $2,
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $1
+    `, [ids.ordinaryCase, ids.staff]),
+    /Case_resolution_shape_check/,
+  );
+
   await client.query(`
     UPDATE public."Case"
        SET status = 'RESOLVED',
@@ -2084,7 +2101,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 54,
+      checks: 55,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
