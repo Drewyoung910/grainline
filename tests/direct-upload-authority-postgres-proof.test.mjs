@@ -103,7 +103,14 @@ describe("DirectUpload authority PostgreSQL proof harness", () => {
 
   it("cleans every fixture and records that no persistent environment changed", () => {
     assert.match(proof, /async function cleanupFixtures/);
-    assert.match(proof, /await cleanupFixtures\(owner\)\.catch/);
+    assert.match(
+      proof,
+      /finally \{\s*try \{\s*await cleanupFixtures\(owner\);\s*\} finally \{/,
+    );
+    assert.doesNotMatch(
+      proof,
+      /cleanupFixtures\(owner\)\.catch\(\(\) => \{\}\)/,
+    );
     assert.match(proof, /persistentStagingChanged: false/);
     assert.match(proof, /productionChanged: false/);
     assert.match(proof, /example\.invalid/);

@@ -159,12 +159,6 @@ async function waitForLock(observer, applicationName) {
 
 async function cleanupFixtures(owner) {
   await owner.query(
-    `DELETE FROM public."CaseMessageAttachment" WHERE id LIKE '${PREFIX}-%'`,
-  );
-  await owner.query(
-    `DELETE FROM public."CaseMessage" WHERE id LIKE '${PREFIX}-%'`,
-  );
-  await owner.query(
     `DELETE FROM public."Case" WHERE id LIKE '${PREFIX}-%'`,
   );
   await owner.query(
@@ -1459,9 +1453,12 @@ export async function runProof(env = process.env) {
       productionChanged: false,
     };
   } finally {
-    await cleanupFixtures(owner).catch(() => {});
-    await runtime.end().catch(() => {});
-    await owner.end().catch(() => {});
+    try {
+      await cleanupFixtures(owner);
+    } finally {
+      await runtime.end().catch(() => {});
+      await owner.end().catch(() => {});
+    }
   }
 }
 

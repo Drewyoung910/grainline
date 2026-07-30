@@ -175,3 +175,27 @@ test("Notification resolution fixtures keep refund provider evidence complete", 
     "Notification proof must not rewrite immutable CaseMessage authority",
   );
 });
+
+test("DirectUpload proof teardown preserves opening evidence and fails loudly", () => {
+  for (const path of [
+    "scripts/direct-upload-activation-postgres-proof.mjs",
+    "scripts/direct-upload-authority-postgres-proof.mjs",
+  ]) {
+    const source = fs.readFileSync(path, "utf8");
+    const cleanup = source.match(
+      /async function cleanupFixtures\([\s\S]+?\n}\n\nasync function seedFixturesInTransaction/,
+    )?.[0];
+    assert.ok(cleanup, `${path} cleanup helper is missing`);
+    assert.match(cleanup, /DELETE FROM public\."Case"/);
+    assert.doesNotMatch(
+      cleanup,
+      /DELETE FROM public\."CaseMessage"/,
+      `${path} must cascade from the parent Case`,
+    );
+    assert.doesNotMatch(
+      source,
+      /cleanupFixtures\(owner\)\.catch\(\(\) => \{\}\)/,
+      `${path} must not suppress cleanup failure`,
+    );
+  }
+});

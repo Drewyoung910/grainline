@@ -202,6 +202,11 @@ reply is expected to fail closed.
 The first execution of that branch also confirmed PostgreSQL cannot infer a
 timestamp parameter through a mixed `CASE` expression; the proof now casts the
 resolved clock explicitly to the table's timestamp-without-time-zone type.
+Final branch review found that both DirectUpload harnesses still deleted
+CaseMessages before their parent and suppressed any cleanup error. Their
+ephemeral containers were destroyed, so no fixture persisted, but that could
+produce a false clean-teardown claim. Cleanup now cascades from the parent Case,
+propagates failure, and still closes every connection in a nested `finally`.
 
 ## Production postflight contract
 

@@ -93,12 +93,6 @@ async function expectSqlState(action, expectedState, label) {
 }
 
 async function cleanupFixtures(owner) {
-  await owner.query(
-    `DELETE FROM public."CaseMessageAttachment" WHERE id LIKE '${PREFIX}-%'`,
-  );
-  await owner.query(
-    `DELETE FROM public."CaseMessage" WHERE id LIKE '${PREFIX}-%'`,
-  );
   await owner.query(`DELETE FROM public."Case" WHERE id LIKE '${PREFIX}-%'`);
   await owner.query(`DELETE FROM public."Order" WHERE id LIKE '${PREFIX}-%'`);
   await owner.query(`DELETE FROM public."Photo" WHERE id LIKE '${PREFIX}-%'`);
@@ -590,10 +584,13 @@ export async function runDirectUploadActivationProof(env = process.env) {
       productionChanged: false,
     });
   } finally {
-    await cleanupFixtures(owner).catch(() => {});
-    await cleanup.end().catch(() => {});
-    await runtime.end().catch(() => {});
-    await owner.end().catch(() => {});
+    try {
+      await cleanupFixtures(owner);
+    } finally {
+      await cleanup.end().catch(() => {});
+      await runtime.end().catch(() => {});
+      await owner.end().catch(() => {});
+    }
   }
 }
 
