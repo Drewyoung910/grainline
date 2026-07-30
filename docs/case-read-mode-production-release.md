@@ -118,6 +118,15 @@ delimiters, including both newlines; the release test recomputes all four
 digests from their preparation migrations and requires each in both preflight
 and postflight.
 
+The next corrected run (`30558048363`, job `90923530625`) applied the full
+migration tree and passed every Case authority proof through account deletion.
+It then stopped in the older rollback-only invariant harness because that
+harness replayed the read-mode draft even though the promoted migration had
+already converged the four functions. The harness now exercises the later
+policyless activation and FORCE drafts directly against the actual migrated
+read-mode posture. A static release assertion prevents the promoted read-mode
+draft from being replayed after migrations again. Production was unchanged.
+
 If it is later applied, rerun
 `npm run ops:case-compatible-db-postflight` through the real pooled
 `grainline_app_runtime` credential in a repeatable-read read-only transaction.

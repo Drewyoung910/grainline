@@ -36,6 +36,10 @@ const accountExportPreparation = fs.readFileSync(
   "prisma/migrations/20260729059000_prepare_case_account_export_authority/migration.sql",
   "utf8",
 );
+const invariantPostgresProof = fs.readFileSync(
+  "scripts/case-case-message-invariant-postgres-proof.mjs",
+  "utf8",
+);
 
 function functionBody(source, functionName) {
   const match = source.match(
@@ -154,4 +158,8 @@ test("Case read-mode release keeps downstream PostgreSQL catalog proofs aligned"
   assert.doesNotMatch(recipientReadProof, /security_definer: false/);
   assert.match(accountExportProof, /prosecdef: true/);
   assert.doesNotMatch(accountExportProof, /prosecdef: false/);
+  assert.doesNotMatch(
+    invariantPostgresProof,
+    /READ_MODE_DRAFT|readModeBody/,
+  );
 });

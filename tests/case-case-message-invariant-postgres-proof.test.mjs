@@ -47,7 +47,6 @@ test("Case invariant proof refuses persistent database targets", () => {
 test("Case invariant proof strips only reviewed transaction wrappers", () => {
   for (const draft of [
     "docs/rls-drafts/case-case-message-invariants.sql",
-    "docs/rls-drafts/case-case-message-read-mode.sql",
     "docs/rls-drafts/case-case-message-activation.sql",
     "docs/rls-drafts/case-case-message-activation-rollback.sql",
     "docs/rls-drafts/case-case-message-force.sql",
@@ -61,6 +60,10 @@ test("Case invariant proof strips only reviewed transaction wrappers", () => {
   assert.doesNotMatch(
     proof,
     /readDraftTransactionBody\(CLAIM_DRAFT\)/,
+  );
+  assert.doesNotMatch(
+    proof,
+    /readDraftTransactionBody\(READ_MODE_DRAFT\)|client\.query\(readModeBody\)/,
   );
 });
 
@@ -185,5 +188,10 @@ test("main CI runs the proof after migrations and grant convergence", () => {
   assert.match(
     workflow,
     /CASE_INVARIANT_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/,
+  );
+  assert.doesNotMatch(
+    proof,
+    /READ_MODE_DRAFT|readModeBody/,
+    "the promoted read-mode migration must not be replayed as a draft",
   );
 });
