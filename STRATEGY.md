@@ -1133,6 +1133,16 @@ disposable race harness imported it. Remove the helper from production source,
 keep the proof-only lock local to that harness, and retain the historical
 reference in a machine-checked retired ledger. Production remained unchanged.
 
+Treat PostgreSQL `PUBLIC` as ACL grantee OID zero, not as a named role.
+Exact run `30503586032` passed the corrected 27-function catalog and then
+failed inside the disposable activation transaction because
+`has_table_privilege('PUBLIC', ...)` raised “role PUBLIC does not exist.”
+Inspect direct table and column ACLs through `aclexplode(...).grantee = 0`.
+When a predecessor contract requires every CRUD privilege, check SELECT,
+INSERT, UPDATE and DELETE separately; PostgreSQL comma-list privilege helpers
+answer whether any listed privilege is held. The failed proof rolled back and
+production remained unchanged.
+
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
 Vercel/database exceptions, disposable secrets, and provider resources were

@@ -1461,3 +1461,16 @@ local to that harness, and accounts for the historical reference in a
 retired-source ledger. It does not create new owner authority merely to
 satisfy a mistaken count. Production and persistent staging were unchanged; a
 fresh exact-head run is required.
+
+Exact corrected-catalog head
+`04b546350cf0fbec34fc9294f188d1160c95e999` passed every preceding Case
+authority proof and reached the policyless activation body in GitHub Actions
+run `30503586032` (job `90748394722`). The disposable transaction then failed
+in activation postflight because PostgreSQL does not treat `PUBLIC` as a role
+name for `has_table_privilege` or `has_any_column_privilege`; PUBLIC is the
+ACL pseudo-grantee with OID zero. The corrected activation, rollback and FORCE
+drafts use `aclexplode(...).grantee = 0` for direct PUBLIC table/column grants.
+They also test all four required predecessor/rollback CRUD privileges
+individually, avoiding comma-list “any privilege” semantics. The proof
+transaction rolled back and production/persistent staging were unchanged. A
+fresh exact-head run is required.

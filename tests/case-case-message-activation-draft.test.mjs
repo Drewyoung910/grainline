@@ -99,6 +99,40 @@ test("Case activation draft freezes before inspecting mutable posture", () => {
   );
 });
 
+test("Case posture drafts inspect PUBLIC as the ACL pseudo-grantee", () => {
+  for (const [name, sql] of [
+    ["activation", activationSql],
+    ["activation rollback", rollbackSql],
+    ["FORCE", forceSql],
+    ["FORCE rollback", forceRollbackSql],
+  ]) {
+    assert.doesNotMatch(
+      sql,
+      /has_(?:table|any_column)_privilege\(\s*'PUBLIC'/s,
+      name,
+    );
+    assert.match(sql, /acl\.grantee = 0/, name);
+  }
+
+  const predecessorSlice = activationSql.slice(
+    activationSql.indexOf("INTO table_count"),
+    activationSql.indexOf("IF table_count <> 3"),
+  );
+  for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+    assert.match(
+      predecessorSlice,
+      new RegExp(
+        `has_table_privilege\\(\\s*'grainline_app_runtime',\\s*class\\.oid,\\s*'${privilege}'\\s*\\)`,
+        "s",
+      ),
+    );
+  }
+  assert.doesNotMatch(
+    predecessorSlice,
+    /has_table_privilege\([\s\S]*?'SELECT,INSERT,UPDATE,DELETE'/,
+  );
+});
+
 test("Case activation preflight pins all 27 fixed catalog operations", () => {
   const catalogSlice = activationSql.slice(
     activationSql.indexOf("INTO function_count"),

@@ -813,6 +813,19 @@ source, retains the lock locally in that harness, and accounts for the
 historical reference in a machine-checked retired ledger. It does not add
 database authority to satisfy a mistaken count. Production was unchanged.
 
+ACL-audit correction (2026-07-29): exact head
+`04b546350cf0fbec34fc9294f188d1160c95e999` passed the corrected
+27-function catalog, then failed inside the disposable activation transaction
+in run `30503586032` (job `90748394722`). PostgreSQL does not resolve
+`PUBLIC` as a role name in `has_table_privilege` or
+`has_any_column_privilege`; it represents PUBLIC grants as ACL grantee OID
+zero. The drafts now inspect table and column ACL entries with
+`aclexplode(...).grantee = 0`. They also require SELECT, INSERT, UPDATE and
+DELETE separately when proving the compatible predecessor or restored
+rollback posture, because a comma-separated privilege request succeeds when
+any listed privilege is held. The failure rolled back before proof completion;
+production and persistent staging were unchanged.
+
 The shared
 `grainline_account_deletion_redact_text_core(text, text[])` remains
 owner-internal: neither `PUBLIC` nor `grainline_app_runtime` receives

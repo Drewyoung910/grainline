@@ -1884,7 +1884,27 @@ async function provePolicylessActivation(
        AND pg_catalog.has_table_privilege(
          'grainline_app_runtime',
          class.oid,
-         'SELECT,INSERT,UPDATE,DELETE'
+         'SELECT'
+       )
+       AND pg_catalog.has_table_privilege(
+         'grainline_app_runtime',
+         class.oid,
+         'INSERT'
+       )
+       AND pg_catalog.has_table_privilege(
+         'grainline_app_runtime',
+         class.oid,
+         'UPDATE'
+       )
+       AND pg_catalog.has_table_privilege(
+         'grainline_app_runtime',
+         class.oid,
+         'DELETE'
+       )
+       AND NOT pg_catalog.has_table_privilege(
+         'grainline_app_runtime',
+         class.oid,
+         'TRUNCATE,REFERENCES,TRIGGER'
        )
   `);
   assert.equal(rolledBackCatalog.rows[0]?.count, 3);

@@ -778,3 +778,17 @@ keeps the equivalent row lock local to the test harness, and records the
 historical reference in a retired-source ledger instead of inventing a new
 owner-privileged function. Production was unchanged; a fresh exact-head
 PostgreSQL run is required.
+
+Exact corrected-catalog head
+`04b546350cf0fbec34fc9294f188d1160c95e999` passed all predecessor Case
+authority proofs and reached policyless activation in GitHub Actions run
+`30503586032` (job `90748394722`). It then failed inside the disposable
+transaction's activation postflight because PostgreSQL does not resolve
+`PUBLIC` as a role name for `has_table_privilege` or
+`has_any_column_privilege`; `PUBLIC` is the ACL pseudo-grantee with OID zero.
+The transaction rolled back and the remaining CI steps were skipped.
+Production and persistent staging were unchanged. All Case activation,
+rollback and FORCE drafts now inspect table and column ACLs through
+`aclexplode(...).grantee = 0`, and the predecessor/rollback proof checks each
+required runtime CRUD privilege individually instead of relying on
+comma-list “any privilege” semantics.

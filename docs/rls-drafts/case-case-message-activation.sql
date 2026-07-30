@@ -65,7 +65,27 @@ BEGIN
      AND pg_catalog.has_table_privilege(
        'grainline_app_runtime',
        class.oid,
-       'SELECT,INSERT,UPDATE,DELETE'
+       'SELECT'
+     )
+     AND pg_catalog.has_table_privilege(
+       'grainline_app_runtime',
+       class.oid,
+       'INSERT'
+     )
+     AND pg_catalog.has_table_privilege(
+       'grainline_app_runtime',
+       class.oid,
+       'UPDATE'
+     )
+     AND pg_catalog.has_table_privilege(
+       'grainline_app_runtime',
+       class.oid,
+       'DELETE'
+     )
+     AND NOT pg_catalog.has_table_privilege(
+       'grainline_app_runtime',
+       class.oid,
+       'TRUNCATE,REFERENCES,TRIGGER'
      );
   IF table_count <> 3 THEN
     RAISE EXCEPTION
@@ -406,15 +426,39 @@ BEGIN
        class.oid,
        'SELECT,INSERT,UPDATE,REFERENCES'
      )
-     AND NOT pg_catalog.has_table_privilege(
-       'PUBLIC',
-       class.oid,
-       'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             class.relacl,
+             pg_catalog.acldefault('r', class.relowner)
+           )
+         ) AS acl
+        WHERE acl.grantee = 0
+          AND acl.privilege_type IN (
+            'SELECT',
+            'INSERT',
+            'UPDATE',
+            'DELETE',
+            'TRUNCATE',
+            'REFERENCES',
+            'TRIGGER'
+          )
      )
-     AND NOT pg_catalog.has_any_column_privilege(
-       'PUBLIC',
-       class.oid,
-       'SELECT,INSERT,UPDATE,REFERENCES'
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_attribute AS attribute
+         CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+        WHERE attribute.attrelid = class.oid
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped
+          AND acl.grantee = 0
+          AND acl.privilege_type IN (
+            'SELECT',
+            'INSERT',
+            'UPDATE',
+            'REFERENCES'
+          )
      )
      AND NOT EXISTS (
        SELECT 1
