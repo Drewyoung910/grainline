@@ -53,7 +53,8 @@ CaseMessages, attachments or anomaly counts, so no legacy cleanup/backfill is
 needed; Phase 3 invariant and authority-catalog proof is complete and Phase 4
 compatible schema/application conversion is active while production RLS
 remains off. The catalog pins the 80-reference Phase 4 baseline across 29
-sources to 28 fixed operations. Its first two compatible app conversions move
+sources to 27 real fixed operations plus one retired unused helper reference.
+Its first two compatible app conversions move
 all three Stripe dispute webhook references and both seller-refund Case
 references to fixed database functions, so 75 direct/nested/raw references
 across 27 sources remain; all five removed references stay in a
@@ -217,8 +218,9 @@ the existing source-bound DirectUpload reader for object authority.
 
 The current Case-family preparation inventory has zero ordinary application
 references: seventy-nine of the 80-reference baseline are retained in the
-converted ledger, and the sole scanner result is the private non-runtime Case
-lock core. Interactive escalation now requires a real authenticated actor and
+converted ledger, while the unused historical `lockCaseForLifecycle` reference
+is removed from production source and retained in a separate retired ledger.
+Interactive escalation now requires a real authenticated actor and
 keeps non-party staff behind the session-bound PIN; the obsolete
 `CRON_SECRET`/`id="all"` arbitrary-target surface is removed. Scheduled Case
 transitions accept only one of three fixed families and a bounded limit.
@@ -1120,6 +1122,16 @@ trigger row and remain INVOKER. Exact run `30502489130` failed closed before
 activation when the first preflight incorrectly demanded eight DEFINER
 functions. Pin the 5/3 name and mode partition in both ENABLE and FORCE
 preflights instead of widening the three row-local validators.
+
+Do not create catalog authority merely to preserve a historical scanner
+count. Exact run `30502852059` passed the corrected invariant partition, then
+failed closed before activation because the preflight expected 28 fixed
+functions while only 27 real operations exist. The supposed
+`grainline_case_lock_core` was never a database function; its TypeScript
+counterpart had no application caller and survived only because an older
+disposable race harness imported it. Remove the helper from production source,
+keep the proof-only lock local to that harness, and retain the historical
+reference in a machine-checked retired ledger. Production remained unchanged.
 
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped

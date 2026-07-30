@@ -3,7 +3,7 @@
 -- Initial Case-family activation after:
 --   1. compatible fixed functions and application conversion are live;
 --   2. Case invariants are installed and production legacy preflight is clean;
---   3. the compatible read-mode convergence has made all 28 catalog
+--   3. the compatible read-mode convergence has made all 27 catalog
 --      operations SECURITY DEFINER;
 --   4. DirectUpload retirement/private-object gates are complete.
 --
@@ -33,7 +33,6 @@ DECLARE
   table_count integer;
   function_count integer;
   runtime_function_count integer;
-  private_function_count integer;
   validated_constraint_count integer;
   invariant_trigger_count integer;
   invariant_definer_function_count integer;
@@ -291,8 +290,7 @@ BEGIN
        'grainline_case_stripe_dispute_apply',
        'grainline_case_seller_refund_apply',
        'grainline_case_cron_transition_batch',
-       'grainline_case_account_deletion_redact',
-       'grainline_case_lock_core'
+       'grainline_case_account_deletion_redact'
      )
      AND procedure.prokind = 'f'
      AND procedure.prosecdef
@@ -311,7 +309,7 @@ BEGIN
         WHERE acl.grantee = 0
           AND acl.privilege_type = 'EXECUTE'
      );
-  IF function_count <> 28 THEN
+  IF function_count <> 27 THEN
     RAISE EXCEPTION
       'Case activation function catalog drifted: %',
       function_count;
@@ -363,22 +361,6 @@ BEGIN
       runtime_function_count;
   END IF;
 
-  SELECT pg_catalog.count(*)::integer
-    INTO private_function_count
-    FROM pg_catalog.pg_proc AS procedure
-    JOIN pg_catalog.pg_namespace AS namespace
-      ON namespace.oid = procedure.pronamespace
-   WHERE namespace.nspname = 'public'
-     AND procedure.proname = 'grainline_case_lock_core'
-     AND NOT pg_catalog.has_function_privilege(
-       'grainline_app_runtime',
-       procedure.oid,
-       'EXECUTE'
-     );
-  IF private_function_count <> 1 THEN
-    RAISE EXCEPTION
-      'Case activation private function partition drifted';
-  END IF;
 END
 $grainline_case_activation_preflight$;
 

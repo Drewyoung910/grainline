@@ -1246,15 +1246,15 @@ the existing private Conversation/Message redaction core; callers cannot
 choose redaction needles, rows or replacement text.
 
 This moves the final eleven ordinary account-deletion references into the
-retained ledger. The scanner now finds only one raw Case reference: the
-private `grainline_case_lock_core` implementation in
-`caseLifecycleLocks.ts`, which is owner-internal and not executable by the
-runtime or `PUBLIC`. The 80-reference baseline is therefore 79 converted
-ordinary references plus one private core, with zero ordinary direct,
-relation or raw protected-table access. This remains compatible preparation:
-the two new functions do not enable RLS, revoke table grants or authorize a
-production migration or deployment. A fresh exact-head PostgreSQL proof is
-required before Phase 4 can close.
+retained ledger. The scanner now finds zero direct, relation or raw
+protected-table references in ordinary application code. The 80-reference
+baseline is therefore 79 converted references plus one historical reference
+from the unused `lockCaseForLifecycle` helper, which is removed from
+production source and retained in a separate retired-source ledger. The older
+disposable lifecycle proof keeps its equivalent lock local to the harness.
+This remains compatible preparation: the two new functions do not enable RLS,
+revoke table grants or authorize a production migration or deployment. A
+fresh exact-head PostgreSQL proof is required before Phase 4 can close.
 
 The proof harness is saved as
 `scripts/case-account-deletion-authority-postgres-proof.mjs`. It refuses
@@ -1427,10 +1427,10 @@ The subsequent activation-authority review rejects a broad staff-visible
 `Case` SELECT policy. PostgreSQL cannot attest the session-bound staff PIN, so
 such a policy would let any future direct query running with a real staff
 actor context bypass the PIN-gated route boundary. Because all 79 ordinary
-Case-family references are converted and the one remaining reference is the
-runtime-private owner core, the least-privilege destination is instead
-policyless ENABLE RLS plus zero runtime/PUBLIC table grants on all three
-tables. Four originally INVOKER projections must first become bounded
+Case-family references are converted and the one unused historical helper is
+retired, the live scanner is empty. The least-privilege destination is
+therefore policyless ENABLE RLS plus zero runtime/PUBLIC table grants on all
+three tables. Four originally INVOKER projections must first become bounded
 SECURITY DEFINER operations so they do not require retaining a direct SELECT
 grant. Draft-only read-mode, ENABLE, rollback and FORCE SQL are retained under
 `docs/rls-drafts/`; none is a migration or production authorization.
@@ -1447,3 +1447,17 @@ INVOKER names, modes, owner, volatility, parallel safety, search path and
 PUBLIC/runtime denial in both ENABLE and later FORCE preflights. The failed
 run is retained as superseded evidence; a fresh complete PostgreSQL run is
 required before this draft can be accepted.
+
+The corrected invariant-mode head
+`8fae985db8ef88ad8858307d4508cdcd4e40f320` passed the five-DEFINER /
+three-INVOKER gate in GitHub Actions run `30502852059` (job
+`90746114712`), then failed closed before activation because the next
+preflight expected 28 fixed functions. PostgreSQL correctly found 27:
+`grainline_case_lock_core` was a planning-catalog entry, not an installed
+database function. The similarly named TypeScript lock helper had no
+application caller and was imported only by an older disposable race proof.
+The correction removes it from production source, keeps the equivalent lock
+local to that harness, and accounts for the historical reference in a
+retired-source ledger. It does not create new owner authority merely to
+satisfy a mistaken count. Production and persistent staging were unchanged; a
+fresh exact-head run is required.

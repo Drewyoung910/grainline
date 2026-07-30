@@ -17,8 +17,9 @@ function assertOrdered(text, labels) {
 }
 
 describe("Case and Order lifecycle lock protocol", () => {
-  it("uses exact row locks with no broad table authority", () => {
+  it("uses exact production row locks and keeps the retired Case lock proof-local", () => {
     const locks = source("src/lib/caseLifecycleLocks.ts");
+    const lifecycleProof = source("scripts/case-lifecycle-postgres-proof.mjs");
 
     assert.match(
       locks,
@@ -29,10 +30,15 @@ describe("Case and Order lifecycle lock protocol", () => {
       /SELECT id\s+FROM "Order"\s+WHERE id = \$\{orderId\}\s+FOR UPDATE/s,
     );
     assert.match(
-      locks,
+      lifecycleProof,
       /SELECT id\s+FROM "Case"\s+WHERE id = \$\{caseId\}\s+FOR UPDATE/s,
     );
+    assert.doesNotMatch(locks, /FROM "Case"/);
     assert.doesNotMatch(locks, /FOR UPDATE SKIP LOCKED|WHERE id IS NOT NULL/);
+    assert.doesNotMatch(
+      lifecycleProof,
+      /FOR UPDATE SKIP LOCKED|WHERE id IS NOT NULL/,
+    );
     assert.match(locks, /SELECT clock_timestamp\(\) AS now/);
   });
 

@@ -516,15 +516,6 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "AccountDeletionSideEffect direct-write hardening remains a dependency of its later service-ledger review",
     ],
   }),
-  freezeOperation({
-    id: "case_lock_core",
-    candidateFunctionName: "grainline_case_lock_core",
-    operationKind: "PRIVATE_CORE",
-    security: "DEFINER",
-    runtimeExecute: false,
-    callerInputs: ["caseId"],
-    databaseDerived: ["exact Case row lock"],
-  }),
 ]);
 
 const freezeSource = (entry) => Object.freeze({
@@ -743,10 +734,12 @@ export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
   }),
 });
 
-export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
+export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({});
+
+export const CASE_RETIRED_SOURCE_REFERENCES = Object.freeze({
   "src/lib/caseLifecycleLocks.ts": freezeSource({
-    actors: ["PRIVATE_CORE"],
-    destinations: ["case_lock_core"],
+    actors: ["RETIRED_UNUSED_HELPER"],
+    destinations: [],
     inventory: { "Case.raw-sql-reference": 1 },
   }),
 });
@@ -757,6 +750,16 @@ export const CASE_AUTHORITY_OPERATION_IDS = Object.freeze(
 
 export function caseAuthorityReferenceCount() {
   return Object.values(CASE_AUTHORITY_SOURCE_DESTINATIONS)
+    .reduce(
+      (total, source) =>
+        total + Object.values(source.inventory)
+          .reduce((sourceTotal, count) => sourceTotal + count, 0),
+      0,
+    );
+}
+
+export function caseAuthorityRetiredReferenceCount() {
+  return Object.values(CASE_RETIRED_SOURCE_REFERENCES)
     .reduce(
       (total, source) =>
         total + Object.values(source.inventory)

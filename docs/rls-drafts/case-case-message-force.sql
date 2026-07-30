@@ -199,8 +199,7 @@ BEGIN
        'grainline_case_stripe_dispute_apply',
        'grainline_case_seller_refund_apply',
        'grainline_case_cron_transition_batch',
-       'grainline_case_account_deletion_redact',
-       'grainline_case_lock_core'
+       'grainline_case_account_deletion_redact'
      )
      AND procedure.prokind = 'f'
      AND procedure.prosecdef
@@ -219,7 +218,7 @@ BEGIN
         WHERE acl.grantee = 0
           AND acl.privilege_type = 'EXECUTE'
      );
-  IF accepted_function_count <> 28 THEN
+  IF accepted_function_count <> 27 THEN
     RAISE EXCEPTION
       'Case FORCE function catalog drifted: %',
       accepted_function_count;

@@ -51,13 +51,15 @@ the route's direct read, guarded update and obsolete bulk raw update plus six
 cron reads/writes behind two fixed operations. The account-deletion conversion
 then moves the active-Case blocker count, authored/quoted CaseMessage
 redaction and participant Case-description redaction behind two fixed
-operations. The current exact inventory is therefore 1 private-core reference
-across 1 source file, with all seventy-nine ordinary application references
-retained in the converted-source ledger. The remaining reference is
-`caseLifecycleLocks.ts`, the private owner-internal Case lock that is not
-runtime-executable. The executable catalog deep-compares every remaining
-source and operation count with the live scanner. A source cannot disappear,
-appear or claim conversion without changing a test.
+operations. The current exact inventory is therefore zero direct, relation or
+raw protected-table references in ordinary application code. All seventy-nine
+migrated references remain in the converted-source ledger. A separate retired
+ledger preserves the historical raw Case reference from the unused
+`lockCaseForLifecycle` helper removed from `caseLifecycleLocks.ts`, so the
+80-reference baseline is still exact without creating a fictional database
+operation. The executable catalog deep-compares every current source and
+operation count with the live scanner. A source cannot disappear, appear,
+retire or claim conversion without changing a test.
 
 `CaseResolutionClaim` is a supporting private service ledger for the external
 Stripe resolution handshake. `CaseStripeDisputeApplication`,
@@ -88,7 +90,8 @@ by the ordinary runtime role:
 - exceptional writes use fixed `SECURITY DEFINER` functions with a pinned
   `search_path`, schema-qualified objects, no dynamic SQL and exact EXECUTE
   grants;
-- private cores are not executable by `PUBLIC` or the runtime role;
+- owner-internal helper functions are not executable by `PUBLIC` or the
+  runtime role;
 - targets, parties, author kind, transition state, clocks, audit metadata,
   links and replay identity are derived after the reviewed lock order.
 
@@ -106,7 +109,7 @@ against arbitrary runtime compromise.
 
 ## Operation catalog
 
-The machine-readable catalog contains 28 operations.
+The machine-readable catalog contains 27 operations.
 
 ### Recipient and staff projections
 
@@ -198,7 +201,6 @@ enforces its own byte/character bounds and accepted enums; the word
 | `case_seller_refund_apply` | Current seller actor plus exact same-Order local `OrderPaymentEvent` whose id, amount, currency, refund kind and provider id match the locked completed Order refund; derives the active Case transition, terminal/no-Case disposition, immutable `CaseSellerRefundApplication` replay identity and co-committed audit |
 | `case_cron_transition_batch` | Database-selected due rows by one of three fixed transition families and a bounded limit |
 | `case_account_deletion_redact` | Exact locked `LOCAL_ANONYMIZE` `AccountDeletionSideEffect`; the deleting User is derived |
-| `case_lock_core` | Private exact Case-row lock; never runtime-executable |
 
 The cron operation performs target selection, fresh eligibility checks,
 transition and per-row `SystemAuditLog` insertion in one bounded statement. It
@@ -745,7 +747,7 @@ resistance from the side-effect row alone.
 Before compatible function SQL can be accepted:
 
 - freeze exact signatures, return types, volatility, parallel safety and
-  runtime/private grants for all 28 operations;
+  runtime grants for all 27 operations;
 - define one shared lock order across User, Order, Case, DirectUpload and
   dependent rows;
 - define and database-enforce the Case relationship, lifecycle and author-kind
@@ -775,9 +777,9 @@ also complete before Case evidence or the three-table Case boundary is
 enabled.
 
 Activation-mode decision (2026-07-29): after the inventory reached 79
-converted ordinary references plus the one runtime-private lock core, the
-review rejected retaining a direct Case SELECT policy merely to support the
-four originally INVOKER projections. A staff-visible policy cannot encode the
+converted ordinary references and retired the one unused historical lock
+helper, the review rejected retaining a direct Case SELECT policy merely to
+support the four originally INVOKER projections. A staff-visible policy cannot encode the
 session-bound PIN and would silently widen any future direct query made with a
 real staff actor context. The candidate therefore first converges
 `grainline_case_get`, `grainline_case_get_by_order`,
@@ -785,9 +787,9 @@ real staff actor context. The candidate therefore first converges
 SECURITY DEFINER without changing their validated inputs or bounded outputs.
 The later three-table boundary is policyless ENABLE RLS with zero
 runtime/PUBLIC table and column grants; all runtime access remains through the
-27 reviewed fixed entry points, while `grainline_case_lock_core` remains
-owner-internal. This is draft architecture only until the compatible
-read-mode and activated-engine proofs pass.
+27 reviewed fixed entry points. No generic Case lock function is created or
+granted. This is draft architecture only until the compatible read-mode and
+activated-engine proofs pass.
 
 Invariant-mode correction (2026-07-29): exact-head engine run `30502489130`
 failed before activation because the first preflight collapsed all eight
@@ -798,6 +800,18 @@ protected tables; Case immutable fields, Case status transitions and
 CaseMessage immutable fields are the three row-local INVOKER validators.
 Activation and FORCE must pin both exact name sets and reject any mode, owner,
 ACL, search-path, volatility or parallel-safety drift.
+
+Catalog correction (2026-07-29): exact-head engine run `30502852059` (job
+`90746114712`) at
+`8fae985db8ef88ad8858307d4508cdcd4e40f320` passed the corrected five /
+three invariant partition, then failed closed before activation because the
+preflight expected 28 fixed functions. PostgreSQL found the actual 27.
+`grainline_case_lock_core` had existed only as a planning-catalog entry; the
+matching TypeScript helper had no application caller and was imported only by
+an older disposable race harness. The correction removes it from production
+source, retains the lock locally in that harness, and accounts for the
+historical reference in a machine-checked retired ledger. It does not add
+database authority to satisfy a mistaken count. Production was unchanged.
 
 The shared
 `grainline_account_deletion_redact_text_core(text, text[])` remains

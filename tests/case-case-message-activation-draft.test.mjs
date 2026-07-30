@@ -99,17 +99,17 @@ test("Case activation draft freezes before inspecting mutable posture", () => {
   );
 });
 
-test("Case activation preflight pins all 28 fixed catalog operations", () => {
+test("Case activation preflight pins all 27 fixed catalog operations", () => {
   const catalogSlice = activationSql.slice(
     activationSql.indexOf("INTO function_count"),
-    activationSql.indexOf("IF function_count <> 28"),
+    activationSql.indexOf("IF function_count <> 27"),
   );
   const catalogNames = [
     ...catalogSlice.matchAll(/'(grainline_[a-z0-9_]+)'/g),
   ].map((match) => match[1]);
 
-  assert.equal(new Set(catalogNames).size, 28);
-  assert.equal(catalogNames.length, 28);
+  assert.equal(new Set(catalogNames).size, 27);
+  assert.equal(catalogNames.length, 27);
   assert.deepEqual(
     [...catalogNames].sort(),
     CASE_AUTHORITY_OPERATIONS
@@ -132,9 +132,9 @@ test("Case activation preflight pins all 28 fixed catalog operations", () => {
       .map((operation) => operation.candidateFunctionName)
       .sort(),
   );
-  assert.ok(catalogNames.includes("grainline_case_lock_core"));
+  assert.ok(!catalogNames.includes("grainline_case_lock_core"));
   assert.match(activationSql, /IF runtime_function_count <> 27/);
-  assert.match(activationSql, /IF private_function_count <> 1/);
+  assert.doesNotMatch(activationSql, /private_function_count/);
 });
 
 test("Case activation refuses missing or unvalidated invariant objects", () => {
@@ -229,6 +229,7 @@ test("Case FORCE draft is posture-only and covers exactly three tables", () => {
   );
   assert.match(forceSql, /runtime_role\.rolbypassrls/);
   assert.match(forceSql, /owner_session_count <> 0/);
+  assert.match(forceSql, /IF accepted_function_count <> 27/);
   assert.match(forceSql, /IF invariant_definer_function_count <> 5/);
   assert.match(forceSql, /IF invariant_invoker_function_count <> 3/);
 });

@@ -80,12 +80,14 @@ remaining protected references across 2 source files. The converted-source
 ledger then retained all sixty-eight removed references. The account-deletion
 conversion removes the final five direct operations and six raw SQL
 references from ordinary application code. The exact current countdown is
-therefore 0 direct operations, 0 nested relation references and 1 raw SQL
-reference: the private non-runtime Case lock core in
-`caseLifecycleLocks.ts`. The converted-source ledger retains all seventy-nine
-ordinary application references. The exact 80-reference conversion baseline,
-1-reference private-core countdown and seventy-nine-reference converted ledger
-are pinned by tests.
+therefore zero direct operations, zero nested relation references and zero raw
+SQL references in ordinary application code. The converted-source ledger
+retains all seventy-nine migrated references, while a separate retired-source
+ledger preserves the one historical raw Case reference from the unused
+`lockCaseForLifecycle` helper removed from `caseLifecycleLocks.ts`. The exact
+80-reference conversion baseline, zero-reference current countdown,
+seventy-nine-reference converted ledger and one-reference retired-helper
+ledger are pinned by tests.
 
 The Extra-High escalation review rejected two first-draft replay details
 before commit. A bare `NOT IN` check would not reject a missing
@@ -763,3 +765,16 @@ write protected tables and intentionally remain `SECURITY DEFINER`. The
 corrected draft now pins these exact 5/3 partitions in both activation and
 FORCE preflights. The run stopped before ENABLE, and no persistent database or
 production state changed.
+
+The corrected invariant-mode head
+`8fae985db8ef88ad8858307d4508cdcd4e40f320` passed that five-DEFINER /
+three-INVOKER gate in GitHub Actions run `30502852059` (job
+`90746114712`), then failed closed before activation because the next
+preflight expected 28 fixed functions. PostgreSQL correctly found 27:
+`grainline_case_lock_core` was never a database function. The only matching
+code was an unused application helper retained solely by an older disposable
+concurrency proof. The candidate removes that helper from production source,
+keeps the equivalent row lock local to the test harness, and records the
+historical reference in a retired-source ledger instead of inventing a new
+owner-privileged function. Production was unchanged; a fresh exact-head
+PostgreSQL run is required.

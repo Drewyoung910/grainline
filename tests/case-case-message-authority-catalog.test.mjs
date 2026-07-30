@@ -6,8 +6,10 @@ import {
   CASE_AUTHORITY_OPERATIONS,
   CASE_AUTHORITY_SOURCE_DESTINATIONS,
   CASE_CONVERTED_SOURCE_DESTINATIONS,
+  CASE_RETIRED_SOURCE_REFERENCES,
   caseAuthorityConvertedReferenceCount,
   caseAuthorityReferenceCount,
+  caseAuthorityRetiredReferenceCount,
 } from "../scripts/case-case-message-authority-catalog.mjs";
 import {
   collectCaseCaseMessageAccess,
@@ -18,14 +20,24 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
   const inventory = collectCaseCaseMessageAccess();
   const summary = summarizeCaseCaseMessageAccess(inventory);
 
-  it("classifies the private core and retains all 79 converted references", () => {
-    assert.equal(caseAuthorityReferenceCount(), 1);
+  it("retires the unused lock helper and retains all 79 converted references", () => {
+    assert.equal(caseAuthorityReferenceCount(), 0);
     assert.equal(caseAuthorityConvertedReferenceCount(), 79);
+    assert.equal(caseAuthorityRetiredReferenceCount(), 1);
     assert.equal(
-      caseAuthorityReferenceCount() + caseAuthorityConvertedReferenceCount(),
+      caseAuthorityReferenceCount()
+        + caseAuthorityConvertedReferenceCount()
+        + caseAuthorityRetiredReferenceCount(),
       80,
     );
-    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 1);
+    assert.deepEqual(CASE_RETIRED_SOURCE_REFERENCES, {
+      "src/lib/caseLifecycleLocks.ts": {
+        actors: ["RETIRED_UNUSED_HELPER"],
+        destinations: [],
+        inventory: { "Case.raw-sql-reference": 1 },
+      },
+    });
+    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 0);
     assert.deepEqual(
       Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).sort(),
       Object.keys(summary).sort(),
@@ -60,7 +72,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       new Set(CASE_AUTHORITY_OPERATION_IDS).size,
       CASE_AUTHORITY_OPERATION_IDS.length,
     );
-    assert.equal(CASE_AUTHORITY_OPERATIONS.length, 28);
+    assert.equal(CASE_AUTHORITY_OPERATIONS.length, 27);
     const referenced = new Set(
       Object.values(CASE_AUTHORITY_SOURCE_DESTINATIONS)
         .concat(Object.values(CASE_CONVERTED_SOURCE_DESTINATIONS))
@@ -129,7 +141,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
         assert.equal(operation.runtimeExecute, true, operation.id);
       }
     }
-    assert.equal(byId.get("case_lock_core")?.runtimeExecute, false);
+    assert.equal(byId.has("case_lock_core"), false);
   });
 
   it("does not leave security-relevant Case writes as caller-selected state", () => {
@@ -323,11 +335,11 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     );
     assert.match(
       normalizedCatalog,
-      /current exact inventory is therefore 1 private-core reference across 1 source file/,
+      /current exact inventory is therefore zero direct, relation or raw protected-table references in ordinary application code/,
     );
     assert.match(
       normalizedCatalog,
-      /machine-readable catalog contains 28 operations/,
+      /machine-readable catalog contains 27 operations/,
     );
     assert.match(
       normalizedCatalog,
