@@ -1143,6 +1143,16 @@ INSERT, UPDATE and DELETE separately; PostgreSQL comma-list privilege helpers
 answer whether any listed privilege is held. The failed proof rolled back and
 production remained unchanged.
 
+When a rollback-only proof models activation and a later FORCE migration in
+one outer transaction, flush deferred invariant triggers before the simulated
+release boundary. Exact run `30503946659` passed policyless activation and
+runtime authority, then PostgreSQL refused the FORCE `ALTER TABLE` because the
+proof transaction still had pending trigger events. Production uses separate
+committed migrations; the harness must model that with
+`SET CONSTRAINTS ALL IMMEDIATE`, not by weakening FORCE or removing deferred
+integrity checks. The failed proof rolled back and production remained
+unchanged.
+
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
 Vercel/database exceptions, disposable secrets, and provider resources were

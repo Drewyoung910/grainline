@@ -1828,6 +1828,12 @@ async function provePolicylessActivation(
     },
     /permission denied for table CaseMessage/,
   );
+  // Production FORCE is a later migration after the activation transaction
+  // commits. This rollback-only harness keeps both releases inside one outer
+  // transaction, so flush deferred invariant triggers before issuing the
+  // equivalent later ALTER TABLE statements.
+  await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+
   const identity = await client.query("SELECT current_user AS current_user");
   assert.equal(identity.rows[0]?.current_user, "ci");
 

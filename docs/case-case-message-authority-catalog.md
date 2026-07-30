@@ -826,6 +826,17 @@ rollback posture, because a comma-separated privilege request succeeds when
 any listed privilege is held. The failure rolled back before proof completion;
 production and persistent staging were unchanged.
 
+Proof-boundary correction (2026-07-29): exact head
+`32c68acca6a3ab7af38025c50ede2322ddb5a245` passed activation, policyless
+posture, direct runtime denial and fixed-function access in run `30503946659`
+(job `90749525114`), then failed before FORCE with pending deferred trigger
+events. The rollback-only engine proof intentionally keeps activation and the
+later FORCE release inside one outer transaction; production will execute them
+as separate committed migrations. The harness now flushes all deferred
+constraints before the FORCE savepoint to model that real transaction
+boundary. The FORCE draft itself is not weakened. The failed proof rolled back
+and production/persistent staging were unchanged.
+
 The shared
 `grainline_account_deletion_redact_text_core(text, text[])` remains
 owner-internal: neither `PUBLIC` nor `grainline_app_runtime` receives

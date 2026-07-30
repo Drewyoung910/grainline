@@ -1474,3 +1474,15 @@ They also test all four required predecessor/rollback CRUD privileges
 individually, avoiding comma-list “any privilege” semantics. The proof
 transaction rolled back and production/persistent staging were unchanged. A
 fresh exact-head run is required.
+
+Exact ACL-corrected head
+`32c68acca6a3ab7af38025c50ede2322ddb5a245` passed the activation body,
+policyless postflight, direct runtime denials and fixed-function access in
+GitHub Actions run `30503946659` (job `90749525114`). It then failed before
+the later FORCE body because the rollback-only proof keeps both release
+transactions inside one outer transaction and still had pending deferred
+invariant-trigger events. PostgreSQL refuses `ALTER TABLE` while those events
+are pending. Real FORCE is a separately committed later migration; the harness
+now executes `SET CONSTRAINTS ALL IMMEDIATE` before its FORCE savepoint to
+model that boundary without weakening the draft. The run rolled back and
+production/persistent staging were unchanged.

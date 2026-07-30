@@ -792,3 +792,15 @@ rollback and FORCE drafts now inspect table and column ACLs through
 `aclexplode(...).grantee = 0`, and the predecessor/rollback proof checks each
 required runtime CRUD privilege individually instead of relying on
 comma-list “any privilege” semantics.
+
+Exact ACL-corrected head
+`32c68acca6a3ab7af38025c50ede2322ddb5a245` passed activation, the
+policyless table posture, direct runtime denials and fixed-function access in
+GitHub Actions run `30503946659` (job `90749525114`). It then failed before
+FORCE because the rollback-only harness models activation and the later FORCE
+release inside one outer transaction, and that transaction still had pending
+deferred invariant-trigger events. PostgreSQL correctly refuses `ALTER TABLE`
+in that state. Production FORCE will run only after the activation transaction
+commits; the harness now makes that boundary explicit with
+`SET CONSTRAINTS ALL IMMEDIATE` before the FORCE savepoint. The failure rolled
+back and production/persistent staging were unchanged.

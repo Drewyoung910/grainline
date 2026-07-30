@@ -143,6 +143,16 @@ test("Case invariant proof is rollback-only and emits no credentials", () => {
   assert.doesNotMatch(proof, /console\.log\(databaseUrl\)/);
 });
 
+test("Case invariant proof flushes deferred triggers before the later FORCE release", () => {
+  const flushAt = proof.indexOf(
+    'await client.query("SET CONSTRAINTS ALL IMMEDIATE")',
+    proof.indexOf("activated_runtime_direct_message_insert"),
+  );
+  const forceAt = proof.indexOf("await client.query(forceBody)");
+  assert.ok(flushAt > 0, "deferred-trigger flush is missing");
+  assert.ok(forceAt > flushAt, "FORCE runs before deferred triggers are flushed");
+});
+
 test("main CI runs the proof after migrations and grant convergence", () => {
   assert.equal(
     packageJson.scripts["audit:rls-case-invariant-drafts"],
