@@ -193,6 +193,12 @@ The lifecycle run subsequently reached historical-state construction and
 rejected Cases whose synthetic discussion or response clocks predated their
 default creation clock. `resetCase` now derives a deliberately earlier fixture
 creation time from every supplied lifecycle clock.
+The next live pass reached the participant-resolution race and exposed a stale
+proof model: it always left the Case `PENDING_CLOSE`, even when the second
+participant confirmed resolution. The proof helper now mirrors the fixed
+authority function by atomically producing `RESOLVED` plus `DISMISSED` and
+resolution provenance when both participant marks are present; a following
+reply is expected to fail closed.
 
 ## Production postflight contract
 

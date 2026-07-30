@@ -127,6 +127,20 @@ test("Case lifecycle reset fixtures create valid opening and refund evidence", (
   );
   assert.match(source, /refundAmountCents: 10_000/);
   assert.match(source, /stripeRefundId: "case-lifecycle-proof-refund"/);
+  const attemptBuyerMarkResolved = source.match(
+    /async function attemptBuyerMarkResolved\([\s\S]+?\n}\n\nasync function attemptCronEscalation/,
+  )?.[0];
+  assert.ok(
+    attemptBuyerMarkResolved,
+    "Case lifecycle participant-resolution helper is missing",
+  );
+  assert.match(
+    attemptBuyerMarkResolved,
+    /WHEN "sellerMarkedResolved"[\s\S]+?'RESOLVED'::"CaseStatus"/,
+  );
+  assert.match(attemptBuyerMarkResolved, /'DISMISSED'::"CaseResolution"/);
+  assert.match(attemptBuyerMarkResolved, /"resolvedAt" = CASE/);
+  assert.match(attemptBuyerMarkResolved, /"resolvedById" = CASE/);
   assert.doesNotMatch(
     source,
     /caseMessage\.deleteMany/,
