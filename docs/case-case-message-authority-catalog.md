@@ -147,6 +147,14 @@ is labeled only when its author is the Case buyer or seller; an unknown
 non-party legacy author remains `null`/`Participant` rather than being promoted
 to staff from mutable current role.
 
+This is the compatible pre-activation posture, not the final activation
+posture. `case_get`, `case_get_by_order`, `case_staff_active_count`, and
+`case_export` remain INVOKER only while predecessor direct SELECT grants exist.
+The separately reviewed read-mode convergence converts those exact four to
+DEFINER before policyless Case-family activation removes every direct runtime
+table grant. All seven projections still validate the actor and return fixed,
+bounded shapes; PostgreSQL `PUBLIC` has no EXECUTE grant.
+
 ### Narrow reads and predicates
 
 | Operation | Security | Purpose |

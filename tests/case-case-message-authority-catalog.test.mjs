@@ -144,6 +144,56 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     assert.equal(byId.has("case_lock_core"), false);
   });
 
+  it("keeps projection security classifications aligned with the migration SQL", () => {
+    const expectations = [
+      [
+        "grainline_case_get",
+        "INVOKER",
+        "prisma/migrations/20260729055000_prepare_case_recipient_read_authority/migration.sql",
+      ],
+      [
+        "grainline_case_get_by_order",
+        "INVOKER",
+        "prisma/migrations/20260729055000_prepare_case_recipient_read_authority/migration.sql",
+      ],
+      [
+        "grainline_case_staff_active_count",
+        "INVOKER",
+        "prisma/migrations/20260729055000_prepare_case_recipient_read_authority/migration.sql",
+      ],
+      [
+        "grainline_case_export_page",
+        "INVOKER",
+        "prisma/migrations/20260729059000_prepare_case_account_export_authority/migration.sql",
+      ],
+      [
+        "grainline_case_message_page",
+        "DEFINER",
+        "prisma/migrations/20260729054000_prepare_case_message_page_authority/migration.sql",
+      ],
+      [
+        "grainline_case_staff_queue",
+        "DEFINER",
+        "prisma/migrations/20260729056000_prepare_case_staff_queue_authority/migration.sql",
+      ],
+      [
+        "grainline_case_message_preflight",
+        "DEFINER",
+        "prisma/migrations/20260729053000_prepare_case_message_preflight_authority/migration.sql",
+      ],
+    ];
+    for (const [functionName, security, migrationPath] of expectations) {
+      const migration = fs.readFileSync(migrationPath, "utf8");
+      assert.match(
+        migration,
+        new RegExp(
+          `CREATE OR REPLACE FUNCTION public\\.${functionName}\\([\\s\\S]{0,1200}?SECURITY ${security}`,
+        ),
+        functionName,
+      );
+    }
+  });
+
   it("does not leave security-relevant Case writes as caller-selected state", () => {
     const writes = CASE_AUTHORITY_OPERATIONS.filter((operation) =>
       new Set(["WRITE_SERVICE", "LIFECYCLE_WRITE"]).has(
