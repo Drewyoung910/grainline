@@ -14,11 +14,11 @@ This release adds exactly one migration:
 - source draft:
   `docs/rls-drafts/case-case-message-read-mode.sql`
 - source draft SHA-256:
-  `810c80f03836693d38c812604e0f9e6e3f2255eb2524a6bd990c80a522dd5125`
+  `a0036ef86b4d92ce76d09dd0c799db83d3b7e192c9c4366aabd53ee070cdf973`
 - migration SHA-256:
-  `7153776e446f5f52a2218de4becfc3899a30d5bffaf8f7554a025966f0bcd4d4`
+  `c237720b87ac81e03f6dd3558012076497b9d54412abdb71234c450ed36ee1a7`
 - complete reviewed migration-tree SHA-256:
-  `63afdc97683de6cca61c3644870d2db981f6947bdee80b922861ccdcc3fa0ef3`
+  `e0dfa816c70aa0aee6ccf3e6aa72e6412dc0e9f3d20413152caa236744dd6e4c`
 
 `scripts/stage-case-read-mode-migration.mjs` byte-pins the accepted draft and
 mechanically derives the migration. Verification is read-only. Staging or
@@ -108,6 +108,15 @@ source drift, extra overloads, language drift, inherited-only runtime access,
 grant options, and unexpected role grants in both preflight and postflight.
 That hardening changed the candidate and migration-tree hashes recorded above;
 the earlier candidate bytes were never applied.
+
+The first hardened PostgreSQL run (`30557800073`, job `90922664565`) then
+failed closed while applying the candidate because the initial digest helper
+excluded the delimiter-adjacent newlines that PostgreSQL preserves in raw
+`pg_proc.prosrc`. No later proof step ran and production was unchanged. The
+digest extractor now captures the exact bytes between the dollar-quote
+delimiters, including both newlines; the release test recomputes all four
+digests from their preparation migrations and requires each in both preflight
+and postflight.
 
 If it is later applied, rerun
 `npm run ops:case-compatible-db-postflight` through the real pooled

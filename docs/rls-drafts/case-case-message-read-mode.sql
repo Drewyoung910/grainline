@@ -65,22 +65,22 @@ BEGIN
           (
             'grainline_case_get',
             'text,text',
-            '86a73dde02ca70ab144f9f5ce038cb84'
+            '39a2419d2643b2fb622f4ed47e887477'
           ),
           (
             'grainline_case_get_by_order',
             'text,text',
-            '8eb02031c71ca3900469a027f32ad954'
+            '044733e1a1f15449a854a939eae715e4'
           ),
           (
             'grainline_case_staff_active_count',
             'text',
-            'ae70e5e54ec5cc5d3d52c4176d900cc8'
+            'f63ba05d231445525f1eeff2b068dd4a'
           ),
           (
             'grainline_case_export_page',
             'text,timestamp without time zone,text,integer',
-            '238512a70ff3c28f8a0363f71c89deb1'
+            '97b9478d9abeafe86db5f599049828d0'
           )
       ) AS expected_function(
         function_name,
@@ -320,22 +320,22 @@ BEGIN
           (
             'grainline_case_get',
             'text,text',
-            '86a73dde02ca70ab144f9f5ce038cb84'
+            '39a2419d2643b2fb622f4ed47e887477'
           ),
           (
             'grainline_case_get_by_order',
             'text,text',
-            '8eb02031c71ca3900469a027f32ad954'
+            '044733e1a1f15449a854a939eae715e4'
           ),
           (
             'grainline_case_staff_active_count',
             'text',
-            'ae70e5e54ec5cc5d3d52c4176d900cc8'
+            'f63ba05d231445525f1eeff2b068dd4a'
           ),
           (
             'grainline_case_export_page',
             'text,timestamp without time zone,text,integer',
-            '238512a70ff3c28f8a0363f71c89deb1'
+            '97b9478d9abeafe86db5f599049828d0'
           )
       ) AS expected_function(
         function_name,

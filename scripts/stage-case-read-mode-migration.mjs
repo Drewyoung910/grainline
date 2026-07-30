@@ -9,7 +9,7 @@ export const CASE_READ_MODE_MIGRATION =
 export const CASE_READ_MODE_DRAFT =
   "docs/rls-drafts/case-case-message-read-mode.sql";
 export const CASE_READ_MODE_DRAFT_SHA256 =
-  "810c80f03836693d38c812604e0f9e6e3f2255eb2524a6bd990c80a522dd5125";
+  "a0036ef86b4d92ce76d09dd0c799db83d3b7e192c9c4366aabd53ee070cdf973";
 export const CASE_READ_MODE_STAGING_ACK =
   "I_ACKNOWLEDGE_LOOPBACK_CASE_READ_MODE_STAGING";
 

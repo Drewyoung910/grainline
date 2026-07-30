@@ -40,11 +40,11 @@ const accountExportPreparation = fs.readFileSync(
 function functionBody(source, functionName) {
   const match = source.match(
     new RegExp(
-      `AS \\$${functionName}\\$\\n([\\s\\S]*?)\\n\\$${functionName}\\$;`,
+      `AS (\\$${functionName}\\$)([\\s\\S]*?)\\1;`,
     ),
   );
   assert.ok(match, `missing source body for ${functionName}`);
-  return match[1];
+  return match[2];
 }
 
 test("Case read-mode release pins exact source, migration, and tree bytes", () => {
@@ -56,7 +56,7 @@ test("Case read-mode release pins exact source, migration, and tree bytes", () =
   assert.equal(migration, candidate.migration);
   assert.equal(
     createHash("sha256").update(migration).digest("hex"),
-    "7153776e446f5f52a2218de4becfc3899a30d5bffaf8f7554a025966f0bcd4d4",
+    "c237720b87ac81e03f6dd3558012076497b9d54412abdb71234c450ed36ee1a7",
   );
   const migrationNames = fs.readdirSync(
     "prisma/migrations",

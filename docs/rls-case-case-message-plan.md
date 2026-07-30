@@ -1535,7 +1535,7 @@ The next isolated candidate promotes only
 accepted read-mode draft and changes exactly four bounded Case projections
 from INVOKER to DEFINER. It changes no body, RLS flag, policy, table grant or
 row. The current reviewed migration-tree fingerprint is
-`63afdc97683de6cca61c3644870d2db981f6947bdee80b922861ccdcc3fa0ef3`.
+`e0dfa816c70aa0aee6ccf3e6aa72e6412dc0e9f3d20413152caa236744dd6e4c`.
 The production guard advances only to `case-read-mode-reviewed`; policyless
 ENABLE and FORCE remain rejected as later releases. Exact scope, threat limit,
 proof requirements and evidence contract are in
