@@ -22,7 +22,7 @@ test("Case Stripe dispute authority is a compatible private-ledger release", () 
   assert.doesNotMatch(normalizedSql, /DROP (?:TABLE|COLUMN|FUNCTION)/);
 });
 
-test("Case Stripe dispute authority is CI-reviewed but not production-authorized", () => {
+test("Case Stripe dispute production packaging stops at the compatible boundary", () => {
   const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const productionWorkflow = fs.readFileSync(
     ".github/workflows/production-migrations.yml",
@@ -34,11 +34,11 @@ test("Case Stripe dispute authority is CI-reviewed but not production-authorized
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-legacy-repair-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-account-deletion-authority-reviewed/,
   );
   assert.doesNotMatch(
     productionWorkflow,
-    /case-(?:resolution-claim-preparation|stripe-dispute-authority)-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-(?:invariant|read-mode|enable|force)[-a-z]*/,
   );
 });
 
