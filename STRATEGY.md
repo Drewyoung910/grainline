@@ -64,6 +64,16 @@ claim as finalized. Stripe-dispute-created Cases record their exact durable
 payment-event source rather than fabricating a buyer-authored message, and
 dispute reopen clears the complete stale Case-level resolution/refund snapshot
 while retaining the Order payment/audit history.
+The compatible database-first release is now split from both the application
+conversion and RLS activation. Its guarded operator may advance only through
+`case-account-deletion-authority-reviewed`, followed by an engine-attested
+repeatable-read/read-only postflight under the pooled runtime role. That
+postflight must prove the three Case-family tables are still RLS-off with
+predecessor CRUD, four private ledgers are policyless ENABLE plus FORCE with no
+runtime table access, and the exact 26 runtime-executable plus three
+runtime-private function ACLs are intact. Every function still revokes
+PostgreSQL `PUBLIC` execution. This preparation does not authorize the later
+invariant, read-mode, ENABLE or FORCE releases.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,

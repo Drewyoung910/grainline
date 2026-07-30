@@ -77,7 +77,7 @@ test("compatible migrations do not activate or revoke direct Case-family access"
   }
 });
 
-test("activation artifacts remain drafts and production authorization stays behind", () => {
+test("activation artifacts remain drafts and the operator stops at compatible authority", () => {
   for (const draft of [
     "case-case-message-invariants.sql",
     "case-case-message-read-mode.sql",
@@ -91,13 +91,16 @@ test("activation artifacts remain drafts and production authorization stays behi
 
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*direct-upload-legacy-repair-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*case-account-deletion-authority-reviewed/,
   );
-  assert.doesNotMatch(
+  assert.match(
     productionWorkflow,
-    /case-(?:resolution-claim|stripe-dispute|seller-refund|staff-resolution|participant-resolution|open|reply|message|recipient|staff-queue|order-active|seller-aggregate|account-export|escalation-cron|account-deletion)-authority-reviewed/,
+    /Verify exact Case account-deletion authority migration tree/,
   );
-  assert.match(packageDoc, /No production migration, deployment, merge/);
+  assert.doesNotMatch(productionWorkflow, /case-(?:invariant|read-mode|activation|force)-reviewed/);
+  assert.match(
+    packageDoc,
+    /No production\s+migration, deployment, merge/,
+  );
   assert.match(packageDoc, /Case-family RLS: off/);
 });
-
