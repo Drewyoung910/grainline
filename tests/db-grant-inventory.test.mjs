@@ -12,6 +12,9 @@ import {
 import {
   DIRECT_UPLOAD_AUTHORITY_FUNCTIONS,
 } from "../scripts/direct-upload-authority-catalog.mjs";
+import {
+  CASE_INVARIANT_FUNCTIONS,
+} from "../scripts/case-invariant-production-postflight.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const {
@@ -902,6 +905,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_resolution_claim_lease_valid",
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",
+      ...CASE_INVARIANT_FUNCTIONS.map((entry) => entry.name),
       "grainline_case_cron_transition_batch",
       "grainline_case_escalate",
       "grainline_case_export_page",
@@ -946,7 +950,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      103 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      111 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -957,6 +961,7 @@ describe("database grant inventory guardrails", () => {
     for (const functionName of [
       "grainline_case_account_deletion_blockers",
       "grainline_case_account_deletion_redact",
+      ...CASE_INVARIANT_FUNCTIONS.map((entry) => entry.name),
       "grainline_case_cron_transition_batch",
       "grainline_case_escalate",
       "grainline_case_mark_resolved",

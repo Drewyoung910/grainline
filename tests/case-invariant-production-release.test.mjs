@@ -1,0 +1,89 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import test from "node:test";
+import {
+  CASE_INVARIANT_MIGRATION,
+  CASE_INVARIANT_MIGRATION_TREE_SHA256,
+  computeMigrationTreeSha256,
+} from "../scripts/guard-saved-search-rls-deploy.mjs";
+import {
+  CASE_INVARIANT_DRAFT_SHA256,
+  buildCaseInvariantCandidate,
+} from "../scripts/stage-case-invariant-migration.mjs";
+
+const release = fs.readFileSync(
+  "docs/case-invariant-production-release.md",
+  "utf8",
+);
+const workflow = fs.readFileSync(
+  ".github/workflows/production-migrations.yml",
+  "utf8",
+);
+const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+
+test("Case invariant release pins exact source, migration, and tree bytes", () => {
+  const candidate = buildCaseInvariantCandidate();
+  const migrationPath =
+    `prisma/migrations/${CASE_INVARIANT_MIGRATION}/migration.sql`;
+  const migration = fs.readFileSync(migrationPath, "utf8");
+  assert.equal(migration, candidate.migration);
+  assert.equal(
+    createHash("sha256").update(migration).digest("hex"),
+    "85aa6826f50d5af0be938fd455e7d42999e6715e40bdf7b4c864416d9191d8e8",
+  );
+  const migrationNames = fs.readdirSync(
+    "prisma/migrations",
+    { withFileTypes: true },
+  )
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  assert.equal(
+    computeMigrationTreeSha256("prisma/migrations", migrationNames),
+    CASE_INVARIANT_MIGRATION_TREE_SHA256,
+  );
+  assert.match(release, new RegExp(CASE_INVARIANT_DRAFT_SHA256));
+  assert.match(release, new RegExp(candidate.migrationSha256));
+  assert.match(release, new RegExp(CASE_INVARIANT_MIGRATION_TREE_SHA256));
+});
+
+test("Case invariant release excludes read-mode and RLS activation", () => {
+  const migration = fs.readFileSync(
+    `prisma/migrations/${CASE_INVARIANT_MIGRATION}/migration.sql`,
+    "utf8",
+  );
+  assert.doesNotMatch(
+    migration,
+    /(?:ENABLE|FORCE) ROW LEVEL SECURITY|CREATE POLICY/i,
+  );
+  assert.doesNotMatch(
+    migration,
+    /(?:GRANT|REVOKE)[\s\S]{0,160}\bON TABLE public\."(?:Case|CaseMessage|CaseMessageAttachment)"/i,
+  );
+  for (const migrationName of fs.readdirSync("prisma/migrations")) {
+    assert.doesNotMatch(
+      migrationName,
+      /case.*(?:read.mode|enable|activation|force)/i,
+    );
+  }
+  assert.match(workflow, /case-invariant-reviewed/);
+  assert.doesNotMatch(
+    workflow,
+    /case-(?:read-mode|activation|force)-reviewed/,
+  );
+});
+
+test("Case invariant release keeps a read-only pooled-runtime postflight", () => {
+  assert.equal(
+    packageJson.scripts["ops:case-invariant-postflight"],
+    "node scripts/case-invariant-production-postflight.mjs",
+  );
+  assert.equal(
+    packageJson.scripts["audit:rls-case-invariant-candidate"],
+    "node scripts/stage-case-invariant-migration.mjs --verify",
+  );
+  assert.match(release, /BEGIN TRANSACTION READ ONLY/);
+  assert.match(release, /transaction_read_only=on/);
+  assert.match(release, /runtime role receives `42501`/);
+  assert.match(release, /Do not combine read-mode, ENABLE or FORCE/);
+});

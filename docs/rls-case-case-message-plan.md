@@ -1,9 +1,10 @@
 # Case, CaseMessage, and CaseMessageAttachment RLS Plan
 
-Opened 2026-07-26. Current phase: Phase 4 compatible schema and application
-conversion after a clean Phase 2 production inspection and completed Phase 3
-authority/invariant proof. Production RLS remains off for Case, CaseMessage
-and CaseMessageAttachment.
+Opened 2026-07-26. Current phase: invariant-only production release after a
+clean Phase 2 production inspection, completed Phase 3 proof, live Phase 4
+compatible database/application conversion, and zero ordinary direct
+Case-family access. Production RLS remains off for Case, CaseMessage and
+CaseMessageAttachment.
 
 The behavior findings, 80-reference conversion baseline and current
 52-reference countdown live in
@@ -1497,3 +1498,31 @@ repository tests, dependency audit and production build passed. The draft
 authority/invariant gate is complete; the next work is compatible release
 packaging. No production migration, deployment or activation is authorized by
 this evidence.
+
+### Compatible production boundary and invariant promotion (2026-07-29)
+
+The compatible database preparation is live at exact main
+`4728f673fdf0a11d38aaac384f3d9afe2cf86117`; protected Production Migrations
+run `30511805499` applied only the 16 reviewed preparation migrations. The
+pooled-runtime read-only postflight retained mode-0600 evidence with SHA-256
+`3003f96d3b74a3805ecbb0b82671f0cc52134d84ba326ce92ac5a1a0f628ff64`.
+The compatible application subsequently merged as
+`f2f6861b177a47d22ed304714372584b79a0a0b0`, passed exact-main CI run
+`30512956823` (job `90776727905`), and was deployed to production as
+`dpl_Gvsge8MWYW8DfDRSom34YPwsY8rH`. Case evidence remains disabled because
+`CASE_EVIDENCE_ATTACHMENTS_ENABLED` is absent. Case-family RLS remains off,
+with zero policies and predecessor direct CRUD retained only for this
+compatibility window.
+
+The next isolated candidate promotes only
+`20260730010000_enforce_case_message_invariants`. Its SQL is mechanically
+derived from the byte-pinned accepted draft, with migration SHA-256
+`85aa6826f50d5af0be938fd455e7d42999e6715e40bdf7b4c864416d9191d8e8`
+and reviewed tree SHA-256
+`1e553c9e8253f25ef1c6a0bd4eff64c4ed154343500ad9d1f0bf0ed707ee1dad`.
+It contains six validated constraints, eight runtime-private trigger
+functions and nine triggers. It contains no RLS, policy, table/column grant,
+application or provider change. The production guard advances only to
+`case-invariant-reviewed`; read-mode, ENABLE and FORCE remain rejected as
+later releases. The operator and exact evidence contract are recorded in
+`docs/case-invariant-production-release.md`.

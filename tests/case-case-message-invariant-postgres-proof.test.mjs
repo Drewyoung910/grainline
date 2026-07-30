@@ -143,6 +143,25 @@ test("Case invariant proof is rollback-only and emits no credentials", () => {
   assert.doesNotMatch(proof, /console\.log\(databaseUrl\)/);
 });
 
+test("promoted invariant proof reconstructs pre-migration state only inside rollback transactions", () => {
+  assert.match(
+    proof,
+    /async function resetPromotedInvariantForProof\(client\)/,
+  );
+  assert.match(proof, /constraint_count: 6/);
+  assert.match(proof, /function_count: 8/);
+  assert.match(proof, /trigger_count: 9/);
+  assert.match(
+    proof,
+    /await resetPromotedInvariantForProof\(client\);\s+await seedBaseFixtures/,
+  );
+  assert.match(
+    proof,
+    /await client\.query\("BEGIN"\);\s+began = true;\s+await resetPromotedInvariantForProof\(client\);\s+await client\.query\(draftBody\)/,
+  );
+  assert.doesNotMatch(proof, /process\.env\.DIRECT_URL/);
+});
+
 test("Case invariant proof flushes deferred triggers before the later FORCE release", () => {
   const flushAt = proof.indexOf(
     'await client.query("SET CONSTRAINTS ALL IMMEDIATE")',

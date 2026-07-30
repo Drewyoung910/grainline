@@ -1,9 +1,10 @@
 # Case, CaseMessage, and CaseMessageAttachment Pre-RLS Audit
 
-Opened 2026-07-26. Status: active read-only behavior and authority audit.
-No Case/CaseMessage/CaseMessageAttachment policy SQL, grant change, migration,
-provider resource or production mutation is authorized by this document.
-The phased rollout boundary is `docs/rls-case-case-message-plan.md`.
+Opened 2026-07-26. Status: audit and compatible conversion complete; the
+invariant-only release is active. Case, CaseMessage and
+CaseMessageAttachment RLS remains off. No read-mode, ENABLE, FORCE or provider
+change is authorized by this document. The phased rollout boundary is
+`docs/rls-case-case-message-plan.md`.
 
 ## Why this gate exists
 
@@ -119,9 +120,10 @@ SQL separately. It does not treat this count as authority approval. Every
 reference still needs an actor, purpose and migration destination.
 
 No participant-policy or Case/CaseMessage activation migration exists in the
-current tree. Compatible source and fixed-operation migrations do exist on
-isolated, unmerged branches. Direct runtime table access is therefore an
-expected pre-activation gap, not evidence that the table is ready.
+current tree. Compatible database and application conversions are live, and
+the invariant-only migration is staged for separate review. Direct runtime
+table access remains the deliberate pre-activation compatibility boundary
+until the later read-mode and policyless ENABLE release.
 
 The second compatible fixed-operation candidate is the seller-refund Case
 transition. It accepts only the current actor and one exact local

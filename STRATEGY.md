@@ -96,6 +96,18 @@ does not pull Order/payment into the Case activation:
 of that later independent sensitive group. The completed database preparation
 and compatible application package do not authorize the later invariant,
 read-mode, ENABLE or FORCE releases.
+
+The compatible application is now live at exact merge
+`f2f6861b177a47d22ed304714372584b79a0a0b0`, exact-main CI run
+`30512956823` (job `90776727905`) and production deployment
+`dpl_Gvsge8MWYW8DfDRSom34YPwsY8rH`. Case evidence remains disabled by an
+absent `CASE_EVIDENCE_ATTACHMENTS_ENABLED` variable. The next release is the
+invariant-only migration
+`20260730010000_enforce_case_message_invariants`; it must change no RLS flag,
+policy or Case-family table grant. After accepted production postflight,
+promote read-mode, policyless ENABLE and posture-only FORCE as three separate
+releases. Do not skip directly from compatible application to ENABLE or
+bundle any of those releases with the later order/payment/shipping group.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,

@@ -7,13 +7,13 @@ const DRAFT_PATH =
 const sql = fs.readFileSync(DRAFT_PATH, "utf8");
 const normalizedSql = sql.replace(/\s+/g, " ");
 
-test("Case invariant SQL remains an unapplied draft", () => {
+test("Case invariant SQL is promoted only through the pinned staging script", () => {
   assert.match(sql, /DRAFT ONLY\. Do not apply to any persistent database/);
   assert.equal(
     fs.existsSync(
-      "prisma/migrations/20260729000000_enforce_case_message_invariants/migration.sql",
+      "prisma/migrations/20260730010000_enforce_case_message_invariants/migration.sql",
     ),
-    false,
+    true,
   );
   assert.doesNotMatch(sql, /ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/);
   assert.doesNotMatch(sql, /\bGRANT\b/);
