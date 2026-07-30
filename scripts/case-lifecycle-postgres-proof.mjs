@@ -81,9 +81,6 @@ export function parseProofConfig(env = process.env) {
 }
 
 async function cleanupFixtures(client) {
-  await client.caseMessage.deleteMany({
-    where: { caseId: { startsWith: "case-lifecycle-proof-case-" } },
-  });
   await client.case.deleteMany({
     where: { id: { startsWith: "case-lifecycle-proof-case-" } },
   });
@@ -183,9 +180,6 @@ async function seedFixtures(client) {
 }
 
 async function resetOrder(client, fulfillmentStatus = "PENDING") {
-  await client.caseMessage.deleteMany({
-    where: { caseId: { startsWith: "case-lifecycle-proof-case-" } },
-  });
   await client.case.deleteMany({
     where: { id: { startsWith: "case-lifecycle-proof-case-" } },
   });
@@ -219,21 +213,43 @@ async function resetCase(
   },
 ) {
   await resetOrder(client, "SHIPPED");
-  return client.case.create({
-    data: {
-      id: `case-lifecycle-proof-case-${suffix}`,
-      orderId: ids.order,
-      buyerId: ids.buyer,
-      sellerId: ids.seller,
-      reason: "OTHER",
-      description: "Disposable Case lifecycle concurrency fixture.",
-      status,
-      buyerMarkedResolved,
-      sellerMarkedResolved,
-      sellerRespondBy,
-      discussionStartedAt,
-      escalateUnlocksAt,
-    },
+  const fixtureCreatedAt = new Date(
+    Math.min(
+      Date.now() - 5 * 60_000,
+      sellerRespondBy.getTime() - 60_000,
+      discussionStartedAt
+        ? discussionStartedAt.getTime() - 60_000
+        : Number.POSITIVE_INFINITY,
+    ),
+  );
+  return client.$transaction(async (tx) => {
+    const created = await tx.case.create({
+      data: {
+        id: `case-lifecycle-proof-case-${suffix}`,
+        orderId: ids.order,
+        buyerId: ids.buyer,
+        sellerId: ids.seller,
+        reason: "OTHER",
+        description: "Disposable Case lifecycle concurrency fixture.",
+        status,
+        buyerMarkedResolved,
+        sellerMarkedResolved,
+        createdAt: fixtureCreatedAt,
+        sellerRespondBy,
+        discussionStartedAt,
+        escalateUnlocksAt,
+      },
+    });
+    await tx.caseMessage.create({
+      data: {
+        id: `case-lifecycle-proof-message-${suffix}-opening`,
+        caseId: created.id,
+        authorId: ids.buyer,
+        authorKind: "BUYER",
+        body: "Disposable Case lifecycle opening message.",
+      },
+    });
+    return created;
   });
 }
 
@@ -349,17 +365,17 @@ async function attemptCaseCreate(tx, suffix) {
       reason: "OTHER",
       description: "Disposable Case lifecycle concurrency fixture.",
       sellerRespondBy: new Date(now.getTime() + 48 * 60 * 60 * 1_000),
-      messages: {
-        create: {
-          id: `case-lifecycle-proof-message-${suffix}`,
-          authorId: ids.buyer,
-          authorKind: "BUYER",
-          body: "Disposable Case lifecycle opening message.",
-          createdAt: now,
-        },
-      },
     },
     select: { id: true },
+  });
+  await tx.caseMessage.create({
+    data: {
+      id: `case-lifecycle-proof-message-${suffix}`,
+      caseId: created.id,
+      authorId: ids.buyer,
+      authorKind: "BUYER",
+      body: "Disposable Case lifecycle opening message.",
+    },
   });
   return { caseId: created.id, outcome: "created" };
 }
@@ -520,16 +536,35 @@ async function attemptBuyerMarkResolved(tx, caseId) {
   const rows = await tx.$queryRaw`
     UPDATE "Case"
     SET "buyerMarkedResolved" = true,
-        status = 'PENDING_CLOSE'::"CaseStatus",
+        status = CASE
+          WHEN "sellerMarkedResolved"
+            THEN 'RESOLVED'::"CaseStatus"
+          ELSE 'PENDING_CLOSE'::"CaseStatus"
+        END,
+        resolution = CASE
+          WHEN "sellerMarkedResolved"
+            THEN 'DISMISSED'::"CaseResolution"
+          ELSE NULL
+        END,
+        "resolvedAt" = CASE
+          WHEN "sellerMarkedResolved"
+            THEN CAST(${transitionAt} AS timestamp without time zone)
+          ELSE NULL
+        END,
+        "resolvedById" = CASE
+          WHEN "sellerMarkedResolved" THEN ${ids.buyer}
+          ELSE NULL
+        END,
         "updatedAt" = ${transitionAt}
     WHERE id = ${caseId}
       AND status::text IN ('OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE')
-    RETURNING id
+    RETURNING id, status::text
   `;
   return {
     at: rows.length === 1 ? transitionAt : null,
     count: rows.length,
     outcome: rows.length === 1 ? "updated" : "rejected_status",
+    status: rows[0]?.status ?? null,
   };
 }
 
@@ -737,6 +772,8 @@ async function runProof({ databaseUrl }) {
       data: {
         status: "RESOLVED",
         resolution: "REFUND_FULL",
+        refundAmountCents: 10_000,
+        stripeRefundId: "case-lifecycle-proof-refund",
         resolvedAt: new Date(),
         resolvedById: ids.seller,
       },
@@ -856,16 +893,15 @@ async function runProof({ databaseUrl }) {
         }),
     });
     assert.equal(result.firstResult.count, 1);
-    assert.equal(result.secondResult.transition, "party_reopened_pending_close");
-    assert.ok(
-      result.secondResult.at.getTime() >= result.firstResult.at.getTime(),
-    );
+    assert.equal(result.firstResult.status, "RESOLVED");
+    assert.equal(result.secondResult.outcome, "rejected_status");
     caseRecord = await observer.case.findUniqueOrThrow({
       where: { id: caseRecord.id },
     });
-    assert.equal(caseRecord.status, "IN_DISCUSSION");
-    assert.equal(caseRecord.buyerMarkedResolved, false);
-    assert.equal(caseRecord.sellerMarkedResolved, false);
+    assert.equal(caseRecord.status, "RESOLVED");
+    assert.equal(caseRecord.resolution, "DISMISSED");
+    assert.equal(caseRecord.buyerMarkedResolved, true);
+    assert.equal(caseRecord.sellerMarkedResolved, true);
     recordCheck(checks, "resolution_mark_before_pending_close_reply", result);
 
     caseRecord = await resetCase(observer, "refundmarkfirst", {

@@ -13,6 +13,9 @@ const PROOFS_WITH_DIRECT_CASE_FIXTURES = Object.freeze([
   "scripts/case-account-export-authority-postgres-proof.mjs",
   "scripts/case-escalation-cron-authority-postgres-proof.mjs",
   "scripts/case-account-deletion-authority-postgres-proof.mjs",
+  "scripts/notification-rls-ephemeral-proof.mjs",
+  "scripts/direct-upload-activation-postgres-proof.mjs",
+  "scripts/direct-upload-authority-postgres-proof.mjs",
 ]);
 
 test("post-migration Case proof fixtures preserve durable opening and seller evidence", () => {
@@ -20,7 +23,7 @@ test("post-migration Case proof fixtures preserve durable opening and seller evi
     const source = fs.readFileSync(path, "utf8");
     assert.match(
       source,
-      /async function seedFixtures\(client\) \{[\s\S]{0,220}client\.query\("BEGIN"\)/,
+      /async function seedFixtures\((?:client|owner)\) \{[\s\S]{0,220}(?:client|owner)\.query\("BEGIN"\)/,
       `${path} must seed its deferred Case evidence atomically`,
     );
     assert.match(
@@ -86,4 +89,113 @@ test("post-migration seller aggregate fixtures cannot regress updatedAt behind a
     seedCase,
     /GREATEST\(CURRENT_TIMESTAMP, \$6::timestamp\)/,
   );
+});
+
+test("Case lifecycle reset fixtures create valid opening and refund evidence", () => {
+  const source = fs.readFileSync(
+    "scripts/case-lifecycle-postgres-proof.mjs",
+    "utf8",
+  );
+  const resetCase = source.match(
+    /async function resetCase\([\s\S]+?\n}\n\nasync function waitForLock/,
+  )?.[0];
+  assert.ok(resetCase, "Case lifecycle resetCase function is missing");
+  assert.match(resetCase, /client\.\$transaction\(async \(tx\) =>/);
+  assert.match(resetCase, /await tx\.case\.create/);
+  assert.match(resetCase, /await tx\.caseMessage\.create/);
+  assert.match(resetCase, /authorKind: "BUYER"/);
+  assert.match(resetCase, /const fixtureCreatedAt = new Date/);
+  assert.match(resetCase, /sellerRespondBy\.getTime\(\) - 60_000/);
+  assert.match(
+    resetCase,
+    /discussionStartedAt\.getTime\(\) - 60_000/,
+  );
+  assert.match(resetCase, /createdAt: fixtureCreatedAt/);
+  const attemptCaseCreate = source.match(
+    /async function attemptCaseCreate\([\s\S]+?\n}\n\nasync function attemptLabelReservation/,
+  )?.[0];
+  assert.ok(
+    attemptCaseCreate,
+    "Case lifecycle attemptCaseCreate function is missing",
+  );
+  assert.match(attemptCaseCreate, /await tx\.case\.create/);
+  assert.match(attemptCaseCreate, /await tx\.caseMessage\.create/);
+  assert.doesNotMatch(
+    attemptCaseCreate,
+    /caseMessage\.create\([\s\S]+?createdAt:\s*now/,
+    "opening message must not reuse the pre-Case clock",
+  );
+  assert.match(source, /refundAmountCents: 10_000/);
+  assert.match(source, /stripeRefundId: "case-lifecycle-proof-refund"/);
+  const attemptBuyerMarkResolved = source.match(
+    /async function attemptBuyerMarkResolved\([\s\S]+?\n}\n\nasync function attemptCronEscalation/,
+  )?.[0];
+  assert.ok(
+    attemptBuyerMarkResolved,
+    "Case lifecycle participant-resolution helper is missing",
+  );
+  assert.match(
+    attemptBuyerMarkResolved,
+    /WHEN "sellerMarkedResolved"[\s\S]+?'RESOLVED'::"CaseStatus"/,
+  );
+  assert.match(attemptBuyerMarkResolved, /'DISMISSED'::"CaseResolution"/);
+  assert.match(attemptBuyerMarkResolved, /"resolvedAt" = CASE/);
+  assert.match(
+    attemptBuyerMarkResolved,
+    /CAST\(\$\{transitionAt\} AS timestamp without time zone\)/,
+  );
+  assert.match(attemptBuyerMarkResolved, /"resolvedById" = CASE/);
+  assert.doesNotMatch(
+    source,
+    /caseMessage\.deleteMany/,
+    "Case cleanup must delete the parent and let ON DELETE CASCADE remove messages",
+  );
+});
+
+test("Notification resolution fixtures keep refund provider evidence complete", () => {
+  const source = fs.readFileSync(
+    "scripts/notification-rls-ephemeral-proof.mjs",
+    "utf8",
+  );
+  const configureResolvedCase = source.match(
+    /async function configureResolvedCase\([\s\S]+?\n}\n\nasync function configureCaseResolutionAudit/,
+  )?.[0];
+  assert.ok(
+    configureResolvedCase,
+    "Notification configureResolvedCase helper is missing",
+  );
+  assert.match(configureResolvedCase, /resolution === "REFUND_FULL" \? 12_500/);
+  assert.match(configureResolvedCase, /"stripeRefundId" = \$4/);
+  assert.match(configureResolvedCase, /re_notification_proof_/);
+  assert.match(source, /caseSellerMessageId:/);
+  assert.match(source, /caseStaffMessageId:/);
+  assert.doesNotMatch(
+    source,
+    /UPDATE public\."CaseMessage"/,
+    "Notification proof must not rewrite immutable CaseMessage authority",
+  );
+});
+
+test("DirectUpload proof teardown preserves opening evidence and fails loudly", () => {
+  for (const path of [
+    "scripts/direct-upload-activation-postgres-proof.mjs",
+    "scripts/direct-upload-authority-postgres-proof.mjs",
+  ]) {
+    const source = fs.readFileSync(path, "utf8");
+    const cleanup = source.match(
+      /async function cleanupFixtures\([\s\S]+?\n}\n\nasync function seedFixturesInTransaction/,
+    )?.[0];
+    assert.ok(cleanup, `${path} cleanup helper is missing`);
+    assert.match(cleanup, /DELETE FROM public\."Case"/);
+    assert.doesNotMatch(
+      cleanup,
+      /DELETE FROM public\."CaseMessage"/,
+      `${path} must cascade from the parent Case`,
+    );
+    assert.doesNotMatch(
+      source,
+      /cleanupFixtures\(owner\)\.catch\(\(\) => \{\}\)/,
+      `${path} must not suppress cleanup failure`,
+    );
+  }
 });

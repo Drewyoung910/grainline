@@ -20,6 +20,8 @@ const fixture = Object.freeze({
   orderItemId: "notification-proof-order-item",
   caseId: "notification-proof-case",
   caseMessageId: "notification-proof-case-message",
+  caseSellerMessageId: "notification-proof-case-message-seller",
+  caseStaffMessageId: "notification-proof-case-message-staff",
   caseResolutionAuditId: "notification-proof-case-resolution-audit",
   caseSystemAuditId: "notification-proof-case-system-audit",
   commissionRequestId: "notification-proof-commission-request",
@@ -186,7 +188,6 @@ async function cleanFixtures(owner) {
     fixture.orderFulfillmentAuditId,
     fixture.orderDisputeAuditId,
   ]]);
-  await owner.query('DELETE FROM public."CaseMessage" WHERE id = $1', [fixture.caseMessageId]);
   await owner.query('DELETE FROM public."Case" WHERE id = $1', [fixture.caseId]);
   await owner.query('DELETE FROM public."OrderPaymentEvent" WHERE id = $1', [fixture.orderPaymentEventId]);
   await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.orderItemId]);
@@ -219,8 +220,7 @@ async function cleanFixtures(owner) {
   await owner.query('DELETE FROM public."User" WHERE id = ANY($1::text[])', [userIds]);
 }
 
-async function seedFixtures(owner) {
-  await cleanFixtures(owner);
+async function seedFixturesInTransaction(owner) {
   await owner.query(
     `INSERT INTO public."User" (id, "clerkId", email, name, "updatedAt")
      VALUES
@@ -439,9 +439,21 @@ async function seedFixtures(owner) {
     [fixture.caseId, fixture.orderId, fixture.actorUserId, fixture.sellerUserId],
   );
   await owner.query(
-    `INSERT INTO public."CaseMessage" (id, "caseId", "authorId", body)
-     VALUES ($1, $2, $3, 'Proof buyer case message')`,
-    [fixture.caseMessageId, fixture.caseId, fixture.actorUserId],
+    `INSERT INTO public."CaseMessage" (
+       id, "caseId", "authorId", "authorKind", body
+     ) VALUES
+       ($1, $2, $3, 'BUYER', 'Proof buyer case message'),
+       ($4, $2, $5, 'SELLER', 'Proof seller case message'),
+       ($6, $2, $7, 'STAFF', 'Proof staff case message')`,
+    [
+      fixture.caseMessageId,
+      fixture.caseId,
+      fixture.actorUserId,
+      fixture.caseSellerMessageId,
+      fixture.sellerUserId,
+      fixture.caseStaffMessageId,
+      fixture.staffUserId,
+    ],
   );
   await owner.query(
     `INSERT INTO public."AdminAuditLog" (
@@ -678,6 +690,18 @@ async function seedFixtures(owner) {
   );
 }
 
+async function seedFixtures(owner) {
+  await cleanFixtures(owner);
+  await owner.query("BEGIN");
+  try {
+    await seedFixturesInTransaction(owner);
+    await owner.query("COMMIT");
+  } catch (error) {
+    await owner.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
+}
+
 async function proveCatalog(owner) {
   const target = await owner.query(
     `SELECT current_database() AS database_name, current_user,
@@ -903,25 +927,29 @@ async function proveServiceAuthority(owner) {
 }
 
 async function configureResolvedCase(owner, resolution, refundAmountCents = null) {
+  const isRefund = resolution !== "DISMISSED";
+  const resolvedRefundAmountCents =
+    resolution === "REFUND_FULL" ? 12_500 : refundAmountCents;
+  const stripeRefundId = isRefund
+    ? `re_notification_proof_${resolution.toLowerCase()}`
+    : null;
   await owner.query(
     `UPDATE public."Case"
         SET status = 'RESOLVED',
             resolution = $2::public."CaseResolution",
             "refundAmountCents" = $3,
-            "resolvedById" = $4,
+            "stripeRefundId" = $4,
+            "resolvedById" = $5,
             "resolvedAt" = pg_catalog.clock_timestamp(),
             "updatedAt" = pg_catalog.clock_timestamp()
       WHERE id = $1`,
-    [fixture.caseId, resolution, refundAmountCents, fixture.staffUserId],
-  );
-}
-
-async function configureCaseMessageAuthor(owner, authorId, body) {
-  await owner.query(
-    `UPDATE public."CaseMessage"
-        SET "authorId" = $2, body = $3
-      WHERE id = $1`,
-    [fixture.caseMessageId, authorId, body],
+    [
+      fixture.caseId,
+      resolution,
+      resolvedRefundAmountCents,
+      stripeRefundId,
+      fixture.staffUserId,
+    ],
   );
 }
 
@@ -1406,11 +1434,10 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.actorUserId,
     type: "CASE_MESSAGE",
     sourceType: "case_message",
-    sourceId: fixture.caseMessageId,
+    sourceId: fixture.caseSellerMessageId,
     relatedUserId: fixture.sellerUserId,
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedBodyIncludes: "Proof seller case message",
-    setup: (owner) => configureCaseMessageAuthor(owner, fixture.sellerUserId, "Proof seller case message"),
   },
   {
     label: "case_message_staff_to_buyer",
@@ -1418,11 +1445,10 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.actorUserId,
     type: "CASE_MESSAGE",
     sourceType: "case_message",
-    sourceId: fixture.caseMessageId,
+    sourceId: fixture.caseStaffMessageId,
     relatedUserId: fixture.staffUserId,
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedTitle: "Grainline Staff sent a message in your case",
-    setup: (owner) => configureCaseMessageAuthor(owner, fixture.staffUserId, "Proof staff case message"),
   },
   {
     label: "case_message_staff_to_seller",
@@ -1430,7 +1456,7 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.sellerUserId,
     type: "CASE_MESSAGE",
     sourceType: "case_message",
-    sourceId: fixture.caseMessageId,
+    sourceId: fixture.caseStaffMessageId,
     relatedUserId: fixture.staffUserId,
     expectedLink: `/dashboard/sales/${fixture.orderId}`,
     expectedTitle: "Grainline Staff sent a message in your case",

@@ -156,6 +156,58 @@ classification, with a regression assertion requiring all eight names to
 remain private. This was disposable CI only; production and persistent
 staging were unchanged.
 
+The invariant-only merge landed on main as
+`67c3c35ea505296cc6c5c7890dae7c2f06ea95f8`. Exact-main CI run
+`30517469491` passed the complete repository, disposable PostgreSQL and
+production-build gates. The standing Notification FORCE proof run
+`30517469486` then correctly rejected its pre-invariant fixture because that
+proof created a Case and opening message in separate autocommit transactions.
+A class-wide follow-up found the same latent fixture assumption in both
+DirectUpload authority proofs and found that the Case lifecycle reset helper
+omitted durable opening evidence and complete refund evidence. The compatible
+repair keeps each direct Case seed atomic, supplies exact OrderItem seller
+evidence and author kinds, and extends the fixture inventory guard across all
+13 direct SQL Case proof harnesses plus the Prisma lifecycle helper.
+Production has not received the invariant migration.
+
+The first repair-branch reruns advanced past the missing-opening failure.
+Notification run `30518041404` then exposed incomplete synthetic refund
+evidence, while Case lifecycle run `30518044102` exposed an ambiguous Prisma
+nested-write ordering at the message-author trigger. The repair now gives
+Notification refund fixtures a positive amount and nonblank provider ID, and
+models lifecycle creation explicitly as Case then CaseMessage inside the same
+transaction. DirectUpload run `30518042854` already passed its complete
+compatible, activated, concurrency and rollback program at exact repair head
+`4da1fab56c999f8c33269d87c9f5d84408359018`.
+The next exact-head runs proved those repairs and exposed two more clock/kind
+fixtures at the invariant itself: an opening message reused a timestamp captured
+before its parent Case existed, and Notification changed a message author
+without changing the matching author kind. The harness now lets PostgreSQL
+timestamp the opening message after the Case insert and never rewrites message
+authority fields.
+Live PostgreSQL then correctly rejected both author-field mutation and deleting
+the only human opening message ahead of its parent. Notification now seeds
+separate immutable buyer, seller and staff messages, while lifecycle cleanup
+deletes the parent Case and relies on its declared cascade for messages.
+The lifecycle run subsequently reached historical-state construction and
+rejected Cases whose synthetic discussion or response clocks predated their
+default creation clock. `resetCase` now derives a deliberately earlier fixture
+creation time from every supplied lifecycle clock.
+The next live pass reached the participant-resolution race and exposed a stale
+proof model: it always left the Case `PENDING_CLOSE`, even when the second
+participant confirmed resolution. The proof helper now mirrors the fixed
+authority function by atomically producing `RESOLVED` plus `DISMISSED` and
+resolution provenance when both participant marks are present; a following
+reply is expected to fail closed.
+The first execution of that branch also confirmed PostgreSQL cannot infer a
+timestamp parameter through a mixed `CASE` expression; the proof now casts the
+resolved clock explicitly to the table's timestamp-without-time-zone type.
+Final branch review found that both DirectUpload harnesses still deleted
+CaseMessages before their parent and suppressed any cleanup error. Their
+ephemeral containers were destroyed, so no fixture persisted, but that could
+produce a false clean-teardown claim. Cleanup now cascades from the parent Case,
+propagates failure, and still closes every connection in a nested `finally`.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:
