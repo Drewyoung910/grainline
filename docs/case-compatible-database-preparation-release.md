@@ -1,7 +1,8 @@
 # Case compatible database preparation release
 
-Status: candidate package only. No production migration, deployment, merge,
-Case-family RLS activation, or FORCE release is authorized by this document.
+Status: candidate package and fail-closed operator only. No production
+migration, deployment, merge, Case-family RLS activation, or FORCE release is
+authorized by this document.
 
 ## Purpose
 
@@ -27,7 +28,7 @@ The package does not contain:
 - a promoted Case invariant migration;
 - a promoted Case read-mode migration;
 - a promoted Case ENABLE or FORCE migration;
-- a production-migration workflow authorization;
+- an executed production-migration workflow;
 - a production deployment instruction; or
 - a DirectUpload activation or cleanup credential.
 
@@ -54,23 +55,49 @@ pass fresh exact-head CI because its purpose is to prove that the compatible
 database subset is independently releasable while the current application
 remains unchanged.
 
+## Pooled-runtime postflight contract
+
+Run `npm run ops:case-compatible-db-postflight` only from the exact clean
+release commit after its main CI and guarded migration runs have succeeded.
+Supply:
+
+- `DATABASE_URL`: the reviewed pooled production
+  `grainline_app_runtime` URL;
+- `CASE_COMPATIBLE_DB_RELEASE_COMMIT`: the exact 40-character migrated main
+  commit;
+- `CASE_COMPATIBLE_DB_MAIN_CI_RUN_ID`: the successful exact-head main CI run;
+- `CASE_COMPATIBLE_DB_MIGRATION_RUN_ID`: the successful guarded migration run;
+- `CASE_COMPATIBLE_DB_POSTFLIGHT_CONFIRM`:
+  `verify-production-case-compatible-database-read-only`; and
+- `CASE_COMPATIBLE_DB_POSTFLIGHT_EVIDENCE_PATH`: a fresh path whose basename is
+  `case-compatible-database-production-postflight-<release commit>.json`.
+
+The operator rejects owner/migration URLs, alternate PostgreSQL URL variables,
+unreviewed TLS/session options, a dirty or wrong checkout, reused evidence
+paths, and the wrong production runtime identity. PostgreSQL itself must report
+`transaction_read_only=on` before any catalog or denial check. Evidence is
+sanitized, created once with mode `0600`, and contains no connection string.
+
 ## Required release order
 
 1. Review and merge this compatible database package only.
-2. Separately authorize and apply only its exact committed migrations.
-3. Run the compatible database postflight and confirm Case-family RLS remains
+2. Review the stacked operator that advances the guarded production workflow
+   only through `case-account-deletion-authority-reviewed`.
+3. Separately authorize and apply only its exact committed migrations.
+4. Run the pooled-runtime compatible database postflight and confirm
+   `transaction_read_only=on`, Case-family RLS remains
    off, fixed functions have exact ACLs, private ledgers remain inaccessible,
    and the existing application still has its predecessor grants.
-4. Package, review, merge and deploy the compatible application conversion
+5. Package, review, merge and deploy the compatible application conversion
    from the accepted conversion branch.
-5. Run authenticated Case route smoke against the converted deployment.
-6. Promote and apply the invariant/read-mode convergence preparation under its
+6. Run authenticated Case route smoke against the converted deployment.
+7. Promote and apply the invariant/read-mode convergence preparation under its
    own review.
-7. Finish DirectUpload cleanup credential, activation and pooled-runtime
+8. Finish DirectUpload cleanup credential, activation and pooled-runtime
    postflight gates.
-8. Re-run the aggregate-only Case legacy inspection, then activate
+9. Re-run the aggregate-only Case legacy inspection, then activate
    `Case`, `CaseMessage`, and `CaseMessageAttachment`.
-9. Apply FORCE only as a later, separately authorized release after activation
+10. Apply FORCE only as a later, separately authorized release after activation
    postflight.
 
 Orders, payments and shipping remain a separate RLS group. Case functions that
@@ -82,8 +109,8 @@ already RLS-protected.
 - Case-family RLS: off.
 - DirectUpload RLS: off.
 - Case compatible application conversion: isolated, not deployed.
-- Production migration workflow: still authorized only through the existing
-  DirectUpload legacy-repair boundary.
+- Candidate production migration workflow: advances only through the compatible
+  Case account-deletion authority boundary; it has not run or changed
+  production.
 - Production and persistent staging: unchanged by package construction and
   disposable proof.
-
