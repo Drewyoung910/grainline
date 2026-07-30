@@ -914,11 +914,11 @@ artifact is aggregate/catalog-only, commit-bound, sanitized and mode 0600.
 Provisioning does not activate the worker, run object deletion, alter R2,
 deploy the app or enable DirectUpload RLS.
 
-The cleanup-only R2 credential is still absent. It must be scoped to delete
-objects from the exact public and private cleanup buckets; application R2 keys
-must not be reused or copied into the cleanup environment. Until that
-credential is created and provider deletion is proved, the cleanup worker and
-DirectUpload activation remain blocked.
+The cleanup-only R2 credential is not accepted until its disposable-object
+proof passes. It must be scoped to delete objects from the exact public and
+private cleanup buckets; application R2 keys must not be reused or copied into
+the cleanup environment. Until that credential and provider deletion are
+proved, the cleanup worker and DirectUpload activation remain blocked.
 
 The pre-activation R2 credential proof is a separate manual-only, main-only
 workflow because the cleanup worker correctly requires both DirectUpload
@@ -926,11 +926,13 @@ tables to have ENABLE plus FORCE RLS before it may lease a row. The proof
 receives only the cleanup-specific R2 credential and exact account/bucket
 variables; it explicitly rejects application R2 and every database credential.
 For each bucket it creates one random operator-prefix text object, verifies the
-object metadata, deletes it, and verifies absence. It performs no list request,
-never retains an object key or raw target identifier, writes only hashes and
-bounded result codes to mode-0600 evidence, and attempts immediate deletion if
-a provider request fails after creation. A run with any possible residue is
-failed evidence and cannot satisfy the activation gate.
+object metadata, deletes it, and verifies absence. Absence checks use only the
+full random operator key as an exact `ListObjectsV2` prefix with `MaxKeys=1`;
+the proof cannot enumerate user-object namespaces. It never retains an object
+key or raw target identifier, writes only hashes and bounded result codes to
+mode-0600 evidence, and attempts immediate deletion if a provider request
+fails after creation. A run with any possible residue is failed evidence and
+cannot satisfy the activation gate.
 
 The first protected production provisioning run, `30398188163` (job
 `90406279837`) at exact main `a816af9a`, passed the Node owner/source/database
@@ -1554,12 +1556,27 @@ artifact
 `6d3ef0851e719d8b0fba8584af477ce49d2851539bef02a115f80f7e081c8786`.
 Independent Wrangler metadata reads still reached both exact buckets:
 `grainline-uploads` retained 257 objects / 283 MB and
-`grainline-private` retained zero objects / zero bytes. Treat the failure as a
-credential permission or bucket-scope defect. Revoke the rejected credential,
-replace it with a fresh R2 User API token carrying only `Object Read & Write`
-for both exact buckets, overwrite both protected secrets and require a fresh
-proof run. No database, object, application deployment, cleanup-worker or RLS
-state changed.
+`grainline-private` retained zero objects / zero bytes. The initial
+credential-scope diagnosis was deliberately tested with a replacement R2 User
+API token visibly limited to `Object Read & Write` on both exact buckets.
+Protected run `30566210168` (job `90951270227`) at the same exact main commit
+failed at the identical preflight `HEAD`, before any `PUT`, with
+`residualPossible=false`; its sanitized artifact
+`direct-upload-r2-credential-proof-30566210168-1.json` has SHA-256
+`d319a479ccaba455fbf6a19efd6ffed5edaacb41b842a61b3a4f43ae5bcc03a6`.
+
+The reproduced failure falsifies the bucket-selection hypothesis and exposes
+an operator defect. S3-compatible `HeadObject` intentionally returns an
+ambiguous `403` for a missing object when the request cannot establish
+bucket-list authority, so an absent-key `HEAD` cannot distinguish least-
+privilege posture from invalid credentials. The corrected operator keeps its
+atomic `PutObject` `If-None-Match: *` collision fence and replaces only the
+preflight/final absence probes with strongly consistent, full-random-key
+`ListObjectsV2` requests capped at one result. Any returned object, truncation,
+continuation token, provider error or malformed count fails closed; cleanup
+still repeats delete plus bounded absence proof after an ambiguous provider
+response. Both failed runs remain non-evidence. No database, object,
+application deployment, cleanup-worker or RLS state changed.
 
 ## Exit
 
@@ -1567,12 +1584,13 @@ Keep Extra High through the cleanup-only R2 credential/delete proof and the
 downstream retirement/activation SQL review. PRs `#60` and `#61` are merged;
 the production v2 cleanup login and its exact three-function authority are now
 provisioned and proved. `DirectUpload` RLS remains off, its compatibility key
-remains present, no cleanup has run, no scheduler is active, and the
-cleanup-only R2 credential is still absent. Do not promote the generated
-retirement/activation candidates or schedule the worker until that
-bucket-scoped deletion credential passes a disposable-object proof. Standing
-authorization permits routine continuation through this already-scoped
-rollout without conversational micro-approval. Exact-commit proof,
-protected-environment, migration, deployment and production postflight gates
-remain mandatory, and work must stop on failed safety evidence, unexpected
-production state, destructive scope drift or a required platform approval.
+remains present, no cleanup has run, no scheduler is active, and the configured
+cleanup-only R2 credential is not accepted until a corrected proof passes. Do
+not promote the generated retirement/activation candidates or schedule the
+worker until that bucket-scoped deletion credential passes a disposable-object
+proof. Standing authorization permits routine continuation through this
+already-scoped rollout without conversational micro-approval. Exact-commit
+proof, protected-environment, migration, deployment and production postflight
+gates remain mandatory, and work must stop on failed safety evidence,
+unexpected production state, destructive scope drift or a required platform
+approval.

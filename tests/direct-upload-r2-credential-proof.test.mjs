@@ -40,13 +40,6 @@ function baseEnv(runnerTemp) {
   };
 }
 
-function notFound() {
-  const error = new Error("raw object identity must not survive");
-  error.name = "NotFound";
-  error.$metadata = { httpStatusCode: 404 };
-  return error;
-}
-
 describe("DirectUpload cleanup R2 credential proof", () => {
   it("accepts only exact manual-main cleanup-only configuration", () => {
     const runnerTemp = mkdtempSync(
@@ -103,9 +96,23 @@ describe("DirectUpload cleanup R2 credential proof", () => {
     const client = {
       async send(command) {
         const name = command.constructor.name;
-        const { Bucket, Key } = command.input;
-        calls.push({ bucket: Bucket, key: Key, name });
-        const stateKey = `${Bucket}/${Key}`;
+        const { Bucket } = command.input;
+        const key = command.input.Key ?? command.input.Prefix;
+        calls.push({
+          bucket: Bucket,
+          key,
+          maxKeys: command.input.MaxKeys,
+          name,
+        });
+        const stateKey = `${Bucket}/${key}`;
+        if (name === "ListObjectsV2Command") {
+          const exists = states.has(stateKey);
+          return {
+            Contents: exists ? [{ Key: key }] : [],
+            IsTruncated: false,
+            KeyCount: exists ? 1 : 0,
+          };
+        }
         if (name === "PutObjectCommand") {
           assert.equal(command.input.IfNoneMatch, "*");
           states.set(stateKey, {
@@ -115,10 +122,7 @@ describe("DirectUpload cleanup R2 credential proof", () => {
           });
           return {};
         }
-        if (name === "HeadObjectCommand") {
-          if (!states.has(stateKey)) throw notFound();
-          return states.get(stateKey);
-        }
+        if (name === "HeadObjectCommand") return states.get(stateKey);
         if (name === "DeleteObjectCommand") {
           states.delete(stateKey);
           return {};
@@ -155,6 +159,20 @@ describe("DirectUpload cleanup R2 credential proof", () => {
       calls.filter((call) => call.name === "DeleteObjectCommand").length,
       2,
     );
+    const listCalls = calls.filter(
+      (call) => call.name === "ListObjectsV2Command",
+    );
+    assert.equal(listCalls.length, 4);
+    assert.equal(
+      listCalls.every(
+        (call) =>
+          call.maxKeys === 1
+          && call.key.startsWith(
+            ".grainline-ops/direct-upload-cleanup-credential-proof/",
+          ),
+      ),
+      true,
+    );
     assert.equal(
       JSON.stringify(proof).includes(
         ".grainline-ops/direct-upload-cleanup-credential-proof",
@@ -165,14 +183,14 @@ describe("DirectUpload cleanup R2 credential proof", () => {
   });
 
   it("fails closed and attempts residue cleanup without retaining provider text", async () => {
-    let putSeen = false;
     let deleteCalls = 0;
     const client = {
       async send(command) {
         const name = command.constructor.name;
-        if (name === "HeadObjectCommand" && !putSeen) throw notFound();
+        if (name === "ListObjectsV2Command") {
+          return { Contents: [], IsTruncated: false, KeyCount: 0 };
+        }
         if (name === "PutObjectCommand") {
-          putSeen = true;
           return {};
         }
         if (name === "HeadObjectCommand") {
@@ -224,8 +242,14 @@ describe("DirectUpload cleanup R2 credential proof", () => {
     const client = {
       async send(command) {
         const name = command.constructor.name;
+        if (name === "ListObjectsV2Command") {
+          return {
+            Contents: objectExists ? [{ Key: command.input.Prefix }] : [],
+            IsTruncated: false,
+            KeyCount: objectExists ? 1 : 0,
+          };
+        }
         if (name === "HeadObjectCommand") {
-          if (!objectExists) throw notFound();
           return {
             CacheControl: "no-store",
             ContentLength: Buffer.byteLength(DIRECT_UPLOAD_R2_PROOF_BODY),
@@ -267,6 +291,46 @@ describe("DirectUpload cleanup R2 credential proof", () => {
     );
   });
 
+  it("fails closed when an exact-prefix absence listing is not empty", async () => {
+    const calls = [];
+    const client = {
+      async send(command) {
+        calls.push(command);
+        if (command.constructor.name !== "ListObjectsV2Command") {
+          throw new Error("proof continued after a non-empty preflight");
+        }
+        return {
+          Contents: [{ Key: `${command.input.Prefix}-unexpected` }],
+          IsTruncated: false,
+          KeyCount: 1,
+        };
+      },
+    };
+    const proof = await runDirectUploadR2CredentialProof({
+      client,
+      keyNonce: "00000000-0000-4000-8000-000000000000",
+      privateBucket: "grainline-private",
+      publicBucket: "grainline-public",
+    });
+
+    assert.equal(proof.complete, false);
+    assert.equal(proof.results.length, 1);
+    assert.equal(
+      proof.results[0].failureCode,
+      "R2_PROOF_KEY_ALREADY_EXISTS",
+    );
+    assert.equal(proof.results[0].preflightAbsent, false);
+    assert.equal(proof.results[0].wrote, false);
+    assert.equal(proof.results[0].residualPossible, false);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].input.MaxKeys, 1);
+    assert.equal(
+      calls[0].input.Prefix,
+      ".grainline-ops/direct-upload-cleanup-credential-proof/"
+        + "00000000-0000-4000-8000-000000000000-public.txt",
+    );
+  });
+
   it("keeps proof manual, main-only, isolated, and evidence-only", () => {
     const workflow = readFileSync(
       ".github/workflows/direct-upload-r2-credential-proof.yml",
@@ -287,8 +351,11 @@ describe("DirectUpload cleanup R2 credential proof", () => {
     assert.doesNotMatch(workflow, /CLOUDFLARE_R2_ACCESS_KEY_ID:/);
     assert.match(script, /PutObjectCommand/);
     assert.match(script, /HeadObjectCommand/);
+    assert.match(script, /ListObjectsV2Command/);
     assert.match(script, /DeleteObjectCommand/);
+    assert.match(script, /MaxKeys: 1/);
+    assert.match(script, /Prefix: key/);
+    assert.match(script, /schemaVersion: 2/);
     assert.match(script, /DirectUpload R2 proof evidence mode is not 0600/);
-    assert.doesNotMatch(script, /ListObjects/);
   });
 });

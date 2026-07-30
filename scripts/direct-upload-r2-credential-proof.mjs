@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import {
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -197,14 +198,6 @@ function safeProviderCode(error, stage) {
   return `R2_${stage}_${safeStatus}_${safeName}`;
 }
 
-function isNotFound(error) {
-  return (
-    Number(error?.$metadata?.httpStatusCode) === 404
-    || error?.name === "NotFound"
-    || error?.name === "NoSuchKey"
-  );
-}
-
 function proofError(code) {
   const error = new Error(code);
   error.proofCode = code;
@@ -212,19 +205,36 @@ function proofError(code) {
 }
 
 async function assertObjectAbsent(client, bucket, key) {
-  try {
-    await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-  } catch (error) {
-    if (isNotFound(error)) return;
-    throw error;
+  const listed = await client.send(
+    new ListObjectsV2Command({
+      Bucket: bucket,
+      MaxKeys: 1,
+      Prefix: key,
+    }),
+  );
+  const contents = Array.isArray(listed.Contents) ? listed.Contents : [];
+  const keyCount = listed.KeyCount === undefined
+    ? contents.length
+    : Number(listed.KeyCount);
+  if (
+    !Number.isInteger(keyCount)
+    || keyCount < 0
+    || keyCount > 1
+    || contents.length > 1
+    || listed.IsTruncated === true
+    || listed.NextContinuationToken !== undefined
+  ) {
+    throw proofError("R2_PROOF_ABSENCE_LIST_AMBIGUOUS");
   }
-  throw proofError("R2_PROOF_KEY_ALREADY_EXISTS");
+  if (keyCount !== 0 || contents.length !== 0) {
+    throw proofError("R2_PROOF_KEY_ALREADY_EXISTS");
+  }
 }
 
 async function proveBucket({ bucket, client, key, storageClass }) {
   const keySha256 = sha256(key);
   let objectMayExist = false;
-  let stage = `${storageClass}_PREFLIGHT_HEAD`;
+  let stage = `${storageClass}_PREFLIGHT_LIST`;
   const result = {
     cleanupAttempted: false,
     cleanupSucceeded: false,
@@ -233,11 +243,13 @@ async function proveBucket({ bucket, client, key, storageClass }) {
     finalAbsent: false,
     headVerified: false,
     keySha256,
+    preflightAbsent: false,
     storageClass,
     wrote: false,
   };
   try {
     await assertObjectAbsent(client, bucket, key);
+    result.preflightAbsent = true;
     stage = `${storageClass}_PUT`;
     objectMayExist = true;
     try {
@@ -279,7 +291,7 @@ async function proveBucket({ bucket, client, key, storageClass }) {
     );
     result.deleted = true;
 
-    stage = `${storageClass}_FINAL_HEAD`;
+    stage = `${storageClass}_FINAL_LIST`;
     await assertObjectAbsent(client, bucket, key);
     objectMayExist = false;
     result.finalAbsent = true;
@@ -336,7 +348,8 @@ export async function runDirectUploadR2CredentialProof({
       results.length === 2
       && results.every(
         (result) =>
-          result.wrote
+          result.preflightAbsent
+          && result.wrote
           && result.headVerified
           && result.deleted
           && result.finalAbsent
@@ -402,7 +415,7 @@ async function main() {
       id: config.runId,
       startedAt,
     }),
-    schemaVersion: 1,
+    schemaVersion: 2,
     source: Object.freeze({
       clean: git.clean,
       commit: git.head,
