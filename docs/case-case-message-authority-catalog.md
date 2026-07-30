@@ -774,6 +774,21 @@ direct protected access. DirectUpload activation/private-bucket proof must
 also complete before Case evidence or the three-table Case boundary is
 enabled.
 
+Activation-mode decision (2026-07-29): after the inventory reached 79
+converted ordinary references plus the one runtime-private lock core, the
+review rejected retaining a direct Case SELECT policy merely to support the
+four originally INVOKER projections. A staff-visible policy cannot encode the
+session-bound PIN and would silently widen any future direct query made with a
+real staff actor context. The candidate therefore first converges
+`grainline_case_get`, `grainline_case_get_by_order`,
+`grainline_case_staff_active_count` and `grainline_case_export_page` to
+SECURITY DEFINER without changing their validated inputs or bounded outputs.
+The later three-table boundary is policyless ENABLE RLS with zero
+runtime/PUBLIC table and column grants; all runtime access remains through the
+27 reviewed fixed entry points, while `grainline_case_lock_core` remains
+owner-internal. This is draft architecture only until the compatible
+read-mode and activated-engine proofs pass.
+
 The shared
 `grainline_account_deletion_redact_text_core(text, text[])` remains
 owner-internal: neither `PUBLIC` nor `grainline_app_runtime` receives

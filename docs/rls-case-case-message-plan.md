@@ -1292,7 +1292,16 @@ substitute for PostgreSQL role, RLS, ACL and row-lock behavior.
 ## Phase 5: ENABLE activation
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
-- Apply exact policies and narrow grants; direct runtime writes become absent.
+- Converge the four remaining bounded `SECURITY INVOKER` projections to
+  `SECURITY DEFINER` in a compatible pre-activation migration. Their bodies
+  already revalidate the exact active actor and return only the reviewed
+  bounded projection; changing the execution mode adds no caller input or
+  output.
+- Activate `Case`, `CaseMessage` and `CaseMessageAttachment` as policyless
+  service tables: ENABLE RLS, keep FORCE off, create zero policies, and revoke
+  every runtime/PUBLIC table and column privilege. The completed zero-direct-
+  access inventory means retaining a participant or staff table policy would
+  widen authority solely to support code paths that no longer exist.
 - Keep FORCE off for the first activation.
 - Run exact catalog/grant audit, direct runtime denial, authenticated
   buyer/seller/staff smoke, cron/webhook-safe proof and rollback proof.
@@ -1402,3 +1411,26 @@ rows before attempting the draft and requires both preflights to reject. Its
 normal post-install phase additionally rejects a same-Order dispute event with
 a forged charge. The resulting 46-check candidate is still draft-only and
 must pass exact PostgreSQL CI before any invariant migration is promoted.
+
+Exact invariant re-audit head
+`7543d84cd041b89580c988666b0522cddee73dad` passed GitHub Actions run
+`30500866299` (job `90740015271`). The run applied the complete migration tree,
+converged production-style grants and passed the revised 46-check invariant
+proof, including legacy-row rejection before trigger installation, exact
+opening-source provenance, lock-order/race coverage, rollback and zero
+residue. Every predecessor PostgreSQL proof, migration status, final grant/RLS
+audit, TypeScript, lint, complete repository suite, dependency audit and
+production build passed in the same run. Production and persistent staging
+were unchanged.
+
+The subsequent activation-authority review rejects a broad staff-visible
+`Case` SELECT policy. PostgreSQL cannot attest the session-bound staff PIN, so
+such a policy would let any future direct query running with a real staff
+actor context bypass the PIN-gated route boundary. Because all 79 ordinary
+Case-family references are converted and the one remaining reference is the
+runtime-private owner core, the least-privilege destination is instead
+policyless ENABLE RLS plus zero runtime/PUBLIC table grants on all three
+tables. Four originally INVOKER projections must first become bounded
+SECURITY DEFINER operations so they do not require retaining a direct SELECT
+grant. Draft-only read-mode, ENABLE, rollback and FORCE SQL are retained under
+`docs/rls-drafts/`; none is a migration or production authorization.

@@ -158,11 +158,17 @@ recipient-read conversion also moves staff Case detail, the PIN-gated active
 count and three Order-to-Case relations behind fixed typed projections.
 
 Keep the PII-free Case-detail projections separate from the cross-user staff
-queue. One Case by id, one Case by Order and the staff active count may remain
-SECURITY INVOKER after setting transaction-local actor context. Their fixed
-result must not expose the raw Stripe refund id, User contact/profile fields,
-payment-source provenance or attachment/object identifiers, and UTC database
-timestamps must cross the SQL boundary as `timestamptz`.
+queue. One Case by id, one Case by Order and the staff active count were
+prepared as SECURITY INVOKER operations while direct table reads still
+coexisted. The completed zero-direct-access inventory changes the activation
+decision: converge those three plus the bounded account-export projection to
+SECURITY DEFINER before activation, preserving the same actor validation and
+bounded outputs. This permits a policyless, zero-table-grant Case boundary and
+avoids a broad staff-visible policy that cannot attest the session-bound PIN.
+Their fixed result must not expose the raw Stripe refund id, User
+contact/profile fields, payment-source provenance or attachment/object
+identifiers, and UTC database timestamps must cross the SQL boundary as
+`timestamptz`.
 
 The staff Case queue is not one of those ordinary reads. It needs minimal
 buyer/seller contact fields for PIN-verified staff, which future self-only User
@@ -230,6 +236,17 @@ residue. This remains preparation only; production Case-family RLS is still
 off. Exact escalation/cron head `71320931` passed
 GitHub Actions run `30496775294` (job `90727343830`), including the disposable
 PostgreSQL authority/concurrency/rollback proof and every repository gate.
+
+The invariant re-audit exact head
+`7543d84cd041b89580c988666b0522cddee73dad` passed GitHub Actions run
+`30500866299` (job `90740015271`), including the corrected legacy preflight,
+write freeze, source binding and race proof plus every repository gate. The
+draft activation destination is now explicit: policyless ENABLE RLS and zero
+runtime/PUBLIC table or column privileges for Case, CaseMessage and
+CaseMessageAttachment, followed later by a separate posture-only FORCE
+release. The compatible read-mode convergence, invariant promotion,
+activation, rollback and FORCE candidates remain unapplied until their
+separate engine and release gates pass.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and

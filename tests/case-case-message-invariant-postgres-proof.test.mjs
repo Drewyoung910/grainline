@@ -45,12 +45,18 @@ test("Case invariant proof refuses persistent database targets", () => {
 });
 
 test("Case invariant proof strips only reviewed transaction wrappers", () => {
-  const body = readDraftTransactionBody(
+  for (const draft of [
     "docs/rls-drafts/case-case-message-invariants.sql",
-  );
-  assert.match(body, /DRAFT ONLY/);
-  assert.doesNotMatch(body, /^\s*BEGIN;/m);
-  assert.doesNotMatch(body, /^\s*COMMIT;/m);
+    "docs/rls-drafts/case-case-message-read-mode.sql",
+    "docs/rls-drafts/case-case-message-activation.sql",
+    "docs/rls-drafts/case-case-message-activation-rollback.sql",
+    "docs/rls-drafts/case-case-message-force.sql",
+  ]) {
+    const body = readDraftTransactionBody(draft);
+    assert.match(body, /DRAFT ONLY/, draft);
+    assert.doesNotMatch(body, /^\s*BEGIN;/m, draft);
+    assert.doesNotMatch(body, /^\s*COMMIT;/m, draft);
+  }
   assert.doesNotMatch(
     proof,
     /readDraftTransactionBody\(CLAIM_DRAFT\)/,
@@ -86,6 +92,8 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "released_claim_cannot_finalize",
     "legacy_case_relationship_preflight",
     "legacy_message_author_preflight",
+    "activated_runtime_direct_case_read",
+    "activated_runtime_direct_message_insert",
   ]) {
     assert.match(proof, new RegExp(`"${check}"`), check);
   }
@@ -107,7 +115,9 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);
-  assert.match(proof, /checks: 46/);
+  assert.match(proof, /checks: 53/);
+  assert.match(proof, /provePolicylessActivation/);
+  assert.match(proof, /case_force_candidate/);
 });
 
 test("seller-refund proof parameters have one explicit PostgreSQL type", () => {

@@ -10,6 +10,14 @@ const PROOF_ENV = "CASE_INVARIANT_PROOF_DATABASE_URL";
 const DATABASE_NAME = "grainline_ci";
 const INVARIANT_DRAFT =
   "docs/rls-drafts/case-case-message-invariants.sql";
+const READ_MODE_DRAFT =
+  "docs/rls-drafts/case-case-message-read-mode.sql";
+const ACTIVATION_DRAFT =
+  "docs/rls-drafts/case-case-message-activation.sql";
+const ACTIVATION_ROLLBACK_DRAFT =
+  "docs/rls-drafts/case-case-message-activation-rollback.sql";
+const FORCE_DRAFT =
+  "docs/rls-drafts/case-case-message-force.sql";
 
 const ids = Object.freeze({
   buyer: "case-invariant-proof-buyer",
@@ -27,6 +35,7 @@ const ids = Object.freeze({
   staffRefundOrder: "case-invariant-proof-order-staff-refund",
   staffRetryOrder: "case-invariant-proof-order-staff-retry",
   staffReleaseOrder: "case-invariant-proof-order-staff-release",
+  activationOrder: "case-invariant-proof-order-activation",
   ordinaryCase: "case-invariant-proof-case-ordinary",
   sourceCase: "case-invariant-proof-case-source",
   refundCase: "case-invariant-proof-case-refund",
@@ -36,6 +45,7 @@ const ids = Object.freeze({
   staffRefundCase: "case-invariant-proof-case-staff-refund",
   staffRetryCase: "case-invariant-proof-case-staff-retry",
   staffReleaseCase: "case-invariant-proof-case-staff-release",
+  activationCase: "case-invariant-proof-case-activation",
 });
 
 function safeError(error) {
@@ -151,6 +161,7 @@ async function seedBaseFixtures(client) {
     ids.staffRefundOrder,
     ids.staffRetryOrder,
     ids.staffReleaseOrder,
+    ids.activationOrder,
   ].entries()) {
     await client.query(`
       INSERT INTO public."Order" (id, "buyerId", "stripeChargeId")
@@ -1663,6 +1674,203 @@ async function provePrivatePosture(client) {
   assert.equal(identity.rows[0]?.current_user, "ci");
 }
 
+async function provePolicylessActivation(
+  client,
+  readModeBody,
+  activationBody,
+  activationRollbackBody,
+  forceBody,
+) {
+  await insertParticipantCase(
+    client,
+    ids.activationCase,
+    ids.activationOrder,
+  );
+
+  await client.query(readModeBody);
+  await client.query(activationBody);
+
+  const activatedCatalog = await client.query(`
+    SELECT
+      class.relname,
+      class.relrowsecurity,
+      class.relforcerowsecurity,
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.pg_policy AS policy
+         WHERE policy.polrelid = class.oid
+      ) AS policy_count,
+      pg_catalog.has_table_privilege(
+        'grainline_app_runtime',
+        class.oid,
+        'SELECT,INSERT,UPDATE,DELETE'
+      ) AS runtime_has_dml,
+      pg_catalog.has_any_column_privilege(
+        'grainline_app_runtime',
+        class.oid,
+        'SELECT,INSERT,UPDATE,REFERENCES'
+      ) AS runtime_has_column_access
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname IN (
+         'Case',
+         'CaseMessage',
+         'CaseMessageAttachment'
+       )
+     ORDER BY class.relname
+  `);
+  assert.deepEqual(activatedCatalog.rows, [
+    {
+      relname: "Case",
+      relrowsecurity: true,
+      relforcerowsecurity: false,
+      policy_count: 0,
+      runtime_has_dml: false,
+      runtime_has_column_access: false,
+    },
+    {
+      relname: "CaseMessage",
+      relrowsecurity: true,
+      relforcerowsecurity: false,
+      policy_count: 0,
+      runtime_has_dml: false,
+      runtime_has_column_access: false,
+    },
+    {
+      relname: "CaseMessageAttachment",
+      relrowsecurity: true,
+      relforcerowsecurity: false,
+      policy_count: 0,
+      runtime_has_dml: false,
+      runtime_has_column_access: false,
+    },
+  ]);
+
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  const participantCase = await client.query(
+    "SELECT * FROM public.grainline_case_get($1, $2)",
+    [ids.buyer, ids.activationCase],
+  );
+  assert.equal(participantCase.rows.length, 1);
+  assert.equal(participantCase.rows[0]?.id, ids.activationCase);
+
+  const foreignCase = await client.query(
+    "SELECT * FROM public.grainline_case_get($1, $2)",
+    [ids.foreign, ids.activationCase],
+  );
+  assert.equal(foreignCase.rows.length, 0);
+
+  const staffCase = await client.query(
+    "SELECT * FROM public.grainline_case_get($1, $2)",
+    [ids.staff, ids.activationCase],
+  );
+  assert.equal(staffCase.rows.length, 1);
+  assert.equal(staffCase.rows[0]?.actsAsStaff, true);
+
+  const exportPage = await client.query(`
+    SELECT *
+      FROM public.grainline_case_export_page(
+        $1,
+        NULL::timestamp,
+        NULL::text,
+        25
+      )
+  `, [ids.buyer]);
+  assert.ok(
+    exportPage.rows.some((row) => row.id === ids.activationCase),
+    "activated participant export omitted the exact Case",
+  );
+
+  const reply = await client.query(`
+    SELECT public.grainline_case_reply(
+      $1,
+      $2,
+      'Policyless activation proof reply.',
+      ARRAY[]::text[]
+    ) AS result
+  `, [ids.seller, ids.activationCase]);
+  assert.equal(reply.rows[0]?.result?.caseId, ids.activationCase);
+  assert.equal(reply.rows[0]?.result?.authorKind, "SELLER");
+  await client.query("RESET ROLE");
+
+  await expectPostgresError(
+    client,
+    "activated_runtime_direct_case_read",
+    async () => {
+      await client.query("SET LOCAL ROLE grainline_app_runtime");
+      await client.query(
+        'SELECT id FROM public."Case" WHERE id = $1',
+        [ids.activationCase],
+      );
+    },
+    /permission denied for table Case/,
+  );
+  await expectPostgresError(
+    client,
+    "activated_runtime_direct_message_insert",
+    async () => {
+      await client.query("SET LOCAL ROLE grainline_app_runtime");
+      await client.query(`
+        INSERT INTO public."CaseMessage" (
+          id, "caseId", "authorId", "authorKind", body, "createdAt"
+        )
+        VALUES (
+          'case-invariant-proof-direct-activation-message',
+          $1, $2, 'BUYER', 'Forged direct activation message.',
+          CURRENT_TIMESTAMP
+        )
+      `, [ids.activationCase, ids.buyer]);
+    },
+    /permission denied for table CaseMessage/,
+  );
+  const identity = await client.query("SELECT current_user AS current_user");
+  assert.equal(identity.rows[0]?.current_user, "ci");
+
+  await client.query("SAVEPOINT case_force_candidate");
+  await client.query(forceBody);
+  const forced = await client.query(`
+    SELECT pg_catalog.count(*)::integer AS count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname IN (
+         'Case',
+         'CaseMessage',
+         'CaseMessageAttachment'
+       )
+       AND class.relrowsecurity
+       AND class.relforcerowsecurity
+  `);
+  assert.equal(forced.rows[0]?.count, 3);
+  await client.query("ROLLBACK TO SAVEPOINT case_force_candidate");
+  await client.query("RELEASE SAVEPOINT case_force_candidate");
+
+  await client.query(activationRollbackBody);
+  const rolledBackCatalog = await client.query(`
+    SELECT pg_catalog.count(*)::integer AS count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname IN (
+         'Case',
+         'CaseMessage',
+         'CaseMessageAttachment'
+       )
+       AND NOT class.relrowsecurity
+       AND NOT class.relforcerowsecurity
+       AND pg_catalog.has_table_privilege(
+         'grainline_app_runtime',
+         class.oid,
+         'SELECT,INSERT,UPDATE,DELETE'
+       )
+  `);
+  assert.equal(rolledBackCatalog.rows[0]?.count, 3);
+}
+
 export async function runCaseInvariantPostgresProof(env = process.env) {
   const { databaseUrl } = parseCaseInvariantProofConfig(env);
   const client = new Client({
@@ -1676,6 +1884,12 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
   let began = false;
   try {
     const draftBody = readDraftTransactionBody(INVARIANT_DRAFT);
+    const readModeBody = readDraftTransactionBody(READ_MODE_DRAFT);
+    const activationBody = readDraftTransactionBody(ACTIVATION_DRAFT);
+    const activationRollbackBody = readDraftTransactionBody(
+      ACTIVATION_ROLLBACK_DRAFT,
+    );
+    const forceBody = readDraftTransactionBody(FORCE_DRAFT);
     await proveLegacyPreflightRejects(client, draftBody);
     await client.query("BEGIN");
     began = true;
@@ -1687,10 +1901,17 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await proveStaffResolutionAuthority(client);
     await proveClaimLedger(client);
     await provePrivatePosture(client);
+    await provePolicylessActivation(
+      client,
+      readModeBody,
+      activationBody,
+      activationRollbackBody,
+      forceBody,
+    );
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 46,
+      checks: 53,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
