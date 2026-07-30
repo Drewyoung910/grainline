@@ -100,8 +100,36 @@ test("Case lifecycle reset fixtures create valid opening and refund evidence", (
     /async function resetCase\([\s\S]+?\n}\n\nasync function waitForLock/,
   )?.[0];
   assert.ok(resetCase, "Case lifecycle resetCase function is missing");
-  assert.match(resetCase, /messages:\s*\{\s*create:/);
+  assert.match(resetCase, /client\.\$transaction\(async \(tx\) =>/);
+  assert.match(resetCase, /await tx\.case\.create/);
+  assert.match(resetCase, /await tx\.caseMessage\.create/);
   assert.match(resetCase, /authorKind: "BUYER"/);
+  const attemptCaseCreate = source.match(
+    /async function attemptCaseCreate\([\s\S]+?\n}\n\nasync function attemptLabelReservation/,
+  )?.[0];
+  assert.ok(
+    attemptCaseCreate,
+    "Case lifecycle attemptCaseCreate function is missing",
+  );
+  assert.match(attemptCaseCreate, /await tx\.case\.create/);
+  assert.match(attemptCaseCreate, /await tx\.caseMessage\.create/);
   assert.match(source, /refundAmountCents: 10_000/);
   assert.match(source, /stripeRefundId: "case-lifecycle-proof-refund"/);
+});
+
+test("Notification resolution fixtures keep refund provider evidence complete", () => {
+  const source = fs.readFileSync(
+    "scripts/notification-rls-ephemeral-proof.mjs",
+    "utf8",
+  );
+  const configureResolvedCase = source.match(
+    /async function configureResolvedCase\([\s\S]+?\n}\n\nasync function configureCaseMessageAuthor/,
+  )?.[0];
+  assert.ok(
+    configureResolvedCase,
+    "Notification configureResolvedCase helper is missing",
+  );
+  assert.match(configureResolvedCase, /resolution === "REFUND_FULL" \? 12_500/);
+  assert.match(configureResolvedCase, /"stripeRefundId" = \$4/);
+  assert.match(configureResolvedCase, /re_notification_proof_/);
 });

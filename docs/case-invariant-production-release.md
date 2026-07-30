@@ -170,6 +170,16 @@ evidence and author kinds, and extends the fixture inventory guard across all
 13 direct SQL Case proof harnesses plus the Prisma lifecycle helper.
 Production has not received the invariant migration.
 
+The first repair-branch reruns advanced past the missing-opening failure.
+Notification run `30518041404` then exposed incomplete synthetic refund
+evidence, while Case lifecycle run `30518044102` exposed an ambiguous Prisma
+nested-write ordering at the message-author trigger. The repair now gives
+Notification refund fixtures a positive amount and nonblank provider ID, and
+models lifecycle creation explicitly as Case then CaseMessage inside the same
+transaction. DirectUpload run `30518042854` already passed its complete
+compatible, activated, concurrency and rollback program at exact repair head
+`4da1fab56c999f8c33269d87c9f5d84408359018`.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:

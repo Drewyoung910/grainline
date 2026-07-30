@@ -219,29 +219,33 @@ async function resetCase(
   },
 ) {
   await resetOrder(client, "SHIPPED");
-  return client.case.create({
-    data: {
-      id: `case-lifecycle-proof-case-${suffix}`,
-      orderId: ids.order,
-      buyerId: ids.buyer,
-      sellerId: ids.seller,
-      reason: "OTHER",
-      description: "Disposable Case lifecycle concurrency fixture.",
-      status,
-      buyerMarkedResolved,
-      sellerMarkedResolved,
-      sellerRespondBy,
-      discussionStartedAt,
-      escalateUnlocksAt,
-      messages: {
-        create: {
-          id: `case-lifecycle-proof-message-${suffix}-opening`,
-          authorId: ids.buyer,
-          authorKind: "BUYER",
-          body: "Disposable Case lifecycle opening message.",
-        },
+  return client.$transaction(async (tx) => {
+    const created = await tx.case.create({
+      data: {
+        id: `case-lifecycle-proof-case-${suffix}`,
+        orderId: ids.order,
+        buyerId: ids.buyer,
+        sellerId: ids.seller,
+        reason: "OTHER",
+        description: "Disposable Case lifecycle concurrency fixture.",
+        status,
+        buyerMarkedResolved,
+        sellerMarkedResolved,
+        sellerRespondBy,
+        discussionStartedAt,
+        escalateUnlocksAt,
       },
-    },
+    });
+    await tx.caseMessage.create({
+      data: {
+        id: `case-lifecycle-proof-message-${suffix}-opening`,
+        caseId: created.id,
+        authorId: ids.buyer,
+        authorKind: "BUYER",
+        body: "Disposable Case lifecycle opening message.",
+      },
+    });
+    return created;
   });
 }
 
@@ -357,17 +361,18 @@ async function attemptCaseCreate(tx, suffix) {
       reason: "OTHER",
       description: "Disposable Case lifecycle concurrency fixture.",
       sellerRespondBy: new Date(now.getTime() + 48 * 60 * 60 * 1_000),
-      messages: {
-        create: {
-          id: `case-lifecycle-proof-message-${suffix}`,
-          authorId: ids.buyer,
-          authorKind: "BUYER",
-          body: "Disposable Case lifecycle opening message.",
-          createdAt: now,
-        },
-      },
     },
     select: { id: true },
+  });
+  await tx.caseMessage.create({
+    data: {
+      id: `case-lifecycle-proof-message-${suffix}`,
+      caseId: created.id,
+      authorId: ids.buyer,
+      authorKind: "BUYER",
+      body: "Disposable Case lifecycle opening message.",
+      createdAt: now,
+    },
   });
   return { caseId: created.id, outcome: "created" };
 }

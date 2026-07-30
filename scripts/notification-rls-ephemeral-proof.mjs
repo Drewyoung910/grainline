@@ -915,16 +915,29 @@ async function proveServiceAuthority(owner) {
 }
 
 async function configureResolvedCase(owner, resolution, refundAmountCents = null) {
+  const isRefund = resolution !== "DISMISSED";
+  const resolvedRefundAmountCents =
+    resolution === "REFUND_FULL" ? 12_500 : refundAmountCents;
+  const stripeRefundId = isRefund
+    ? `re_notification_proof_${resolution.toLowerCase()}`
+    : null;
   await owner.query(
     `UPDATE public."Case"
         SET status = 'RESOLVED',
             resolution = $2::public."CaseResolution",
             "refundAmountCents" = $3,
-            "resolvedById" = $4,
+            "stripeRefundId" = $4,
+            "resolvedById" = $5,
             "resolvedAt" = pg_catalog.clock_timestamp(),
             "updatedAt" = pg_catalog.clock_timestamp()
       WHERE id = $1`,
-    [fixture.caseId, resolution, refundAmountCents, fixture.staffUserId],
+    [
+      fixture.caseId,
+      resolution,
+      resolvedRefundAmountCents,
+      stripeRefundId,
+      fixture.staffUserId,
+    ],
   );
 }
 
