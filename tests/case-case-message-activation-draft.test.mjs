@@ -144,9 +144,49 @@ test("Case activation refuses missing or unvalidated invariant objects", () => {
     /Case activation requires CaseMessage\.authorKind NOT NULL/,
   );
   assert.match(activationSql, /IF invariant_trigger_count <> 9/);
-  assert.match(activationSql, /IF invariant_function_count <> 8/);
+  assert.match(
+    activationSql,
+    /IF invariant_definer_function_count <> 5/,
+  );
+  assert.match(
+    activationSql,
+    /IF invariant_invoker_function_count <> 3/,
+  );
   assert.match(activationSql, /constraint_row\.convalidated/);
   assert.match(activationSql, /trigger_row\.tgenabled = 'O'/);
+  const expectedDefinerInvariants = [
+    "grainline_case_relationship_valid",
+    "grainline_case_message_author_valid",
+    "grainline_case_message_maintain_thread",
+    "grainline_case_opening_evidence_valid",
+    "grainline_case_attachment_parent_valid",
+  ];
+  const definerInvariantSlice = activationSql.slice(
+    activationSql.indexOf("INTO invariant_definer_function_count"),
+    activationSql.indexOf("IF invariant_definer_function_count <> 5"),
+  );
+  assert.deepEqual(
+    [...definerInvariantSlice.matchAll(/'(grainline_case_[a-z0-9_]+)'/g)].map(
+      (match) => match[1],
+    ),
+    expectedDefinerInvariants,
+  );
+
+  const expectedInvokerInvariants = [
+    "grainline_case_authority_fields_immutable",
+    "grainline_case_status_transition_valid",
+    "grainline_case_message_authority_fields_immutable",
+  ];
+  const invokerInvariantSlice = activationSql.slice(
+    activationSql.indexOf("INTO invariant_invoker_function_count"),
+    activationSql.indexOf("IF invariant_invoker_function_count <> 3"),
+  );
+  assert.deepEqual(
+    [...invokerInvariantSlice.matchAll(/'(grainline_case_[a-z0-9_]+)'/g)].map(
+      (match) => match[1],
+    ),
+    expectedInvokerInvariants,
+  );
 });
 
 test("Case initial rollback restores only the predecessor table boundary", () => {
@@ -189,6 +229,8 @@ test("Case FORCE draft is posture-only and covers exactly three tables", () => {
   );
   assert.match(forceSql, /runtime_role\.rolbypassrls/);
   assert.match(forceSql, /owner_session_count <> 0/);
+  assert.match(forceSql, /IF invariant_definer_function_count <> 5/);
+  assert.match(forceSql, /IF invariant_invoker_function_count <> 3/);
 });
 
 test("Case FORCE rollback restores only policyless ENABLE posture", () => {

@@ -789,6 +789,16 @@ runtime/PUBLIC table and column grants; all runtime access remains through the
 owner-internal. This is draft architecture only until the compatible
 read-mode and activated-engine proofs pass.
 
+Invariant-mode correction (2026-07-29): exact-head engine run `30502489130`
+failed before activation because the first preflight collapsed all eight
+trigger functions into a DEFINER-only count. Retain the privilege split:
+relationship, message-author, thread-maintenance, opening-evidence and
+attachment-parent functions are the five owner-mode operations that cross
+protected tables; Case immutable fields, Case status transitions and
+CaseMessage immutable fields are the three row-local INVOKER validators.
+Activation and FORCE must pin both exact name sets and reject any mode, owner,
+ACL, search-path, volatility or parallel-safety drift.
+
 The shared
 `grainline_account_deletion_redact_text_core(text, text[])` remains
 owner-internal: neither `PUBLIC` nor `grainline_app_runtime` receives

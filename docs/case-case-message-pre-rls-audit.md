@@ -751,3 +751,15 @@ requires the same provider identity shape as the fixed source operation. A
 46-check rollback proof seeds invalid state before installation and separately
 tests the stronger installed trigger. This is saved preparation, not a
 production invariant or RLS change.
+
+The first combined activation proof then failed closed at exact head
+`4e92fc489f6728f73b5c81201dc49f3b370a398f` in run `30502489130` (job
+`90744973040`). The activation preflight counted five of eight invariant
+functions because it mistakenly demanded `SECURITY DEFINER` for all eight.
+That result exposed a preflight-model defect, not a missing production
+function: three immutable/status trigger functions validate only `OLD` and
+`NEW` and intentionally remain `SECURITY INVOKER`; five functions cross or
+write protected tables and intentionally remain `SECURITY DEFINER`. The
+corrected draft now pins these exact 5/3 partitions in both activation and
+FORCE preflights. The run stopped before ENABLE, and no persistent database or
+production state changed.

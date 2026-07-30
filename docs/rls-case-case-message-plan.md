@@ -1434,3 +1434,16 @@ tables. Four originally INVOKER projections must first become bounded
 SECURITY DEFINER operations so they do not require retaining a direct SELECT
 grant. Draft-only read-mode, ENABLE, rollback and FORCE SQL are retained under
 `docs/rls-drafts/`; none is a migration or production authorization.
+
+The first exact policyless-activation engine attempt at
+`4e92fc489f6728f73b5c81201dc49f3b370a398f` failed closed in GitHub Actions
+run `30502489130` (job `90744973040`) before any activation statement. Its
+preflight incorrectly required all eight invariant trigger functions to be
+`SECURITY DEFINER`; PostgreSQL reported the actual intentional count of five.
+The three row-local immutable/status validators read no protected table and
+are intentionally `SECURITY INVOKER`, so promoting them would add privilege
+without need. The corrected candidate pins the exact five DEFINER and three
+INVOKER names, modes, owner, volatility, parallel safety, search path and
+PUBLIC/runtime denial in both ENABLE and later FORCE preflights. The failed
+run is retained as superseded evidence; a fresh complete PostgreSQL run is
+required before this draft can be accepted.

@@ -36,7 +36,8 @@ DECLARE
   private_function_count integer;
   validated_constraint_count integer;
   invariant_trigger_count integer;
-  invariant_function_count integer;
+  invariant_definer_function_count integer;
+  invariant_invoker_function_count integer;
 BEGIN
   SELECT class.relowner
     INTO STRICT case_owner
@@ -174,17 +175,14 @@ BEGIN
   END IF;
 
   SELECT pg_catalog.count(*)::integer
-    INTO invariant_function_count
+    INTO invariant_definer_function_count
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
    WHERE namespace.nspname = 'public'
      AND procedure.proname IN (
        'grainline_case_relationship_valid',
-       'grainline_case_authority_fields_immutable',
-       'grainline_case_status_transition_valid',
        'grainline_case_message_author_valid',
-       'grainline_case_message_authority_fields_immutable',
        'grainline_case_message_maintain_thread',
        'grainline_case_opening_evidence_valid',
        'grainline_case_attachment_parent_valid'
@@ -210,13 +208,54 @@ BEGIN
              pg_catalog.acldefault('f', procedure.proowner)
            )
          ) AS acl
+       WHERE acl.grantee = 0
+          AND acl.privilege_type = 'EXECUTE'
+     );
+  IF invariant_definer_function_count <> 5 THEN
+    RAISE EXCEPTION
+      'Case activation DEFINER invariant function catalog drifted: %',
+      invariant_definer_function_count;
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO invariant_invoker_function_count
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND procedure.proname IN (
+       'grainline_case_authority_fields_immutable',
+       'grainline_case_status_transition_valid',
+       'grainline_case_message_authority_fields_immutable'
+     )
+     AND procedure.prokind = 'f'
+     AND NOT procedure.prosecdef
+     AND NOT procedure.proleakproof
+     AND procedure.provolatile = 'v'
+     AND procedure.proparallel = 'u'
+     AND procedure.proconfig IS NOT DISTINCT FROM
+         ARRAY['search_path=pg_catalog']::text[]
+     AND procedure.proowner = case_owner
+     AND NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       procedure.oid,
+       'EXECUTE'
+     )
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             procedure.proacl,
+             pg_catalog.acldefault('f', procedure.proowner)
+           )
+         ) AS acl
         WHERE acl.grantee = 0
           AND acl.privilege_type = 'EXECUTE'
      );
-  IF invariant_function_count <> 8 THEN
+  IF invariant_invoker_function_count <> 3 THEN
     RAISE EXCEPTION
-      'Case activation invariant function catalog drifted: %',
-      invariant_function_count;
+      'Case activation INVOKER invariant function catalog drifted: %',
+      invariant_invoker_function_count;
   END IF;
 
   SELECT pg_catalog.count(*)::integer

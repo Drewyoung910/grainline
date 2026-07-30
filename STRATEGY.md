@@ -1113,6 +1113,14 @@ invalid-row PostgreSQL cases when the draft is promoted. Provider-backed Case
 openings must use the same exact Order-charge/event identity in both the fixed
 operation and the trigger defense.
 
+Do not flatten Case invariant triggers into one privilege mode. Five
+relationship/source functions cross protected tables and require the reviewed
+owner-mode boundary; three immutable/status validators inspect only the
+trigger row and remain INVOKER. Exact run `30502489130` failed closed before
+activation when the first preflight incorrectly demanded eight DEFINER
+functions. Pin the 5/3 name and mode partition in both ENABLE and FORCE
+preflights instead of widening the three row-local validators.
+
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
 Vercel/database exceptions, disposable secrets, and provider resources were
