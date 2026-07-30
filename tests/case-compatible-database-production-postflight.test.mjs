@@ -154,6 +154,16 @@ describe("Case compatible database production postflight", () => {
     assert.match(source, /privateLedgersRlsForced: true/);
     assert.match(source, /privateLedgerRuntimeTableAccess: false/);
     assert.match(source, /grainline_account_deletion_redact_text_core/);
+    assert.match(
+      source,
+      /const SECURITY_INVOKER_FUNCTIONS = new Set\(\[[\s\S]{0,500}grainline_case_get_by_order[\s\S]{0,500}grainline_case_resolution_claim_immutable[\s\S]{0,500}\]\);/,
+    );
+    assert.doesNotMatch(
+      source.match(
+        /const SECURITY_INVOKER_FUNCTIONS = new Set\(\[[\s\S]*?\]\);/,
+      )?.[0] ?? "",
+      /grainline_case_(?:message_page|message_preflight|staff_queue)/,
+    );
     assert.match(source, /"42501"/);
     assert.match(source, /productionChangedByPostflight: false/);
     assert.equal(CASE_COMPATIBLE_RUNTIME_FUNCTIONS.length, 26);
