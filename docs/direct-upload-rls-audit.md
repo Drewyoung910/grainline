@@ -1512,6 +1512,36 @@ SHA-256
 No app deployment, data cleanup, R2 change or DirectUpload RLS activation
 occurred.
 
+### 2026-07-30 cleanup R2 credential continuation
+
+Wrangler `4.115.0` was authorized through Cloudflare OAuth using its macOS
+Keychain-backed session. The authenticated account was independently
+identified as `b582ca1d820c44010f427756ea803212`. The existing
+`grainline-uploads` bucket was left unchanged. The missing
+`grainline-private` bucket was created empty in the default jurisdiction with
+Standard storage; no object, public-domain setting or existing bucket
+configuration was changed.
+
+The protected GitHub environment `Production DirectUpload Cleanup` now has the
+non-secret variables:
+
+- `DIRECT_UPLOAD_CLEANUP_R2_ACCOUNT_ID=b582ca1d820c44010f427756ea803212`
+- `DIRECT_UPLOAD_CLEANUP_R2_PUBLIC_BUCKET=grainline-uploads`
+- `DIRECT_UPLOAD_CLEANUP_R2_PRIVATE_BUCKET=grainline-private`
+
+The Wrangler OAuth grant is not a token-minting credential. Its granted scopes
+do not include Cloudflare `API Tokens Write`, and a read-only request to
+`GET /client/v4/user/tokens/permission_groups` failed closed with HTTP `403`
+and provider code `9109`. The cleanup credential must therefore be created
+through the authenticated R2 dashboard as a User API token with only
+`Object Read & Write`, scoped to exactly the two buckets above. Neither
+generated value may enter source control, a command argument, shell history or
+the application environment. Store them only as
+`DIRECT_UPLOAD_CLEANUP_R2_ACCESS_KEY_ID` and
+`DIRECT_UPLOAD_CLEANUP_R2_SECRET_ACCESS_KEY` in the protected cleanup
+environment, then run the reviewed disposable-object proof before claiming
+the provider gate complete.
+
 ## Exit
 
 Keep Extra High through the cleanup-only R2 credential/delete proof and the
