@@ -13,6 +13,38 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
+  CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
+  CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
+  CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
+  CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_SELLER_REFUND_AUTHORITY_MIGRATION,
+  CASE_SELLER_REFUND_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION,
+  CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION,
+  CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_OPEN_AUTHORITY_MIGRATION,
+  CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_REPLY_AUTHORITY_MIGRATION,
+  CASE_REPLY_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION,
+  CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION,
+  CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_RECIPIENT_READ_AUTHORITY_MIGRATION,
+  CASE_RECIPIENT_READ_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_STAFF_QUEUE_AUTHORITY_MIGRATION,
+  CASE_STAFF_QUEUE_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION,
+  CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
+  CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
+  CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_ESCALATION_CRON_AUTHORITY_MIGRATION,
+  CASE_ESCALATION_CRON_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+  CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION_TREE_SHA256,
   CASE_MESSAGE_AUTHOR_KIND_MIGRATION,
   CASE_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
   CASE_MESSAGE_HISTORY_INDEX_MIGRATION,
@@ -97,6 +129,38 @@ const REVIEWED_DIRECT_UPLOAD_PREPARATION =
   "direct-upload-preparation-reviewed";
 const REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR =
   "direct-upload-legacy-repair-reviewed";
+const REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION =
+  "case-resolution-claim-preparation-reviewed";
+const REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY =
+  "case-stripe-dispute-authority-reviewed";
+const REVIEWED_CASE_SELLER_REFUND_AUTHORITY =
+  "case-seller-refund-authority-reviewed";
+const REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY =
+  "case-staff-resolution-authority-reviewed";
+const REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY =
+  "case-participant-resolution-authority-reviewed";
+const REVIEWED_CASE_OPEN_AUTHORITY =
+  "case-open-authority-reviewed";
+const REVIEWED_CASE_REPLY_AUTHORITY =
+  "case-reply-authority-reviewed";
+const REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY =
+  "case-message-preflight-authority-reviewed";
+const REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY =
+  "case-message-page-authority-reviewed";
+const REVIEWED_CASE_RECIPIENT_READ_AUTHORITY =
+  "case-recipient-read-authority-reviewed";
+const REVIEWED_CASE_STAFF_QUEUE_AUTHORITY =
+  "case-staff-queue-authority-reviewed";
+const REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY =
+  "case-order-active-authority-reviewed";
+const REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY =
+  "case-seller-aggregate-authority-reviewed";
+const REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY =
+  "case-account-export-authority-reviewed";
+const REVIEWED_CASE_ESCALATION_CRON_AUTHORITY =
+  "case-escalation-cron-authority-reviewed";
+const REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY =
+  "case-account-deletion-authority-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -157,6 +221,38 @@ function validate(
         DIRECT_UPLOAD_PREPARATION_MIGRATION_TREE_SHA256,
       [REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR]:
         DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION]:
+        CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY]:
+        CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_SELLER_REFUND_AUTHORITY]:
+        CASE_SELLER_REFUND_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY]:
+        CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY]:
+        CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_OPEN_AUTHORITY]:
+        CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_REPLY_AUTHORITY]:
+        CASE_REPLY_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY]:
+        CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY]:
+        CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_RECIPIENT_READ_AUTHORITY]:
+        CASE_RECIPIENT_READ_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_STAFF_QUEUE_AUTHORITY]:
+        CASE_STAFF_QUEUE_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY]:
+        CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY]:
+        CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY]:
+        CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_ESCALATION_CRON_AUTHORITY]:
+        CASE_ESCALATION_CRON_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY]:
+        CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -201,6 +297,22 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     DIRECT_UPLOAD_AUTHORITY_MIGRATION,
     DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION,
     DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION,
+    CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
+    CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
+    CASE_SELLER_REFUND_AUTHORITY_MIGRATION,
+    CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION,
+    CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION,
+    CASE_OPEN_AUTHORITY_MIGRATION,
+    CASE_REPLY_AUTHORITY_MIGRATION,
+    CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION,
+    CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION,
+    CASE_RECIPIENT_READ_AUTHORITY_MIGRATION,
+    CASE_STAFF_QUEUE_AUTHORITY_MIGRATION,
+    CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION,
+    CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
+    CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
+    CASE_ESCALATION_CRON_AUTHORITY_MIGRATION,
+    CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -266,6 +378,70 @@ const REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS = [
   ...REVIEWED_DIRECT_UPLOAD_PREPARATION_MIGRATIONS,
   DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATIONS = [
+  ...REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS,
+  CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATIONS,
+  CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_SELLER_REFUND_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATIONS,
+  CASE_SELLER_REFUND_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_SELLER_REFUND_AUTHORITY_MIGRATIONS,
+  CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATIONS,
+  CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS,
+  CASE_OPEN_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
+  CASE_REPLY_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
+  CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATIONS,
+  CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_RECIPIENT_READ_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY_MIGRATIONS,
+  CASE_RECIPIENT_READ_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_STAFF_QUEUE_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_RECIPIENT_READ_AUTHORITY_MIGRATIONS,
+  CASE_STAFF_QUEUE_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_STAFF_QUEUE_AUTHORITY_MIGRATIONS,
+  CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS,
+  CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS,
+  CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_ESCALATION_CRON_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
+  CASE_ESCALATION_CRON_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_CASE_ESCALATION_CRON_AUTHORITY_MIGRATIONS,
+  CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -296,6 +472,38 @@ function migrationsFor(phase) {
       REVIEWED_DIRECT_UPLOAD_PREPARATION_MIGRATIONS,
     [REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR]:
       REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS,
+    [REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION]:
+      REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATIONS,
+    [REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY]:
+      REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_SELLER_REFUND_AUTHORITY]:
+      REVIEWED_CASE_SELLER_REFUND_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY]:
+      REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY]:
+      REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_OPEN_AUTHORITY]:
+      REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_REPLY_AUTHORITY]:
+      REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY]:
+      REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY]:
+      REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_RECIPIENT_READ_AUTHORITY]:
+      REVIEWED_CASE_RECIPIENT_READ_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_STAFF_QUEUE_AUTHORITY]:
+      REVIEWED_CASE_STAFF_QUEUE_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY]:
+      REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY]:
+      REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY]:
+      REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_ESCALATION_CRON_AUTHORITY]:
+      REVIEWED_CASE_ESCALATION_CRON_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY]:
+      REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATIONS,
   }[phase];
 }
 
@@ -526,6 +734,41 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_AUTHORITY_MIGRATION));
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION));
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION));
+    assert.ok(currentMigrations.includes(CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION));
+    assert.ok(
+      currentMigrations.includes(
+        CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION,
+      ),
+    );
+    assert.ok(currentMigrations.includes(CASE_OPEN_AUTHORITY_MIGRATION));
+    assert.ok(currentMigrations.includes(CASE_REPLY_AUTHORITY_MIGRATION));
+    assert.ok(
+      currentMigrations.includes(CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION),
+    );
+    assert.ok(
+      currentMigrations.includes(CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION),
+    );
+    assert.ok(
+      currentMigrations.includes(CASE_RECIPIENT_READ_AUTHORITY_MIGRATION),
+    );
+    assert.ok(
+      currentMigrations.includes(CASE_STAFF_QUEUE_AUTHORITY_MIGRATION),
+    );
+    assert.ok(
+      currentMigrations.includes(CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION),
+    );
+    assert.ok(
+      currentMigrations.includes(CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION),
+    );
+    assert.ok(
+      currentMigrations.includes(CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION),
+    );
+    assert.ok(
+      currentMigrations.includes(CASE_ESCALATION_CRON_AUTHORITY_MIGRATION),
+    );
+    assert.ok(
+      currentMigrations.includes(CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION),
+    );
     assert.throws(() => validate(undefined, currentMigrations), /is missing/);
     assert.throws(
       () => validate(RELEASE_ZERO, currentMigrations),
@@ -591,9 +834,115 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_DIRECT_UPLOAD_PREPARATION, currentMigrations),
       /remain the latest migration/,
     );
+    assert.throws(
+      () => validate(REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR, currentMigrations),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION,
+        currentMigrations,
+      ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY,
+        currentMigrations,
+      ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_SELLER_REFUND_AUTHORITY,
+        currentMigrations,
+      ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY,
+        currentMigrations,
+      ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () =>
+        validate(
+          REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY,
+          currentMigrations,
+        ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(REVIEWED_CASE_OPEN_AUTHORITY, currentMigrations),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(REVIEWED_CASE_REPLY_AUTHORITY, currentMigrations),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () =>
+        validate(
+          REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY,
+          currentMigrations,
+        ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () =>
+        validate(
+          REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY,
+          currentMigrations,
+        ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () =>
+        validate(
+          REVIEWED_CASE_RECIPIENT_READ_AUTHORITY,
+          currentMigrations,
+        ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(REVIEWED_CASE_STAFF_QUEUE_AUTHORITY, currentMigrations),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY, currentMigrations),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () =>
+        validate(
+          REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+          currentMigrations,
+        ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+        currentMigrations,
+      ),
+      /remain the latest migration/,
+    );
+    assert.throws(
+      () =>
+        validate(
+          REVIEWED_CASE_ESCALATION_CRON_AUTHORITY,
+          currentMigrations,
+        ),
+      /remain the latest migration/,
+    );
     assert.equal(
-      validate(REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR, currentMigrations).phase,
-      REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR,
+      validate(
+        REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY,
+        currentMigrations,
+      ).phase,
+      REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY,
     );
   });
 
@@ -1059,6 +1408,591 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows the exact coexistence-safe Case claim preparation only after legacy repair", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION,
+        REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION,
+        hasDirectUploadLegacyRepairMigration: true,
+        hasCaseResolutionClaimPreparationMigration: true,
+      },
+    );
+
+    for (const migration of [
+      DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION,
+      CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION,
+            REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact DirectUpload legacy-repair boundary plus the coexistence-safe Case resolution-claim preparation migration/,
+      );
+    }
+  });
+
+  it("allows only the exact compatible Case Stripe-dispute authority after claim preparation", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY,
+        REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
+      CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY,
+            REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact Case resolution-claim preparation plus the compatible fixed Stripe-dispute authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact compatible Case seller-refund authority after Stripe-dispute authority", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_SELLER_REFUND_AUTHORITY,
+        REVIEWED_CASE_SELLER_REFUND_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_SELLER_REFUND_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
+      CASE_SELLER_REFUND_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_SELLER_REFUND_AUTHORITY,
+            REVIEWED_CASE_SELLER_REFUND_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact fixed Stripe-dispute authority boundary plus the compatible fixed seller-refund authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact compatible Case staff-resolution authority after seller-refund authority", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY,
+        REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_SELLER_REFUND_AUTHORITY_MIGRATION,
+      CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY,
+            REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact seller-refund boundary plus the compatible four-operation staff-resolution authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact compatible participant resolution authority after staff resolution", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY,
+        REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION,
+      CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY,
+            REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact staff-resolution boundary plus the compatible participant mark-resolved authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact compatible buyer Case-open authority after participant resolution", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_OPEN_AUTHORITY,
+        REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_OPEN_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION,
+      CASE_OPEN_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_OPEN_AUTHORITY,
+            REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact participant-resolution boundary plus the compatible buyer Case-open authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact compatible Case-reply authority after buyer Case-open", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_REPLY_AUTHORITY,
+        REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_REPLY_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_OPEN_AUTHORITY_MIGRATION,
+      CASE_REPLY_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_REPLY_AUTHORITY,
+            REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact buyer Case-open boundary plus the compatible Case-reply authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact Case-message preflight authority after Case reply", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY,
+        REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_REPLY_AUTHORITY_MIGRATION,
+      CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY,
+            REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact Case-reply boundary plus the compatible Case-message preflight authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact Case-message page authority after preflight", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY,
+        REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION,
+      CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY,
+            REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact Case-message preflight boundary plus the compatible bounded Case-message page authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact Case recipient-read authority after the message page", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_RECIPIENT_READ_AUTHORITY,
+        REVIEWED_CASE_RECIPIENT_READ_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_RECIPIENT_READ_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+        hasCaseRecipientReadAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION,
+      CASE_RECIPIENT_READ_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_RECIPIENT_READ_AUTHORITY,
+            REVIEWED_CASE_RECIPIENT_READ_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact Case-message page boundary plus the compatible Case recipient-read authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact Case staff-queue authority after recipient reads", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_STAFF_QUEUE_AUTHORITY,
+        REVIEWED_CASE_STAFF_QUEUE_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_STAFF_QUEUE_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+        hasCaseRecipientReadAuthorityMigration: true,
+        hasCaseStaffQueueAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_RECIPIENT_READ_AUTHORITY_MIGRATION,
+      CASE_STAFF_QUEUE_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_STAFF_QUEUE_AUTHORITY,
+            REVIEWED_CASE_STAFF_QUEUE_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact Case recipient-read boundary plus the compatible Case staff-queue authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact Case-aware Order authority after the staff queue", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY,
+        REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+        hasCaseRecipientReadAuthorityMigration: true,
+        hasCaseStaffQueueAuthorityMigration: true,
+        hasCaseOrderActiveAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_STAFF_QUEUE_AUTHORITY_MIGRATION,
+      CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY,
+            REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact Case staff-queue boundary plus the compatible Case-aware Order authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact seller aggregate authority after Case-aware Order", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+        REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+        hasCaseRecipientReadAuthorityMigration: true,
+        hasCaseStaffQueueAuthorityMigration: true,
+        hasCaseOrderActiveAuthorityMigration: true,
+        hasCaseSellerAggregateAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION,
+      CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+            REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact Case-aware Order boundary plus the compatible seller aggregate authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact participant account-export authority after seller aggregates", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+        hasCaseRecipientReadAuthorityMigration: true,
+        hasCaseStaffQueueAuthorityMigration: true,
+        hasCaseOrderActiveAuthorityMigration: true,
+        hasCaseSellerAggregateAuthorityMigration: true,
+        hasCaseAccountExportAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION,
+      CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+            REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact seller aggregate boundary plus the compatible participant account-export authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact escalation and cron authority after account export", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_ESCALATION_CRON_AUTHORITY,
+        REVIEWED_CASE_ESCALATION_CRON_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_ESCALATION_CRON_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+        hasCaseRecipientReadAuthorityMigration: true,
+        hasCaseStaffQueueAuthorityMigration: true,
+        hasCaseOrderActiveAuthorityMigration: true,
+        hasCaseSellerAggregateAuthorityMigration: true,
+        hasCaseAccountExportAuthorityMigration: true,
+        hasCaseEscalationCronAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION,
+      CASE_ESCALATION_CRON_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_ESCALATION_CRON_AUTHORITY,
+            REVIEWED_CASE_ESCALATION_CRON_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact account-export boundary plus the compatible escalation and cron-transition authority migration/,
+      );
+    }
+  });
+
+  it("allows only the exact account-deletion authority after escalation and cron", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY,
+        REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY,
+        hasCaseResolutionClaimPreparationMigration: true,
+        hasCaseStripeDisputeAuthorityMigration: true,
+        hasCaseSellerRefundAuthorityMigration: true,
+        hasCaseStaffResolutionAuthorityMigration: true,
+        hasCaseParticipantResolutionAuthorityMigration: true,
+        hasCaseOpenAuthorityMigration: true,
+        hasCaseReplyAuthorityMigration: true,
+        hasCaseMessagePreflightAuthorityMigration: true,
+        hasCaseMessagePageAuthorityMigration: true,
+        hasCaseRecipientReadAuthorityMigration: true,
+        hasCaseStaffQueueAuthorityMigration: true,
+        hasCaseOrderActiveAuthorityMigration: true,
+        hasCaseSellerAggregateAuthorityMigration: true,
+        hasCaseAccountExportAuthorityMigration: true,
+        hasCaseEscalationCronAuthorityMigration: true,
+        hasCaseAccountDeletionAuthorityMigration: true,
+      },
+    );
+
+    for (const migration of [
+      CASE_ESCALATION_CRON_AUTHORITY_MIGRATION,
+      CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () =>
+          validate(
+            REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY,
+            REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATIONS.filter(
+              (name) => name !== migration,
+            ),
+          ),
+        /requires the exact escalation\/cron boundary plus the compatible account-deletion authority migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -1075,6 +2009,22 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_CASE_MESSAGE_COMPATIBILITY,
     REVIEWED_DIRECT_UPLOAD_PREPARATION,
     REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR,
+    REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION,
+    REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY,
+    REVIEWED_CASE_SELLER_REFUND_AUTHORITY,
+    REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY,
+    REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY,
+    REVIEWED_CASE_OPEN_AUTHORITY,
+    REVIEWED_CASE_REPLY_AUTHORITY,
+    REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY,
+    REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY,
+    REVIEWED_CASE_RECIPIENT_READ_AUTHORITY,
+    REVIEWED_CASE_STAFF_QUEUE_AUTHORITY,
+    REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY,
+    REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+    REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+    REVIEWED_CASE_ESCALATION_CRON_AUTHORITY,
+    REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -1168,7 +2118,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current DirectUpload preparation guard before CI migrations", () => {
+  it("runs the current Case account-deletion guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -1178,7 +2128,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify DirectUpload legacy repair migration tree[\s\S]{0,220}SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-legacy-repair-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
+      /Verify Case account-deletion authority migration tree[\s\S]{0,240}SAVED_SEARCH_RLS_DEPLOY_PHASE: case-account-deletion-authority-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
     );
   });
 
@@ -1206,6 +2156,32 @@ describe("SavedSearch RLS production deploy guard", () => {
       "20260726141000_unreviewed_later_migration";
     const laterDirectUploadMigration =
       "20260726190000_unreviewed_later_migration";
+    const laterCaseMigration =
+      "20260729030000_unreviewed_later_migration";
+    const laterCaseAuthorityMigration =
+      "20260729050000_unreviewed_later_migration";
+    const laterCaseOpenAuthorityMigration =
+      "20260729052000_unreviewed_later_migration";
+    const laterCaseReplyAuthorityMigration =
+      "20260729053000_unreviewed_later_migration";
+    const laterCaseMessagePreflightAuthorityMigration =
+      "20260729054000_unreviewed_later_migration";
+    const laterCaseMessagePageAuthorityMigration =
+      "20260729055000_unreviewed_later_migration";
+    const laterCaseRecipientReadAuthorityMigration =
+      "20260729056000_unreviewed_later_migration";
+    const laterCaseStaffQueueAuthorityMigration =
+      "20260729057000_unreviewed_later_migration";
+    const laterCaseOrderActiveAuthorityMigration =
+      "20260729058000_unreviewed_later_migration";
+    const laterCaseSellerAggregateAuthorityMigration =
+      "20260729059000_unreviewed_later_migration";
+    const laterCaseAccountExportAuthorityMigration =
+      "20260729060000_unreviewed_later_migration";
+    const laterCaseEscalationCronAuthorityMigration =
+      "20260729061000_unreviewed_later_migration";
+    const laterCaseAccountDeletionAuthorityMigration =
+      "20260729062000_unreviewed_later_migration";
 
     assert.throws(
       () => validate(RELEASE_ZERO, [
@@ -1277,6 +2253,166 @@ describe("SavedSearch RLS production deploy guard", () => {
         [
           ...REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS,
           laterDirectUploadMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION,
+        [
+          ...REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATIONS,
+          laterCaseMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY,
+        [
+          ...REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATIONS,
+          laterCaseAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_SELLER_REFUND_AUTHORITY,
+        [
+          ...REVIEWED_CASE_SELLER_REFUND_AUTHORITY_MIGRATIONS,
+          laterCaseAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY,
+        [
+          ...REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATIONS,
+          laterCaseAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY,
+        [
+          ...REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS,
+          laterCaseAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_OPEN_AUTHORITY,
+        [
+          ...REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
+          laterCaseOpenAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_REPLY_AUTHORITY,
+        [
+          ...REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
+          laterCaseReplyAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY,
+        [
+          ...REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATIONS,
+          laterCaseMessagePreflightAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY,
+        [
+          ...REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY_MIGRATIONS,
+          laterCaseMessagePageAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_RECIPIENT_READ_AUTHORITY,
+        [
+          ...REVIEWED_CASE_RECIPIENT_READ_AUTHORITY_MIGRATIONS,
+          laterCaseRecipientReadAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_STAFF_QUEUE_AUTHORITY,
+        [
+          ...REVIEWED_CASE_STAFF_QUEUE_AUTHORITY_MIGRATIONS,
+          laterCaseStaffQueueAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY,
+        [
+          ...REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS,
+          laterCaseOrderActiveAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY,
+        [
+          ...REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS,
+          laterCaseSellerAggregateAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY,
+        [
+          ...REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
+          laterCaseAccountExportAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_ESCALATION_CRON_AUTHORITY,
+        [
+          ...REVIEWED_CASE_ESCALATION_CRON_AUTHORITY_MIGRATIONS,
+          laterCaseEscalationCronAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY,
+        [
+          ...REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATIONS,
+          laterCaseAccountDeletionAuthorityMigration,
         ],
       ),
       /review or retire the temporary SavedSearch deploy guard/,
@@ -1379,6 +2515,118 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATIONS,
       ),
       DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATIONS,
+      ),
+      CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_SELLER_REFUND_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_SELLER_REFUND_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_OPEN_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_REPLY_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_REPLY_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_MESSAGE_PAGE_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_RECIPIENT_READ_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_RECIPIENT_READ_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_STAFF_QUEUE_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_STAFF_QUEUE_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_ORDER_ACTIVE_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_SELLER_AGGREGATE_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_ACCOUNT_EXPORT_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_ESCALATION_CRON_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_ESCALATION_CRON_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATIONS,
+      ),
+      CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

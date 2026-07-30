@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db";
 import {
   ORDER_BUYER_PII_RETENTION_DAYS,
-  orderBuyerPiiRetentionCutoff,
 } from "@/lib/orderPiiRetentionState";
 
 export {
@@ -10,6 +9,7 @@ export {
 } from "@/lib/orderPiiRetentionState";
 const DEFAULT_BATCH_SIZE = 1000;
 const DEFAULT_TIME_BUDGET_MS = 45_000;
+const MAX_TIME_BUDGET_MS = 55_000;
 
 export type OrderPiiPruneResult = {
   purged: number;
@@ -26,104 +26,65 @@ export async function purgeOldFulfilledOrderBuyerPii({
   batchSize?: number;
   timeBudgetMs?: number;
 } = {}): Promise<OrderPiiPruneResult> {
-  const cutoff = orderBuyerPiiRetentionCutoff({ retentionDays });
+  if (retentionDays !== ORDER_BUYER_PII_RETENTION_DAYS) {
+    throw new TypeError(
+      "Order buyer-PII pruning requires the database-fixed 90-day retention window",
+    );
+  }
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1 || batchSize > 1000) {
+    throw new TypeError("Order buyer-PII prune batch size is invalid");
+  }
+  if (
+    !Number.isSafeInteger(timeBudgetMs)
+    || timeBudgetMs < 1
+    || timeBudgetMs > MAX_TIME_BUDGET_MS
+  ) {
+    throw new TypeError("Order buyer-PII prune time budget is invalid");
+  }
+
   const deadline = Date.now() + timeBudgetMs;
   let purged = 0;
+  let cutoff: Date | null = null;
+  let attemptedBatch = false;
 
-  while (Date.now() < deadline) {
-    const updated = await prisma.$executeRaw<number>`
-      WITH pii_candidates AS (
-        SELECT id
-        FROM "Order"
-        WHERE "reviewNeeded" = false
-          AND "fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
-          AND COALESCE("deliveredAt", "pickedUpAt") IS NOT NULL
-          AND COALESCE("deliveredAt", "pickedUpAt") < ${cutoff}
-          AND NOT EXISTS (
-            SELECT 1
-            FROM "Case" c
-            WHERE c."orderId" = "Order".id
-              AND c.status IN ('OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE', 'UNDER_REVIEW')
-          )
-          AND (
-            "buyerEmail" IS NOT NULL OR
-            "buyerName" IS NOT NULL OR
-            "shipToLine1" IS NOT NULL OR
-            "shipToLine2" IS NOT NULL OR
-            "shipToCity" IS NOT NULL OR
-            "shipToState" IS NOT NULL OR
-            "shipToPostalCode" IS NOT NULL OR
-            "shipToCountry" IS NOT NULL OR
-            "quotedToLine1" IS NOT NULL OR
-            "quotedToLine2" IS NOT NULL OR
-            "quotedToCity" IS NOT NULL OR
-            "quotedToState" IS NOT NULL OR
-            "quotedToPostalCode" IS NOT NULL OR
-            "quotedToCountry" IS NOT NULL OR
-            "quotedToName" IS NOT NULL OR
-            "quotedToPhone" IS NOT NULL OR
-            "trackingCarrier" IS NOT NULL OR
-            "trackingNumber" IS NOT NULL OR
-            "sellerNotes" IS NOT NULL OR
-            "shippoShipmentId" IS NOT NULL OR
-            "shippoRateObjectId" IS NOT NULL OR
-            "shippoTransactionId" IS NOT NULL OR
-            "labelUrl" IS NOT NULL OR
-            "labelCarrier" IS NOT NULL OR
-            "labelTrackingNumber" IS NOT NULL OR
-            "giftNote" IS NOT NULL OR
-            EXISTS (
-              SELECT 1
-              FROM "OrderShippingRateQuote" quote
-              WHERE quote."orderId" = "Order".id
-            )
-          )
-        ORDER BY COALESCE("deliveredAt", "pickedUpAt") ASC
-        LIMIT ${batchSize}
-      ),
-      deleted_quotes AS (
-        DELETE FROM "OrderShippingRateQuote" quote
-        USING pii_candidates
-        WHERE quote."orderId" = pii_candidates.id
-        RETURNING quote.id
-      )
-      UPDATE "Order"
-      SET
-        "buyerEmail" = NULL,
-        "buyerName" = NULL,
-        "shipToLine1" = NULL,
-        "shipToLine2" = NULL,
-        "shipToCity" = NULL,
-        "shipToState" = NULL,
-        "shipToPostalCode" = NULL,
-        "shipToCountry" = NULL,
-        "quotedToLine1" = NULL,
-        "quotedToLine2" = NULL,
-        "quotedToCity" = NULL,
-        "quotedToState" = NULL,
-        "quotedToPostalCode" = NULL,
-        "quotedToCountry" = NULL,
-        "quotedToName" = NULL,
-        "quotedToPhone" = NULL,
-        "trackingCarrier" = NULL,
-        "trackingNumber" = NULL,
-        "sellerNotes" = NULL,
-        "shippoShipmentId" = NULL,
-        "shippoRateObjectId" = NULL,
-        "shippoTransactionId" = NULL,
-        "labelUrl" = NULL,
-        "labelCarrier" = NULL,
-        "labelTrackingNumber" = NULL,
-        "giftNote" = NULL,
-        "buyerDataPurgedAt" = NOW()
-      WHERE id IN (SELECT id FROM pii_candidates)
+  while (!attemptedBatch || Date.now() < deadline) {
+    attemptedBatch = true;
+    const rows = await prisma.$queryRaw<
+      Array<{ purged: bigint | number; cutoff: Date }>
+    >`
+      SELECT *
+        FROM public.grainline_order_buyer_pii_prune_batch(
+          ${batchSize}::integer
+        )
     `;
-    const count = Number(updated);
+    if (rows.length !== 1) {
+      throw new TypeError(
+        "Order buyer-PII prune authority returned an invalid row count",
+      );
+    }
+    const row = rows[0];
+    if (
+      (typeof row.purged !== "bigint" && typeof row.purged !== "number")
+      || row.purged < 0
+      || row.purged > Number.MAX_SAFE_INTEGER
+      || (typeof row.purged === "number" && !Number.isSafeInteger(row.purged))
+      || !(row.cutoff instanceof Date)
+      || Number.isNaN(row.cutoff.getTime())
+    ) {
+      throw new TypeError(
+        "Order buyer-PII prune authority returned an invalid result",
+      );
+    }
+    const count = Number(row.purged);
+    cutoff ??= row.cutoff;
     purged += count;
     if (count === 0 || count < batchSize) {
-      return { purged, complete: true, cutoff };
+      return { purged, complete: true, cutoff: cutoff ?? row.cutoff };
     }
   }
 
+  if (!cutoff) {
+    throw new Error("Order buyer-PII prune authority did not return a cutoff");
+  }
   return { purged, complete: false, cutoff };
 }

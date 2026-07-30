@@ -6,7 +6,6 @@ import { PrismaClient } from "@prisma/client";
 
 import {
   databaseClockTimestamp,
-  lockCaseForLifecycle,
   lockOrderForCaseLifecycle,
 } from "../src/lib/caseLifecycleLocks.ts";
 import {
@@ -104,6 +103,18 @@ async function cleanupFixtures(client) {
   await client.user.deleteMany({
     where: { id: { in: [ids.buyer, ids.seller, ids.staff] } },
   });
+}
+
+async function lockCaseForLifecycle(tx, caseId) {
+  const rows = await tx.$queryRaw`
+    SELECT id
+    FROM "Case"
+    WHERE id = ${caseId}
+    FOR UPDATE
+  `;
+  assert.ok(rows.length <= 1, "Case lock returned invalid cardinality");
+  assert.equal(rows[0]?.id ?? caseId, caseId, "Case lock returned the wrong row");
+  return rows.length === 1;
 }
 
 async function seedFixtures(client) {

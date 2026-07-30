@@ -11,21 +11,6 @@ import {
   rateLimitResponse,
   safeRateLimit,
 } from "@/lib/ratelimit";
-import {
-  blockingRefundLedgerWhere,
-  orderHasRefundLedger,
-} from "@/lib/refundRouteState";
-import { logUserAuditActionOrThrow } from "@/lib/audit";
-import {
-  databaseClockTimestamp,
-  lockOrderForCaseLifecycle,
-} from "@/lib/caseLifecycleLocks";
-import {
-  caseEstimatedDeliveryBlockMessage,
-  caseWindowClosedMessage,
-  caseWindowClosesAt,
-  isOrderCaseWindowClosed,
-} from "@/lib/caseCreateState";
 import { sanitizeRichText, truncateText } from "@/lib/sanitize";
 import {
   isInvalidJsonBodyError,
@@ -35,6 +20,8 @@ import {
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { openCaseWithFixedAuthority } from "@/lib/caseOpenAuthority";
+import { getPrismaRawSqlState } from "@/lib/prismaRawSqlError";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -52,14 +39,35 @@ const CaseCreateSchema = z.object({
 });
 const CASE_CREATE_BODY_MAX_BYTES = 24 * 1024;
 
-class CaseCreateRouteError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = "CaseCreateRouteError";
+function caseOpenFailureResponse(error: unknown) {
+  const sqlState = getPrismaRawSqlState(error);
+  if (sqlState === null) return null;
+  if (sqlState === "22023") {
+    return privateJson(
+      { error: "The requested Case is invalid." },
+      { status: 400 },
+    );
   }
+  if (sqlState === "23503") {
+    return privateJson({ error: "Order not found." }, { status: 404 });
+  }
+  if (sqlState === "42501") {
+    return privateJson({ error: "Forbidden." }, { status: 403 });
+  }
+  if (
+    sqlState === "23505"
+    || sqlState === "23514"
+    || sqlState === "40001"
+  ) {
+    return privateJson(
+      {
+        error:
+          "This order is not currently eligible for a new Case. Refresh and try again.",
+      },
+      { status: 409 },
+    );
+  }
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -112,177 +120,63 @@ export async function POST(req: Request) {
       );
     }
 
-    const { newCase, sellerId } = await prisma.$transaction(async (tx) => {
-      const orderExists = await lockOrderForCaseLifecycle(tx, orderId);
-      if (!orderExists) {
-        throw new CaseCreateRouteError("Order not found.", 404);
-      }
-
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        include: {
-          case: { select: { id: true } },
-          paymentEvents: {
-            where: blockingRefundLedgerWhere(),
-            take: 1,
-            select: { eventType: true, status: true },
-          },
-          items: {
-            include: {
-              listing: {
-                select: {
-                  seller: {
-                    select: {
-                      user: {
-                        select: { id: true, banned: true, deletedAt: true },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
+    let result;
+    try {
+      result = await openCaseWithFixedAuthority({
+        actorUserId: me.id,
+        orderId,
+        reason,
+        description,
       });
-      if (!order) {
-        throw new CaseCreateRouteError("Order not found.", 404);
-      }
-      if (order.buyerId !== me.id) {
-        throw new CaseCreateRouteError("Forbidden.", 403);
-      }
-      if (order.case) {
-        throw new CaseCreateRouteError(
-          "A case already exists for this order.",
-          409,
-        );
-      }
-      if (orderHasRefundLedger(order) || order.sellerRefundId) {
-        throw new CaseCreateRouteError(
-          "A refund has already been issued or is being processed for this order.",
-          400,
-        );
-      }
-
-      const sellerUser = order.items[0]?.listing.seller.user;
-      const sellerId = sellerUser?.id;
-      if (
-        !sellerId ||
-        order.items.length === 0 ||
-        order.items.some((item) => item.listing.seller.user.id !== sellerId)
-      ) {
-        throw new CaseCreateRouteError(
-          "Could not determine one seller for this order.",
-          409,
-        );
-      }
-      const sellerUnavailable = Boolean(
-        sellerUser?.banned || sellerUser?.deletedAt,
+    } catch (error) {
+      const response = caseOpenFailureResponse(error);
+      if (response) return response;
+      throw error;
+    }
+    if (result.action === "replay") {
+      return privateJson(
+        { error: "A case is already open for this order." },
+        { status: 409 },
       );
-      const fulfillmentStatus = order.fulfillmentStatus ?? "PENDING";
-      const now = await databaseClockTimestamp(tx);
-      if (
-        order.labelStatus === "PURCHASED" &&
-        fulfillmentStatus === "PENDING"
-      ) {
-        throw new CaseCreateRouteError(
-          "A shipping label is currently being purchased for this order.",
-          409,
-        );
-      }
-      if (
-        fulfillmentStatus === "PENDING" &&
-        !sellerUnavailable &&
-        !order.reviewNeeded
-      ) {
-        throw new CaseCreateRouteError(
-          "Please wait until your order has shipped before opening a case.",
-          400,
-        );
-      }
-      if (
-        order.estimatedDeliveryDate &&
-        order.estimatedDeliveryDate > now &&
-        !sellerUnavailable &&
-        !order.reviewNeeded
-      ) {
-        throw new CaseCreateRouteError(
-          caseEstimatedDeliveryBlockMessage(order.estimatedDeliveryDate),
-          400,
-        );
-      }
-      if (isOrderCaseWindowClosed(order, now)) {
-        throw new CaseCreateRouteError(
-          caseWindowClosedMessage(caseWindowClosesAt(order)),
-          400,
-        );
-      }
-
-      if (sellerId === me.id) {
-        throw new CaseCreateRouteError(
-          "Buyer and seller must be different accounts.",
-          409,
-        );
-      }
-
-      const newCase = await tx.case.create({
-        data: {
-          orderId,
-          buyerId: me.id,
-          sellerId,
-          reason,
-          description,
-          sellerRespondBy: new Date(now.getTime() + 48 * 60 * 60 * 1000),
-          messages: {
-            create: {
-              authorId: me.id,
-              authorKind: "BUYER",
-              body: description,
-            },
-          },
-        },
-        include: { messages: true },
-      });
-
-      await logUserAuditActionOrThrow({
-        client: tx,
-        actorId: me.id,
-        action: "BUYER_OPEN_CASE",
-        targetType: "CASE",
-        targetId: newCase.id,
-        metadata: { orderId, sellerId, reason },
-      });
-
-      return { newCase, sellerId };
-    });
+    }
 
     try {
       await createNotification({
-        userId: sellerId,
+        userId: result.sellerUserId,
         type: "CASE_OPENED",
         title: `${me.name ?? "A buyer"} opened a case`,
         body: truncateText(description, 60),
-        link: `/dashboard/sales/${orderId}`,
-        relatedUserId: me.id,
+        link: `/dashboard/sales/${result.orderId}`,
+        relatedUserId: result.buyerUserId,
         sourceType: NOTIFICATION_SOURCE_TYPES.CASE,
-        sourceId: newCase.id,
+        sourceId: result.caseId,
       });
     } catch (notificationError) {
       Sentry.captureException(notificationError, {
         level: "warning",
         tags: { source: "case_open_notification" },
-        extra: { caseId: newCase.id, orderId, sellerId },
+        extra: {
+          caseId: result.caseId,
+          orderId: result.orderId,
+          sellerId: result.sellerUserId,
+        },
       });
     }
 
     try {
-      if (await shouldSendEmail(sellerId, "EMAIL_CASE_OPENED")) {
+      if (
+        await shouldSendEmail(
+          result.sellerUserId,
+          "EMAIL_CASE_OPENED",
+        )
+      ) {
         const sellerUser = await prisma.user.findUnique({
-          where: { id: sellerId },
+          where: { id: result.sellerUserId },
           select: { name: true, email: true },
         });
         if (sellerUser?.email) {
           await sendCaseOpened({
-            orderId,
+            orderId: result.orderId,
             seller: { name: sellerUser.name, email: sellerUser.email },
             buyer: { name: me.name },
             caseDescription: description,
@@ -293,25 +187,30 @@ export async function POST(req: Request) {
       Sentry.captureException(emailError, {
         level: "warning",
         tags: { source: "case_open_email" },
-        extra: { caseId: newCase.id, orderId, sellerId },
+        extra: {
+          caseId: result.caseId,
+          orderId: result.orderId,
+          sellerId: result.sellerUserId,
+        },
       });
     }
 
-    return privateJson(newCase, { status: 201 });
+    return privateJson(
+      {
+        id: result.caseId,
+        orderId: result.orderId,
+        buyerId: result.buyerUserId,
+        sellerId: result.sellerUserId,
+        reason: result.reason,
+        status: result.status,
+      },
+      { status: 201 },
+    );
   } catch (err) {
-    if (err instanceof CaseCreateRouteError) {
-      return privateJson({ error: err.message }, { status: err.status });
-    }
     if (isAccountAccessError(err)) {
       return privateJson(
         { error: err.message, code: err.code },
         { status: err.status },
-      );
-    }
-    if ((err as { code?: string }).code === "P2002") {
-      return privateJson(
-        { error: "A case is already open for this order." },
-        { status: 409 },
       );
     }
     logServerError(err, { source: "case_create_route" });

@@ -56,6 +56,7 @@ import {
 } from "@/lib/shippingQuoteState";
 import { normalizeCurrencyCode } from "@/lib/money";
 import { lockOrderForCaseLifecycle } from "@/lib/caseLifecycleLocks";
+import { caseOrderActiveForSeller } from "@/lib/caseOrderActiveAuthority";
 
 const LabelSchema = z.object({
   rateObjectId: z.string().min(1).optional().nullable(),
@@ -74,12 +75,6 @@ type LiveRate = {
   estDays?: number | null;
 };
 
-const ACTIVE_CASE_STATUSES = new Set([
-  "OPEN",
-  "IN_DISCUSSION",
-  "PENDING_CLOSE",
-  "UNDER_REVIEW",
-]);
 const LABEL_RATE_QUOTE_TTL_MS = 30 * 60 * 1000;
 const LABEL_PURCHASE_BODY_MAX_BYTES = 16 * 1024;
 
@@ -171,6 +166,7 @@ async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
     where: { userId: me.id },
     select: {
       id: true,
+      userId: true,
       stripeAccountId: true,
       shipFromName: true,
       shipFromLine1: true,
@@ -190,7 +186,6 @@ async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      case: { select: { status: true } },
       paymentEvents: {
         where: blockingRefundLedgerWhere(),
         take: 1,
@@ -308,7 +303,17 @@ export async function POST(
         { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
-    if (order.case && ACTIVE_CASE_STATUSES.has(order.case.status)) {
+    const activeCase = await caseOrderActiveForSeller({
+      actorUserId: seller.userId,
+      orderId: id,
+    });
+    if (activeCase === null) {
+      return privateJson(
+        { error: "Forbidden" },
+        { status: HTTP_STATUS.FORBIDDEN },
+      );
+    }
+    if (activeCase) {
       return privateJson(
         {
           error: "Cannot purchase a label while this order has an active case.",
@@ -531,6 +536,11 @@ export async function POST(
     const labelLockResult = await prisma.$transaction(async (tx) => {
       const orderExists = await lockOrderForCaseLifecycle(tx, order.id);
       if (!orderExists) return 0;
+      const lockedActiveCase = await caseOrderActiveForSeller(
+        { actorUserId: seller.userId, orderId: order.id },
+        tx,
+      );
+      if (lockedActiveCase !== false) return 0;
       return tx.$executeRaw`
         UPDATE "Order" SET "labelStatus" = 'PURCHASED'::"LabelStatus"
         WHERE id = ${order.id} AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
@@ -538,11 +548,6 @@ export async function POST(
           AND "sellerRefundId" IS NULL
           AND "sellerRefundLockedAt" IS NULL
           AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
-          AND NOT EXISTS (
-            SELECT 1 FROM "Case" c
-            WHERE c."orderId" = "Order".id
-              AND c."status"::text IN (${Prisma.join([...ACTIVE_CASE_STATUSES])})
-          )
           AND NOT EXISTS (
             SELECT 1 FROM "OrderPaymentEvent" ope
             WHERE ope."orderId" = "Order".id

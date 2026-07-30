@@ -5,7 +5,11 @@ import {
   CASE_AUTHORITY_OPERATION_IDS,
   CASE_AUTHORITY_OPERATIONS,
   CASE_AUTHORITY_SOURCE_DESTINATIONS,
+  CASE_CONVERTED_SOURCE_DESTINATIONS,
+  CASE_RETIRED_SOURCE_REFERENCES,
+  caseAuthorityConvertedReferenceCount,
   caseAuthorityReferenceCount,
+  caseAuthorityRetiredReferenceCount,
 } from "../scripts/case-case-message-authority-catalog.mjs";
 import {
   collectCaseCaseMessageAccess,
@@ -16,9 +20,24 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
   const inventory = collectCaseCaseMessageAccess();
   const summary = summarizeCaseCaseMessageAccess(inventory);
 
-  it("classifies every exact protected source and all 80 references", () => {
-    assert.equal(caseAuthorityReferenceCount(), 80);
-    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 29);
+  it("retires the unused lock helper and retains all 79 converted references", () => {
+    assert.equal(caseAuthorityReferenceCount(), 0);
+    assert.equal(caseAuthorityConvertedReferenceCount(), 79);
+    assert.equal(caseAuthorityRetiredReferenceCount(), 1);
+    assert.equal(
+      caseAuthorityReferenceCount()
+        + caseAuthorityConvertedReferenceCount()
+        + caseAuthorityRetiredReferenceCount(),
+      80,
+    );
+    assert.deepEqual(CASE_RETIRED_SOURCE_REFERENCES, {
+      "src/lib/caseLifecycleLocks.ts": {
+        actors: ["RETIRED_UNUSED_HELPER"],
+        destinations: [],
+        inventory: { "Case.raw-sql-reference": 1 },
+      },
+    });
+    assert.equal(Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).length, 0);
     assert.deepEqual(
       Object.keys(CASE_AUTHORITY_SOURCE_DESTINATIONS).sort(),
       Object.keys(summary).sort(),
@@ -37,6 +56,15 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
         `${source} has no authority destination`,
       );
     }
+    for (const [source, classification] of Object.entries(
+      CASE_CONVERTED_SOURCE_DESTINATIONS,
+    )) {
+      assert.ok(classification.actors.length > 0, `${source} has no actor`);
+      assert.ok(
+        classification.destinations.length > 0,
+        `${source} has no converted authority destination`,
+      );
+    }
   });
 
   it("uses one unique, fully referenced operation catalog", () => {
@@ -44,9 +72,10 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       new Set(CASE_AUTHORITY_OPERATION_IDS).size,
       CASE_AUTHORITY_OPERATION_IDS.length,
     );
-    assert.equal(CASE_AUTHORITY_OPERATIONS.length, 26);
+    assert.equal(CASE_AUTHORITY_OPERATIONS.length, 27);
     const referenced = new Set(
       Object.values(CASE_AUTHORITY_SOURCE_DESTINATIONS)
+        .concat(Object.values(CASE_CONVERTED_SOURCE_DESTINATIONS))
         .flatMap((source) => source.destinations),
     );
     assert.deepEqual(
@@ -61,7 +90,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     }
   });
 
-  it("keeps recipient reads invoker-scoped and service authority narrow", () => {
+  it("keeps ordinary recipient reads invoker-scoped and source-bound exceptions narrow", () => {
     const byId = new Map(
       CASE_AUTHORITY_OPERATIONS.map((operation) => [
         operation.id,
@@ -71,14 +100,28 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     for (const id of [
       "case_get",
       "case_get_by_order",
-      "case_message_page",
-      "case_staff_queue",
       "case_staff_active_count",
       "case_export",
-      "case_message_preflight",
     ]) {
       assert.equal(byId.get(id)?.security, "INVOKER", id);
     }
+    assert.equal(byId.get("case_message_preflight")?.security, "DEFINER");
+    assert.equal(byId.get("case_message_page")?.security, "DEFINER");
+    assert.equal(byId.get("case_staff_queue")?.security, "DEFINER");
+    assert.equal(byId.get("case_order_active_buyer")?.security, "DEFINER");
+    assert.equal(byId.get("case_order_active_seller")?.security, "DEFINER");
+    assert.equal(
+      byId.get("case_order_pii_retention_prune")?.operationKind,
+      "LIFECYCLE_WRITE",
+    );
+    assert.equal(
+      byId.get("case_message_preflight")?.operationKind,
+      "SOURCE_BOUND_READ",
+    );
+    assert.equal(
+      byId.get("case_staff_queue")?.operationKind,
+      "SOURCE_BOUND_READ",
+    );
     for (const operation of CASE_AUTHORITY_OPERATIONS) {
       assert.ok(operation.candidateFunctionName.startsWith("grainline_"));
       assert.ok(operation.callerInputs.length > 0);
@@ -98,7 +141,7 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
         assert.equal(operation.runtimeExecute, true, operation.id);
       }
     }
-    assert.equal(byId.get("case_lock_core")?.runtimeExecute, false);
+    assert.equal(byId.has("case_lock_core"), false);
   });
 
   it("does not leave security-relevant Case writes as caller-selected state", () => {
@@ -156,6 +199,19 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
       "actorUserId",
       "resolutionClaimId",
     ]);
+    assert.ok(providerRecord.callerInputs.includes("providerOutcome"));
+    assert.match(
+      providerRecord.databaseDerived.join(" "),
+      /RECORDED.*PROVIDER_RECORDED/,
+    );
+    assert.match(
+      providerRecord.databaseDerived.join(" "),
+      /AMBIGUOUS.*RECONCILIATION_REQUIRED/,
+    );
+    assert.match(
+      providerRecord.databaseDerived.join(" "),
+      /forbids asserted provider evidence/,
+    );
     assert.doesNotMatch(
       providerRecord.callerInputs.join(" "),
       /refundAmountCents|caseId|orderId|staffResolution|stock/i,
@@ -279,7 +335,11 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     );
     assert.match(
       normalizedCatalog,
-      /machine-readable catalog contains 26 operations/,
+      /current exact inventory is therefore zero direct, relation or raw protected-table references in ordinary application code/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /machine-readable catalog contains 27 operations/,
     );
     assert.match(
       normalizedCatalog,
@@ -315,7 +375,11 @@ describe("Case, CaseMessage, and attachment authority catalog", () => {
     );
     assert.match(
       normalizedCatalog,
-      /keep all draft SQL outside `prisma\/migrations`/,
+      /keep invariant\/activation SQL outside `prisma\/migrations`/,
+    );
+    assert.match(
+      normalizedCatalog,
+      /compatible operation migrations remain unmerged and unapplied/,
     );
   });
 });

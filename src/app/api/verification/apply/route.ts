@@ -17,6 +17,7 @@ import { z } from "zod";
 import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
+import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
 
 export const runtime = "nodejs";
 
@@ -61,8 +62,6 @@ export async function POST(req: Request) {
     }
 
     // ── Server-side eligibility check ─────────────────────────────────────
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-
     const sellerData = await prisma.sellerProfile.findUnique({
       where: { id: seller.id },
       select: {
@@ -98,12 +97,14 @@ export async function POST(req: Request) {
           AND o."sellerRefundId" IS NULL
           ${BLOCKING_REFUND_LEDGER_SQL}
       `,
-      prisma.case.count({
-        where: {
-          sellerId: sellerData.userId,
-          status: { notIn: ["RESOLVED", "CLOSED"] },
-          createdAt: { lt: sixtyDaysAgo },
-        },
+      getCaseSellerVerificationEligibility({
+        actorUserId: me.id,
+        sellerProfileId: seller.id,
+      }).then((result) => {
+        if (!result) {
+          throw new Error("Case seller verification authority denied seller access");
+        }
+        return result.agedUnresolvedCount;
       }),
     ]);
 

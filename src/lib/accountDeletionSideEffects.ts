@@ -126,11 +126,22 @@ export async function enqueueAccountDeletionLocalAnonymizeSideEffect(
   db: AccountDeletionSideEffectDb,
   userId: string,
 ) {
+  const dedupKey = accountDeletionLocalAnonymizeDedupKey(userId);
   await enqueueAccountDeletionSideEffect(db, {
     userId,
     kind: ACCOUNT_DELETION_SIDE_EFFECT_KIND.LOCAL_ANONYMIZE,
-    dedupKey: accountDeletionLocalAnonymizeDedupKey(userId),
+    dedupKey,
   });
+  const effect = await db.accountDeletionSideEffect.findUnique({
+    where: { dedupKey },
+    select: { id: true },
+  });
+  if (!effect) {
+    throw new Error(
+      "Account deletion local anonymization source was not retained",
+    );
+  }
+  return effect.id;
 }
 
 export async function markAccountDeletionLocalAnonymizeDone(

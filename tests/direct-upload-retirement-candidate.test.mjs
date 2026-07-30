@@ -108,6 +108,22 @@ describe("DirectUpload compatibility-key retirement candidate", () => {
       replacement,
       /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, grainline_app_runtime/,
     );
+    const caseReplyStart = migration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.grainline_case_reply(",
+    );
+    const caseReplyEnd = migration.indexOf(
+      "$grainline_case_reply$;",
+      caseReplyStart,
+    );
+    const caseReply = migration.slice(caseReplyStart, caseReplyEnd);
+    assert.ok(caseReplyStart > migration.indexOf('DROP COLUMN "objectKey"'));
+    assert.match(caseReply, /INSERT INTO public\."CaseMessageAttachment"/);
+    assert.match(caseReply, /"directUploadId",\s*"contentType"/);
+    assert.doesNotMatch(caseReply, /"objectKey"/);
+    assert.match(
+      migration,
+      /Case-reply authority drifted after objectKey retirement/,
+    );
   });
 
   it("keeps the disabled application shape compatible with the retired column", () => {
@@ -116,6 +132,8 @@ describe("DirectUpload compatibility-key retirement candidate", () => {
         .match(/model CaseMessageAttachment \{[\s\S]*?\n\}/)?.[0] ?? "";
     const evidence = source("src/lib/caseEvidence.ts");
     const route = source("src/app/api/cases/[id]/messages/route.ts");
+    const authority = source("src/lib/caseReplyAuthority.ts");
+    const { migration } = buildDirectUploadRetirementCandidate();
 
     assert.doesNotMatch(schema, /objectKey/);
     assert.match(schema, /directUploadId\s+String\s+@unique/);
@@ -124,12 +142,19 @@ describe("DirectUpload compatibility-key retirement candidate", () => {
       evidence.match(/attachment: \{[\s\S]*?\n\s*\};/)?.[0] ?? "",
       /\b(?:objectKey|key): string/,
     );
-    assert.doesNotMatch(
-      route.match(
-        /attachments: \{[\s\S]*?create: verifiedAttachments[\s\S]*?\n\s*\},/,
-      )?.[0] ?? "",
-      /objectKey:/,
+    assert.doesNotMatch(route, /objectKey:/);
+    assert.match(route, /verifiedAttachments\.push\(verification\.attachment\)/);
+    assert.match(authority, /directUploadId.*=> directUploadId/s);
+    const caseReplyStart = migration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.grainline_case_reply(",
     );
-    assert.match(route, /directUploadId: attachment\.directUploadId/);
+    const caseReplyEnd = migration.indexOf(
+      "$grainline_case_reply$;",
+      caseReplyStart,
+    );
+    assert.doesNotMatch(
+      migration.slice(caseReplyStart, caseReplyEnd),
+      /"objectKey"/,
+    );
   });
 });

@@ -34,7 +34,10 @@ describe("account deletion timeout and terminal UX guardrails", () => {
   it("keeps Prisma work sequential in account-deletion transaction helpers", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
     const sellerFanoutStart = accountDeletion.indexOf("async function cleanupDeletedSellerFanoutRows");
-    const sellerFanoutEnd = accountDeletion.indexOf("async function collectCaseMessagesBySensitiveText", sellerFanoutStart);
+    const sellerFanoutEnd = accountDeletion.indexOf(
+      "async function redactOrderReviewNotesForDeletedAccount",
+      sellerFanoutStart,
+    );
     const mediaCollectionStart = accountDeletion.indexOf("async function collectAccountDeletionMediaUrls");
     const mediaCollectionEnd = accountDeletion.indexOf("function revalidateDeletedAccountSearchCaches", mediaCollectionStart);
 

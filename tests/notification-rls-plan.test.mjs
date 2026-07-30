@@ -196,19 +196,27 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(messagePage, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: committedNotificationMessageId/);
     assert.match(customOrderRequest, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: requestMessage\.messageId/);
     assert.match(customOrderReady, /sourceType: NOTIFICATION_SOURCE_TYPES\.MESSAGE,\s*sourceId: messageId/);
-    assert.match(caseOpen, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: newCase\.id/);
+    assert.match(caseOpen, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: result\.caseId/);
     assert.equal((caseMessages.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/g) ?? []).length, 3);
     assert.match(caseMarkResolved, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_RESOLUTION_MARK,\s*sourceId: authoritySourceId/);
-    assert.match(caseMarkResolved, /prisma\.\$transaction\(async \(tx\) =>[\s\S]{0,4500}logAdminActionOrThrow\(\{[\s\S]{0,180}client: tx/);
-    assert.match(caseMarkResolved, /action: "MARK_CASE_RESOLVED"[\s\S]{0,180}actorKind: "user"/);
-    assert.match(caseResolve, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: id/);
+    assert.match(
+      caseMarkResolved,
+      /await markCaseParticipantResolved\(\{[\s\S]{0,120}actorUserId: me\.id,[\s\S]{0,120}caseId: id/,
+    );
+    assert.doesNotMatch(caseMarkResolved, /prisma\.\$transaction/);
+    assert.doesNotMatch(caseMarkResolved, /logAdminActionOrThrow/);
     assert.match(
       caseResolve,
-      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE,\s*sourceId: resolutionMessageId/,
+      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: finalized\.caseId/,
+    );
+    assert.match(
+      caseResolve,
+      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE,\s*sourceId: finalized\.resolutionMessageId/,
     );
     assert.equal((caseAutoClose.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_SYSTEM_ACTION/g) ?? []).length, 6);
-    assert.equal((caseAutoClose.match(/const auditLogId = await logSystemActionOrThrow/g) ?? []).length, 3);
-    assert.equal((caseAutoClose.match(/return auditLogId/g) ?? []).length, 3);
+    assert.equal((caseAutoClose.match(/sourceId: row\.auditLogId/g) ?? []).length, 6);
+    assert.equal((caseAutoClose.match(/runCaseCronTransitionBatch\(\{/g) ?? []).length, 3);
+    assert.doesNotMatch(caseAutoClose, /logSystemActionOrThrow|prisma\.case\./);
     assert.match(commissionInterest, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_INTEREST,\s*sourceId: result\.commissionInterestId/);
     assert.match(commissionStatus, /sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST,\s*sourceId: id/);
     assert.equal((commissionExpire.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.COMMISSION_REQUEST/g) ?? []).length, 2);

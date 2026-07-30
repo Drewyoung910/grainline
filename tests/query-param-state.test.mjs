@@ -110,10 +110,12 @@ describe("query parameter parsing helpers", () => {
     assert.match(adminOrders, /const safePage = Math\.min\(requestedPage, totalPages\)/);
     assert.match(adminOrders, /skip: \(safePage - 1\) \* PAGE_SIZE/);
 
-    assert.match(adminCases, /const total = await prisma\.case\.count\(\{ where \}\)/);
-    assert.match(adminCases, /const safePage = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(adminCases, /orderBy: \[\s*\{ resolvedAt: \{ sort: "asc", nulls: "first" \} \},\s*\{ createdAt: "desc" \},\s*\{ id: "desc" \},\s*\]/);
-    assert.match(adminCases, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+    assert.match(
+      adminCases,
+      /getStaffCaseQueue\(\{[\s\S]*requestedPage,[\s\S]*pageSize: PAGE_SIZE/,
+    );
+    assert.match(adminCases, /const safePage = queue\.safePage/);
+    assert.doesNotMatch(adminCases, /prisma\.case|skip:/);
 
     assert.match(adminFlagged, /const total = await prisma\.order\.count\(\{ where \}\)/);
     assert.match(adminFlagged, /const safePage = Math\.min\(requestedPage, totalPages\)/);

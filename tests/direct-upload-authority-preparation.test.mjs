@@ -301,7 +301,8 @@ describe("DirectUpload fixed-authority preparation", () => {
       assert.match(lifecycle, new RegExp(functionName), functionName);
     }
     assert.match(caseEvidence, /findOwnedDirectUploadForKey/);
-    assert.match(caseMessages, /referenceDirectUploadCaseAttachment/);
+    assert.match(caseMessages, /replyToCaseWithFixedAuthority/);
+    assert.doesNotMatch(caseMessages, /referenceDirectUploadCaseAttachment/);
     assert.doesNotMatch(caseMessages, /tx\.directUpload\./);
     assert.match(caseRead, /readDirectUploadCaseAttachment/);
     assert.doesNotMatch(caseRead, /prisma\.directUpload|directUpload:\s*\{/);
