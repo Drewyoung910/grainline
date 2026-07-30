@@ -179,6 +179,12 @@ models lifecycle creation explicitly as Case then CaseMessage inside the same
 transaction. DirectUpload run `30518042854` already passed its complete
 compatible, activated, concurrency and rollback program at exact repair head
 `4da1fab56c999f8c33269d87c9f5d84408359018`.
+The next exact-head runs proved those repairs and exposed two more clock/kind
+fixtures at the invariant itself: an opening message reused a timestamp captured
+before its parent Case existed, and Notification changed a message author
+without changing the matching author kind. The harness now lets PostgreSQL
+timestamp the opening message after the Case insert and derives the matching
+BUYER, SELLER or STAFF kind whenever the proof changes the author.
 
 ## Production postflight contract
 

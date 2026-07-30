@@ -942,11 +942,22 @@ async function configureResolvedCase(owner, resolution, refundAmountCents = null
 }
 
 async function configureCaseMessageAuthor(owner, authorId, body) {
+  const authorKind =
+    authorId === fixture.actorUserId
+      ? "BUYER"
+      : authorId === fixture.sellerUserId
+        ? "SELLER"
+        : authorId === fixture.staffUserId
+          ? "STAFF"
+          : null;
+  assert.ok(authorKind, "Notification proof CaseMessage author is unknown");
   await owner.query(
     `UPDATE public."CaseMessage"
-        SET "authorId" = $2, body = $3
+        SET "authorId" = $2,
+            "authorKind" = $3::public."CaseMessageAuthorKind",
+            body = $4
       WHERE id = $1`,
-    [fixture.caseMessageId, authorId, body],
+    [fixture.caseMessageId, authorId, authorKind, body],
   );
 }
 

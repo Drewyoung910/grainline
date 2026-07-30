@@ -113,6 +113,11 @@ test("Case lifecycle reset fixtures create valid opening and refund evidence", (
   );
   assert.match(attemptCaseCreate, /await tx\.case\.create/);
   assert.match(attemptCaseCreate, /await tx\.caseMessage\.create/);
+  assert.doesNotMatch(
+    attemptCaseCreate,
+    /caseMessage\.create\([\s\S]+?createdAt:\s*now/,
+    "opening message must not reuse the pre-Case clock",
+  );
   assert.match(source, /refundAmountCents: 10_000/);
   assert.match(source, /stripeRefundId: "case-lifecycle-proof-refund"/);
 });
@@ -132,4 +137,18 @@ test("Notification resolution fixtures keep refund provider evidence complete", 
   assert.match(configureResolvedCase, /resolution === "REFUND_FULL" \? 12_500/);
   assert.match(configureResolvedCase, /"stripeRefundId" = \$4/);
   assert.match(configureResolvedCase, /re_notification_proof_/);
+  const configureCaseMessageAuthor = source.match(
+    /async function configureCaseMessageAuthor\([\s\S]+?\n}\n\nasync function configureCaseResolutionAudit/,
+  )?.[0];
+  assert.ok(
+    configureCaseMessageAuthor,
+    "Notification configureCaseMessageAuthor helper is missing",
+  );
+  assert.match(configureCaseMessageAuthor, /authorId === fixture\.actorUserId/);
+  assert.match(configureCaseMessageAuthor, /authorId === fixture\.sellerUserId/);
+  assert.match(configureCaseMessageAuthor, /authorId === fixture\.staffUserId/);
+  assert.match(
+    configureCaseMessageAuthor,
+    /"authorKind" = \$3::public\."CaseMessageAuthorKind"/,
+  );
 });

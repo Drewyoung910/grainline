@@ -371,7 +371,6 @@ async function attemptCaseCreate(tx, suffix) {
       authorId: ids.buyer,
       authorKind: "BUYER",
       body: "Disposable Case lifecycle opening message.",
-      createdAt: now,
     },
   });
   return { caseId: created.id, outcome: "created" };
