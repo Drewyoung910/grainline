@@ -199,6 +199,9 @@ participant confirmed resolution. The proof helper now mirrors the fixed
 authority function by atomically producing `RESOLVED` plus `DISMISSED` and
 resolution provenance when both participant marks are present; a following
 reply is expected to fail closed.
+The first execution of that branch also confirmed PostgreSQL cannot infer a
+timestamp parameter through a mixed `CASE` expression; the proof now casts the
+resolved clock explicitly to the table's timestamp-without-time-zone type.
 
 ## Production postflight contract
 

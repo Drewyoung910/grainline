@@ -140,6 +140,10 @@ test("Case lifecycle reset fixtures create valid opening and refund evidence", (
   );
   assert.match(attemptBuyerMarkResolved, /'DISMISSED'::"CaseResolution"/);
   assert.match(attemptBuyerMarkResolved, /"resolvedAt" = CASE/);
+  assert.match(
+    attemptBuyerMarkResolved,
+    /CAST\(\$\{transitionAt\} AS timestamp without time zone\)/,
+  );
   assert.match(attemptBuyerMarkResolved, /"resolvedById" = CASE/);
   assert.doesNotMatch(
     source,

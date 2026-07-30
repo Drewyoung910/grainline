@@ -547,7 +547,8 @@ async function attemptBuyerMarkResolved(tx, caseId) {
           ELSE NULL
         END,
         "resolvedAt" = CASE
-          WHEN "sellerMarkedResolved" THEN ${transitionAt}
+          WHEN "sellerMarkedResolved"
+            THEN CAST(${transitionAt} AS timestamp without time zone)
           ELSE NULL
         END,
         "resolvedById" = CASE
