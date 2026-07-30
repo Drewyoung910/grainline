@@ -20,6 +20,8 @@ const fixture = Object.freeze({
   orderItemId: "notification-proof-order-item",
   caseId: "notification-proof-case",
   caseMessageId: "notification-proof-case-message",
+  caseSellerMessageId: "notification-proof-case-message-seller",
+  caseStaffMessageId: "notification-proof-case-message-staff",
   caseResolutionAuditId: "notification-proof-case-resolution-audit",
   caseSystemAuditId: "notification-proof-case-system-audit",
   commissionRequestId: "notification-proof-commission-request",
@@ -186,7 +188,6 @@ async function cleanFixtures(owner) {
     fixture.orderFulfillmentAuditId,
     fixture.orderDisputeAuditId,
   ]]);
-  await owner.query('DELETE FROM public."CaseMessage" WHERE id = $1', [fixture.caseMessageId]);
   await owner.query('DELETE FROM public."Case" WHERE id = $1', [fixture.caseId]);
   await owner.query('DELETE FROM public."OrderPaymentEvent" WHERE id = $1', [fixture.orderPaymentEventId]);
   await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.orderItemId]);
@@ -440,8 +441,19 @@ async function seedFixturesInTransaction(owner) {
   await owner.query(
     `INSERT INTO public."CaseMessage" (
        id, "caseId", "authorId", "authorKind", body
-     ) VALUES ($1, $2, $3, 'BUYER', 'Proof buyer case message')`,
-    [fixture.caseMessageId, fixture.caseId, fixture.actorUserId],
+     ) VALUES
+       ($1, $2, $3, 'BUYER', 'Proof buyer case message'),
+       ($4, $2, $5, 'SELLER', 'Proof seller case message'),
+       ($6, $2, $7, 'STAFF', 'Proof staff case message')`,
+    [
+      fixture.caseMessageId,
+      fixture.caseId,
+      fixture.actorUserId,
+      fixture.caseSellerMessageId,
+      fixture.sellerUserId,
+      fixture.caseStaffMessageId,
+      fixture.staffUserId,
+    ],
   );
   await owner.query(
     `INSERT INTO public."AdminAuditLog" (
@@ -941,26 +953,6 @@ async function configureResolvedCase(owner, resolution, refundAmountCents = null
   );
 }
 
-async function configureCaseMessageAuthor(owner, authorId, body) {
-  const authorKind =
-    authorId === fixture.actorUserId
-      ? "BUYER"
-      : authorId === fixture.sellerUserId
-        ? "SELLER"
-        : authorId === fixture.staffUserId
-          ? "STAFF"
-          : null;
-  assert.ok(authorKind, "Notification proof CaseMessage author is unknown");
-  await owner.query(
-    `UPDATE public."CaseMessage"
-        SET "authorId" = $2,
-            "authorKind" = $3::public."CaseMessageAuthorKind",
-            body = $4
-      WHERE id = $1`,
-    [fixture.caseMessageId, authorId, authorKind, body],
-  );
-}
-
 async function configureCaseResolutionAudit(owner, actorId, status) {
   await owner.query(
     `UPDATE public."AdminAuditLog"
@@ -1442,11 +1434,10 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.actorUserId,
     type: "CASE_MESSAGE",
     sourceType: "case_message",
-    sourceId: fixture.caseMessageId,
+    sourceId: fixture.caseSellerMessageId,
     relatedUserId: fixture.sellerUserId,
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedBodyIncludes: "Proof seller case message",
-    setup: (owner) => configureCaseMessageAuthor(owner, fixture.sellerUserId, "Proof seller case message"),
   },
   {
     label: "case_message_staff_to_buyer",
@@ -1454,11 +1445,10 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.actorUserId,
     type: "CASE_MESSAGE",
     sourceType: "case_message",
-    sourceId: fixture.caseMessageId,
+    sourceId: fixture.caseStaffMessageId,
     relatedUserId: fixture.staffUserId,
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedTitle: "Grainline Staff sent a message in your case",
-    setup: (owner) => configureCaseMessageAuthor(owner, fixture.staffUserId, "Proof staff case message"),
   },
   {
     label: "case_message_staff_to_seller",
@@ -1466,7 +1456,7 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.sellerUserId,
     type: "CASE_MESSAGE",
     sourceType: "case_message",
-    sourceId: fixture.caseMessageId,
+    sourceId: fixture.caseStaffMessageId,
     relatedUserId: fixture.staffUserId,
     expectedLink: `/dashboard/sales/${fixture.orderId}`,
     expectedTitle: "Grainline Staff sent a message in your case",

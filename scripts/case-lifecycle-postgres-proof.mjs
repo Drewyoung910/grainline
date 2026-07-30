@@ -81,9 +81,6 @@ export function parseProofConfig(env = process.env) {
 }
 
 async function cleanupFixtures(client) {
-  await client.caseMessage.deleteMany({
-    where: { caseId: { startsWith: "case-lifecycle-proof-case-" } },
-  });
   await client.case.deleteMany({
     where: { id: { startsWith: "case-lifecycle-proof-case-" } },
   });
@@ -183,9 +180,6 @@ async function seedFixtures(client) {
 }
 
 async function resetOrder(client, fulfillmentStatus = "PENDING") {
-  await client.caseMessage.deleteMany({
-    where: { caseId: { startsWith: "case-lifecycle-proof-case-" } },
-  });
   await client.case.deleteMany({
     where: { id: { startsWith: "case-lifecycle-proof-case-" } },
   });

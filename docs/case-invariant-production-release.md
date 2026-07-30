@@ -183,8 +183,12 @@ The next exact-head runs proved those repairs and exposed two more clock/kind
 fixtures at the invariant itself: an opening message reused a timestamp captured
 before its parent Case existed, and Notification changed a message author
 without changing the matching author kind. The harness now lets PostgreSQL
-timestamp the opening message after the Case insert and derives the matching
-BUYER, SELLER or STAFF kind whenever the proof changes the author.
+timestamp the opening message after the Case insert and never rewrites message
+authority fields.
+Live PostgreSQL then correctly rejected both author-field mutation and deleting
+the only human opening message ahead of its parent. Notification now seeds
+separate immutable buyer, seller and staff messages, while lifecycle cleanup
+deletes the parent Case and relies on its declared cascade for messages.
 
 ## Production postflight contract
 

@@ -120,6 +120,11 @@ test("Case lifecycle reset fixtures create valid opening and refund evidence", (
   );
   assert.match(source, /refundAmountCents: 10_000/);
   assert.match(source, /stripeRefundId: "case-lifecycle-proof-refund"/);
+  assert.doesNotMatch(
+    source,
+    /caseMessage\.deleteMany/,
+    "Case cleanup must delete the parent and let ON DELETE CASCADE remove messages",
+  );
 });
 
 test("Notification resolution fixtures keep refund provider evidence complete", () => {
@@ -128,7 +133,7 @@ test("Notification resolution fixtures keep refund provider evidence complete", 
     "utf8",
   );
   const configureResolvedCase = source.match(
-    /async function configureResolvedCase\([\s\S]+?\n}\n\nasync function configureCaseMessageAuthor/,
+    /async function configureResolvedCase\([\s\S]+?\n}\n\nasync function configureCaseResolutionAudit/,
   )?.[0];
   assert.ok(
     configureResolvedCase,
@@ -137,18 +142,11 @@ test("Notification resolution fixtures keep refund provider evidence complete", 
   assert.match(configureResolvedCase, /resolution === "REFUND_FULL" \? 12_500/);
   assert.match(configureResolvedCase, /"stripeRefundId" = \$4/);
   assert.match(configureResolvedCase, /re_notification_proof_/);
-  const configureCaseMessageAuthor = source.match(
-    /async function configureCaseMessageAuthor\([\s\S]+?\n}\n\nasync function configureCaseResolutionAudit/,
-  )?.[0];
-  assert.ok(
-    configureCaseMessageAuthor,
-    "Notification configureCaseMessageAuthor helper is missing",
-  );
-  assert.match(configureCaseMessageAuthor, /authorId === fixture\.actorUserId/);
-  assert.match(configureCaseMessageAuthor, /authorId === fixture\.sellerUserId/);
-  assert.match(configureCaseMessageAuthor, /authorId === fixture\.staffUserId/);
-  assert.match(
-    configureCaseMessageAuthor,
-    /"authorKind" = \$3::public\."CaseMessageAuthorKind"/,
+  assert.match(source, /caseSellerMessageId:/);
+  assert.match(source, /caseStaffMessageId:/);
+  assert.doesNotMatch(
+    source,
+    /UPDATE public\."CaseMessage"/,
+    "Notification proof must not rewrite immutable CaseMessage authority",
   );
 });
