@@ -20,6 +20,8 @@ SELECT pg_catalog.pg_advisory_xact_lock(
 DO $grainline_case_read_mode_preflight$
 DECLARE
   case_owner oid;
+  runtime_role_oid oid;
+  function_count integer;
   expected record;
   function_oid oid;
   actual record;
@@ -33,18 +35,58 @@ BEGIN
      AND class.relname = 'Case'
      AND class.relkind = 'r';
 
+  SELECT role.oid
+    INTO STRICT runtime_role_oid
+    FROM pg_catalog.pg_roles AS role
+   WHERE role.rolname = 'grainline_app_runtime';
+
+  SELECT pg_catalog.count(*)::integer
+    INTO function_count
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND procedure.proname IN (
+       'grainline_case_get',
+       'grainline_case_get_by_order',
+       'grainline_case_staff_active_count',
+       'grainline_case_export_page'
+     );
+  IF function_count <> 4 THEN
+    RAISE EXCEPTION
+      'Case read-mode function overload catalog drifted: %',
+      function_count;
+  END IF;
+
   FOR expected IN
     SELECT *
       FROM (
         VALUES
-          ('grainline_case_get', 'text,text'),
-          ('grainline_case_get_by_order', 'text,text'),
-          ('grainline_case_staff_active_count', 'text'),
+          (
+            'grainline_case_get',
+            'text,text',
+            '86a73dde02ca70ab144f9f5ce038cb84'
+          ),
+          (
+            'grainline_case_get_by_order',
+            'text,text',
+            '8eb02031c71ca3900469a027f32ad954'
+          ),
+          (
+            'grainline_case_staff_active_count',
+            'text',
+            'ae70e5e54ec5cc5d3d52c4176d900cc8'
+          ),
           (
             'grainline_case_export_page',
-            'text,timestamp without time zone,text,integer'
+            'text,timestamp without time zone,text,integer',
+            '238512a70ff3c28f8a0363f71c89deb1'
           )
-      ) AS expected_function(function_name, identity_arguments)
+      ) AS expected_function(
+        function_name,
+        identity_arguments,
+        source_md5
+      )
   LOOP
     function_oid := pg_catalog.to_regprocedure(
       pg_catalog.format(
@@ -67,6 +109,8 @@ BEGIN
       procedure.proparallel,
       procedure.proconfig,
       procedure.proowner,
+      language.lanname AS language_name,
+      procedure.prosrc,
       pg_catalog.has_function_privilege(
         'grainline_app_runtime',
         procedure.oid,
@@ -82,9 +126,49 @@ BEGIN
           ) AS acl
          WHERE acl.grantee = 0
            AND acl.privilege_type = 'EXECUTE'
-      ) AS public_execute
+      ) AS public_execute,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+         WHERE acl.grantee = runtime_role_oid
+           AND acl.privilege_type = 'EXECUTE'
+      ) AS runtime_direct_execute,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+         WHERE acl.grantee = runtime_role_oid
+           AND acl.privilege_type = 'EXECUTE'
+           AND acl.is_grantable
+      ) AS runtime_execute_grantable,
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+         WHERE acl.grantee NOT IN (
+           0,
+           procedure.proowner,
+           runtime_role_oid
+         )
+           AND acl.privilege_type = 'EXECUTE'
+      ) AS other_role_execute_count
       INTO STRICT actual
       FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_language AS language
+        ON language.oid = procedure.prolang
      WHERE procedure.oid = function_oid;
 
     IF actual.prokind IS DISTINCT FROM 'f'
@@ -95,8 +179,13 @@ BEGIN
        OR actual.proconfig IS DISTINCT FROM
           ARRAY['search_path=pg_catalog']::text[]
        OR actual.proowner IS DISTINCT FROM case_owner
+       OR actual.language_name IS DISTINCT FROM 'plpgsql'
+       OR pg_catalog.md5(actual.prosrc) IS DISTINCT FROM expected.source_md5
        OR NOT actual.runtime_execute
-       OR actual.public_execute THEN
+       OR NOT actual.runtime_direct_execute
+       OR actual.runtime_execute_grantable
+       OR actual.public_execute
+       OR actual.other_role_execute_count <> 0 THEN
       RAISE EXCEPTION
         'Case read-mode predecessor drifted: %',
         expected.function_name;
@@ -185,10 +274,29 @@ GRANT EXECUTE ON FUNCTION public.grainline_case_export_page(
 
 DO $grainline_case_read_mode_postflight$
 DECLARE
-  accepted_count integer;
+  case_owner oid;
+  runtime_role_oid oid;
+  function_count integer;
+  expected record;
+  function_oid oid;
+  actual record;
 BEGIN
+  SELECT class.relowner
+    INTO STRICT case_owner
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'Case'
+     AND class.relkind = 'r';
+
+  SELECT role.oid
+    INTO STRICT runtime_role_oid
+    FROM pg_catalog.pg_roles AS role
+   WHERE role.rolname = 'grainline_app_runtime';
+
   SELECT pg_catalog.count(*)::integer
-    INTO accepted_count
+    INTO function_count
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
@@ -198,36 +306,146 @@ BEGIN
        'grainline_case_get_by_order',
        'grainline_case_staff_active_count',
        'grainline_case_export_page'
-     )
-     AND procedure.prokind = 'f'
-     AND procedure.prosecdef
-     AND NOT procedure.proleakproof
-     AND procedure.provolatile = 'v'
-     AND procedure.proparallel = 'u'
-     AND procedure.proconfig IS NOT DISTINCT FROM
-         ARRAY['search_path=pg_catalog']::text[]
-     AND pg_catalog.has_function_privilege(
-       'grainline_app_runtime',
-       procedure.oid,
-       'EXECUTE'
-     )
-     AND NOT EXISTS (
-       SELECT 1
-         FROM pg_catalog.aclexplode(
-           COALESCE(
-             procedure.proacl,
-             pg_catalog.acldefault('f', procedure.proowner)
-           )
-         ) AS acl
-        WHERE acl.grantee = 0
-          AND acl.privilege_type = 'EXECUTE'
      );
-
-  IF accepted_count <> 4 THEN
+  IF function_count <> 4 THEN
     RAISE EXCEPTION
-      'Case read-mode convergence did not accept all four functions: %',
-      accepted_count;
+      'Case read-mode function overload catalog drifted after convergence: %',
+      function_count;
   END IF;
+
+  FOR expected IN
+    SELECT *
+      FROM (
+        VALUES
+          (
+            'grainline_case_get',
+            'text,text',
+            '86a73dde02ca70ab144f9f5ce038cb84'
+          ),
+          (
+            'grainline_case_get_by_order',
+            'text,text',
+            '8eb02031c71ca3900469a027f32ad954'
+          ),
+          (
+            'grainline_case_staff_active_count',
+            'text',
+            'ae70e5e54ec5cc5d3d52c4176d900cc8'
+          ),
+          (
+            'grainline_case_export_page',
+            'text,timestamp without time zone,text,integer',
+            '238512a70ff3c28f8a0363f71c89deb1'
+          )
+      ) AS expected_function(
+        function_name,
+        identity_arguments,
+        source_md5
+      )
+  LOOP
+    function_oid := pg_catalog.to_regprocedure(
+      pg_catalog.format(
+        'public.%I(%s)',
+        expected.function_name,
+        expected.identity_arguments
+      )
+    );
+    IF function_oid IS NULL THEN
+      RAISE EXCEPTION
+        'Case read-mode function disappeared after convergence: %',
+        expected.function_name;
+    END IF;
+
+    SELECT
+      procedure.prokind,
+      procedure.prosecdef,
+      procedure.proleakproof,
+      procedure.provolatile,
+      procedure.proparallel,
+      procedure.proconfig,
+      procedure.proowner,
+      language.lanname AS language_name,
+      procedure.prosrc,
+      pg_catalog.has_function_privilege(
+        'grainline_app_runtime',
+        procedure.oid,
+        'EXECUTE'
+      ) AS runtime_execute,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+         WHERE acl.grantee = 0
+           AND acl.privilege_type = 'EXECUTE'
+      ) AS public_execute,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+         WHERE acl.grantee = runtime_role_oid
+           AND acl.privilege_type = 'EXECUTE'
+      ) AS runtime_direct_execute,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+         WHERE acl.grantee = runtime_role_oid
+           AND acl.privilege_type = 'EXECUTE'
+           AND acl.is_grantable
+      ) AS runtime_execute_grantable,
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+         WHERE acl.grantee NOT IN (
+           0,
+           procedure.proowner,
+           runtime_role_oid
+         )
+           AND acl.privilege_type = 'EXECUTE'
+      ) AS other_role_execute_count
+      INTO STRICT actual
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_language AS language
+        ON language.oid = procedure.prolang
+     WHERE procedure.oid = function_oid;
+
+    IF actual.prokind IS DISTINCT FROM 'f'
+       OR NOT actual.prosecdef
+       OR actual.proleakproof
+       OR actual.provolatile IS DISTINCT FROM 'v'
+       OR actual.proparallel IS DISTINCT FROM 'u'
+       OR actual.proconfig IS DISTINCT FROM
+          ARRAY['search_path=pg_catalog']::text[]
+       OR actual.proowner IS DISTINCT FROM case_owner
+       OR actual.language_name IS DISTINCT FROM 'plpgsql'
+       OR pg_catalog.md5(actual.prosrc) IS DISTINCT FROM expected.source_md5
+       OR NOT actual.runtime_execute
+       OR NOT actual.runtime_direct_execute
+       OR actual.runtime_execute_grantable
+       OR actual.public_execute
+       OR actual.other_role_execute_count <> 0 THEN
+      RAISE EXCEPTION
+        'Case read-mode convergence did not accept function source, mode or ACL: %',
+        expected.function_name;
+    END IF;
+  END LOOP;
 END
 $grainline_case_read_mode_postflight$;
 

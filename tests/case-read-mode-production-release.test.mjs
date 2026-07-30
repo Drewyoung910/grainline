@@ -28,6 +28,24 @@ const accountExportProof = fs.readFileSync(
   "scripts/case-account-export-authority-postgres-proof.mjs",
   "utf8",
 );
+const recipientReadPreparation = fs.readFileSync(
+  "prisma/migrations/20260729055000_prepare_case_recipient_read_authority/migration.sql",
+  "utf8",
+);
+const accountExportPreparation = fs.readFileSync(
+  "prisma/migrations/20260729059000_prepare_case_account_export_authority/migration.sql",
+  "utf8",
+);
+
+function functionBody(source, functionName) {
+  const match = source.match(
+    new RegExp(
+      `AS \\$${functionName}\\$\\n([\\s\\S]*?)\\n\\$${functionName}\\$;`,
+    ),
+  );
+  assert.ok(match, `missing source body for ${functionName}`);
+  return match[1];
+}
 
 test("Case read-mode release pins exact source, migration, and tree bytes", () => {
   const candidate = buildCaseReadModeCandidate();
@@ -38,7 +56,7 @@ test("Case read-mode release pins exact source, migration, and tree bytes", () =
   assert.equal(migration, candidate.migration);
   assert.equal(
     createHash("sha256").update(migration).digest("hex"),
-    "3feeae96ab81fb26a746e01983b1bdb086192dd8319e87add19d42f7805f5193",
+    "7153776e446f5f52a2218de4becfc3899a30d5bffaf8f7554a025966f0bcd4d4",
   );
   const migrationNames = fs.readdirSync(
     "prisma/migrations",
@@ -86,6 +104,26 @@ test("Case read-mode release is compatible and exact", () => {
     migration,
     /^\s*(?:INSERT\s+INTO|UPDATE\s+public\.|DELETE\s+FROM|TRUNCATE)\b/im,
   );
+  assert.equal((migration.match(/pg_catalog\.md5\(actual\.prosrc\)/g) ?? []).length, 2);
+  assert.equal((migration.match(/runtime_execute_grantable/g) ?? []).length, 4);
+  assert.equal((migration.match(/other_role_execute_count/g) ?? []).length, 4);
+  assert.match(migration, /function overload catalog drifted/);
+  assert.match(migration, /language_name IS DISTINCT FROM 'plpgsql'/);
+  for (const [functionName, source] of [
+    ["grainline_case_get", recipientReadPreparation],
+    ["grainline_case_get_by_order", recipientReadPreparation],
+    ["grainline_case_staff_active_count", recipientReadPreparation],
+    ["grainline_case_export_page", accountExportPreparation],
+  ]) {
+    const sourceMd5 = createHash("md5")
+      .update(functionBody(source, functionName))
+      .digest("hex");
+    assert.equal(
+      (migration.match(new RegExp(sourceMd5, "g")) ?? []).length,
+      2,
+      `${functionName} source digest must be pinned preflight and postflight`,
+    );
+  }
   assert.match(workflow, /case-read-mode-reviewed/);
   assert.doesNotMatch(workflow, /case-(?:activation|force)-reviewed/);
 });

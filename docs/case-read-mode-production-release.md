@@ -14,11 +14,11 @@ This release adds exactly one migration:
 - source draft:
   `docs/rls-drafts/case-case-message-read-mode.sql`
 - source draft SHA-256:
-  `4ad69bc9a72b877ce4b35c8795d41ecd4213195bc6c9c4d2e1ed691f62c5300b`
+  `810c80f03836693d38c812604e0f9e6e3f2255eb2524a6bd990c80a522dd5125`
 - migration SHA-256:
-  `3feeae96ab81fb26a746e01983b1bdb086192dd8319e87add19d42f7805f5193`
+  `7153776e446f5f52a2218de4becfc3899a30d5bffaf8f7554a025966f0bcd4d4`
 - complete reviewed migration-tree SHA-256:
-  `92a514c7bd87e3fbbfa51769f1f06c61d200e8ead7357a0171cb687d507b8482`
+  `63afdc97683de6cca61c3644870d2db981f6947bdee80b922861ccdcc3fa0ef3`
 
 `scripts/stage-case-read-mode-migration.mjs` byte-pins the accepted draft and
 mechanically derives the migration. Verification is read-only. Staging or
@@ -37,6 +37,10 @@ It preserves the function bodies, pinned `search_path=pg_catalog`, owner,
 volatility, parallel posture, bounded inputs and fixed outputs. It revokes and
 regrants only the exact function EXECUTE privileges so `PUBLIC` remains
 denied and `grainline_app_runtime` remains the sole runtime caller.
+Because this release elevates the existing bodies, both migration preflight
+and postflight pin the exact body digests, PL/pgSQL language, single-overload
+catalog, direct non-grantable runtime EXECUTE, and absence of EXECUTE grants
+to any other role.
 
 The migration contains no function body replacement, dynamic SQL, RLS
 statement, policy, Case-family table or column grant change, row DML,
@@ -96,6 +100,14 @@ later account-export proof. Both proof harnesses now require DEFINER, and the
 release test pins both expectations so this migration-mode drift cannot recur
 silently. This was proof-code drift, not a failed runtime authority check;
 production was unchanged.
+
+The subsequent Extra-High byte review found that the first candidate checked
+function mode, owner and search path but did not bind the bodies being
+elevated. Before any production use, the candidate was hardened to reject
+source drift, extra overloads, language drift, inherited-only runtime access,
+grant options, and unexpected role grants in both preflight and postflight.
+That hardening changed the candidate and migration-tree hashes recorded above;
+the earlier candidate bytes were never applied.
 
 If it is later applied, rerun
 `npm run ops:case-compatible-db-postflight` through the real pooled
