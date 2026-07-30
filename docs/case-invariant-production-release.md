@@ -117,6 +117,15 @@ correctly repeated the same failure. The corrected assertion first isolates
 the `seedCase` function body, preventing unrelated matching text from
 satisfying it. The stray seller-profile timestamp change was reverted.
 
+Exact-head CI run `30516379280` (job `90787078906`) confirmed the Case clock
+repair and reached the reply side-effect assertions. Those predated durable
+opening evidence and counted every CaseMessage, so the opening row made an
+expected one generated reply appear as two messages. The three side-effect
+counts now exclude the known opening-message ID while retaining their
+original assertions: one attachment reply, two distinct replay-test replies,
+and zero reply/attachment residue after rollback. The fixture compatibility
+guard requires all three exclusions.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:

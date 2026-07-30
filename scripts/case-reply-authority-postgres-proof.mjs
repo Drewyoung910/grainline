@@ -114,6 +114,10 @@ function orderId(caseId) {
   return caseId.replace("-case-", "-order-");
 }
 
+function openingMessageId(caseId) {
+  return `${caseId}-opening-message`;
+}
+
 async function seedUsers(client) {
   await client.query(`
     INSERT INTO public."User" (
@@ -235,7 +239,7 @@ async function seedCase(client, caseId, status, {
       'Disposable opening evidence for the Case-reply authority proof.',
       CURRENT_TIMESTAMP
     )
-  `, [`${caseId}-opening-message`, caseId, ids.buyer]);
+  `, [openingMessageId(caseId), caseId, ids.buyer]);
 }
 
 function uploadKey(caseId, suffix) {
@@ -505,7 +509,8 @@ async function proveAttachmentAuthority(observer, runtime) {
     SELECT pg_catalog.count(*)::integer AS count
       FROM public."CaseMessage"
      WHERE "caseId" = $1
-  `, [ids.attachmentCase]);
+       AND id <> $2
+  `, [ids.attachmentCase, openingMessageId(ids.attachmentCase)]);
   assert.equal(attachmentCaseCount.rows[0]?.count, 1);
 }
 
@@ -529,7 +534,8 @@ async function proveReplay(observer, runtime) {
     SELECT pg_catalog.count(*)::integer AS count
       FROM public."CaseMessage"
      WHERE "caseId" = $1
-  `, [ids.replayCase]);
+       AND id <> $2
+  `, [ids.replayCase, openingMessageId(ids.replayCase)]);
   assert.equal(count.rows[0]?.count, 2);
 }
 
@@ -595,6 +601,7 @@ async function proveRollback(observer, runtime) {
         SELECT pg_catalog.count(*)::integer
           FROM public."CaseMessage"
          WHERE "caseId" = $1
+           AND id <> $3
       ) AS message_count,
       (
         SELECT pg_catalog.count(*)::integer
@@ -613,7 +620,11 @@ async function proveRollback(observer, runtime) {
           FROM public."DirectUpload"
          WHERE id = $2
       ) AS upload_status
-  `, [ids.rollbackCase, ids.rollbackUpload]);
+  `, [
+    ids.rollbackCase,
+    ids.rollbackUpload,
+    openingMessageId(ids.rollbackCase),
+  ]);
   assert.deepEqual(residue.rows[0], {
     message_count: 0,
     attachment_count: 0,

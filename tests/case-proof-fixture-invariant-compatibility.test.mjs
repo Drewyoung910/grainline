@@ -65,4 +65,10 @@ test("post-migration Case-reply fixtures order lifecycle clocks consistently", (
     seedCase,
     /CURRENT_TIMESTAMP - INTERVAL '1 hour'/,
   );
+  assert.equal(
+    [...source.matchAll(/AND id <> \$[23]/g)].length,
+    3,
+    "Case-reply side-effect counts must exclude durable opening evidence",
+  );
+  assert.match(source, /function openingMessageId\(caseId\)/);
 });
