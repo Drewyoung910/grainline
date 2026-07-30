@@ -13,6 +13,9 @@ const PROOFS_WITH_DIRECT_CASE_FIXTURES = Object.freeze([
   "scripts/case-account-export-authority-postgres-proof.mjs",
   "scripts/case-escalation-cron-authority-postgres-proof.mjs",
   "scripts/case-account-deletion-authority-postgres-proof.mjs",
+  "scripts/notification-rls-ephemeral-proof.mjs",
+  "scripts/direct-upload-activation-postgres-proof.mjs",
+  "scripts/direct-upload-authority-postgres-proof.mjs",
 ]);
 
 test("post-migration Case proof fixtures preserve durable opening and seller evidence", () => {
@@ -20,7 +23,7 @@ test("post-migration Case proof fixtures preserve durable opening and seller evi
     const source = fs.readFileSync(path, "utf8");
     assert.match(
       source,
-      /async function seedFixtures\(client\) \{[\s\S]{0,220}client\.query\("BEGIN"\)/,
+      /async function seedFixtures\((?:client|owner)\) \{[\s\S]{0,220}(?:client|owner)\.query\("BEGIN"\)/,
       `${path} must seed its deferred Case evidence atomically`,
     );
     assert.match(
@@ -86,4 +89,19 @@ test("post-migration seller aggregate fixtures cannot regress updatedAt behind a
     seedCase,
     /GREATEST\(CURRENT_TIMESTAMP, \$6::timestamp\)/,
   );
+});
+
+test("Case lifecycle reset fixtures create valid opening and refund evidence", () => {
+  const source = fs.readFileSync(
+    "scripts/case-lifecycle-postgres-proof.mjs",
+    "utf8",
+  );
+  const resetCase = source.match(
+    /async function resetCase\([\s\S]+?\n}\n\nasync function waitForLock/,
+  )?.[0];
+  assert.ok(resetCase, "Case lifecycle resetCase function is missing");
+  assert.match(resetCase, /messages:\s*\{\s*create:/);
+  assert.match(resetCase, /authorKind: "BUYER"/);
+  assert.match(source, /refundAmountCents: 10_000/);
+  assert.match(source, /stripeRefundId: "case-lifecycle-proof-refund"/);
 });

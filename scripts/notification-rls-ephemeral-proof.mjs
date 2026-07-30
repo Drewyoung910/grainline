@@ -219,8 +219,7 @@ async function cleanFixtures(owner) {
   await owner.query('DELETE FROM public."User" WHERE id = ANY($1::text[])', [userIds]);
 }
 
-async function seedFixtures(owner) {
-  await cleanFixtures(owner);
+async function seedFixturesInTransaction(owner) {
   await owner.query(
     `INSERT INTO public."User" (id, "clerkId", email, name, "updatedAt")
      VALUES
@@ -439,8 +438,9 @@ async function seedFixtures(owner) {
     [fixture.caseId, fixture.orderId, fixture.actorUserId, fixture.sellerUserId],
   );
   await owner.query(
-    `INSERT INTO public."CaseMessage" (id, "caseId", "authorId", body)
-     VALUES ($1, $2, $3, 'Proof buyer case message')`,
+    `INSERT INTO public."CaseMessage" (
+       id, "caseId", "authorId", "authorKind", body
+     ) VALUES ($1, $2, $3, 'BUYER', 'Proof buyer case message')`,
     [fixture.caseMessageId, fixture.caseId, fixture.actorUserId],
   );
   await owner.query(
@@ -676,6 +676,18 @@ async function seedFixtures(owner) {
        ($3, $5, 'NEW_MESSAGE', 'Foreign unread', 'Foreign unread body', '/messages/foreign', 'message', 'proof-message-foreign', 'proof-foreign-unread', false)`,
     [fixture.ownUnreadId, fixture.ownReadId, fixture.foreignUnreadId, fixture.sellerUserId, fixture.foreignUserId],
   );
+}
+
+async function seedFixtures(owner) {
+  await cleanFixtures(owner);
+  await owner.query("BEGIN");
+  try {
+    await seedFixturesInTransaction(owner);
+    await owner.query("COMMIT");
+  } catch (error) {
+    await owner.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function proveCatalog(owner) {

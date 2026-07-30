@@ -156,6 +156,20 @@ classification, with a regression assertion requiring all eight names to
 remain private. This was disposable CI only; production and persistent
 staging were unchanged.
 
+The invariant-only merge landed on main as
+`67c3c35ea505296cc6c5c7890dae7c2f06ea95f8`. Exact-main CI run
+`30517469491` passed the complete repository, disposable PostgreSQL and
+production-build gates. The standing Notification FORCE proof run
+`30517469486` then correctly rejected its pre-invariant fixture because that
+proof created a Case and opening message in separate autocommit transactions.
+A class-wide follow-up found the same latent fixture assumption in both
+DirectUpload authority proofs and found that the Case lifecycle reset helper
+omitted durable opening evidence and complete refund evidence. The compatible
+repair keeps each direct Case seed atomic, supplies exact OrderItem seller
+evidence and author kinds, and extends the fixture inventory guard across all
+13 direct SQL Case proof harnesses plus the Prisma lifecycle helper.
+Production has not received the invariant migration.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:

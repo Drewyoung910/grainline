@@ -233,6 +233,14 @@ async function resetCase(
       sellerRespondBy,
       discussionStartedAt,
       escalateUnlocksAt,
+      messages: {
+        create: {
+          id: `case-lifecycle-proof-message-${suffix}-opening`,
+          authorId: ids.buyer,
+          authorKind: "BUYER",
+          body: "Disposable Case lifecycle opening message.",
+        },
+      },
     },
   });
 }
@@ -737,6 +745,8 @@ async function runProof({ databaseUrl }) {
       data: {
         status: "RESOLVED",
         resolution: "REFUND_FULL",
+        refundAmountCents: 10_000,
+        stripeRefundId: "case-lifecycle-proof-refund",
         resolvedAt: new Date(),
         resolvedById: ids.seller,
       },

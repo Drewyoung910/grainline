@@ -22,7 +22,10 @@ const ids = Object.freeze({
   outsider: `${PREFIX}-outsider`,
   stranger: `${PREFIX}-stranger`,
   seller: `${PREFIX}-seller`,
+  caseSeller: `${PREFIX}-case-seller`,
   listing: `${PREFIX}-listing`,
+  caseListing: `${PREFIX}-case-listing`,
+  orderItem: `${PREFIX}-order-item`,
   photo: `${PREFIX}-photo`,
   order: `${PREFIX}-order`,
   case: `${PREFIX}-case`,
@@ -114,8 +117,8 @@ async function cleanupFixtures(owner) {
     [ids.owner, ids.outsider, ids.stranger],
   );
   await owner.query(
-    `DELETE FROM public."SellerProfile" WHERE id = $1`,
-    [ids.seller],
+    `DELETE FROM public."SellerProfile" WHERE id IN ($1, $2)`,
+    [ids.seller, ids.caseSeller],
   );
   await owner.query(
     `DELETE FROM public."User" WHERE id IN ($1, $2, $3)`,
@@ -123,8 +126,7 @@ async function cleanupFixtures(owner) {
   );
 }
 
-async function seedFixtures(owner) {
-  await cleanupFixtures(owner);
+async function seedFixturesInTransaction(owner) {
   await owner.query(
     `INSERT INTO public."User" (
        id, "clerkId", email, name, role, banned, "createdAt", "updatedAt"
@@ -151,25 +153,33 @@ async function seedFixtures(owner) {
     `INSERT INTO public."SellerProfile" (
        id, "userId", "displayName", "displayNameNormalized",
        "createdAt", "updatedAt"
-     ) VALUES (
-       $1, $2, 'Activation Seller', 'activation seller',
-       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-     )`,
-    [ids.seller, ids.owner],
+     ) VALUES
+       ($1, $2, 'Activation Seller', 'activation seller',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+       ($3, $4, 'Activation Case Seller', 'activation case seller',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [ids.seller, ids.owner, ids.caseSeller, ids.outsider],
   );
   await owner.query(
     `INSERT INTO public."Listing" (
        id, "sellerId", title, description, "priceCents",
        "listingType", "stockQuantity", "createdAt", "updatedAt"
-     ) VALUES (
-       $1, $2, 'Activation listing', 'Disposable fixture.',
-       1000, 'IN_STOCK', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-     )`,
-    [ids.listing, ids.seller],
+     ) VALUES
+       ($1, $2, 'Activation listing', 'Disposable fixture.',
+        1000, 'IN_STOCK', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+       ($3, $4, 'Activation Case listing', 'Disposable Case fixture.',
+        1000, 'IN_STOCK', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [ids.listing, ids.seller, ids.caseListing, ids.caseSeller],
   );
   await owner.query(
     `INSERT INTO public."Order" (id, "buyerId") VALUES ($1, $2)`,
     [ids.order, ids.owner],
+  );
+  await owner.query(
+    `INSERT INTO public."OrderItem" (
+       id, "orderId", "listingId", quantity, "priceCents"
+     ) VALUES ($1, $2, $3, 1, 1000)`,
+    [ids.orderItem, ids.order, ids.caseListing],
   );
   await owner.query(
     `INSERT INTO public."Case" (
@@ -188,9 +198,21 @@ async function seedFixtures(owner) {
      ) VALUES (
        $1, $2, $3, 'BUYER', 'Disposable activation message.',
        CURRENT_TIMESTAMP
-     )`,
+    )`,
     [ids.caseMessage, ids.case, ids.owner],
   );
+}
+
+async function seedFixtures(owner) {
+  await cleanupFixtures(owner);
+  await owner.query("BEGIN");
+  try {
+    await seedFixturesInTransaction(owner);
+    await owner.query("COMMIT");
+  } catch (error) {
+    await owner.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function catalogProof(owner) {
