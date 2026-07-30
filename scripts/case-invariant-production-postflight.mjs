@@ -12,47 +12,19 @@ import {
   assertDeterministicPostgresEnvironment,
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
+import {
+  CASE_INVARIANT_FUNCTIONS,
+} from "./case-invariant-catalog.mjs";
 import { CASE_INVARIANT_MIGRATION } from "./stage-case-invariant-migration.mjs";
 
 const { Client } = pg;
 
+export {
+  CASE_INVARIANT_FUNCTIONS,
+} from "./case-invariant-catalog.mjs";
+
 export const CASE_INVARIANT_POSTFLIGHT_CONFIRMATION =
   "verify-production-case-invariants-read-only";
-
-export const CASE_INVARIANT_FUNCTIONS = Object.freeze([
-  Object.freeze({
-    name: "grainline_case_relationship_valid",
-    securityDefiner: true,
-  }),
-  Object.freeze({
-    name: "grainline_case_authority_fields_immutable",
-    securityDefiner: false,
-  }),
-  Object.freeze({
-    name: "grainline_case_status_transition_valid",
-    securityDefiner: false,
-  }),
-  Object.freeze({
-    name: "grainline_case_message_author_valid",
-    securityDefiner: true,
-  }),
-  Object.freeze({
-    name: "grainline_case_message_authority_fields_immutable",
-    securityDefiner: false,
-  }),
-  Object.freeze({
-    name: "grainline_case_message_maintain_thread",
-    securityDefiner: true,
-  }),
-  Object.freeze({
-    name: "grainline_case_opening_evidence_valid",
-    securityDefiner: true,
-  }),
-  Object.freeze({
-    name: "grainline_case_attachment_parent_valid",
-    securityDefiner: true,
-  }),
-]);
 
 const constraintNames = Object.freeze([
   "Case_distinct_participants_check",

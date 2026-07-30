@@ -3,6 +3,8 @@ import fs from "node:fs";
 import test from "node:test";
 import {
   CASE_INVARIANT_FUNCTIONS,
+} from "../scripts/case-invariant-catalog.mjs";
+import {
   CASE_INVARIANT_POSTFLIGHT_CONFIRMATION,
   parseCaseInvariantPostflightConfig,
 } from "../scripts/case-invariant-production-postflight.mjs";

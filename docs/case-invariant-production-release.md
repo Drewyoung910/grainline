@@ -143,6 +143,19 @@ whitespace-only value. Both the legacy preflight and durable check now use
 strengthening changed only the still-unapplied invariant draft/candidate and
 their exact hashes; production remained unchanged.
 
+Exact-head CI run `30516967241` (job `90788887464`) passed the promoted
+migration, runtime-role convergence and every Case authority/invariant proof,
+including the strengthened 55-check rollback-only proof. It then stopped at
+the repository-wide grant audit because that older source-derived contract
+still classified every newly discovered `grainline_*` function as a runtime
+RPC. The migration and provisioner correctly withhold runtime/PUBLIC EXECUTE
+from all eight owner-internal Case trigger functions; granting EXECUTE would
+weaken the reviewed boundary. A shared Case-invariant function catalog now
+drives the production postflight and the global runtime-private audit
+classification, with a regression assertion requiring all eight names to
+remain private. This was disposable CI only; production and persistent
+staging were unchanged.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:

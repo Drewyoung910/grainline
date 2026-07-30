@@ -14,7 +14,8 @@ import {
 } from "../scripts/direct-upload-authority-catalog.mjs";
 import {
   CASE_INVARIANT_FUNCTIONS,
-} from "../scripts/case-invariant-production-postflight.mjs";
+  CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
+} from "../scripts/case-invariant-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const {
@@ -462,6 +463,13 @@ describe("database grant inventory guardrails", () => {
       }),
       [...RUNTIME_PRIVATE_FUNCTIONS],
     );
+    for (const functionName of CASE_INVARIANT_PRIVATE_FUNCTION_NAMES) {
+      assert.equal(
+        RUNTIME_PRIVATE_FUNCTIONS.includes(functionName),
+        true,
+        `${functionName} must remain classified as runtime-private`,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges(
         "DirectUpload",
