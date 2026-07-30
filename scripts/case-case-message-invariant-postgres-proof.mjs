@@ -18,6 +18,8 @@ const ACTIVATION_ROLLBACK_DRAFT =
   "docs/rls-drafts/case-case-message-activation-rollback.sql";
 const FORCE_DRAFT =
   "docs/rls-drafts/case-case-message-force.sql";
+const FORCE_ROLLBACK_DRAFT =
+  "docs/rls-drafts/case-case-message-force-rollback.sql";
 
 const ids = Object.freeze({
   buyer: "case-invariant-proof-buyer",
@@ -1680,6 +1682,7 @@ async function provePolicylessActivation(
   activationBody,
   activationRollbackBody,
   forceBody,
+  forceRollbackBody,
 ) {
   await insertParticipantCase(
     client,
@@ -1845,7 +1848,23 @@ async function provePolicylessActivation(
        AND class.relforcerowsecurity
   `);
   assert.equal(forced.rows[0]?.count, 3);
-  await client.query("ROLLBACK TO SAVEPOINT case_force_candidate");
+
+  await client.query(forceRollbackBody);
+  const forceRolledBack = await client.query(`
+    SELECT pg_catalog.count(*)::integer AS count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname IN (
+         'Case',
+         'CaseMessage',
+         'CaseMessageAttachment'
+       )
+       AND class.relrowsecurity
+       AND NOT class.relforcerowsecurity
+  `);
+  assert.equal(forceRolledBack.rows[0]?.count, 3);
   await client.query("RELEASE SAVEPOINT case_force_candidate");
 
   await client.query(activationRollbackBody);
@@ -1890,6 +1909,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
       ACTIVATION_ROLLBACK_DRAFT,
     );
     const forceBody = readDraftTransactionBody(FORCE_DRAFT);
+    const forceRollbackBody = readDraftTransactionBody(FORCE_ROLLBACK_DRAFT);
     await proveLegacyPreflightRejects(client, draftBody);
     await client.query("BEGIN");
     began = true;
@@ -1907,11 +1927,12 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
       activationBody,
       activationRollbackBody,
       forceBody,
+      forceRollbackBody,
     );
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 53,
+      checks: 54,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

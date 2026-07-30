@@ -51,6 +51,7 @@ test("Case invariant proof strips only reviewed transaction wrappers", () => {
     "docs/rls-drafts/case-case-message-activation.sql",
     "docs/rls-drafts/case-case-message-activation-rollback.sql",
     "docs/rls-drafts/case-case-message-force.sql",
+    "docs/rls-drafts/case-case-message-force-rollback.sql",
   ]) {
     const body = readDraftTransactionBody(draft);
     assert.match(body, /DRAFT ONLY/, draft);
@@ -115,7 +116,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);
-  assert.match(proof, /checks: 53/);
+  assert.match(proof, /checks: 54/);
   assert.match(proof, /provePolicylessActivation/);
   assert.match(proof, /case_force_candidate/);
 });

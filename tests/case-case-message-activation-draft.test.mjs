@@ -22,6 +22,10 @@ const forceSql = fs.readFileSync(
   "docs/rls-drafts/case-case-message-force.sql",
   "utf8",
 );
+const forceRollbackSql = fs.readFileSync(
+  "docs/rls-drafts/case-case-message-force-rollback.sql",
+  "utf8",
+);
 
 const protectedTables = [
   "Case",
@@ -178,4 +182,27 @@ test("Case FORCE draft is posture-only and covers exactly three tables", () => {
     forceSql,
     /^\s*(?:CREATE POLICY|DROP POLICY|GRANT|REVOKE|INSERT INTO|UPDATE public\.|DELETE FROM|TRUNCATE|CREATE FUNCTION|ALTER FUNCTION)\b/im,
   );
+  assert.match(forceSql, /current_user = 'neondb_owner'/);
+  assert.match(
+    forceSql,
+    /current_user = 'ci'[\s\S]*current_database\(\) = 'grainline_ci'/,
+  );
+  assert.match(forceSql, /runtime_role\.rolbypassrls/);
+  assert.match(forceSql, /owner_session_count <> 0/);
+});
+
+test("Case FORCE rollback restores only policyless ENABLE posture", () => {
+  assert.equal(
+    (
+      forceRollbackSql.match(
+        /ALTER TABLE public\."[^"]+" NO FORCE ROW LEVEL SECURITY/g,
+      ) ?? []
+    ).length,
+    protectedTables.length,
+  );
+  assert.doesNotMatch(
+    forceRollbackSql,
+    /^\s*(?:CREATE POLICY|DROP POLICY|GRANT|REVOKE|INSERT INTO|UPDATE public\.|DELETE FROM|TRUNCATE|CREATE FUNCTION|ALTER FUNCTION)\b/im,
+  );
+  assert.doesNotMatch(forceRollbackSql, /DISABLE ROW LEVEL SECURITY/);
 });
