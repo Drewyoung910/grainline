@@ -87,3 +87,22 @@ test("Case invariant release keeps a read-only pooled-runtime postflight", () =>
   assert.match(release, /runtime role receives `42501`/);
   assert.match(release, /Do not combine read-mode, ENABLE or FORCE/);
 });
+
+test("Case invariant release records the exact production boundary", () => {
+  assert.match(
+    release,
+    /13091acd428d86aa7da8ada143695ed66a3c6947/,
+  );
+  assert.match(release, /30552049441/);
+  assert.match(release, /90902923987/);
+  assert.match(
+    release,
+    /case-invariant-production-postflight-13091acd428d86aa7da8ada143695ed66a3c6947\.json/,
+  );
+  assert.match(
+    release,
+    /e27f287d6cf797dc2bc91b5805322c633263a6202ecf9968365831d547646847/,
+  );
+  assert.match(release, /RLS off, FORCE\s+off, zero policies/);
+  assert.match(release, /No application deployment was performed/);
+});

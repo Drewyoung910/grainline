@@ -1,10 +1,11 @@
 # Case, CaseMessage, and CaseMessageAttachment Pre-RLS Audit
 
 Opened 2026-07-26. Status: audit and compatible conversion complete; the
-invariant-only release is active. Case, CaseMessage and
-CaseMessageAttachment RLS remains off. No read-mode, ENABLE, FORCE or provider
-change is authorized by this document. The phased rollout boundary is
-`docs/rls-case-case-message-plan.md`.
+invariant-only migration and pooled-runtime postflight completed in production
+on 2026-07-30. Case, CaseMessage and CaseMessageAttachment RLS remains off,
+FORCE remains off, and zero policies exist. No read-mode, ENABLE, FORCE or
+provider change is authorized by this document. The phased rollout boundary
+is `docs/rls-case-case-message-plan.md`.
 
 ## Why this gate exists
 

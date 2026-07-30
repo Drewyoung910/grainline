@@ -1,8 +1,9 @@
 # Case invariant production release
 
-Status: invariant-only candidate. The migration is committed for review but
-has not been merged or applied to production. Case, CaseMessage and
-CaseMessageAttachment RLS remains off.
+Status: invariant-only migration live and pooled-runtime postflight accepted
+on 2026-07-30. Case, CaseMessage and CaseMessageAttachment RLS remains off:
+FORCE is off, zero policies exist, and the preexisting table grants are
+unchanged.
 
 ## Exact scope
 
@@ -208,6 +209,49 @@ ephemeral containers were destroyed, so no fixture persisted, but that could
 produce a false clean-teardown claim. Cleanup now cascades from the parent Case,
 propagates failure, and still closes every connection in a nested `finally`.
 
+## Production execution and runtime proof
+
+The cross-proof repair merged to main at exact commit
+`13091acd428d86aa7da8ada143695ed66a3c6947`. Exact-main CI run
+`30519607706` and standing Notification FORCE run `30519607732` passed before
+the production mutation.
+
+Protected Production Migrations workflow run `30552049441` (job
+`90902923987`) checked out that exact commit and applied only
+`20260730010000_enforce_case_message_invariants`. Its source/role guard,
+reviewed migration-tree guard, Conversation/Message authority, activation and
+FORCE equivalence proofs, Notification activation and FORCE equivalence
+proofs, migration status, and final runtime grant/RLS catalog audit all
+passed. The log reported all migrations applied, the database schema current,
+and a final inventory of 64 tables, 22 enums, 128 `grainline_*` functions,
+one extension, four existing RLS-policy tables and zero sequence references.
+No application deployment was performed.
+
+The separately executed pooled-runtime postflight passed through
+`grainline_app_runtime` against the reviewed production pooler inside
+`BEGIN TRANSACTION READ ONLY`. It verified:
+
+- all six constraints are present and validated;
+- all eight owner-internal trigger functions have their reviewed
+  five-DEFINER/three-INVOKER split, pinned `pg_catalog` search path, no
+  `PUBLIC` EXECUTE and no runtime-role EXECUTE;
+- all nine triggers are enabled, including the two reviewed deferred
+  opening-evidence triggers;
+- direct runtime calls to all eight trigger functions fail with SQLSTATE
+  `42501`; and
+- `Case`, `CaseMessage` and `CaseMessageAttachment` still have RLS off, FORCE
+  off, zero policies, the owner unchanged, and their preexisting table grants
+  unchanged.
+
+The sanitized result is retained outside the repository as mode 0600:
+
+- `grainline-rollout-evidence/case-invariant-production-postflight-13091acd428d86aa7da8ada143695ed66a3c6947.json`
+- SHA-256:
+  `e27f287d6cf797dc2bc91b5805322c633263a6202ecf9968365831d547646847`
+
+The postflight created no fixture, exported no row, rolled back, and changed
+no production state.
+
 ## Production postflight contract
 
 After a separately reviewed main merge and protected migration run, execute:
@@ -228,17 +272,14 @@ rolls back. It creates no fixture and exports no row.
 
 ## Required next sequence
 
-1. Pass exact-head PostgreSQL CI and the complete repository gates.
-2. Merge this invariant-only release.
-3. Run exact-main CI.
-4. Apply only this committed migration through the protected Production
-   Migrations workflow.
-5. Run and retain the sanitized pooled-runtime read-only postflight.
-6. Promote the four-function read-mode convergence as a separate compatible
+Steps 1-5 are complete through the exact production evidence above. Continue
+without combining the remaining boundaries:
+
+1. Promote the four-function read-mode convergence as a separate compatible
    migration.
-7. Activate policyless ENABLE with FORCE still off as a separate release.
-8. Complete authenticated route and pooled-runtime denial proof.
-9. Apply posture-only FORCE in the final Case release.
+2. Activate policyless ENABLE with FORCE still off as a separate release.
+3. Complete authenticated route and pooled-runtime denial proof.
+4. Apply posture-only FORCE in the final Case release.
 
 Do not combine read-mode, ENABLE or FORCE with this invariant release.
 Orders, payments and shipping remain the next independently audited sensitive
