@@ -197,7 +197,11 @@ export function assertCaseCompatibleDatabaseGitState(state, releaseCommit) {
   return Object.freeze({ clean: true, head: state.head });
 }
 
-async function verifyRuntimeIdentity(client, expectedIdentity) {
+async function verifyRuntimeIdentity(
+  client,
+  expectedIdentity,
+  migrationRole,
+) {
   const result = await client.query(`
     SELECT
       pg_catalog.current_database() AS database_name,
@@ -209,12 +213,12 @@ async function verifyRuntimeIdentity(client, expectedIdentity) {
       role.rolcanlogin,
       pg_catalog.pg_has_role(
         CURRENT_USER,
-        'neondb_owner',
+        $1,
         'MEMBER'
       ) AS member_of_owner
     FROM pg_catalog.pg_roles AS role
     WHERE role.rolname = CURRENT_USER
-  `);
+  `, [migrationRole]);
   assert.deepEqual(result.rows, [{
     database_name: expectedIdentity.databaseName,
     current_user_name: expectedIdentity.runtimeRole,
@@ -469,7 +473,11 @@ export async function runCaseCompatibleDatabasePostflight(config) {
     transactionOpen = true;
     await client.query("SET LOCAL statement_timeout = '20s'");
     await verifyReadOnlyTransaction(client);
-    await verifyRuntimeIdentity(client, config.runtimeGuard);
+    await verifyRuntimeIdentity(
+      client,
+      config.runtimeGuard,
+      config.migrationRole,
+    );
     await verifyTablePosture(client, config.migrationRole);
     await verifyTriggerCatalog(client);
     await verifyFunctionCatalog(client, config.migrationRole);

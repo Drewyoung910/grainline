@@ -137,6 +137,14 @@ describe("Case compatible database production postflight", () => {
       /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/,
     );
     assert.match(source, /transaction_read_only/);
+    assert.match(
+      source,
+      /pg_has_role\(\s*CURRENT_USER,\s*\$1,\s*'MEMBER'/,
+    );
+    assert.doesNotMatch(
+      source,
+      /pg_has_role\(\s*CURRENT_USER,\s*'neondb_owner'/,
+    );
     assert.doesNotMatch(
       source,
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\s+(?:INTO|FROM|public\.)/i,
