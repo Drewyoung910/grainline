@@ -1486,3 +1486,14 @@ are pending. Real FORCE is a separately committed later migration; the harness
 now executes `SET CONSTRAINTS ALL IMMEDIATE` before its FORCE savepoint to
 model that boundary without weakening the draft. The run rolled back and
 production/persistent staging were unchanged.
+
+Exact boundary-corrected head
+`b9f2e40c530c06787afee1cb776010f853f5f7d4` passed GitHub Actions run
+`30504119117` (job `90750043124`). PostgreSQL 16 passed the complete 54-check
+invariant, policyless ENABLE, direct-denial, fixed-function, FORCE and rollback
+sequence with zero persistent residue. Every predecessor Case authority proof,
+migration status check, final grant/RLS audit, TypeScript, lint, all 2,569
+repository tests, dependency audit and production build passed. The draft
+authority/invariant gate is complete; the next work is compatible release
+packaging. No production migration, deployment or activation is authorized by
+this evidence.

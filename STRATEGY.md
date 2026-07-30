@@ -1153,6 +1153,14 @@ committed migrations; the harness must model that with
 integrity checks. The failed proof rolled back and production remained
 unchanged.
 
+Exact Case draft head `b9f2e40c530c06787afee1cb776010f853f5f7d4`
+passed run `30504119117` (job `90750043124`): all 54 PostgreSQL
+invariant/ENABLE/direct-denial/fixed-function/FORCE/rollback checks, every
+predecessor authority proof, migration/grant audits, TypeScript, lint, the
+complete repository suite, dependency audit and production build succeeded.
+This closes the draft authority gate and moves Case-family work to compatible
+release packaging; production Case-family RLS remains off.
+
 Temporary provider mechanics are intentionally absent from the production
 artifact: the internal context-gate route, its runner-only test, branch-scoped
 Vercel/database exceptions, disposable secrets, and provider resources were

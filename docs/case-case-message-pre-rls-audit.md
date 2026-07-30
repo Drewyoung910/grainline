@@ -804,3 +804,14 @@ in that state. Production FORCE will run only after the activation transaction
 commits; the harness now makes that boundary explicit with
 `SET CONSTRAINTS ALL IMMEDIATE` before the FORCE savepoint. The failure rolled
 back and production/persistent staging were unchanged.
+
+Exact boundary-corrected head
+`b9f2e40c530c06787afee1cb776010f853f5f7d4` passed GitHub Actions run
+`30504119117` (job `90750043124`). PostgreSQL 16 applied the complete stacked
+migration tree and passed the 54-check Case invariant/activation/FORCE proof,
+including policyless ENABLE, direct runtime denial, all 27 fixed operations,
+the five-DEFINER/three-INVOKER invariant partition, FORCE, both rollback
+paths, and zero persistent residue. Every predecessor authority proof,
+migration status check, final grant/RLS audit, TypeScript, lint, all 2,569
+repository tests (seven expected skips), dependency audit and production build
+passed in the same run. Production and persistent staging were unchanged.

@@ -837,6 +837,16 @@ constraints before the FORCE savepoint to model that real transaction
 boundary. The FORCE draft itself is not weakened. The failed proof rolled back
 and production/persistent staging were unchanged.
 
+Accepted draft proof (2026-07-29): exact head
+`b9f2e40c530c06787afee1cb776010f853f5f7d4` passed GitHub Actions run
+`30504119117` (job `90750043124`). The 54-check PostgreSQL 16 proof exercised
+the complete invariant, policyless ENABLE, direct-denial, 27-function,
+FORCE and rollback sequence with zero persistent residue. All predecessor
+authority proofs, migration/grant audits, TypeScript, lint, 2,569 repository
+tests, dependency audit and production build passed. This accepts the draft
+architecture for release packaging only; it does not authorize a production
+migration, deployment or Case-family activation.
+
 The shared
 `grainline_account_deletion_redact_text_core(text, text[])` remains
 owner-internal: neither `PUBLIC` nor `grainline_app_runtime` receives
