@@ -213,6 +213,15 @@ async function resetCase(
   },
 ) {
   await resetOrder(client, "SHIPPED");
+  const fixtureCreatedAt = new Date(
+    Math.min(
+      Date.now() - 5 * 60_000,
+      sellerRespondBy.getTime() - 60_000,
+      discussionStartedAt
+        ? discussionStartedAt.getTime() - 60_000
+        : Number.POSITIVE_INFINITY,
+    ),
+  );
   return client.$transaction(async (tx) => {
     const created = await tx.case.create({
       data: {
@@ -225,6 +234,7 @@ async function resetCase(
         status,
         buyerMarkedResolved,
         sellerMarkedResolved,
+        createdAt: fixtureCreatedAt,
         sellerRespondBy,
         discussionStartedAt,
         escalateUnlocksAt,

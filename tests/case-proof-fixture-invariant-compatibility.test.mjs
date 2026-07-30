@@ -104,6 +104,13 @@ test("Case lifecycle reset fixtures create valid opening and refund evidence", (
   assert.match(resetCase, /await tx\.case\.create/);
   assert.match(resetCase, /await tx\.caseMessage\.create/);
   assert.match(resetCase, /authorKind: "BUYER"/);
+  assert.match(resetCase, /const fixtureCreatedAt = new Date/);
+  assert.match(resetCase, /sellerRespondBy\.getTime\(\) - 60_000/);
+  assert.match(
+    resetCase,
+    /discussionStartedAt\.getTime\(\) - 60_000/,
+  );
+  assert.match(resetCase, /createdAt: fixtureCreatedAt/);
   const attemptCaseCreate = source.match(
     /async function attemptCaseCreate\([\s\S]+?\n}\n\nasync function attemptLabelReservation/,
   )?.[0];

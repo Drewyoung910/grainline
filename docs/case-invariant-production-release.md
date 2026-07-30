@@ -189,6 +189,10 @@ Live PostgreSQL then correctly rejected both author-field mutation and deleting
 the only human opening message ahead of its parent. Notification now seeds
 separate immutable buyer, seller and staff messages, while lifecycle cleanup
 deletes the parent Case and relies on its declared cascade for messages.
+The lifecycle run subsequently reached historical-state construction and
+rejected Cases whose synthetic discussion or response clocks predated their
+default creation clock. `resetCase` now derives a deliberately earlier fixture
+creation time from every supplied lifecycle clock.
 
 ## Production postflight contract
 
