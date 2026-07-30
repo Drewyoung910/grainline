@@ -24,7 +24,7 @@ test("CaseResolutionClaim preparation is additive and coexistence-safe", () => {
   );
 });
 
-test("Case claim preparation remains a reviewed predecessor but not production-authorized", () => {
+test("Case claim preparation is included only through the compatible authority boundary", () => {
   const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const productionWorkflow = fs.readFileSync(
     ".github/workflows/production-migrations.yml",
@@ -36,7 +36,7 @@ test("Case claim preparation remains a reviewed predecessor but not production-a
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-legacy-repair-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-account-deletion-authority-reviewed/,
   );
   assert.doesNotMatch(
     productionWorkflow,

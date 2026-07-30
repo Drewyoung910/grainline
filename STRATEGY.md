@@ -50,40 +50,52 @@ through FORCE and actual pooled-runtime proof. `Case` + `CaseMessage` +
 `CaseMessageAttachment` is the active tightly coupled group. Its protected
 Phase 2 aggregate-only production inspection completed with zero Cases,
 CaseMessages, attachments or anomaly counts, so no legacy cleanup/backfill is
-needed; Phase 3 invariant and authority-catalog proof is complete and Phase 4
-compatible schema/application conversion is active while production RLS
-remains off. The catalog pins the 80-reference Phase 4 baseline across 29
-sources to 27 real fixed operations plus one retired unused helper reference.
-Its first two compatible app conversions move
-all three Stripe dispute webhook references and both seller-refund Case
-references to fixed database functions, so 75 direct/nested/raw references
-across 27 sources remain; all five removed references stay in a
-machine-checked conversion ledger. It rejects caller-asserted staff-PIN flags,
-generic provider results, free account-deletion targets and caller-selected
-cron rows; application PIN/provider verification remain explicit external
-trust boundaries. External refund resolution will use a private, FORCE-RLS,
-zero-policy `CaseResolutionClaim` service ledger so provider idempotency,
-recovery and finalization are database-bound rather than caller-asserted. An
-audited administrator finding of no provider effect uses a distinct
+needed. Phase 3 invariant and authority-catalog proof is complete. The Phase 4
+database-first compatible preparation is complete in production at exact main
+commit `4728f673fdf0a11d38aaac384f3d9afe2cf86117`, while all three Case-family
+tables remain RLS-off with predecessor CRUD. Protected Production Migrations
+run `30511805499` applied only the committed preparation tree. The
+engine-attested repeatable-read/read-only pooled-runtime postflight then proved
+the four private ledgers are policyless ENABLE plus FORCE with no runtime table
+access, the exact 26 runtime-executable plus three runtime-private function
+ACLs are intact, and PostgreSQL `PUBLIC` can execute none of them.
+
+The compatible application package converts all 79 ordinary direct, nested and
+raw Case-family references across the 29-source baseline to 27 purpose-bound
+operations. Its machine-checked ledger retains every conversion; a separate
+retired ledger preserves the one unused historical helper reference, so the
+80-reference baseline resolves to zero ordinary direct Case-family access
+without creating fictional database authority. The operations reject
+caller-asserted staff-PIN flags, generic provider results, free
+account-deletion targets and caller-selected cron rows; application
+PIN/provider verification remain explicit external trust boundaries. External
+refund resolution uses the private, FORCE-RLS, zero-policy
+`CaseResolutionClaim` service ledger so provider idempotency, recovery and
+finalization are database-bound rather than caller-asserted. An audited
+administrator finding of no provider effect uses a distinct
 `RELEASED_NO_PROVIDER_EFFECT` terminal state instead of falsely recording the
-claim as finalized. Stripe-dispute-created Cases record their exact durable
-payment-event source rather than fabricating a buyer-authored message, and
-dispute reopen clears the complete stale Case-level resolution/refund snapshot
-while retaining the Order payment/audit history. Its replay identity belongs
-in a separate private, FORCE-RLS, zero-policy
-`CaseStripeDisputeApplication` ledger because broadly writable
-`SystemAuditLog` is evidence/observability rather than security authority.
-The fixed operation must also reject valid but superseded Stripe events; signed
+claim as finalized.
+
+Stripe-dispute-created Cases record their exact durable payment-event source
+rather than fabricating a buyer-authored message, and dispute reopen clears the
+complete stale Case-level resolution/refund snapshot while retaining the Order
+payment/audit history. Its replay identity belongs in the private, FORCE-RLS,
+zero-policy `CaseStripeDisputeApplication` ledger because broadly writable
+`SystemAuditLog` is evidence/observability rather than security authority. The
+fixed operation also rejects valid but superseded Stripe events; signed
 delivery does not imply event ordering.
-The seller-refund application slice uses a fixed operation that accepts only
-the authenticated seller actor and one exact committed local refund event,
-derives the Case resolution and stores immutable replay authority in a private
-zero-policy `CaseSellerRefundApplication` ledger. The compatible app
-conversion preserves the shared User then Order then Case lock order, validates
-the complete database-derived result and leaves no direct Case access in that
-route. This does not pull Order/payment into the Case activation:
+
+The seller-refund application operation accepts only the authenticated seller
+actor and one exact committed local refund event, derives the Case resolution
+and stores immutable replay authority in the private zero-policy
+`CaseSellerRefundApplication` ledger. The compatible app conversion preserves
+the shared User then Order then Case lock order, validates the complete
+database-derived result and leaves no direct Case access in that route. This
+does not pull Order/payment into the Case activation:
 `Order`/`OrderPaymentEvent` direct-write hardening remains a named dependency
-of that later independent sensitive group.
+of that later independent sensitive group. The completed database preparation
+and compatible application package do not authorize the later invariant,
+read-mode, ENABLE or FORCE releases.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,
