@@ -38,7 +38,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
   freezeOperation({
     id: "case_message_page",
     candidateFunctionName: "grainline_case_message_page",
-    operationKind: "READ_PROJECTION",
+    operationKind: "SOURCE_BOUND_READ",
     security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId", "createdAtCursor", "idCursor", "boundedLimit"],
@@ -49,20 +49,32 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "current actor role",
       "Case participation",
       "stable message order",
+      "durable or relationship-derived author kind",
       "attachment metadata without object keys",
     ],
   }),
   freezeOperation({
     id: "case_staff_queue",
     candidateFunctionName: "grainline_case_staff_queue",
-    operationKind: "READ_PROJECTION",
+    operationKind: "SOURCE_BOUND_READ",
     security: "DEFINER",
     runtimeExecute: true,
-    callerInputs: ["actorUserId", "statusFilter", "cursor", "boundedLimit"],
+    callerInputs: [
+      "actorUserId",
+      "statusFilter",
+      "requestedPage",
+      "boundedLimit",
+    ],
     applicationPreconditions: [
       "the staff actor completed the session-bound staff PIN challenge",
     ],
-    databaseDerived: ["current staff role", "bounded queue rows", "message counts"],
+    databaseDerived: [
+      "current staff role",
+      "total count and safe page",
+      "bounded queue rows",
+      "message counts",
+      "minimal buyer and seller contact projection",
+    ],
   }),
   freezeOperation({
     id: "case_staff_active_count",
@@ -78,21 +90,26 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
   }),
   freezeOperation({
     id: "case_export",
-    candidateFunctionName: "grainline_case_export",
+    candidateFunctionName: "grainline_case_export_page",
     operationKind: "READ_PROJECTION",
     security: "INVOKER",
     runtimeExecute: true,
-    callerInputs: ["actorUserId"],
+    callerInputs: [
+      "actorUserId",
+      "createdAtCursor",
+      "idCursor",
+      "boundedLimit",
+    ],
     databaseDerived: [
-      "participant Cases",
-      "complete CaseMessage history",
-      "attachment metadata without object keys",
+      "bounded participant Case page",
+      "complete history through existing bounded CaseMessage pages",
+      "attachment metadata without object keys through existing message authority",
     ],
   }),
   freezeOperation({
     id: "case_message_preflight",
     candidateFunctionName: "grainline_case_message_preflight",
-    operationKind: "READ_PROJECTION",
+    operationKind: "SOURCE_BOUND_READ",
     security: "DEFINER",
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId"],
@@ -124,13 +141,51 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     ],
   }),
   freezeOperation({
-    id: "case_order_active",
-    candidateFunctionName: "grainline_case_order_active",
+    id: "case_order_active_buyer",
+    candidateFunctionName: "grainline_case_order_active_for_buyer",
     operationKind: "BOUNDED_PREDICATE",
     security: "DEFINER",
     runtimeExecute: true,
-    callerInputs: ["orderId"],
-    databaseDerived: ["whether the exact Order has an active Case"],
+    callerInputs: ["actorUserId", "orderId"],
+    databaseDerived: [
+      "current active buyer",
+      "exact buyer-owned Order",
+      "whether the exact Order has an active Case",
+    ],
+  }),
+  freezeOperation({
+    id: "case_order_active_seller",
+    candidateFunctionName: "grainline_case_order_active_for_seller",
+    operationKind: "BOUNDED_PREDICATE",
+    security: "DEFINER",
+    runtimeExecute: true,
+    callerInputs: ["actorUserId", "orderId"],
+    databaseDerived: [
+      "current active seller",
+      "complete exact seller-owned Order graph",
+      "whether the exact Order has an active Case",
+    ],
+  }),
+  freezeOperation({
+    id: "case_order_pii_retention_prune",
+    candidateFunctionName: "grainline_order_buyer_pii_prune_batch",
+    operationKind: "LIFECYCLE_WRITE",
+    security: "DEFINER",
+    runtimeExecute: true,
+    callerInputs: ["boundedBatchSize"],
+    applicationPreconditions: [
+      "the application verified the signed order-PII retention cron request",
+    ],
+    databaseDerived: [
+      "fixed 90-day cutoff from the database clock",
+      "eligible fulfilled and non-review Order targets",
+      "active Case exclusion after taking each Order lock",
+      "exact buyer PII, fulfillment-provider fields and rate-quote deletion targets",
+      "UTC buyerDataPurgedAt timestamp",
+    ],
+    externalTrustBoundaries: [
+      "Order and OrderShippingRateQuote RLS remain a dependency of their later sensitive-data group",
+    ],
   }),
   freezeOperation({
     id: "case_seller_active_count",
@@ -150,13 +205,14 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     operationKind: "BOUNDED_AGGREGATE",
     security: "DEFINER",
     runtimeExecute: true,
-    callerInputs: ["actorUserId", "sellerProfileId", "createdBefore"],
+    callerInputs: ["actorUserId", "sellerProfileId"],
     applicationPreconditions: [
       "a staff actor completed the session-bound staff PIN challenge",
     ],
     databaseDerived: [
       "exact SellerProfile user",
       "current actor is that seller or current staff",
+      "fixed 60-day cutoff from the database clock",
       "aged unresolved Case count only",
     ],
   }),
@@ -166,12 +222,13 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     operationKind: "BOUNDED_PREDICATE",
     security: "DEFINER",
     runtimeExecute: true,
-    callerInputs: ["sellerProfileId", "caseCreatedBefore"],
+    callerInputs: ["sellerProfileId"],
     applicationPreconditions: [
       "the caller is the authenticated guild cron or a PIN-verified staff reinstatement path",
     ],
     databaseDerived: [
       "exact SellerProfile user and current guild or reinstatement state",
+      "fixed 90-day cutoff from the database clock",
       "whether an aged unresolved Case exists",
     ],
   }),
@@ -237,11 +294,12 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     runtimeExecute: true,
     callerInputs: ["actorUserId", "caseId"],
     databaseDerived: [
+      "current non-banned and non-deleted participant actor",
       "locked Order then Case",
       "participant side",
-      "refund conflict",
+      "seller-refund and every staged staff-resolution claim conflict",
       "PENDING_CLOSE or mutual DISMISSED transition",
-      "transition timestamp and strict audit",
+      "post-lock UTC transition timestamp, deterministic strict audit and stable replay identity",
     ],
   }),
   freezeOperation({
@@ -329,6 +387,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     callerInputs: [
       "actorUserId",
       "resolutionClaimId",
+      "providerOutcome",
       "primaryRefundId",
       "boundedRefundIds",
       "boundedRefundStatuses",
@@ -345,11 +404,12 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "current staff role and exact same claim actor",
       "locked PROVIDER_PENDING CaseResolutionClaim, Order and Case",
       "claim-bound refund amount, currency, reason and accounting expectations",
-      "database-generated OrderPaymentEvent and strict audit identities",
-      "PROVIDER_RECORDED claim state linked to the exact local payment event",
+      "RECORDED outcome validates bounded provider evidence, creates database-generated OrderPaymentEvent and strict audit identities, and advances to PROVIDER_RECORDED",
+      "AMBIGUOUS outcome forbids asserted provider evidence, creates no payment event, and advances to RECONCILIATION_REQUIRED with the Order refund sentinel preserved",
     ],
     externalTrustBoundaries: [
-      "bounded refund and transfer identifiers and statuses come from the trusted Stripe client response",
+      "the bounded RECORDED or AMBIGUOUS outcome classification comes from the trusted Stripe client",
+      "bounded refund and transfer identifiers and statuses for RECORDED come from the trusted Stripe client response",
       "PostgreSQL validates their shape and claim relationship but does not independently attest Stripe",
     ],
   }),
@@ -393,7 +453,7 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "create or reopen target",
       "source-backed openedByPaymentEventId for a webhook-created Case",
       "UNDER_REVIEW state with stale Case resolution and refund snapshot cleared while durable OrderPaymentEvent history is retained",
-      "strict audit source",
+      "private CaseStripeDisputeApplication replay identity and co-committed non-authoritative SystemAuditLog observability",
     ],
     externalTrustBoundaries: [
       "the Stripe webhook route verifies the provider signature before recording the OrderPaymentEvent",
@@ -408,13 +468,17 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
     runtimeExecute: true,
     callerInputs: ["actorUserId", "orderPaymentEventId"],
     databaseDerived: [
-      "exact seller-owned Order and committed refund evidence",
-      "active Case target",
-      "refund resolution fields and timestamp",
+      "current non-banned and non-deleted seller actor",
+      "exact seller-owned Order and complete seller graph",
+      "same-Order local refund event whose object id, amount, currency and refund kind match the locked completed Order refund",
+      "active, terminal or absent Case disposition",
+      "refund resolution fields, timestamp and seller resolver",
+      "private CaseSellerRefundApplication replay identity and co-committed non-authoritative SystemAuditLog observability",
     ],
     externalTrustBoundaries: [
       "the local payment ledger records the trusted Stripe client result; PostgreSQL does not independently attest Stripe",
-      "OrderPaymentEvent direct-write hardening remains a dependency of the later order-payment RLS group",
+      "Order and OrderPaymentEvent direct-write hardening remains a dependency of the later order-payment RLS group",
+      "the compatible application must lock the authenticated seller User before its existing Order refund transaction so the shared User then Order then Case lock order is preserved",
     ],
   }),
   freezeOperation({
@@ -452,15 +516,6 @@ export const CASE_AUTHORITY_OPERATIONS = Object.freeze([
       "AccountDeletionSideEffect direct-write hardening remains a dependency of its later service-ledger review",
     ],
   }),
-  freezeOperation({
-    id: "case_lock_core",
-    candidateFunctionName: "grainline_case_lock_core",
-    operationKind: "PRIVATE_CORE",
-    security: "DEFINER",
-    runtimeExecute: false,
-    callerInputs: ["caseId"],
-    databaseDerived: ["exact Case row lock"],
-  }),
 ]);
 
 const freezeSource = (entry) => Object.freeze({
@@ -469,11 +524,78 @@ const freezeSource = (entry) => Object.freeze({
   inventory: Object.freeze({ ...entry.inventory }),
 });
 
-export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
-  "src/app/admin/cases/[id]/page.tsx": freezeSource({
-    actors: ["STAFF"],
-    destinations: ["case_get", "case_message_page"],
+// Once a source has no direct protected-table references, move its former
+// inventory here rather than deleting its authority history. The current
+// scanner stays an exact activation countdown while this ledger proves which
+// fixed operation replaced each removed reference.
+export const CASE_CONVERTED_SOURCE_DESTINATIONS = Object.freeze({
+  "src/app/api/account/export/route.ts": freezeSource({
+    actors: ["PARTICIPANT"],
+    destinations: ["case_export", "case_message_page"],
+    inventory: {
+      "Case.findMany": 1,
+      "CaseMessage.relation-reference": 1,
+      "CaseMessageAttachment.relation-reference": 1,
+    },
+  }),
+  "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts": freezeSource({
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_get", "case_attachment_read"],
     inventory: { "Case.findUnique": 1 },
+  }),
+  "src/app/admin/verification/page.tsx": freezeSource({
+    actors: ["STAFF"],
+    destinations: [
+      "case_seller_verification_eligibility",
+      "case_guild_unresolved_guard",
+    ],
+    inventory: { "Case.count": 1, "Case.findFirst": 1 },
+  }),
+  "src/app/api/cron/guild-member-check/route.ts": freezeSource({
+    actors: ["CRON"],
+    destinations: ["case_guild_unresolved_guard"],
+    inventory: { "Case.findFirst": 1 },
+  }),
+  "src/app/api/verification/apply/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_seller_verification_eligibility"],
+    inventory: { "Case.count": 1 },
+  }),
+  "src/app/dashboard/verification/page.tsx": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_seller_verification_eligibility"],
+    inventory: { "Case.count": 1 },
+  }),
+  "src/lib/metrics.ts": freezeSource({
+    actors: ["METRICS"],
+    destinations: ["case_seller_active_count"],
+    inventory: { "Case.count": 1 },
+  }),
+  "src/app/api/orders/[id]/confirm-delivery/route.ts": freezeSource({
+    actors: ["BUYER"],
+    destinations: ["case_order_active_buyer"],
+    inventory: { "Case.relation-reference": 3 },
+  }),
+  "src/app/api/orders/[id]/fulfillment/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_order_active_seller"],
+    inventory: {
+      "Case.relation-reference": 1,
+      "Case.raw-sql-reference": 1,
+    },
+  }),
+  "src/app/api/orders/[id]/label/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_order_active_seller"],
+    inventory: {
+      "Case.relation-reference": 1,
+      "Case.raw-sql-reference": 1,
+    },
+  }),
+  "src/lib/orderPiiRetention.ts": freezeSource({
+    actors: ["RETENTION_CRON"],
+    destinations: ["case_order_pii_retention_prune"],
+    inventory: { "Case.raw-sql-reference": 1 },
   }),
   "src/app/admin/cases/page.tsx": freezeSource({
     actors: ["STAFF"],
@@ -484,61 +606,54 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "CaseMessage.relation-reference": 1,
     },
   }),
+  "src/app/admin/cases/[id]/page.tsx": freezeSource({
+    actors: ["STAFF"],
+    destinations: ["case_get", "case_message_page"],
+    inventory: { "Case.findUnique": 1 },
+  }),
   "src/app/admin/layout.tsx": freezeSource({
     actors: ["STAFF"],
     destinations: ["case_staff_active_count"],
     inventory: { "Case.count": 1 },
   }),
-  "src/app/admin/verification/page.tsx": freezeSource({
+  "src/app/admin/orders/[id]/page.tsx": freezeSource({
     actors: ["STAFF"],
-    destinations: [
-      "case_seller_verification_eligibility",
-      "case_guild_unresolved_guard",
-    ],
-    inventory: { "Case.count": 1, "Case.findFirst": 1 },
+    destinations: ["case_get_by_order"],
+    inventory: { "Case.relation-reference": 1 },
   }),
-  "src/app/api/account/export/route.ts": freezeSource({
-    actors: ["PARTICIPANT"],
-    destinations: ["case_export"],
+  "src/app/dashboard/orders/[id]/page.tsx": freezeSource({
+    actors: ["BUYER"],
+    destinations: ["case_get_by_order", "case_message_page"],
+    inventory: { "Case.relation-reference": 1 },
+  }),
+  "src/app/dashboard/sales/[orderId]/page.tsx": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_get_by_order", "case_message_page"],
+    inventory: { "Case.relation-reference": 1 },
+  }),
+  "src/lib/caseMessageHistory.ts": freezeSource({
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_message_page"],
     inventory: {
-      "Case.findMany": 1,
-      "CaseMessage.relation-reference": 1,
+      "CaseMessage.findMany": 1,
       "CaseMessageAttachment.relation-reference": 1,
     },
   }),
-  "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts": freezeSource({
-    actors: ["PARTICIPANT", "STAFF"],
-    destinations: ["case_attachment_read"],
-    inventory: { "Case.findUnique": 1 },
+  "src/app/api/stripe/webhook/route.ts": freezeSource({
+    actors: ["STRIPE_WEBHOOK"],
+    destinations: ["case_stripe_dispute_apply"],
+    inventory: {
+      "Case.updateMany": 1,
+      "Case.create": 1,
+      "Case.relation-reference": 1,
+    },
   }),
-  "src/app/api/cases/[id]/attachments/route.ts": freezeSource({
-    actors: ["PARTICIPANT", "STAFF"],
-    destinations: ["case_message_preflight"],
-    inventory: { "Case.findUnique": 1 },
-  }),
-  "src/app/api/cases/[id]/escalate/route.ts": freezeSource({
-    actors: ["PARTICIPANT", "STAFF", "CRON"],
-    destinations: ["case_escalate", "case_cron_transition_batch"],
+  "src/app/api/orders/[id]/refund/route.ts": freezeSource({
+    actors: ["SELLER"],
+    destinations: ["case_seller_refund_apply"],
     inventory: {
       "Case.findUnique": 1,
       "Case.updateMany": 1,
-      "Case.raw-sql-reference": 1,
-    },
-  }),
-  "src/app/api/cases/[id]/mark-resolved/route.ts": freezeSource({
-    actors: ["PARTICIPANT"],
-    destinations: ["case_mark_resolved"],
-    inventory: { "Case.findUnique": 2, "Case.raw-sql-reference": 1 },
-  }),
-  "src/app/api/cases/[id]/messages/route.ts": freezeSource({
-    actors: ["PARTICIPANT", "STAFF"],
-    destinations: ["case_message_preflight", "case_reply"],
-    inventory: {
-      "Case.findUnique": 2,
-      "CaseMessage.findMany": 2,
-      "Case.update": 1,
-      "CaseMessage.create": 1,
-      "CaseMessageAttachment.relation-reference": 5,
     },
   }),
   "src/app/api/cases/[id]/resolve/route.ts": freezeSource({
@@ -557,6 +672,14 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "CaseMessage.relation-reference": 1,
     },
   }),
+  "src/app/api/cases/[id]/mark-resolved/route.ts": freezeSource({
+    actors: ["PARTICIPANT"],
+    destinations: ["case_mark_resolved"],
+    inventory: {
+      "Case.findUnique": 2,
+      "Case.raw-sql-reference": 1,
+    },
+  }),
   "src/app/api/cases/route.ts": freezeSource({
     actors: ["BUYER"],
     destinations: ["case_open"],
@@ -566,39 +689,35 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "CaseMessage.relation-reference": 2,
     },
   }),
+  "src/app/api/cases/[id]/messages/route.ts": freezeSource({
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_message_preflight", "case_reply"],
+    inventory: {
+      "Case.findUnique": 2,
+      "CaseMessage.findMany": 2,
+      "Case.update": 1,
+      "CaseMessage.create": 1,
+      "CaseMessageAttachment.relation-reference": 5,
+    },
+  }),
+  "src/app/api/cases/[id]/attachments/route.ts": freezeSource({
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_message_preflight"],
+    inventory: { "Case.findUnique": 1 },
+  }),
+  "src/app/api/cases/[id]/escalate/route.ts": freezeSource({
+    actors: ["PARTICIPANT", "STAFF"],
+    destinations: ["case_escalate"],
+    inventory: {
+      "Case.findUnique": 1,
+      "Case.updateMany": 1,
+      "Case.raw-sql-reference": 1,
+    },
+  }),
   "src/app/api/cron/case-auto-close/route.ts": freezeSource({
     actors: ["CRON"],
     destinations: ["case_cron_transition_batch"],
     inventory: { "Case.updateMany": 3, "Case.findMany": 3 },
-  }),
-  "src/app/api/cron/guild-member-check/route.ts": freezeSource({
-    actors: ["CRON"],
-    destinations: ["case_guild_unresolved_guard"],
-    inventory: { "Case.findFirst": 1 },
-  }),
-  "src/app/api/orders/[id]/refund/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_seller_refund_apply"],
-    inventory: { "Case.findUnique": 1, "Case.updateMany": 1 },
-  }),
-  "src/app/api/stripe/webhook/route.ts": freezeSource({
-    actors: ["STRIPE_WEBHOOK"],
-    destinations: ["case_stripe_dispute_apply"],
-    inventory: {
-      "Case.updateMany": 1,
-      "Case.create": 1,
-      "Case.relation-reference": 1,
-    },
-  }),
-  "src/app/api/verification/apply/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_seller_verification_eligibility"],
-    inventory: { "Case.count": 1 },
-  }),
-  "src/app/dashboard/verification/page.tsx": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_seller_verification_eligibility"],
-    inventory: { "Case.count": 1 },
   }),
   "src/lib/accountDeletion.ts": freezeSource({
     actors: ["ACCOUNT_LIFECYCLE"],
@@ -613,63 +732,14 @@ export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({
       "Case.raw-sql-reference": 4,
     },
   }),
-  "src/lib/caseMessageHistory.ts": freezeSource({
-    actors: ["PARTICIPANT", "STAFF"],
-    destinations: ["case_message_page"],
-    inventory: {
-      "CaseMessage.findMany": 1,
-      "CaseMessageAttachment.relation-reference": 1,
-    },
-  }),
-  "src/lib/metrics.ts": freezeSource({
-    actors: ["METRICS"],
-    destinations: ["case_seller_active_count"],
-    inventory: { "Case.count": 1 },
-  }),
-  "src/app/admin/orders/[id]/page.tsx": freezeSource({
-    actors: ["STAFF"],
-    destinations: ["case_get_by_order"],
-    inventory: { "Case.relation-reference": 1 },
-  }),
-  "src/app/api/orders/[id]/confirm-delivery/route.ts": freezeSource({
-    actors: ["BUYER"],
-    destinations: ["case_order_active"],
-    inventory: { "Case.relation-reference": 3 },
-  }),
-  "src/app/api/orders/[id]/fulfillment/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_order_active"],
-    inventory: {
-      "Case.relation-reference": 1,
-      "Case.raw-sql-reference": 1,
-    },
-  }),
-  "src/app/api/orders/[id]/label/route.ts": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_order_active"],
-    inventory: {
-      "Case.relation-reference": 1,
-      "Case.raw-sql-reference": 1,
-    },
-  }),
-  "src/app/dashboard/orders/[id]/page.tsx": freezeSource({
-    actors: ["BUYER"],
-    destinations: ["case_get_by_order", "case_message_page"],
-    inventory: { "Case.relation-reference": 1 },
-  }),
-  "src/app/dashboard/sales/[orderId]/page.tsx": freezeSource({
-    actors: ["SELLER"],
-    destinations: ["case_get_by_order", "case_message_page"],
-    inventory: { "Case.relation-reference": 1 },
-  }),
+});
+
+export const CASE_AUTHORITY_SOURCE_DESTINATIONS = Object.freeze({});
+
+export const CASE_RETIRED_SOURCE_REFERENCES = Object.freeze({
   "src/lib/caseLifecycleLocks.ts": freezeSource({
-    actors: ["PRIVATE_CORE"],
-    destinations: ["case_lock_core"],
-    inventory: { "Case.raw-sql-reference": 1 },
-  }),
-  "src/lib/orderPiiRetention.ts": freezeSource({
-    actors: ["RETENTION_CRON"],
-    destinations: ["case_order_active"],
+    actors: ["RETIRED_UNUSED_HELPER"],
+    destinations: [],
     inventory: { "Case.raw-sql-reference": 1 },
   }),
 });
@@ -680,6 +750,26 @@ export const CASE_AUTHORITY_OPERATION_IDS = Object.freeze(
 
 export function caseAuthorityReferenceCount() {
   return Object.values(CASE_AUTHORITY_SOURCE_DESTINATIONS)
+    .reduce(
+      (total, source) =>
+        total + Object.values(source.inventory)
+          .reduce((sourceTotal, count) => sourceTotal + count, 0),
+      0,
+    );
+}
+
+export function caseAuthorityRetiredReferenceCount() {
+  return Object.values(CASE_RETIRED_SOURCE_REFERENCES)
+    .reduce(
+      (total, source) =>
+        total + Object.values(source.inventory)
+          .reduce((sourceTotal, count) => sourceTotal + count, 0),
+      0,
+    );
+}
+
+export function caseAuthorityConvertedReferenceCount() {
+  return Object.values(CASE_CONVERTED_SOURCE_DESTINATIONS)
     .reduce(
       (total, source) =>
         total + Object.values(source.inventory)

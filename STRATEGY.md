@@ -50,30 +50,52 @@ through FORCE and actual pooled-runtime proof. `Case` + `CaseMessage` +
 `CaseMessageAttachment` is the active tightly coupled group. Its protected
 Phase 2 aggregate-only production inspection completed with zero Cases,
 CaseMessages, attachments or anomaly counts, so no legacy cleanup/backfill is
-needed; Phase 3 invariant and authority-catalog design is now active while
-production RLS remains off. The current catalog pins all 80 references across
-29 sources to 26 fixed operations. It rejects caller-asserted staff-PIN flags,
-generic provider results, free account-deletion targets and caller-selected
-cron rows; application PIN/provider verification remain explicit external
-trust boundaries. External refund resolution will use a private, FORCE-RLS,
-zero-policy `CaseResolutionClaim` service ledger so provider idempotency,
-recovery and finalization are database-bound rather than caller-asserted. An
-audited administrator finding of no provider effect uses a distinct
+needed. Phase 3 invariant and authority-catalog proof is complete. The Phase 4
+database-first compatible preparation is complete in production at exact main
+commit `4728f673fdf0a11d38aaac384f3d9afe2cf86117`, while all three Case-family
+tables remain RLS-off with predecessor CRUD. Protected Production Migrations
+run `30511805499` applied only the committed preparation tree. The
+engine-attested repeatable-read/read-only pooled-runtime postflight then proved
+the four private ledgers are policyless ENABLE plus FORCE with no runtime table
+access, the exact 26 runtime-executable plus three runtime-private function
+ACLs are intact, and PostgreSQL `PUBLIC` can execute none of them.
+
+The compatible application package converts all 79 ordinary direct, nested and
+raw Case-family references across the 29-source baseline to 27 purpose-bound
+operations. Its machine-checked ledger retains every conversion; a separate
+retired ledger preserves the one unused historical helper reference, so the
+80-reference baseline resolves to zero ordinary direct Case-family access
+without creating fictional database authority. The operations reject
+caller-asserted staff-PIN flags, generic provider results, free
+account-deletion targets and caller-selected cron rows; application
+PIN/provider verification remain explicit external trust boundaries. External
+refund resolution uses the private, FORCE-RLS, zero-policy
+`CaseResolutionClaim` service ledger so provider idempotency, recovery and
+finalization are database-bound rather than caller-asserted. An audited
+administrator finding of no provider effect uses a distinct
 `RELEASED_NO_PROVIDER_EFFECT` terminal state instead of falsely recording the
-claim as finalized. Stripe-dispute-created Cases record their exact durable
-payment-event source rather than fabricating a buyer-authored message, and
-dispute reopen clears the complete stale Case-level resolution/refund snapshot
-while retaining the Order payment/audit history.
-The compatible database-first release is now split from both the application
-conversion and RLS activation. Its guarded operator may advance only through
-`case-account-deletion-authority-reviewed`, followed by an engine-attested
-repeatable-read/read-only postflight under the pooled runtime role. That
-postflight must prove the three Case-family tables are still RLS-off with
-predecessor CRUD, four private ledgers are policyless ENABLE plus FORCE with no
-runtime table access, and the exact 26 runtime-executable plus three
-runtime-private function ACLs are intact. Every function still revokes
-PostgreSQL `PUBLIC` execution. This preparation does not authorize the later
-invariant, read-mode, ENABLE or FORCE releases.
+claim as finalized.
+
+Stripe-dispute-created Cases record their exact durable payment-event source
+rather than fabricating a buyer-authored message, and dispute reopen clears the
+complete stale Case-level resolution/refund snapshot while retaining the Order
+payment/audit history. Its replay identity belongs in the private, FORCE-RLS,
+zero-policy `CaseStripeDisputeApplication` ledger because broadly writable
+`SystemAuditLog` is evidence/observability rather than security authority. The
+fixed operation also rejects valid but superseded Stripe events; signed
+delivery does not imply event ordering.
+
+The seller-refund application operation accepts only the authenticated seller
+actor and one exact committed local refund event, derives the Case resolution
+and stores immutable replay authority in the private zero-policy
+`CaseSellerRefundApplication` ledger. The compatible app conversion preserves
+the shared User then Order then Case lock order, validates the complete
+database-derived result and leaves no direct Case access in that route. This
+does not pull Order/payment into the Case activation:
+`Order`/`OrderPaymentEvent` direct-write hardening remains a named dependency
+of that later independent sensitive group. The completed database preparation
+and compatible application package do not authorize the later invariant,
+read-mode, ENABLE or FORCE releases.
 `Cart` + `CartItem`;
 `SavedBlogPost`; aggregate/fanout tables; and the order/payment/shipping group
 remain later independent groups. Each group must be independently deployable,
@@ -112,6 +134,133 @@ Message are complete; their retained record is
 `docs/conversation-message-pre-rls-audit.md`. The active
 Case/CaseMessage/CaseMessageAttachment record is
 `docs/case-case-message-pre-rls-audit.md`.
+
+Case message/upload preflight must remain a narrow source-validating database
+operation rather than depend on broad runtime visibility of the
+counterparty's `User` row. A self-only User RLS rollout would otherwise hide
+the suspended/deleted state that Case messaging must derive. Keep the fixed
+preflight output free of User profile/contact data, retain route-side Clerk and
+staff-PIN verification, and keep the final locked reply operation authoritative
+for every write and race.
+
+The compatible Case-message preflight application conversion must use one
+strict typed result in both the reply and private-evidence upload routes. Keep
+missing and unauthorized rows non-enumerating, preserve the route-side staff
+PIN and external evidence checks, and never let preflight replace the final
+locked reply authority. At that preflight checkpoint the Case inventory was 52
+references across 23 files, with twenty-eight of the 80-reference baseline
+retained in the converted ledger. This remains preparation, not production
+activation.
+
+The bounded interactive Case-message history is also a narrow source-validating
+database projection, not a generic INVOKER read. It crosses exact
+Case/CaseMessage/attachment rows for both participants and PIN-verified staff,
+so broad runtime table/User visibility is the wrong prerequisite. Keep its
+SECURITY DEFINER output limited to message fields, durable or
+relationship-derived author kind, and attachment id/content type/size/time;
+never return User profile/contact fields, DirectUpload ids or object keys.
+Retain the 51-row hard cap and stable `(createdAt,id)` cursor. Unknown legacy
+non-party authors remain unlabeled rather than being inferred as staff from
+mutable current role.
+
+The compatible Case-message page application candidate uses this operation for
+buyer, seller and staff detail pages through one strict typed validator. It
+removes mutable User-name joins from message labels and moves the direct
+message plus nested attachment reads to the converted ledger. The grouped
+recipient-read conversion also moves staff Case detail, the PIN-gated active
+count and three Order-to-Case relations behind fixed typed projections.
+
+Keep the PII-free Case-detail projections separate from the cross-user staff
+queue. One Case by id, one Case by Order and the staff active count were
+prepared as SECURITY INVOKER operations while direct table reads still
+coexisted. The completed zero-direct-access inventory changes the activation
+decision: converge those three plus the bounded account-export projection to
+SECURITY DEFINER before activation, preserving the same actor validation and
+bounded outputs. This permits a policyless, zero-table-grant Case boundary and
+avoids a broad staff-visible policy that cannot attest the session-bound PIN.
+Their fixed result must not expose the raw Stripe refund id, User
+contact/profile fields, payment-source provenance or attachment/object
+identifiers, and UTC database timestamps must cross the SQL boundary as
+`timestamptz`.
+
+The staff Case queue is not one of those ordinary reads. It needs minimal
+buyer/seller contact fields for PIN-verified staff, which future self-only User
+RLS should hide from the runtime role. Keep it as a separate, narrow
+source-validating SECURITY DEFINER projection rather than granting broad User
+visibility or adding PII to the shared participant Case result. That projection
+and its strict typed application wrapper are now prepared in isolation. Count
+and page share one database snapshot; UTC timestamps, message counts, safe
+page and blank-name email fallback are database-derived; the result excludes
+User ids, Clerk ids, Case narrative, payment/refund evidence and object
+identifiers. At the staff-queue checkpoint, the Case-family inventory was 42
+references across 16 files, with thirty-eight of the 80-reference baseline
+retained in the converted ledger.
+
+Case-aware Order checks must remain purpose-bound. Do not grant one generic
+`orderId -> active Case` runtime predicate. Buyer delivery confirmation uses an
+actor-bound buyer predicate; seller fulfillment and label purchase use an
+actor-bound complete-seller-ownership predicate. Each route repeats the check
+after taking the Order lock so Case opening cannot race the transition. The
+predicates must not change transaction-local RLS context; their actor input is
+validated against the purpose-bound relationship without adding a context
+side effect. The
+retention cron uses a separate fixed 90-day database prune batch: its cutoff,
+eligible locked Orders, active-Case exclusion and exact PII targets are
+database-derived, and callers cannot choose Order ids or shorten the window.
+Re-review that shared lifecycle function when Order and
+OrderShippingRateQuote enter their own RLS group.
+
+Seller verification, Guild enforcement and seller metrics must not share a
+generic seller-to-dispute oracle. Keep three minimal Case aggregate
+operations: active count for the fixed metrics computation; an actor-bound
+seller/staff verification count with a database-derived 60-day cutoff; and a
+Guild-state-bound predicate with a database-derived 90-day cutoff and a lock
+on the exact blocking Case. Do not return cutoff timestamps, Case ids,
+participants or narratives. Admin verification mutations must repeat the
+session-bound staff PIN check inside the server action, even when the enclosing
+page already passed the admin layout gate.
+
+Account export must page Case rows and reuse the bounded Case-message
+projection rather than restore an unbounded nested Case read. Preserve complete
+export semantics and stable ordering; if real histories outgrow a materialized
+JSON response, move the entire multi-model export to a streaming archive
+instead of silently capping Case history. Private evidence download should
+reuse the existing participant/staff Case projection for staff-PIN mode and
+the existing source-bound DirectUpload reader for object authority.
+
+The current Case-family preparation inventory has zero ordinary application
+references: seventy-nine of the 80-reference baseline are retained in the
+converted ledger, while the unused historical `lockCaseForLifecycle` reference
+is removed from production source and retained in a separate retired ledger.
+Interactive escalation now requires a real authenticated actor and
+keeps non-party staff behind the session-bound PIN; the obsolete
+`CRON_SECRET`/`id="all"` arbitrary-target surface is removed. Scheduled Case
+transitions accept only one of three fixed families and a bounded limit.
+PostgreSQL derives due rows, cutoffs, targets, audit evidence, recipients and
+notification payload authority under User -> Order -> Case locks, with the
+primary notifications atomic to the transition and application calls retained
+only as deduplicated recovery replays. State-specific partial indexes keep the
+three due scans bounded as terminal Case history grows. Account deletion now
+uses a narrow blocker count and a side-effect-bound redaction function that
+derives its User, sensitive values and Case/message targets, while rechecking
+active Cases after the User lock. Its saved disposable proof requires forced
+direct denial, exact source validation, a real User-lock wait, rollback,
+idempotent redaction, collision-safe historical-email handling and zero
+residue. This remains preparation only; production Case-family RLS is still
+off. Exact escalation/cron head `71320931` passed
+GitHub Actions run `30496775294` (job `90727343830`), including the disposable
+PostgreSQL authority/concurrency/rollback proof and every repository gate.
+
+The invariant re-audit exact head
+`7543d84cd041b89580c988666b0522cddee73dad` passed GitHub Actions run
+`30500866299` (job `90740015271`), including the corrected legacy preflight,
+write freeze, source binding and race proof plus every repository gate. The
+draft activation destination is now explicit: policyless ENABLE RLS and zero
+runtime/PUBLIC table or column privileges for Case, CaseMessage and
+CaseMessageAttachment, followed later by a separate posture-only FORCE
+release. The compatible read-mode convergence, invariant promotion,
+activation, rollback and FORCE candidates remain unapplied until their
+separate engine and release gates pass.
 
 Case/CaseMessage Phase 2 may proceed while the DirectUpload cleanup-only R2
 credential is created because the Case inspection is owner-only, read-only and
@@ -958,18 +1107,79 @@ Sanitized mode-0600 evidence
 retains no raw identifier or credential. Bucket B is complete; retain the
 protected preactivation backup through the rollback window. Conversation plus
 Message subsequently completed as the next separate production group;
-Case/CaseMessage is now the active pre-policy audit.
+Case/CaseMessage/CaseMessageAttachment is now the active compatible authority
+conversion, with policy activation still separate.
 
-The Case authority design subsequently reached an accepted disposable-engine
-proof, but release packaging must preserve the coexistence boundary. Merge and
-apply the additive schema, private ledgers and 27 fixed operations before
-shipping the converted application; promote invariants/read mode and activate
-`Case`, `CaseMessage` and `CaseMessageAttachment` only afterward. The database
-preparation package must contain no converted app source and no promoted
-ENABLE/FORCE migration. DirectUpload activation and pooled-runtime postflight
-remain a prerequisite for Case activation, while Orders/payments/shipping
-remain their own later RLS group. The exact package inventory, proof references
-and release order live in
+Account-deletion redaction has one shared database invariant across sensitive
+text tables: a redaction result must never be longer than its original input.
+The Case conversion exposed that the existing fixed replacement marker could
+expand a maximum-length Message, CaseMessage or Case description when the
+derived sensitive value was short. Keep the shared core private, redact first,
+then cap only the already-redacted output to its original character length.
+Every future retained-text deletion path must prove its maximum-length and
+shortest-needle boundary in disposable PostgreSQL before activation.
+
+Case invariant promotion must validate preexisting trigger-only relationships
+under a write freeze; installing a trigger and then testing only newly seeded
+rows is not legacy proof. Retain the rollout advisory lock, bounded timeouts,
+target-table lock, collision-intolerant function creation and pre-install
+invalid-row PostgreSQL cases when the draft is promoted. Provider-backed Case
+openings must use the same exact Order-charge/event identity in both the fixed
+operation and the trigger defense.
+
+Do not flatten Case invariant triggers into one privilege mode. Five
+relationship/source functions cross protected tables and require the reviewed
+owner-mode boundary; three immutable/status validators inspect only the
+trigger row and remain INVOKER. Exact run `30502489130` failed closed before
+activation when the first preflight incorrectly demanded eight DEFINER
+functions. Pin the 5/3 name and mode partition in both ENABLE and FORCE
+preflights instead of widening the three row-local validators.
+
+Do not create catalog authority merely to preserve a historical scanner
+count. Exact run `30502852059` passed the corrected invariant partition, then
+failed closed before activation because the preflight expected 28 fixed
+functions while only 27 real operations exist. The supposed
+`grainline_case_lock_core` was never a database function; its TypeScript
+counterpart had no application caller and survived only because an older
+disposable race harness imported it. Remove the helper from production source,
+keep the proof-only lock local to that harness, and retain the historical
+reference in a machine-checked retired ledger. Production remained unchanged.
+
+Treat PostgreSQL `PUBLIC` as ACL grantee OID zero, not as a named role.
+Exact run `30503586032` passed the corrected 27-function catalog and then
+failed inside the disposable activation transaction because
+`has_table_privilege('PUBLIC', ...)` raised “role PUBLIC does not exist.”
+Inspect direct table and column ACLs through `aclexplode(...).grantee = 0`.
+When a predecessor contract requires every CRUD privilege, check SELECT,
+INSERT, UPDATE and DELETE separately; PostgreSQL comma-list privilege helpers
+answer whether any listed privilege is held. The failed proof rolled back and
+production remained unchanged.
+
+When a rollback-only proof models activation and a later FORCE migration in
+one outer transaction, flush deferred invariant triggers before the simulated
+release boundary. Exact run `30503946659` passed policyless activation and
+runtime authority, then PostgreSQL refused the FORCE `ALTER TABLE` because the
+proof transaction still had pending trigger events. Production uses separate
+committed migrations; the harness must model that with
+`SET CONSTRAINTS ALL IMMEDIATE`, not by weakening FORCE or removing deferred
+integrity checks. The failed proof rolled back and production remained
+unchanged.
+
+Exact Case draft head `b9f2e40c530c06787afee1cb776010f853f5f7d4`
+passed run `30504119117` (job `90750043124`): all 54 PostgreSQL
+invariant/ENABLE/direct-denial/fixed-function/FORCE/rollback checks, every
+predecessor authority proof, migration/grant audits, TypeScript, lint, the
+complete repository suite, dependency audit and production build succeeded.
+This closes the draft authority gate and moves Case-family work to compatible
+release packaging; production Case-family RLS remains off.
+
+Release packaging preserves a strict two-step coexistence boundary. The
+database-only package installs the additive schema, private ledgers and 27
+fixed operations without converted app source or promoted activation SQL.
+Only after that exact migration package is applied may the compatible
+application conversion deploy. Invariants/read mode, DirectUpload activation,
+Case ENABLE and Case FORCE remain later separate releases. The exact package
+inventory, proof references and release order live in
 `docs/case-compatible-database-preparation-release.md`.
 
 Temporary provider mechanics are intentionally absent from the production

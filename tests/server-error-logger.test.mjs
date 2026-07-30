@@ -106,14 +106,17 @@ describe("server error logger", () => {
     }
 
     const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
-    assert.match(caseResolve, /source: "case_refund_orphaned_after_stripe"/);
-    assert.match(caseResolve, /refundCount: stripeRefundIds\.length/);
-    const orphanedRefundTelemetry = caseResolve.slice(
-      caseResolve.indexOf('source: "case_refund_orphaned_after_stripe"'),
-      caseResolve.indexOf("await prisma.$transaction", caseResolve.indexOf('source: "case_refund_orphaned_after_stripe"')),
+    assert.match(caseResolve, /source: "case_refund_provider_record_failed"/);
+    assert.match(caseResolve, /refundCount: refund\.refundIds\.length/);
+    const providerRecordTelemetry = caseResolve.slice(
+      caseResolve.indexOf('source: "case_refund_provider_record_failed"'),
+      caseResolve.indexOf(
+        "authorityFailureResponse(error, \"provider\")",
+        caseResolve.indexOf('source: "case_refund_provider_record_failed"'),
+      ),
     );
-    assert.doesNotMatch(orphanedRefundTelemetry, /stripeRefundId[:,]/);
-    assert.doesNotMatch(orphanedRefundTelemetry, /stripeRefundIds[:,]/);
+    assert.doesNotMatch(providerRecordTelemetry, /primaryRefundId[:,]/);
+    assert.doesNotMatch(providerRecordTelemetry, /refundIds[:,]/);
 
     const adminUndo = source("src/app/api/admin/audit/[id]/undo/route.ts");
     assert.match(adminUndo, /import \{ logServerError \} from '@\/lib\/serverErrorLogger'/);

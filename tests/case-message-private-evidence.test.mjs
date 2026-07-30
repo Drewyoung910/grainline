@@ -103,20 +103,32 @@ describe("private CaseMessage evidence", () => {
       "src/app/api/cases/[id]/attachments/[attachmentId]/route.ts",
     );
 
-    for (const route of [uploadRoute, readRoute]) {
-      assert.match(route, /me\.id === caseRecord\.buyerId/);
-      assert.match(route, /me\.id === caseRecord\.sellerId/);
-      assert.match(route, /me\.role === "EMPLOYEE" \|\| me\.role === "ADMIN"/);
-      assert.match(route, /requireStaffAdminPinForApi/);
-      assert.match(route, /return privateJson\(\{ error: "Forbidden\."/);
-    }
+    assert.match(uploadRoute, /await getCaseMessagePreflight\(\{/);
+    assert.match(uploadRoute, /actorUserId: me\.id/);
+    assert.match(uploadRoute, /if \(preflight\.actsAsStaff\)/);
+    assert.match(uploadRoute, /requireStaffAdminPinForApi/);
+    assert.match(uploadRoute, /if \(!preflight\.canCreateMessage\)/);
+    assert.match(uploadRoute, /if \(preflight\.recipientUnavailableReason\)/);
+    assert.ok(
+      uploadRoute.indexOf("if (preflight.recipientUnavailableReason)") <
+        uploadRoute.indexOf("form = await req.formData()"),
+      "recipient availability must fail before private upload bytes are read",
+    );
+    assert.doesNotMatch(uploadRoute, /prisma\.case\.findUnique/);
+    assert.match(
+      readRoute,
+      /getVisibleCaseById\(\{[\s\S]*actorUserId: me\.id,[\s\S]*caseId: id/,
+    );
+    assert.match(
+      readRoute,
+      /if \(caseRecord\.actsAsStaff\)[\s\S]*requireStaffAdminPinForApi/,
+    );
+    assert.doesNotMatch(
+      readRoute,
+      /prisma\.case|me\.id === caseRecord|me\.role ===/,
+    );
     assert.match(uploadRoute, /uploadFileSignatureMatches/);
     assert.match(uploadRoute, /stripMetadata/);
-    assert.match(uploadRoute, /const actsAsStaff = isStaff && !isParty/);
-    assert.match(
-      uploadRoute,
-      /canCreateCaseMessageForStatus\(caseRecord\.status, \{ isStaff: actsAsStaff \}\)/,
-    );
     assert.match(
       readRoute,
       /readDirectUploadCaseAttachment\(\{[\s\S]*caseId: id,[\s\S]*attachmentId/,
@@ -126,70 +138,53 @@ describe("private CaseMessage evidence", () => {
     assert.match(readRoute, /"Referrer-Policy": "no-referrer"/);
   });
 
-  it("verifies and claims evidence in the same transaction as its CaseMessage", () => {
+  it("re-verifies private evidence before the fixed database authority binds it atomically", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
     const evidence = source("src/lib/caseEvidence.ts");
-    const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const authority = source("src/lib/caseReplyAuthority.ts");
+    const migration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
+    );
+    const referenceMigration = source(
+      "prisma/migrations/20260726185000_prepare_direct_upload_authority/migration.sql",
+    );
 
-    assert.match(route, /verifyPrivateCaseEvidenceForPersistence/);
+    assert.match(route, /verifyPrivateCaseEvidenceForReply/);
     assert.match(
       evidence,
       /lifecycle\.publicUrl !== null[\s\S]*lifecycle\.storageClass !== CASE_EVIDENCE_STORAGE_CLASS/,
     );
-    assert.match(evidence, /lifecycle\.status !== DIRECT_UPLOAD_STATUS\.VERIFIED/);
+    assert.match(evidence, /DIRECT_UPLOAD_STATUS\.VERIFIED[\s\S]*DIRECT_UPLOAD_STATUS\.CLAIMED/);
+    assert.match(evidence, /exact HTTP retry[\s\S]*fixed database authority/);
     assert.match(evidence, /uploadFileSignatureMatches/);
-    assert.match(route, /await prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(route, /referenceDirectUploadCaseAttachment\(\{[\s\S]*client: tx/);
+    assert.match(route, /await replyToCaseWithFixedAuthority\(\{/);
+    assert.match(authority, /SELECT public\.grainline_case_reply\(/);
     assert.match(
-      route,
-      /attachments: \{[\s\S]*create:[\s\S]*directUploadId: attachment\.directUploadId[\s\S]*referenceDirectUploadCaseAttachment/,
+      migration,
+      /INSERT INTO public\."CaseMessage"[\s\S]*INSERT INTO public\."CaseMessageAttachment"/,
     );
-    assert.doesNotMatch(
-      route.match(
-        /attachments: \{[\s\S]*?create: verifiedAttachments[\s\S]*?\n\s*\},/,
-      )?.[0] ?? "",
-      /objectKey:/,
-    );
-    assert.match(route, /attachmentKeysMatch/);
-    assert.match(lifecycle, /grainline_direct_upload_reference_case_attachment/);
     assert.match(
-      lifecycle,
-      /deleteR2ObjectByStorageClass\(row\.key, row\.storageClass\)/,
+      referenceMigration,
+      /CREATE CONSTRAINT TRIGGER[\s\S]*grainline_direct_upload_case_attachment_reference_trigger/,
     );
+    assert.doesNotMatch(route, /referenceDirectUploadCaseAttachment|attachmentKeysMatch/);
   });
 
-  it("keeps private object keys server-side and serializes locked reads", () => {
+  it("keeps private object keys server-side and stops exact replays before side effects", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
-    const transactionStart = route.indexOf(
-      "const messageResult = await prisma.$transaction",
+    const responseMapper = route.slice(
+      route.indexOf("function caseMessageResponse"),
+      route.indexOf("function caseReplyFailureResponse"),
     );
-    const transactionEnd = route.indexOf(
-      "if (messageResult.duplicate)",
-      transactionStart,
-    );
-    const transaction = route.slice(transactionStart, transactionEnd);
 
-    assert.match(
-      route,
-      /function caseMessageResponse<[\s\S]*attachments: attachments\.map/,
-    );
-    assert.match(
-      route,
-      /return privateJson\(caseMessageResponse\(claimedRetry\), \{ status: 200 \}\)/,
-    );
-    assert.match(
-      route,
-      /return privateJson\(caseMessageResponse\(message\), \{ status: 201 \}\)/,
-    );
-    assert.doesNotMatch(
-      route,
-      /return privateJson\((?:claimedRetry|messageResult\.message|message),/,
-    );
-    assert.doesNotMatch(transaction, /Promise\.all/);
+    assert.match(responseMapper, /attachments: message\.attachments\.map/);
+    assert.doesNotMatch(responseMapper, /directUpload|objectKey|\bkey:/);
+    assert.match(route, /if \(result\.action === "replay"\)[\s\S]*status: 200/);
+    assert.match(route, /return privateJson\(message, \{ status: 201 \}\)/);
     assert.ok(
-      transaction.indexOf("const lockedCase = await tx.case.findUnique") <
-        transaction.indexOf("const lockedActor = await tx.user.findUnique"),
-      "locked Case and current actor reads must remain sequential",
+      route.indexOf('if (result.action === "replay")') <
+        route.indexOf("// Notify the appropriate party/parties"),
+      "replay must return before notification and email side effects",
     );
   });
 
@@ -197,14 +192,28 @@ describe("private CaseMessage evidence", () => {
     const reply = source("src/components/CaseReplyBox.tsx");
     const history = source("src/lib/caseMessageHistory.ts");
     const exportRoute = source("src/app/api/account/export/route.ts");
+    const exportAuthority = source(
+      "src/lib/caseAccountExportAuthority.ts",
+    );
+    const exportMessageResult = source(
+      "src/lib/caseMessagePageResult.ts",
+    );
     const deletion = source("src/lib/accountDeletion.ts");
     const plan = source("docs/rls-case-case-message-plan.md");
 
     assert.match(reply, /MAX_CASE_MESSAGE_ATTACHMENTS/);
     assert.match(reply, /accept="image\/jpeg,image\/png,image\/webp"/);
     assert.match(reply, /attachmentKeys:/);
-    assert.match(history, /attachments: \{[\s\S]*byteSize: true/);
-    assert.match(exportRoute, /attachments: \{[\s\S]*byteSize: true/);
+    assert.match(history, /listCaseMessagePage/);
+    assert.doesNotMatch(history, /objectKey|directUploadId/);
+    assert.match(exportRoute, /exportParticipantCases\(user\.id\)/);
+    assert.match(exportAuthority, /listCaseMessagePage/);
+    assert.match(exportAuthority, /MESSAGE_EXPORT_PAGE_SIZE = 51/);
+    assert.match(exportMessageResult, /byteSize: number/);
+    assert.doesNotMatch(
+      `${exportAuthority}\n${exportMessageResult}`,
+      /objectKey|directUploadId/,
+    );
     assert.match(
       deletion,
       /Private Case evidence is retained with the dispute\/order record/,

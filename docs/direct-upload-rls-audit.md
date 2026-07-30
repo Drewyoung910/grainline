@@ -1188,12 +1188,15 @@ DirectUpload RLS activation or change any persistent environment.
 
 The next isolated stack retires the duplicate
 `CaseMessageAttachment.objectKey` only after exact equality/reference/status
-preflight and keeps `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false`. The disabled
-application writes only the authoritative `directUploadId`; it no longer
-carries the private object key in the persistence result. The disposable
-retirement candidate validates the six staged DirectUpload constraints,
-replaces the attachment binding trigger with id-derived validation and changes
-no RLS flag or grant. The following activation candidate requires the exact
+preflight and keeps `CASE_EVIDENCE_ATTACHMENTS_ENABLED=false`. The application
+passes only authoritative `directUploadId` values to the fixed Case-reply
+operation. That compatible database function dual-writes `objectKey` until
+retirement; the disposable retirement candidate now replaces it without the
+retired column in the same transaction and verifies that its existing runtime
+EXECUTE ACL and SECURITY DEFINER boundary survive. The candidate also validates
+the six staged DirectUpload constraints, replaces the attachment binding
+trigger with id-derived validation and changes no RLS flag or grant. The
+following activation candidate requires the exact
 clean predecessor, then makes both `DirectUpload` and
 `DirectUploadReference` policyless ENABLE plus FORCE service tables with zero
 direct runtime/worker table authority. Its exact function partition is 17

@@ -121,12 +121,27 @@ describe("CaseMessage durable author kind", () => {
 
   it("sets the kind on every current CaseMessage creation path", () => {
     const createRoute = source("src/app/api/cases/route.ts");
+    const caseOpenMigration = source(
+      "prisma/migrations/20260729051000_prepare_case_open_authority/migration.sql",
+    );
     const replyRoute = source("src/app/api/cases/[id]/messages/route.ts");
+    const replyMigration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
+    );
     const history = source("src/lib/caseMessageHistory.ts");
 
-    assert.match(createRoute, /authorKind: "BUYER"/);
-    assert.match(replyRoute, /caseMessageAuthorKindForActor/);
-    assert.match(replyRoute, /authorKind,\s*body: messageBody/s);
-    assert.match(history, /authorKind: true/);
+    assert.match(createRoute, /await openCaseWithFixedAuthority\(/);
+    assert.match(
+      caseOpenMigration,
+      /'BUYER'::public\."CaseMessageAuthorKind"/,
+    );
+    assert.match(replyRoute, /replyToCaseWithFixedAuthority/);
+    assert.match(
+      replyMigration,
+      /actor_kind := CASE[\s\S]*'BUYER'::public\."CaseMessageAuthorKind"[\s\S]*'SELLER'::public\."CaseMessageAuthorKind"[\s\S]*'STAFF'::public\."CaseMessageAuthorKind"/,
+    );
+    assert.match(replyMigration, /INSERT INTO public\."CaseMessage"[\s\S]*actor_kind/);
+    assert.match(history, /listCaseMessagePage/);
+    assert.doesNotMatch(history, /author:\s*\{/);
   });
 });

@@ -14,25 +14,53 @@ const {
 } = await import("../src/lib/refundLockState.ts");
 
 describe("refund lock state", () => {
-  it("timestamps contended refund reservations after the database lock wait", () => {
-    const routes = [
-      "src/app/api/cases/[id]/resolve/route.ts",
-      "src/app/api/stripe/webhook/route.ts",
-    ];
+  it("never reclaims a pending sentinel held by a durable Case claim", () => {
+    const cleanup = readFileSync("src/lib/refundLocks.ts", "utf8");
 
-    for (const route of routes) {
-      const text = readFileSync(route, "utf8");
-      assert.match(
-        text,
-        /"sellerRefundLockedAt" = pg_catalog\.clock_timestamp\(\)/,
-        route,
-      );
-      assert.doesNotMatch(
-        text,
-        /"sellerRefundLockedAt" = \$\{new Date\(\)\}/,
-        route,
-      );
-    }
+    assert.match(
+      cleanup,
+      /sellerRefundId: REFUND_LOCK_SENTINEL,[\s\S]*caseResolutionClaimId: null,[\s\S]*sellerRefundLockedAt/,
+    );
+  });
+
+  it("timestamps contended refund reservations after the database lock wait", () => {
+    const webhook = readFileSync(
+      "src/app/api/stripe/webhook/route.ts",
+      "utf8",
+    );
+    const staffAuthority = readFileSync(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+      "utf8",
+    );
+    const prepareBody = staffAuthority.slice(
+      staffAuthority.indexOf(
+        "CREATE OR REPLACE FUNCTION public.grainline_case_staff_resolution_prepare",
+      ),
+      staffAuthority.indexOf(
+        "$grainline_case_staff_resolution_prepare$;",
+      ),
+    );
+    const orderLock = prepareBody.indexOf('FROM public."Order" AS orders');
+    const transitionTimestamp = prepareBody.indexOf(
+      "transition_at := pg_catalog.clock_timestamp()",
+    );
+    const lockTimestamp = prepareBody.indexOf(
+      '"sellerRefundLockedAt" = CASE',
+    );
+
+    assert.match(
+      webhook,
+      /"sellerRefundLockedAt" = pg_catalog\.clock_timestamp\(\)/,
+    );
+    assert.doesNotMatch(
+      webhook,
+      /"sellerRefundLockedAt" = \$\{new Date\(\)\}/,
+    );
+    assert.ok(
+      orderLock >= 0
+        && transitionTimestamp > orderLock
+        && lockTimestamp > transitionTimestamp,
+    );
   });
 
   it("keeps the stale lock window longer than normal Stripe refund latency", () => {

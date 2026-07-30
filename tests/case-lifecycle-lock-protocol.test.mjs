@@ -17,39 +17,56 @@ function assertOrdered(text, labels) {
 }
 
 describe("Case and Order lifecycle lock protocol", () => {
-  it("uses exact row locks with no broad table authority", () => {
+  it("uses exact production row locks and keeps the retired Case lock proof-local", () => {
     const locks = source("src/lib/caseLifecycleLocks.ts");
+    const lifecycleProof = source("scripts/case-lifecycle-postgres-proof.mjs");
 
+    assert.match(
+      locks,
+      /SELECT id\s+FROM "User"\s+WHERE id = \$\{userId\}\s+FOR SHARE/s,
+    );
     assert.match(
       locks,
       /SELECT id\s+FROM "Order"\s+WHERE id = \$\{orderId\}\s+FOR UPDATE/s,
     );
     assert.match(
-      locks,
+      lifecycleProof,
       /SELECT id\s+FROM "Case"\s+WHERE id = \$\{caseId\}\s+FOR UPDATE/s,
     );
+    assert.doesNotMatch(locks, /FROM "Case"/);
     assert.doesNotMatch(locks, /FOR UPDATE SKIP LOCKED|WHERE id IS NOT NULL/);
+    assert.doesNotMatch(
+      lifecycleProof,
+      /FOR UPDATE SKIP LOCKED|WHERE id IS NOT NULL/,
+    );
     assert.match(locks, /SELECT clock_timestamp\(\) AS now/);
   });
 
-  it("locks and rechecks the Order before atomically creating and auditing a Case", () => {
+  it("delegates atomic buyer Case creation to the fixed database authority", () => {
     const route = source("src/app/api/cases/route.ts");
 
     assertOrdered(route, [
-      ["transaction", "await prisma.$transaction(async (tx) =>"],
-      ["Order lock", "await lockOrderForCaseLifecycle(tx, orderId)"],
-      ["fresh Order read", "await tx.order.findUnique"],
-      ["Case create", "await tx.case.create"],
-      ["strict user audit", "await logUserAuditActionOrThrow"],
+      ["fixed authority", "await openCaseWithFixedAuthority({"],
+      ["replay stop", 'if (result.action === "replay")'],
       ["seller notification", "await createNotification"],
     ]);
-    assert.match(route, /order\.items\.some\(\(item\) => item\.listing\.seller\.user\.id !== sellerId\)/);
-    assert.match(route, /if \(sellerId === me\.id\)/);
-    assert.match(route, /orderHasRefundLedger\(order\) \|\| order\.sellerRefundId/);
-    assert.match(
-      route,
-      /order\.labelStatus === "PURCHASED"[\s\S]{0,120}fulfillmentStatus === "PENDING"/,
+    assert.doesNotMatch(route, /prisma\.\$transaction/);
+    assert.doesNotMatch(route, /lockOrderForCaseLifecycle/);
+    assert.doesNotMatch(route, /(?:prisma|tx)\.(?:case|caseMessage)\./);
+
+    const migration = source(
+      "prisma/migrations/20260729051000_prepare_case_open_authority/migration.sql",
     );
+    assertOrdered(migration, [
+      ["buyer User lock", "FROM public.\"User\" AS actor"],
+      ["Order lock", "FROM public.\"Order\" AS orders"],
+      ["seller relationship locks", "FOR SHARE OF item, listing, seller"],
+      ["existing Case lock", "FROM public.\"Case\" AS case_row"],
+      ["Case create", "INSERT INTO public.\"Case\""],
+      ["opening message", "INSERT INTO public.\"CaseMessage\""],
+      ["strict audit", "INSERT INTO public.\"AdminAuditLog\""],
+      ["private replay ledger", "INSERT INTO public.\"CaseOpenApplication\""],
+    ]);
   });
 
   it("takes the same Order lock before label, fulfillment, delivery confirmation, and refund reservations", () => {
@@ -103,126 +120,189 @@ describe("Case and Order lifecycle lock protocol", () => {
     ]);
   });
 
+  it("locks seller User before Order and Case authority in refund finalization", () => {
+    const refund = source("src/app/api/orders/[id]/refund/route.ts");
+    const finalization = refund.slice(
+      refund.indexOf("const refundWrite = await prisma.$transaction"),
+    );
+
+    assertOrdered(finalization, [
+      [
+        "seller User lock",
+        "await lockUserForCaseLifecycle(tx, me.id)",
+      ],
+      ["Order completion", "const orderUpdate = await tx.order.updateMany"],
+      ["payment evidence", "await recordLocalRefundEvidence(tx, {"],
+      [
+        "Case authority",
+        "FROM public.grainline_case_seller_refund_apply(",
+      ],
+    ]);
+  });
+
   it("serializes participant escalation and co-commits its actor audit", () => {
     const route = source("src/app/api/cases/[id]/escalate/route.ts");
-    const single = route.slice(route.indexOf("// Single case escalation"));
+    const migration = source(
+      "prisma/migrations/20260729060000_prepare_case_escalation_cron_authority/migration.sql",
+    );
+    const single = migration.slice(
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.grainline_case_escalate"),
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.grainline_case_cron_transition_batch"),
+    );
 
     assertOrdered(single, [
-      ["single-case transaction", "const result = await prisma.$transaction"],
-      ["Case lock", "await lockCaseForLifecycle(tx, id)"],
-      ["fresh Case read", "await tx.case.findUnique"],
+      ["actor User lock", 'FROM public."User" AS actor'],
+      ["stable party locks", 'FROM public."User" AS party'],
+      ["Order lock", 'FROM public."Order" AS orders'],
       [
-        "post-lock timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
+        "Case lock",
+        'WHERE case_row.id = p_case_id\n     AND case_row."orderId" = locked_order.id',
       ],
-      ["Case transition", "await tx.case.updateMany"],
-      ["strict user audit", "await logUserAuditActionOrThrow"],
+      ["post-lock timestamp", "transition_at := pg_catalog.timezone("],
+      ["Case transition", 'UPDATE public."Case" AS case_row'],
+      ["staff audit", 'INSERT INTO public."SystemAuditLog"'],
+      ["participant audit", 'INSERT INTO public."AdminAuditLog"'],
     ]);
-    assert.match(single, /metadata: \{[\s\S]{0,180}orderId: caseRecord\.orderId/);
+    assert.match(single, /locked_case\."escalateUnlocksAt" > transition_at/);
+    assert.match(single, /"caseResolutionClaimId" IS NOT NULL/);
+    assert.match(route, /await escalateCaseWithFixedAuthority\(\{/);
     assert.doesNotMatch(
-      single,
-      /:\s*await prisma\.case\.updateMany\(\{\s*where: \{ id, status:/s,
+      route,
+      /\bprisma\.|verifyCronRequest|id === "all"/,
     );
   });
 
   it("serializes different Case replies on the parent and shares one database timestamp", () => {
     const route = source("src/app/api/cases/[id]/messages/route.ts");
-    const write = route.slice(
-      route.indexOf("const messageResult = await prisma.$transaction"),
+    const migration = source(
+      "prisma/migrations/20260729052000_prepare_case_reply_authority/migration.sql",
     );
 
-    assertOrdered(write, [
-      ["Case lock", "await lockCaseForLifecycle(tx, id)"],
-      ["fresh Case read", "tx.case.findUnique"],
-      ["fresh actor read", "tx.user.findUnique"],
-      [
-        "database timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
-      ],
-      ["Case update", "await tx.case.update"],
-      ["message create", "await tx.caseMessage.create"],
+    assertOrdered(migration, [
+      ["actor User lock", 'FROM public."User" AS actor'],
+      ["parent Case lock", 'FROM public."Case" AS case_row'],
+      ["database timestamp", "transition_at := pg_catalog.timezone("],
+      ["replay serialization", "pg_catalog.pg_advisory_xact_lock("],
+      ["Case update", 'UPDATE public."Case"'],
+      ["message create", 'INSERT INTO public."CaseMessage"'],
+    ]);
+    assert.match(migration, /"updatedAt" = transition_at/);
+    assert.match(migration, /transition_at\s*\);/);
+    assert.match(
+      migration,
+      /actor_acts_as_staff :=\s*NOT actor_is_party/,
+    );
+    assertOrdered(route, [
+      ["staff PIN", "await requireStaffAdminPinForApi(req, userId, sessionId)"],
+      ["fixed authority", "await replyToCaseWithFixedAuthority({"],
       ["notification boundary", "// Notify the appropriate party/parties"],
     ]);
-    assert.match(write, /updatedAt: transitionAt/);
-    assert.match(write, /createdAt: transitionAt/);
-    assert.match(
-      write,
-      /lockedActsAsStaff = lockedIsStaff && !lockedIsParty/,
-    );
-    assert.match(
-      write,
-      /lockedActsAsStaff && !nonPartyStaffPinVerified/,
-    );
-    assert.doesNotMatch(write, /CASE_STATUS_CHANGED|tx\.case\.updateMany/);
+    assert.doesNotMatch(route, /prisma\.\$transaction|tx\.(?:case|caseMessage)/);
   });
 
   it("locks Order then Case for participant resolution marks and staff resolution", () => {
     const markResolved = source(
       "src/app/api/cases/[id]/mark-resolved/route.ts",
     );
+    const markAuthority = source(
+      "prisma/migrations/20260729050000_prepare_case_participant_resolution_authority/migration.sql",
+    ).replace(/\s+/g, " ");
     const staffResolve = source("src/app/api/cases/[id]/resolve/route.ts");
-    const markWrite = markResolved.slice(
-      markResolved.indexOf("const result = await prisma.$transaction"),
-    );
-    const staffWrite = staffResolve.slice(
-      staffResolve.indexOf("const caseWrite = await prisma.$transaction"),
-    );
-
-    assertOrdered(markWrite, [
-      ["mark transaction", "const result = await prisma.$transaction"],
-      ["mark Order lock", "await lockOrderForCaseLifecycle"],
-      ["mark Case lock", "await lockCaseForLifecycle"],
-      ["mark fresh Case read", "await tx.case.findUnique"],
+    const staffAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    ).replace(/\s+/g, " ");
+    assertOrdered(markAuthority, [
+      [
+        "mark actor lock",
+        'FROM public."User" AS actor WHERE actor.id = p_actor_user_id FOR SHARE',
+      ],
+      [
+        "mark Order lock",
+        'FROM public."Order" AS orders WHERE orders.id = source_order_id FOR UPDATE',
+      ],
+      [
+        "mark Case lock",
+        'FROM public."Case" AS case_row WHERE case_row.id = p_case_id AND case_row."orderId" = locked_order.id FOR UPDATE',
+      ],
       [
         "mark post-lock timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
+        "transition_at := pg_catalog.timezone( 'UTC', pg_catalog.clock_timestamp() )",
       ],
-      ["mark transition", 'UPDATE "Case"'],
-      ["mark audit", "await logAdminActionOrThrow"],
     ]);
-    assert.match(markWrite, /if \(lockedOrder\.sellerRefundId\)/);
-    assert.match(markWrite, /"updatedAt" = \$\{transitionAt\}/);
+    const markTransition = markAuthority.slice(
+      markAuthority.indexOf('UPDATE public."Case" AS case_row'),
+    );
+    assertOrdered(markTransition, [
+      ["mark transition", 'UPDATE public."Case" AS case_row'],
+      ["mark audit", 'INSERT INTO public."AdminAuditLog"'],
+      ["mark result", "RETURN pg_catalog.jsonb_build_object"],
+    ]);
+    assert.match(
+      markResolved,
+      /await markCaseParticipantResolved\(\{[\s\S]*actorUserId: me\.id,[\s\S]*caseId: id/,
+    );
+    assert.doesNotMatch(markResolved, /prisma\.\$transaction/);
+    assert.match(
+      markAuthority,
+      /locked_order\."sellerRefundId" IS NOT NULL OR locked_order\."caseResolutionClaimId" IS NOT NULL/,
+    );
+    assert.match(markAuthority, /"updatedAt" = transition_at/);
 
-    assertOrdered(staffWrite, [
-      ["staff transaction", "const caseWrite = await prisma.$transaction"],
-      ["staff Order lock", "await lockOrderForCaseLifecycle"],
-      ["staff Case lock", "await lockCaseForLifecycle"],
-      ["staff fresh Case read", "await tx.case.findUnique"],
-      ["staff fresh actor read", "await tx.user.findUnique"],
+    assertOrdered(staffResolve, [
+      ["staff prepare", "await prepareCaseStaffResolution("],
+      ["staff provider", "await createMarketplaceRefund("],
+      ["staff provider record", "await recordCaseStaffResolutionProvider("],
+      ["staff finalize", "await finalizeCaseStaffResolution("],
+    ]);
+    assertOrdered(staffAuthority, [
+      [
+        "staff Order lock",
+        'FROM public."Order" AS orders WHERE orders.id = source_order_id FOR UPDATE',
+      ],
+      [
+        "staff Case lock",
+        'FROM public."Case" AS case_row WHERE case_row.id = p_case_id AND case_row."orderId" = locked_order.id',
+      ],
       [
         "staff post-lock timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
+        "transition_at := pg_catalog.clock_timestamp()",
       ],
-      ["staff Case transition", "const caseUpdate = await tx.case.updateMany"],
-      [
-        "staff resolution message",
-        "const resolutionMessage = await tx.caseMessage.create",
-      ],
-      ["staff audit", "await logAdminActionOrThrow"],
     ]);
-    assert.match(staffWrite, /createdAt: transitionAt/);
-    assert.match(staffWrite, /resolvedAt: transitionAt/);
-    assert.match(staffWrite, /updatedAt: transitionAt/);
-    assert.match(staffWrite, /CASE_RESOLUTION_AUTHORITY_CHANGED/);
+    assert.match(staffAuthority, /INSERT INTO public\."CaseMessage"/);
+    assert.match(staffAuthority, /INSERT INTO public\."AdminAuditLog"/);
+    assert.match(staffAuthority, /resolvedAt" = transition_at/);
+    assert.doesNotMatch(staffResolve, /prisma\.\$transaction/);
   });
 
-  it("uses per-row PostgreSQL clock time for bulk cron escalation", () => {
-    const route = source("src/app/api/cases/[id]/escalate/route.ts");
-    const bulk = route.slice(
-      route.indexOf("// Bulk escalation: staff/cron only"),
-      route.indexOf("// Single case escalation"),
+  it("derives bounded cron targets and co-commits audit and notifications", () => {
+    const migration = source(
+      "prisma/migrations/20260729060000_prepare_case_escalation_cron_authority/migration.sql",
+    );
+    const cron = migration.slice(
+      migration.indexOf("CREATE OR REPLACE FUNCTION public.grainline_case_cron_transition_batch"),
     );
 
-    assert.match(bulk, /UPDATE "Case"/);
-    assert.match(bulk, /"updatedAt" = pg_catalog\.clock_timestamp\(\)/);
-    assert.match(
-      bulk,
-      /"sellerRespondBy" < pg_catalog\.clock_timestamp\(\)/,
-    );
-    assert.match(
-      bulk,
-      /"escalateUnlocksAt" < pg_catalog\.clock_timestamp\(\)/,
-    );
-    assert.doesNotMatch(bulk, /const now = new Date\(\)/);
+    assertOrdered(cron, [
+      ["database clock", "transition_at := pg_catalog.timezone("],
+      ["database-selected candidates", 'FROM public."Case" AS case_row'],
+      ["stable party locks", 'FROM public."User" AS party'],
+      ["Order skip lock", "FOR UPDATE SKIP LOCKED"],
+      [
+        "Case skip lock",
+        'WHERE case_row.id = candidate.id\n       AND case_row."orderId" = locked_order.id',
+      ],
+      ["Case transition", 'UPDATE public."Case" AS case_row'],
+      ["per-row audit", 'INSERT INTO public."SystemAuditLog"'],
+      [
+        "atomic Notification",
+        "public.grainline_notification_create_case_event(",
+      ],
+    ]);
+    assert.match(cron, /p_limit > 100/);
+    assert.match(cron, /transition_at - INTERVAL '7 days'/);
+    assert.match(cron, /transition_at - INTERVAL '30 days'/);
+    assert.match(cron, /"sellerRespondBy" < transition_cutoff/);
+    assert.match(cron, /"caseResolutionClaimId" IS NOT NULL/);
+    assert.match(cron, /'case_system_action'/);
   });
 });

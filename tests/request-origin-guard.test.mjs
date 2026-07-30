@@ -105,9 +105,11 @@ describe("request origin guard", () => {
     ]);
     assertGuardBefore("src/app/api/cases/[id]/resolve/route.ts", [
       "await auth()",
-      "requireStaffAdminPinForApi(req",
+      "await requireStaffAdminPinForApi(",
+      "releaseStaleRefundLocks()",
       "readBoundedJson(req",
-      "prisma.case.findUnique",
+      "prepareCaseStaffResolution({",
+      "createMarketplaceRefund({",
     ]);
   });
 
@@ -116,25 +118,24 @@ describe("request origin guard", () => {
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "tx.order.findUnique",
+      "openCaseWithFixedAuthority({",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/messages/route.ts", [
       "await auth()",
       "safeRateLimit(",
       "readBoundedJson(req",
-      "prisma.case.findUnique",
+      "getCaseMessagePreflight({",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/escalate/route.ts", [
-      "verifyCronRequest(req)",
       "await auth()",
-      "tx.case.findUnique",
-      "tx.case.updateMany",
+      "safeRateLimit(",
+      "await escalateCaseWithFixedAuthority({",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/mark-resolved/route.ts", [
       "await auth()",
       "safeRateLimit(",
-      "prisma.case.findUnique",
-      "UPDATE \"Case\"",
+      "await markCaseParticipantResolved({",
+      "await notifyCounterpartyOfResolutionMark({",
     ]);
   });
 

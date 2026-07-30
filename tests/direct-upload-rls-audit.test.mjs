@@ -19,7 +19,7 @@ describe("DirectUpload RLS audit contracts", () => {
       ],
       [
         "src/app/api/cases/[id]/messages/route.ts",
-        /referenceDirectUploadCaseAttachment/,
+        /replyToCaseWithFixedAuthority/,
       ],
     ];
 
@@ -61,7 +61,7 @@ describe("DirectUpload RLS audit contracts", () => {
     }
     assert.match(
       source("src/app/api/cases/[id]/messages/route.ts"),
-      /referenceDirectUploadCaseAttachment/,
+      /replyToCaseWithFixedAuthority/,
     );
   });
 

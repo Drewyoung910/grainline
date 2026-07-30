@@ -54,6 +54,9 @@ describe("seller analytics refund guardrails", () => {
     const helper = source("src/lib/localRefundEvidenceCore.ts");
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseResolveRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const caseResolveAuthority = source(
+      "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
+    );
     const verificationApplyRoute = source("src/app/api/verification/apply/route.ts");
     const dashboardVerification = source("src/app/dashboard/verification/page.tsx");
     const adminVerification = source("src/app/admin/verification/page.tsx");
@@ -65,9 +68,23 @@ describe("seller analytics refund guardrails", () => {
     assert.match(sellerRefundRoute, /action: "SELLER_REFUND_RECORDED"/);
     assert.match(sellerRefundRoute, /amountCents: refundAmountCents/);
 
-    assert.match(caseResolveRoute, /sellerRefundAmountCents: refundAmountForOrder/);
-    assert.match(caseResolveRoute, /action: "CASE_REFUND_RECORDED"/);
-    assert.match(caseResolveRoute, /amountCents: refundAmountForOrder!/);
+    assert.match(
+      caseResolveRoute,
+      /amountCents: prepared\.refundAmountCents!/,
+    );
+    assert.match(
+      caseResolveRoute,
+      /finalized = await finalizeCaseStaffResolution\(me\.id, prepared\)/,
+    );
+    assert.match(
+      caseResolveAuthority,
+      /"sellerRefundAmountCents" = locked_claim\."refundAmountCents"/,
+    );
+    assert.match(caseResolveAuthority, /'CASE_REFUND_RECORDED'/);
+    assert.match(
+      caseResolveAuthority,
+      /'amountCents', locked_claim\."refundAmountCents"/,
+    );
 
     for (const text of [verificationApplyRoute, dashboardVerification, adminVerification]) {
       assert.match(text, /o\."sellerRefundId" IS NULL/);

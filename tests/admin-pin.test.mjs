@@ -189,41 +189,52 @@ describe("admin PIN cookie secret configuration", () => {
 
     assert.match(resolve, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
     assert.match(resolve, /const \{ userId, sessionId \} = await auth\(\)/);
-    assert.match(resolve, /const pinResponse = await requireStaffAdminPinForApi\(req, userId, sessionId\)/);
+    assert.match(
+      resolve,
+      /const pinResponse = await requireStaffAdminPinForApi\(\s*req,\s*userId,\s*sessionId,\s*\)/,
+    );
+    const resolvePinStart = resolve.indexOf(
+      "await requireStaffAdminPinForApi(",
+    );
     assert.ok(
       resolve.indexOf('me.role !== "EMPLOYEE"') <
-        resolve.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)") &&
-        resolve.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)") <
-          resolve.indexOf("safeRateLimit(refundRatelimit"),
+        resolvePinStart &&
+        resolvePinStart <
+          resolve.indexOf("await safeRateLimit("),
       "staff case resolution should require admin PIN before rate limit and refund mutation",
     );
 
     assert.match(escalate, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
     assert.match(escalate, /const \{ userId, sessionId \} = await auth\(\)/);
-    assert.match(escalate, /verifyCronRequest\(req\)/);
+    assert.doesNotMatch(escalate, /verifyCronRequest\(req\)|validCron/);
     assert.match(escalate, /if \(me\.role === "EMPLOYEE" \|\| me\.role === "ADMIN"\) \{/);
-    assert.match(escalate, /requireStaffAdminPinForApi\(req, userId, sessionId\)/);
+    assert.match(
+      escalate,
+      /requireStaffAdminPinForApi\(\s*req,\s*userId,\s*sessionId,\s*\)/,
+    );
     assert.ok(
-      escalate.indexOf("if (!validCron)") <
-        escalate.indexOf("requireStaffAdminPinForApi(req, userId, sessionId)"),
-      "cron escalation should not require a Clerk admin PIN cookie",
+      escalate.indexOf("await requireStaffAdminPinForApi(")
+        < escalate.indexOf("await escalateCaseWithFixedAuthority({"),
+      "staff escalation should require the PIN before fixed authority",
     );
 
     assert.match(messages, /import \{ requireStaffAdminPinForApi \} from "@\/lib\/adminPinApi"/);
     assert.match(messages, /const \{ userId, sessionId \} = await auth\(\)/);
-    assert.match(messages, /const isNonPartyStaff = isStaff && !isParty/);
-    assert.match(messages, /if \(isNonPartyStaff\) \{/);
+    assert.match(messages, /await getCaseMessagePreflight\(\{/);
+    assert.match(messages, /if \(preflight\.actsAsStaff\) \{/);
     assert.match(messages, /requireStaffAdminPinForApi\(req, userId, sessionId\)/);
-    assert.match(messages, /const nonPartyStaffPinVerified = isNonPartyStaff/);
-    assert.match(messages, /lockedActsAsStaff && !nonPartyStaffPinVerified/);
     assert.ok(
-      messages.indexOf("if (!isParty && !isStaff)") <
-        messages.indexOf("if (isNonPartyStaff)") &&
-        messages.indexOf("if (isNonPartyStaff)") <
+      messages.indexOf("if (!preflight)") <
+        messages.indexOf("if (preflight.actsAsStaff)") &&
+        messages.indexOf("if (preflight.actsAsStaff)") <
           messages.indexOf("for (const key of attachmentKeys)") &&
-        messages.indexOf("if (isNonPartyStaff)") <
-          messages.indexOf("const messageResult = await prisma.$transaction"),
+        messages.indexOf("if (preflight.actsAsStaff)") <
+          messages.indexOf("await replyToCaseWithFixedAuthority({"),
       "only staff non-party case messages should require the admin PIN before evidence reads and message creation",
+    );
+    assert.match(
+      messages,
+      /getCaseMessagePreflight[\s\S]*preflight\.actsAsStaff[\s\S]*requireStaffAdminPinForApi[\s\S]*replyToCaseWithFixedAuthority/,
     );
   });
 });

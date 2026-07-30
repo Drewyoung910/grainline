@@ -49,9 +49,12 @@ import {
   accountDirectUploadPublicUrls,
   releaseDirectUploadsForAccount,
 } from "@/lib/directUploadLifecycle";
+import {
+  getCaseAccountDeletionBlockerCount,
+  redactCaseDataForAccountDeletion,
+} from "@/lib/caseAccountDeletionAuthority";
 
 export const ACCOUNT_DELETION_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS;
-const ACTIVE_CASE_STATUSES = ["OPEN", "IN_DISCUSSION", "PENDING_CLOSE", "UNDER_REVIEW"] as const;
 const ACTIVE_COMMISSION_STATUSES = ["OPEN", "IN_PROGRESS"] as const;
 const ACCOUNT_DELETION_REDACTION_BATCH_SIZE = 500;
 const ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50;
@@ -75,10 +78,6 @@ type AuditLogRedactionCandidate = {
   metadata: Prisma.JsonValue;
   reason: string | null;
   directAccountReference: boolean;
-};
-
-type BodyRedactionCandidate = {
-  body: string;
 };
 
 type AuditLogRedactionDb = Pick<Prisma.TransactionClient, "$queryRaw" | "adminAuditLog">;
@@ -215,26 +214,6 @@ function normalizedSensitiveValues(values: Iterable<string | null | undefined>) 
 
 function escapePostgresRegex(value: string) {
   return value.replace(/[\\.^$|?*+()[\]{}]/g, "\\$&");
-}
-
-function bodyTextMatchSql(value: string) {
-  const normalized = value.toLowerCase();
-  if (Array.from(normalized).length >= 3) {
-    return Prisma.sql`position(${normalized} in lower(body)) > 0`;
-  }
-
-  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
-  return Prisma.sql`lower(body) ~ ${pattern}`;
-}
-
-function caseDescriptionTextMatchSql(value: string) {
-  const normalized = value.toLowerCase();
-  if (Array.from(normalized).length >= 3) {
-    return Prisma.sql`position(${normalized} in lower(COALESCE("description", ''))) > 0`;
-  }
-
-  const pattern = `(^|[^[:alnum:]])${escapePostgresRegex(normalized)}([^[:alnum:]]|$)`;
-  return Prisma.sql`lower(COALESCE("description", '')) ~ ${pattern}`;
 }
 
 function supportClosureEvidenceTextMatchSql(value: string) {
@@ -451,147 +430,6 @@ async function cleanupDeletedSellerFanoutRows(
     ],
     now,
   );
-}
-
-async function collectCaseMessagesBySensitiveText(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  const messages = new Map<string, BodyRedactionCandidate>();
-
-  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
-    const textMatchSql = bodyTextMatchSql(value);
-    let cursor: string | null = null;
-
-    for (;;) {
-      const query: Prisma.Sql = cursor
-        ? Prisma.sql`
-          SELECT id, body
-          FROM "CaseMessage"
-          WHERE id > ${cursor}
-            AND "authorId" <> ${deletedUserId}
-            AND "caseId" IN (
-              SELECT id
-              FROM "Case"
-              WHERE "buyerId" = ${deletedUserId}
-                OR "sellerId" = ${deletedUserId}
-            )
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `
-        : Prisma.sql`
-          SELECT id, body
-          FROM "CaseMessage"
-          WHERE "authorId" <> ${deletedUserId}
-            AND "caseId" IN (
-              SELECT id
-              FROM "Case"
-              WHERE "buyerId" = ${deletedUserId}
-                OR "sellerId" = ${deletedUserId}
-            )
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `;
-      const matches: { id: string; body: string }[] = await tx.$queryRaw(query);
-      matches.forEach((message) => {
-        if (!messages.has(message.id)) {
-          messages.set(message.id, { body: message.body });
-        }
-      });
-
-      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-      cursor = matches[matches.length - 1]?.id ?? null;
-      if (!cursor) break;
-    }
-  }
-
-  return messages;
-}
-
-async function redactCaseMessagesAboutDeletedAccount(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  const messages = await collectCaseMessagesBySensitiveText(tx, deletedUserId, sensitiveValues);
-
-  for (const [id, message] of messages) {
-    const body = redactAccountDeletionText(message.body, sensitiveValues);
-    if (!body.changed) continue;
-
-    await tx.caseMessage.update({
-      where: { id },
-      data: { body: body.text },
-    });
-  }
-}
-
-async function collectCasesBySensitiveDescriptionText(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  const cases = new Map<string, { description: string | null }>();
-
-  for (const value of sensitiveValues.filter((item) => Array.from(item).length >= 2)) {
-    const textMatchSql = caseDescriptionTextMatchSql(value);
-    let cursor: string | null = null;
-
-    for (;;) {
-      const query: Prisma.Sql = cursor
-        ? Prisma.sql`
-          SELECT id, description
-          FROM "Case"
-          WHERE id > ${cursor}
-            AND ("buyerId" = ${deletedUserId} OR "sellerId" = ${deletedUserId})
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `
-        : Prisma.sql`
-          SELECT id, description
-          FROM "Case"
-          WHERE ("buyerId" = ${deletedUserId} OR "sellerId" = ${deletedUserId})
-            AND ${textMatchSql}
-          ORDER BY id ASC
-          LIMIT ${ACCOUNT_DELETION_REDACTION_BATCH_SIZE}
-        `;
-      const matches: { id: string; description: string | null }[] = await tx.$queryRaw(query);
-      matches.forEach((caseRecord) => {
-        if (!cases.has(caseRecord.id)) {
-          cases.set(caseRecord.id, { description: caseRecord.description });
-        }
-      });
-
-      if (matches.length < ACCOUNT_DELETION_REDACTION_BATCH_SIZE) break;
-      cursor = matches[matches.length - 1]?.id ?? null;
-      if (!cursor) break;
-    }
-  }
-
-  return cases;
-}
-
-async function redactCasesAboutDeletedAccount(
-  tx: Prisma.TransactionClient,
-  deletedUserId: string,
-  sensitiveValues: string[],
-) {
-  const cases = await collectCasesBySensitiveDescriptionText(tx, deletedUserId, sensitiveValues);
-
-  for (const [id, caseRecord] of cases) {
-    if (caseRecord.description === null) continue;
-    const description = redactAccountDeletionText(caseRecord.description, sensitiveValues);
-    if (!description.changed) continue;
-
-    await tx.case.update({
-      where: { id },
-      data: { description: description.text },
-    });
-  }
 }
 
 async function redactOrderReviewNotesForDeletedAccount(
@@ -845,12 +683,7 @@ export async function getAccountDeletionBlockers(userId: string): Promise<Accoun
             )
         `.then(rawCount)
       : Promise.resolve(0),
-    prisma.case.count({
-      where: {
-        OR: [{ buyerId: userId }, { sellerId: userId }],
-        status: { in: [...ACTIVE_CASE_STATUSES] },
-      },
-    }),
+    getCaseAccountDeletionBlockerCount(userId),
     prisma.commissionRequest.count({
       where: {
         buyerId: userId,
@@ -1318,7 +1151,8 @@ export async function anonymizeUserAccount(
 
   if (!account) return { ok: true, alreadyDeleted: true };
   if (account.deletedAt) return { ok: true, alreadyDeleted: true };
-  await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, userId);
+  const localAnonymizeSideEffectId =
+    await enqueueAccountDeletionLocalAnonymizeSideEffect(prisma, userId);
 
   const stripeAccountId = account.sellerProfile?.stripeAccountId ?? null;
   const stripeAccountVersion = account.sellerProfile?.stripeAccountVersion ?? null;
@@ -1483,20 +1317,17 @@ export async function anonymizeUserAccount(
     await tx.reviewVote.deleteMany({ where: { userId: user.id } });
     await tx.block.deleteMany({ where: { blockerId: user.id } });
     await redactActorMessagesForAccountDeletion(user.id, tx);
-    await tx.caseMessage.updateMany({
-      where: { authorId: user.id },
-      data: { body: "[Message deleted]" },
-    });
-    await redactCaseMessagesAboutDeletedAccount(tx, user.id, accountSensitiveValues);
+    await redactCaseDataForAccountDeletion(
+      {
+        sideEffectId: localAnonymizeSideEffectId,
+        userId: user.id,
+      },
+      tx,
+    );
     await tx.blogComment.updateMany({
       where: { authorId: user.id },
       data: { body: "[Comment deleted]", approved: false },
     });
-    await tx.case.updateMany({
-      where: { buyerId: user.id },
-      data: { description: "[Case description deleted]" },
-    });
-    await redactCasesAboutDeletedAccount(tx, user.id, accountSensitiveValues);
     await redactOrderReviewNotesForDeletedAccount(
       tx,
       user.id,
