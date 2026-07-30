@@ -72,6 +72,7 @@ describe("dependency hygiene guardrails", () => {
 
   it("keeps the dependency audit exception exact, development-only, and fail-closed", () => {
     const pkg = json("package.json");
+    const lock = json("package-lock.json");
     const workflow = source(".github/workflows/ci.yml");
     const auditScript = source("scripts/audit-dependencies.mjs");
 
@@ -80,8 +81,28 @@ describe("dependency hygiene guardrails", () => {
     assert.match(auditScript, /runAudit\(\["--omit=dev"\]\)/);
     assert.match(auditScript, /GHSA-mh99-v99m-4gvg/);
     assert.match(auditScript, /REVIEWED_DEV_ONLY_PACKAGES/);
+    assert.match(auditScript, /version: "1\.1\.17"/);
+    assert.match(auditScript, /expiresAt: "2026-08-29T00:00:00\.000Z"/);
+    assert.match(auditScript, /EXPANSION_MAX_LENGTH = 4000000/);
+    assert.match(auditScript, /maxLength: 10/);
     assert.match(auditScript, /Unreviewed high\/critical dependency advisories/);
     assert.equal(pkg.overrides?.["brace-expansion"], undefined);
+    assert.deepEqual(
+      lock.packages?.["node_modules/minimatch/node_modules/brace-expansion"],
+      {
+        version: "1.1.17",
+        resolved:
+          "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.17.tgz",
+        integrity:
+          "sha512-w+aeW/mkgM4PyRMOJCgi3fOrTm5Q8QY1OSfn2TO2iuDj3ezIHqejmuxbjfPrqUkgqRew1iqkyAn0tr0ZwHD9+w==",
+        dev: true,
+        license: "MIT",
+        dependencies: {
+          "balanced-match": "^1.0.0",
+          "concat-map": "0.0.1",
+        },
+      },
+    );
   });
 
   it("keeps every Sharp install on the reviewed patched line", () => {
