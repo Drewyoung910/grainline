@@ -141,6 +141,16 @@ describe("DirectUpload service-only activation release", () => {
       assert.ok(verifier < deploy, `${workflowPath} verifies activation too late`);
       assert.match(workflow, /direct-upload-activation-reviewed/);
     }
+    const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+    assert.match(
+      ci,
+      /Isolate the exact DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations to CI Postgres[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Restore the exact DirectUpload activation release[\s\S]*Apply migrations to CI Postgres/,
+    );
+    assert.match(
+      ci,
+      /Apply migrations to CI Postgres[\s\S]*Converge production-style runtime grants after migrations[\s\S]*Converge activated DirectUpload cleanup-worker grants/,
+    );
+    assert.doesNotMatch(ci, /prisma migrate resolve/);
   });
 
   it("records the exact prepared-only boundary and remaining credential gate", () => {
@@ -157,5 +167,8 @@ describe("DirectUpload service-only activation release", () => {
     assert.match(release, /other 15 DirectUpload functions private/);
     assert.match(release, /confirm or revoke the\s+rejected Cloudflare `v3` R2 token/);
     assert.match(release, /Case-evidence enablement[\s\S]*separate releases/);
+    assert.match(release, /30716441830/);
+    assert.match(release, /91412674837/);
+    assert.match(release, /does not relax or\s+change the byte-pinned production migration/);
   });
 });

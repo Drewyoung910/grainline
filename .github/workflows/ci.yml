@@ -110,10 +110,28 @@ jobs:
             echo "runtime-role provisioning unexpectedly accepted the migration owner as runtime"
             exit 1
           fi
+      - name: Isolate the exact DirectUpload activation until external grants converge
+        run: >-
+          mv
+          prisma/migrations/20260801194000_enable_direct_upload_rls
+          "$RUNNER_TEMP/direct-upload-activation-release"
+      - name: Apply compatible migrations to CI Postgres
+        run: npx prisma migrate deploy
+      - name: Converge pre-activation production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge pre-activation DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Restore the exact DirectUpload activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/direct-upload-activation-release"
+          prisma/migrations/20260801194000_enable_direct_upload_rls
       - name: Apply migrations to CI Postgres
         run: npx prisma migrate deploy
       - name: Converge production-style runtime grants after migrations
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge activated DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Prove participant Case resolution authority in ephemeral PostgreSQL
         run: npm run audit:rls-case-participant-resolution
         env:

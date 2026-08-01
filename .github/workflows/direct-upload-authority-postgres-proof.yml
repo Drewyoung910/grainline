@@ -9,6 +9,7 @@ on:
       - agent/direct-upload-legacy-repair-20260728
       - agent/direct-upload-cleanup-provider-prep-20260728
       - agent/case-reply-app-20260729
+      - agent/direct-upload-activation-production-20260801
     paths:
       - .github/workflows/direct-upload-authority-postgres-proof.yml
       - package.json
@@ -30,6 +31,8 @@ on:
       - scripts/provision-runtime-db-role.sql
       - scripts/stage-direct-upload-activation-migration.mjs
       - scripts/stage-direct-upload-retirement-migration.mjs
+      - scripts/verify-direct-upload-activation-release.mjs
+      - scripts/verify-direct-upload-retirement-release.mjs
       - src/app/api/cases/**/messages/route.ts
       - src/lib/caseEvidence.ts
       - tests/case-message-private-evidence.test.mjs
@@ -83,10 +86,10 @@ jobs:
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Isolate the repair migration for exact SQL diagnostics
-        run: >-
-          mv
-          prisma/migrations/20260726185700_repair_direct_upload_legacy_references
-          "$RUNNER_TEMP/direct-upload-legacy-repair"
+        run: |
+          mv prisma/migrations/20260726185700_repair_direct_upload_legacy_references "$RUNNER_TEMP/direct-upload-legacy-repair"
+          mv prisma/migrations/20260801175000_retire_direct_upload_compatibility_key "$RUNNER_TEMP/direct-upload-retirement-release"
+          mv prisma/migrations/20260801194000_enable_direct_upload_rls "$RUNNER_TEMP/direct-upload-activation-release"
       - name: Apply the compatible baseline migration tree
         run: npx prisma migrate deploy
       - name: Restore the exact repair migration
@@ -130,41 +133,26 @@ jobs:
         run: npm run audit:rls-direct-upload-legacy-repair
       - name: Prove compatible DirectUpload fixed authority
         run: npm run audit:rls-direct-upload-authority
-      - name: Stage disposable compatibility-key retirement
+      - name: Restore the exact promoted DirectUpload releases
+        run: |
+          mv "$RUNNER_TEMP/direct-upload-retirement-release" prisma/migrations/20260801175000_retire_direct_upload_compatibility_key
+          mv "$RUNNER_TEMP/direct-upload-activation-release" prisma/migrations/20260801194000_enable_direct_upload_rls
+      - name: Verify promoted DirectUpload release bytes and migration tree
         env:
-          DIRECT_UPLOAD_RETIREMENT_STAGING_ACK: I_ACKNOWLEDGE_LOOPBACK_DIRECT_UPLOAD_RETIREMENT_STAGING
-        run: node scripts/stage-direct-upload-retirement-migration.mjs --stage
-      - name: Stage disposable DirectUpload RLS activation
-        env:
-          DIRECT_UPLOAD_ACTIVATION_STAGING_ACK: I_ACKNOWLEDGE_LOOPBACK_DIRECT_UPLOAD_ACTIVATION_STAGING
-        run: node scripts/stage-direct-upload-activation-migration.mjs --stage
-      - name: Apply disposable retirement candidate with exact SQL diagnostics
-        run: >-
-          psql "$DIRECT_URL"
-          --echo-errors
-          -v ON_ERROR_STOP=1
-          -f prisma/migrations/20260726190000_retire_direct_upload_compatibility_key/migration.sql
-      - name: Record disposable retirement migration in Prisma ledger
-        run: >-
-          npx prisma migrate resolve
-          --applied 20260726190000_retire_direct_upload_compatibility_key
-      - name: Apply disposable activation candidate with exact SQL diagnostics
-        run: >-
-          psql "$DIRECT_URL"
-          --echo-errors
-          -v ON_ERROR_STOP=1
-          -f prisma/migrations/20260726190500_enable_direct_upload_rls/migration.sql
-      - name: Record disposable activation migration in Prisma ledger
-        run: >-
-          npx prisma migrate resolve
-          --applied 20260726190500_enable_direct_upload_rls
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed
+        run: |
+          npm run verify:rls-release-artifact
+          npm run audit:rls-direct-upload-retirement-release
+          npm run audit:rls-direct-upload-activation-release
+      - name: Apply promoted retirement and activation through Prisma
+        run: npx prisma migrate deploy
       - name: Reconverge activated runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
       - name: Reconverge activated cleanup-worker grants
         run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Audit activated runtime grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Verify disposable migration status
+      - name: Verify promoted migration status
         run: npx prisma migrate status
       - name: Run activated proof-harness contracts
         run: >-

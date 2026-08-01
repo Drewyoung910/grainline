@@ -23,6 +23,21 @@ regenerates the candidate, byte-compares the executable body, pins both
 hashes, rejects the disposable migration name in production history and
 requires this migration to remain the newest reviewed migration.
 
+CI temporarily isolates only the activation directory, applies the compatible
+tree through retirement, converges the same pre-activation runtime and cleanup
+grants that already exist in production, restores the byte-pinned directory,
+and lets Prisma apply it normally. This models the real external-role
+predecessor without weakening the migration preflight or editing Prisma's
+ledger by hand.
+
+PR CI run `30716441830` / job `91412674837` is retained failed evidence. All
+release-byte and phase guards passed, but a from-empty-cluster Prisma deploy
+reached the activation before the externally managed cleanup-role grant had
+been reproduced and failed closed on
+`grainline_direct_upload_cleanup_lease`. It changed no production state. The
+CI split above fixes the disposable-environment model; it does not relax or
+change the byte-pinned production migration.
+
 ## Authority boundary
 
 The migration takes an advisory transaction lock and ACCESS EXCLUSIVE locks
