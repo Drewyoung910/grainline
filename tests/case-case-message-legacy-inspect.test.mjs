@@ -99,7 +99,7 @@ function acceptedPosture() {
     message_policy_count: 0,
     message_rls_enabled: false,
     message_rls_forced: false,
-    object_key_prepared: true,
+    object_key_retired: true,
     owner_bypass_rls: true,
     reference_policy_count: 0,
     reference_rls_enabled: true,
@@ -228,7 +228,7 @@ describe("Case and CaseMessage aggregate-only legacy inspection", () => {
       { case_rls_enabled: true },
       { runtime_case_crud: false },
       { author_kind_prepared: false },
-      { object_key_prepared: false },
+      { object_key_retired: false },
       { direct_upload_rls_enabled: true },
       { reference_rls_forced: false },
       { case_policy_count: 1 },
@@ -274,6 +274,10 @@ describe("Case and CaseMessage aggregate-only legacy inspection", () => {
     ]) {
       assert.match(CASE_LEGACY_COUNTS_SQL, new RegExp(family));
     }
+    assert.doesNotMatch(
+      CASE_LEGACY_COUNTS_SQL,
+      /attachment\."objectKey"/,
+    );
   });
 
   it("keeps the workflow owner-only, manual-main, and aggregate-only", () => {
