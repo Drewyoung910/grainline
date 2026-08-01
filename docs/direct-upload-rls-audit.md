@@ -1637,16 +1637,34 @@ The release validates six legacy
 constraints and drops the duplicate compatibility key without changing RLS
 or table grants. DirectUpload activation remains a later, separate promotion.
 
+PR `#129` merged the exact retirement release as main
+`69279f04e1d060a8ca435ee0308eef5df36745ed`. Protected Production Migrations
+run `30714570251` (job `91407861680`) was manually dispatched and approved for
+that exact main commit on 2026-08-01. The source/credential/role preflight,
+exact migration-tree guard and byte-equivalence verifier all passed. Prisma
+applied only `20260801175000_retire_direct_upload_compatibility_key` at
+2026-08-01T19:22:38Z; the migration's transaction-local postflight therefore
+proved the duplicate `CaseMessageAttachment.objectKey` column absent, all six
+reviewed `DirectUpload` constraints validated, and the replacement Case-reply
+and private binding functions retained their exact owner, `search_path` and
+EXECUTE posture. Prisma status reported the production schema up to date at
+2026-08-01T19:22:40Z. The final runtime audit passed for
+`grainline_app_runtime` with 64 tables, 22 enums, 128 `grainline_*` functions,
+one extension, four RLS-policy tables and zero sequence references. The run
+did not deploy the application, activate DirectUpload RLS, enable Case
+evidence, schedule cleanup or change provider variables.
+
 ## Exit
 
 Keep Extra High through the cleanup-only R2 credential/delete proof and the
 downstream retirement/activation SQL review. PRs `#60` and `#61` are merged;
 the production v2 cleanup login and its exact three-function authority are now
 provisioned and proved. `DirectUpload` RLS remains off, its compatibility key
-remains present, no cleanup has run, no scheduler is active, and the configured
+is retired, no cleanup has run, no scheduler is active, and the configured
 cleanup-only R2 credential has passed the exact-bucket disposable-object proof.
-Promote only the separately staged compatibility-key retirement next; do not
-combine it with DirectUpload activation or schedule the worker yet. Standing
+Before promoting the separately staged DirectUpload activation, independently
+confirm or revoke the rejected `v3` Cloudflare token; do not combine activation
+with cleanup scheduling or Case-evidence enablement. Standing
 authorization permits routine continuation through this
 already-scoped rollout without conversational micro-approval. Exact-commit
 proof, protected-environment, migration, deployment and production postflight

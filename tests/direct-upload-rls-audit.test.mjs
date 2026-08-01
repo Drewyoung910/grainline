@@ -141,6 +141,8 @@ describe("DirectUpload RLS audit contracts", () => {
     );
     assert.match(audit, /30409531954/);
     assert.match(audit, /DirectUpload` RLS remains off/);
+    assert.match(audit, /30714570251/);
+    assert.match(audit, /compatibility key\s+is retired/);
     assert.match(
       audit,
       /Standing\s+authorization permits routine continuation/,
