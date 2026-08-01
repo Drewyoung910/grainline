@@ -1,8 +1,10 @@
 # DirectUpload FORCE-RLS activation release
 
-Status on 2026-08-01: prepared on an isolated branch only. This release has
-not been merged, dispatched, applied or deployed. `DirectUpload` remains in
-its production-compatible RLS-off posture. `DirectUploadReference` remains a
+Status on 2026-08-01: refreshed on the isolated activation branch after the
+ordinary-runtime cleanup retirement reached production at exact commit
+`a5d54e79d9b8747936bd2a7850115705461d0fbf`. This activation release has not
+been merged, dispatched, applied or deployed. `DirectUpload` remains in its
+production-compatible RLS-off posture. `DirectUploadReference` remains a
 policyless FORCE-RLS service table.
 
 ## Exact release artifact
@@ -10,9 +12,9 @@ policyless FORCE-RLS service table.
 - Production migration:
   `20260801194000_enable_direct_upload_rls`
 - Promoted migration SHA-256:
-  `8afb997dde6c0feb605cf366ea30a5f3dfdde4a7505c2cf2b6f2c98a43ffe40d`
+  `41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb`
 - Disposable proof migration SHA-256:
-  `e725b852945dde6ac8b4b40799da8fb209e6a246fe2969dffe5d5907cf05ff61`
+  `b017fd8898b3aa901457977a5aa4f8fb2ac495546c59c348788722a6569d370d`
 - Guard phase: `direct-upload-activation-reviewed`
 - Reviewed production predecessor:
   `20260801175000_retire_direct_upload_compatibility_key`
@@ -67,9 +69,21 @@ predecessor catalog, then:
 The exact disposable PostgreSQL 16 sequence already proved activation,
 direct denial, fixed-function authority, cleanup authority and database-first
 rollback in run `30709645196` / job `91394729233`. That is proof of the SQL
-shape, not authorization to apply this promoted production migration.
+shape, not authorization to apply this promoted production migration. The
+Extra-High refresh added a migration-local preflight proving the SECURITY
+DEFINER owner is a superuser or has BYPASSRLS before policyless FORCE RLS can
+commit. The guarded production runner already proved that property for
+`neondb_owner`; the SQL-local check makes the invariant fail closed even if a
+future operator bypasses that wrapper. Because this changes the exact release
+bytes, the older disposable activation evidence is superseded for promotion
+until a fresh PostgreSQL 16 activation and rollback proof passes.
 
 ## Production gates still open
+
+The compatible app retirement is live: deployment
+`dpl_2o2yBehsStAiVWUhoj1LQTmZ9HJe` serves exact commit
+`a5d54e79d9b8747936bd2a7850115705461d0fbf`, its deployed cron manifest omits
+the old cleanup schedule, and the authenticated retired route returns 404.
 
 Before this migration may merge or run, independently confirm or revoke the
 rejected Cloudflare `v3` R2 token. The accepted replacement `v4` cleanup-only

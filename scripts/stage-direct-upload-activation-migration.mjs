@@ -203,6 +203,7 @@ IN ACCESS EXCLUSIVE MODE;
 
 DO $grainline_direct_upload_activation_role_preflight$
 DECLARE
+  function_owner_role record;
   runtime_role record;
   cleanup_role record;
   direct_upload_state record;
@@ -211,6 +212,19 @@ DECLARE
   validated_constraint_count integer;
   column_acl_count integer;
 BEGIN
+  SELECT role.rolsuper, role.rolbypassrls
+    INTO function_owner_role
+    FROM pg_catalog.pg_roles AS role
+   WHERE role.rolname = current_user;
+  IF NOT FOUND
+     OR NOT (
+       function_owner_role.rolsuper
+       OR function_owner_role.rolbypassrls
+     ) THEN
+    RAISE EXCEPTION
+      'DirectUpload SECURITY DEFINER owner must bypass FORCE RLS';
+  END IF;
+
   SELECT
     role.rolsuper,
     role.rolinherit,

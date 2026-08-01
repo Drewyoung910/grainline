@@ -1662,15 +1662,41 @@ Cloudflare `v3` token is revoked, activate and postflight DirectUpload, then
 enable and prove the GitHub schedule in its own release. Case evidence stays
 disabled throughout those gates.
 
+### 2026-08-01 activation refresh after runtime retirement
+
+The compatible runtime-cleanup retirement is now deployed on production at
+exact merge commit `a5d54e79d9b8747936bd2a7850115705461d0fbf`, Vercel deployment
+`dpl_2o2yBehsStAiVWUhoj1LQTmZ9HJe`. The production alias is READY, health is
+200, the deployed cron manifest contains no DirectUpload cleanup schedule and
+an authenticated request to the retired route returns 404. No migration, RLS,
+Case-evidence, provider-variable, schedule, cleanup or token state changed.
+
+The activation branch was then refreshed on that deployed mainline. Extra-High
+review found that the external production runner proves `neondb_owner` has
+BYPASSRLS, while the byte-pinned migration itself only proved the 35 fixed
+functions were owned by `current_user`. With policyless FORCE RLS, that owner
+property is load-bearing availability. The candidate and promoted migration
+now also fail closed unless the SECURITY DEFINER owner is a superuser or has
+BYPASSRLS. This is defense in depth over the already-correct operator guard,
+not evidence of a current production role defect. It intentionally supersedes
+the old activation hashes and requires a fresh exact-tree disposable
+activation plus rollback proof before promotion.
+
+The rejected Cloudflare `v3` token remains unconfirmed because no signed-in
+browser is available in the current tool session and the raw rejected
+credential was intentionally not retained. Absence of evidence is not recorded
+as revocation. Activation remains blocked on independent dashboard evidence or
+a separately authorized revocation.
+
 ## Exit
 
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket
 disposable-object proof, and the compatibility key is retired in production.
-`DirectUpload` RLS remains off. Deploy and drain the separate compatible
-runtime-cleanup retirement before activation; independently confirm the
-rejected Cloudflare `v3` token is revoked; then rebase and re-review draft PR
+`DirectUpload` RLS remains off. The compatible runtime-cleanup retirement is
+deployed and drained; independently confirm the rejected Cloudflare `v3` token
+is revoked, complete the refreshed exact-tree proof and re-review draft PR
 `#131`. Do not schedule the protected worker or enable Case evidence yet.
 Standing authorization permits routine continuation through this
 already-scoped rollout without conversational micro-approval. Exact-commit

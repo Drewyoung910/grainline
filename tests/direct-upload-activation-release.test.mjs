@@ -46,9 +46,9 @@ describe("DirectUpload service-only activation release", () => {
       status: "passed",
       migrationName: "20260801194000_enable_direct_upload_rls",
       migrationSha256:
-        "8afb997dde6c0feb605cf366ea30a5f3dfdde4a7505c2cf2b6f2c98a43ffe40d",
+        "41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb",
       disposableProofSha256:
-        "e725b852945dde6ac8b4b40799da8fb209e6a246fe2969dffe5d5907cf05ff61",
+        "b017fd8898b3aa901457977a5aa4f8fb2ac495546c59c348788722a6569d370d",
       executableBodyMatchesDisposableProof: true,
       followsReviewedProductionHistory: true,
       functionCount: 35,
@@ -61,7 +61,7 @@ describe("DirectUpload service-only activation release", () => {
     });
     assert.equal(
       DISPOSABLE_DIRECT_UPLOAD_ACTIVATION_SHA256,
-      "e725b852945dde6ac8b4b40799da8fb209e6a246fe2969dffe5d5907cf05ff61",
+      "b017fd8898b3aa901457977a5aa4f8fb2ac495546c59c348788722a6569d370d",
     );
     assert.match(source, /^-- Promoted reviewed DirectUpload/);
     assert.doesNotMatch(source, /Do not apply outside the loopback/);
@@ -153,18 +153,25 @@ describe("DirectUpload service-only activation release", () => {
     assert.doesNotMatch(ci, /prisma migrate resolve/);
   });
 
-  it("records the exact prepared-only boundary and remaining credential gate", () => {
+  it("records the exact refreshed boundary and remaining credential gate", () => {
     const release = readFileSync(
       "docs/direct-upload-activation-release.md",
       "utf8",
     );
-    assert.match(release, /prepared on an isolated branch only/);
-    assert.match(release, /has\s+not been merged, dispatched, applied or deployed/);
+    const normalizedRelease = release.replace(/\s+/g, " ");
+    assert.match(release, /refreshed on the isolated activation branch/);
+    assert.match(
+      normalizedRelease,
+      /activation release has not been merged, dispatched, applied or deployed/,
+    );
     assert.match(release, new RegExp(DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256));
     assert.match(release, new RegExp(DISPOSABLE_DIRECT_UPLOAD_ACTIVATION_SHA256));
     assert.match(release, /exactly 17 validated fixed functions/);
     assert.match(release, /exactly three lease\/complete\/fail functions/);
     assert.match(release, /other 15 DirectUpload functions private/);
+    assert.match(release, /SECURITY\s+DEFINER owner is a superuser or has BYPASSRLS/);
+    assert.match(release, /dpl_2o2yBehsStAiVWUhoj1LQTmZ9HJe/);
+    assert.match(release, /authenticated retired route returns 404/);
     assert.match(release, /confirm or revoke the\s+rejected Cloudflare `v3` R2 token/);
     assert.match(release, /Case-evidence enablement[\s\S]*separate releases/);
     assert.match(release, /30716441830/);
