@@ -1080,13 +1080,17 @@ RLS staging context proof:
 2. Check `/api/cron/*` logs in Vercel for route-level failures.
 3. Check `CronRun` rows with `status = FAILED` in the last 24 hours.
 4. Check Sentry for cron route exceptions and failed cron check-ins.
-5. Before DirectUpload activation, abandoned-upload cleanup remains owned by
-   `/api/cron/direct-upload-cleanup`; inspect lifecycle rows by `status`,
-   `cleanupAfter`, `attempts`, `endpoint`, and `lastError`, and investigate
-   repeated `DELETE_FAILED` results in `CronRun`. After DirectUpload activation,
-   the Vercel schedule must be absent and the protected GitHub
-   `DirectUpload Cleanup` workflow is the sole scheduler. Check its hourly run
-   and sanitized artifact; any provider failure makes the workflow fail after
+5. Before the compatible cleanup-retirement deployment, abandoned-upload
+   cleanup remains owned by `/api/cron/direct-upload-cleanup`; inspect lifecycle
+   rows by `status`, `cleanupAfter`, `attempts`, `endpoint`, and `lastError`, and
+   investigate repeated `DELETE_FAILED` results in `CronRun`. The compatible
+   deployment must remove that Vercel schedule and route before DirectUpload
+   activation revokes ordinary-runtime cleanup authority. During the bounded
+   handoff gap the protected GitHub `DirectUpload Cleanup` workflow remains
+   manual-only, so expired unclaimed objects may accumulate but are not lost or
+   exposed. After activation and cleanup-role postflight, enable the GitHub
+   hourly schedule in a separate release and verify its first scheduled pass
+   and sanitized artifact. Any provider failure must fail the workflow after
    the exact lease is marked `DELETE_FAILED`. Never copy object keys, database
    URLs or R2 credentials into tickets. Manual workflow dispatch requires exact
    confirmation `run-reviewed-direct-upload-cleanup`.

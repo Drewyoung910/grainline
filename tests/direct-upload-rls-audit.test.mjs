@@ -100,6 +100,7 @@ describe("DirectUpload RLS audit contracts", () => {
     const accountExport = source("src/app/api/account/export/route.ts");
     const deletion = source("src/lib/accountDeletion.ts");
     const lifecycle = source("src/lib/directUploadLifecycle.ts");
+    const cleanupWorker = source("scripts/direct-upload-cleanup-worker.mjs");
     const review = source("src/app/api/reviews/[id]/route.ts");
     const listingEdit = source("src/app/dashboard/listings/[id]/edit/page.tsx");
     const migration = source(
@@ -116,8 +117,12 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(migration, /grainline_direct_upload_source_delete_trigger/);
     assert.match(migration, /grainline_direct_upload_release_review_delete/);
     assert.match(migration, /grainline_direct_upload_release_listing_delete/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_complete/);
-    assert.match(lifecycle, /grainline_direct_upload_cleanup_fail/);
+    assert.doesNotMatch(
+      lifecycle,
+      /grainline_direct_upload_cleanup_(?:lease|complete|fail)/,
+    );
+    assert.match(cleanupWorker, /grainline_direct_upload_cleanup_complete/);
+    assert.match(cleanupWorker, /grainline_direct_upload_cleanup_fail/);
     assert.match(audit, /must omit key, URL, internal target ids and raw\s+provider error text/);
     assert.match(audit, /attempt\/lease token/);
   });
@@ -137,7 +142,7 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /Aggregate legacy inspection/);
     assert.match(
       audit,
-      /Keep Extra High through the cleanup-only R2 credential\/delete proof/,
+      /Keep Extra High through the activation sequencing and authority review/,
     );
     assert.match(audit, /30409531954/);
     assert.match(audit, /DirectUpload` RLS remains off/);
