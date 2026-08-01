@@ -553,8 +553,10 @@ scaffold's hardened database authority partition only; live provider
 credentials, R2 deletion, scheduling and DirectUpload activation remain
 separate gates.
 
-The compatibility-key retirement and DirectUpload activation candidates are
-now saved on a further isolated stack, still unapplied outside disposable CI.
+The compatibility-key retirement and DirectUpload activation candidates were
+saved on a further isolated stack. Retirement is now live in production;
+activation remains a separate draft release and is still unapplied outside
+disposable CI.
 The retirement boundary drops only the duplicate Case attachment key after
 exact legacy/reference proof; the disabled app persists only
 `directUploadId`. Activation retains zero policies and zero direct table
@@ -563,6 +565,15 @@ authority, partitions the 35 reviewed functions as 17 runtime / 3 cleanup /
 database-first compatibility rollback is part of the activation gate and
 restores the exact activated state afterward without recreating the retired
 duplicate key.
+
+A 2026-08-01 pre-merge audit found one additional compatibility prerequisite:
+the live Vercel cron still calls cleanup functions through the ordinary runtime
+role, which activation intentionally revokes. Prepare, merge and deploy the
+separate ordinary-runtime cleanup-retirement release first; verify the Vercel
+schedule and route are absent and drained; then rebase and re-review activation.
+Keep the dedicated GitHub worker manual-only during this bounded gap. Its hourly
+schedule is a separate post-activation release, not part of either the
+compatibility deploy or FORCE migration.
 
 The first combined disposable run (`30232279615`, commit `af4d0f8e`) stopped
 fail-closed while applying activation after retirement; Prisma surfaced only
