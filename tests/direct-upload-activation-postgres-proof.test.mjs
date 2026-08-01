@@ -105,6 +105,18 @@ describe("DirectUpload activated PostgreSQL proof harness", () => {
     assert.match(workflow, /image: postgres:16/);
     assert.match(
       workflow,
+      /Prove the retirement candidate before isolating its promoted migration[\s\S]*node --test tests\/direct-upload-retirement-candidate\.test\.mjs[\s\S]*Isolate the repair migration for exact SQL diagnostics/,
+    );
+    const postIsolationContracts = workflow.slice(
+      workflow.indexOf("- name: Run pre-activation static proof contracts"),
+      workflow.indexOf("- name: Prove both valid DirectUpload legacy repair shapes"),
+    );
+    assert.doesNotMatch(
+      postIsolationContracts,
+      /tests\/direct-upload-retirement-candidate\.test\.mjs/,
+    );
+    assert.match(
+      workflow,
       /Isolate the repair migration for exact SQL diagnostics[\s\S]*20260801175000_retire_direct_upload_compatibility_key[\s\S]*20260801194000_enable_direct_upload_rls[\s\S]*Converge isolated DirectUpload cleanup-worker grants[\s\S]*Restore the exact promoted DirectUpload releases[\s\S]*Verify promoted DirectUpload release bytes and migration tree[\s\S]*Apply promoted retirement and activation through Prisma/,
     );
     assert.doesNotMatch(workflow, /Stage disposable DirectUpload/);

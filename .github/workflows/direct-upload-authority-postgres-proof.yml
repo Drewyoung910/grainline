@@ -85,6 +85,8 @@ jobs:
       - run: npx prisma generate
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
+      - name: Prove the retirement candidate before isolating its promoted migration
+        run: node --test tests/direct-upload-retirement-candidate.test.mjs
       - name: Isolate the repair migration for exact SQL diagnostics
         run: |
           mv prisma/migrations/20260726185700_repair_direct_upload_legacy_references "$RUNNER_TEMP/direct-upload-legacy-repair"
@@ -128,7 +130,6 @@ jobs:
           tests/direct-upload-cleanup-role-production-provision.test.mjs
           tests/direct-upload-legacy-inspect.test.mjs
           tests/direct-upload-legacy-repair-postgres-proof.test.mjs
-          tests/direct-upload-retirement-candidate.test.mjs
       - name: Prove both valid DirectUpload legacy repair shapes
         run: npm run audit:rls-direct-upload-legacy-repair
       - name: Prove compatible DirectUpload fixed authority
