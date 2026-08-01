@@ -1637,17 +1637,42 @@ The release validates six legacy
 constraints and drops the duplicate compatibility key without changing RLS
 or table grants. DirectUpload activation remains a later, separate promotion.
 
+### 2026-08-01 activation pre-merge scheduler audit
+
+The byte-pinned activation SQL and its 17 runtime / 3 cleanup / 15 private
+function partition remain correct, but the release sequence was incomplete.
+Production `vercel.json` still invokes `/api/cron/direct-upload-cleanup` hourly,
+and that route uses `grainline_app_runtime` to execute the same three functions
+that activation revokes from ordinary runtime. Activating first would create a
+predictable hourly permission failure.
+
+Read-only Vercel inspection confirmed this on READY production deployment
+`dpl_Gvsge8MWYW8DfDRSom34YPwsY8rH`: the deployed cron is present at
+`50 * * * *` on `thegrainline.com`. This is live configuration evidence, not
+an inference from repository source.
+
+The missing compatible release is now isolated on
+`agent/direct-upload-runtime-retirement-20260801`. It removes the Vercel cron,
+the route and the duplicate ordinary-runtime cleanup implementation while
+leaving the protected GitHub worker manual-only. This does not delete the
+worker implementation or any object/data; it temporarily pauses expiry cleanup
+until the later scheduler release. Deploy and drain that compatible release
+before rebasing or applying activation. Separately confirm the rejected
+Cloudflare `v3` token is revoked, activate and postflight DirectUpload, then
+enable and prove the GitHub schedule in its own release. Case evidence stays
+disabled throughout those gates.
+
 ## Exit
 
-Keep Extra High through the cleanup-only R2 credential/delete proof and the
-downstream retirement/activation SQL review. PRs `#60` and `#61` are merged;
-the production v2 cleanup login and its exact three-function authority are now
-provisioned and proved. `DirectUpload` RLS remains off, its compatibility key
-remains present, no cleanup has run, no scheduler is active, and the configured
-cleanup-only R2 credential has passed the exact-bucket disposable-object proof.
-Promote only the separately staged compatibility-key retirement next; do not
-combine it with DirectUpload activation or schedule the worker yet. Standing
-authorization permits routine continuation through this
+Keep Extra High through the activation sequencing and authority review. The
+production v2 cleanup login and its exact three-function authority are
+provisioned and proved, the cleanup-only R2 credential passed its exact-bucket
+disposable-object proof, and the compatibility key is retired in production.
+`DirectUpload` RLS remains off. Deploy and drain the separate compatible
+runtime-cleanup retirement before activation; independently confirm the
+rejected Cloudflare `v3` token is revoked; then rebase and re-review draft PR
+`#131`. Do not schedule the protected worker or enable Case evidence yet.
+Standing authorization permits routine continuation through this
 already-scoped rollout without conversational micro-approval. Exact-commit
 proof, protected-environment, migration, deployment and production postflight
 gates remain mandatory, and work must stop on failed safety evidence,

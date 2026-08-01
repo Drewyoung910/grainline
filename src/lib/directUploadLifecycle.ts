@@ -1,12 +1,5 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { deleteR2ObjectByStorageClass } from "@/lib/r2";
-import { uploadTelemetryKeyHash } from "@/lib/uploadTelemetry";
-import { logServerError } from "@/lib/serverErrorLogger";
-import {
-  DIRECT_UPLOAD_CLEANUP_BATCH_SIZE,
-  directUploadErrorMessage,
-} from "@/lib/directUploadLifecycleState";
 
 type DirectUploadClient = Prisma.TransactionClient | typeof prisma;
 
@@ -405,75 +398,4 @@ export async function syncLegacyMessageDirectUploadReference({
       )
   `;
   return checkedReferenceSync(rows, requireAllTracked);
-}
-
-export async function processExpiredDirectUploadBatch({
-  take = DIRECT_UPLOAD_CLEANUP_BATCH_SIZE,
-}: {
-  take?: number;
-} = {}) {
-  const rows = await prisma.$queryRaw<
-    Array<{
-      id: string;
-      key: string;
-      storageClass: string;
-      leaseId: string;
-    }>
-  >`
-    SELECT *
-      FROM public.grainline_direct_upload_cleanup_lease(${take})
-  `;
-
-  let deleted = 0;
-  let skipped = 0;
-  const failures: Array<{ id: string; keyHash: string; error: string }> = [];
-
-  for (const row of rows) {
-    try {
-      await deleteR2ObjectByStorageClass(row.key, row.storageClass);
-      const completion = await prisma.$queryRaw<Array<{ completed: boolean }>>`
-        SELECT public.grainline_direct_upload_cleanup_complete(
-          ${row.id},
-          ${row.leaseId}
-        ) AS completed
-      `;
-      if (completion[0]?.completed === true) {
-        deleted += 1;
-      } else {
-        skipped += 1;
-      }
-    } catch (error) {
-      const message = directUploadErrorMessage(error);
-      failures.push({
-        id: row.id,
-        keyHash: uploadTelemetryKeyHash(row.key),
-        error: message,
-      });
-      await prisma.$queryRaw<Array<{ failed: boolean }>>`
-        SELECT public.grainline_direct_upload_cleanup_fail(
-          ${row.id},
-          ${row.leaseId},
-          ${message}
-        ) AS failed
-      `.then((failure) => {
-        if (failure[0]?.failed !== true) {
-          throw new Error("Direct upload cleanup lease was superseded.");
-        }
-      }).catch((updateError) => {
-        logServerError(updateError, {
-          source: "direct_upload_cleanup_mark_failed",
-          level: "warning",
-          extra: { directUploadId: row.id, keyHash: uploadTelemetryKeyHash(row.key) },
-        });
-      });
-    }
-  }
-
-  return {
-    checked: rows.length,
-    deleted,
-    skipped,
-    failures,
-    complete: rows.length < take,
-  };
 }

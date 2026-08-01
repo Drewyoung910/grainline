@@ -426,12 +426,14 @@ describe("isolated DirectUpload cleanup worker", () => {
     );
   });
 
-  it("keeps the worker outside Vercel and behind a separate protected environment", () => {
+  it("keeps the manual worker outside Vercel after runtime cleanup retirement", () => {
     const workflow = source(
       ".github/workflows/direct-upload-cleanup.yml",
     );
     const runtimeGuard = source("scripts/guard-runtime-db-env.mjs");
     const worker = source("scripts/direct-upload-cleanup-worker.mjs");
+    const vercel = source("vercel.json");
+    const runtimeLifecycle = source("src/lib/directUploadLifecycle.ts");
 
     assert.match(workflow, /environment: Production DirectUpload Cleanup/);
     assert.match(workflow, /workflow_dispatch:/);
@@ -443,6 +445,11 @@ describe("isolated DirectUpload cleanup worker", () => {
     assert.doesNotMatch(workflow, /PRODUCTION_MIGRATION_DIRECT_URL/);
     assert.doesNotMatch(workflow, /\bDATABASE_URL:/);
     assert.match(runtimeGuard, /PostgreSQL URLs outside DATABASE_URL/);
+    assert.doesNotMatch(vercel, /\/api\/cron\/direct-upload-cleanup/);
+    assert.doesNotMatch(
+      runtimeLifecycle,
+      /grainline_direct_upload_cleanup_(?:lease|complete|fail)/,
+    );
     assert.doesNotMatch(worker, /ListObjects/);
     assert.match(worker, /DeleteObjectCommand/);
     assert.match(worker, /DirectUpload cleanup evidence mode is not 0600/);
