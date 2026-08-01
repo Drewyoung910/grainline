@@ -77,7 +77,7 @@ test("compatible migrations do not activate or revoke direct Case-family access"
   }
 });
 
-test("read mode and DirectUpload retirement are promoted while Case activation remains draft", () => {
+test("read mode and DirectUpload activation are promoted while Case activation remains draft", () => {
   for (const draft of [
     "case-case-message-read-mode.sql",
     "case-case-message-activation.sql",
@@ -90,11 +90,11 @@ test("read mode and DirectUpload retirement are promoted while Case activation r
 
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*direct-upload-retirement-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*direct-upload-activation-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /Verify exact DirectUpload retirement migration tree/,
+    /Verify exact DirectUpload activation migration tree/,
   );
   assert.doesNotMatch(
     productionWorkflow,

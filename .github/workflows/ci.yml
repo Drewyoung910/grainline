@@ -82,9 +82,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify DirectUpload retirement migration tree
+      - name: Verify DirectUpload activation migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-retirement-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed
         run: npm run verify:rls-release-artifact
       - name: Verify Case read-mode release bytes
         run: npm run audit:rls-case-read-mode-candidate
@@ -100,6 +100,8 @@ jobs:
         run: npm run audit:rls-notification-force-release
       - name: Verify DirectUpload retirement proof equivalence
         run: npm run audit:rls-direct-upload-retirement-release
+      - name: Verify DirectUpload activation proof equivalence
+        run: npm run audit:rls-direct-upload-activation-release
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Prove runtime-role provisioning refusals exit nonzero
