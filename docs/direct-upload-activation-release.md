@@ -38,6 +38,15 @@ been reproduced and failed closed on
 CI split above fixes the disposable-environment model; it does not relax or
 change the byte-pinned production migration.
 
+The next PR CI run `30716761313` / job `91413525569` proved that correction:
+the compatible tree, both pre-activation grant convergers, the exact
+activation migration, both activated grant convergers and every Case authority
+proof passed. It then failed safely because the legacy-repair harness was
+still scheduled after FORCE activation even though it proves only the
+compatible RLS-off repair shapes. The harness is now kept in the compatible
+window before the activation directory is restored; this is test sequencing,
+not a change to production SQL or authority.
+
 ## Authority boundary
 
 The migration takes an advisory transaction lock and ACCESS EXCLUSIVE locks

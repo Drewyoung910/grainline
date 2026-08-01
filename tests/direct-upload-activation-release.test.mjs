@@ -144,7 +144,7 @@ describe("DirectUpload service-only activation release", () => {
     const ci = readFileSync(".github/workflows/ci.yml", "utf8");
     assert.match(
       ci,
-      /Isolate the exact DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations to CI Postgres[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Restore the exact DirectUpload activation release[\s\S]*Apply migrations to CI Postgres/,
+      /Isolate the exact DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations to CI Postgres[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Prove DirectUpload legacy repair in ephemeral PostgreSQL[\s\S]*Restore the exact DirectUpload activation release[\s\S]*Apply migrations to CI Postgres/,
     );
     assert.match(
       ci,
@@ -169,6 +169,8 @@ describe("DirectUpload service-only activation release", () => {
     assert.match(release, /Case-evidence enablement[\s\S]*separate releases/);
     assert.match(release, /30716441830/);
     assert.match(release, /91412674837/);
+    assert.match(release, /30716761313/);
+    assert.match(release, /91413525569/);
     assert.match(release, /does not relax or\s+change the byte-pinned production migration/);
   });
 });

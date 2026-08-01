@@ -140,7 +140,7 @@ describe("DirectUpload legacy repair migration and PostgreSQL proof", () => {
     );
     assert.match(
       ci,
-      /Prove DirectUpload legacy repair in ephemeral PostgreSQL[\s\S]*audit:rls-direct-upload-legacy-repair/,
+      /Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Prove DirectUpload legacy repair in ephemeral PostgreSQL[\s\S]*audit:rls-direct-upload-legacy-repair[\s\S]*Restore the exact DirectUpload activation release/,
     );
     assert.equal(
       packageJson.scripts["audit:rls-direct-upload-legacy-repair"],
