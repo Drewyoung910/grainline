@@ -455,7 +455,7 @@ async function proveAttachmentAuthority(observer, runtime) {
   const evidence = await observer.query(`
     SELECT
       attachment."directUploadId" AS upload_id,
-      attachment."objectKey" AS object_key,
+      upload.key AS object_key,
       attachment."contentType" AS content_type,
       attachment."byteSize" AS byte_size,
       upload.status,

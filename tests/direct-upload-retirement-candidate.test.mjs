@@ -6,13 +6,16 @@ import {
   DIRECT_UPLOAD_RETIREMENT_MIGRATION,
   buildDirectUploadRetirementCandidate,
 } from "../scripts/stage-direct-upload-retirement-migration.mjs";
+import {
+  DIRECT_UPLOAD_RETIREMENT_RELEASE_MIGRATION,
+} from "../scripts/verify-direct-upload-retirement-release.mjs";
 
 function source(path) {
   return readFileSync(path, "utf8");
 }
 
 describe("DirectUpload compatibility-key retirement candidate", () => {
-  it("keeps the candidate unapplied and loopback-only", () => {
+  it("keeps candidate staging loopback-only after separate promotion", () => {
     assert.equal(
       DIRECT_UPLOAD_RETIREMENT_MIGRATION,
       "20260726190000_retire_direct_upload_compatibility_key",
@@ -21,13 +24,15 @@ describe("DirectUpload compatibility-key retirement candidate", () => {
       DIRECT_UPLOAD_RETIREMENT_ACK,
       "I_ACKNOWLEDGE_LOOPBACK_DIRECT_UPLOAD_RETIREMENT_STAGING",
     );
-    assert.throws(
-      () => readFileSync(
-        `prisma/migrations/${DIRECT_UPLOAD_RETIREMENT_MIGRATION}/migration.sql`,
-        "utf8",
-      ),
-      /ENOENT/,
+    const promoted = readFileSync(
+      `prisma/migrations/${DIRECT_UPLOAD_RETIREMENT_RELEASE_MIGRATION}/migration.sql`,
+      "utf8",
     );
+    const disposable = buildDirectUploadRetirementCandidate().migration;
+    assert.match(promoted, /^-- Promoted reviewed DirectUpload/);
+    assert.match(disposable, /^-- Generated disposable DirectUpload/);
+    assert.match(disposable, /Do not apply outside the loopback/);
+    assert.notEqual(promoted, disposable);
     const script = source(
       "scripts/stage-direct-upload-retirement-migration.mjs",
     );

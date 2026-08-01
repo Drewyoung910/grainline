@@ -234,17 +234,16 @@ async function seedFixtures(client) {
       `, [uploadId(position), objectKey, ids.buyer, attachmentCreatedAt]);
       await client.query(`
         INSERT INTO public."CaseMessageAttachment" (
-          id, "caseMessageId", "uploaderId", "objectKey", "directUploadId",
+          id, "caseMessageId", "uploaderId", "directUploadId",
           "contentType", "byteSize", "createdAt"
         )
         VALUES (
-          $1, $2, $3, $4, $5, 'image/webp', 2048, $6::timestamp
+          $1, $2, $3, $4, 'image/webp', 2048, $5::timestamp
         )
       `, [
         attachmentId(position),
         messageId(54),
         ids.buyer,
-        objectKey,
         uploadId(position),
         attachmentCreatedAt,
       ]);

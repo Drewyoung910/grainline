@@ -86,4 +86,6 @@ test("Case-reply proof covers authority, source binding, replay, locks, rollback
   ]) {
     assert.match(source, new RegExp(marker));
   }
+  assert.match(source, /upload\.key AS object_key/);
+  assert.doesNotMatch(source, /attachment\."objectKey"/);
 });

@@ -563,7 +563,6 @@ attachment_anomalies AS (
     (
       upload.id IS NULL
       OR attachment."uploaderId" IS DISTINCT FROM message."authorId"
-      OR attachment."objectKey" IS DISTINCT FROM upload.key
       OR attachment."uploaderId" IS DISTINCT FROM upload."userId"
       OR upload.endpoint IS DISTINCT FROM 'caseEvidenceImage'
       OR upload."storageClass" IS DISTINCT FROM 'PRIVATE'
@@ -841,8 +840,7 @@ SELECT
      FROM public."CaseMessageAttachment" AS attachment
      JOIN public."DirectUpload" AS upload
        ON upload.id = attachment."directUploadId"
-    WHERE attachment."objectKey" IS DISTINCT FROM upload.key
-       OR attachment."uploaderId" IS DISTINCT FROM upload."userId"
+    WHERE attachment."uploaderId" IS DISTINCT FROM upload."userId"
        OR upload.endpoint IS DISTINCT FROM 'caseEvidenceImage'
        OR upload."storageClass" IS DISTINCT FROM 'PRIVATE'
        OR upload."publicUrl" IS NOT NULL
@@ -980,7 +978,7 @@ export function assertCaseLegacyPosture(row) {
     ["runtime attachment CRUD", row.runtime_attachment_crud, true],
     ["authorKind prepared", row.author_kind_prepared, true],
     ["attachment directUpload prepared", row.direct_upload_prepared, true],
-    ["attachment compatibility key", row.object_key_prepared, true],
+    ["attachment compatibility key retired", row.object_key_retired, true],
     ["message history index", row.history_index_present, true],
     ["DirectUpload RLS", row.direct_upload_rls_enabled, false],
     ["DirectUpload FORCE", row.direct_upload_rls_forced, false],
@@ -1077,14 +1075,13 @@ async function readPosture(client) {
           AND NOT attisdropped
           AND attnotnull
       ) AS direct_upload_prepared,
-      EXISTS (
+      NOT EXISTS (
         SELECT 1 FROM pg_catalog.pg_attribute
         WHERE attrelid = attachment_table.oid
           AND attname = 'objectKey'
           AND attnum > 0
           AND NOT attisdropped
-          AND attnotnull
-      ) AS object_key_prepared,
+      ) AS object_key_retired,
       pg_catalog.to_regclass(
         'public."CaseMessage_caseId_createdAt_id_idx"'
       ) IS NOT NULL AS history_index_present

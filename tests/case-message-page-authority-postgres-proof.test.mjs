@@ -60,6 +60,14 @@ describe("Case-message page PostgreSQL proof", () => {
     assert.match(source, /27_000 \+ position/);
     assert.doesNotMatch(source, /authorKind", body, "createdAt"\s*\)\s*VALUES\s*\(\s*\$1, \$2, \$3, NULL/);
     assert.match(source, /objectKey\|directUploadId\|caseEvidenceImage/);
+    assert.match(
+      source,
+      /id, "caseMessageId", "uploaderId", "directUploadId",/,
+    );
+    assert.doesNotMatch(
+      source,
+      /INSERT INTO public\."CaseMessageAttachment" \([\s\S]{0,160}"objectKey"/,
+    );
     assert.match(source, /rowCount, 51/);
   });
 });

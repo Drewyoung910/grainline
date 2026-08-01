@@ -1600,6 +1600,43 @@ fresh exact-main proof. Do not retry the unchanged pair or weaken the proof.
 No database, persistent R2 object, application deployment, cleanup-worker or
 RLS state changed in run `30708992172`.
 
+The rejected pair was replaced as one new `v4` R2 User API token
+with `Object Read & Write` limited to the exact public/private buckets. Its two
+values were transferred separately from the clipboard directly into the
+protected environment, never printed or written to disk, and the clipboard
+was cleared. Protected proof run `30710557050` (job `91397146264`) at exact
+main `f7d149c682a8891e6b62cb0990390f8af4ce1384` passed both buckets through
+preflight absence, conditional write, metadata `HEAD`, delete and final
+bounded-list absence. The schema-v2 artifact records `complete=true`, both
+results `residualPossible=false`, and a clean exact source. The sanitized
+mode-0600 artifact
+`direct-upload-r2-credential-proof-30710557050-1.json` has SHA-256
+`d38aab53c5d5c9ae8dae1bf542f07d8bf65941f95fda150b6c588a241d49615c`.
+Independent Wrangler `4.118.0` metadata then showed the public bucket restored
+to 257 objects / 283 MB and the private bucket at zero objects / zero bytes.
+The cleanup-only R2 credential gate is accepted; the raw credential remains
+only in the protected cleanup environment. The Cloudflare revocation state of
+the rejected `v3` token was not independently verified; confirm or revoke that
+exact token before DirectUpload activation rather than claiming it is absent.
+
+Fresh exact-main disposable PostgreSQL 16 run `30709645196` (job
+`91394729233`) also passed the full DirectUpload sequence: legacy repair and
+compatible authority, generated compatibility-key retirement, generated FORCE
+activation, final runtime/cleanup grant audits, activated direct-denial and
+fixed-function authority, and database-first rollback with exact restoration.
+The production retirement release is therefore promoted separately, after the
+already-applied Case migrations, as
+`20260801175000_retire_direct_upload_compatibility_key`, SHA-256
+`42622759fdf9fcfda418e674ab43c9d013c0f0c536eda93c0aaa9495da826754`.
+Its release verifier reconstructs and byte-matches disposable proof SHA-256
+`63e8db0888e7ba5fb805707bb0ba855d6050c8e6ac573b37eafe4a2678e2dcce`;
+only the non-executable promotion header and the Prisma migration-directory
+name differ. The earlier `20260726190000` name remains disposable proof
+identity only and is not inserted behind already-applied production history.
+The release validates six legacy
+constraints and drops the duplicate compatibility key without changing RLS
+or table grants. DirectUpload activation remains a later, separate promotion.
+
 ## Exit
 
 Keep Extra High through the cleanup-only R2 credential/delete proof and the
@@ -1607,11 +1644,10 @@ downstream retirement/activation SQL review. PRs `#60` and `#61` are merged;
 the production v2 cleanup login and its exact three-function authority are now
 provisioned and proved. `DirectUpload` RLS remains off, its compatibility key
 remains present, no cleanup has run, no scheduler is active, and the configured
-cleanup-only R2 credential is rejected until a replacement credential passes
-the corrected proof. Do
-not promote the generated retirement/activation candidates or schedule the
-worker until that bucket-scoped deletion credential passes a disposable-object
-proof. Standing authorization permits routine continuation through this
+cleanup-only R2 credential has passed the exact-bucket disposable-object proof.
+Promote only the separately staged compatibility-key retirement next; do not
+combine it with DirectUpload activation or schedule the worker yet. Standing
+authorization permits routine continuation through this
 already-scoped rollout without conversational micro-approval. Exact-commit
 proof, protected-environment, migration, deployment and production postflight
 gates remain mandatory, and work must stop on failed safety evidence,
