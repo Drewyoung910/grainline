@@ -105,15 +105,21 @@ describe("DirectUpload activated PostgreSQL proof harness", () => {
     assert.match(workflow, /image: postgres:16/);
     assert.match(
       workflow,
-      /Prove the retirement candidate before isolating its promoted migration[\s\S]*node --test tests\/direct-upload-retirement-candidate\.test\.mjs[\s\S]*Isolate the repair migration for exact SQL diagnostics/,
+      /Run static proof contracts before isolating promoted migrations[\s\S]*tests\/db-grant-inventory\.test\.mjs[\s\S]*tests\/direct-upload-retirement-candidate\.test\.mjs[\s\S]*Isolate the repair migration for exact SQL diagnostics/,
     );
-    const postIsolationContracts = workflow.slice(
-      workflow.indexOf("- name: Run pre-activation static proof contracts"),
-      workflow.indexOf("- name: Prove both valid DirectUpload legacy repair shapes"),
+    const isolationIndex = workflow.indexOf(
+      "- name: Isolate the repair migration for exact SQL diagnostics",
     );
-    assert.doesNotMatch(
-      postIsolationContracts,
-      /tests\/direct-upload-retirement-candidate\.test\.mjs/,
+    assert.ok(
+      workflow.indexOf("tests/db-grant-inventory.test.mjs") < isolationIndex,
+    );
+    assert.ok(
+      workflow.indexOf("tests/direct-upload-retirement-candidate.test.mjs")
+        < isolationIndex,
+    );
+    assert.equal(
+      workflow.indexOf("tests/db-grant-inventory.test.mjs", isolationIndex),
+      -1,
     );
     assert.match(
       workflow,

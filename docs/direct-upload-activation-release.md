@@ -49,14 +49,17 @@ compatible RLS-off repair shapes. The harness is now kept in the compatible
 window before the activation directory is restored; this is test sequencing,
 not a change to production SQL or authority.
 
-Push run `30723862284` / job `91431938257` is also retained failed evidence.
-The workflow isolated the promoted retirement migration before running its
-candidate contract, so that contract failed with `ENOENT` while trying to read
-the intentionally isolated file. The candidate contract now runs before the
-isolation step, while all database proofs retain their original compatible and
-activated windows. A regression assertion pins that ordering. This was a CI
-orchestration defect; no database authority proof failed and production was
-not contacted or changed.
+Push runs `30723862284` / job `91431938257` and `30724165993` / job
+`91432731002` are also retained failed evidence. The workflow isolated the
+promoted retirement and activation migrations before running static contracts
+that derive their expectations from the complete migration tree. The first run
+failed with `ENOENT` in the retirement-candidate contract; after a too-narrow
+ordering correction, the second exposed the same class in the grant inventory.
+All static contracts now run before any promoted migration is isolated, while
+database proofs retain their original compatible and activated windows. A
+regression assertion pins that boundary. These were CI orchestration defects;
+no database authority proof failed and production was not contacted or
+changed.
 
 ## Authority boundary
 

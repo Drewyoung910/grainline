@@ -85,8 +85,20 @@ jobs:
       - run: npx prisma generate
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
-      - name: Prove the retirement candidate before isolating its promoted migration
-        run: node --test tests/direct-upload-retirement-candidate.test.mjs
+      - name: Run static proof contracts before isolating promoted migrations
+        run: >-
+          node --test
+          tests/case-message-private-evidence.test.mjs
+          tests/db-grant-inventory.test.mjs
+          tests/direct-upload-activation-candidate.test.mjs
+          tests/direct-upload-activation-postgres-proof.test.mjs
+          tests/direct-upload-activation-rollback-proof.test.mjs
+          tests/direct-upload-authority-postgres-proof.test.mjs
+          tests/direct-upload-cleanup-worker.test.mjs
+          tests/direct-upload-cleanup-role-production-provision.test.mjs
+          tests/direct-upload-legacy-inspect.test.mjs
+          tests/direct-upload-legacy-repair-postgres-proof.test.mjs
+          tests/direct-upload-retirement-candidate.test.mjs
       - name: Isolate the repair migration for exact SQL diagnostics
         run: |
           mv prisma/migrations/20260726185700_repair_direct_upload_legacy_references "$RUNNER_TEMP/direct-upload-legacy-repair"
@@ -117,19 +129,6 @@ jobs:
         run: npx prisma migrate status
       - name: Audit final runtime grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Run pre-activation static proof contracts
-        run: >-
-          node --test
-          tests/case-message-private-evidence.test.mjs
-          tests/db-grant-inventory.test.mjs
-          tests/direct-upload-activation-candidate.test.mjs
-          tests/direct-upload-activation-postgres-proof.test.mjs
-          tests/direct-upload-activation-rollback-proof.test.mjs
-          tests/direct-upload-authority-postgres-proof.test.mjs
-          tests/direct-upload-cleanup-worker.test.mjs
-          tests/direct-upload-cleanup-role-production-provision.test.mjs
-          tests/direct-upload-legacy-inspect.test.mjs
-          tests/direct-upload-legacy-repair-postgres-proof.test.mjs
       - name: Prove both valid DirectUpload legacy repair shapes
         run: npm run audit:rls-direct-upload-legacy-repair
       - name: Prove compatible DirectUpload fixed authority
