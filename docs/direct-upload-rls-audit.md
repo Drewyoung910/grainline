@@ -1578,6 +1578,28 @@ still repeats delete plus bounded absence proof after an ambiguous provider
 response. Both failed runs remain non-evidence. No database, object,
 application deployment, cleanup-worker or RLS state changed.
 
+The corrected bounded-list operator merged through PR `#127` as exact main
+`89b623f1f4d58d910710c09d1f6c0f7fc3078e00` after its full GitHub CI gate
+passed. Protected proof run `30708992172` (job `91392974917`) is a third piece
+of failed, zero-residue evidence and must not be replayed as proof. The exact
+public-bucket preflight `ListObjectsV2` request failed with provider code
+`R2_PUBLIC_PREFLIGHT_LIST_403_SIGNATUREDOESNOTMATCH`. No `PUT` ran, the private
+bucket was not attempted, cleanup was unnecessary and the schema-v2 artifact
+records `residualPossible=false`. The sanitized mode-0600 artifact
+`direct-upload-r2-credential-proof-30708992172-1.json` has SHA-256
+`9614edb310ed6c0c21c0cc13d6fee15311a0d4dead931ca7bfb33d4eb4a692b2`.
+
+This result resolves the earlier ambiguous-`HEAD` question but does not accept
+the credential. The protected credential-pair digest is unchanged from run
+`30566210168`, and Cloudflare classified the bounded list as a signature
+mismatch rather than an authorization denial. The account endpoint, `auto`
+region and AWS SDK client shape match Cloudflare's documented S3-compatible
+configuration. Treat the stored access-key/secret pair as unusable: revoke it,
+replace both values from one newly created bucket-scoped R2 token and run one
+fresh exact-main proof. Do not retry the unchanged pair or weaken the proof.
+No database, persistent R2 object, application deployment, cleanup-worker or
+RLS state changed in run `30708992172`.
+
 ## Exit
 
 Keep Extra High through the cleanup-only R2 credential/delete proof and the
@@ -1585,7 +1607,8 @@ downstream retirement/activation SQL review. PRs `#60` and `#61` are merged;
 the production v2 cleanup login and its exact three-function authority are now
 provisioned and proved. `DirectUpload` RLS remains off, its compatibility key
 remains present, no cleanup has run, no scheduler is active, and the configured
-cleanup-only R2 credential is not accepted until a corrected proof passes. Do
+cleanup-only R2 credential is rejected until a replacement credential passes
+the corrected proof. Do
 not promote the generated retirement/activation candidates or schedule the
 worker until that bucket-scoped deletion credential passes a disposable-object
 proof. Standing authorization permits routine continuation through this
