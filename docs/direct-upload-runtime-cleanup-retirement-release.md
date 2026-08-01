@@ -66,6 +66,9 @@ or change a provider variable. Draft PR #131 remains separate and blocked.
   `jsx-ast-utils` unresolved-expression warning.
 - Production build: passed; the built route inventory contains no
   `/api/cron/direct-upload-cleanup` route.
+- Executable retirement verifier: passed and fails closed if the Vercel
+  schedule, runtime route, runtime cleanup functions, worker isolation or
+  manual-only GitHub posture drifts.
 - The first disposable-worktree build attempts were non-code failures: an
   out-of-root `node_modules` symlink rejected by Turbopack, sandbox denial of
   Turbopack's localhost worker port, and then the intentionally absent local
