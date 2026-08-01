@@ -914,11 +914,11 @@ artifact is aggregate/catalog-only, commit-bound, sanitized and mode 0600.
 Provisioning does not activate the worker, run object deletion, alter R2,
 deploy the app or enable DirectUpload RLS.
 
-The cleanup-only R2 credential is still absent. It must be scoped to delete
-objects from the exact public and private cleanup buckets; application R2 keys
-must not be reused or copied into the cleanup environment. Until that
-credential is created and provider deletion is proved, the cleanup worker and
-DirectUpload activation remain blocked.
+The cleanup-only R2 credential is not accepted until its disposable-object
+proof passes. It must be scoped to delete objects from the exact public and
+private cleanup buckets; application R2 keys must not be reused or copied into
+the cleanup environment. Until that credential and provider deletion are
+proved, the cleanup worker and DirectUpload activation remain blocked.
 
 The pre-activation R2 credential proof is a separate manual-only, main-only
 workflow because the cleanup worker correctly requires both DirectUpload
@@ -926,11 +926,13 @@ tables to have ENABLE plus FORCE RLS before it may lease a row. The proof
 receives only the cleanup-specific R2 credential and exact account/bucket
 variables; it explicitly rejects application R2 and every database credential.
 For each bucket it creates one random operator-prefix text object, verifies the
-object metadata, deletes it, and verifies absence. It performs no list request,
-never retains an object key or raw target identifier, writes only hashes and
-bounded result codes to mode-0600 evidence, and attempts immediate deletion if
-a provider request fails after creation. A run with any possible residue is
-failed evidence and cannot satisfy the activation gate.
+object metadata, deletes it, and verifies absence. Absence checks use only the
+full random operator key as an exact `ListObjectsV2` prefix with `MaxKeys=1`;
+the proof cannot enumerate user-object namespaces. It never retains an object
+key or raw target identifier, writes only hashes and bounded result codes to
+mode-0600 evidence, and attempts immediate deletion if a provider request
+fails after creation. A run with any possible residue is failed evidence and
+cannot satisfy the activation gate.
 
 The first protected production provisioning run, `30398188163` (job
 `90406279837`) at exact main `a816af9a`, passed the Node owner/source/database
@@ -1512,18 +1514,83 @@ SHA-256
 No app deployment, data cleanup, R2 change or DirectUpload RLS activation
 occurred.
 
+### 2026-07-30 cleanup R2 credential continuation
+
+Wrangler `4.115.0` was authorized through Cloudflare OAuth using its macOS
+Keychain-backed session. The authenticated account was independently
+identified as `b582ca1d820c44010f427756ea803212`. The existing
+`grainline-uploads` bucket was left unchanged. The missing
+`grainline-private` bucket was created empty in the default jurisdiction with
+Standard storage; no object, public-domain setting or existing bucket
+configuration was changed.
+
+The protected GitHub environment `Production DirectUpload Cleanup` now has the
+non-secret variables:
+
+- `DIRECT_UPLOAD_CLEANUP_R2_ACCOUNT_ID=b582ca1d820c44010f427756ea803212`
+- `DIRECT_UPLOAD_CLEANUP_R2_PUBLIC_BUCKET=grainline-uploads`
+- `DIRECT_UPLOAD_CLEANUP_R2_PRIVATE_BUCKET=grainline-private`
+
+The Wrangler OAuth grant is not a token-minting credential. Its granted scopes
+do not include Cloudflare `API Tokens Write`, and a read-only request to
+`GET /client/v4/user/tokens/permission_groups` failed closed with HTTP `403`
+and provider code `9109`. The cleanup credential must therefore be created
+through the authenticated R2 dashboard as a User API token with only
+`Object Read & Write`, scoped to exactly the two buckets above. Neither
+generated value may enter source control, a command argument, shell history or
+the application environment. Store them only as
+`DIRECT_UPLOAD_CLEANUP_R2_ACCESS_KEY_ID` and
+`DIRECT_UPLOAD_CLEANUP_R2_SECRET_ACCESS_KEY` in the protected cleanup
+environment, then run the reviewed disposable-object proof before claiming
+the provider gate complete.
+
+Protected proof run `30565266171` (job `90948091342`) at exact main
+`60e4da2f38f6bb53c33acb35193d87f7db938c88` is failed evidence and must not be
+replayed as proof. The operator passed its exact-source, protected-environment
+and secret-shape gates, then failed closed on the first public-bucket
+preflight `HEAD` with bounded code `R2_PUBLIC_PREFLIGHT_HEAD_403_UNKNOWN`.
+No `PUT` request ran, cleanup was not required, the private-bucket step did
+not run and the artifact records `residualPossible=false`. The sanitized
+artifact
+`direct-upload-r2-credential-proof-30565266171-1.json` has SHA-256
+`6d3ef0851e719d8b0fba8584af477ce49d2851539bef02a115f80f7e081c8786`.
+Independent Wrangler metadata reads still reached both exact buckets:
+`grainline-uploads` retained 257 objects / 283 MB and
+`grainline-private` retained zero objects / zero bytes. The initial
+credential-scope diagnosis was deliberately tested with a replacement R2 User
+API token visibly limited to `Object Read & Write` on both exact buckets.
+Protected run `30566210168` (job `90951270227`) at the same exact main commit
+failed at the identical preflight `HEAD`, before any `PUT`, with
+`residualPossible=false`; its sanitized artifact
+`direct-upload-r2-credential-proof-30566210168-1.json` has SHA-256
+`d319a479ccaba455fbf6a19efd6ffed5edaacb41b842a61b3a4f43ae5bcc03a6`.
+
+The reproduced failure falsifies the bucket-selection hypothesis and exposes
+an operator defect. S3-compatible `HeadObject` intentionally returns an
+ambiguous `403` for a missing object when the request cannot establish
+bucket-list authority, so an absent-key `HEAD` cannot distinguish least-
+privilege posture from invalid credentials. The corrected operator keeps its
+atomic `PutObject` `If-None-Match: *` collision fence and replaces only the
+preflight/final absence probes with strongly consistent, full-random-key
+`ListObjectsV2` requests capped at one result. Any returned object, truncation,
+continuation token, provider error or malformed count fails closed; cleanup
+still repeats delete plus bounded absence proof after an ambiguous provider
+response. Both failed runs remain non-evidence. No database, object,
+application deployment, cleanup-worker or RLS state changed.
+
 ## Exit
 
 Keep Extra High through the cleanup-only R2 credential/delete proof and the
 downstream retirement/activation SQL review. PRs `#60` and `#61` are merged;
 the production v2 cleanup login and its exact three-function authority are now
 provisioned and proved. `DirectUpload` RLS remains off, its compatibility key
-remains present, no cleanup has run, no scheduler is active, and the
-cleanup-only R2 credential is still absent. Do not promote the generated
-retirement/activation candidates or schedule the worker until that
-bucket-scoped deletion credential passes a disposable-object proof. Standing
-authorization permits routine continuation through this already-scoped
-rollout without conversational micro-approval. Exact-commit proof,
-protected-environment, migration, deployment and production postflight gates
-remain mandatory, and work must stop on failed safety evidence, unexpected
-production state, destructive scope drift or a required platform approval.
+remains present, no cleanup has run, no scheduler is active, and the configured
+cleanup-only R2 credential is not accepted until a corrected proof passes. Do
+not promote the generated retirement/activation candidates or schedule the
+worker until that bucket-scoped deletion credential passes a disposable-object
+proof. Standing authorization permits routine continuation through this
+already-scoped rollout without conversational micro-approval. Exact-commit
+proof, protected-environment, migration, deployment and production postflight
+gates remain mandatory, and work must stop on failed safety evidence,
+unexpected production state, destructive scope drift or a required platform
+approval.
