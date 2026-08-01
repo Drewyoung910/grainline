@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   CASE_READ_MODE_MIGRATION,
   CASE_READ_MODE_MIGRATION_TREE_SHA256,
+  DIRECT_UPLOAD_RETIREMENT_MIGRATION,
   computeMigrationTreeSha256,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
 import {
@@ -67,7 +68,8 @@ test("Case read-mode release pins exact source, migration, and tree bytes", () =
     { withFileTypes: true },
   )
     .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+    .map((entry) => entry.name)
+    .filter((name) => name !== DIRECT_UPLOAD_RETIREMENT_MIGRATION);
   assert.equal(
     computeMigrationTreeSha256("prisma/migrations", migrationNames),
     CASE_READ_MODE_MIGRATION_TREE_SHA256,
@@ -128,7 +130,7 @@ test("Case read-mode release is compatible and exact", () => {
       `${functionName} source digest must be pinned preflight and postflight`,
     );
   }
-  assert.match(workflow, /case-read-mode-reviewed/);
+  assert.match(workflow, /direct-upload-retirement-reviewed/);
   assert.doesNotMatch(workflow, /case-(?:activation|force)-reviewed/);
 });
 

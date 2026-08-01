@@ -30,11 +30,11 @@ test("Case seller-refund production packaging stops at the compatible boundary",
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-read-mode-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-retirement-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-read-mode-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-retirement-reviewed/,
   );
   assert.doesNotMatch(
     productionWorkflow,
