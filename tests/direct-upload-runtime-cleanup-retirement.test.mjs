@@ -120,6 +120,7 @@ describe("DirectUpload ordinary-runtime cleanup retirement", () => {
     const release = source(
       "docs/direct-upload-runtime-cleanup-retirement-release.md",
     );
+    const agentContract = source("CLAUDE.md");
 
     assert.match(release, /prepared on isolated branch/);
     assert.match(release, /has not been merged\s+or deployed/);
@@ -132,6 +133,18 @@ describe("DirectUpload ordinary-runtime cleanup retirement", () => {
     assert.match(release, /Rebase and re-review draft PR #131/);
     assert.match(release, /Case evidence disabled/);
     assert.match(release, /does not merge or deploy either release/);
+    assert.match(
+      agentContract,
+      /DirectUpload cleanup is intentionally not an `\/api\/cron\/\*` route/,
+    );
+    assert.match(
+      agentContract,
+      /ordinary-runtime `\/api\/cron\/direct-upload-cleanup` route and Vercel schedule are retired/,
+    );
+    assert.doesNotMatch(
+      agentContract,
+      /`\/api\/cron\/direct-upload-cleanup` is the hourly repair path/,
+    );
     const packageJson = JSON.parse(source("package.json"));
     assert.equal(
       packageJson.scripts?.[
