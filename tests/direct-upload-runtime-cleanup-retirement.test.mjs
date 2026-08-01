@@ -122,8 +122,14 @@ describe("DirectUpload ordinary-runtime cleanup retirement", () => {
     );
     const agentContract = source("CLAUDE.md");
 
-    assert.match(release, /prepared on isolated branch/);
-    assert.match(release, /has not been merged\s+or deployed/);
+    assert.match(release, /PR #132 merged as exact main commit/);
+    assert.match(
+      release,
+      /a5d54e79d9b8747936bd2a7850115705461d0fbf/,
+    );
+    assert.match(release, /dpl_2o2yBehsStAiVWUhoj1LQTmZ9HJe/);
+    assert.match(release, /authenticated request to the retired path returns 404/);
+    assert.match(release, /DirectUpload RLS remains off/);
     assert.match(release, /ordinary `grainline_app_runtime` connection/);
     assert.match(release, /dpl_Gvsge8MWYW8DfDRSom34YPwsY8rH/);
     assert.match(release, /50 \* \* \* \*/);
@@ -132,7 +138,7 @@ describe("DirectUpload ordinary-runtime cleanup retirement", () => {
     assert.match(release, /rejected Cloudflare `v3` credential is revoked/);
     assert.match(release, /Rebase and re-review draft PR #131/);
     assert.match(release, /Case evidence disabled/);
-    assert.match(release, /does not merge or deploy either release/);
+    assert.match(release, /production-record branch does not deploy another release/);
     assert.match(
       agentContract,
       /DirectUpload cleanup is intentionally not an `\/api\/cron\/\*` route/,
