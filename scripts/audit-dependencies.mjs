@@ -1,12 +1,25 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
+const REVIEWED_BRACE_EXPANSION_BACKPORT = Object.freeze({
+  advisoryId: "GHSA-mh99-v99m-4gvg",
+  expiresAt: "2026-08-29T00:00:00.000Z",
+  integrity:
+    "sha512-w+aeW/mkgM4PyRMOJCgi3fOrTm5Q8QY1OSfn2TO2iuDj3ezIHqejmuxbjfPrqUkgqRew1iqkyAn0tr0ZwHD9+w==",
+  lockPath: "node_modules/minimatch/node_modules/brace-expansion",
+  resolved:
+    "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.17.tgz",
+  version: "1.1.17",
+});
 const REVIEWED_DEV_ONLY_ADVISORIES = new Map([
   [
-    "GHSA-mh99-v99m-4gvg",
-    "brace-expansion denial of service; current ESLint minimatch@3 consumers require the CommonJS v1 API",
+    REVIEWED_BRACE_EXPANSION_BACKPORT.advisoryId,
+    "npm advisory metadata has not yet recognized the official bounded 1.1.17 backport required by ESLint minimatch@3",
   ],
 ]);
 const REVIEWED_DEV_ONLY_PACKAGES = new Set([
@@ -20,6 +33,79 @@ const REVIEWED_DEV_ONLY_PACKAGES = new Set([
   "eslint-plugin-react",
   "minimatch",
 ]);
+
+function assertReviewedBraceExpansionBackport() {
+  const expiresAt = Date.parse(REVIEWED_BRACE_EXPANSION_BACKPORT.expiresAt);
+  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
+    throw new Error(
+      `Reviewed brace-expansion exception expired at ${REVIEWED_BRACE_EXPANSION_BACKPORT.expiresAt}`,
+    );
+  }
+
+  const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+  const locked =
+    lock.packages?.[REVIEWED_BRACE_EXPANSION_BACKPORT.lockPath];
+  for (const field of ["version", "resolved", "integrity"]) {
+    if (
+      locked?.[field]
+      !== REVIEWED_BRACE_EXPANSION_BACKPORT[field]
+    ) {
+      throw new Error(
+        `Reviewed brace-expansion ${field} drifted from the exact 1.1.17 backport`,
+      );
+    }
+  }
+  if (!locked.dev) {
+    throw new Error(
+      "Reviewed brace-expansion backport is no longer development-only",
+    );
+  }
+
+  const installPath = path.resolve(
+    REVIEWED_BRACE_EXPANSION_BACKPORT.lockPath,
+  );
+  const installedPackage = JSON.parse(
+    readFileSync(path.join(installPath, "package.json"), "utf8"),
+  );
+  if (
+    installedPackage.name !== "brace-expansion"
+    || installedPackage.version
+      !== REVIEWED_BRACE_EXPANSION_BACKPORT.version
+  ) {
+    throw new Error(
+      "Installed brace-expansion does not match the exact reviewed 1.1.17 backport",
+    );
+  }
+
+  const installedSource = readFileSync(
+    path.join(installPath, "index.js"),
+    "utf8",
+  );
+  for (const marker of [
+    "EXPANSION_MAX_LENGTH = 4000000",
+    "options.maxLength == null ? EXPANSION_MAX_LENGTH",
+    "length + expansion.length > maxLength",
+    "CVE-2026-14257",
+  ]) {
+    if (!installedSource.includes(marker)) {
+      throw new Error(
+        `Reviewed brace-expansion bound marker is absent: ${marker}`,
+      );
+    }
+  }
+
+  const require = createRequire(import.meta.url);
+  const expand = require(installPath);
+  const bounded = expand("{aa,bb}{cc,dd}", { maxLength: 10 });
+  if (
+    JSON.stringify(bounded)
+    !== JSON.stringify(["aacc", "aadd"])
+  ) {
+    throw new Error(
+      "Reviewed brace-expansion maxLength behavior is not active",
+    );
+  }
+}
 
 function runAudit(extraArgs = []) {
   const result = spawnSync("npm", ["audit", "--json", ...extraArgs], {
@@ -113,6 +199,8 @@ for (const [packageName] of blockingEntries(fullReport)) {
 if (unreviewed.length > 0) {
   throw new Error(`Unreviewed high/critical dependency advisories: ${unreviewed.join("; ")}`);
 }
+
+assertReviewedBraceExpansionBackport();
 
 console.log("Production dependency audit: no high or critical vulnerabilities.");
 if (accepted.size === 0) {

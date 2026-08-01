@@ -865,7 +865,14 @@ Follow-up fix from this pass:
 - `postcss` moved from `8.5.10` to `8.5.23` in both the direct development dependency and the npm override. The resolved tree must contain exactly one PostCSS installation.
 - Direct Prisma packages remain aligned at `7.9.0`. The compatible `@prisma/dev@0.24.16` override resolves `find-my-way@9.7.0`, and `valibot@1.4.2` closes the remaining Prisma development-tool advisory without changing Prisma's direct minor.
 - A proposed global `brace-expansion@5.0.8` override was rejected after verification: ESLint's `minimatch@3` expects the older callable CommonJS API and lint failed with `TypeError: expand is not a function`. The override is not retained.
-- `scripts/audit-dependencies.mjs` runs both production-only and full audits. High/critical production vulnerabilities always fail. The full audit permits only GHSA-mh99-v99m-4gvg through development-only ESLint paths; every other high/critical advisory fails. Remove this exact exception once upstream ESLint consumers accept a patched compatible dependency.
+- `scripts/audit-dependencies.mjs` runs both production-only and full audits. High/critical production vulnerabilities always fail. The full audit permits only GHSA-mh99-v99m-4gvg through development-only ESLint paths; every other high/critical advisory fails. Remove this exact exception when npm advisory metadata recognizes the compatible patched v1 backport or when the legacy ESLint path disappears.
+- On 2026-07-29, the lock moved the legacy CommonJS branch from
+  `brace-expansion@1.1.16` to the official `1.1.17` security backport. npm's
+  advisory metadata still reports 1.1.17 as affected, so the exception now
+  verifies the exact registry artifact, integrity, installed source bounds
+  and functional `maxLength` behavior and expires on 2026-08-29. This is an
+  advisory-metadata lag exception, not acceptance of the unbounded 1.1.16
+  implementation.
 - Production release accepted on 2026-07-25:
   - Dependency patch commit: `50ef609bbb747070cbb57bc469c2e99831ffc302`.
   - Exact merged `main` commit: `1a7904852eb751f086eb048a0e83aa3627dfaa1d`.
