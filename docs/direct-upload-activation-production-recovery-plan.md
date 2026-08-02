@@ -58,17 +58,33 @@ name and commit `477b403f` renamed the same bytes back about 94 minutes later.
 The two historical files have identical SHA-256
 `a54d0d3371a6149a683719963466305b449a6206ef8ddb4d5dc7eb0db1bb5d5e`.
 Because production also contains the current reviewed name (it was not reported
-missing), the ledger has both aliases. The source history and byte identity do
-not yet prove both ledger rows' completion/checksum state, so the recovery
-guard must remain strict.
+missing), the ledger has both aliases.
 
-The protected failure inspector is being extended again to read only aggregate
-row counts, completion/rollback counts, applied-step totals and checksum-match
-booleans for those two exact alias names. It continues to require the failed
-zero-step activation row and restored compatible authority posture inside the
-same repeatable-read, read-only transaction. Do not weaken or retry recovery
-until that alias-row proof passes and the exception is reviewed as an exact
-historical invariant.
+Alias-proof PR #142 exact head
+`db2d07a6d771d8382364af6df524b634ecc6fbc5` merged as exact main commit
+`7d3cc70d4b1b0aa6513013a6d28c8a312357e67b`; main CI run `30767514448`
+passed every migration, PostgreSQL authority, grant, RLS, test, audit and build
+gate. Protected read-only run `30767685144` then proved the two exact alias
+rows inside the same repeatable-read, read-only transaction:
+
+- current `20260423_add_listing_variants` has one completed, non-rolled-back
+  row, one applied step and the reviewed checksum;
+- historical `20260423000000_add_listing_variants` has one rolled-back row,
+  zero applied steps, zero incomplete rows and the same reviewed checksum; and
+- no other migration-tree difference exists.
+
+The diagnostic's provisional `exact` flag is false because it initially
+accepted only two completed alias rows. The aggregate evidence instead proves
+the safer historical shape: the renamed row was explicitly rolled back and
+never applied a schema step. The original DirectUpload activation row and the
+compatible RLS-off authority posture remain unchanged, and
+`productionChangedByInspection=false`.
+
+Recovery remains blocked. Its verifier may be changed only through a separately
+reviewed code release that admits this one exact checksum-matching rolled-back
+alias while continuing to reject every other missing, unexpected, incomplete,
+applied or checksum-drifting ledger shape. No production recovery retry is
+authorized by this evidence.
 
 ## Prepared read-only verifier
 
@@ -136,10 +152,10 @@ The corrected migration/proof in PR #139 and recovery workflow in PR #140 are
 merged. Recovery run `30760097011` was dispatched but stopped read-only before
 the exact ledger resolve boundary. The original unfinished zero-step row and
 compatible RLS-off DirectUpload posture therefore remain the expected
-production state. The aggregate tree delta is now known; a targeted read-only
-checksum/completion proof for the two listing-variants aliases is the next
-boundary. No recovery retry is accepted until that proof is reviewed and the
-verifier admits only the exact historical alias shape.
+production state. The aggregate alias proof is now complete. A separately
+reviewed verifier change that admits only the exact rolled-back historical
+alias is the next boundary. No recovery retry is accepted until that code
+change passes full CI and receives separate production authorization.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those

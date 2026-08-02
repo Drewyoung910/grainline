@@ -215,8 +215,21 @@ no reviewed names missing. Commits `4ebb0502` and `477b403f` renamed and then
 restored the byte-identical `20260423_add_listing_variants` directory. The
 inspection retained only aggregate names/counts, ran repeatable-read/read-only,
 left the exact failed DirectUpload row and compatible RLS-off posture intact,
-and changed no production state. Recovery remains blocked pending an exact
-read-only checksum/completion proof for both alias rows.
+and changed no production state.
+
+Alias-proof PR #142 exact head
+`db2d07a6d771d8382364af6df524b634ecc6fbc5` merged as exact main commit
+`7d3cc70d4b1b0aa6513013a6d28c8a312357e67b`; exact-main CI run
+`30767514448` passed. Protected read-only inspection run `30767685144`
+subsequently proved both rows share reviewed SHA-256
+`a54d0d3371a6149a683719963466305b449a6206ef8ddb4d5dc7eb0db1bb5d5e`.
+The current name has one completed non-rolled-back row and one applied step;
+the historical full-timestamp alias has one rolled-back row, zero applied
+steps and zero incomplete rows. Thus the extra name is a never-applied rename
+artifact, not a second schema application. The DirectUpload activation row
+remains unfinished with zero steps, RLS remains off, and the inspection changed
+nothing. Recovery remains blocked until its verifier is separately reviewed to
+accept only this exact historical alias shape.
 
 Prisma's ledger `logs` value is empty (zero bytes, SHA-256
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`),
