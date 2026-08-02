@@ -153,7 +153,7 @@ describe("DirectUpload service-only activation release", () => {
     assert.doesNotMatch(ci, /prisma migrate resolve/);
   });
 
-  it("records the merged release, accepted credential gate, and postflight boundary", () => {
+  it("records the merged release, failed production attempt, credential gate, and postflight boundary", () => {
     const release = readFileSync(
       "docs/direct-upload-activation-release.md",
       "utf8",
@@ -162,8 +162,10 @@ describe("DirectUpload service-only activation release", () => {
     assert.match(release, /PR `#131` merged the byte-pinned activation release/);
     assert.match(
       normalizedRelease,
-      /production activation migration has not been dispatched or applied/,
+      /Guarded production migration run `30729632410` later attempted the activation/,
     );
+    assert.match(normalizedRelease, /There is no accepted production activation claim/);
+    assert.match(normalizedRelease, /neither activation postflight was dispatched/);
     assert.match(release, new RegExp(DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256));
     assert.match(release, new RegExp(DISPOSABLE_DIRECT_UPLOAD_ACTIVATION_SHA256));
     assert.match(release, /exactly 17 validated fixed functions/);

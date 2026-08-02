@@ -1,0 +1,62 @@
+name: DirectUpload Activation Failure Inspection
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact failed activation main commit
+        required: true
+        type: string
+      failed_migration_run_id:
+        description: Failed guarded Production Migrations run id
+        required: true
+        type: string
+      confirmation:
+        description: Type inspect-failed-direct-upload-activation-read-only
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Inspect failed DirectUpload activation read-only
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    env:
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      MIGRATION_DB_ROLE: neondb_owner
+      DIRECT_UPLOAD_ACTIVATION_FAILURE_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      DIRECT_UPLOAD_ACTIVATION_FAILED_MIGRATION_RUN_ID: ${{ inputs.failed_migration_run_id }}
+      DIRECT_UPLOAD_ACTIVATION_FAILURE_INSPECT_CONFIRM: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Inspect failed activation ledger and rollback posture read-only
+        run: npm run ops:direct-upload-activation-failure-inspect
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_ACTIVATION_FAILURE_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-activation-failure-inspection-${{ inputs.release_commit }}.json
+      - name: Upload sanitized failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-upload-activation-failure-inspection-${{ github.sha }}
+          path: ${{ runner.temp }}/direct-upload-activation-failure-inspection-${{ inputs.release_commit }}.json
+          if-no-files-found: warn
+          retention-days: 30

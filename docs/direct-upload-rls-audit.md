@@ -1711,6 +1711,28 @@ evidence. Function identity arguments are now also pinned in the standing
 cleanup-worker catalog so same-name signature drift cannot pass later worker
 preflight.
 
+### 2026-08-01 failed activation and diagnostic boundary
+
+Guarded Production Migrations run `30729632410` targeted exact main
+`9eeb7ceb828ac1a6f9817e270f2933237bd4cdfc`. All source, role, migration-byte,
+proof-equivalence and Prisma-generation gates passed. Prisma selected only
+`20260801194000_enable_direct_upload_rls`, then failed with the secondary
+message `current transaction is aborted`; it did not expose the first
+PostgreSQL error in the Actions log. Migration status and the final grant audit
+were skipped, and neither reviewed activation postflight ran. This is failed
+evidence, not a production activation claim.
+
+The earlier legacy verifier cannot classify this state: run `30729803125`
+failed read-only because that pre-retirement operator still requires the
+intentionally retired `CaseMessageAttachment.objectKey`. It produced no
+evidence and changed nothing. A new isolated failure inspector instead reads
+only the exact Prisma ledger row and current catalog in a repeatable-read,
+read-only owner transaction. It hashes but never retains the raw migration log,
+emits only an allowlisted database-error classification, proves the exact
+pre-activation role/table/function posture apart from the expected incomplete
+ledger row, and writes a mode-0600 sanitized artifact. No migration recovery or
+retry is allowed until that evidence passes.
+
 ## Exit
 
 Keep Extra High through the activation sequencing and authority review. The
