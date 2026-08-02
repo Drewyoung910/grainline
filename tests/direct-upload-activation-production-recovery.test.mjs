@@ -411,7 +411,14 @@ describe("DirectUpload activation production recovery", () => {
       ".github/workflows/direct-upload-activation-production-recovery.yml",
       "utf8",
     );
-    assert.match(plan, /Status: workflow wired on an isolated branch; not merged or dispatched/u);
+    assert.match(
+      plan,
+      /Status: draft PR #140 stacked on corrected-migration PR #139; neither merged\s+nor dispatched/u,
+    );
+    assert.match(
+      plan,
+      /95943014716b4654b1654d740f601ae755ed1740[\s\S]*30757000208[\s\S]*PR #140 targets PR #139/u,
+    );
     assert.match(
       plan,
       /30729632410[\s\S]*30734098369[\s\S]*exact successful main CI run/u,

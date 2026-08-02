@@ -1,6 +1,7 @@
 # DirectUpload activation production recovery
 
-Status: workflow wired on an isolated branch; not merged or dispatched.
+Status: draft PR #140 stacked on corrected-migration PR #139; neither merged
+nor dispatched.
 
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
@@ -15,6 +16,15 @@ zero-step failure, resolved only that disposable row, applied the corrected
 bytes, and proved activated authority, migration status, grants and rollback.
 The exact successful main CI run for the future recovery release must also be
 bound before any production recovery is dispatched.
+
+The isolated workflow head
+`95943014716b4654b1654d740f601ae755ed1740` passed full PR CI run
+`30757000208`. PR #140 targets PR #139's exact corrected-migration branch, not
+`main`, so the corrected migration/proof and executable production recovery
+remain two review and merge boundaries. The Vercel Preview status is expected
+to fail closed on this operations-only branch; GitHub CI, including the
+ephemeral PostgreSQL migrations, grants, RLS proofs, security audit and
+production build, passed.
 
 ## Prepared read-only verifier
 
@@ -51,7 +61,7 @@ database rows, logs, function source or credential.
 ## Exact wired recovery sequence
 
 The isolated executable workflow shares the
-`production-database-migrations` concurrency group and run only from an exact
+`production-database-migrations` concurrency group and runs only from an exact
 clean main commit in the protected Production environment. It must bind and
 verify failed run `30729632410`, disposable recovery proof run `30734098369`,
 and an exact successful main CI run for its release commit.
@@ -78,11 +88,12 @@ an accepted restart state and requires a fresh read-only investigation.
 
 ## Boundaries retained
 
-The workflow is prepared only on an isolated branch under explicit wiring
-authorization. It has not been merged or dispatched, and the verifier, tests
-and workflow preparation changed no production state. Merging and dispatching
-remain separate boundaries; dispatch is the step that can mark the ledger row
-rolled back and apply the activation.
+The workflow is prepared only in draft PR #140, stacked on PR #139, under
+explicit wiring authorization. Neither PR has been merged and the workflow has
+not been dispatched. The verifier, tests, workflow preparation and PR CI
+changed no production state. Merging the two PRs in order and dispatching the
+recovery remain separate boundaries; dispatch is the step that can mark the
+ledger row rolled back and apply the activation.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those

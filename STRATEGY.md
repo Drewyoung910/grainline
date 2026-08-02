@@ -664,9 +664,11 @@ restart-safe production sequence and current authorization boundary live in
 `docs/direct-upload-activation-production-recovery-plan.md`. Do not weaken the
 generic Production Migrations incomplete-ledger guard. The prepared recovery
 verifier is read-only. The restart-safe resolve/deploy workflow is wired only
-on an isolated branch; it is not merged or dispatched. Those remain separate
-production boundaries. Case evidence, cleanup scheduling, token retirement
-and provider-variable changes remain later, independent releases.
+in draft PR #140, stacked on corrected-migration/proof PR #139; full PR CI run
+`30757000208` passed at exact workflow head `959430147`. Neither PR is merged
+and the recovery workflow is not dispatched. Those remain separate production
+boundaries. Case evidence, cleanup scheduling, token retirement and
+provider-variable changes remain later, independent releases.
 
 ### Messaging architecture decision (2026-07-22)
 

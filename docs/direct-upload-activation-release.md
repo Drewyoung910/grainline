@@ -285,6 +285,10 @@ Exact-head repeat run `30734098369` passed again at documentation head
 passed at the same head. The production recovery design is recorded in
 `docs/direct-upload-activation-production-recovery-plan.md`. Its read-only,
 restart-state verifier and executable workflow are prepared on an isolated
-branch under wiring-only authorization. They are not merged or dispatched.
-Production still has the original unfinished zero-step row and compatible
-RLS-off DirectUpload posture.
+branch under wiring-only authorization. Draft PR #140 is stacked on corrected
+migration/proof PR #139 rather than duplicating it against `main`. Exact
+workflow head `95943014716b4654b1654d740f601ae755ed1740` passed full PR CI run
+`30757000208`; its expected Vercel Preview guard failure did not deploy the
+operations-only branch. Neither PR is merged and the recovery workflow has not
+been dispatched. Production still has the original unfinished zero-step row
+and compatible RLS-off DirectUpload posture.
