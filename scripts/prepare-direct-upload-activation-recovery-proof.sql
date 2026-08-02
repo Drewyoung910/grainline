@@ -5,9 +5,9 @@
 
 DO $grainline_direct_upload_recovery_fixture_guard$
 BEGIN
-  IF current_database() <> 'grainline_ci' OR current_user <> 'ci' THEN
+  IF current_database() <> 'grainline_ci' OR current_user <> 'cloud_admin' THEN
     RAISE EXCEPTION
-      'DirectUpload recovery role fixture may run only as ci on grainline_ci';
+      'DirectUpload recovery role fixture may run only as cloud_admin on grainline_ci';
   END IF;
 END
 $grainline_direct_upload_recovery_fixture_guard$;
@@ -15,9 +15,20 @@ $grainline_direct_upload_recovery_fixture_guard$;
 DO $grainline_direct_upload_recovery_provider_roles$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'cloud_admin'
+    SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'ci'
   ) THEN
-    CREATE ROLE cloud_admin SUPERUSER NOLOGIN;
+    CREATE ROLE ci
+      LOGIN SUPERUSER CREATEDB CREATEROLE INHERIT NOREPLICATION BYPASSRLS
+      PASSWORD 'ci';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_roles
+     WHERE rolname = 'grainline_direct_upload_cleanup_v2'
+  ) THEN
+    CREATE ROLE grainline_direct_upload_cleanup_v2
+      LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+      NOREPLICATION NOBYPASSRLS;
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'neondb_owner'
@@ -29,15 +40,11 @@ BEGIN
 END
 $grainline_direct_upload_recovery_provider_roles$;
 
--- PostgreSQL records the session authorization identity as the grantor. Switch
--- that identity to the disposable provider-superuser fixture so
--- pg_auth_members exactly matches Neon's provider-created edge without first
--- granting cleanup authority to cloud_admin (which would add a second,
--- invalid edge).
-SET SESSION AUTHORIZATION cloud_admin;
+-- This disposable cluster starts with cloud_admin as PostgreSQL's bootstrap
+-- superuser. PostgreSQL therefore records the same provider grantor identity
+-- that Neon records, without adding a second membership dependency.
 GRANT grainline_direct_upload_cleanup_v2 TO neondb_owner
   WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
-RESET SESSION AUTHORIZATION;
 
 DO $grainline_direct_upload_recovery_fixture_postflight$
 DECLARE

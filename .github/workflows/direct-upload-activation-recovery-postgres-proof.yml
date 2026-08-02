@@ -40,13 +40,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: ci
+          POSTGRES_USER: cloud_admin
           POSTGRES_PASSWORD: ci
           POSTGRES_DB: grainline_ci
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ci -d grainline_ci"
+          --health-cmd "pg_isready -U cloud_admin -d grainline_ci"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -57,6 +57,7 @@ jobs:
       DIRECT_UPLOAD_LEGACY_REPAIR_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROVIDER_FIXTURE_URL: postgresql://cloud_admin:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
     steps:
       - uses: actions/checkout@v5
@@ -66,10 +67,10 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Prepare the exact provider-forced membership fixture
+        run: psql "$DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROVIDER_FIXTURE_URL" -f scripts/prepare-direct-upload-activation-recovery-proof.sql
       - name: Prepare CI runtime and cleanup roles
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
-      - name: Prepare the exact provider-forced membership fixture
-        run: psql "$DIRECT_URL" -f scripts/prepare-direct-upload-activation-recovery-proof.sql
       - name: Run recovery static contracts
         run: >-
           node --test

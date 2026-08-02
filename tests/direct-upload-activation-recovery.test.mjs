@@ -102,14 +102,24 @@ describe("DirectUpload failed-activation recovery proof", () => {
       "utf8",
     );
     assert.match(roleFixture, /current_database\(\) <> 'grainline_ci'/u);
+    assert.match(roleFixture, /current_user <> 'cloud_admin'/u);
     assert.match(
       roleFixture,
-      /SET SESSION AUTHORIZATION cloud_admin;[\s\S]*WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;[\s\S]*RESET SESSION AUTHORIZATION;/u,
+      /CREATE ROLE ci[\s\S]*LOGIN SUPERUSER[\s\S]*PASSWORD 'ci'/u,
+    );
+    assert.match(
+      roleFixture,
+      /GRANT grainline_direct_upload_cleanup_v2 TO neondb_owner[\s\S]*WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;/u,
     );
     assert.match(proof, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
     assert.match(proof, /FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256/u);
     assert.match(proof, /DIRECT_UPLOAD_ACTIVATION_RELEASE\.sha256/u);
     assert.match(workflow, /image: postgres:16/u);
+    assert.match(workflow, /POSTGRES_USER: cloud_admin/u);
+    assert.match(
+      workflow,
+      /DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROVIDER_FIXTURE_URL: postgresql:\/\/cloud_admin:ci@localhost:5432\/grainline_ci\?sslmode=disable/u,
+    );
     assert.match(
       workflow,
       /Reproduce the exact zero-step activation failure[\s\S]*--failed[\s\S]*--rolled-back 20260801194000_enable_direct_upload_rls[\s\S]*--resolved[\s\S]*Apply only the corrected reviewed activation[\s\S]*--activated/u,
