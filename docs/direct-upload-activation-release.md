@@ -244,7 +244,7 @@ zero runtime memberships and zero cleanup parent memberships, permits only
 that exact provider-forced edge, rejects every other direct edge, and rejects
 any transitive cleanup member beyond `neondb_owner`.
 
-The sanitized schema-version-2 evidence is preserved mode 0600 as
+The sanitized schema-version-3 evidence is preserved mode 0600 as
 `direct-upload-activation-failure-inspection-a1b59157fc1fedcbb3ef9d6e0217a2ffec4e190e.json`,
 SHA-256
 `10ffcb64168c3e98aefcb7261682f423910fd8116d367451877ea8f7702cf3a2`.
@@ -279,3 +279,22 @@ production state. The passing harness now starts the disposable cluster with
 `ci`, and uses a separate loopback `neondb_owner` only for the cleanup-role
 converger. This mirrors the three production responsibilities without granting
 one test identity ambiguous authority.
+
+Exact-head repeat run `30734098369` passed again at documentation head
+`d4a106d2bdf7e0af4c8fea9ca6c4770b2bfbdbdd`, and full CI run `30734066701`
+passed at the same head. The production recovery design is recorded in
+`docs/direct-upload-activation-production-recovery-plan.md`. Its read-only,
+restart-state verifier and executable workflow are prepared on an isolated
+branch under wiring-only authorization. Draft PR #140 was initially stacked on
+corrected migration/proof PR #139 so those changes were not duplicated against
+`main`. Exact workflow head `95943014716b4654b1654d740f601ae755ed1740`
+passed full PR CI run
+`30757000208`; its expected Vercel Preview guard failure did not deploy the
+operations-only branch. PR #139 exact head
+`d4a106d2bdf7e0af4c8fea9ca6c4770b2bfbdbdd` then merged as main commit
+`736bdc57d8ecac14dcac6690a386c96cf9e655e1`. Main CI `30758315593`,
+Conversation and Message FORCE proof `30758315599`, and Notification FORCE
+proof `30758315577` all passed at that merge commit. PR #140 was retargeted to
+`main` and remains draft and unmerged; the recovery workflow has not been
+dispatched. Production still has the original unfinished zero-step row and
+compatible RLS-off DirectUpload posture.

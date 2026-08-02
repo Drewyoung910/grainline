@@ -647,6 +647,32 @@ persistent-staging or production change. This accepts disposable database
 evidence only; every production/provider/legacy/drain/private-feature gate
 remains separate and explicitly approved.
 
+The promoted production activation later failed at exact run `30729632410`
+with zero applied steps. Read-only inspectors proved the full transaction
+rolled back and isolated the cause to an over-broad membership preflight: Neon
+records one exact non-effective cleanup-role-to-`neondb_owner` edge granted by
+`cloud_admin` with ADMIN true and INHERIT/SET false. The corrected migration
+accepts only that tuple while continuing to reject every runtime edge, cleanup
+parent edge, other direct member and transitive member. Disposable PostgreSQL
+16 recovery run `30734098369` reproduced the original checksum failure,
+resolved only that loopback ledger row, replayed the corrected checksum and
+passed activated authority, migration status, global grants and rollback.
+
+Production itself is intentionally still at the compatible DirectUpload
+RLS-off boundary with the original unfinished zero-step row. The exact
+restart-safe production sequence and current authorization boundary live in
+`docs/direct-upload-activation-production-recovery-plan.md`. Do not weaken the
+generic Production Migrations incomplete-ledger guard. The prepared recovery
+verifier is read-only. Corrected-migration/proof PR #139 exact head
+`d4a106d2b` merged as main commit `736bdc57d`; exact-main CI `30758315593` and
+the Conversation/Message and Notification FORCE proofs `30758315599` and
+`30758315577` passed. The restart-safe resolve/deploy workflow remains wired
+only in draft PR #140, now retargeted to `main`; full PR CI run `30757000208`
+passed at exact workflow head `959430147`. PR #140 is unmerged and the recovery
+workflow is not dispatched. Merge and dispatch remain separate production
+boundaries. Case evidence, cleanup scheduling, token retirement and
+provider-variable changes remain later, independent releases.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

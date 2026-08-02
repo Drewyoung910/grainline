@@ -1,0 +1,206 @@
+name: DirectUpload Activation Production Recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact corrected activation main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full CI run for the exact main commit
+        required: true
+        type: string
+      failed_migration_run_id:
+        description: Type 30729632410
+        required: true
+        type: string
+      recovery_proof_run_id:
+        description: Type 30734098369
+        required: true
+        type: string
+      confirmation:
+        description: Type recover-failed-direct-upload-activation-exact
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Recover exact failed DirectUpload activation
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: Production
+    env:
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+      MIGRATION_DB_ROLE: neondb_owner
+      DIRECT_UPLOAD_ACTIVATION_RECOVERY_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      DIRECT_UPLOAD_ACTIVATION_RECOVERY_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+      DIRECT_UPLOAD_ACTIVATION_FAILED_MIGRATION_RUN_ID: ${{ inputs.failed_migration_run_id }}
+      DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID: ${{ inputs.recovery_proof_run_id }}
+      DIRECT_UPLOAD_ACTIVATION_RECOVERY_CONFIRM: ${{ inputs.confirmation }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify exact failed, disposable-proof and main-CI runs
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_FAILED_MIGRATION_RUN_ID: ${{ inputs.failed_migration_run_id }}
+          REVIEWED_RECOVERY_PROOF_RUN_ID: ${{ inputs.recovery_proof_run_id }}
+        with:
+          script: |
+            const parseRunId = (name) => {
+              const value = process.env[name];
+              if (!/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+                throw new Error(`${name} is not one positive run id`);
+              }
+              const parsed = Number(value);
+              if (!Number.isSafeInteger(parsed)) {
+                throw new Error(`${name} is not a safe run id`);
+              }
+              return parsed;
+            };
+            const releaseCommit = process.env.REVIEWED_RELEASE_COMMIT;
+            const failedRunId = parseRunId('REVIEWED_FAILED_MIGRATION_RUN_ID');
+            const proofRunId = parseRunId('REVIEWED_RECOVERY_PROOF_RUN_ID');
+            const mainCiRunId = parseRunId('REVIEWED_MAIN_CI_RUN_ID');
+            if (
+              releaseCommit !== context.sha
+              || failedRunId !== 30729632410
+              || proofRunId !== 30734098369
+              || new Set([failedRunId, proofRunId, mainCiRunId]).size !== 3
+            ) {
+              throw new Error('DirectUpload recovery workflow bindings drifted');
+            }
+            const expected = [
+              {
+                id: failedRunId,
+                name: 'Production Migrations',
+                event: 'workflow_dispatch',
+                headBranch: 'main',
+                headSha: '9eeb7ceb828ac1a6f9817e270f2933237bd4cdfc',
+                conclusion: 'failure',
+              },
+              {
+                id: proofRunId,
+                name: 'DirectUpload Activation Recovery PostgreSQL Proof',
+                event: 'workflow_dispatch',
+                headBranch: 'agent/direct-upload-activation-membership-recovery-20260802',
+                headSha: 'd4a106d2bdf7e0af4c8fea9ca6c4770b2bfbdbdd',
+                conclusion: 'success',
+              },
+              {
+                id: mainCiRunId,
+                name: 'CI',
+                event: 'push',
+                headBranch: 'main',
+                headSha: context.sha,
+                conclusion: 'success',
+              },
+            ];
+            for (const reviewed of expected) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: reviewed.id,
+              });
+              if (
+                run.id !== reviewed.id
+                || run.name !== reviewed.name
+                || run.event !== reviewed.event
+                || run.head_branch !== reviewed.headBranch
+                || run.head_sha !== reviewed.headSha
+                || run.status !== 'completed'
+                || run.conclusion !== reviewed.conclusion
+              ) {
+                throw new Error(`Reviewed workflow run ${reviewed.id} drifted`);
+              }
+            }
+      - name: Inspect exact restart state read-only
+        id: inspect
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_ACTIVATION_RECOVERY_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-activation-production-recovery-${{ inputs.release_commit }}-inspect.json
+        run: |
+          set -euo pipefail
+          inspection_json="$(node scripts/direct-upload-activation-production-recovery.mjs --inspect)"
+          printf '%s\n' "$inspection_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            if (!["failed", "resolved", "activated"].includes(value.state)) {
+              throw new Error("invalid DirectUpload recovery state");
+            }
+            process.stdout.write(`state=${value.state}\n`);
+          ' "$inspection_json" >> "$GITHUB_OUTPUT"
+      - name: Verify exact corrected DirectUpload activation release
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed
+        run: |
+          npm run verify:rls-release-artifact
+          npm run audit:rls-direct-upload-activation-release
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Mark only the exact failed zero-step row rolled back
+        if: steps.inspect.outputs.state == 'failed'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: >-
+          npx prisma migrate resolve
+          --rolled-back 20260801194000_enable_direct_upload_rls
+      - name: Prove exact resolved compatible boundary read-only
+        if: steps.inspect.outputs.state != 'activated'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_ACTIVATION_RECOVERY_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-activation-production-recovery-${{ inputs.release_commit }}-resolved.json
+        run: npm run ops:direct-upload-activation-production-recovery-proof -- --resolved
+      - name: Apply only the corrected reviewed activation
+        if: steps.inspect.outputs.state != 'activated'
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate deploy
+      - name: Converge activated runtime and cleanup grants
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-runtime-db-role.sql
+          psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Verify recovered production migration status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npx prisma migrate status
+      - name: Audit recovered runtime grants and RLS catalog
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: npm run audit:db-grants -- --require-direct-url
+      - name: Prove exact activated owner boundary read-only
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          DIRECT_UPLOAD_ACTIVATION_RECOVERY_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-activation-production-recovery-${{ inputs.release_commit }}-activated.json
+        run: npm run ops:direct-upload-activation-production-recovery-proof -- --activated
+      - name: Upload sanitized recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-upload-activation-production-recovery-${{ github.sha }}
+          path: ${{ runner.temp }}/direct-upload-activation-production-recovery-${{ inputs.release_commit }}-*.json
+          if-no-files-found: warn
+          retention-days: 30
