@@ -109,6 +109,10 @@ describe("DirectUpload failed-activation recovery proof", () => {
     );
     assert.match(
       roleFixture,
+      /CREATE ROLE neondb_owner[\s\S]*LOGIN SUPERUSER[\s\S]*BYPASSRLS PASSWORD 'ci'/u,
+    );
+    assert.match(
+      roleFixture,
       /GRANT grainline_direct_upload_cleanup_v2 TO neondb_owner[\s\S]*WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;/u,
     );
     assert.match(proof, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
@@ -119,6 +123,14 @@ describe("DirectUpload failed-activation recovery proof", () => {
     assert.match(
       workflow,
       /DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROVIDER_FIXTURE_URL: postgresql:\/\/cloud_admin:ci@localhost:5432\/grainline_ci\?sslmode=disable/u,
+    );
+    assert.match(
+      workflow,
+      /DIRECT_UPLOAD_ACTIVATION_RECOVERY_OWNER_FIXTURE_URL: postgresql:\/\/neondb_owner:ci@localhost:5432\/grainline_ci\?sslmode=disable/u,
+    );
+    assert.match(
+      workflow,
+      /psql "\$DIRECT_UPLOAD_ACTIVATION_RECOVERY_OWNER_FIXTURE_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner/u,
     );
     assert.match(
       workflow,

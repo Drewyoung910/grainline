@@ -34,8 +34,8 @@ BEGIN
     SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'neondb_owner'
   ) THEN
     CREATE ROLE neondb_owner
-      NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
-      NOREPLICATION NOBYPASSRLS;
+      LOGIN SUPERUSER CREATEDB CREATEROLE NOINHERIT
+      NOREPLICATION BYPASSRLS PASSWORD 'ci';
   END IF;
 END
 $grainline_direct_upload_recovery_provider_roles$;

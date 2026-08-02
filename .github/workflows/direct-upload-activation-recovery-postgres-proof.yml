@@ -57,6 +57,7 @@ jobs:
       DIRECT_UPLOAD_LEGACY_REPAIR_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
+      DIRECT_UPLOAD_ACTIVATION_RECOVERY_OWNER_FIXTURE_URL: postgresql://neondb_owner:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROVIDER_FIXTURE_URL: postgresql://cloud_admin:ci@localhost:5432/grainline_ci?sslmode=disable
       DIRECT_UPLOAD_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: postgresql://ci:ci@localhost:5432/grainline_ci?sslmode=disable
     steps:
@@ -93,13 +94,13 @@ jobs:
       - name: Converge compatible runtime and cleanup grants
         run: |
           psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
-          psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+          psql "$DIRECT_UPLOAD_ACTIVATION_RECOVERY_OWNER_FIXTURE_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Restore and apply the retirement release only
         run: |
           mv "$RUNNER_TEMP/direct-upload-retirement-release" prisma/migrations/20260801175000_retire_direct_upload_compatibility_key
           npx prisma migrate deploy
           psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
-          psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+          psql "$DIRECT_UPLOAD_ACTIVATION_RECOVERY_OWNER_FIXTURE_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Restore corrected activation then stage the exact failed bytes
         env:
           CI: "true"
@@ -140,7 +141,7 @@ jobs:
       - name: Converge activated runtime and cleanup grants
         run: |
           psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
-          psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+          psql "$DIRECT_UPLOAD_ACTIVATION_RECOVERY_OWNER_FIXTURE_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Verify recovered migration status
         run: npx prisma migrate status
       - name: Audit recovered runtime grants and RLS catalog
