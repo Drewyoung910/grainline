@@ -212,9 +212,12 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /Verify committed Notification FORCE release artifact/);
     assert.match(workflow, /audit:rls-notification-force-release/);
     assert.doesNotMatch(workflow, /Stage byte-pinned Notification activation migration/);
-    assert.match(workflow, /Converge activated production-style runtime grants/);
+    assert.match(
+      workflow,
+      /Isolate DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations including committed Notification FORCE[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Restore exact DirectUpload activation[\s\S]*Apply current migrations including DirectUpload activation[\s\S]*Reconverge activated production-style runtime grants[\s\S]*Reconverge activated DirectUpload cleanup-worker grants/,
+    );
     const activationApply = workflow.indexOf(
-      "Apply current migrations including committed Notification FORCE",
+      "Apply current migrations including DirectUpload activation",
     );
     const grantAudit = workflow.indexOf("Audit production-style runtime grants");
     assert.ok(
@@ -222,6 +225,7 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
         < activationApply,
     );
     assert.ok(activationApply < grantAudit);
+    assert.match(workflow, /scripts\/provision-direct-upload-cleanup-role\.sql/);
     assert.doesNotMatch(workflow, /Apply isolated Notification .* draft/);
     assert.equal(
       packageJson.scripts["audit:rls-notification-ephemeral"],

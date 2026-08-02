@@ -61,6 +61,16 @@ regression assertion pins that boundary. These were CI orchestration defects;
 no database authority proof failed and production was not contacted or
 changed.
 
+Post-merge main runs `30725212564` (Notification FORCE) and `30725212570`
+(Conversation/Message FORCE) are retained failed evidence. Both older focused
+workflows tried to apply the newly merged DirectUpload activation on a fresh
+cluster before recreating the externally managed cleanup role and predecessor
+grants, so the activation failed closed before either table-specific proof ran.
+They now isolate the activation, apply the compatible tree, converge both
+external roles, restore and apply the exact activation, reconverge grants, and
+then run their original authority and rollback proofs. This changes disposable
+CI orchestration only; it does not alter migration bytes or production state.
+
 ## Authority boundary
 
 The migration takes an advisory transaction lock and ACCESS EXCLUSIVE locks

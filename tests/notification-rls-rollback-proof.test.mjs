@@ -39,7 +39,7 @@ describe("Notification database-first rollback proof", () => {
 
   it("runs after activation and before the final authority proof", () => {
     const activation = workflow.indexOf(
-      "Apply current migrations including committed Notification FORCE",
+      "Apply current migrations including DirectUpload activation",
     );
     const rollback = workflow.indexOf("Prove database-first Notification rollback");
     const finalProof = workflow.indexOf("Prove Notification RLS and service authority");
