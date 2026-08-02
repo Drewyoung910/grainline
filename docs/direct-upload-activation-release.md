@@ -205,6 +205,19 @@ row. `DirectUpload` remains RLS-off with compatible runtime CRUD;
 CRUD; the 35-function compatible authority partition matches; and the
 repeatable-read transaction was read-only. The inspection changed nothing.
 
+Later authorized recovery run `30760097011` stopped in its initial read-only
+migration-tree guard before any resolve, deploy or grant step. Follow-up
+read-only run `30766662618` at exact main
+`b814634bc0de9ea8e7c80972f13111bdf10e723d` proved the sole tree difference is
+one production-only historical name,
+`20260423000000_add_listing_variants`: reviewed count 187, ledger count 188,
+no reviewed names missing. Commits `4ebb0502` and `477b403f` renamed and then
+restored the byte-identical `20260423_add_listing_variants` directory. The
+inspection retained only aggregate names/counts, ran repeatable-read/read-only,
+left the exact failed DirectUpload row and compatible RLS-off posture intact,
+and changed no production state. Recovery remains blocked pending an exact
+read-only checksum/completion proof for both alias rows.
+
 Prisma's ledger `logs` value is empty (zero bytes, SHA-256
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`),
 so the first database error cannot be recovered from the ledger. The sanitized
