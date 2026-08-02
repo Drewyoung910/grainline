@@ -257,7 +257,7 @@ function summarizePosture(snapshot) {
 export function writeDirectUploadActivationFailureEvidence(pathname, evidence) {
   const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
   if (
-    /postgres(?:ql)?:\/\/|DIRECT_URL|PASSWORD|SECRET_ACCESS_KEY|"rawLog"\s*:/iu
+    /postgres(?:ql)?:\/\/|DIRECT_URL|PASSWORD|SECRET_ACCESS_KEY|"raw(?:Error|Log)"\s*:/iu
       .test(serialized)
   ) {
     throw new Error("DirectUpload activation failure evidence contains sensitive-shaped data");
@@ -355,7 +355,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
     transactionOpen = false;
     const failure = classifyDirectUploadActivationFailure(row.logs, migrationSql);
     const evidence = Object.freeze({
-      schemaVersion: 1,
+      schemaVersion: 2,
       operation: "direct-upload-activation-failure-inspection",
       source: Object.freeze({ clean: git.clean, commit: git.head }),
       runs: Object.freeze({

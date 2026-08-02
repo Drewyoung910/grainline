@@ -167,6 +167,11 @@ describe("DirectUpload activation failure inspection", () => {
           path.join(directory, "unsafe.json"),
           { value: OWNER_URL },
         ));
+      assert.throws(() =>
+        writeDirectUploadActivationFailureEvidence(
+          path.join(directory, "raw-error.json"),
+          { rawError: "unexpected database failure" },
+        ));
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -187,6 +192,7 @@ describe("DirectUpload activation failure inspection", () => {
     assert.doesNotMatch(workflow, /DATABASE_URL:|DIRECT_UPLOAD_CLEANUP_DATABASE_URL:/u);
     assert.match(script, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
     assert.match(script, /extractDirectUploadActivationReadOnlyPreflight/u);
+    assert.match(script, /schemaVersion: 2/u);
     assert.match(script, /productionChangedByInspection: false/u);
     assert.doesNotMatch(script, /client\.query\(`?(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE)/u);
   });

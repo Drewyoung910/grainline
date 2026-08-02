@@ -213,5 +213,7 @@ same read-only transaction. It fails before that query unless the one exact
 failed ledger row, promoted checksum, read-only mode and compatible
 pre-activation posture all match. PostgreSQL can therefore return the first
 preflight SQLSTATE and allowlisted message directly while the transaction
-prevents any write. Do not resolve or retry the migration until that result is
-classified and the recovery operator is separately reviewed.
+prevents any write. Its schema-version-2 artifact explicitly retains neither
+the raw ledger log nor the raw live error. Do not resolve or retry the migration
+until that result is classified and the recovery operator is separately
+reviewed.
