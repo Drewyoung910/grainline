@@ -29,9 +29,14 @@ BEGIN
 END
 $grainline_direct_upload_recovery_provider_roles$;
 
+-- PostgreSQL records the executing role as the grantor. Switch to the
+-- disposable provider-superuser fixture so pg_auth_members exactly matches
+-- Neon's provider-created edge without first granting cleanup authority to
+-- cloud_admin (which would add a second, invalid edge).
+SET ROLE cloud_admin;
 GRANT grainline_direct_upload_cleanup_v2 TO neondb_owner
-  WITH ADMIN TRUE, INHERIT FALSE, SET FALSE
-  GRANTED BY cloud_admin;
+  WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
+RESET ROLE;
 
 DO $grainline_direct_upload_recovery_fixture_postflight$
 DECLARE
