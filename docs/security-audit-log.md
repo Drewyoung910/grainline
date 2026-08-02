@@ -866,6 +866,14 @@ Follow-up fix from this pass:
 - Direct Prisma packages remain aligned at `7.9.0`. The compatible `@prisma/dev@0.24.16` override resolves `find-my-way@9.7.0`, and `valibot@1.4.2` closes the remaining Prisma development-tool advisory without changing Prisma's direct minor.
 - A proposed global `brace-expansion@5.0.8` override was rejected after verification: ESLint's `minimatch@3` expects the older callable CommonJS API and lint failed with `TypeError: expand is not a function`. The override is not retained.
 - `scripts/audit-dependencies.mjs` runs both production-only and full audits. High/critical production vulnerabilities always fail. The full audit permits only GHSA-mh99-v99m-4gvg through development-only ESLint paths; every other high/critical advisory fails. Remove this exact exception once upstream ESLint consumers accept a patched compatible dependency.
+- **2026-08-01 follow-up:** the legacy `minimatch@3` path moved from unbounded
+  `brace-expansion@1.1.16` to the official callable CommonJS `1.1.17` bounded
+  backport. The temporary GHSA-mh99-v99m-4gvg development-only exception was
+  removed; all high/critical advisories now fail both audit passes. The direct
+  user-content sanitizer also moved from `sanitize-html@2.17.4` to `2.17.6`
+  for GHSA-vccv-cmxp-4j9h. Existing Grainline policies already excluded the
+  affected form/media attributes, but the upgrade closes the dependency-level
+  URI-scheme gap before a future policy expansion can expose it.
 - Production release accepted on 2026-07-25:
   - Dependency patch commit: `50ef609bbb747070cbb57bc469c2e99831ffc302`.
   - Exact merged `main` commit: `1a7904852eb751f086eb048a0e83aa3627dfaa1d`.
