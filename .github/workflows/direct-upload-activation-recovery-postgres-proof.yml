@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/direct-upload-activation-membership-recovery-20260802
+      - agent/direct-upload-recovery-historical-alias-20260802
     paths:
       - .github/workflows/direct-upload-activation-recovery-postgres-proof.yml
       - package.json
@@ -23,6 +24,7 @@ on:
       - scripts/provision-direct-upload-cleanup-role.sql
       - scripts/provision-runtime-db-role.sql
       - scripts/stage-direct-upload-activation-migration.mjs
+      - scripts/stage-direct-upload-recovery-historical-alias-fixture.sql
       - scripts/verify-direct-upload-activation-release.mjs
       - tests/direct-upload-activation-candidate.test.mjs
       - tests/direct-upload-activation-postgres-proof.test.mjs
@@ -86,6 +88,10 @@ jobs:
           mv prisma/migrations/20260801194000_enable_direct_upload_rls "$RUNNER_TEMP/direct-upload-activation-release"
       - name: Apply the compatible baseline migration tree
         run: npx prisma migrate deploy
+      - name: Stage the exact zero-step rolled-back historical alias
+        run: >-
+          psql "$DIRECT_URL"
+          -f scripts/stage-direct-upload-recovery-historical-alias-fixture.sql
       - name: Restore and apply the exact legacy repair
         run: |
           mv "$RUNNER_TEMP/direct-upload-legacy-repair" prisma/migrations/20260726185700_repair_direct_upload_legacy_references

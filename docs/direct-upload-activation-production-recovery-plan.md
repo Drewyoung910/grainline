@@ -80,11 +80,14 @@ never applied a schema step. The original DirectUpload activation row and the
 compatible RLS-off authority posture remain unchanged, and
 `productionChangedByInspection=false`.
 
-Recovery remains blocked. Its verifier may be changed only through a separately
-reviewed code release that admits this one exact checksum-matching rolled-back
-alias while continuing to reject every other missing, unexpected, incomplete,
-applied or checksum-drifting ledger shape. No production recovery retry is
-authorized by this evidence.
+Recovery remains blocked from production execution. Isolated draft PR #143 now
+contains the separately authorized verifier candidate: it admits only this one
+checksum-matching, zero-step rolled-back historical alias while continuing to
+reject every other missing, unexpected, incomplete, applied, step-count or
+checksum-drifting ledger shape. Its PostgreSQL 16 workflow stages that exact
+alias after the compatible baseline, proves it through the failed, resolved and
+activated restart states, and has no production credential. No merge or
+production recovery retry is authorized by this candidate.
 
 ## Prepared read-only verifier
 
@@ -152,10 +155,11 @@ The corrected migration/proof in PR #139 and recovery workflow in PR #140 are
 merged. Recovery run `30760097011` was dispatched but stopped read-only before
 the exact ledger resolve boundary. The original unfinished zero-step row and
 compatible RLS-off DirectUpload posture therefore remain the expected
-production state. The aggregate alias proof is now complete. A separately
-reviewed verifier change that admits only the exact rolled-back historical
-alias is the next boundary. No recovery retry is accepted until that code
-change passes full CI and receives separate production authorization.
+production state. The aggregate alias proof is now complete. The isolated
+fail-closed verifier candidate is the next boundary; no recovery retry is
+accepted until its unit, full CI and disposable PostgreSQL proofs pass, it is
+separately reviewed and merged, exact-main CI passes, and a new exact
+production authorization is given.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those

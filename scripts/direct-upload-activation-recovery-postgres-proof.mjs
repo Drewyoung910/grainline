@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import {
+  LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+  LISTING_VARIANTS_REVIEWED_MIGRATION,
+} from "./direct-upload-activation-failure-inspect.mjs";
 import {
   DIRECT_UPLOAD_ACTIVATION_RELEASE,
   FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
@@ -11,6 +17,12 @@ const { Client } = pg;
 const DATABASE_NAME = "grainline_ci";
 const DATABASE_ENV = "DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_DATABASE_URL";
 const MODES = Object.freeze(["failed", "resolved", "activated"]);
+const LISTING_VARIANTS_CHECKSUM = createHash("sha256").update(
+  readFileSync(
+    `prisma/migrations/${LISTING_VARIANTS_REVIEWED_MIGRATION}/migration.sql`,
+    "utf8",
+  ),
+).digest("hex");
 
 export function parseDirectUploadActivationRecoveryProofConfig(
   env = process.env,
@@ -120,6 +132,25 @@ function assertLedger(mode, rows) {
   });
 }
 
+function assertListingVariantsLedgerAlias(rows) {
+  assert.deepEqual(rows, [
+    {
+      applied_steps_count: 1,
+      checksum: LISTING_VARIANTS_CHECKSUM,
+      finished: true,
+      migration_name: LISTING_VARIANTS_REVIEWED_MIGRATION,
+      rolled_back: false,
+    },
+    {
+      applied_steps_count: 0,
+      checksum: LISTING_VARIANTS_CHECKSUM,
+      finished: false,
+      migration_name: LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+      rolled_back: true,
+    },
+  ]);
+}
+
 export async function proveDirectUploadActivationRecovery(config) {
   const client = new Client({
     connectionString: config.databaseUrl,
@@ -144,6 +175,21 @@ export async function proveDirectUploadActivationRecovery(config) {
       database_name: DATABASE_NAME,
       read_only: "on",
     });
+    const listingVariantsLedger = (await client.query(`
+      SELECT
+        migration_name,
+        checksum,
+        finished_at IS NOT NULL AS finished,
+        rolled_back_at IS NOT NULL AS rolled_back,
+        applied_steps_count::integer AS applied_steps_count
+      FROM public._prisma_migrations
+      WHERE migration_name = ANY($1::text[])
+      ORDER BY pg_catalog.array_position($1::text[], migration_name), id
+    `, [[
+      LISTING_VARIANTS_REVIEWED_MIGRATION,
+      LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+    ]])).rows;
+    assertListingVariantsLedgerAlias(listingVariantsLedger);
     const ledger = (await client.query(`
       SELECT
         checksum,
@@ -242,6 +288,7 @@ export async function proveDirectUploadActivationRecovery(config) {
       correctedChecksum: DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256,
       failedChecksum: FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
       functionCount,
+      historicalListingVariantsAliasRows: listingVariantsLedger.length,
       ledgerRows: ledger.length,
       mode: config.mode,
       persistentEnvironmentChanged: false,

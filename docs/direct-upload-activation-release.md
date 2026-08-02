@@ -335,3 +335,22 @@ Production therefore still has the original unfinished zero-step row and
 compatible RLS-off DirectUpload posture. The next step is a protected
 aggregate-only migration-tree delta inspection; do not weaken or replay the
 recovery before that discrepancy is classified.
+
+Protected read-only inspection run `30767685144` at exact main
+`7d3cc70d4b1b0aa6513013a6d28c8a312357e67b` subsequently classified the sole
+tree difference. Current `20260423_add_listing_variants` has one completed,
+non-rolled-back row with one applied step. Historical
+`20260423000000_add_listing_variants` has the identical reviewed checksum, one
+rolled-back row and zero applied steps. There are no missing reviewed names or
+other unexpected ledger names. The original DirectUpload activation remains
+unfinished with zero applied steps; RLS remains off and compatible grants
+remain in place. The inspection was repeatable-read and read-only and reported
+`productionChangedByInspection=false`.
+
+Under isolated-branch-only authorization, draft PR #143 now contains a narrow
+recovery-verifier candidate and disposable PostgreSQL fixture for exactly that
+alias pair. It fails closed on a missing alias, an applied or incomplete alias,
+nonzero steps, checksum drift, duplicates and every additional ledger name. It
+does not authorize a merge or recovery dispatch. Production recovery remains
+blocked until the candidate passes all proofs, is reviewed and merged, exact
+main CI passes, and a new exact production authorization is given.

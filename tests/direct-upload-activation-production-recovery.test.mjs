@@ -11,6 +11,10 @@ import {
   DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
 } from "../scripts/direct-upload-activation-catalog.mjs";
 import {
+  LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+  LISTING_VARIANTS_REVIEWED_MIGRATION,
+} from "../scripts/direct-upload-activation-failure-inspect.mjs";
+import {
   DIRECT_UPLOAD_ACTIVATION_FAILED_PRODUCTION_RUN_ID,
   DIRECT_UPLOAD_ACTIVATION_PRODUCTION_RECOVERY_CONFIRMATION,
   DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID,
@@ -29,6 +33,7 @@ import {
 } from "../scripts/verify-direct-upload-activation-release.mjs";
 
 const RELEASE_COMMIT = "e".repeat(40);
+const LISTING_VARIANTS_CHECKSUM = "a".repeat(64);
 const OWNER_URL =
   "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
 
@@ -91,15 +96,38 @@ function correctedRow() {
 
 function migrationSummary(
   migrationName,
-  { applied = 1, incomplete = 0, rolledBack = 0 } = {},
+  {
+    applied = 1,
+    appliedSteps = applied,
+    checksum = "b".repeat(64),
+    incomplete = 0,
+    rolledBack = 0,
+  } = {},
 ) {
   return {
     migration_name: migrationName,
+    checksum,
     applied_count: applied,
+    applied_steps_count: appliedSteps,
     incomplete_count: incomplete,
     rolled_back_count: rolledBack,
     row_count: applied + incomplete + rolledBack,
   };
+}
+
+function listingVariantsLedger(overrides = {}) {
+  return [
+    migrationSummary(LISTING_VARIANTS_REVIEWED_MIGRATION, {
+      checksum: LISTING_VARIANTS_CHECKSUM,
+    }),
+    migrationSummary(LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS, {
+      applied: 0,
+      appliedSteps: 0,
+      checksum: LISTING_VARIANTS_CHECKSUM,
+      rolledBack: 1,
+      ...overrides,
+    }),
+  ];
 }
 
 function activatedSnapshot() {
@@ -275,15 +303,22 @@ describe("DirectUpload activation production recovery", () => {
       ]));
   });
 
-  it("requires activation to be the sole pending reviewed migration", () => {
+  it("accepts only the exact historical listing-variants alias and sole pending activation", () => {
     const activation = DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName;
-    const migrationNames = ["20260801175000_predecessor", activation];
-    const predecessor = migrationSummary(migrationNames[0]);
+    const predecessorName = "20260801175000_predecessor";
+    const migrationNames = [
+      LISTING_VARIANTS_REVIEWED_MIGRATION,
+      predecessorName,
+      activation,
+    ];
+    const predecessor = migrationSummary(predecessorName);
     assert.deepEqual(
       collectDirectUploadRecoveryMigrationTreeIssues({
+        listingVariantsChecksum: LISTING_VARIANTS_CHECKSUM,
         migrationNames,
         state: "failed",
         ledgerSummaries: [
+          ...listingVariantsLedger(),
           predecessor,
           migrationSummary(activation, { applied: 0, incomplete: 1 }),
         ],
@@ -292,9 +327,11 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.deepEqual(
       collectDirectUploadRecoveryMigrationTreeIssues({
+        listingVariantsChecksum: LISTING_VARIANTS_CHECKSUM,
         migrationNames,
         state: "resolved",
         ledgerSummaries: [
+          ...listingVariantsLedger(),
           predecessor,
           migrationSummary(activation, { applied: 0, rolledBack: 1 }),
         ],
@@ -303,9 +340,11 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.deepEqual(
       collectDirectUploadRecoveryMigrationTreeIssues({
+        listingVariantsChecksum: LISTING_VARIANTS_CHECKSUM,
         migrationNames,
         state: "activated",
         ledgerSummaries: [
+          ...listingVariantsLedger(),
           predecessor,
           migrationSummary(activation, { applied: 1, rolledBack: 1 }),
         ],
@@ -314,10 +353,15 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.match(
       collectDirectUploadRecoveryMigrationTreeIssues({
+        listingVariantsChecksum: LISTING_VARIANTS_CHECKSUM,
         migrationNames,
         state: "resolved",
         ledgerSummaries: [
-          migrationSummary(migrationNames[0], { applied: 0 }),
+          ...listingVariantsLedger(),
+          migrationSummary(predecessorName, {
+            applied: 0,
+            appliedSteps: 0,
+          }),
           migrationSummary(activation, { applied: 0, rolledBack: 1 }),
         ],
       }).join("; "),
@@ -325,11 +369,51 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.match(
       collectDirectUploadRecoveryMigrationTreeIssues({
+        listingVariantsChecksum: LISTING_VARIANTS_CHECKSUM,
         migrationNames: [...migrationNames, "20260802000000_later"],
         state: "resolved",
         ledgerSummaries: [],
       }).join("; "),
       /tree order is not exact/u,
+    );
+    for (const driftedAliasRows of [
+      listingVariantsLedger({ applied: 1, rolledBack: 0 }),
+      listingVariantsLedger({ incomplete: 1, rolledBack: 0 }),
+      listingVariantsLedger({ appliedSteps: 1 }),
+      listingVariantsLedger({ checksum: "c".repeat(64) }),
+      [listingVariantsLedger()[0]],
+    ]) {
+      assert.match(
+        collectDirectUploadRecoveryMigrationTreeIssues({
+          listingVariantsChecksum: LISTING_VARIANTS_CHECKSUM,
+          migrationNames,
+          state: "resolved",
+          ledgerSummaries: [
+            ...driftedAliasRows,
+            predecessor,
+            migrationSummary(activation, { applied: 0, rolledBack: 1 }),
+          ],
+        }).join("; "),
+        /historical alias|historical listing-variants/u,
+      );
+    }
+    assert.match(
+      collectDirectUploadRecoveryMigrationTreeIssues({
+        listingVariantsChecksum: LISTING_VARIANTS_CHECKSUM,
+        migrationNames,
+        state: "resolved",
+        ledgerSummaries: [
+          ...listingVariantsLedger(),
+          predecessor,
+          migrationSummary(activation, { applied: 0, rolledBack: 1 }),
+          migrationSummary("20260423000001_unknown_alias", {
+            applied: 0,
+            appliedSteps: 0,
+            rolledBack: 1,
+          }),
+        ],
+      }).join("; "),
+      /ledger names do not match/u,
     );
   });
 

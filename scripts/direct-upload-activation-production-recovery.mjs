@@ -25,6 +25,9 @@ import {
 } from "./direct-upload-activation-catalog.mjs";
 import {
   extractDirectUploadActivationReadOnlyPreflight,
+  LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+  LISTING_VARIANTS_REVIEWED_MIGRATION,
+  summarizeListingVariantsLedgerAlias,
 } from "./direct-upload-activation-failure-inspect.mjs";
 import {
   collectDirectUploadCleanupRoleProvisionIssues,
@@ -70,6 +73,12 @@ const MIGRATION_PATH = path.join(
   "prisma",
   "migrations",
   DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName,
+  "migration.sql",
+);
+const LISTING_VARIANTS_MIGRATION_PATH = path.join(
+  "prisma",
+  "migrations",
+  LISTING_VARIANTS_REVIEWED_MIGRATION,
   "migration.sql",
 );
 const FORBIDDEN_ENVIRONMENT_KEYS = Object.freeze([
@@ -262,6 +271,7 @@ export function classifyDirectUploadActivationProductionRecoveryLedger(rows) {
 }
 
 export function collectDirectUploadRecoveryMigrationTreeIssues({
+  listingVariantsChecksum,
   ledgerSummaries,
   migrationNames,
   state,
@@ -277,14 +287,36 @@ export function collectDirectUploadRecoveryMigrationTreeIssues({
     return issues;
   }
   const rows = Array.isArray(ledgerSummaries) ? ledgerSummaries : [];
+  const expectedLedgerNames = [
+    ...migrationNames,
+    LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+  ];
   if (!exactStrings(
     rows.map((row) => row.migration_name),
-    migrationNames,
+    expectedLedgerNames,
   )) {
-    issues.push("production migration ledger names do not match the reviewed tree");
+    issues.push(
+      "production migration ledger names do not match the reviewed tree and exact historical alias",
+    );
     return issues;
   }
+  const listingVariantsAlias = summarizeListingVariantsLedgerAlias({
+    expectedChecksum: listingVariantsChecksum,
+    ledgerSummaries: rows.filter((row) => [
+      LISTING_VARIANTS_REVIEWED_MIGRATION,
+      LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+    ].includes(row.migration_name)),
+  });
+  if (!listingVariantsAlias.exact) {
+    issues.push("historical listing-variants ledger alias is not exact");
+  }
   for (const row of rows) {
+    if (
+      row.migration_name === LISTING_VARIANTS_REVIEWED_MIGRATION
+      || row.migration_name === LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS
+    ) {
+      continue;
+    }
     const isActivation =
       row.migration_name === DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName;
     const appliedExpected = isActivation && state !== "activated" ? 0 : 1;
@@ -307,7 +339,9 @@ export function collectDirectUploadRecoveryMigrationTreeIssues({
     }
   }
   const pending = rows
-    .filter((row) => Number(row.applied_count) === 0)
+    .filter((row) =>
+      migrationNames.includes(row.migration_name)
+      && Number(row.applied_count) === 0)
     .map((row) => row.migration_name);
   const expectedPending = state === "activated"
     ? []
@@ -731,6 +765,9 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
   const migrationSql = readFileSync(MIGRATION_PATH, "utf8");
+  const listingVariantsChecksum = sha256(
+    readFileSync(LISTING_VARIANTS_MIGRATION_PATH, "utf8"),
+  );
   if (sha256(migrationSql) !== DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256) {
     throw new Error("DirectUpload production recovery migration bytes drifted");
   }
@@ -766,6 +803,7 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
     const ledgerSummaries = (await client.query(`
       SELECT
         migration_name,
+        checksum,
         pg_catalog.count(*)::integer AS row_count,
         pg_catalog.count(*) FILTER (
           WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
@@ -775,12 +813,17 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
         )::integer AS incomplete_count,
         pg_catalog.count(*) FILTER (
           WHERE rolled_back_at IS NOT NULL
-        )::integer AS rolled_back_count
+        )::integer AS rolled_back_count,
+        coalesce(
+          pg_catalog.sum(applied_steps_count),
+          0
+        )::bigint AS applied_steps_count
       FROM public._prisma_migrations
-      GROUP BY migration_name
-      ORDER BY migration_name
+      GROUP BY migration_name, checksum
+      ORDER BY migration_name, checksum
     `)).rows;
     const migrationTreeIssues = collectDirectUploadRecoveryMigrationTreeIssues({
+      listingVariantsChecksum,
       ledgerSummaries,
       migrationNames,
       state,
@@ -829,7 +872,7 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
     transactionOpen = false;
 
     const evidence = Object.freeze({
-      schemaVersion: 1,
+      schemaVersion: 2,
       operation: "direct-upload-activation-production-recovery-proof",
       phase: config.mode,
       state,
@@ -848,6 +891,7 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
         incompleteMigrationCount: expectedIncompleteCount,
         migrationCount: migrationNames.length,
         pendingMigrationCount: state === "activated" ? 0 : 1,
+        historicalListingVariantsAliasAccepted: true,
       }),
       authority: Object.freeze({
         functionCount: DIRECT_UPLOAD_ACTIVATION_FUNCTIONS.length,
