@@ -186,3 +186,32 @@ complete compatible pre-activation catalog apart from that ledger row. Only
 then may a byte-preserving recovery mark that exact row rolled back and retry
 the exact activation. Do not deploy, enable Case evidence, schedule cleanup,
 revoke tokens or change provider variables during this recovery.
+
+Read-only failure-inspection run `30731902991` at exact main
+`4f56c3ba213d380b0eeb9bb94b51aab7e6a0a75b` proved the full activation
+transaction rolled back. The exact migration row has the promoted checksum,
+zero applied steps, no finish or rollback marker and is the only incomplete
+row. `DirectUpload` remains RLS-off with compatible runtime CRUD;
+`DirectUploadReference` remains policyless ENABLE plus FORCE with no runtime
+CRUD; the 35-function compatible authority partition matches; and the
+repeatable-read transaction was read-only. The inspection changed nothing.
+
+Prisma's ledger `logs` value is empty (zero bytes, SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`),
+so the first database error cannot be recovered from the ledger. The sanitized
+mode-0600 evidence is
+`direct-upload-activation-failure-inspection-4f56c3ba213d380b0eeb9bb94b51aab7e6a0a75b.json`,
+SHA-256
+`89250c0ac5d1d08f7fd86880c19e90ce153d9699e25673c7cfa628780b587b8e`;
+GitHub artifact `8828241114` has archive SHA-256
+`6bb5b224ba2c1c086cd12d9e502cfa104981dbba0945cf0fde5490e3c63b33a0`.
+
+The follow-up diagnostic extends the same inspector without broadening its
+authority: only the exact role and function preflight `DO` blocks are extracted
+from the byte-pinned migration and executed as the final statement inside the
+same read-only transaction. It fails before that query unless the one exact
+failed ledger row, promoted checksum, read-only mode and compatible
+pre-activation posture all match. PostgreSQL can therefore return the first
+preflight SQLSTATE and allowlisted message directly while the transaction
+prevents any write. Do not resolve or retry the migration until that result is
+classified and the recovery operator is separately reviewed.

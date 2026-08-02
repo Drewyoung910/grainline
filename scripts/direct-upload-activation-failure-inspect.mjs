@@ -27,6 +27,9 @@ import {
 import {
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
+import {
+  DIRECT_UPLOAD_ACTIVATION_RELEASE,
+} from "./verify-direct-upload-activation-release.mjs";
 
 const { Client } = pg;
 
@@ -132,11 +135,40 @@ function migrationExceptionFragments(migrationSql) {
     .sort((left, right) => right.length - left.length);
 }
 
+export function extractDirectUploadActivationReadOnlyPreflight(migrationSql) {
+  const rolePreflight =
+    "DO $grainline_direct_upload_activation_role_preflight$";
+  const functionPreflightEnd =
+    "$grainline_direct_upload_activation_function_preflight$;";
+  const start = migrationSql.indexOf(rolePreflight);
+  const endStart = migrationSql.indexOf(functionPreflightEnd, start);
+  if (start < 0 || endStart < 0) {
+    throw new Error("DirectUpload activation read-only preflight markers are missing");
+  }
+  const end = endStart + functionPreflightEnd.length;
+  const preflight = migrationSql.slice(start, end);
+  const forbiddenStatement = /^\s*(?:ALTER|CALL|COMMENT|COPY|CREATE|DELETE|DROP|GRANT|INSERT|LOCK|MERGE|REFRESH|REINDEX|REVOKE|SECURITY\s+LABEL|TRUNCATE|UPDATE|VACUUM)\b/imu;
+  if (
+    (preflight.match(/^DO \$grainline_direct_upload_activation_(?:role|function)_preflight\$/gmu)
+      ?? []).length !== 2
+    || forbiddenStatement.test(preflight)
+    || preflight.includes("pg_advisory_xact_lock")
+    || preflight.includes("COMMIT;")
+  ) {
+    throw new Error("DirectUpload activation read-only preflight extraction is not exact");
+  }
+  return preflight;
+}
+
 function safeGenericDatabaseMessage(logs) {
+  const trimmed = logs.trim();
   const candidates = [
     ...logs.matchAll(/message:\s*"([^"\r\n]{1,500})"/giu),
     ...logs.matchAll(/(?:^|\n)ERROR:\s*([^\r\n]{1,500})/giu),
   ].map((match) => match[1].trim());
+  if (trimmed.length > 0 && trimmed.length <= 500 && !/[\r\n]/u.test(trimmed)) {
+    candidates.push(trimmed);
+  }
   const safePrefixes = [
     "syntax error at or near",
     "function ",
@@ -164,6 +196,23 @@ export function classifyDirectUploadActivationFailure(logs, migrationSql) {
     logBytes: Buffer.byteLength(value, "utf8"),
     logSha256: sha256(value),
     rawLogRetained: false,
+  });
+}
+
+export function classifyDirectUploadActivationPreflightError(
+  error,
+  migrationSql,
+) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const classified = classifyDirectUploadActivationFailure(message, migrationSql);
+  const code = typeof error?.code === "string" && /^[0-9A-Z]{5}$/u.test(error.code)
+    ? error.code
+    : classified.sqlState;
+  return Object.freeze({
+    databaseMessage: classified.databaseMessage,
+    matchedMigrationException: classified.matchedMigrationException,
+    sqlState: code,
+    rawErrorRetained: false,
   });
 }
 
@@ -234,6 +283,13 @@ export async function runDirectUploadActivationFailureInspection(config) {
   );
   const migrationSql = readFileSync(MIGRATION_PATH, "utf8");
   const expectedChecksum = sha256(migrationSql);
+  if (
+    DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName
+      !== DIRECT_UPLOAD_ACTIVATION_MIGRATION
+    || expectedChecksum !== DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256
+  ) {
+    throw new Error("DirectUpload activation failure inspection migration bytes drifted");
+  }
   const client = new Client({
     connectionString: config.directUrl,
     application_name: "grainline-direct-upload-activation-failure-inspection",
@@ -260,20 +316,44 @@ export async function runDirectUploadActivationFailureInspection(config) {
       WHERE migration_name = $1
       ORDER BY started_at DESC
     `, [DIRECT_UPLOAD_ACTIVATION_MIGRATION]);
-    await client.query("ROLLBACK");
-    transactionOpen = false;
     if (ledger.rows.length !== 1) {
       throw new Error("DirectUpload activation ledger does not contain one exact failed row");
     }
     const row = ledger.rows[0];
-    const failure = classifyDirectUploadActivationFailure(row.logs, migrationSql);
-    const posture = summarizePosture(snapshot);
     const failedLedgerExact =
       row.checksum === expectedChecksum
       && row.started_at instanceof Date
       && row.finished_at === null
       && row.rolled_back_at === null
       && Number(row.applied_steps_count) === 0;
+    if (!failedLedgerExact) {
+      throw new Error("DirectUpload activation failed ledger row drifted");
+    }
+    const posture = summarizePosture(snapshot);
+    if (!posture.transactionReadOnly || !posture.preActivationPostureRestored) {
+      throw new Error("DirectUpload activation preflight safety posture drifted");
+    }
+    let livePreflight;
+    try {
+      await client.query(
+        extractDirectUploadActivationReadOnlyPreflight(migrationSql),
+      );
+      livePreflight = Object.freeze({
+        passed: true,
+        databaseMessage: null,
+        matchedMigrationException: false,
+        sqlState: null,
+        rawErrorRetained: false,
+      });
+    } catch (error) {
+      livePreflight = Object.freeze({
+        passed: false,
+        ...classifyDirectUploadActivationPreflightError(error, migrationSql),
+      });
+    }
+    await client.query("ROLLBACK");
+    transactionOpen = false;
+    const failure = classifyDirectUploadActivationFailure(row.logs, migrationSql);
     const evidence = Object.freeze({
       schemaVersion: 1,
       operation: "direct-upload-activation-failure-inspection",
@@ -291,6 +371,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
         rolledBackRecorded: row.rolled_back_at !== null,
         appliedStepsCount: Number(row.applied_steps_count),
         failure,
+        liveReadOnlyPreflight: livePreflight,
       }),
       posture,
       transaction: Object.freeze({
