@@ -82,9 +82,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify DirectUpload retirement migration tree
+      - name: Verify DirectUpload activation migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-retirement-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed
         run: npm run verify:rls-release-artifact
       - name: Verify Case read-mode release bytes
         run: npm run audit:rls-case-read-mode-candidate
@@ -100,6 +100,8 @@ jobs:
         run: npm run audit:rls-notification-force-release
       - name: Verify DirectUpload retirement proof equivalence
         run: npm run audit:rls-direct-upload-retirement-release
+      - name: Verify DirectUpload activation proof equivalence
+        run: npm run audit:rls-direct-upload-activation-release
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Prove runtime-role provisioning refusals exit nonzero
@@ -108,10 +110,32 @@ jobs:
             echo "runtime-role provisioning unexpectedly accepted the migration owner as runtime"
             exit 1
           fi
+      - name: Isolate the exact DirectUpload activation until external grants converge
+        run: >-
+          mv
+          prisma/migrations/20260801194000_enable_direct_upload_rls
+          "$RUNNER_TEMP/direct-upload-activation-release"
+      - name: Apply compatible migrations to CI Postgres
+        run: npx prisma migrate deploy
+      - name: Converge pre-activation production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge pre-activation DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Prove DirectUpload legacy repair in ephemeral PostgreSQL
+        run: npm run audit:rls-direct-upload-legacy-repair
+        env:
+          DIRECT_UPLOAD_LEGACY_REPAIR_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore the exact DirectUpload activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/direct-upload-activation-release"
+          prisma/migrations/20260801194000_enable_direct_upload_rls
       - name: Apply migrations to CI Postgres
         run: npx prisma migrate deploy
       - name: Converge production-style runtime grants after migrations
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge activated DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Prove participant Case resolution authority in ephemeral PostgreSQL
         run: npm run audit:rls-case-participant-resolution
         env:
@@ -168,10 +192,6 @@ jobs:
         run: npm run audit:rls-case-legacy-inspection
         env:
           CASE_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Prove DirectUpload legacy repair in ephemeral PostgreSQL
-        run: npm run audit:rls-direct-upload-legacy-repair
-        env:
-          DIRECT_UPLOAD_LEGACY_REPAIR_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message legacy cleanup in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-legacy-cleanup
         env:

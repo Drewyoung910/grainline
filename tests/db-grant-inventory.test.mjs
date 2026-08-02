@@ -958,7 +958,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      111 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      147 + (conversationMessageAuthorityPrepared ? 25 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -1013,6 +1013,16 @@ describe("database grant inventory guardrails", () => {
         `${functionName} must revoke PUBLIC execution in the preparation migration`,
       );
     }
+    for (const { name: functionName } of DIRECT_UPLOAD_AUTHORITY_FUNCTIONS) {
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+          && statement.includes("grainline_direct_upload_cleanup_v2")
+        )),
+        true,
+        `${functionName} must revoke PUBLIC and both service roles during activation`,
+      );
+    }
     if (conversationMessageAuthorityPrepared) {
       for (const { name } of CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS) {
         assert.equal(
@@ -1037,6 +1047,7 @@ describe("database grant inventory guardrails", () => {
         "CaseSellerRefundApplication",
         "CaseStripeDisputeApplication",
         "Conversation",
+        "DirectUpload",
         "DirectUploadReference",
         "Message",
         "Notification",

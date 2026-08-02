@@ -100,13 +100,33 @@ describe("DirectUpload activated PostgreSQL proof harness", () => {
   it("runs retirement, activation, live authority and rollback in PG16", () => {
     assert.match(
       workflow,
-      /agent\/direct-upload-object-key-retirement-20260726/,
+      /agent\/direct-upload-activation-production-20260801/,
     );
     assert.match(workflow, /image: postgres:16/);
     assert.match(
       workflow,
-      /Stage disposable compatibility-key retirement[\s\S]*Stage disposable DirectUpload RLS activation[\s\S]*Apply disposable retirement candidate with exact SQL diagnostics[\s\S]*Record disposable retirement migration in Prisma ledger[\s\S]*Apply disposable activation candidate with exact SQL diagnostics[\s\S]*Record disposable activation migration in Prisma ledger/,
+      /Run static proof contracts before isolating promoted migrations[\s\S]*tests\/db-grant-inventory\.test\.mjs[\s\S]*tests\/direct-upload-retirement-candidate\.test\.mjs[\s\S]*Isolate the repair migration for exact SQL diagnostics/,
     );
+    const isolationIndex = workflow.indexOf(
+      "- name: Isolate the repair migration for exact SQL diagnostics",
+    );
+    assert.ok(
+      workflow.indexOf("tests/db-grant-inventory.test.mjs") < isolationIndex,
+    );
+    assert.ok(
+      workflow.indexOf("tests/direct-upload-retirement-candidate.test.mjs")
+        < isolationIndex,
+    );
+    assert.equal(
+      workflow.indexOf("tests/db-grant-inventory.test.mjs", isolationIndex),
+      -1,
+    );
+    assert.match(
+      workflow,
+      /Isolate the repair migration for exact SQL diagnostics[\s\S]*20260801175000_retire_direct_upload_compatibility_key[\s\S]*20260801194000_enable_direct_upload_rls[\s\S]*Converge isolated DirectUpload cleanup-worker grants[\s\S]*Restore the exact promoted DirectUpload releases[\s\S]*Verify promoted DirectUpload release bytes and migration tree[\s\S]*Apply promoted retirement and activation through Prisma/,
+    );
+    assert.doesNotMatch(workflow, /Stage disposable DirectUpload/);
+    assert.doesNotMatch(workflow, /prisma migrate resolve[\s\S]*20260726190/);
     assert.match(
       workflow,
       /Reconverge activated runtime grants[\s\S]*Reconverge activated cleanup-worker grants[\s\S]*Audit activated runtime grants and RLS catalog/,

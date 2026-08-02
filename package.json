@@ -63,6 +63,7 @@
     "audit:rls-direct-upload-retirement-release": "node scripts/verify-direct-upload-retirement-release.mjs",
     "audit:rls-direct-upload-runtime-cleanup-retirement": "node scripts/verify-direct-upload-runtime-cleanup-retirement.mjs",
     "audit:rls-direct-upload-activation-candidate": "node scripts/stage-direct-upload-activation-migration.mjs",
+    "audit:rls-direct-upload-activation-release": "node scripts/verify-direct-upload-activation-release.mjs",
     "audit:rls-direct-upload-activation": "node scripts/direct-upload-activation-postgres-proof.mjs",
     "audit:rls-direct-upload-activation-rollback": "node scripts/direct-upload-activation-rollback-proof.mjs",
     "audit:rls-conversation-message-invariants": "node scripts/conversation-message-invariant-proof.mjs",

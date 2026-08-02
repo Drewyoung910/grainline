@@ -78,6 +78,10 @@ describe("DirectUpload activation candidate", () => {
     );
     assert.match(
       migration,
+      /DirectUpload SECURITY DEFINER owner must bypass FORCE RLS/,
+    );
+    assert.match(
+      migration,
       /grainline_app_runtime role posture is not DirectUpload-safe/,
     );
     assert.match(

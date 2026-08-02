@@ -30,11 +30,11 @@ test("Case Stripe dispute production packaging stops at the compatible boundary"
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-retirement-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-retirement-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed/,
   );
   assert.doesNotMatch(
     productionWorkflow,

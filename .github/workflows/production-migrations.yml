@@ -45,10 +45,10 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify exact DirectUpload retirement migration tree
+      - name: Verify exact DirectUpload activation migration tree
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-retirement-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed
       - name: Verify exact Case read-mode release bytes
         run: npm run audit:rls-case-read-mode-candidate
       - name: Verify Conversation and Message authority proof equivalence
@@ -63,6 +63,8 @@ jobs:
         run: npm run audit:rls-notification-force-release
       - name: Verify DirectUpload retirement proof equivalence
         run: npm run audit:rls-direct-upload-retirement-release
+      - name: Verify DirectUpload activation proof equivalence
+        run: npm run audit:rls-direct-upload-activation-release
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Apply production migrations

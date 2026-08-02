@@ -60,6 +60,8 @@ import {
   DIRECT_UPLOAD_PREPARATION_MIGRATION_TREE_SHA256,
   DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION,
   DIRECT_UPLOAD_REFERENCE_LEDGER_MIGRATION,
+  DIRECT_UPLOAD_ACTIVATION_MIGRATION,
+  DIRECT_UPLOAD_ACTIVATION_MIGRATION_TREE_SHA256,
   DIRECT_UPLOAD_RETIREMENT_MIGRATION,
   DIRECT_UPLOAD_RETIREMENT_MIGRATION_TREE_SHA256,
   CONVERSATION_MESSAGE_AUTHORITY_PREPARATION_MIGRATION,
@@ -171,6 +173,8 @@ const REVIEWED_CASE_INVARIANT = "case-invariant-reviewed";
 const REVIEWED_CASE_READ_MODE = "case-read-mode-reviewed";
 const REVIEWED_DIRECT_UPLOAD_RETIREMENT =
   "direct-upload-retirement-reviewed";
+const REVIEWED_DIRECT_UPLOAD_ACTIVATION =
+  "direct-upload-activation-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -269,6 +273,8 @@ function validate(
         CASE_READ_MODE_MIGRATION_TREE_SHA256,
       [REVIEWED_DIRECT_UPLOAD_RETIREMENT]:
         DIRECT_UPLOAD_RETIREMENT_MIGRATION_TREE_SHA256,
+      [REVIEWED_DIRECT_UPLOAD_ACTIVATION]:
+        DIRECT_UPLOAD_ACTIVATION_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -332,6 +338,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     CASE_INVARIANT_MIGRATION,
     CASE_READ_MODE_MIGRATION,
     DIRECT_UPLOAD_RETIREMENT_MIGRATION,
+    DIRECT_UPLOAD_ACTIVATION_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -473,6 +480,10 @@ const REVIEWED_DIRECT_UPLOAD_RETIREMENT_MIGRATIONS = [
   ...REVIEWED_CASE_READ_MODE_MIGRATIONS,
   DIRECT_UPLOAD_RETIREMENT_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS = [
+  ...REVIEWED_DIRECT_UPLOAD_RETIREMENT_MIGRATIONS,
+  DIRECT_UPLOAD_ACTIVATION_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -541,6 +552,8 @@ function migrationsFor(phase) {
       REVIEWED_CASE_READ_MODE_MIGRATIONS,
     [REVIEWED_DIRECT_UPLOAD_RETIREMENT]:
       REVIEWED_DIRECT_UPLOAD_RETIREMENT_MIGRATIONS,
+    [REVIEWED_DIRECT_UPLOAD_ACTIVATION]:
+      REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS,
   }[phase];
 }
 
@@ -991,9 +1004,13 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_CASE_READ_MODE, currentMigrations),
       /remain the latest migration/,
     );
+    assert.throws(
+      () => validate(REVIEWED_DIRECT_UPLOAD_RETIREMENT, currentMigrations),
+      /remain the latest migration/,
+    );
     assert.equal(
-      validate(REVIEWED_DIRECT_UPLOAD_RETIREMENT, currentMigrations).phase,
-      REVIEWED_DIRECT_UPLOAD_RETIREMENT,
+      validate(REVIEWED_DIRECT_UPLOAD_ACTIVATION, currentMigrations).phase,
+      REVIEWED_DIRECT_UPLOAD_ACTIVATION,
     );
   });
 
@@ -2134,6 +2151,34 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact service-only DirectUpload activation after retirement", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_DIRECT_UPLOAD_ACTIVATION,
+        REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_DIRECT_UPLOAD_ACTIVATION,
+        hasDirectUploadRetirementMigration: true,
+        hasDirectUploadActivationMigration: true,
+      },
+    );
+    for (const migration of [
+      DIRECT_UPLOAD_RETIREMENT_MIGRATION,
+      DIRECT_UPLOAD_ACTIVATION_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_DIRECT_UPLOAD_ACTIVATION,
+          REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS.filter(
+            (name) => name !== migration,
+          ),
+        ),
+        /requires the reviewed DirectUpload retirement and service-only activation migrations/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2169,6 +2214,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_CASE_INVARIANT,
     REVIEWED_CASE_READ_MODE,
     REVIEWED_DIRECT_UPLOAD_RETIREMENT,
+    REVIEWED_DIRECT_UPLOAD_ACTIVATION,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -2262,7 +2308,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current DirectUpload retirement guard before CI migrations", () => {
+  it("runs the current DirectUpload activation guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -2272,7 +2318,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify DirectUpload retirement migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-retirement-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,220}Verify Case read-mode release bytes[\s\S]{0,180}npm run audit:rls-case-read-mode-candidate[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,400}Apply migrations to CI Postgres/,
+      /Verify DirectUpload activation migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,220}Verify Case read-mode release bytes[\s\S]{0,180}npm run audit:rls-case-read-mode-candidate[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,800}Verify DirectUpload activation proof equivalence[\s\S]{0,180}npm run audit:rls-direct-upload-activation-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,1800}Apply migrations to CI Postgres/,
     );
   });
 
@@ -2597,6 +2643,18 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /review or retire the temporary SavedSearch deploy guard/,
     );
+    const laterDirectUploadActivationMigration =
+      "20260801194001_unreviewed_after_direct_upload_activation";
+    assert.throws(
+      () => validate(
+        REVIEWED_DIRECT_UPLOAD_ACTIVATION,
+        [
+          ...REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS,
+          laterDirectUploadActivationMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
   });
 
   it("pins the exact reviewed migration inventory and SQL contents", () => {
@@ -2828,6 +2886,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_DIRECT_UPLOAD_RETIREMENT_MIGRATIONS,
       ),
       DIRECT_UPLOAD_RETIREMENT_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS,
+      ),
+      DIRECT_UPLOAD_ACTIVATION_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(
