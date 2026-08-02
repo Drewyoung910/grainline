@@ -294,7 +294,18 @@ operations-only branch. PR #139 exact head
 `d4a106d2bdf7e0af4c8fea9ca6c4770b2bfbdbdd` then merged as main commit
 `736bdc57d8ecac14dcac6690a386c96cf9e655e1`. Main CI `30758315593`,
 Conversation and Message FORCE proof `30758315599`, and Notification FORCE
-proof `30758315577` all passed at that merge commit. PR #140 was retargeted to
-`main` and remains draft and unmerged; the recovery workflow has not been
-dispatched. Production still has the original unfinished zero-step row and
-compatible RLS-off DirectUpload posture.
+proof `30758315577` all passed at that merge commit. PR #140 exact head
+`e72bbfafd0539e9aefa2bb1ab09a94219c35c0c2` later merged as main commit
+`36484fcf02855308eac9d013307612afebb8f2e6`; exact-main CI `30759433559` and
+focused FORCE proofs `30759433549` / `30759433526` passed.
+
+Authorized production recovery run `30760097011` verified the exact release,
+failed-run, disposable-proof and main-CI bindings, then failed safely in the
+first repeatable-read, read-only inspection: aggregate production Prisma
+migration names did not equal the reviewed directory tree. All ledger-resolve,
+migration, grant, status, audit and activated-proof steps were skipped. No app
+deployment, RLS change, provider change or other production mutation ran.
+Production therefore still has the original unfinished zero-step row and
+compatible RLS-off DirectUpload posture. The next step is a protected
+aggregate-only migration-tree delta inspection; do not weaken or replay the
+recovery before that discrepancy is classified.
