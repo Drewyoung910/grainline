@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
+  DIRECT_UPLOAD_ACTIVATION_FUNCTIONS,
   DIRECT_UPLOAD_ACTIVATION_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_PRIVATE_FUNCTION_NAMES,
@@ -63,6 +64,9 @@ function baseEnv(runnerTemp) {
 }
 
 function functionRow(name) {
+  const expected = DIRECT_UPLOAD_ACTIVATION_FUNCTIONS.find(
+    (entry) => entry.name === name,
+  );
   const worker = DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES.includes(name);
   const runtime =
     DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES.includes(name);
@@ -71,6 +75,7 @@ function functionRow(name) {
     function_kind: "f",
     function_name: name,
     function_source: reviewedFunctionSources[name],
+    identity_arguments: expected.identityArguments,
     leakproof: false,
     other_role_execute: [],
     other_role_execute_grantable: [],
@@ -263,6 +268,7 @@ describe("isolated DirectUpload cleanup worker", () => {
     );
     cleanupLease.runtime_execute = true;
     cleanupLease.runtime_direct_execute = true;
+    cleanupLease.identity_arguments = "text";
     cleanupLease.other_role_execute.push("unexpected_service");
     cleanupLease.leakproof = true;
     const ordinaryFunction = drifted.functions.find(
@@ -309,6 +315,9 @@ describe("isolated DirectUpload cleanup worker", () => {
     );
     assert.ok(
       issues.some((issue) => issue.includes("unexpected role")),
+    );
+    assert.ok(
+      issues.some((issue) => issue.includes("identity arguments")),
     );
     assert.ok(
       issues.some((issue) => issue.includes("must not be LEAKPROOF")),

@@ -153,16 +153,16 @@ describe("DirectUpload service-only activation release", () => {
     assert.doesNotMatch(ci, /prisma migrate resolve/);
   });
 
-  it("records the exact refreshed boundary and remaining credential gate", () => {
+  it("records the merged release, accepted credential gate, and postflight boundary", () => {
     const release = readFileSync(
       "docs/direct-upload-activation-release.md",
       "utf8",
     );
     const normalizedRelease = release.replace(/\s+/g, " ");
-    assert.match(release, /refreshed on the isolated activation branch/);
+    assert.match(release, /PR `#131` merged the byte-pinned activation release/);
     assert.match(
       normalizedRelease,
-      /activation release has not been merged, dispatched, applied or deployed/,
+      /production activation migration has not been dispatched or applied/,
     );
     assert.match(release, new RegExp(DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256));
     assert.match(release, new RegExp(DISPOSABLE_DIRECT_UPLOAD_ACTIVATION_SHA256));
@@ -172,8 +172,12 @@ describe("DirectUpload service-only activation release", () => {
     assert.match(release, /SECURITY\s+DEFINER owner is a superuser or has BYPASSRLS/);
     assert.match(release, /dpl_2o2yBehsStAiVWUhoj1LQTmZ9HJe/);
     assert.match(release, /authenticated retired route returns 404/);
-    assert.match(release, /confirm or revoke the\s+rejected Cloudflare `v3` R2 token/);
-    assert.match(release, /Case-evidence enablement[\s\S]*separate releases/);
+    assert.match(release, /rejected `v3` user token was absent/);
+    assert.match(release, /credential gate is\s+accepted/);
+    assert.match(release, /Activation-aware production postflight/);
+    assert.match(release, /BEGIN TRANSACTION READ ONLY/);
+    assert.match(release, /productionChangedByPostflight=false/);
+    assert.match(release, /Case-evidence\s+enablement[\s\S]*separate releases/);
     assert.match(release, /30716441830/);
     assert.match(release, /91412674837/);
     assert.match(release, /30716761313/);

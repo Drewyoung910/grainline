@@ -1682,11 +1682,34 @@ not evidence of a current production role defect. It intentionally supersedes
 the old activation hashes and requires a fresh exact-tree disposable
 activation plus rollback proof before promotion.
 
-The rejected Cloudflare `v3` token remains unconfirmed because no signed-in
-browser is available in the current tool session and the raw rejected
-credential was intentionally not retained. Absence of evidence is not recorded
-as revocation. Activation remains blocked on independent dashboard evidence or
-a separately authorized revocation.
+Signed-in Cloudflare dashboard inspection on 2026-08-01 later showed exactly
+the active account token `grainline-uploads` and active user token
+`grainline-direct-upload-cleanup-v4`. The rejected `v3` user token was absent;
+no raw credential was displayed, copied into chat or retained. This accepts the
+credential-revocation gate without weakening the exact-bucket v4 proof.
+
+### 2026-08-01 activation-aware production postflight gate
+
+The pre-activation runtime and cleanup-role operators deliberately reject the
+final FORCE posture, so they cannot serve as honest post-activation evidence.
+Production activation remains pending while the isolated postflight release is
+reviewed. It adds one two-mode, database-read-only operator plus a protected
+cleanup-role workflow. The pooled runtime mode never receives owner or cleanup
+credentials; the cleanup mode never receives runtime, owner or R2 credentials.
+Both verify the exact 35-function identities, source hashes, modes and ACL
+partition; exact policyless ENABLE plus FORCE posture; zero DirectUpload table
+or column authority; direct denial; incomplete-migration absence; and an exact
+clean release bound to the successful main-CI and migration runs.
+
+The cleanup-role proof calls the authorized lease function only inside
+`BEGIN TRANSACTION READ ONLY` and requires SQLSTATE `25006`, demonstrating that
+execution reached the function body while PostgreSQL prevented a lease. The
+runtime proof requires SQLSTATE `42501` for direct table access, private cores
+and cleanup functions, while invalid-actor fixed reads return zero rows. Both
+roll back, persist no database change and write only fresh mode-0600 sanitized
+evidence. Function identity arguments are now also pinned in the standing
+cleanup-worker catalog so same-name signature drift cannot pass later worker
+preflight.
 
 ## Exit
 
@@ -1695,9 +1718,10 @@ production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket
 disposable-object proof, and the compatibility key is retired in production.
 `DirectUpload` RLS remains off. The compatible runtime-cleanup retirement is
-deployed and drained; independently confirm the rejected Cloudflare `v3` token
-is revoked, complete the refreshed exact-tree proof and re-review draft PR
-`#131`. Do not schedule the protected worker or enable Case evidence yet.
+deployed and drained, the rejected Cloudflare `v3` token is absent, PR `#131`
+is merged and exact-main CI is green. Merge and prove the activation-aware
+postflight release, then apply and postflight the byte-pinned activation. Do not
+schedule the protected worker or enable Case evidence yet.
 Standing authorization permits routine continuation through this
 already-scoped rollout without conversational micro-approval. Exact-commit
 proof, protected-environment, migration, deployment and production postflight

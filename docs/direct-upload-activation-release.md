@@ -1,11 +1,14 @@
 # DirectUpload FORCE-RLS activation release
 
-Status on 2026-08-01: refreshed on the isolated activation branch after the
-ordinary-runtime cleanup retirement reached production at exact commit
-`a5d54e79d9b8747936bd2a7850115705461d0fbf`. This activation release has not
-been merged, dispatched, applied or deployed. `DirectUpload` remains in its
-production-compatible RLS-off posture. `DirectUploadReference` remains a
-policyless FORCE-RLS service table.
+Status on 2026-08-01: PR `#131` merged the byte-pinned activation release at
+exact head `07c745bd0578a0020d14697c25ed4b6ca52da4a2` into main commit
+`f23437779e101d6ec3beddf14d03abbf938ae000`. PR `#133` then repaired only the
+two older focused FORCE-proof workflows and merged at exact head
+`d3564724b3739b392960b48e9a5723f0ef2364ce` into main commit
+`bd27a4b2397fb6b97ddf11eb5466f48a98ee1891`. Full main CI and both focused
+FORCE proofs passed on `bd27a4b2`. The production activation migration has not
+been dispatched or applied. `DirectUpload` remains in its compatible RLS-off
+posture; `DirectUploadReference` remains a policyless FORCE-RLS service table.
 
 ## Exact release artifact
 
@@ -70,6 +73,9 @@ They now isolate the activation, apply the compatible tree, converge both
 external roles, restore and apply the exact activation, reconverge grants, and
 then run their original authority and rollback proofs. This changes disposable
 CI orchestration only; it does not alter migration bytes or production state.
+Main correction runs `30726387832` (Notification FORCE), `30726387838`
+(Conversation/Message FORCE) and `30726387850` (full CI) all passed on exact
+merge commit `bd27a4b2397fb6b97ddf11eb5466f48a98ee1891`.
 
 ## Authority boundary
 
@@ -97,8 +103,36 @@ DEFINER owner is a superuser or has BYPASSRLS before policyless FORCE RLS can
 commit. The guarded production runner already proved that property for
 `neondb_owner`; the SQL-local check makes the invariant fail closed even if a
 future operator bypasses that wrapper. Because this changes the exact release
-bytes, the older disposable activation evidence is superseded for promotion
-until a fresh PostgreSQL 16 activation and rollback proof passes.
+bytes, the older disposable activation evidence was superseded for promotion.
+Fresh exact-tree PostgreSQL 16 activation and rollback proofs then passed in
+main runs `30726387832` and `30726387838`; full CI passed in `30726387850`.
+
+## Activation-aware production postflight
+
+The pre-activation pooled-runtime and cleanup-role operators intentionally
+assert `DirectUpload` is still RLS-off and therefore cannot be reused after
+activation. The isolated postflight release adds
+`scripts/direct-upload-activation-production-postflight.mjs` with two strict
+read-only modes:
+
+- `--runtime` accepts only the reviewed pooled production `DATABASE_URL`,
+  rejects every privileged or aliased database credential, proves the exact
+  runtime role, policyless ENABLE plus FORCE table posture, zero DirectUpload
+  table/column authority, all 35 source/signature/mode/ACL identities, direct
+  denial, cleanup-function denial and fail-closed invalid-actor reads; and
+- `--cleanup` accepts only the protected unpooled v2 cleanup-role URL and its
+  digest, proves the exact three-function cleanup partition and all other
+  catalog invariants, direct-table and runtime-function denial, then proves the
+  cleanup lease reaches PostgreSQL's read-only `25006` fence without leasing or
+  changing a row.
+
+The cleanup mode runs in a dedicated `Production DirectUpload Cleanup`
+workflow that never receives the owner URL, runtime URL or R2 credentials. The
+runtime mode remains a separate exact-clean-commit local proof using only the
+pooled runtime credential. Both bind evidence to the exact release, successful
+main-CI and migration run ids, execute `BEGIN TRANSACTION READ ONLY`, roll back,
+write only a fresh mode-0600 sanitized artifact and record
+`productionChangedByPostflight=false`.
 
 ## Production gates still open
 
@@ -107,13 +141,16 @@ The compatible app retirement is live: deployment
 `a5d54e79d9b8747936bd2a7850115705461d0fbf`, its deployed cron manifest omits
 the old cleanup schedule, and the authenticated retired route returns 404.
 
-Before this migration may merge or run, independently confirm or revoke the
-rejected Cloudflare `v3` R2 token. The accepted replacement `v4` cleanup-only
-credential passed the exact two-bucket disposable-object proof in protected
-run `30710557050`; that does not prove the rejected credential is absent.
+Signed-in Cloudflare dashboard inspection on 2026-08-01 showed exactly the
+existing account token `grainline-uploads` and active user token
+`grainline-direct-upload-cleanup-v4`; the rejected `v3` user token was absent.
+No raw access key or secret was displayed or retained. The accepted `v4`
+cleanup-only credential had already passed the exact two-bucket
+disposable-object proof in protected run `30710557050`. The credential gate is
+accepted.
 
-After the credential gate is recorded, merge and production migration remain
-separate exact-commit decisions. A successful migration must be followed by
-the pooled-runtime and cleanup-role postflight. Case-evidence enablement,
-cleanup scheduling, provider-variable changes and token retirement are
-separate releases and must not be bundled into this activation.
+The activation-aware postflight branch must merge and pass exact-main CI before
+the guarded production migration runs. A successful migration must be followed
+by both postflight modes before the rollout is accepted. Case-evidence
+enablement, cleanup scheduling, provider-variable changes and token retirement
+remain separate releases and must not be bundled into this activation.

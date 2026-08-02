@@ -18,6 +18,7 @@ import {
 } from "@aws-sdk/client-s3";
 import pg from "pg";
 import {
+  DIRECT_UPLOAD_ACTIVATION_FUNCTIONS,
   DIRECT_UPLOAD_ACTIVATION_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
   DIRECT_UPLOAD_ACTIVATION_PRIVATE_FUNCTION_NAMES,
@@ -372,8 +373,18 @@ export function collectDirectUploadCleanupAuthorityIssues(snapshot) {
     DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
   );
   const expectedSourceHashes = directUploadFunctionSourceHashes();
+  const expectedFunctions = new Map(
+    DIRECT_UPLOAD_ACTIVATION_FUNCTIONS.map((entry) => [entry.name, entry]),
+  );
   for (const row of functionRows) {
     const name = row.function_name;
+    const expectedFunction = expectedFunctions.get(name);
+    if (
+      !expectedFunction
+      || row.identity_arguments !== expectedFunction.identityArguments
+    ) {
+      issues.push(`${name} identity arguments are not exact`);
+    }
     if (row.owner_name !== REVIEWED_TARGET.migrationRole) {
       issues.push(`${name} has the wrong owner`);
     }
@@ -618,6 +629,8 @@ export async function readDirectUploadCleanupAuthority(client) {
   const functions = await client.query(
     `SELECT
        procedure.proname AS function_name,
+       pg_catalog.pg_get_function_identity_arguments(procedure.oid)
+         AS identity_arguments,
        pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
        procedure.prosrc AS function_source,
        procedure.prosecdef AS security_definer,
