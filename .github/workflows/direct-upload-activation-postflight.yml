@@ -1,0 +1,65 @@
+name: DirectUpload Activation Postflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character activated main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full CI run for the exact release commit
+        required: true
+        type: string
+      migration_run_id:
+        description: Successful guarded Production Migrations run
+        required: true
+        type: string
+      confirmation:
+        description: Type verify-production-direct-upload-activation-cleanup-read-only
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  cleanup-role-postflight:
+    name: Prove activated cleanup-role boundary read-only
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production DirectUpload Cleanup
+    env:
+      DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_CONFIRM: ${{ inputs.confirmation }}
+      DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+      DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID: ${{ inputs.migration_run_id }}
+      DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256: ${{ vars.DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256 }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Prove exact cleanup-role activation boundary
+        run: npm run ops:direct-upload-activation-postflight -- --cleanup
+        env:
+          DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH: ${{ runner.temp }}/direct-upload-activation-cleanup-postflight-${{ inputs.release_commit }}.json
+          DIRECT_UPLOAD_CLEANUP_DATABASE_URL: ${{ secrets.DIRECT_UPLOAD_CLEANUP_DATABASE_URL }}
+      - name: Upload sanitized cleanup-role activation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-upload-activation-cleanup-postflight-${{ github.sha }}
+          path: ${{ runner.temp }}/direct-upload-activation-cleanup-postflight-${{ inputs.release_commit }}.json
+          if-no-files-found: warn
+          retention-days: 30

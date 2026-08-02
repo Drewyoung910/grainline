@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-07-28
+Last updated: 2026-08-01
 
 ## Purpose And Scope
 
@@ -86,8 +86,8 @@ completed alternative.
 | `ResendWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Webhook idempotency and errors; Resend handler and operations | Service-only grants or narrow RPCs with no ordinary request reads |
 | `ClerkWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Identity webhook idempotency and errors; Clerk handler and operations | Service-only grants or narrow RPCs with no ordinary request reads |
 | `CronRun` | `ALTERNATIVE_REVIEW` | Cron and operations ledgers | Job status and bounded result metadata; cron workers and operations | Cron service role or narrow job RPCs plus read-only ops visibility |
-| `DirectUpload` | `PLANNED_RLS` | Direct upload | User-owned upload claim state with cleanup jobs; the compatible private-object schema can also retain non-public Case/Message keys | Follow `docs/direct-upload-rls-audit.md`: deny direct runtime table access, use fixed record/verify/reference/release/export operations plus a shared-public/exclusive-private reference ledger, move cleanup lease/complete/fail to a dedicated NOBYPASSRLS worker role, and complete the separate CM-A21 rollout before private-object production promotion |
-| `DirectUploadReference` | `PLANNED_RLS` | Direct upload service ledger | Normalized shared-public and exclusive-private durable references; ordinary application SQL has no legitimate table-level access | Service-only FORCE RLS with zero policies and zero runtime/PUBLIC table grants; only private cores behind source-validating fixed operations may create or release references |
+| `DirectUpload` | `PLANNED_RLS` | Direct upload | User-owned upload claim state with cleanup jobs; the compatible private-object schema can also retain non-public Case/Message keys | Compatible authority, legacy repair, dedicated NOBYPASSRLS worker role, app-cron retirement, compatibility-key retirement and the byte-pinned policyless FORCE migration are merged/proved; production remains RLS-off pending the split pooled-runtime/cleanup-role postflight release, guarded activation and live postflight |
+| `DirectUploadReference` | `PLANNED_RLS` | Direct upload service ledger | Normalized shared-public and exclusive-private durable references; ordinary application SQL has no legitimate table-level access | Already service-only FORCE RLS with zero policies and zero runtime/PUBLIC table grants; the paired DirectUpload activation and split live postflight remain pending before the group can be marked live |
 | `SystemAuditLog` | `ALTERNATIVE_REVIEW` | Audit ledgers | Cross-system action evidence; provider, cron, staff and operations | Append-only service path, denied ordinary mutation and reviewed staff read access |
 | `EmailFailureCount` | `ALTERNATIVE_REVIEW` | Email service ledgers | Delivery failure counters keyed by email; Resend handler and mail service | Service-only mutation and no ordinary request enumeration |
 | `EmailOutbox` | `ALTERNATIVE_REVIEW` | Email service ledgers | Recipient PII and rendered email content; producers, sender cron and operations | Dedicated producer and worker operations, least-privilege reads and retention proof |
