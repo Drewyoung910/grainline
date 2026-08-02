@@ -6,9 +6,15 @@ exact head `07c745bd0578a0020d14697c25ed4b6ca52da4a2` into main commit
 two older focused FORCE-proof workflows and merged at exact head
 `d3564724b3739b392960b48e9a5723f0ef2364ce` into main commit
 `bd27a4b2397fb6b97ddf11eb5466f48a98ee1891`. Full main CI and both focused
-FORCE proofs passed on `bd27a4b2`. The production activation migration has not
-been dispatched or applied. `DirectUpload` remains in its compatible RLS-off
-posture; `DirectUploadReference` remains a policyless FORCE-RLS service table.
+FORCE proofs passed on `bd27a4b2`. Guarded production migration run
+`30729632410` later attempted the activation from exact main
+`9eeb7ceb828ac1a6f9817e270f2933237bd4cdfc`. Every release-byte and authority
+guard passed, but Prisma stopped while applying the activation and surfaced
+only the secondary PostgreSQL message `current transaction is aborted`.
+Migration status, the final grant audit and both activation postflights did not
+run. There is no accepted production activation claim. A dedicated owner-only,
+repeatable-read failure inspector is being added to recover the original
+ledger diagnostic and prove the post-failure catalog before any retry.
 
 ## Exact release artifact
 
@@ -154,3 +160,29 @@ the guarded production migration runs. A successful migration must be followed
 by both postflight modes before the rollout is accepted. Case-evidence
 enablement, cleanup scheduling, provider-variable changes and token retirement
 remain separate releases and must not be bundled into this activation.
+
+## Failed production activation evidence
+
+Production Migrations run `30729632410` at exact main
+`9eeb7ceb828ac1a6f9817e270f2933237bd4cdfc` passed checkout, locked install,
+owner/source/role guards, every byte-equivalence verifier and Prisma generation.
+It then selected only `20260801194000_enable_direct_upload_rls` and failed in
+`npx prisma migrate deploy`. Prisma retained only the secondary aborted-
+transaction error in the Actions log, so the run is failed evidence and must
+not be treated as an activation or replayed blindly. The later status and grant
+audit steps were skipped, and neither activation postflight was dispatched.
+
+Read-only legacy-inspection run `30729803125` was also rejected, before writing
+evidence, because that older operator deliberately pins the pre-retirement
+dual-column Case attachment posture and therefore still requires
+`CaseMessageAttachment.objectKey`. The retirement migration intentionally
+removed that column. This is a stale-phase operator mismatch, not rollback
+evidence and not a new database defect; it made no production change.
+
+The recovery sequence is fail-closed: merge and run the dedicated read-only
+failure inspector, require one exact unfinished activation ledger row, classify
+the original stored Prisma diagnostic without retaining raw logs, and prove the
+complete compatible pre-activation catalog apart from that ledger row. Only
+then may a byte-preserving recovery mark that exact row rolled back and retry
+the exact activation. Do not deploy, enable Case evidence, schedule cleanup,
+revoke tokens or change provider variables during this recovery.
