@@ -413,11 +413,11 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.match(
       plan,
-      /Status: corrected-migration PR #139 merged; recovery PR #140 retargeted to\s+`main`, still draft and undispatched/u,
+      /Status: corrected-migration PR #139 and recovery PR #140 are merged[\s\S]*initial read-only migration-tree guard/u,
     );
     assert.match(
       plan,
-      /95943014716b4654b1654d740f601ae755ed1740[\s\S]*30757000208[\s\S]*736bdc57d8ecac14dcac6690a386c96cf9e655e1[\s\S]*30758315593[\s\S]*PR #140 was\s+then retargeted to `main`/u,
+      /95943014716b4654b1654d740f601ae755ed1740[\s\S]*30757000208[\s\S]*736bdc57d8ecac14dcac6690a386c96cf9e655e1[\s\S]*30758315593[\s\S]*36484fcf02855308eac9d013307612afebb8f2e6[\s\S]*30760097011/u,
     );
     assert.match(
       plan,

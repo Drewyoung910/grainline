@@ -9,6 +9,7 @@ import {
   lstatSync,
   openSync,
   readFileSync,
+  readdirSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -44,6 +45,7 @@ const MIGRATION_PATH = path.resolve(
   DIRECT_UPLOAD_ACTIVATION_MIGRATION,
   "migration.sql",
 );
+const MIGRATIONS_DIRECTORY = path.resolve("prisma", "migrations");
 const EVIDENCE_PREFIX = "direct-upload-activation-failure-inspection-";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const SAFE_RUN_ID_PATTERN = /^[1-9][0-9]{0,19}$/;
@@ -127,6 +129,39 @@ export function parseDirectUploadActivationFailureInspectionConfig(
 
 function sha256(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function summarizeDirectUploadMigrationTreeDelta({
+  ledgerMigrationNames,
+  reviewedMigrationNames,
+} = {}) {
+  const normalize = (value, label) => {
+    if (
+      !Array.isArray(value)
+      || value.length === 0
+      || value.some((entry) =>
+        typeof entry !== "string"
+        || entry.length === 0
+        || entry !== entry.trim())
+      || new Set(value).size !== value.length
+    ) {
+      throw new Error(`DirectUpload ${label} migration names are invalid`);
+    }
+    return [...value].sort((left, right) => left.localeCompare(right));
+  };
+  const reviewed = normalize(reviewedMigrationNames, "reviewed");
+  const ledger = normalize(ledgerMigrationNames, "ledger");
+  const reviewedSet = new Set(reviewed);
+  const ledgerSet = new Set(ledger);
+  const missingFromLedger = reviewed.filter((name) => !ledgerSet.has(name));
+  const unexpectedInLedger = ledger.filter((name) => !reviewedSet.has(name));
+  return Object.freeze({
+    exact: missingFromLedger.length === 0 && unexpectedInLedger.length === 0,
+    reviewedMigrationCount: reviewed.length,
+    ledgerMigrationCount: ledger.length,
+    missingFromLedger: Object.freeze(missingFromLedger),
+    unexpectedInLedger: Object.freeze(unexpectedInLedger),
+  });
 }
 
 function migrationExceptionFragments(migrationSql) {
@@ -330,6 +365,21 @@ export async function runDirectUploadActivationFailureInspection(config) {
     if (!failedLedgerExact) {
       throw new Error("DirectUpload activation failed ledger row drifted");
     }
+    const reviewedMigrationNames = readdirSync(MIGRATIONS_DIRECTORY, {
+      withFileTypes: true,
+    })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    const ledgerMigrationNames = (await client.query(`
+      SELECT migration_name
+      FROM public._prisma_migrations
+      GROUP BY migration_name
+      ORDER BY migration_name
+    `)).rows.map((entry) => entry.migration_name);
+    const migrationTree = summarizeDirectUploadMigrationTreeDelta({
+      ledgerMigrationNames,
+      reviewedMigrationNames,
+    });
     const posture = summarizePosture(snapshot);
     if (!posture.transactionReadOnly || !posture.preActivationPostureRestored) {
       throw new Error("DirectUpload activation preflight safety posture drifted");
@@ -356,7 +406,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
     transactionOpen = false;
     const failure = classifyDirectUploadActivationFailure(row.logs, migrationSql);
     const evidence = Object.freeze({
-      schemaVersion: 3,
+      schemaVersion: 4,
       operation: "direct-upload-activation-failure-inspection",
       source: Object.freeze({ clean: git.clean, commit: git.head }),
       runs: Object.freeze({
@@ -375,6 +425,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
         failure,
         liveReadOnlyPreflight: livePreflight,
       }),
+      migrationTree,
       posture,
       transaction: Object.freeze({
         isolation: "repeatable read",
@@ -384,6 +435,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
         credentials: false,
         databaseRows: false,
         migrationLog: false,
+        rawMigrationLedgerRows: false,
       }),
       productionChangedByInspection: false,
       completedAt: new Date().toISOString(),
@@ -406,6 +458,7 @@ async function main() {
       source: evidence.source,
       runs: evidence.runs,
       migration: evidence.migration,
+      migrationTree: evidence.migrationTree,
       posture: evidence.posture,
       transaction: evidence.transaction,
       productionChangedByInspection: evidence.productionChangedByInspection,

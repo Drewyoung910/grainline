@@ -10,6 +10,7 @@ import {
   classifyDirectUploadActivationPreflightError,
   extractDirectUploadActivationReadOnlyPreflight,
   parseDirectUploadActivationFailureInspectionConfig,
+  summarizeDirectUploadMigrationTreeDelta,
   writeDirectUploadActivationFailureEvidence,
 } from "../scripts/direct-upload-activation-failure-inspect.mjs";
 
@@ -153,6 +154,33 @@ describe("DirectUpload activation failure inspection", () => {
     });
   });
 
+  it("reports only aggregate reviewed-versus-ledger migration-name deltas", () => {
+    assert.deepEqual(
+      summarizeDirectUploadMigrationTreeDelta({
+        reviewedMigrationNames: ["002_second", "001_first", "003_pending"],
+        ledgerMigrationNames: ["001_first", "004_historical", "002_second"],
+      }),
+      {
+        exact: false,
+        reviewedMigrationCount: 3,
+        ledgerMigrationCount: 3,
+        missingFromLedger: ["003_pending"],
+        unexpectedInLedger: ["004_historical"],
+      },
+    );
+    assert.equal(
+      summarizeDirectUploadMigrationTreeDelta({
+        reviewedMigrationNames: ["001_first"],
+        ledgerMigrationNames: ["001_first"],
+      }).exact,
+      true,
+    );
+    assert.throws(() => summarizeDirectUploadMigrationTreeDelta({
+      reviewedMigrationNames: ["001_first", "001_first"],
+      ledgerMigrationNames: ["001_first"],
+    }));
+  });
+
   it("writes a new private evidence file and rejects sensitive shapes", () => {
     const directory = temporaryDirectory();
     const target = path.join(directory, "evidence.json");
@@ -192,7 +220,10 @@ describe("DirectUpload activation failure inspection", () => {
     assert.doesNotMatch(workflow, /DATABASE_URL:|DIRECT_UPLOAD_CLEANUP_DATABASE_URL:/u);
     assert.match(script, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
     assert.match(script, /extractDirectUploadActivationReadOnlyPreflight/u);
-    assert.match(script, /schemaVersion: 3/u);
+    assert.match(script, /schemaVersion: 4/u);
+    assert.match(script, /GROUP BY migration_name/u);
+    assert.match(script, /missingFromLedger/u);
+    assert.match(script, /unexpectedInLedger/u);
     assert.match(script, /FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256/u);
     assert.match(script, /productionChangedByInspection: false/u);
     assert.doesNotMatch(script, /client\.query\(`?(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE)/u);

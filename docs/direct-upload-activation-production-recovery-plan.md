@@ -1,7 +1,8 @@
 # DirectUpload activation production recovery
 
-Status: corrected-migration PR #139 merged; recovery PR #140 retargeted to
-`main`, still draft and undispatched.
+Status: corrected-migration PR #139 and recovery PR #140 are merged. The first
+production recovery run stopped in its initial read-only migration-tree guard;
+no recovery mutation ran and DirectUpload RLS remains off.
 
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
@@ -14,8 +15,8 @@ The corrected membership preflight has passed twice in disposable PostgreSQL
 16. Exact-head recovery proof run `30734098369` reproduced the original
 zero-step failure, resolved only that disposable row, applied the corrected
 bytes, and proved activated authority, migration status, grants and rollback.
-The exact successful main CI run for the future recovery release must also be
-bound before any production recovery is dispatched.
+The eventual production recovery was also required to bind an exact successful
+main CI run for its release commit.
 
 The isolated workflow head
 `95943014716b4654b1654d740f601ae755ed1740` passed full PR CI run
@@ -28,8 +29,26 @@ then retargeted to `main`; its three recovery-only commits remain a separate
 review and merge boundary. The Vercel Preview status is expected to fail
 closed on this operations-only branch; GitHub CI, including the ephemeral
 PostgreSQL migrations, grants, RLS proofs, security audit and production
-build, passed. A new exact successful main CI run for the future PR #140 merge
-commit is still required before any production recovery dispatch.
+build, passed. A new exact successful main CI run was still required after the
+future PR #140 merge before any production recovery dispatch.
+
+Recovery PR #140 exact head
+`e72bbfafd0539e9aefa2bb1ab09a94219c35c0c2` merged as main commit
+`36484fcf02855308eac9d013307612afebb8f2e6`. Main CI run `30759433559`,
+Conversation and Message RLS FORCE Proof run `30759433549`, and Notification
+RLS FORCE Proof run `30759433526` all passed at that exact merge commit.
+Authorized recovery run `30760097011` then verified all four run/commit
+bindings but failed in the first repeatable-read, read-only inspection with
+`production migration ledger names do not match the reviewed tree`. Every
+resolve, migration, grant-convergence, status, audit and activated-proof step
+was skipped. The run did not deploy or change database/provider state.
+
+The protected failure inspector is being extended to retain only aggregate
+reviewed-versus-ledger migration-name counts and the missing/unexpected names.
+It continues to require the exact failed zero-step activation row and restored
+compatible authority posture inside the same read-only transaction. Do not
+weaken or retry the recovery until that diagnostic identifies and classifies
+the tree delta.
 
 ## Prepared read-only verifier
 
@@ -93,12 +112,13 @@ an accepted restart state and requires a fresh read-only investigation.
 
 ## Boundaries retained
 
-The corrected migration/proof in PR #139 is merged. The workflow remains
-prepared only in draft PR #140, now targeting `main`, and has not been
-dispatched. The verifier, tests, workflow preparation, retargeting and PR CI
-changed no production state. Merging PR #140 and dispatching the recovery
-remain separate boundaries; dispatch is the step that can mark the ledger row
-rolled back and apply the activation.
+The corrected migration/proof in PR #139 and recovery workflow in PR #140 are
+merged. Recovery run `30760097011` was dispatched but stopped read-only before
+the exact ledger resolve boundary. The original unfinished zero-step row and
+compatible RLS-off DirectUpload posture therefore remain the expected
+production state. A fresh read-only tree-delta inspection is the next boundary;
+no recovery retry is accepted until its result is reviewed and the verifier is
+updated only if the delta has a safe, evidenced classification.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those
