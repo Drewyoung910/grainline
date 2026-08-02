@@ -12,27 +12,36 @@ FORCE proofs passed on `bd27a4b2`. Guarded production migration run
 guard passed, but Prisma stopped while applying the activation and surfaced
 only the secondary PostgreSQL message `current transaction is aborted`.
 Migration status, the final grant audit and both activation postflights did not
-run. There is no accepted production activation claim. A dedicated owner-only,
-repeatable-read failure inspector is being added to recover the original
-ledger diagnostic and prove the post-failure catalog before any retry.
+run. There is no accepted production activation claim. Dedicated owner-only,
+repeatable-read inspectors later proved the transaction rolled back completely
+and recovered the exact migration preflight error before any retry.
 
 ## Exact release artifact
 
 - Production migration:
   `20260801194000_enable_direct_upload_rls`
-- Promoted migration SHA-256:
+- Failed original migration SHA-256:
   `41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb`
+- Corrected reviewed migration SHA-256:
+  `810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71`
 - Disposable proof migration SHA-256:
-  `b017fd8898b3aa901457977a5aa4f8fb2ac495546c59c348788722a6569d370d`
+  `1db96ec58d7cfd9e53967c0fc1698f03679acfcf77ef30b6ee36b6daaf160554`
 - Guard phase: `direct-upload-activation-reviewed`
 - Reviewed production predecessor:
   `20260801175000_retire_direct_upload_compatibility_key`
 
-The promoted migration differs from the disposable proof only in its
+The corrected reviewed migration differs from the disposable proof only in its
 non-executable header and migration-directory name. The release verifier
 regenerates the candidate, byte-compares the executable body, pins both
 hashes, rejects the disposable migration name in production history and
 requires this migration to remain the newest reviewed migration.
+
+The original checksum remains pinned separately as failed evidence. Changing
+the migration bytes is allowed only because read-only run `30731902991` proved
+the original row has zero applied steps and the whole transaction rolled back.
+The corrected bytes change only the membership preflight described below; a
+disposable PostgreSQL recovery proof must prove failed-row resolution and
+corrected replay before any production recovery is considered.
 
 CI temporarily isolates only the activation directory, applies the compatible
 tree through retirement, converges the same pre-activation runtime and cleanup
@@ -183,8 +192,8 @@ The recovery sequence is fail-closed: merge and run the dedicated read-only
 failure inspector, require one exact unfinished activation ledger row, classify
 the original stored Prisma diagnostic without retaining raw logs, and prove the
 complete compatible pre-activation catalog apart from that ledger row. Only
-then may a byte-preserving recovery mark that exact row rolled back and retry
-the exact activation. Do not deploy, enable Case evidence, schedule cleanup,
+then may a reviewed recovery mark that exact row rolled back and apply the
+corrected activation. Do not deploy, enable Case evidence, schedule cleanup,
 revoke tokens or change provider variables during this recovery.
 
 Read-only failure-inspection run `30731902991` at exact main
@@ -217,3 +226,28 @@ prevents any write. Its schema-version-2 artifact explicitly retains neither
 the raw ledger log nor the raw live error. Do not resolve or retry the migration
 until that result is classified and the recovery operator is separately
 reviewed.
+
+Follow-up read-only run `30732821707` at exact main
+`a1b59157fc1fedcbb3ef9d6e0217a2ffec4e190e` executed only those two preflight
+blocks and returned SQLSTATE `P0001`: `DirectUpload runtime or cleanup role
+retains inbound or outbound role membership`. The failed row and complete
+compatible posture remained exact and `productionChangedByInspection=false`.
+
+The cause is a release-preflight defect, not unsafe live authority. PostgreSQL
+16 automatically recorded `neondb_owner` as a member of
+`grainline_direct_upload_cleanup_v2` when the LOGIN/NOINHERIT role was created:
+grantor `cloud_admin`, `ADMIN=true`, `INHERIT=false`, `SET=false`.
+Provider-remediation, provision and cleanup-worker proofs already accept only
+that exact non-effective bootstrap edge (or no edge); the activation migration
+incorrectly rejected every inbound edge. The corrected preflight preserves
+zero runtime memberships and zero cleanup parent memberships, permits only
+that exact provider-forced edge, rejects every other direct edge, and rejects
+any transitive cleanup member beyond `neondb_owner`.
+
+The sanitized schema-version-2 evidence is preserved mode 0600 as
+`direct-upload-activation-failure-inspection-a1b59157fc1fedcbb3ef9d6e0217a2ffec4e190e.json`,
+SHA-256
+`10ffcb64168c3e98aefcb7261682f423910fd8116d367451877ea8f7702cf3a2`.
+GitHub artifact `8828545633` has archive SHA-256
+`658ec7b8e6cab80e5b9ddf1a6903e41c2c05c9cda1dee22048db3a6e01c6d0d8`.
+No resolve, migration retry, deployment, RLS change or provider change ran.

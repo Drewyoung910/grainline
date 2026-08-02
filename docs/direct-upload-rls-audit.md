@@ -1750,6 +1750,26 @@ failed ledger row, promoted checksum and compatible posture are all re-proven.
 It captures the first SQLSTATE and allowlisted message directly. It cannot
 perform the earlier locks or the later revokes, grants, RLS changes or commit.
 
+That follow-up passed in run `30732821707` at exact main
+`a1b59157fc1fedcbb3ef9d6e0217a2ffec4e190e` and recovered SQLSTATE `P0001`:
+the activation preflight rejected an inbound/outbound role membership. This is
+the already-reviewed PostgreSQL 16 bootstrap edge from `neondb_owner` to
+`grainline_direct_upload_cleanup_v2`, granted by `cloud_admin` with
+`ADMIN=true`, `INHERIT=false`, `SET=false`. The role-provision and worker
+proofs correctly accept that exact non-effective edge (or no edge); the
+activation SQL was inconsistent and rejected all edges. Production remained
+in the exact compatible posture with the original failed row at zero applied
+steps.
+
+The recovery candidate changes only that membership preflight. It continues to
+reject all runtime memberships, every cleanup parent membership, every direct
+cleanup member edge except the exact bootstrap tuple, and every transitive
+cleanup member beyond `neondb_owner`. The failed original checksum remains
+pinned separately; the corrected reviewed checksum is
+`810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71`.
+A disposable PostgreSQL proof of failed-row resolution plus corrected replay is
+required before any production recovery operator may be staged.
+
 ## Exit
 
 Keep Extra High through the activation sequencing and authority review. The

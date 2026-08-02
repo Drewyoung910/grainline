@@ -12,6 +12,7 @@ import { describe, it } from "node:test";
 import {
   DIRECT_UPLOAD_ACTIVATION_RELEASE,
   DISPOSABLE_DIRECT_UPLOAD_ACTIVATION_SHA256,
+  FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
   verifyDirectUploadActivationRelease,
 } from "../scripts/verify-direct-upload-activation-release.mjs";
 
@@ -46,9 +47,9 @@ describe("DirectUpload service-only activation release", () => {
       status: "passed",
       migrationName: "20260801194000_enable_direct_upload_rls",
       migrationSha256:
-        "41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb",
+        "810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71",
       disposableProofSha256:
-        "b017fd8898b3aa901457977a5aa4f8fb2ac495546c59c348788722a6569d370d",
+        "1db96ec58d7cfd9e53967c0fc1698f03679acfcf77ef30b6ee36b6daaf160554",
       executableBodyMatchesDisposableProof: true,
       followsReviewedProductionHistory: true,
       functionCount: 35,
@@ -61,7 +62,11 @@ describe("DirectUpload service-only activation release", () => {
     });
     assert.equal(
       DISPOSABLE_DIRECT_UPLOAD_ACTIVATION_SHA256,
-      "b017fd8898b3aa901457977a5aa4f8fb2ac495546c59c348788722a6569d370d",
+      "1db96ec58d7cfd9e53967c0fc1698f03679acfcf77ef30b6ee36b6daaf160554",
+    );
+    assert.equal(
+      FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
+      "41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb",
     );
     assert.match(source, /^-- Promoted reviewed DirectUpload/);
     assert.doesNotMatch(source, /Do not apply outside the loopback/);
