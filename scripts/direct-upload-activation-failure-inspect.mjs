@@ -39,6 +39,10 @@ export const DIRECT_UPLOAD_ACTIVATION_FAILURE_INSPECTION_CONFIRMATION =
   "inspect-failed-direct-upload-activation-read-only";
 export const DIRECT_UPLOAD_ACTIVATION_MIGRATION =
   "20260801194000_enable_direct_upload_rls";
+export const LISTING_VARIANTS_REVIEWED_MIGRATION =
+  "20260423_add_listing_variants";
+export const LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS =
+  "20260423000000_add_listing_variants";
 const MIGRATION_PATH = path.resolve(
   "prisma",
   "migrations",
@@ -46,6 +50,11 @@ const MIGRATION_PATH = path.resolve(
   "migration.sql",
 );
 const MIGRATIONS_DIRECTORY = path.resolve("prisma", "migrations");
+const LISTING_VARIANTS_MIGRATION_PATH = path.resolve(
+  MIGRATIONS_DIRECTORY,
+  LISTING_VARIANTS_REVIEWED_MIGRATION,
+  "migration.sql",
+);
 const EVIDENCE_PREFIX = "direct-upload-activation-failure-inspection-";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const SAFE_RUN_ID_PATTERN = /^[1-9][0-9]{0,19}$/;
@@ -161,6 +170,72 @@ export function summarizeDirectUploadMigrationTreeDelta({
     ledgerMigrationCount: ledger.length,
     missingFromLedger: Object.freeze(missingFromLedger),
     unexpectedInLedger: Object.freeze(unexpectedInLedger),
+  });
+}
+
+export function summarizeListingVariantsLedgerAlias({
+  expectedChecksum,
+  ledgerSummaries,
+} = {}) {
+  if (
+    typeof expectedChecksum !== "string"
+    || !/^[0-9a-f]{64}$/u.test(expectedChecksum)
+    || !Array.isArray(ledgerSummaries)
+  ) {
+    throw new Error("Listing variants ledger-alias proof input is invalid");
+  }
+  const orderedNames = Object.freeze([
+    LISTING_VARIANTS_REVIEWED_MIGRATION,
+    LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+  ]);
+  const allowedNames = new Set(orderedNames);
+  const entries = ledgerSummaries.map((row) => {
+    const migrationName = row?.migration_name;
+    const rowCount = Number(row?.row_count);
+    const appliedCount = Number(row?.applied_count);
+    const incompleteCount = Number(row?.incomplete_count);
+    const rolledBackCount = Number(row?.rolled_back_count);
+    const appliedStepsCount = Number(row?.applied_steps_count);
+    if (
+      typeof migrationName !== "string"
+      || !allowedNames.has(migrationName)
+      || typeof row?.checksum !== "string"
+      || ![
+        rowCount,
+        appliedCount,
+        incompleteCount,
+        rolledBackCount,
+        appliedStepsCount,
+      ].every((value) => Number.isSafeInteger(value) && value >= 0)
+    ) {
+      throw new Error("Listing variants ledger-alias summary is invalid");
+    }
+    return Object.freeze({
+      migrationName,
+      rowCount,
+      checksumMatches: row.checksum === expectedChecksum,
+      appliedCount,
+      incompleteCount,
+      rolledBackCount,
+      appliedStepsCount,
+    });
+  }).sort((left, right) =>
+    orderedNames.indexOf(left.migrationName)
+      - orderedNames.indexOf(right.migrationName));
+  const exactNames = entries.length === 2
+    && entries[0]?.migrationName === LISTING_VARIANTS_REVIEWED_MIGRATION
+    && entries[1]?.migrationName === LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS;
+  const exact = exactNames && entries.every((entry) =>
+    entry.rowCount === 1
+    && entry.checksumMatches
+    && entry.appliedCount === 1
+    && entry.incompleteCount === 0
+    && entry.rolledBackCount === 0
+    && entry.appliedStepsCount <= 1);
+  return Object.freeze({
+    exact,
+    expectedChecksum,
+    entries: Object.freeze(entries),
   });
 }
 
@@ -319,6 +394,9 @@ export async function runDirectUploadActivationFailureInspection(config) {
   );
   const migrationSql = readFileSync(MIGRATION_PATH, "utf8");
   const reviewedRecoveryChecksum = sha256(migrationSql);
+  const listingVariantsChecksum = sha256(
+    readFileSync(LISTING_VARIANTS_MIGRATION_PATH, "utf8"),
+  );
   if (
     DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName
       !== DIRECT_UPLOAD_ACTIVATION_MIGRATION
@@ -380,6 +458,32 @@ export async function runDirectUploadActivationFailureInspection(config) {
       ledgerMigrationNames,
       reviewedMigrationNames,
     });
+    const listingVariantsLedgerAlias = summarizeListingVariantsLedgerAlias({
+      expectedChecksum: listingVariantsChecksum,
+      ledgerSummaries: (await client.query(`
+        SELECT
+          migration_name,
+          checksum,
+          count(*)::integer AS row_count,
+          count(*) FILTER (
+            WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+          )::integer AS applied_count,
+          count(*) FILTER (
+            WHERE finished_at IS NULL AND rolled_back_at IS NULL
+          )::integer AS incomplete_count,
+          count(*) FILTER (
+            WHERE rolled_back_at IS NOT NULL
+          )::integer AS rolled_back_count,
+          coalesce(sum(applied_steps_count), 0)::bigint AS applied_steps_count
+        FROM public._prisma_migrations
+        WHERE migration_name = ANY($1::text[])
+        GROUP BY migration_name, checksum
+        ORDER BY migration_name, checksum
+      `, [[
+        LISTING_VARIANTS_REVIEWED_MIGRATION,
+        LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+      ]])).rows,
+    });
     const posture = summarizePosture(snapshot);
     if (!posture.transactionReadOnly || !posture.preActivationPostureRestored) {
       throw new Error("DirectUpload activation preflight safety posture drifted");
@@ -406,7 +510,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
     transactionOpen = false;
     const failure = classifyDirectUploadActivationFailure(row.logs, migrationSql);
     const evidence = Object.freeze({
-      schemaVersion: 4,
+      schemaVersion: 5,
       operation: "direct-upload-activation-failure-inspection",
       source: Object.freeze({ clean: git.clean, commit: git.head }),
       runs: Object.freeze({
@@ -426,6 +530,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
         liveReadOnlyPreflight: livePreflight,
       }),
       migrationTree,
+      listingVariantsLedgerAlias,
       posture,
       transaction: Object.freeze({
         isolation: "repeatable read",
@@ -459,6 +564,7 @@ async function main() {
       runs: evidence.runs,
       migration: evidence.migration,
       migrationTree: evidence.migrationTree,
+      listingVariantsLedgerAlias: evidence.listingVariantsLedgerAlias,
       posture: evidence.posture,
       transaction: evidence.transaction,
       productionChangedByInspection: evidence.productionChangedByInspection,

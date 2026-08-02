@@ -6,11 +6,14 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import {
   DIRECT_UPLOAD_ACTIVATION_FAILURE_INSPECTION_CONFIRMATION,
+  LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+  LISTING_VARIANTS_REVIEWED_MIGRATION,
   classifyDirectUploadActivationFailure,
   classifyDirectUploadActivationPreflightError,
   extractDirectUploadActivationReadOnlyPreflight,
   parseDirectUploadActivationFailureInspectionConfig,
   summarizeDirectUploadMigrationTreeDelta,
+  summarizeListingVariantsLedgerAlias,
   writeDirectUploadActivationFailureEvidence,
 } from "../scripts/direct-upload-activation-failure-inspect.mjs";
 
@@ -181,6 +184,62 @@ describe("DirectUpload activation failure inspection", () => {
     }));
   });
 
+  it("proves only the exact completed listing-variants ledger alias pair", () => {
+    const checksum = "a".repeat(64);
+    const row = (migrationName, appliedStepsCount) => ({
+      migration_name: migrationName,
+      checksum,
+      row_count: 1,
+      applied_count: 1,
+      incomplete_count: 0,
+      rolled_back_count: 0,
+      applied_steps_count: appliedStepsCount,
+    });
+    assert.deepEqual(
+      summarizeListingVariantsLedgerAlias({
+        expectedChecksum: checksum,
+        ledgerSummaries: [
+          row(LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS, 0),
+          row(LISTING_VARIANTS_REVIEWED_MIGRATION, 1),
+        ],
+      }),
+      {
+        exact: true,
+        expectedChecksum: checksum,
+        entries: [
+          {
+            migrationName: LISTING_VARIANTS_REVIEWED_MIGRATION,
+            rowCount: 1,
+            checksumMatches: true,
+            appliedCount: 1,
+            incompleteCount: 0,
+            rolledBackCount: 0,
+            appliedStepsCount: 1,
+          },
+          {
+            migrationName: LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+            rowCount: 1,
+            checksumMatches: true,
+            appliedCount: 1,
+            incompleteCount: 0,
+            rolledBackCount: 0,
+            appliedStepsCount: 0,
+          },
+        ],
+      },
+    );
+    assert.equal(
+      summarizeListingVariantsLedgerAlias({
+        expectedChecksum: checksum,
+        ledgerSummaries: [{
+          ...row(LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS, 0),
+          checksum: "b".repeat(64),
+        }],
+      }).exact,
+      false,
+    );
+  });
+
   it("writes a new private evidence file and rejects sensitive shapes", () => {
     const directory = temporaryDirectory();
     const target = path.join(directory, "evidence.json");
@@ -220,8 +279,10 @@ describe("DirectUpload activation failure inspection", () => {
     assert.doesNotMatch(workflow, /DATABASE_URL:|DIRECT_UPLOAD_CLEANUP_DATABASE_URL:/u);
     assert.match(script, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
     assert.match(script, /extractDirectUploadActivationReadOnlyPreflight/u);
-    assert.match(script, /schemaVersion: 4/u);
+    assert.match(script, /schemaVersion: 5/u);
     assert.match(script, /GROUP BY migration_name/u);
+    assert.match(script, /WHERE migration_name = ANY\(\$1::text\[\]\)/u);
+    assert.match(script, /listingVariantsLedgerAlias/u);
     assert.match(script, /missingFromLedger/u);
     assert.match(script, /unexpectedInLedger/u);
     assert.match(script, /FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256/u);

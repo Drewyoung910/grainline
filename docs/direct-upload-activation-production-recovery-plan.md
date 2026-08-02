@@ -43,12 +43,32 @@ bindings but failed in the first repeatable-read, read-only inspection with
 resolve, migration, grant-convergence, status, audit and activated-proof step
 was skipped. The run did not deploy or change database/provider state.
 
-The protected failure inspector is being extended to retain only aggregate
-reviewed-versus-ledger migration-name counts and the missing/unexpected names.
-It continues to require the exact failed zero-step activation row and restored
-compatible authority posture inside the same read-only transaction. Do not
-weaken or retry the recovery until that diagnostic identifies and classifies
-the tree delta.
+Read-only failure inspection run `30766662618` at exact main commit
+`b814634bc0de9ea8e7c80972f13111bdf10e723d` identified the complete tree
+delta: the reviewed tree contains 187 migration names, production contains 188,
+no reviewed migration is missing, and the sole unexpected production name is
+`20260423000000_add_listing_variants`. The original DirectUpload activation
+row remains exact and zero-step, the compatible table/function/grant posture
+remains restored, the transaction reported `read only`, and
+`productionChangedByInspection=false`.
+
+Repository history shows that commit `4ebb0502` renamed the listing-variants
+migration from `20260423_add_listing_variants` to the unexpected full-timestamp
+name and commit `477b403f` renamed the same bytes back about 94 minutes later.
+The two historical files have identical SHA-256
+`a54d0d3371a6149a683719963466305b449a6206ef8ddb4d5dc7eb0db1bb5d5e`.
+Because production also contains the current reviewed name (it was not reported
+missing), the ledger has both aliases. The source history and byte identity do
+not yet prove both ledger rows' completion/checksum state, so the recovery
+guard must remain strict.
+
+The protected failure inspector is being extended again to read only aggregate
+row counts, completion/rollback counts, applied-step totals and checksum-match
+booleans for those two exact alias names. It continues to require the failed
+zero-step activation row and restored compatible authority posture inside the
+same repeatable-read, read-only transaction. Do not weaken or retry recovery
+until that alias-row proof passes and the exception is reviewed as an exact
+historical invariant.
 
 ## Prepared read-only verifier
 
@@ -116,9 +136,10 @@ The corrected migration/proof in PR #139 and recovery workflow in PR #140 are
 merged. Recovery run `30760097011` was dispatched but stopped read-only before
 the exact ledger resolve boundary. The original unfinished zero-step row and
 compatible RLS-off DirectUpload posture therefore remain the expected
-production state. A fresh read-only tree-delta inspection is the next boundary;
-no recovery retry is accepted until its result is reviewed and the verifier is
-updated only if the delta has a safe, evidenced classification.
+production state. The aggregate tree delta is now known; a targeted read-only
+checksum/completion proof for the two listing-variants aliases is the next
+boundary. No recovery retry is accepted until that proof is reviewed and the
+verifier admits only the exact historical alias shape.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those
