@@ -184,23 +184,35 @@ describe("DirectUpload activation failure inspection", () => {
     }));
   });
 
-  it("proves only the exact completed listing-variants ledger alias pair", () => {
+  it("proves only the exact applied current and zero-step rolled-back historical listing-variants pair", () => {
     const checksum = "a".repeat(64);
-    const row = (migrationName, appliedStepsCount) => ({
+    const row = (
+      migrationName,
+      {
+        applied = 1,
+        appliedSteps = 1,
+        incomplete = 0,
+        rolledBack = 0,
+      } = {},
+    ) => ({
       migration_name: migrationName,
       checksum,
       row_count: 1,
-      applied_count: 1,
-      incomplete_count: 0,
-      rolled_back_count: 0,
-      applied_steps_count: appliedStepsCount,
+      applied_count: applied,
+      incomplete_count: incomplete,
+      rolled_back_count: rolledBack,
+      applied_steps_count: appliedSteps,
     });
     assert.deepEqual(
       summarizeListingVariantsLedgerAlias({
         expectedChecksum: checksum,
         ledgerSummaries: [
-          row(LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS, 0),
-          row(LISTING_VARIANTS_REVIEWED_MIGRATION, 1),
+          row(LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS, {
+            applied: 0,
+            appliedSteps: 0,
+            rolledBack: 1,
+          }),
+          row(LISTING_VARIANTS_REVIEWED_MIGRATION),
         ],
       }),
       {
@@ -220,9 +232,9 @@ describe("DirectUpload activation failure inspection", () => {
             migrationName: LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
             rowCount: 1,
             checksumMatches: true,
-            appliedCount: 1,
+            appliedCount: 0,
             incompleteCount: 0,
-            rolledBackCount: 0,
+            rolledBackCount: 1,
             appliedStepsCount: 0,
           },
         ],
@@ -232,12 +244,35 @@ describe("DirectUpload activation failure inspection", () => {
       summarizeListingVariantsLedgerAlias({
         expectedChecksum: checksum,
         ledgerSummaries: [{
-          ...row(LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS, 0),
+          ...row(LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS, {
+            applied: 0,
+            appliedSteps: 0,
+            rolledBack: 1,
+          }),
           checksum: "b".repeat(64),
         }],
       }).exact,
       false,
     );
+    for (const historicalDrift of [
+      { applied: 1, appliedSteps: 0, rolledBack: 0 },
+      { applied: 0, appliedSteps: 0, incomplete: 1, rolledBack: 0 },
+      { applied: 0, appliedSteps: 1, rolledBack: 1 },
+    ]) {
+      assert.equal(
+        summarizeListingVariantsLedgerAlias({
+          expectedChecksum: checksum,
+          ledgerSummaries: [
+            row(LISTING_VARIANTS_REVIEWED_MIGRATION),
+            row(
+              LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
+              historicalDrift,
+            ),
+          ],
+        }).exact,
+        false,
+      );
+    }
   });
 
   it("writes a new private evidence file and rejects sensitive shapes", () => {

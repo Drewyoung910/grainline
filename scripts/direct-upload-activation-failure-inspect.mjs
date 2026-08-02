@@ -225,13 +225,21 @@ export function summarizeListingVariantsLedgerAlias({
   const exactNames = entries.length === 2
     && entries[0]?.migrationName === LISTING_VARIANTS_REVIEWED_MIGRATION
     && entries[1]?.migrationName === LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS;
-  const exact = exactNames && entries.every((entry) =>
-    entry.rowCount === 1
-    && entry.checksumMatches
-    && entry.appliedCount === 1
-    && entry.incompleteCount === 0
-    && entry.rolledBackCount === 0
-    && entry.appliedStepsCount <= 1);
+  const reviewed = entries[0];
+  const historical = entries[1];
+  const exact = exactNames
+    && reviewed.rowCount === 1
+    && reviewed.checksumMatches
+    && reviewed.appliedCount === 1
+    && reviewed.incompleteCount === 0
+    && reviewed.rolledBackCount === 0
+    && reviewed.appliedStepsCount === 1
+    && historical.rowCount === 1
+    && historical.checksumMatches
+    && historical.appliedCount === 0
+    && historical.incompleteCount === 0
+    && historical.rolledBackCount === 1
+    && historical.appliedStepsCount === 0;
   return Object.freeze({
     exact,
     expectedChecksum,
