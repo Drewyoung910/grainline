@@ -351,6 +351,9 @@ Under isolated-branch-only authorization, draft PR #143 now contains a narrow
 recovery-verifier candidate and disposable PostgreSQL fixture for exactly that
 alias pair. It fails closed on a missing alias, an applied or incomplete alias,
 nonzero steps, checksum drift, duplicates and every additional ledger name. It
-does not authorize a merge or recovery dispatch. Production recovery remains
-blocked until the candidate passes all proofs, is reviewed and merged, exact
-main CI passes, and a new exact production authorization is given.
+does not authorize a merge or recovery dispatch. Exact code head
+`0c4a54e058a9d97faeba73563730c54ca88b11bb` passed full CI run
+`30770032839` and disposable PostgreSQL 16 recovery proof run `30770031355`.
+Production recovery remains blocked until the candidate is reviewed and
+merged, exact-main CI passes, and a new exact production authorization is
+given.

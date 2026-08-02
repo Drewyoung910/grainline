@@ -86,8 +86,10 @@ checksum-matching, zero-step rolled-back historical alias while continuing to
 reject every other missing, unexpected, incomplete, applied, step-count or
 checksum-drifting ledger shape. Its PostgreSQL 16 workflow stages that exact
 alias after the compatible baseline, proves it through the failed, resolved and
-activated restart states, and has no production credential. No merge or
-production recovery retry is authorized by this candidate.
+activated restart states, and has no production credential. Exact code head
+`0c4a54e058a9d97faeba73563730c54ca88b11bb` passed full CI run
+`30770032839` and disposable PostgreSQL 16 recovery proof run `30770031355`.
+No merge or production recovery retry is authorized by this candidate.
 
 ## Prepared read-only verifier
 
@@ -155,10 +157,9 @@ The corrected migration/proof in PR #139 and recovery workflow in PR #140 are
 merged. Recovery run `30760097011` was dispatched but stopped read-only before
 the exact ledger resolve boundary. The original unfinished zero-step row and
 compatible RLS-off DirectUpload posture therefore remain the expected
-production state. The aggregate alias proof is now complete. The isolated
-fail-closed verifier candidate is the next boundary; no recovery retry is
-accepted until its unit, full CI and disposable PostgreSQL proofs pass, it is
-separately reviewed and merged, exact-main CI passes, and a new exact
+production state. The aggregate alias proof and isolated fail-closed verifier
+candidate proofs are now complete. The next boundary is separate review and
+merge; no recovery retry is accepted until exact-main CI passes and a new exact
 production authorization is given.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
