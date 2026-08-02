@@ -70,18 +70,30 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(lock.packages?.["node_modules/valibot"]?.version, "1.4.2");
   });
 
-  it("keeps the dependency audit exception exact, development-only, and fail-closed", () => {
+  it("keeps every high or critical dependency advisory fail-closed", () => {
     const pkg = json("package.json");
+    const lock = json("package-lock.json");
     const workflow = source(".github/workflows/ci.yml");
     const auditScript = source("scripts/audit-dependencies.mjs");
 
     assert.equal(pkg.scripts?.["audit:dependencies"], "node scripts/audit-dependencies.mjs");
     assert.match(workflow, /npm run audit:dependencies/);
     assert.match(auditScript, /runAudit\(\["--omit=dev"\]\)/);
-    assert.match(auditScript, /GHSA-mh99-v99m-4gvg/);
-    assert.match(auditScript, /REVIEWED_DEV_ONLY_PACKAGES/);
-    assert.match(auditScript, /Unreviewed high\/critical dependency advisories/);
+    assert.match(auditScript, /Full dependency audit failed/);
+    assert.doesNotMatch(auditScript, /REVIEWED_DEV_ONLY/);
     assert.equal(pkg.overrides?.["brace-expansion"], undefined);
+    assert.equal(
+      lock.packages?.["node_modules/minimatch/node_modules/brace-expansion"]?.version,
+      "1.1.17",
+    );
+  });
+
+  it("pins the patched user-content sanitizer", () => {
+    const pkg = json("package.json");
+    const lock = json("package-lock.json");
+
+    assert.equal(pkg.dependencies?.["sanitize-html"], "^2.17.6");
+    assert.equal(lock.packages?.["node_modules/sanitize-html"]?.version, "2.17.6");
   });
 
   it("keeps every Sharp install on the reviewed patched line", () => {
