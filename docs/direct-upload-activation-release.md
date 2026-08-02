@@ -251,3 +251,31 @@ SHA-256
 GitHub artifact `8828545633` has archive SHA-256
 `658ec7b8e6cab80e5b9ddf1a6903e41c2c05c9cda1dee22048db3a6e01c6d0d8`.
 No resolve, migration retry, deployment, RLS change or provider change ran.
+
+Disposable PostgreSQL 16 recovery run `30733990797` / job `91459182538`
+passed at exact branch head
+`c38b9ac37c0b32b7bbf029ea1fa72db3dad5e995`. It reproduced the exact original
+checksum failure with zero applied steps, proved the compatible table and grant
+posture, marked only that disposable ledger row rolled back, applied the
+corrected checksum as a second row, re-proved the exact provider bootstrap
+edge, migration status, final global grant audit, activated authority and
+database-first rollback. It used only loopback `grainline_ci`; no production
+credential or persistent provider state was available.
+
+Four earlier recovery-proof runs are retained failed harness evidence:
+
+- `30733611929` tried to attribute a grant to a non-bootstrap fixture that did
+  not possess a real `ADMIN OPTION` dependency;
+- `30733684748` and `30733763559` proved that `SET ROLE` and `SET SESSION
+  AUTHORIZATION` do not recreate PostgreSQL 16's bootstrap-superuser grantor
+  catalog semantics; and
+- `30733878697` reproduced the edge correctly, then proved the cleanup-role
+  converger must run through the declared `neondb_owner` identity rather than
+  the separate `ci` migration owner.
+
+All four failed before the disposable resolve/replay step and changed no
+production state. The passing harness now starts the disposable cluster with
+`cloud_admin` as its bootstrap superuser, keeps Prisma migrations owned by
+`ci`, and uses a separate loopback `neondb_owner` only for the cleanup-role
+converger. This mirrors the three production responsibilities without granting
+one test identity ambiguous authority.

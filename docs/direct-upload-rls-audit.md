@@ -1768,7 +1768,12 @@ cleanup member beyond `neondb_owner`. The failed original checksum remains
 pinned separately; the corrected reviewed checksum is
 `810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71`.
 A disposable PostgreSQL proof of failed-row resolution plus corrected replay is
-required before any production recovery operator may be staged.
+required before any production recovery operator may be staged. That proof
+passed in run `30733990797` / job `91459182538` at exact branch head
+`c38b9ac37c0b32b7bbf029ea1fa72db3dad5e995`: exact old zero-step failure,
+compatible rollback posture, disposable resolve boundary, corrected second
+ledger row, final grant audit, activated authority and database-first rollback
+all passed. No production credential or persistent provider was reachable.
 
 ## Exit
 
@@ -1777,10 +1782,14 @@ production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket
 disposable-object proof, and the compatibility key is retired in production.
 `DirectUpload` RLS remains off. The compatible runtime-cleanup retirement is
-deployed and drained, the rejected Cloudflare `v3` token is absent, PR `#131`
-is merged and exact-main CI is green. Merge and prove the activation-aware
-postflight release, then apply and postflight the byte-pinned activation. Do not
-schedule the protected worker or enable Case evidence yet.
+deployed and drained, the rejected Cloudflare `v3` token is absent, the
+activation-aware postflights are merged, and the original production
+activation attempt is fully classified as a zero-step rolled-back preflight
+failure. PR `#139` holds the corrected membership preflight and passed the
+complete disposable resolve/replay proof. Next, finish exact-head CI and the
+Extra-High PR review, then stage a separately guarded production recovery
+operator. Do not resolve the production ledger row, retry activation, schedule
+the protected worker or enable Case evidence until that operator is reviewed.
 Standing authorization permits routine continuation through this
 already-scoped rollout without conversational micro-approval. Exact-commit
 proof, protected-environment, migration, deployment and production postflight
