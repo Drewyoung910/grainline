@@ -104,7 +104,7 @@ describe("DirectUpload failed-activation recovery proof", () => {
     assert.match(roleFixture, /current_database\(\) <> 'grainline_ci'/u);
     assert.match(
       roleFixture,
-      /SET ROLE cloud_admin;[\s\S]*WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;[\s\S]*RESET ROLE;/u,
+      /SET SESSION AUTHORIZATION cloud_admin;[\s\S]*WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;[\s\S]*RESET SESSION AUTHORIZATION;/u,
     );
     assert.match(proof, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
     assert.match(proof, /FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256/u);
