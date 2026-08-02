@@ -104,6 +104,14 @@ describe("DirectUpload activation candidate", () => {
       migration,
       /member\.rolname IN[\s\S]*granted_role\.rolname IN/,
     );
+    assert.match(
+      migration,
+      /granted_role\.rolname = 'grainline_direct_upload_cleanup_v2'[\s\S]*member\.rolname = 'neondb_owner'[\s\S]*grantor\.rolname = 'cloud_admin'[\s\S]*membership\.admin_option[\s\S]*NOT membership\.inherit_option[\s\S]*NOT membership\.set_option/,
+    );
+    assert.match(
+      migration,
+      /WITH RECURSIVE cleanup_members[\s\S]*WHERE rolname <> 'neondb_owner'/,
+    );
     assert.match(migration, /actual\.prokind IS DISTINCT FROM 'f'/);
     assert.match(
       migration,

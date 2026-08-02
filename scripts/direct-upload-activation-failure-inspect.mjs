@@ -29,6 +29,7 @@ import {
 } from "./postgres-url-safety.mjs";
 import {
   DIRECT_UPLOAD_ACTIVATION_RELEASE,
+  FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
 } from "./verify-direct-upload-activation-release.mjs";
 
 const { Client } = pg;
@@ -282,11 +283,11 @@ export async function runDirectUploadActivationFailureInspection(config) {
     config.releaseCommit,
   );
   const migrationSql = readFileSync(MIGRATION_PATH, "utf8");
-  const expectedChecksum = sha256(migrationSql);
+  const reviewedRecoveryChecksum = sha256(migrationSql);
   if (
     DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName
       !== DIRECT_UPLOAD_ACTIVATION_MIGRATION
-    || expectedChecksum !== DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256
+    || reviewedRecoveryChecksum !== DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256
   ) {
     throw new Error("DirectUpload activation failure inspection migration bytes drifted");
   }
@@ -321,7 +322,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
     }
     const row = ledger.rows[0];
     const failedLedgerExact =
-      row.checksum === expectedChecksum
+      row.checksum === FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256
       && row.started_at instanceof Date
       && row.finished_at === null
       && row.rolled_back_at === null
@@ -355,7 +356,7 @@ export async function runDirectUploadActivationFailureInspection(config) {
     transactionOpen = false;
     const failure = classifyDirectUploadActivationFailure(row.logs, migrationSql);
     const evidence = Object.freeze({
-      schemaVersion: 2,
+      schemaVersion: 3,
       operation: "direct-upload-activation-failure-inspection",
       source: Object.freeze({ clean: git.clean, commit: git.head }),
       runs: Object.freeze({
@@ -364,8 +365,9 @@ export async function runDirectUploadActivationFailureInspection(config) {
       }),
       migration: Object.freeze({
         name: DIRECT_UPLOAD_ACTIVATION_MIGRATION,
-        expectedChecksum,
-        checksumMatches: row.checksum === expectedChecksum,
+        expectedChecksum: FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
+        checksumMatches: row.checksum === FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
+        reviewedRecoveryChecksum,
         failedLedgerExact,
         finished: row.finished_at !== null,
         rolledBackRecorded: row.rolled_back_at !== null,

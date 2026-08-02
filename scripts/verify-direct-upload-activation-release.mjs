@@ -16,10 +16,12 @@ export const DIRECT_UPLOAD_ACTIVATION_RELEASE_MIGRATION =
   "20260801194000_enable_direct_upload_rls";
 export const DIRECT_UPLOAD_ACTIVATION_RELEASE = Object.freeze({
   migrationName: DIRECT_UPLOAD_ACTIVATION_RELEASE_MIGRATION,
-  sha256: "41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb",
+  sha256: "810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71",
 });
+export const FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256 =
+  "41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb";
 export const DISPOSABLE_DIRECT_UPLOAD_ACTIVATION_SHA256 =
-  "b017fd8898b3aa901457977a5aa4f8fb2ac495546c59c348788722a6569d370d";
+  "1db96ec58d7cfd9e53967c0fc1698f03679acfcf77ef30b6ee36b6daaf160554";
 
 const promotedHeader = `-- Promoted reviewed DirectUpload service-only RLS activation migration.
 -- Apply only through the guarded main-only production migration workflow after

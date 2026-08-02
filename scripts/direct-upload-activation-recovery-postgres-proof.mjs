@@ -1,0 +1,275 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import { pathToFileURL } from "node:url";
+import pg from "pg";
+import {
+  DIRECT_UPLOAD_ACTIVATION_RELEASE,
+  FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
+} from "./verify-direct-upload-activation-release.mjs";
+
+const { Client } = pg;
+const DATABASE_NAME = "grainline_ci";
+const DATABASE_ENV = "DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_DATABASE_URL";
+const MODES = Object.freeze(["failed", "resolved", "activated"]);
+
+export function parseDirectUploadActivationRecoveryProofConfig(
+  env = process.env,
+  argv = process.argv.slice(2),
+) {
+  assert.equal(argv.length, 1, "DirectUpload recovery proof requires one mode");
+  const mode = argv[0]?.replace(/^--/u, "");
+  assert.ok(MODES.includes(mode), "DirectUpload recovery proof mode is invalid");
+  const databaseUrl = env[DATABASE_ENV];
+  assert.ok(databaseUrl, `${DATABASE_ENV} is required`);
+  const parsed = new URL(databaseUrl);
+  assert.ok(
+    ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname),
+    "DirectUpload recovery proof refuses a non-loopback database",
+  );
+  assert.equal(
+    parsed.pathname,
+    `/${DATABASE_NAME}`,
+    `DirectUpload recovery proof requires ${DATABASE_NAME}`,
+  );
+  return Object.freeze({ databaseUrl, mode });
+}
+
+function assertExactMembership(rows) {
+  assert.deepEqual(rows, [{
+    admin_option: true,
+    granted_role: "grainline_direct_upload_cleanup_v2",
+    grantor_role: "cloud_admin",
+    inherit_option: false,
+    member_role: "neondb_owner",
+    set_option: false,
+  }]);
+}
+
+function assertCompatibleTables(rows) {
+  assert.deepEqual(rows, [
+    {
+      cleanup_crud: false,
+      policy_count: 0,
+      relforcerowsecurity: false,
+      relname: "DirectUpload",
+      relrowsecurity: false,
+      runtime_crud: true,
+    },
+    {
+      cleanup_crud: false,
+      policy_count: 0,
+      relforcerowsecurity: true,
+      relname: "DirectUploadReference",
+      relrowsecurity: true,
+      runtime_crud: false,
+    },
+  ]);
+}
+
+function assertActivatedTables(rows) {
+  assert.deepEqual(rows, [
+    {
+      cleanup_crud: false,
+      policy_count: 0,
+      relforcerowsecurity: true,
+      relname: "DirectUpload",
+      relrowsecurity: true,
+      runtime_crud: false,
+    },
+    {
+      cleanup_crud: false,
+      policy_count: 0,
+      relforcerowsecurity: true,
+      relname: "DirectUploadReference",
+      relrowsecurity: true,
+      runtime_crud: false,
+    },
+  ]);
+}
+
+function assertLedger(mode, rows) {
+  const oldRows = rows.filter(
+    (row) => row.checksum === FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
+  );
+  const correctedRows = rows.filter(
+    (row) => row.checksum === DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256,
+  );
+  assert.equal(oldRows.length, 1, "failed activation ledger row is not exact");
+  const failed = oldRows[0];
+  assert.equal(failed.finished, false);
+  assert.equal(failed.applied_steps_count, 0);
+  if (mode === "failed") {
+    assert.equal(rows.length, 1);
+    assert.equal(failed.rolled_back, false);
+    assert.equal(correctedRows.length, 0);
+    return;
+  }
+  assert.equal(failed.rolled_back, true);
+  if (mode === "resolved") {
+    assert.equal(rows.length, 1);
+    assert.equal(correctedRows.length, 0);
+    return;
+  }
+  assert.equal(rows.length, 2);
+  assert.equal(correctedRows.length, 1);
+  assert.deepEqual(correctedRows[0], {
+    applied_steps_count: 1,
+    checksum: DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256,
+    finished: true,
+    rolled_back: false,
+  });
+}
+
+export async function proveDirectUploadActivationRecovery(config) {
+  const client = new Client({
+    connectionString: config.databaseUrl,
+    application_name: `grainline-direct-upload-activation-recovery-${config.mode}`,
+    connectionTimeoutMillis: 10_000,
+    statement_timeout: 30_000,
+    query_timeout: 35_000,
+  });
+  let transactionOpen = false;
+  try {
+    await client.connect();
+    await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    transactionOpen = true;
+    const identity = (await client.query(`
+      SELECT
+        current_database() AS database_name,
+        current_user AS current_user,
+        pg_catalog.current_setting('transaction_read_only') AS read_only
+    `)).rows[0];
+    assert.deepEqual(identity, {
+      current_user: "ci",
+      database_name: DATABASE_NAME,
+      read_only: "on",
+    });
+    const ledger = (await client.query(`
+      SELECT
+        checksum,
+        finished_at IS NOT NULL AS finished,
+        rolled_back_at IS NOT NULL AS rolled_back,
+        applied_steps_count::integer AS applied_steps_count
+      FROM public._prisma_migrations
+      WHERE migration_name = $1
+      ORDER BY started_at, id
+    `, [DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName])).rows;
+    assertLedger(config.mode, ledger);
+    const memberships = (await client.query(`
+      SELECT
+        granted_role.rolname AS granted_role,
+        member.rolname AS member_role,
+        grantor.rolname AS grantor_role,
+        membership.admin_option,
+        membership.inherit_option,
+        membership.set_option
+      FROM pg_catalog.pg_auth_members AS membership
+      JOIN pg_catalog.pg_roles AS member
+        ON member.oid = membership.member
+      JOIN pg_catalog.pg_roles AS granted_role
+        ON granted_role.oid = membership.roleid
+      JOIN pg_catalog.pg_roles AS grantor
+        ON grantor.oid = membership.grantor
+      WHERE member.rolname IN (
+              'grainline_app_runtime',
+              'grainline_direct_upload_cleanup_v2'
+            )
+         OR granted_role.rolname IN (
+              'grainline_app_runtime',
+              'grainline_direct_upload_cleanup_v2'
+            )
+      ORDER BY granted_role.rolname, member.rolname, grantor.rolname
+    `)).rows;
+    assertExactMembership(memberships);
+    const tables = (await client.query(`
+      SELECT
+        class.relname,
+        class.relrowsecurity,
+        class.relforcerowsecurity,
+        (SELECT pg_catalog.count(*)::integer
+           FROM pg_catalog.pg_policy AS policy
+          WHERE policy.polrelid = class.oid) AS policy_count,
+        (
+          pg_catalog.has_table_privilege(
+            'grainline_app_runtime', class.oid, 'SELECT'
+          )
+          AND pg_catalog.has_table_privilege(
+            'grainline_app_runtime', class.oid, 'INSERT'
+          )
+          AND pg_catalog.has_table_privilege(
+            'grainline_app_runtime', class.oid, 'UPDATE'
+          )
+          AND pg_catalog.has_table_privilege(
+            'grainline_app_runtime', class.oid, 'DELETE'
+          )
+        ) AS runtime_crud,
+        (
+          pg_catalog.has_table_privilege(
+            'grainline_direct_upload_cleanup_v2', class.oid, 'SELECT'
+          )
+          OR pg_catalog.has_table_privilege(
+            'grainline_direct_upload_cleanup_v2', class.oid, 'INSERT'
+          )
+          OR pg_catalog.has_table_privilege(
+            'grainline_direct_upload_cleanup_v2', class.oid, 'UPDATE'
+          )
+          OR pg_catalog.has_table_privilege(
+            'grainline_direct_upload_cleanup_v2', class.oid, 'DELETE'
+          )
+        ) AS cleanup_crud
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+      WHERE namespace.nspname = 'public'
+        AND class.relname IN ('DirectUpload', 'DirectUploadReference')
+      ORDER BY class.relname
+    `)).rows;
+    if (config.mode === "activated") assertActivatedTables(tables);
+    else assertCompatibleTables(tables);
+    const functionCount = Number((await client.query(`
+      SELECT pg_catalog.count(*)::integer AS count
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+      WHERE namespace.nspname = 'public'
+        AND procedure.proname LIKE 'grainline\\_direct\\_upload\\_%'
+          ESCAPE '\\'
+    `)).rows[0]?.count);
+    assert.equal(functionCount, 35);
+    await client.query("ROLLBACK");
+    transactionOpen = false;
+    return Object.freeze({
+      correctedChecksum: DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256,
+      failedChecksum: FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
+      functionCount,
+      ledgerRows: ledger.length,
+      mode: config.mode,
+      persistentEnvironmentChanged: false,
+      productionChanged: false,
+      status: "passed",
+      transactionReadOnly: true,
+    });
+  } finally {
+    if (transactionOpen) await client.query("ROLLBACK").catch(() => {});
+    await client.end().catch(() => {});
+  }
+}
+
+async function main() {
+  try {
+    const config = parseDirectUploadActivationRecoveryProofConfig();
+    const result = await proveDirectUploadActivationRecovery(config);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } catch (error) {
+    process.stderr.write(
+      `DirectUpload activation recovery proof failed: ${
+        error instanceof Error ? error.message : String(error)
+      }\n`,
+    );
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

@@ -93,17 +93,49 @@ BEGIN
         ON member.oid = membership.member
       JOIN pg_catalog.pg_roles AS granted_role
         ON granted_role.oid = membership.roleid
-     WHERE member.rolname IN (
-             'grainline_app_runtime',
-             'grainline_direct_upload_cleanup_v2'
-           )
-        OR granted_role.rolname IN (
-             'grainline_app_runtime',
-             'grainline_direct_upload_cleanup_v2'
-           )
+      JOIN pg_catalog.pg_roles AS grantor
+        ON grantor.oid = membership.grantor
+     WHERE (
+       member.rolname IN (
+         'grainline_app_runtime',
+         'grainline_direct_upload_cleanup_v2'
+       )
+       OR granted_role.rolname IN (
+         'grainline_app_runtime',
+         'grainline_direct_upload_cleanup_v2'
+       )
+     )
+       AND NOT (
+         granted_role.rolname = 'grainline_direct_upload_cleanup_v2'
+         AND member.rolname = 'neondb_owner'
+         AND grantor.rolname = 'cloud_admin'
+         AND membership.admin_option
+         AND NOT membership.inherit_option
+         AND NOT membership.set_option
+       )
+  ) OR EXISTS (
+    WITH RECURSIVE cleanup_members AS (
+      SELECT child.oid, child.rolname
+        FROM pg_catalog.pg_auth_members AS membership
+        JOIN pg_catalog.pg_roles AS parent
+          ON parent.oid = membership.roleid
+        JOIN pg_catalog.pg_roles AS child
+          ON child.oid = membership.member
+       WHERE parent.rolname = 'grainline_direct_upload_cleanup_v2'
+      UNION
+      SELECT child.oid, child.rolname
+        FROM cleanup_members AS parent
+        JOIN pg_catalog.pg_auth_members AS membership
+          ON membership.roleid = parent.oid
+        JOIN pg_catalog.pg_roles AS child
+          ON child.oid = membership.member
+    )
+    SELECT 1
+      FROM cleanup_members
+     WHERE rolname <> 'neondb_owner'
   ) THEN
     RAISE EXCEPTION
-      'DirectUpload runtime or cleanup role retains inbound or outbound role membership';
+      'DirectUpload runtime or cleanup role retains unreviewed role membership';
   END IF;
 
   SELECT class.relrowsecurity, class.relforcerowsecurity

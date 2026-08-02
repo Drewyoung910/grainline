@@ -192,7 +192,8 @@ describe("DirectUpload activation failure inspection", () => {
     assert.doesNotMatch(workflow, /DATABASE_URL:|DIRECT_UPLOAD_CLEANUP_DATABASE_URL:/u);
     assert.match(script, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
     assert.match(script, /extractDirectUploadActivationReadOnlyPreflight/u);
-    assert.match(script, /schemaVersion: 2/u);
+    assert.match(script, /schemaVersion: 3/u);
+    assert.match(script, /FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256/u);
     assert.match(script, /productionChangedByInspection: false/u);
     assert.doesNotMatch(script, /client\.query\(`?(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE)/u);
   });
