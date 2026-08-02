@@ -8,6 +8,7 @@ import {
   lstatSync,
   openSync,
   readFileSync,
+  readdirSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -32,6 +33,9 @@ import {
 import {
   directUploadFunctionSourceHashes,
 } from "./direct-upload-function-source-catalog.mjs";
+import {
+  validateCurrentSavedSearchRlsDeployShape,
+} from "./guard-saved-search-rls-deploy.mjs";
 import {
   PRODUCTION_MIGRATION_CONFIRMATION,
   REVIEWED_MIGRATION_ROLE,
@@ -255,6 +259,63 @@ export function classifyDirectUploadActivationProductionRecoveryLedger(rows) {
     throw new Error("DirectUpload production recovery corrected ledger row drifted");
   }
   return "activated";
+}
+
+export function collectDirectUploadRecoveryMigrationTreeIssues({
+  ledgerSummaries,
+  migrationNames,
+  state,
+} = {}) {
+  const issues = [];
+  if (
+    !Array.isArray(migrationNames)
+    || migrationNames.length === 0
+    || new Set(migrationNames).size !== migrationNames.length
+    || migrationNames.at(-1) !== DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName
+  ) {
+    issues.push("reviewed migration tree order is not exact");
+    return issues;
+  }
+  const rows = Array.isArray(ledgerSummaries) ? ledgerSummaries : [];
+  if (!exactStrings(
+    rows.map((row) => row.migration_name),
+    migrationNames,
+  )) {
+    issues.push("production migration ledger names do not match the reviewed tree");
+    return issues;
+  }
+  for (const row of rows) {
+    const isActivation =
+      row.migration_name === DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName;
+    const appliedExpected = isActivation && state !== "activated" ? 0 : 1;
+    const incompleteExpected = isActivation && state === "failed" ? 1 : 0;
+    const rolledBackExpected = isActivation && state !== "failed" ? 1 : 0;
+    const applied = Number(row.applied_count);
+    const incomplete = Number(row.incomplete_count);
+    const rolledBack = Number(row.rolled_back_count);
+    const rowCount = Number(row.row_count);
+    if (
+      applied !== appliedExpected
+      || incomplete !== incompleteExpected
+      || (isActivation && rolledBack !== rolledBackExpected)
+      || (!isActivation && applied !== 1)
+      || !Number.isSafeInteger(rolledBack)
+      || rolledBack < 0
+      || rowCount !== applied + incomplete + rolledBack
+    ) {
+      issues.push(`${row.migration_name} ledger summary is not exact`);
+    }
+  }
+  const pending = rows
+    .filter((row) => Number(row.applied_count) === 0)
+    .map((row) => row.migration_name);
+  const expectedPending = state === "activated"
+    ? []
+    : [DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName];
+  if (!exactStrings(pending, expectedPending)) {
+    issues.push("DirectUpload activation is not the sole pending migration");
+  }
+  return issues;
 }
 
 function collectCleanupRoleBaseIssues(snapshot) {
@@ -660,6 +721,15 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
     config.releaseCommit,
   );
   const release = verifyDirectUploadActivationRelease();
+  validateCurrentSavedSearchRlsDeployShape({
+    phase: "direct-upload-activation-reviewed",
+  });
+  const migrationNames = readdirSync("prisma/migrations", {
+    withFileTypes: true,
+  })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
   const migrationSql = readFileSync(MIGRATION_PATH, "utf8");
   if (sha256(migrationSql) !== DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256) {
     throw new Error("DirectUpload production recovery migration bytes drifted");
@@ -693,6 +763,33 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
       ORDER BY started_at, id
     `, [DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName])).rows;
     const state = classifyDirectUploadActivationProductionRecoveryLedger(ledger);
+    const ledgerSummaries = (await client.query(`
+      SELECT
+        migration_name,
+        pg_catalog.count(*)::integer AS row_count,
+        pg_catalog.count(*) FILTER (
+          WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+        )::integer AS applied_count,
+        pg_catalog.count(*) FILTER (
+          WHERE finished_at IS NULL AND rolled_back_at IS NULL
+        )::integer AS incomplete_count,
+        pg_catalog.count(*) FILTER (
+          WHERE rolled_back_at IS NOT NULL
+        )::integer AS rolled_back_count
+      FROM public._prisma_migrations
+      GROUP BY migration_name
+      ORDER BY migration_name
+    `)).rows;
+    const migrationTreeIssues = collectDirectUploadRecoveryMigrationTreeIssues({
+      ledgerSummaries,
+      migrationNames,
+      state,
+    });
+    if (migrationTreeIssues.length > 0) {
+      throw new Error(
+        `DirectUpload production recovery migration tree drifted: ${migrationTreeIssues.join("; ")}`,
+      );
+    }
     const expectedIncompleteCount = state === "failed" ? 1 : 0;
     if (Number(snapshot.incompleteMigrationCount) !== expectedIncompleteCount) {
       throw new Error("DirectUpload recovery contains another incomplete migration");
@@ -749,6 +846,8 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
         correctedChecksum: release.migrationSha256,
         ledgerRows: ledger.length,
         incompleteMigrationCount: expectedIncompleteCount,
+        migrationCount: migrationNames.length,
+        pendingMigrationCount: state === "activated" ? 0 : 1,
       }),
       authority: Object.freeze({
         functionCount: DIRECT_UPLOAD_ACTIVATION_FUNCTIONS.length,

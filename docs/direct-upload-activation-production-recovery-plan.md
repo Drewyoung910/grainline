@@ -1,6 +1,6 @@
 # DirectUpload activation production recovery
 
-Status: read-only verifier prepared; executable recovery wiring withheld.
+Status: workflow wired on an isolated branch; not merged or dispatched.
 
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
@@ -25,6 +25,12 @@ disposable recovery proof, main CI run and recovery run IDs; verifies the
 byte-pinned corrected migration; then opens a repeatable-read, read-only
 transaction.
 
+Before accepting any restart state, it also byte-pins the complete reviewed
+migration tree and compares every migration directory with aggregate Prisma
+ledger state. Every predecessor must have exactly one successful application,
+there may be no unrecognized ledger name or incomplete predecessor, and the
+activation must be the sole pending migration until it is activated.
+
 The verifier recognizes only three exact restart states:
 
 - `inspect` reports an exact original failed row, an exact resolved boundary,
@@ -42,9 +48,9 @@ execute only the corrected migration's extracted role/function preflight inside
 the read-only transaction. Evidence is sanitized, mode 0600 and contains no
 database rows, logs, function source or credential.
 
-## Exact future recovery sequence
+## Exact wired recovery sequence
 
-The eventual executable workflow must share the
+The isolated executable workflow shares the
 `production-database-migrations` concurrency group and run only from an exact
 clean main commit in the protected Production environment. It must bind and
 verify failed run `30729632410`, disposable recovery proof run `30734098369`,
@@ -72,11 +78,11 @@ an accepted restart state and requires a fresh read-only investigation.
 
 ## Boundaries retained
 
-The executable workflow is intentionally not present yet because current
-authorization forbids resolving or running production migrations. Preparing
-this verifier and plan changes no production state. A future explicit recovery
-authorization is still required before wiring, merging or dispatching a
-workflow that can mark the ledger row rolled back or apply the activation.
+The workflow is prepared only on an isolated branch under explicit wiring
+authorization. It has not been merged or dispatched, and the verifier, tests
+and workflow preparation changed no production state. Merging and dispatching
+remain separate boundaries; dispatch is the step that can mark the ledger row
+rolled back and apply the activation.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those

@@ -663,10 +663,10 @@ RLS-off boundary with the original unfinished zero-step row. The exact
 restart-safe production sequence and current authorization boundary live in
 `docs/direct-upload-activation-production-recovery-plan.md`. Do not weaken the
 generic Production Migrations incomplete-ledger guard. The prepared recovery
-verifier is read-only; executable resolve/deploy workflow wiring, merge and
-dispatch remain a separate production authorization. Case evidence, cleanup
-scheduling, token retirement and provider-variable changes remain later,
-independent releases.
+verifier is read-only. The restart-safe resolve/deploy workflow is wired only
+on an isolated branch; it is not merged or dispatched. Those remain separate
+production boundaries. Case evidence, cleanup scheduling, token retirement
+and provider-variable changes remain later, independent releases.
 
 ### Messaging architecture decision (2026-07-22)
 

@@ -284,7 +284,7 @@ Exact-head repeat run `30734098369` passed again at documentation head
 `d4a106d2bdf7e0af4c8fea9ca6c4770b2bfbdbdd`, and full CI run `30734066701`
 passed at the same head. The production recovery design is recorded in
 `docs/direct-upload-activation-production-recovery-plan.md`. Its read-only,
-restart-state verifier is prepared on an isolated branch, but executable
-resolve/deploy workflow wiring remains deliberately absent until separately
-authorized. Production still has the original unfinished zero-step row and
-compatible RLS-off DirectUpload posture.
+restart-state verifier and executable workflow are prepared on an isolated
+branch under wiring-only authorization. They are not merged or dispatched.
+Production still has the original unfinished zero-step row and compatible
+RLS-off DirectUpload posture.

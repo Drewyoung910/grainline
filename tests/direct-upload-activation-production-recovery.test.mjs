@@ -16,6 +16,7 @@ import {
   DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID,
   classifyDirectUploadActivationProductionRecoveryLedger,
   collectDirectUploadActivatedRecoveryIssues,
+  collectDirectUploadRecoveryMigrationTreeIssues,
   parseDirectUploadActivationProductionRecoveryConfig,
   writeDirectUploadActivationProductionRecoveryEvidence,
 } from "../scripts/direct-upload-activation-production-recovery.mjs";
@@ -85,6 +86,19 @@ function correctedRow() {
     finished_at: new Date("2026-08-02T01:01:01.000Z"),
     rolled_back_at: null,
     applied_steps_count: 1,
+  };
+}
+
+function migrationSummary(
+  migrationName,
+  { applied = 1, incomplete = 0, rolledBack = 0 } = {},
+) {
+  return {
+    migration_name: migrationName,
+    applied_count: applied,
+    incomplete_count: incomplete,
+    rolled_back_count: rolledBack,
+    row_count: applied + incomplete + rolledBack,
   };
 }
 
@@ -261,6 +275,64 @@ describe("DirectUpload activation production recovery", () => {
       ]));
   });
 
+  it("requires activation to be the sole pending reviewed migration", () => {
+    const activation = DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName;
+    const migrationNames = ["20260801175000_predecessor", activation];
+    const predecessor = migrationSummary(migrationNames[0]);
+    assert.deepEqual(
+      collectDirectUploadRecoveryMigrationTreeIssues({
+        migrationNames,
+        state: "failed",
+        ledgerSummaries: [
+          predecessor,
+          migrationSummary(activation, { applied: 0, incomplete: 1 }),
+        ],
+      }),
+      [],
+    );
+    assert.deepEqual(
+      collectDirectUploadRecoveryMigrationTreeIssues({
+        migrationNames,
+        state: "resolved",
+        ledgerSummaries: [
+          predecessor,
+          migrationSummary(activation, { applied: 0, rolledBack: 1 }),
+        ],
+      }),
+      [],
+    );
+    assert.deepEqual(
+      collectDirectUploadRecoveryMigrationTreeIssues({
+        migrationNames,
+        state: "activated",
+        ledgerSummaries: [
+          predecessor,
+          migrationSummary(activation, { applied: 1, rolledBack: 1 }),
+        ],
+      }),
+      [],
+    );
+    assert.match(
+      collectDirectUploadRecoveryMigrationTreeIssues({
+        migrationNames,
+        state: "resolved",
+        ledgerSummaries: [
+          migrationSummary(migrationNames[0], { applied: 0 }),
+          migrationSummary(activation, { applied: 0, rolledBack: 1 }),
+        ],
+      }).join("; "),
+      /predecessor.*not exact|sole pending/u,
+    );
+    assert.match(
+      collectDirectUploadRecoveryMigrationTreeIssues({
+        migrationNames: [...migrationNames, "20260802000000_later"],
+        state: "resolved",
+        ledgerSummaries: [],
+      }).join("; "),
+      /tree order is not exact/u,
+    );
+  });
+
   it("accepts the exact activated service boundary and rejects authority drift", () => {
     const snapshot = activatedSnapshot();
     const functions = activatedFunctions();
@@ -317,7 +389,7 @@ describe("DirectUpload activation production recovery", () => {
     }
   });
 
-  it("keeps the production operator read-only and documents the withheld mutation boundary", () => {
+  it("keeps the proof read-only and wires only the exact restart-safe workflow", () => {
     const script = fs.readFileSync(
       "scripts/direct-upload-activation-production-recovery.mjs",
       "utf8",
@@ -335,7 +407,11 @@ describe("DirectUpload activation production recovery", () => {
       script,
       /client\.query\(`?(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE)/u,
     );
-    assert.match(plan, /Status: read-only verifier prepared; executable recovery wiring withheld/u);
+    const workflow = fs.readFileSync(
+      ".github/workflows/direct-upload-activation-production-recovery.yml",
+      "utf8",
+    );
+    assert.match(plan, /Status: workflow wired on an isolated branch; not merged or dispatched/u);
     assert.match(
       plan,
       /30729632410[\s\S]*30734098369[\s\S]*exact successful main CI run/u,
@@ -344,11 +420,72 @@ describe("DirectUpload activation production recovery", () => {
       plan,
       /inspect[\s\S]*resolve[\s\S]*resolved[\s\S]*deploy[\s\S]*activated/u,
     );
-    assert.equal(
-      fs.existsSync(
-        ".github/workflows/direct-upload-activation-production-recovery.yml",
-      ),
-      false,
+    assert.match(
+      workflow,
+      /github\.repository == 'Drewyoung910\/grainline' && github\.ref == 'refs\/heads\/main'/u,
+    );
+    assert.match(workflow, /environment: Production/u);
+    assert.match(workflow, /group: production-database-migrations/u);
+    assert.match(workflow, /actions: read[\s\S]*contents: read/u);
+    assert.match(
+      workflow,
+      /DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/u,
+    );
+    assert.doesNotMatch(
+      workflow,
+      /DATABASE_URL:|GRANT_AUDIT_DATABASE_URL:|DIRECT_UPLOAD_CLEANUP_DATABASE_URL:|R2_ACCESS_KEY|R2_SECRET/u,
+    );
+    assert.doesNotMatch(workflow, /Number\('\$\{\{ inputs\./u);
+    assert.match(workflow, /process\.env\.REVIEWED_RELEASE_COMMIT/u);
+    assert.match(workflow, /run\.event !== reviewed\.event/u);
+    const inspect = workflow.indexOf("Inspect exact restart state read-only");
+    const release = workflow.indexOf(
+      "Verify exact corrected DirectUpload activation release",
+    );
+    const resolve = workflow.indexOf(
+      "Mark only the exact failed zero-step row rolled back",
+    );
+    const resolved = workflow.indexOf(
+      "Prove exact resolved compatible boundary read-only",
+    );
+    const deploy = workflow.indexOf(
+      "Apply only the corrected reviewed activation",
+    );
+    const converge = workflow.indexOf(
+      "Converge activated runtime and cleanup grants",
+    );
+    const status = workflow.indexOf(
+      "Verify recovered production migration status",
+    );
+    const audit = workflow.indexOf(
+      "Audit recovered runtime grants and RLS catalog",
+    );
+    const activated = workflow.indexOf(
+      "Prove exact activated owner boundary read-only",
+    );
+    assert.ok(
+      inspect >= 0
+      && inspect < release
+      && release < resolve
+      && resolve < resolved
+      && resolved < deploy
+      && deploy < converge
+      && converge < status
+      && status < audit
+      && audit < activated,
+    );
+    assert.match(
+      workflow,
+      /if: steps\.inspect\.outputs\.state == 'failed'[\s\S]*--rolled-back 20260801194000_enable_direct_upload_rls/u,
+    );
+    assert.match(
+      workflow,
+      /if: steps\.inspect\.outputs\.state != 'activated'[\s\S]*--resolved[\s\S]*if: steps\.inspect\.outputs\.state != 'activated'[\s\S]*npx prisma migrate deploy/u,
+    );
+    assert.match(workflow, /if: always\(\)[\s\S]*actions\/upload-artifact@v4/u);
+    assert.doesNotMatch(
+      workflow,
+      /vercel|CASE_EVIDENCE|schedule:|CLOUDFLARE|revoke.*token/iu,
     );
   });
 });
