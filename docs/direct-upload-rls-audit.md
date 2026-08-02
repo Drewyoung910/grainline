@@ -1733,6 +1733,23 @@ pre-activation role/table/function posture apart from the expected incomplete
 ledger row, and writes a mode-0600 sanitized artifact. No migration recovery or
 retry is allowed until that evidence passes.
 
+Read-only inspection run `30731902991` passed at exact main
+`4f56c3ba213d380b0eeb9bb94b51aab7e6a0a75b`. It proved one exact unfinished
+activation row with the promoted checksum and zero applied steps, plus complete
+restoration of the compatible pre-activation RLS, table-grant and 35-function
+partition. Production was unchanged. The ledger log itself is empty, so it
+cannot reveal the original PostgreSQL error. Sanitized mode-0600 evidence
+`direct-upload-activation-failure-inspection-4f56c3ba213d380b0eeb9bb94b51aab7e6a0a75b.json`
+has SHA-256
+`89250c0ac5d1d08f7fd86880c19e90ce153d9699e25673c7cfa628780b587b8e`;
+artifact `8828241114` has archive SHA-256
+`6bb5b224ba2c1c086cd12d9e502cfa104981dbba0945cf0fde5490e3c63b33a0`.
+The follow-up inspector executes only the migration's two exact preflight `DO`
+blocks as the last statement in the same read-only transaction, after the
+failed ledger row, promoted checksum and compatible posture are all re-proven.
+It captures the first SQLSTATE and allowlisted message directly. It cannot
+perform the earlier locks or the later revokes, grants, RLS changes or commit.
+
 ## Exit
 
 Keep Extra High through the activation sequencing and authority review. The

@@ -7,6 +7,8 @@ import { describe, it } from "node:test";
 import {
   DIRECT_UPLOAD_ACTIVATION_FAILURE_INSPECTION_CONFIRMATION,
   classifyDirectUploadActivationFailure,
+  classifyDirectUploadActivationPreflightError,
+  extractDirectUploadActivationReadOnlyPreflight,
   parseDirectUploadActivationFailureInspectionConfig,
   writeDirectUploadActivationFailureEvidence,
 } from "../scripts/direct-upload-activation-failure-inspect.mjs";
@@ -98,6 +100,59 @@ describe("DirectUpload activation failure inspection", () => {
     assert.equal(result.logSha256.length, 64);
   });
 
+  it("extracts only the two exact read-only migration preflight blocks", () => {
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260801194000_enable_direct_upload_rls/migration.sql",
+      "utf8",
+    );
+    const preflight = extractDirectUploadActivationReadOnlyPreflight(migration);
+    assert.match(
+      preflight,
+      /^DO \$grainline_direct_upload_activation_role_preflight\$/u,
+    );
+    assert.match(
+      preflight,
+      /\$grainline_direct_upload_activation_function_preflight\$;$/u,
+    );
+    assert.equal((preflight.match(/^DO /gmu) ?? []).length, 2);
+    assert.doesNotMatch(
+      preflight,
+      /^\s*(?:ALTER|CALL|COMMENT|COPY|CREATE|DELETE|DROP|GRANT|INSERT|LOCK|MERGE|REFRESH|REINDEX|REVOKE|SECURITY\s+LABEL|TRUNCATE|UPDATE|VACUUM)\b/imu,
+    );
+    assert.doesNotMatch(preflight, /pg_advisory_xact_lock/u);
+    assert.doesNotMatch(preflight, /COMMIT;/u);
+  });
+
+  it("classifies a live PostgreSQL preflight error without retaining it", () => {
+    const migration = "DO $$ BEGIN RAISE EXCEPTION 'DirectUpload function catalog count drifted: %', 34; END $$;";
+    const error = Object.assign(
+      new Error("DirectUpload function catalog count drifted: 34"),
+      { code: "P0001" },
+    );
+    const result = classifyDirectUploadActivationPreflightError(error, migration);
+    assert.deepEqual(result, {
+      databaseMessage: "DirectUpload function catalog count drifted:",
+      matchedMigrationException: true,
+      sqlState: "P0001",
+      rawErrorRetained: false,
+    });
+  });
+
+  it("classifies an allowlisted bare node-postgres error message", () => {
+    const result = classifyDirectUploadActivationPreflightError(
+      Object.assign(new Error("function public.missing() does not exist"), {
+        code: "42883",
+      }),
+      "DO $$ BEGIN NULL; END $$;",
+    );
+    assert.deepEqual(result, {
+      databaseMessage: "function public.missing() does not exist",
+      matchedMigrationException: false,
+      sqlState: "42883",
+      rawErrorRetained: false,
+    });
+  });
+
   it("writes a new private evidence file and rejects sensitive shapes", () => {
     const directory = temporaryDirectory();
     const target = path.join(directory, "evidence.json");
@@ -111,6 +166,11 @@ describe("DirectUpload activation failure inspection", () => {
         writeDirectUploadActivationFailureEvidence(
           path.join(directory, "unsafe.json"),
           { value: OWNER_URL },
+        ));
+      assert.throws(() =>
+        writeDirectUploadActivationFailureEvidence(
+          path.join(directory, "raw-error.json"),
+          { rawError: "unexpected database failure" },
         ));
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
@@ -131,6 +191,8 @@ describe("DirectUpload activation failure inspection", () => {
     assert.match(workflow, /DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/u);
     assert.doesNotMatch(workflow, /DATABASE_URL:|DIRECT_UPLOAD_CLEANUP_DATABASE_URL:/u);
     assert.match(script, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
+    assert.match(script, /extractDirectUploadActivationReadOnlyPreflight/u);
+    assert.match(script, /schemaVersion: 2/u);
     assert.match(script, /productionChangedByInspection: false/u);
     assert.doesNotMatch(script, /client\.query\(`?(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE)/u);
   });
