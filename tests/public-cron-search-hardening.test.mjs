@@ -108,7 +108,7 @@ describe("cron and public route hardening", () => {
     assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
     assert.match(
       docs,
-      /High\/critical production advisories and all unreviewed high\/critical development advisories are blocking/,
+      /High\/critical production and development advisories are all blocking; no advisory exception is currently permitted/,
     );
   });
 
