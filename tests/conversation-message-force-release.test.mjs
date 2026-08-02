@@ -140,7 +140,7 @@ describe("Conversation and Message FORCE release artifact", () => {
     assert.match(workflow, /image: postgres:16/);
     assert.match(
       workflow,
-      /Apply current migrations including Conversation and Message FORCE/,
+      /Isolate DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations including Conversation and Message FORCE[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Restore exact DirectUpload activation[\s\S]*Apply current migrations including DirectUpload activation[\s\S]*Reconverge activated production-style runtime grants[\s\S]*Reconverge activated DirectUpload cleanup-worker grants/,
     );
     assert.match(
       workflow,
@@ -163,5 +163,6 @@ describe("Conversation and Message FORCE release artifact", () => {
       /GRANT_AUDIT_DATABASE_URL="\$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci/,
     );
     assert.doesNotMatch(workflow, /PRODUCTION_MIGRATION_DIRECT_URL/);
+    assert.match(workflow, /scripts\/provision-direct-upload-cleanup-role\.sql/);
   });
 });

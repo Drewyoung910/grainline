@@ -15,6 +15,7 @@ on:
       - scripts/conversation-message-recipient-rls-proof.mjs
       - scripts/guard-saved-search-rls-deploy.mjs
       - scripts/prepare-ci-rls-runtime-role.sql
+      - scripts/provision-direct-upload-cleanup-role.sql
       - scripts/provision-runtime-db-role.sql
       - scripts/verify-conversation-message-activation-release.mjs
       - scripts/verify-conversation-message-force-release.mjs
@@ -65,10 +66,28 @@ jobs:
             echo "runtime-role provisioning unexpectedly accepted the migration owner as runtime"
             exit 1
           fi
-      - name: Apply current migrations including Conversation and Message FORCE
+      - name: Isolate DirectUpload activation until external grants converge
+        run: >-
+          mv
+          prisma/migrations/20260801194000_enable_direct_upload_rls
+          "$RUNNER_TEMP/direct-upload-activation-release"
+      - name: Apply compatible migrations including Conversation and Message FORCE
         run: npx prisma migrate deploy
-      - name: Converge production-style runtime grants
+      - name: Converge pre-activation production-style runtime grants
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Converge pre-activation DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Restore exact DirectUpload activation
+        run: >-
+          mv
+          "$RUNNER_TEMP/direct-upload-activation-release"
+          prisma/migrations/20260801194000_enable_direct_upload_rls
+      - name: Apply current migrations including DirectUpload activation
+        run: npx prisma migrate deploy
+      - name: Reconverge activated production-style runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Reconverge activated DirectUpload cleanup-worker grants
+        run: psql "$DIRECT_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-direct-upload-cleanup-role.sql
       - name: Verify migration status
         run: npx prisma migrate status
       - name: Audit exact FORCE-hardened grants and policy catalog
