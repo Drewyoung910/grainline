@@ -1,0 +1,354 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { describe, it } from "node:test";
+import {
+  DIRECT_UPLOAD_ACTIVATION_FUNCTIONS,
+  DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES,
+  DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES,
+  DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES,
+} from "../scripts/direct-upload-activation-catalog.mjs";
+import {
+  DIRECT_UPLOAD_ACTIVATION_FAILED_PRODUCTION_RUN_ID,
+  DIRECT_UPLOAD_ACTIVATION_PRODUCTION_RECOVERY_CONFIRMATION,
+  DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID,
+  classifyDirectUploadActivationProductionRecoveryLedger,
+  collectDirectUploadActivatedRecoveryIssues,
+  parseDirectUploadActivationProductionRecoveryConfig,
+  writeDirectUploadActivationProductionRecoveryEvidence,
+} from "../scripts/direct-upload-activation-production-recovery.mjs";
+import {
+  directUploadFunctionSources,
+} from "../scripts/direct-upload-function-source-catalog.mjs";
+import {
+  DIRECT_UPLOAD_ACTIVATION_RELEASE,
+  FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
+} from "../scripts/verify-direct-upload-activation-release.mjs";
+
+const RELEASE_COMMIT = "e".repeat(40);
+const OWNER_URL =
+  "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
+
+function temporaryDirectory() {
+  return fs.mkdtempSync(
+    path.join(os.tmpdir(), "direct-upload-production-recovery-"),
+  );
+}
+
+function environment(directory, mode = "inspect", overrides = {}) {
+  return {
+    DIRECT_URL: OWNER_URL,
+    PRODUCTION_MIGRATION_DIRECT_URL_SHA256:
+      createHash("sha256").update(OWNER_URL).digest("hex"),
+    RUNTIME_DB_ROLE: "grainline_app_runtime",
+    MIGRATION_DB_ROLE: "neondb_owner",
+    GITHUB_ACTIONS: "true",
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_REF: "refs/heads/main",
+    GITHUB_REPOSITORY: "Drewyoung910/grainline",
+    GITHUB_RUN_ID: "30740000001",
+    GITHUB_SHA: RELEASE_COMMIT,
+    RUNNER_TEMP: directory,
+    DIRECT_UPLOAD_ACTIVATION_RECOVERY_RELEASE_COMMIT: RELEASE_COMMIT,
+    DIRECT_UPLOAD_ACTIVATION_RECOVERY_MAIN_CI_RUN_ID: "30740000000",
+    DIRECT_UPLOAD_ACTIVATION_FAILED_MIGRATION_RUN_ID:
+      DIRECT_UPLOAD_ACTIVATION_FAILED_PRODUCTION_RUN_ID,
+    DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID,
+    DIRECT_UPLOAD_ACTIVATION_RECOVERY_CONFIRM:
+      DIRECT_UPLOAD_ACTIVATION_PRODUCTION_RECOVERY_CONFIRMATION,
+    DIRECT_UPLOAD_ACTIVATION_RECOVERY_EVIDENCE_PATH: path.join(
+      directory,
+      `direct-upload-activation-production-recovery-${RELEASE_COMMIT}-${mode}.json`,
+    ),
+    ...overrides,
+  };
+}
+
+function failedRow(rolledBack = false) {
+  return {
+    checksum: FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
+    started_at: new Date("2026-08-01T19:00:00.000Z"),
+    finished_at: null,
+    rolled_back_at: rolledBack
+      ? new Date("2026-08-02T01:00:00.000Z")
+      : null,
+    applied_steps_count: 0,
+  };
+}
+
+function correctedRow() {
+  return {
+    checksum: DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256,
+    started_at: new Date("2026-08-02T01:01:00.000Z"),
+    finished_at: new Date("2026-08-02T01:01:01.000Z"),
+    rolled_back_at: null,
+    applied_steps_count: 1,
+  };
+}
+
+function activatedSnapshot() {
+  return {
+    currentUser: "neondb_owner",
+    sessionUser: "neondb_owner",
+    transactionReadOnly: "on",
+    role: {
+      rolname: "grainline_direct_upload_cleanup_v2",
+      rolsuper: false,
+      rolcreatedb: false,
+      rolcreaterole: false,
+      rolinherit: false,
+      rolcanlogin: true,
+      rolreplication: false,
+      rolbypassrls: false,
+    },
+    memberships: [],
+    memberRoles: ["neondb_owner"],
+    memberRoleEdges: [{
+      member_role: "neondb_owner",
+      grantor_role: "cloud_admin",
+      admin_option: true,
+      inherit_option: false,
+      set_option: false,
+    }],
+    schemaUsage: true,
+    schemaCreate: false,
+    databaseCreate: false,
+    tablePrivileges: [],
+    columnPrivileges: [],
+    sequencePrivileges: [],
+    defaultPrivileges: [],
+    unexpectedFunctionPrivileges: [],
+    incompleteMigrationCount: 0,
+    tables: ["DirectUpload", "DirectUploadReference"].map((tableName) => ({
+      table_name: tableName,
+      owner_name: "neondb_owner",
+      rls_enabled: true,
+      rls_forced: true,
+      policy_count: 0,
+      runtime_select: false,
+      runtime_insert: false,
+      runtime_update: false,
+      runtime_delete: false,
+      cleanup_select: false,
+      cleanup_insert: false,
+      cleanup_update: false,
+      cleanup_delete: false,
+    })),
+  };
+}
+
+function activatedFunctions() {
+  const sources = directUploadFunctionSources();
+  const invokerNames = new Set(DIRECT_UPLOAD_ACTIVATION_INVOKER_FUNCTION_NAMES);
+  const runtimeNames = new Set(DIRECT_UPLOAD_ACTIVATION_RUNTIME_FUNCTION_NAMES);
+  const cleanupNames = new Set(DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES);
+  return DIRECT_UPLOAD_ACTIVATION_FUNCTIONS.map((entry) => ({
+    function_name: entry.name,
+    identity_arguments: entry.identityArguments,
+    owner_name: "neondb_owner",
+    function_source: sources[entry.name],
+    security_definer: !invokerNames.has(entry.name),
+    leakproof: false,
+    function_kind: "f",
+    function_config: ["search_path=pg_catalog"],
+    cleanup_execute: cleanupNames.has(entry.name),
+    runtime_execute: runtimeNames.has(entry.name),
+    cleanup_direct_execute: cleanupNames.has(entry.name),
+    runtime_direct_execute: runtimeNames.has(entry.name),
+    cleanup_execute_grantable: false,
+    runtime_execute_grantable: false,
+    public_execute: false,
+    other_role_execute: [],
+    other_role_execute_grantable: [],
+  }));
+}
+
+describe("DirectUpload activation production recovery", () => {
+  it("accepts only the exact manual protected owner context and bindings", () => {
+    const directory = temporaryDirectory();
+    try {
+      const config = parseDirectUploadActivationProductionRecoveryConfig(
+        environment(directory),
+        ["--inspect"],
+      );
+      assert.equal(config.mode, "inspect");
+      assert.equal(config.releaseCommit, RELEASE_COMMIT);
+      assert.equal(
+        config.failedMigrationRunId,
+        DIRECT_UPLOAD_ACTIVATION_FAILED_PRODUCTION_RUN_ID,
+      );
+      assert.equal(
+        config.recoveryProofRunId,
+        DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID,
+      );
+      assert.equal(config.identity.username, "neondb_owner");
+      assert.equal(config.identity.isPooler, false);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects source, confirmation, run, credential, digest and path drift", () => {
+    const directory = temporaryDirectory();
+    try {
+      const cases = [
+        { GITHUB_REF: "refs/heads/feature" },
+        { GITHUB_REPOSITORY: "example/fork" },
+        { GITHUB_SHA: "d".repeat(40) },
+        { DIRECT_UPLOAD_ACTIVATION_RECOVERY_CONFIRM: "yes" },
+        { DIRECT_UPLOAD_ACTIVATION_FAILED_MIGRATION_RUN_ID: "30729632411" },
+        { DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID: "30734098368" },
+        { DIRECT_UPLOAD_ACTIVATION_RECOVERY_MAIN_CI_RUN_ID: "0" },
+        { DATABASE_URL: "present" },
+        { PRODUCTION_MIGRATION_DIRECT_URL: "present" },
+        { DIRECT_UPLOAD_CLEANUP_DATABASE_URL: "present" },
+        { PRODUCTION_MIGRATION_DIRECT_URL_SHA256: "0".repeat(64) },
+        {
+          DIRECT_UPLOAD_ACTIVATION_RECOVERY_EVIDENCE_PATH:
+            path.join(directory, "wrong.json"),
+        },
+      ];
+      for (const overrides of cases) {
+        assert.throws(() =>
+          parseDirectUploadActivationProductionRecoveryConfig(
+            environment(directory, "inspect", overrides),
+            ["--inspect"],
+          ));
+      }
+      assert.throws(() =>
+        parseDirectUploadActivationProductionRecoveryConfig(
+          environment(directory),
+          ["--resolve"],
+        ));
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("classifies only the exact failed, resolved and activated ledgers", () => {
+    assert.equal(
+      classifyDirectUploadActivationProductionRecoveryLedger([failedRow()]),
+      "failed",
+    );
+    assert.equal(
+      classifyDirectUploadActivationProductionRecoveryLedger([
+        failedRow(true),
+      ]),
+      "resolved",
+    );
+    assert.equal(
+      classifyDirectUploadActivationProductionRecoveryLedger([
+        failedRow(true),
+        correctedRow(),
+      ]),
+      "activated",
+    );
+    assert.throws(() =>
+      classifyDirectUploadActivationProductionRecoveryLedger([
+        { ...failedRow(), applied_steps_count: 1 },
+      ]));
+    assert.throws(() =>
+      classifyDirectUploadActivationProductionRecoveryLedger([
+        failedRow(true),
+        { ...correctedRow(), finished_at: null },
+      ]));
+    assert.throws(() =>
+      classifyDirectUploadActivationProductionRecoveryLedger([
+        failedRow(true),
+        { ...correctedRow(), checksum: "0".repeat(64) },
+      ]));
+  });
+
+  it("accepts the exact activated service boundary and rejects authority drift", () => {
+    const snapshot = activatedSnapshot();
+    const functions = activatedFunctions();
+    assert.deepEqual(
+      collectDirectUploadActivatedRecoveryIssues(snapshot, functions),
+      [],
+    );
+    assert.match(
+      collectDirectUploadActivatedRecoveryIssues(
+        {
+          ...snapshot,
+          tables: snapshot.tables.map((row, index) =>
+            index === 0 ? { ...row, runtime_select: true } : row),
+        },
+        functions,
+      ).join("; "),
+      /DirectUpload activated service-table posture drifted/u,
+    );
+    assert.match(
+      collectDirectUploadActivatedRecoveryIssues(
+        snapshot,
+        functions.map((row, index) =>
+          index === 0 ? { ...row, public_execute: true } : row),
+      ).join("; "),
+      /execution mode drifted/u,
+    );
+  });
+
+  it("writes only fresh mode-0600 sanitized evidence", () => {
+    const directory = temporaryDirectory();
+    const target = path.join(directory, "evidence.json");
+    try {
+      writeDirectUploadActivationProductionRecoveryEvidence(target, {
+        status: "passed",
+        productionChangedByProof: false,
+      });
+      assert.equal(fs.statSync(target).mode & 0o777, 0o600);
+      assert.throws(() =>
+        writeDirectUploadActivationProductionRecoveryEvidence(
+          path.join(directory, "url.json"),
+          { value: OWNER_URL },
+        ));
+      assert.throws(() =>
+        writeDirectUploadActivationProductionRecoveryEvidence(
+          path.join(directory, "rows.json"),
+          { rows: [{ id: "private" }] },
+        ));
+      assert.throws(() =>
+        writeDirectUploadActivationProductionRecoveryEvidence(target, {
+          status: "duplicate",
+        }));
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the production operator read-only and documents the withheld mutation boundary", () => {
+    const script = fs.readFileSync(
+      "scripts/direct-upload-activation-production-recovery.mjs",
+      "utf8",
+    );
+    const plan = fs.readFileSync(
+      "docs/direct-upload-activation-production-recovery-plan.md",
+      "utf8",
+    );
+    assert.match(
+      script,
+      /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u,
+    );
+    assert.match(script, /productionChangedByProof: false/u);
+    assert.doesNotMatch(
+      script,
+      /client\.query\(`?(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE)/u,
+    );
+    assert.match(plan, /Status: read-only verifier prepared; executable recovery wiring withheld/u);
+    assert.match(
+      plan,
+      /30729632410[\s\S]*30734098369[\s\S]*exact successful main CI run/u,
+    );
+    assert.match(
+      plan,
+      /inspect[\s\S]*resolve[\s\S]*resolved[\s\S]*deploy[\s\S]*activated/u,
+    );
+    assert.equal(
+      fs.existsSync(
+        ".github/workflows/direct-upload-activation-production-recovery.yml",
+      ),
+      false,
+    );
+  });
+});

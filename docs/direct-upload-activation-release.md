@@ -244,7 +244,7 @@ zero runtime memberships and zero cleanup parent memberships, permits only
 that exact provider-forced edge, rejects every other direct edge, and rejects
 any transitive cleanup member beyond `neondb_owner`.
 
-The sanitized schema-version-2 evidence is preserved mode 0600 as
+The sanitized schema-version-3 evidence is preserved mode 0600 as
 `direct-upload-activation-failure-inspection-a1b59157fc1fedcbb3ef9d6e0217a2ffec4e190e.json`,
 SHA-256
 `10ffcb64168c3e98aefcb7261682f423910fd8116d367451877ea8f7702cf3a2`.
@@ -279,3 +279,12 @@ production state. The passing harness now starts the disposable cluster with
 `ci`, and uses a separate loopback `neondb_owner` only for the cleanup-role
 converger. This mirrors the three production responsibilities without granting
 one test identity ambiguous authority.
+
+Exact-head repeat run `30734098369` passed again at documentation head
+`d4a106d2bdf7e0af4c8fea9ca6c4770b2bfbdbdd`, and full CI run `30734066701`
+passed at the same head. The production recovery design is recorded in
+`docs/direct-upload-activation-production-recovery-plan.md`. Its read-only,
+restart-state verifier is prepared on an isolated branch, but executable
+resolve/deploy workflow wiring remains deliberately absent until separately
+authorized. Production still has the original unfinished zero-step row and
+compatible RLS-off DirectUpload posture.

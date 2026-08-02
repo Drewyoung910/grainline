@@ -22,6 +22,7 @@
     "ops:direct-upload-preparation-postflight": "node scripts/direct-upload-preparation-production-postflight.mjs",
     "ops:direct-upload-activation-postflight": "node scripts/direct-upload-activation-production-postflight.mjs",
     "ops:direct-upload-activation-failure-inspect": "node scripts/direct-upload-activation-failure-inspect.mjs",
+    "ops:direct-upload-activation-production-recovery-proof": "node scripts/direct-upload-activation-production-recovery.mjs",
     "ops:case-compatible-db-postflight": "node scripts/case-compatible-database-production-postflight.mjs",
     "ops:case-invariant-postflight": "node scripts/case-invariant-production-postflight.mjs",
     "audit:rls-case-compatible-db-postflight": "node scripts/case-compatible-database-postflight-postgres-proof.mjs",
