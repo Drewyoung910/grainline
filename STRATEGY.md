@@ -663,10 +663,13 @@ RLS-off boundary with the original unfinished zero-step row. The exact
 restart-safe production sequence and current authorization boundary live in
 `docs/direct-upload-activation-production-recovery-plan.md`. Do not weaken the
 generic Production Migrations incomplete-ledger guard. The prepared recovery
-verifier is read-only. The restart-safe resolve/deploy workflow is wired only
-in draft PR #140, stacked on corrected-migration/proof PR #139; full PR CI run
-`30757000208` passed at exact workflow head `959430147`. Neither PR is merged
-and the recovery workflow is not dispatched. Those remain separate production
+verifier is read-only. Corrected-migration/proof PR #139 exact head
+`d4a106d2b` merged as main commit `736bdc57d`; exact-main CI `30758315593` and
+the Conversation/Message and Notification FORCE proofs `30758315599` and
+`30758315577` passed. The restart-safe resolve/deploy workflow remains wired
+only in draft PR #140, now retargeted to `main`; full PR CI run `30757000208`
+passed at exact workflow head `959430147`. PR #140 is unmerged and the recovery
+workflow is not dispatched. Merge and dispatch remain separate production
 boundaries. Case evidence, cleanup scheduling, token retirement and
 provider-variable changes remain later, independent releases.
 

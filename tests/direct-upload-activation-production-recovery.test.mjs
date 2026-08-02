@@ -413,11 +413,11 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.match(
       plan,
-      /Status: draft PR #140 stacked on corrected-migration PR #139; neither merged\s+nor dispatched/u,
+      /Status: corrected-migration PR #139 merged; recovery PR #140 retargeted to\s+`main`, still draft and undispatched/u,
     );
     assert.match(
       plan,
-      /95943014716b4654b1654d740f601ae755ed1740[\s\S]*30757000208[\s\S]*PR #140 targets PR #139/u,
+      /95943014716b4654b1654d740f601ae755ed1740[\s\S]*30757000208[\s\S]*736bdc57d8ecac14dcac6690a386c96cf9e655e1[\s\S]*30758315593[\s\S]*PR #140 was\s+then retargeted to `main`/u,
     );
     assert.match(
       plan,

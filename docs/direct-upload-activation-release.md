@@ -285,10 +285,16 @@ Exact-head repeat run `30734098369` passed again at documentation head
 passed at the same head. The production recovery design is recorded in
 `docs/direct-upload-activation-production-recovery-plan.md`. Its read-only,
 restart-state verifier and executable workflow are prepared on an isolated
-branch under wiring-only authorization. Draft PR #140 is stacked on corrected
-migration/proof PR #139 rather than duplicating it against `main`. Exact
-workflow head `95943014716b4654b1654d740f601ae755ed1740` passed full PR CI run
+branch under wiring-only authorization. Draft PR #140 was initially stacked on
+corrected migration/proof PR #139 so those changes were not duplicated against
+`main`. Exact workflow head `95943014716b4654b1654d740f601ae755ed1740`
+passed full PR CI run
 `30757000208`; its expected Vercel Preview guard failure did not deploy the
-operations-only branch. Neither PR is merged and the recovery workflow has not
-been dispatched. Production still has the original unfinished zero-step row
-and compatible RLS-off DirectUpload posture.
+operations-only branch. PR #139 exact head
+`d4a106d2bdf7e0af4c8fea9ca6c4770b2bfbdbdd` then merged as main commit
+`736bdc57d8ecac14dcac6690a386c96cf9e655e1`. Main CI `30758315593`,
+Conversation and Message FORCE proof `30758315599`, and Notification FORCE
+proof `30758315577` all passed at that merge commit. PR #140 was retargeted to
+`main` and remains draft and unmerged; the recovery workflow has not been
+dispatched. Production still has the original unfinished zero-step row and
+compatible RLS-off DirectUpload posture.
