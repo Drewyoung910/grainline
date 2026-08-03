@@ -1777,6 +1777,34 @@ all passed. No production credential or persistent provider was reachable.
 
 ## Exit
 
+### 2026-08-03 hardened alias inspection and second preflight mismatch
+
+Protected read-only inspection run `30862128758` passed at exact main
+`1cfc9c75f87c90fa82e989c4897a21fd9aa99d68`. It independently proved the
+historical listing-variants alias has no finish timestamp, one rollback marker
+and zero applied steps while the reviewed current name has the sole completed
+application. The DirectUpload activation row remains the exact unfinished,
+unrolled-back zero-step failure; DirectUpload RLS remains off; compatible
+authority is restored; and the repeatable-read transaction reported read-only.
+The inspection changed no production state.
+
+The extracted live activation preflight still failed with SQLSTATE `P0001` and
+the allowlisted membership message. This is not drift in the cleanup edge that
+PR #139 fixed. The production baseline intentionally has the owner as a
+non-inheriting, non-settable admin member of both restricted login roles, while
+the current activation SQL permits the exact provider bootstrap tuple only for
+`grainline_direct_upload_cleanup_v2`. It therefore rejects the equally
+non-effective `grainline_app_runtime` owner edge that the global production
+migration guard already requires. Do not resolve the failed row or retry
+recovery. A successor candidate must model both exact direct edges, recursively
+reject any transitive member other than `neondb_owner`, replay both edges in
+the disposable PostgreSQL recovery proof, refresh byte pins, and re-run the
+protected read-only preflight before any production mutation.
+
+The sanitized evidence file SHA-256 is
+`b881c9a64029c621b01e820975082b7a1eff4cfbd9b7851028724c41b72d708e`;
+GitHub artifact `8874773325` belongs to inspection run `30862128758`.
+
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket

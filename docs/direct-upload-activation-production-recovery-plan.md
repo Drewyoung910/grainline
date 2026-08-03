@@ -4,6 +4,37 @@ Status: corrected-migration PR #139 and recovery PR #140 are merged. The first
 production recovery run stopped in its initial read-only migration-tree guard;
 no recovery mutation ran and DirectUpload RLS remains off.
 
+Read-only inspection run `30862128758` at exact main commit
+`1cfc9c75f87c90fa82e989c4897a21fd9aa99d68` closed the historical-alias
+timestamp uncertainty but found a second activation-preflight mismatch before
+any recovery retry. It proved the current listing-variants row is the one
+finished application and the historical full-timestamp alias has
+`finished_at IS NULL`, one rollback marker and zero applied steps. The original
+DirectUpload activation row is still unfinished, unrolled-back and zero-step;
+the complete compatible table/function/grant posture is restored; the
+transaction reported repeatable-read plus read-only; and
+`productionChangedByInspection=false`.
+
+The same live read-only preflight returned SQLSTATE `P0001`,
+`DirectUpload runtime or cleanup role retains unreviewed role membership`.
+The global production migration guard already requires `neondb_owner` to be a
+non-inheriting, non-settable admin member of both `grainline_app_runtime` and
+`grainline_direct_upload_cleanup_v2`. The corrected DirectUpload migration
+currently allowlists that exact bootstrap edge only for the cleanup role, so
+it still rejects the established runtime-role edge. Recovery remains blocked.
+Any successor migration bytes must allow only the exact provider bootstrap
+tuple for each restricted role, recursively reject any member beyond
+`neondb_owner`, reproduce both edges in disposable PostgreSQL 16, refresh all
+release hashes and recovery proofs, and pass another protected read-only live
+preflight before production recovery is reconsidered.
+
+Sanitized mode-0600 evidence
+`direct-upload-activation-failure-inspection-1cfc9c75f87c90fa82e989c4897a21fd9aa99d68.json`
+has SHA-256
+`b881c9a64029c621b01e820975082b7a1eff4cfbd9b7851028724c41b72d708e`;
+GitHub artifact `8874773325` is retained for run `30862128758`. It contains no
+credentials, database rows, raw migration log or raw ledger rows.
+
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
 checksum, zero applied steps, no finish marker and no rollback marker. Both
