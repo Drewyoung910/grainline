@@ -83,8 +83,16 @@ describe("dependency hygiene guardrails", () => {
     assert.doesNotMatch(auditScript, /REVIEWED_DEV_ONLY/);
     assert.equal(pkg.overrides?.["brace-expansion"], undefined);
     assert.equal(
+      lock.packages?.["node_modules/brace-expansion"]?.version,
+      "5.0.9",
+    );
+    assert.equal(
       lock.packages?.["node_modules/minimatch/node_modules/brace-expansion"]?.version,
-      "1.1.17",
+      "1.1.18",
+    );
+    assert.equal(
+      lock.packages?.["node_modules/fast-uri"]?.version,
+      "3.1.5",
     );
   });
 
