@@ -12,6 +12,7 @@ on:
       - prisma/**
       - scripts/direct-upload-activation-catalog.mjs
       - scripts/direct-upload-activation-postgres-proof.mjs
+      - scripts/direct-upload-activation-production-recovery.mjs
       - scripts/direct-upload-activation-recovery-fixture.mjs
       - scripts/direct-upload-activation-recovery-postgres-proof.mjs
       - scripts/direct-upload-activation-rollback-proof.mjs
@@ -28,6 +29,7 @@ on:
       - scripts/verify-direct-upload-activation-release.mjs
       - tests/direct-upload-activation-candidate.test.mjs
       - tests/direct-upload-activation-postgres-proof.test.mjs
+      - tests/direct-upload-activation-production-recovery.test.mjs
       - tests/direct-upload-activation-recovery.test.mjs
       - tests/direct-upload-activation-release.test.mjs
   workflow_dispatch:
@@ -79,6 +81,7 @@ jobs:
           node --test
           tests/direct-upload-activation-candidate.test.mjs
           tests/direct-upload-activation-postgres-proof.test.mjs
+          tests/direct-upload-activation-production-recovery.test.mjs
           tests/direct-upload-activation-recovery.test.mjs
           tests/direct-upload-activation-release.test.mjs
       - name: Isolate repair, retirement and activation releases

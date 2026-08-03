@@ -507,6 +507,11 @@ describe("DirectUpload activation production recovery", () => {
       script,
       /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u,
     );
+    assert.match(
+      script,
+      /pg_catalog\.min\(checksum\) AS checksum[\s\S]*GROUP BY migration_name[\s\S]*ORDER BY migration_name/u,
+    );
+    assert.doesNotMatch(script, /GROUP BY migration_name, checksum/u);
     assert.match(script, /productionChangedByProof: false/u);
     assert.doesNotMatch(
       script,

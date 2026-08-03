@@ -99,6 +99,19 @@ predecessor must also have exactly one finished, non-rolled-back row and no
 additional incomplete or rolled-back duplicate. The candidate fails closed on
 either drift. Final exact-head proof runs are recorded on draft PR #143.
 
+The same pre-merge review also requires migration-tree summaries to aggregate
+by migration name rather than checksum. After a successful replay, Prisma
+correctly retains the zero-step rolled-back failed activation row and adds the
+completed corrected-checksum row under the same migration name. The verifier
+must recognize that exact two-row activated state instead of rejecting its own
+successful recovery postflight. A source-level regression guard pins the
+name-only aggregation.
+
+The disposable recovery workflow now triggers on production-verifier and
+verifier-contract changes and runs that contract before its PostgreSQL stages.
+This closes the coverage gap that previously let a production-verifier-only
+change rely on full CI without entering the focused recovery workflow.
+
 ## Prepared read-only verifier
 
 `scripts/direct-upload-activation-production-recovery.mjs` accepts only the

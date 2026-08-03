@@ -140,6 +140,10 @@ describe("DirectUpload failed-activation recovery proof", () => {
     assert.match(workflow, /POSTGRES_USER: cloud_admin/u);
     assert.match(
       workflow,
+      /tests\/direct-upload-activation-production-recovery\.test\.mjs/u,
+    );
+    assert.match(
+      workflow,
       /DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROVIDER_FIXTURE_URL: postgresql:\/\/cloud_admin:ci@localhost:5432\/grainline_ci\?sslmode=disable/u,
     );
     assert.match(

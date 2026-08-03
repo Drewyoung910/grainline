@@ -225,11 +225,14 @@ subsequently proved both rows share reviewed SHA-256
 `a54d0d3371a6149a683719963466305b449a6206ef8ddb4d5dc7eb0db1bb5d5e`.
 The current name has one completed non-rolled-back row and one applied step;
 the historical full-timestamp alias has one rolled-back row, zero applied
-steps, zero incomplete rows and no finish timestamp. Thus the extra name is a
-never-applied rename artifact, not a second schema application. The DirectUpload activation row
-remains unfinished with zero steps, RLS remains off, and the inspection changed
-nothing. Recovery remains blocked until its verifier is separately reviewed to
-accept only this exact historical alias shape.
+steps and zero incomplete rows. Thus the extra name is a never-applied rename
+artifact, not a second schema application. That inspection did not expose an
+independent finish-timestamp count; the hardened recovery verifier now requires
+the historical row to have no finish timestamp and must fail before mutation if
+production differs. The DirectUpload activation row remains unfinished with
+zero steps, RLS remains off, and the inspection changed nothing. Recovery
+remains blocked until its verifier is separately reviewed to accept only this
+exact historical alias shape.
 
 Prisma's ledger `logs` value is empty (zero bytes, SHA-256
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`),
@@ -365,3 +368,12 @@ non-rolled-back row with no incomplete or rolled-back duplicate. This prevents
 a malformed finish-plus-rollback alias row or duplicate predecessor ledger row
 from satisfying aggregate counts. Final exact-head proof runs are recorded on
 draft PR #143; this documentation does not authorize merge or recovery.
+
+The review also corrected the recovery ledger aggregation to group by migration
+name, not checksum. That is required for the exact activated state, where
+Prisma retains the rolled-back failed-checksum row and adds the completed
+corrected-checksum row under the same activation name. The verifier still
+accepts only that separately classified two-row activation state.
+
+The focused disposable recovery workflow also now triggers on production
+verifier changes and runs its contract test before the PostgreSQL stages.

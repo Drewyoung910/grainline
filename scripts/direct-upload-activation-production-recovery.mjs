@@ -806,7 +806,7 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
     const ledgerSummaries = (await client.query(`
       SELECT
         migration_name,
-        checksum,
+        pg_catalog.min(checksum) AS checksum,
         pg_catalog.count(*)::integer AS row_count,
         pg_catalog.count(*) FILTER (
           WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
@@ -825,8 +825,8 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
           0
         )::bigint AS applied_steps_count
       FROM public._prisma_migrations
-      GROUP BY migration_name, checksum
-      ORDER BY migration_name, checksum
+      GROUP BY migration_name
+      ORDER BY migration_name
     `)).rows;
     const migrationTreeIssues = collectDirectUploadRecoveryMigrationTreeIssues({
       listingVariantsChecksum,
