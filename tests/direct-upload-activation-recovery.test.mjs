@@ -97,6 +97,10 @@ describe("DirectUpload failed-activation recovery proof", () => {
       "scripts/direct-upload-activation-recovery-postgres-proof.mjs",
       "utf8",
     );
+    const historicalAliasFixture = readFileSync(
+      "scripts/stage-direct-upload-recovery-historical-alias-fixture.sql",
+      "utf8",
+    );
     const workflow = readFileSync(
       ".github/workflows/direct-upload-activation-recovery-postgres-proof.yml",
       "utf8",
@@ -118,8 +122,26 @@ describe("DirectUpload failed-activation recovery proof", () => {
     assert.match(proof, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u);
     assert.match(proof, /FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256/u);
     assert.match(proof, /DIRECT_UPLOAD_ACTIVATION_RELEASE\.sha256/u);
+    assert.match(proof, /assertListingVariantsLedgerAlias/u);
+    assert.match(
+      historicalAliasFixture,
+      /current_database\(\) <> 'grainline_ci' OR current_user <> 'ci'/u,
+    );
+    assert.match(
+      historicalAliasFixture,
+      /20260423_add_listing_variants[\s\S]*applied_steps_count = 1/u,
+    );
+    assert.match(
+      historicalAliasFixture,
+      /20260423000000_add_listing_variants[\s\S]*rolled_back_at[\s\S]*applied_steps_count[\s\S]*0/u,
+    );
+    assert.doesNotMatch(historicalAliasFixture, /20260801194000/u);
     assert.match(workflow, /image: postgres:16/u);
     assert.match(workflow, /POSTGRES_USER: cloud_admin/u);
+    assert.match(
+      workflow,
+      /tests\/direct-upload-activation-production-recovery\.test\.mjs/u,
+    );
     assert.match(
       workflow,
       /DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROVIDER_FIXTURE_URL: postgresql:\/\/cloud_admin:ci@localhost:5432\/grainline_ci\?sslmode=disable/u,
@@ -134,7 +156,7 @@ describe("DirectUpload failed-activation recovery proof", () => {
     );
     assert.match(
       workflow,
-      /Reproduce the exact zero-step activation failure[\s\S]*--failed[\s\S]*--rolled-back 20260801194000_enable_direct_upload_rls[\s\S]*--resolved[\s\S]*Apply only the corrected reviewed activation[\s\S]*--activated/u,
+      /Apply the compatible baseline migration tree[\s\S]*Stage the exact zero-step rolled-back historical alias[\s\S]*Reproduce the exact zero-step activation failure[\s\S]*--failed[\s\S]*--rolled-back 20260801194000_enable_direct_upload_rls[\s\S]*--resolved[\s\S]*Apply only the corrected reviewed activation[\s\S]*--activated/u,
     );
     assert.doesNotMatch(workflow, /Production|PRODUCTION_MIGRATION_DIRECT_URL/u);
   });

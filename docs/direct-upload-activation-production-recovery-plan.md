@@ -58,17 +58,59 @@ name and commit `477b403f` renamed the same bytes back about 94 minutes later.
 The two historical files have identical SHA-256
 `a54d0d3371a6149a683719963466305b449a6206ef8ddb4d5dc7eb0db1bb5d5e`.
 Because production also contains the current reviewed name (it was not reported
-missing), the ledger has both aliases. The source history and byte identity do
-not yet prove both ledger rows' completion/checksum state, so the recovery
-guard must remain strict.
+missing), the ledger has both aliases.
 
-The protected failure inspector is being extended again to read only aggregate
-row counts, completion/rollback counts, applied-step totals and checksum-match
-booleans for those two exact alias names. It continues to require the failed
-zero-step activation row and restored compatible authority posture inside the
-same repeatable-read, read-only transaction. Do not weaken or retry recovery
-until that alias-row proof passes and the exception is reviewed as an exact
-historical invariant.
+Alias-proof PR #142 exact head
+`db2d07a6d771d8382364af6df524b634ecc6fbc5` merged as exact main commit
+`7d3cc70d4b1b0aa6513013a6d28c8a312357e67b`; main CI run `30767514448`
+passed every migration, PostgreSQL authority, grant, RLS, test, audit and build
+gate. Protected read-only run `30767685144` then proved the two exact alias
+rows inside the same repeatable-read, read-only transaction:
+
+- current `20260423_add_listing_variants` has one completed, non-rolled-back
+  row, one applied step and the reviewed checksum;
+- historical `20260423000000_add_listing_variants` has one rolled-back row,
+  zero applied steps, zero incomplete rows and the same reviewed checksum; and
+- no other migration-tree difference exists.
+
+The diagnostic's provisional `exact` flag is false because it initially
+accepted only two completed alias rows. The aggregate evidence instead proves
+the safer historical shape: the renamed row was explicitly rolled back and
+never applied a schema step. The original DirectUpload activation row and the
+compatible RLS-off authority posture remain unchanged, and
+`productionChangedByInspection=false`.
+
+Recovery remains blocked from production execution. Isolated draft PR #143 now
+contains the separately authorized verifier candidate: it admits only this one
+checksum-matching, zero-step rolled-back historical alias while continuing to
+reject every other missing, unexpected, incomplete, applied, step-count or
+checksum-drifting ledger shape. Its PostgreSQL 16 workflow stages that exact
+alias after the compatible baseline, proves it through the failed, resolved and
+activated restart states, and has no production credential. Exact code head
+`0c4a54e058a9d97faeba73563730c54ca88b11bb` passed full CI run
+`30770032839` and disposable PostgreSQL 16 recovery proof run `30770031355`.
+No merge or production recovery retry is authorized by this candidate.
+
+An independent pre-merge review then tightened two aggregate-ledger
+invariants. The historical alias must independently have `finished_at IS NULL`
+as well as one rollback, zero applied steps and no incomplete row; a malformed
+row with both finish and rollback timestamps cannot qualify. Every ordinary
+predecessor must also have exactly one finished, non-rolled-back row and no
+additional incomplete or rolled-back duplicate. The candidate fails closed on
+either drift. Final exact-head proof runs are recorded on draft PR #143.
+
+The same pre-merge review also requires migration-tree summaries to aggregate
+by migration name rather than checksum. After a successful replay, Prisma
+correctly retains the zero-step rolled-back failed activation row and adds the
+completed corrected-checksum row under the same migration name. The verifier
+must recognize that exact two-row activated state instead of rejecting its own
+successful recovery postflight. A source-level regression guard pins the
+name-only aggregation.
+
+The disposable recovery workflow now triggers on production-verifier and
+verifier-contract changes and runs that contract before its PostgreSQL stages.
+This closes the coverage gap that previously let a production-verifier-only
+change rely on full CI without entering the focused recovery workflow.
 
 ## Prepared read-only verifier
 
@@ -81,9 +123,10 @@ transaction.
 
 Before accepting any restart state, it also byte-pins the complete reviewed
 migration tree and compares every migration directory with aggregate Prisma
-ledger state. Every predecessor must have exactly one successful application,
-there may be no unrecognized ledger name or incomplete predecessor, and the
-activation must be the sole pending migration until it is activated.
+ledger state. Every predecessor must have exactly one successful application
+and no incomplete or rolled-back duplicate, there may be no unrecognized ledger
+name, and the activation must be the sole pending migration until it is
+activated.
 
 The verifier recognizes only three exact restart states:
 
@@ -136,10 +179,10 @@ The corrected migration/proof in PR #139 and recovery workflow in PR #140 are
 merged. Recovery run `30760097011` was dispatched but stopped read-only before
 the exact ledger resolve boundary. The original unfinished zero-step row and
 compatible RLS-off DirectUpload posture therefore remain the expected
-production state. The aggregate tree delta is now known; a targeted read-only
-checksum/completion proof for the two listing-variants aliases is the next
-boundary. No recovery retry is accepted until that proof is reviewed and the
-verifier admits only the exact historical alias shape.
+production state. The aggregate alias proof and isolated fail-closed verifier
+candidate proofs are now complete. The next boundary is separate review and
+merge; no recovery retry is accepted until exact-main CI passes and a new exact
+production authorization is given.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those

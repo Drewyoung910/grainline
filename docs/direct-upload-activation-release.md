@@ -215,8 +215,24 @@ no reviewed names missing. Commits `4ebb0502` and `477b403f` renamed and then
 restored the byte-identical `20260423_add_listing_variants` directory. The
 inspection retained only aggregate names/counts, ran repeatable-read/read-only,
 left the exact failed DirectUpload row and compatible RLS-off posture intact,
-and changed no production state. Recovery remains blocked pending an exact
-read-only checksum/completion proof for both alias rows.
+and changed no production state.
+
+Alias-proof PR #142 exact head
+`db2d07a6d771d8382364af6df524b634ecc6fbc5` merged as exact main commit
+`7d3cc70d4b1b0aa6513013a6d28c8a312357e67b`; exact-main CI run
+`30767514448` passed. Protected read-only inspection run `30767685144`
+subsequently proved both rows share reviewed SHA-256
+`a54d0d3371a6149a683719963466305b449a6206ef8ddb4d5dc7eb0db1bb5d5e`.
+The current name has one completed non-rolled-back row and one applied step;
+the historical full-timestamp alias has one rolled-back row, zero applied
+steps and zero incomplete rows. Thus the extra name is a never-applied rename
+artifact, not a second schema application. That inspection did not expose an
+independent finish-timestamp count; the hardened recovery verifier now requires
+the historical row to have no finish timestamp and must fail before mutation if
+production differs. The DirectUpload activation row remains unfinished with
+zero steps, RLS remains off, and the inspection changed nothing. Recovery
+remains blocked until its verifier is separately reviewed to accept only this
+exact historical alias shape.
 
 Prisma's ledger `logs` value is empty (zero bytes, SHA-256
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`),
@@ -322,3 +338,42 @@ Production therefore still has the original unfinished zero-step row and
 compatible RLS-off DirectUpload posture. The next step is a protected
 aggregate-only migration-tree delta inspection; do not weaken or replay the
 recovery before that discrepancy is classified.
+
+Protected read-only inspection run `30767685144` at exact main
+`7d3cc70d4b1b0aa6513013a6d28c8a312357e67b` subsequently classified the sole
+tree difference. Current `20260423_add_listing_variants` has one completed,
+non-rolled-back row with one applied step. Historical
+`20260423000000_add_listing_variants` has the identical reviewed checksum, one
+rolled-back row and zero applied steps. There are no missing reviewed names or
+other unexpected ledger names. The original DirectUpload activation remains
+unfinished with zero applied steps; RLS remains off and compatible grants
+remain in place. The inspection was repeatable-read and read-only and reported
+`productionChangedByInspection=false`.
+
+Under isolated-branch-only authorization, draft PR #143 now contains a narrow
+recovery-verifier candidate and disposable PostgreSQL fixture for exactly that
+alias pair. It fails closed on a missing alias, an applied or incomplete alias,
+nonzero steps, checksum drift, duplicates and every additional ledger name. It
+does not authorize a merge or recovery dispatch. Exact code head
+`0c4a54e058a9d97faeba73563730c54ca88b11bb` passed full CI run
+`30770032839` and disposable PostgreSQL 16 recovery proof run `30770031355`.
+Production recovery remains blocked until the candidate is reviewed and
+merged, exact-main CI passes, and a new exact production authorization is
+given.
+
+An independent pre-merge review tightened the candidate further: the
+historical alias must independently have no finish timestamp, and every
+ordinary predecessor must be represented by exactly one finished,
+non-rolled-back row with no incomplete or rolled-back duplicate. This prevents
+a malformed finish-plus-rollback alias row or duplicate predecessor ledger row
+from satisfying aggregate counts. Final exact-head proof runs are recorded on
+draft PR #143; this documentation does not authorize merge or recovery.
+
+The review also corrected the recovery ledger aggregation to group by migration
+name, not checksum. That is required for the exact activated state, where
+Prisma retains the rolled-back failed-checksum row and adds the completed
+corrected-checksum row under the same activation name. The verifier still
+accepts only that separately classified two-row activation state.
+
+The focused disposable recovery workflow also now triggers on production
+verifier changes and runs its contract test before the PostgreSQL stages.
