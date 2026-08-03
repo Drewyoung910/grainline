@@ -1827,6 +1827,14 @@ transitive-member and option-drift rejection with zero role residue. Local
 focused contracts and the full non-database suite pass after Prisma generation;
 the PostgreSQL 16 workflow remains the required execution proof before review.
 
+The first exact-head execution, run `30863620128`, passed the new seven-check
+membership-preflight step on PostgreSQL 16. It then stopped before disposable
+resolution/replay because the pre-existing recovery-posture assertion still
+pinned only the cleanup bootstrap edge. That harness-only expectation now
+uses an exported, unit-tested two-edge contract. The failed run had no
+production credential and changed no provider or production state; a complete
+exact-head rerun remains required.
+
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket

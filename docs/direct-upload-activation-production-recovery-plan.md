@@ -49,6 +49,14 @@ zero residue. This preparation does not authorize merge or production
 recovery; exact-head CI, the PostgreSQL 16 recovery proof and a fresh protected
 read-only production preflight remain mandatory.
 
+The first exact-head branch run, `30863620128`, passed the new seven-check
+membership proof, including both exact bootstrap edges and all negative drift
+cases. Its next recovery-posture step then failed because the older proof
+helper still expected only the cleanup bootstrap edge. No resolve/replay step
+ran and the workflow had no production credential. The helper now exports and
+unit-tests the same exact two-edge contract used by the fixture before the
+complete disposable recovery sequence is repeated.
+
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
 checksum, zero applied steps, no finish marker and no rollback marker. Both
@@ -56,8 +64,8 @@ owner-only read-only inspections proved the database transaction rolled back
 fully and left the compatible pre-activation table, function and grant posture
 intact. DirectUpload RLS is therefore still off in production.
 
-The corrected membership preflight has passed twice in disposable PostgreSQL
-16. Exact-head recovery proof run `30734098369` reproduced the original
+The superseded cleanup-only membership preflight passed twice in disposable
+PostgreSQL 16. Exact-head recovery proof run `30734098369` reproduced the original
 zero-step failure, resolved only that disposable row, applied the corrected
 bytes, and proved activated authority, migration status, grants and rollback.
 The eventual production recovery was also required to bind an exact successful

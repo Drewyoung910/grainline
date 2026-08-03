@@ -8,6 +8,7 @@ import {
   parseDirectUploadActivationRecoveryFixtureConfig,
 } from "../scripts/direct-upload-activation-recovery-fixture.mjs";
 import {
+  DIRECT_UPLOAD_ACTIVATION_REVIEWED_MEMBERSHIPS,
   parseDirectUploadActivationRecoveryProofConfig,
 } from "../scripts/direct-upload-activation-recovery-postgres-proof.mjs";
 import {
@@ -27,6 +28,27 @@ function sha256(value) {
 }
 
 describe("DirectUpload failed-activation recovery proof", () => {
+  it("pins both exact non-effective provider bootstrap edges", () => {
+    assert.deepEqual(DIRECT_UPLOAD_ACTIVATION_REVIEWED_MEMBERSHIPS, [
+      {
+        admin_option: true,
+        granted_role: "grainline_app_runtime",
+        grantor_role: "cloud_admin",
+        inherit_option: false,
+        member_role: "neondb_owner",
+        set_option: false,
+      },
+      {
+        admin_option: true,
+        granted_role: "grainline_direct_upload_cleanup_v2",
+        grantor_role: "cloud_admin",
+        inherit_option: false,
+        member_role: "neondb_owner",
+        set_option: false,
+      },
+    ]);
+  });
+
   it("reconstructs the exact failed bytes only from the corrected release", () => {
     const reviewed = readFileSync(
       `prisma/migrations/${DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName}/migration.sql`,
