@@ -91,6 +91,14 @@ activated restart states, and has no production credential. Exact code head
 `30770032839` and disposable PostgreSQL 16 recovery proof run `30770031355`.
 No merge or production recovery retry is authorized by this candidate.
 
+An independent pre-merge review then tightened two aggregate-ledger
+invariants. The historical alias must independently have `finished_at IS NULL`
+as well as one rollback, zero applied steps and no incomplete row; a malformed
+row with both finish and rollback timestamps cannot qualify. Every ordinary
+predecessor must also have exactly one finished, non-rolled-back row and no
+additional incomplete or rolled-back duplicate. The candidate fails closed on
+either drift. Final exact-head proof runs are recorded on draft PR #143.
+
 ## Prepared read-only verifier
 
 `scripts/direct-upload-activation-production-recovery.mjs` accepts only the
@@ -102,9 +110,10 @@ transaction.
 
 Before accepting any restart state, it also byte-pins the complete reviewed
 migration tree and compares every migration directory with aggregate Prisma
-ledger state. Every predecessor must have exactly one successful application,
-there may be no unrecognized ledger name or incomplete predecessor, and the
-activation must be the sole pending migration until it is activated.
+ledger state. Every predecessor must have exactly one successful application
+and no incomplete or rolled-back duplicate, there may be no unrecognized ledger
+name, and the activation must be the sole pending migration until it is
+activated.
 
 The verifier recognizes only three exact restart states:
 

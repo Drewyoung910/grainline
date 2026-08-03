@@ -326,15 +326,18 @@ export function collectDirectUploadRecoveryMigrationTreeIssues({
     const incomplete = Number(row.incomplete_count);
     const rolledBack = Number(row.rolled_back_count);
     const rowCount = Number(row.row_count);
-    if (
-      applied !== appliedExpected
-      || incomplete !== incompleteExpected
-      || (isActivation && rolledBack !== rolledBackExpected)
-      || (!isActivation && applied !== 1)
-      || !Number.isSafeInteger(rolledBack)
-      || rolledBack < 0
-      || rowCount !== applied + incomplete + rolledBack
-    ) {
+    const countsAreExact = [applied, incomplete, rolledBack, rowCount]
+      .every((value) => Number.isSafeInteger(value) && value >= 0)
+      && rowCount === applied + incomplete + rolledBack;
+    const stateIsExact = isActivation
+      ? applied === appliedExpected
+        && incomplete === incompleteExpected
+        && rolledBack === rolledBackExpected
+      : applied === 1
+        && incomplete === 0
+        && rolledBack === 0
+        && rowCount === 1;
+    if (!countsAreExact || !stateIsExact) {
       issues.push(`${row.migration_name} ledger summary is not exact`);
     }
   }
@@ -808,6 +811,9 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
         pg_catalog.count(*) FILTER (
           WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
         )::integer AS applied_count,
+        pg_catalog.count(*) FILTER (
+          WHERE finished_at IS NOT NULL
+        )::integer AS finished_count,
         pg_catalog.count(*) FILTER (
           WHERE finished_at IS NULL AND rolled_back_at IS NULL
         )::integer AS incomplete_count,

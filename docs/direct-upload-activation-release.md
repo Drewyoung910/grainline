@@ -225,8 +225,8 @@ subsequently proved both rows share reviewed SHA-256
 `a54d0d3371a6149a683719963466305b449a6206ef8ddb4d5dc7eb0db1bb5d5e`.
 The current name has one completed non-rolled-back row and one applied step;
 the historical full-timestamp alias has one rolled-back row, zero applied
-steps and zero incomplete rows. Thus the extra name is a never-applied rename
-artifact, not a second schema application. The DirectUpload activation row
+steps, zero incomplete rows and no finish timestamp. Thus the extra name is a
+never-applied rename artifact, not a second schema application. The DirectUpload activation row
 remains unfinished with zero steps, RLS remains off, and the inspection changed
 nothing. Recovery remains blocked until its verifier is separately reviewed to
 accept only this exact historical alias shape.
@@ -357,3 +357,11 @@ does not authorize a merge or recovery dispatch. Exact code head
 Production recovery remains blocked until the candidate is reviewed and
 merged, exact-main CI passes, and a new exact production authorization is
 given.
+
+An independent pre-merge review tightened the candidate further: the
+historical alias must independently have no finish timestamp, and every
+ordinary predecessor must be represented by exactly one finished,
+non-rolled-back row with no incomplete or rolled-back duplicate. This prevents
+a malformed finish-plus-rollback alias row or duplicate predecessor ledger row
+from satisfying aggregate counts. Final exact-head proof runs are recorded on
+draft PR #143; this documentation does not authorize merge or recovery.

@@ -193,6 +193,7 @@ export function summarizeListingVariantsLedgerAlias({
     const migrationName = row?.migration_name;
     const rowCount = Number(row?.row_count);
     const appliedCount = Number(row?.applied_count);
+    const finishedCount = Number(row?.finished_count);
     const incompleteCount = Number(row?.incomplete_count);
     const rolledBackCount = Number(row?.rolled_back_count);
     const appliedStepsCount = Number(row?.applied_steps_count);
@@ -203,6 +204,7 @@ export function summarizeListingVariantsLedgerAlias({
       || ![
         rowCount,
         appliedCount,
+        finishedCount,
         incompleteCount,
         rolledBackCount,
         appliedStepsCount,
@@ -215,6 +217,7 @@ export function summarizeListingVariantsLedgerAlias({
       rowCount,
       checksumMatches: row.checksum === expectedChecksum,
       appliedCount,
+      finishedCount,
       incompleteCount,
       rolledBackCount,
       appliedStepsCount,
@@ -231,12 +234,14 @@ export function summarizeListingVariantsLedgerAlias({
     && reviewed.rowCount === 1
     && reviewed.checksumMatches
     && reviewed.appliedCount === 1
+    && reviewed.finishedCount === 1
     && reviewed.incompleteCount === 0
     && reviewed.rolledBackCount === 0
     && reviewed.appliedStepsCount === 1
     && historical.rowCount === 1
     && historical.checksumMatches
     && historical.appliedCount === 0
+    && historical.finishedCount === 0
     && historical.incompleteCount === 0
     && historical.rolledBackCount === 1
     && historical.appliedStepsCount === 0;
@@ -476,6 +481,9 @@ export async function runDirectUploadActivationFailureInspection(config) {
           count(*) FILTER (
             WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
           )::integer AS applied_count,
+          count(*) FILTER (
+            WHERE finished_at IS NOT NULL
+          )::integer AS finished_count,
           count(*) FILTER (
             WHERE finished_at IS NULL AND rolled_back_at IS NULL
           )::integer AS incomplete_count,

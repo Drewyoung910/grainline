@@ -191,6 +191,7 @@ describe("DirectUpload activation failure inspection", () => {
       {
         applied = 1,
         appliedSteps = 1,
+        finished = applied,
         incomplete = 0,
         rolledBack = 0,
       } = {},
@@ -199,6 +200,7 @@ describe("DirectUpload activation failure inspection", () => {
       checksum,
       row_count: 1,
       applied_count: applied,
+      finished_count: finished,
       incomplete_count: incomplete,
       rolled_back_count: rolledBack,
       applied_steps_count: appliedSteps,
@@ -224,6 +226,7 @@ describe("DirectUpload activation failure inspection", () => {
             rowCount: 1,
             checksumMatches: true,
             appliedCount: 1,
+            finishedCount: 1,
             incompleteCount: 0,
             rolledBackCount: 0,
             appliedStepsCount: 1,
@@ -233,6 +236,7 @@ describe("DirectUpload activation failure inspection", () => {
             rowCount: 1,
             checksumMatches: true,
             appliedCount: 0,
+            finishedCount: 0,
             incompleteCount: 0,
             rolledBackCount: 1,
             appliedStepsCount: 0,
@@ -257,6 +261,7 @@ describe("DirectUpload activation failure inspection", () => {
     for (const historicalDrift of [
       { applied: 1, appliedSteps: 0, rolledBack: 0 },
       { applied: 0, appliedSteps: 0, incomplete: 1, rolledBack: 0 },
+      { applied: 0, appliedSteps: 0, finished: 1, rolledBack: 1 },
       { applied: 0, appliedSteps: 1, rolledBack: 1 },
     ]) {
       assert.equal(

@@ -100,6 +100,7 @@ function migrationSummary(
     applied = 1,
     appliedSteps = applied,
     checksum = "b".repeat(64),
+    finished = applied,
     incomplete = 0,
     rolledBack = 0,
   } = {},
@@ -109,6 +110,7 @@ function migrationSummary(
     checksum,
     applied_count: applied,
     applied_steps_count: appliedSteps,
+    finished_count: finished,
     incomplete_count: incomplete,
     rolled_back_count: rolledBack,
     row_count: applied + incomplete + rolledBack,
@@ -379,6 +381,7 @@ describe("DirectUpload activation production recovery", () => {
     for (const driftedAliasRows of [
       listingVariantsLedger({ applied: 1, rolledBack: 0 }),
       listingVariantsLedger({ incomplete: 1, rolledBack: 0 }),
+      listingVariantsLedger({ finished: 1 }),
       listingVariantsLedger({ appliedSteps: 1 }),
       listingVariantsLedger({ checksum: "c".repeat(64) }),
       [listingVariantsLedger()[0]],
@@ -415,6 +418,24 @@ describe("DirectUpload activation production recovery", () => {
       }).join("; "),
       /ledger names do not match/u,
     );
+    for (const predecessorDrift of [
+      { incomplete: 1 },
+      { rolledBack: 1 },
+    ]) {
+      assert.match(
+        collectDirectUploadRecoveryMigrationTreeIssues({
+          listingVariantsChecksum: LISTING_VARIANTS_CHECKSUM,
+          migrationNames,
+          state: "resolved",
+          ledgerSummaries: [
+            ...listingVariantsLedger(),
+            migrationSummary(predecessorName, predecessorDrift),
+            migrationSummary(activation, { applied: 0, rolledBack: 1 }),
+          ],
+        }).join("; "),
+        /predecessor ledger summary is not exact/u,
+      );
+    }
   });
 
   it("accepts the exact activated service boundary and rejects authority drift", () => {
