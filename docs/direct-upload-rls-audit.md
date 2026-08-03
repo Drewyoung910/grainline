@@ -1761,12 +1761,15 @@ activation SQL was inconsistent and rejected all edges. Production remained
 in the exact compatible posture with the original failed row at zero applied
 steps.
 
-The recovery candidate changes only that membership preflight. It continues to
-reject all runtime memberships, every cleanup parent membership, every direct
-cleanup member edge except the exact bootstrap tuple, and every transitive
-cleanup member beyond `neondb_owner`. The failed original checksum remains
-pinned separately; the corrected reviewed checksum is
+The first recovery candidate changed only that membership preflight. It
+continues to reject all runtime memberships, every cleanup parent membership,
+every direct cleanup member edge except the exact bootstrap tuple, and every
+transitive cleanup member beyond `neondb_owner`. The failed original checksum
+remains pinned separately; the corrected reviewed checksum is
 `810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71`.
+That checksum is retained as superseded evidence after the later protected
+inspection proved the equivalent runtime bootstrap edge also needs exact
+allowlisting; it is no longer the current recovery candidate.
 A disposable PostgreSQL proof of failed-row resolution plus corrected replay is
 required before any production recovery operator may be staged. That proof
 passed in run `30733990797` / job `91459182538` at exact branch head
@@ -1804,6 +1807,25 @@ protected read-only preflight before any production mutation.
 The sanitized evidence file SHA-256 is
 `b881c9a64029c621b01e820975082b7a1eff4cfbd9b7851028724c41b72d708e`;
 GitHub artifact `8874773325` belongs to inspection run `30862128758`.
+
+Isolated branch
+`agent/direct-upload-activation-runtime-bootstrap-preflight-20260803` now
+contains the authorized successor candidate. It allowlists the exact
+`cloud_admin`-granted, `ADMIN=true`, `INHERIT=false`, `SET=false` direct edge
+from each restricted role to `neondb_owner`, and no other touching edge. A
+root-labelled recursive membership walk starts independently at both
+`grainline_app_runtime` and `grainline_direct_upload_cleanup_v2` and rejects
+every descendant other than `neondb_owner`. The production migration and its
+generator remain byte-equivalent at promoted SHA-256
+`1bceed7a5076f15ae5c9c46a89bbaecdf583953f7a1ff80b26a8b0e7c21157c4`
+and disposable SHA-256
+`6600e6b96bf1d151befb860bab2fa268199d3847b4e4b7ccb3be647ca44c4a8b`.
+The failed original checksum remains separately pinned. The disposable fixture
+now reproduces both exact provider edges, and a transaction-rolled-back proof
+tests exact-edge and no-edge acceptance plus direct-member, parent-membership,
+transitive-member and option-drift rejection with zero role residue. Local
+focused contracts and the full non-database suite pass after Prisma generation;
+the PostgreSQL 16 workflow remains the required execution proof before review.
 
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are

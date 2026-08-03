@@ -290,7 +290,10 @@ BEGIN
        )
      )
        AND NOT (
-         granted_role.rolname = '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+         granted_role.rolname IN (
+           'grainline_app_runtime',
+           '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+         )
          AND member.rolname = 'neondb_owner'
          AND grantor.rolname = 'cloud_admin'
          AND membership.admin_option
@@ -298,24 +301,27 @@ BEGIN
          AND NOT membership.set_option
        )
   ) OR EXISTS (
-    WITH RECURSIVE cleanup_members AS (
-      SELECT child.oid, child.rolname
+    WITH RECURSIVE restricted_members AS (
+      SELECT parent.rolname AS root_role, child.oid, child.rolname
         FROM pg_catalog.pg_auth_members AS membership
         JOIN pg_catalog.pg_roles AS parent
           ON parent.oid = membership.roleid
         JOIN pg_catalog.pg_roles AS child
           ON child.oid = membership.member
-       WHERE parent.rolname = '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+       WHERE parent.rolname IN (
+         'grainline_app_runtime',
+         '${DIRECT_UPLOAD_CLEANUP_ROLE}'
+       )
       UNION
-      SELECT child.oid, child.rolname
-        FROM cleanup_members AS parent
+      SELECT parent.root_role, child.oid, child.rolname
+        FROM restricted_members AS parent
         JOIN pg_catalog.pg_auth_members AS membership
           ON membership.roleid = parent.oid
         JOIN pg_catalog.pg_roles AS child
           ON child.oid = membership.member
     )
     SELECT 1
-      FROM cleanup_members
+      FROM restricted_members
      WHERE rolname <> 'neondb_owner'
   ) THEN
     RAISE EXCEPTION

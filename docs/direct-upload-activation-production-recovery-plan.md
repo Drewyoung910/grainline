@@ -35,6 +35,20 @@ has SHA-256
 GitHub artifact `8874773325` is retained for run `30862128758`. It contains no
 credentials, database rows, raw migration log or raw ledger rows.
 
+The authorized isolated successor candidate permits only the exact
+`cloud_admin`-granted, non-inheriting, non-settable admin edge from each
+restricted role to `neondb_owner`. A recursive walk rooted separately at both
+restricted roles rejects every other direct or transitive member. Its promoted
+migration SHA-256 is
+`1bceed7a5076f15ae5c9c46a89bbaecdf583953f7a1ff80b26a8b0e7c21157c4`;
+the generator-equivalent disposable SHA-256 is
+`6600e6b96bf1d151befb860bab2fa268199d3847b4e4b7ccb3be647ca44c4a8b`.
+The disposable provider fixture now creates both exact edges and the focused
+PostgreSQL proof rolls back every negative membership scenario before checking
+zero residue. This preparation does not authorize merge or production
+recovery; exact-head CI, the PostgreSQL 16 recovery proof and a fresh protected
+read-only production preflight remain mandatory.
+
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
 checksum, zero applied steps, no finish marker and no rollback marker. Both

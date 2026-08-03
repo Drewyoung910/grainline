@@ -22,10 +22,12 @@ and recovered the exact migration preflight error before any retry.
   `20260801194000_enable_direct_upload_rls`
 - Failed original migration SHA-256:
   `41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb`
-- Corrected reviewed migration SHA-256:
+- Superseded cleanup-edge-only migration SHA-256:
   `810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71`
+- Current two-edge reviewed migration SHA-256:
+  `1bceed7a5076f15ae5c9c46a89bbaecdf583953f7a1ff80b26a8b0e7c21157c4`
 - Disposable proof migration SHA-256:
-  `1db96ec58d7cfd9e53967c0fc1698f03679acfcf77ef30b6ee36b6daaf160554`
+  `6600e6b96bf1d151befb860bab2fa268199d3847b4e4b7ccb3be647ca44c4a8b`
 - Guard phase: `direct-upload-activation-reviewed`
 - Reviewed production predecessor:
   `20260801175000_retire_direct_upload_compatibility_key`
@@ -35,6 +37,14 @@ non-executable header and migration-directory name. The release verifier
 regenerates the candidate, byte-compares the executable body, pins both
 hashes, rejects the disposable migration name in production history and
 requires this migration to remain the newest reviewed migration.
+
+Protected read-only inspection `30862128758` proved the first cleanup-edge-only
+correction was still inconsistent with the established production baseline:
+`neondb_owner` is also the exact non-effective admin member of
+`grainline_app_runtime`. The current bytes admit that same exact provider tuple
+for either restricted role while rejecting all other touching edges. A
+root-labelled recursive walk for both roles rejects every transitive member
+beyond `neondb_owner`; it does not grant either login new authority.
 
 The original checksum remains pinned separately as failed evidence. Changing
 the migration bytes is allowed only because read-only run `30731902991` proved
