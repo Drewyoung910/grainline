@@ -5,7 +5,9 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
+  DIRECT_UPLOAD_ACTIVATION_ACCEPTED_COMMIT,
   DIRECT_UPLOAD_ACTIVATION_CLEANUP_POSTFLIGHT_CONFIRMATION,
+  DIRECT_UPLOAD_ACTIVATION_RECOVERY_RUN_ID,
   DIRECT_UPLOAD_ACTIVATION_RUNTIME_POSTFLIGHT_CONFIRMATION,
   assertDirectUploadActivationPostflightGitState,
   collectDirectUploadRuntimeActivationIssues,
@@ -45,8 +47,11 @@ function sharedEnvironment(directory, mode) {
       directory,
       `direct-upload-activation-${mode}-postflight-${RELEASE_COMMIT}.json`,
     ),
+    DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_ACTIVATION_COMMIT:
+      DIRECT_UPLOAD_ACTIVATION_ACCEPTED_COMMIT,
     DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID: "30726387850",
-    DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID: "30730000001",
+    DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RECOVERY_RUN_ID:
+      String(DIRECT_UPLOAD_ACTIVATION_RECOVERY_RUN_ID),
     DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT: RELEASE_COMMIT,
   };
 }
@@ -147,6 +152,11 @@ describe("DirectUpload activation production postflight", () => {
       assert.equal(config.targetIdentity.runtimeRole, "grainline_app_runtime");
       assert.equal(config.targetIdentity.endpointId, "ep-plain-river-aaqg8gj4");
       assert.equal(config.mainCiRunId, 30726387850);
+      assert.equal(config.recoveryRunId, 30877508811);
+      assert.equal(
+        config.activationCommit,
+        "64409058d0023a434b36f1af31655caeb4915ac3",
+      );
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -176,6 +186,10 @@ describe("DirectUpload activation production postflight", () => {
       ["runtime", { DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_CONFIRM: "yes" }],
       ["runtime", { DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT: "short" }],
       ["runtime", { DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID: "0" }],
+      ["runtime", {
+        DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_ACTIVATION_COMMIT: "f".repeat(40),
+      }],
+      ["runtime", { DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RECOVERY_RUN_ID: "1" }],
       ["runtime", { DATABASE_URL: RUNTIME_URL.replace("-pooler", "") }],
       ["runtime", { DIRECT_URL: "present" }],
       ["cleanup", { GITHUB_REF: "refs/heads/feature" }],
@@ -283,14 +297,25 @@ describe("DirectUpload activation production postflight", () => {
     assert.match(operator, /transaction_read_only/);
     assert.match(operator, /"42501"/);
     assert.match(operator, /"25006"/);
+    assert.doesNotMatch(operator, /_prisma_migrations/);
     assert.doesNotMatch(
       operator,
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\s+(?:INTO|FROM|public\.)/i,
     );
     assert.match(operator, /productionChangedByPostflight: false/);
     assert.match(workflow, /environment: Production DirectUpload Cleanup/);
+    assert.match(workflow, /actions: read/);
     assert.match(workflow, /group: production-database-migrations/);
     assert.match(workflow, /persist-credentials: false/);
+    assert.match(
+      workflow,
+      /REVIEWED_ACTIVATION_COMMIT: 64409058d0023a434b36f1af31655caeb4915ac3/,
+    );
+    assert.match(workflow, /REVIEWED_RECOVERY_RUN_ID: "30877508811"/);
+    assert.match(workflow, /name: 'DirectUpload Activation Production Recovery'/);
+    assert.match(workflow, /github\.rest\.actions\.getWorkflowRun/);
+    assert.match(workflow, /DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RECOVERY_RUN_ID/);
+    assert.doesNotMatch(workflow, /migration_run_id|POSTFLIGHT_MIGRATION_RUN_ID/);
     assert.match(workflow, /DIRECT_UPLOAD_CLEANUP_DATABASE_URL/);
     assert.doesNotMatch(workflow, /PRODUCTION_MIGRATION_DIRECT_URL/);
     assert.doesNotMatch(workflow, /DIRECT_UPLOAD_CLEANUP_R2_/);

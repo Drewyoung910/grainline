@@ -553,10 +553,12 @@ scaffold's hardened database authority partition only; live provider
 credentials, R2 deletion, scheduling and DirectUpload activation remain
 separate gates.
 
-The compatibility-key retirement and DirectUpload activation candidates were
-saved on a further isolated stack. Retirement is now live in production;
-activation remains a separate draft release and is still unapplied outside
-disposable CI.
+The compatibility-key retirement and DirectUpload activation releases are now
+live in production. The activation recovery accepted the exact policyless
+`ENABLE` plus `FORCE` posture and the 17 runtime / 3 cleanup / 15 private
+function partition. The dedicated cleanup worker remains unscheduled and Case
+evidence remains disabled until the restricted-role activation postflights are
+accepted.
 The retirement boundary drops only the duplicate Case attachment key after
 exact legacy/reference proof; the disabled app persists only
 `directUploadId`. Activation retains zero policies and zero direct table
@@ -658,20 +660,23 @@ parent edge, other direct member and transitive member. Disposable PostgreSQL
 resolved only that loopback ledger row, replayed the corrected checksum and
 passed activated authority, migration status, global grants and rollback.
 
-Production itself is intentionally still at the compatible DirectUpload
-RLS-off boundary with the original unfinished zero-step row. The exact
-restart-safe production sequence and current authorization boundary live in
-`docs/direct-upload-activation-production-recovery-plan.md`. Do not weaken the
-generic Production Migrations incomplete-ledger guard. The prepared recovery
-verifier is read-only. Corrected-migration/proof PR #139 exact head
-`d4a106d2b` merged as main commit `736bdc57d`; exact-main CI `30758315593` and
-the Conversation/Message and Notification FORCE proofs `30758315599` and
-`30758315577` passed. The restart-safe resolve/deploy workflow remains wired
-only in draft PR #140, now retargeted to `main`; full PR CI run `30757000208`
-passed at exact workflow head `959430147`. PR #140 is unmerged and the recovery
-workflow is not dispatched. Merge and dispatch remain separate production
-boundaries. Case evidence, cleanup scheduling, token retirement and
-provider-variable changes remain later, independent releases.
+Production DirectUpload activation recovery completed successfully in run
+`30877508811` from activation commit
+`64409058d0023a434b36f1af31655caeb4915ac3`. It found no pending or incomplete
+migrations, skipped ledger resolution and migration replay, converged the
+reviewed grants, passed the global grant/RLS audit, and accepted the activated
+owner proof. The original failed activation row is rolled back, the corrected
+row is applied, and the historical listing-variants alias remains an exact
+zero-step rolled-back row; there is no remaining production ledger repair.
+
+Cleanup-role postflight run `30877717135` then failed safely because the
+restricted cleanup role correctly cannot read `public._prisma_migrations`.
+Do not grant either restricted role ledger access. Bind the corrected
+postflights to the successful recovery run and accepted activation commit,
+verify those workflow runs through the GitHub API, and prove the exact runtime
+and cleanup postflight code in disposable PostgreSQL sessions where direct
+ledger reads fail with `42501`. Case evidence, cleanup scheduling, token
+retirement and provider-variable changes remain later, independent releases.
 
 ### Messaging architecture decision (2026-07-22)
 

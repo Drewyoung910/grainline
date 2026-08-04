@@ -7,6 +7,7 @@ on:
       - agent/direct-upload-recovery-historical-alias-20260802
       - agent/direct-upload-activation-runtime-bootstrap-preflight-20260803
       - agent/direct-upload-signature-reader-fix-20260803
+      - agent/direct-upload-activation-postflight-ledger-fix-20260803
     paths:
       - .github/workflows/direct-upload-activation-recovery-postgres-proof.yml
       - package.json

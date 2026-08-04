@@ -1,14 +1,15 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-01
+Last updated: 2026-08-03
 
 ## Purpose And Scope
 
 This is the schema-complete disposition ledger for Grainline's site-wide
-database isolation program. Snapshot scope: 61 Prisma models.
+database isolation program. Snapshot scope: 64 Prisma models.
 
-`SavedSearch`, `Notification`, `Conversation`, and `Message` are the four
-tables in this snapshot with production RLS. Every other row is **not active
+`SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`, and
+`DirectUploadReference` are the six tables in this snapshot with production
+RLS. Every other row is **not active
 RLS** and remains work to design, prove, and promote.
 The target column is a planning disposition, not a claim that the control is
 implemented. Re-read the production catalog before making any current-state
@@ -86,8 +87,8 @@ completed alternative.
 | `ResendWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Webhook idempotency and errors; Resend handler and operations | Service-only grants or narrow RPCs with no ordinary request reads |
 | `ClerkWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Identity webhook idempotency and errors; Clerk handler and operations | Service-only grants or narrow RPCs with no ordinary request reads |
 | `CronRun` | `ALTERNATIVE_REVIEW` | Cron and operations ledgers | Job status and bounded result metadata; cron workers and operations | Cron service role or narrow job RPCs plus read-only ops visibility |
-| `DirectUpload` | `PLANNED_RLS` | Direct upload | User-owned upload claim state with cleanup jobs; the compatible private-object schema can also retain non-public Case/Message keys | Compatible authority, legacy repair, dedicated NOBYPASSRLS worker role, app-cron retirement, compatibility-key retirement and the byte-pinned policyless FORCE migration are merged/proved; production remains RLS-off pending the split pooled-runtime/cleanup-role postflight release, guarded activation and live postflight |
-| `DirectUploadReference` | `PLANNED_RLS` | Direct upload service ledger | Normalized shared-public and exclusive-private durable references; ordinary application SQL has no legitimate table-level access | Already service-only FORCE RLS with zero policies and zero runtime/PUBLIC table grants; the paired DirectUpload activation and split live postflight remain pending before the group can be marked live |
+| `DirectUpload` | `RLS_LIVE_FORCE` | Direct upload | User-owned upload claim state with cleanup jobs; the compatible private-object schema can also retain non-public Case/Message keys | Policyless ENABLE plus FORCE, zero runtime/cleanup table CRUD, the 35-function partition, exact migration status and owner proof are live in recovery run `30877508811`. The restricted-role postflights remain an acceptance gate; their verifier must not receive migration-ledger access |
+| `DirectUploadReference` | `RLS_LIVE_FORCE` | Direct upload service ledger | Normalized shared-public and exclusive-private durable references; ordinary application SQL has no legitimate table-level access | Policyless ENABLE plus FORCE with zero runtime/PUBLIC/cleanup table grants is live and owner-proved with DirectUpload. Complete the corrected pooled-runtime and cleanup-role read-only postflights before scheduling cleanup or enabling private Case evidence |
 | `SystemAuditLog` | `ALTERNATIVE_REVIEW` | Audit ledgers | Cross-system action evidence; provider, cron, staff and operations | Append-only service path, denied ordinary mutation and reviewed staff read access |
 | `EmailFailureCount` | `ALTERNATIVE_REVIEW` | Email service ledgers | Delivery failure counters keyed by email; Resend handler and mail service | Service-only mutation and no ordinary request enumeration |
 | `EmailOutbox` | `ALTERNATIVE_REVIEW` | Email service ledgers | Recipient PII and rendered email content; producers, sender cron and operations | Dedicated producer and worker operations, least-privilege reads and retention proof |

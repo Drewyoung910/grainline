@@ -49,6 +49,13 @@ BEGIN
 END
 $grainline_direct_upload_recovery_provider_roles$;
 
+-- The disposable recovery proof opens real TCP sessions as both restricted
+-- roles so the exact production postflight code runs under their own session
+-- identities. These fixture-only passwords never leave the loopback CI
+-- cluster and are not part of production role provisioning.
+ALTER ROLE grainline_app_runtime PASSWORD 'ci';
+ALTER ROLE grainline_direct_upload_cleanup_v2 PASSWORD 'ci';
+
 -- This disposable cluster starts with cloud_admin as PostgreSQL's bootstrap
 -- superuser. These explicit grants therefore record the same provider grantor
 -- identity and non-effective membership options that Neon records.
