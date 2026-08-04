@@ -310,6 +310,38 @@ CI and inspection satisfy the read-only prerequisites for reconsidering the
 restart-safe recovery, but they do not themselves authorize the ledger resolve,
 migration replay, grant convergence or activation.
 
+## First authorized restart attempt
+
+Authorized recovery run `30871995372` / job `91875721796` used the exact
+reviewed bindings above. Its initial repeatable-read, read-only proof classified
+the original failed state; Prisma marked only that zero-step row rolled back;
+the resolved repeatable-read, read-only proof passed with zero incomplete
+migrations and only the corrected activation pending. Prisma then applied
+`20260801194000_enable_direct_upload_rls` successfully. The migration itself
+committed the reviewed policyless ENABLE plus FORCE table posture, table
+revokes, function EXECUTE partition and its in-transaction catalog postflight.
+
+The following grant-convergence step failed before either `psql` command
+connected. The owner URL correctly retains `sslmode=verify-full`, but the step
+did not supply libpq's required `PGSSLROOTCERT=system`; libpq therefore looked
+for a runner-local `~/.postgresql/root.crt` and exited with code 2. Migration
+status, the global grant/RLS audit and the activated owner proof were skipped.
+The run did not deploy the app, enable Case evidence, schedule cleanup, revoke
+tokens or change provider variables. Its sanitized artifact archive digest is
+`cf9ecb53dce537ab8982dde8a3cae9d42ec6e4f708c1c6b4e42323211eb74136` and
+contains exact `inspect=failed` and `resolved=resolved` evidence; it contains no
+activated proof.
+
+This is the same libpq trust-root requirement already proven by cleanup-role
+provisioning run `30398188163`. The narrow workflow correction supplies
+`PGSSLROOTCERT=system` only to the production `psql` convergence step, retaining
+hostname and certificate-chain verification without changing the protected
+URL or Node connection behavior. A repository-wide inventory test now requires
+that setting on every protected owner-URL `psql` step. Do not declare the
+activation accepted until a restart classifies the exact activated ledger,
+converges grants, passes migration status and the global grant audit, and writes
+the activated owner proof.
+
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those
 remain separate releases. The generic Production Migrations guard remains
