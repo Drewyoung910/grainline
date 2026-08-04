@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       recovery_proof_run_id:
-        description: Type 30734098369
+        description: Type 30865542314
         required: true
         type: string
       confirmation:
@@ -85,7 +85,7 @@ jobs:
             if (
               releaseCommit !== context.sha
               || failedRunId !== 30729632410
-              || proofRunId !== 30734098369
+              || proofRunId !== 30865542314
               || new Set([failedRunId, proofRunId, mainCiRunId]).size !== 3
             ) {
               throw new Error('DirectUpload recovery workflow bindings drifted');
@@ -103,8 +103,8 @@ jobs:
                 id: proofRunId,
                 name: 'DirectUpload Activation Recovery PostgreSQL Proof',
                 event: 'workflow_dispatch',
-                headBranch: 'agent/direct-upload-activation-membership-recovery-20260802',
-                headSha: 'd4a106d2bdf7e0af4c8fea9ca6c4770b2bfbdbdd',
+                headBranch: 'agent/direct-upload-activation-runtime-bootstrap-preflight-20260803',
+                headSha: '5f8f761ead7619baf5037dcdce595bfc4e877329',
                 conclusion: 'success',
               },
               {

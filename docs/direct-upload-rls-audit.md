@@ -1855,6 +1855,16 @@ TypeScript, lint, 2,680 tests, security audit and the production build at the
 same exact head. The draft branch remains non-production: no migration ledger,
 database, deployment or provider state changed.
 
+A follow-on operator audit found that the production recovery workflow and
+verifier still pinned superseded cleanup-edge-only proof `30734098369`. That
+would have rejected the new proof input while preserving evidence for obsolete
+migration bytes. The isolated branch now binds successful two-edge disposable
+proof `30865542314` / job `91856468869` at exact head
+`5f8f761ead7619baf5037dcdce595bfc4e877329`, and static contracts pin the run,
+branch and SHA. This is a branch-only fail-closed binding correction; no
+production workflow was dispatched and no production or provider state
+changed.
+
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket

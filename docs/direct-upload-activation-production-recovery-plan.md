@@ -83,6 +83,16 @@ security audit and the production build. This is stronger branch-only review
 evidence; it still does not authorize merge, ledger resolution, production
 recovery, deployment or any provider change.
 
+The same review then found a separate fail-closed operator mismatch: the
+production recovery workflow and verifier still pinned superseded disposable
+proof `30734098369`, whose branch contained the cleanup-edge-only candidate.
+The isolated successor now pins successful two-edge proof run `30865542314` /
+job `91856468869`, branch
+`agent/direct-upload-activation-runtime-bootstrap-preflight-20260803`, and
+exact proof head `5f8f761ead7619baf5037dcdce595bfc4e877329`. Static contracts reject the
+old run, branch or SHA. This changes only branch-side recovery evidence
+bindings and does not authorize or execute the production recovery workflow.
+
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
 checksum, zero applied steps, no finish marker and no rollback marker. Both
@@ -229,7 +239,7 @@ database rows, logs, function source or credential.
 The isolated executable workflow shares the
 `production-database-migrations` concurrency group and runs only from an exact
 clean main commit in the protected Production environment. It must bind and
-verify failed run `30729632410`, disposable recovery proof run `30734098369`,
+verify failed run `30729632410`, disposable recovery proof run `30865542314`,
 and an exact successful main CI run for its release commit.
 
 It must be restart-safe and use this ordering:
