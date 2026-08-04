@@ -53,7 +53,7 @@ async function expectDenied(client, label, query) {
   assert.equal(caught.code, "42501", `${label} returned the wrong SQLSTATE`);
 }
 
-async function proveCatalog(client) {
+async function proveCatalog(client, forceExpected) {
   const result = await client.query(`
     SELECT
       class.relname,
@@ -90,7 +90,7 @@ async function proveCatalog(client) {
     {
       relname: "Case",
       relrowsecurity: true,
-      relforcerowsecurity: false,
+      relforcerowsecurity: forceExpected,
       policy_count: 0,
       runtime_table_authority: false,
       runtime_column_authority: false,
@@ -98,7 +98,7 @@ async function proveCatalog(client) {
     {
       relname: "CaseMessage",
       relrowsecurity: true,
-      relforcerowsecurity: false,
+      relforcerowsecurity: forceExpected,
       policy_count: 0,
       runtime_table_authority: false,
       runtime_column_authority: false,
@@ -106,7 +106,7 @@ async function proveCatalog(client) {
     {
       relname: "CaseMessageAttachment",
       relrowsecurity: true,
-      relforcerowsecurity: false,
+      relforcerowsecurity: forceExpected,
       policy_count: 0,
       runtime_table_authority: false,
       runtime_column_authority: false,
@@ -148,10 +148,17 @@ async function proveRuntimeDenial(client) {
   }
 }
 
-export async function runCaseActivationProof(env = process.env) {
+export async function runCaseActivationProof(
+  env = process.env,
+  {
+    applicationName = "grainline-case-activation-proof",
+    forceExpected = false,
+  } = {},
+) {
+  assert.equal(typeof forceExpected, "boolean");
   const { databaseUrl } = parseCaseActivationProofConfig(env);
   const client = new Client({
-    application_name: "grainline-case-activation-proof",
+    application_name: applicationName,
     connectionString: databaseUrl,
     connectionTimeoutMillis: 10_000,
     query_timeout: 30_000,
@@ -169,7 +176,7 @@ export async function runCaseActivationProof(env = process.env) {
     });
     await client.query("BEGIN");
     began = true;
-    await proveCatalog(client);
+    await proveCatalog(client, forceExpected);
     await proveRuntimeDenial(client);
     await client.query("ROLLBACK");
     began = false;
@@ -177,7 +184,7 @@ export async function runCaseActivationProof(env = process.env) {
       database: DATABASE_NAME,
       tables: TABLES.length,
       policyCount: 0,
-      forceEnabled: false,
+      forceEnabled: forceExpected,
       directOperationsDenied: TABLES.length * 4,
       sqlState: "42501",
       persistentDatabaseChanged: false,

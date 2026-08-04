@@ -42,7 +42,8 @@ test("Case activation release pins exact source, migration, and tree bytes", () 
     withFileTypes: true,
   })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+    .map((entry) => entry.name)
+    .filter((name) => name.localeCompare(CASE_ACTIVATION_MIGRATION) <= 0);
   assert.equal(
     computeMigrationTreeSha256("prisma/migrations", migrationNames),
     CASE_ACTIVATION_MIGRATION_TREE_SHA256,
@@ -87,27 +88,27 @@ test("Case activation release is policyless ENABLE and excludes later boundaries
   assert.match(release, /Order\/payment\/shipping RLS group/);
 });
 
-test("CI holds Case activation until authority and predecessor proofs pass", () => {
-  assert.match(ci, /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed/);
-  assert.match(ci, /npm run audit:rls-case-activation-release/);
+test("CI retains the Phase A proof before the later Case FORCE release", () => {
+  assert.match(ci, /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed/);
+  assert.match(ci, /npm run audit:rls-case-force-release/);
   assert.match(
     ci,
-    /Isolate the exact Case activation until authority proofs pass[\s\S]*Prove Case invariant drafts in rollback-only PostgreSQL[\s\S]*Prove compatible Case production postflight under the runtime role[\s\S]*Restore the exact Case activation release[\s\S]*Apply the exact Case activation release[\s\S]*Converge activated Case runtime grants[\s\S]*Audit final runtime grants and RLS catalog[\s\S]*Prove promoted Case activation under the runtime role/,
+    /Isolate the exact Case activation until authority proofs pass[\s\S]*Isolate the exact Case FORCE release until Phase A passes[\s\S]*Prove Case invariant drafts in rollback-only PostgreSQL[\s\S]*Prove compatible Case production postflight under the runtime role[\s\S]*Restore the exact Case activation release[\s\S]*Apply the exact Case activation release[\s\S]*Converge activated Case runtime grants[\s\S]*Audit final runtime grants and RLS catalog[\s\S]*Prove promoted Case activation under the runtime role[\s\S]*Restore the exact Case FORCE release/,
   );
   assert.match(ci, /CASE_ACTIVATION_PROOF_DATABASE_URL/);
   assert.doesNotMatch(ci, /prisma migrate resolve/);
 });
 
-test("production workflow gates exact Case release before Prisma deploy", () => {
+test("production workflow has advanced to the separate exact Case FORCE gate", () => {
   const verifier = production.indexOf(
-    "npm run audit:rls-case-activation-release",
+    "npm run audit:rls-case-force-release",
   );
   const deploy = production.indexOf("npx prisma migrate deploy");
   assert.ok(verifier >= 0);
   assert.ok(deploy > verifier);
   assert.match(
     production,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed/,
   );
   assert.doesNotMatch(production, /vercel|CASE_EVIDENCE_ATTACHMENTS_ENABLED/i);
 });

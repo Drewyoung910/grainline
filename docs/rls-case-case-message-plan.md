@@ -4,8 +4,22 @@ Opened 2026-07-26. Current phase: policyless ENABLE is live and pooled-runtime
 accepted after a clean Phase 2 production inspection, completed Phase 3 proof,
 live Phase 4 compatible database/application conversion, live invariant/read-mode
 convergence, accepted DirectUpload activation, and zero ordinary direct
-Case-family access. FORCE remains a separate posture-only release for `Case`,
-`CaseMessage` and `CaseMessageAttachment`; Case evidence remains disabled.
+Case-family access. The separate posture-only FORCE release for `Case`,
+`CaseMessage` and `CaseMessageAttachment` is now byte-pinned and staged on an
+isolated branch, but is not merged or applied. Case evidence remains disabled.
+
+The exact candidate, predecessor evidence, CI ordering and later boundaries
+are recorded in `docs/case-force-production-release.md`. Production must not be
+called FORCE-complete until the guarded migration and a fresh exact-release
+pooled-runtime read-only postflight both pass.
+
+The pre-merge authority review caught one provider-specific incompatibility:
+the historical draft required a completely membership-free runtime role, but
+production retains Neon's already-proven non-inheriting, non-settable bootstrap
+admin edge from `grainline_app_runtime` to `neondb_owner`. The promoted release
+keeps the historical draft immutable and applies a separately byte-pinned
+correction that accepts only that exact edge and recursively rejects every
+other membership.
 
 The behavior findings, 80-reference conversion baseline and current
 52-reference countdown live in

@@ -46,6 +46,7 @@ const {
   collectPolicylessServiceRlsIssues,
   collectTablePrivilegeAllowlistIssues,
   caseRlsActivationExpected,
+  caseRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -442,6 +443,19 @@ describe("database grant inventory guardrails", () => {
       "CaseMessageAttachment",
     ]);
     assert.equal(caseRlsActivationExpected(caseActivationInventory), true);
+    assert.equal(caseRlsForceExpected(caseActivationInventory), false);
+    const caseForceInventory = {
+      ...caseActivationInventory,
+      rlsForceTables: [
+        "Case",
+        "CaseMessage",
+        "CaseMessageAttachment",
+        "DirectUpload",
+        "DirectUploadReference",
+      ],
+    };
+    assert.equal(caseRlsActivationExpected(caseForceInventory), true);
+    assert.equal(caseRlsForceExpected(caseForceInventory), true);
     assert.equal(
       caseRlsActivationExpected({
         ...caseActivationInventory,
@@ -787,6 +801,32 @@ describe("database grant inventory guardrails", () => {
       [
         "service-only table Case must keep FORCE ROW LEVEL SECURITY disabled for this release",
       ],
+    );
+    const caseForcedInventory = {
+      ...caseActivatedInventory,
+      rlsForceTables: [
+        "Case",
+        "CaseMessage",
+        "CaseMessageAttachment",
+        "DirectUpload",
+        "DirectUploadReference",
+      ],
+    };
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: "DirectUpload",
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          ...caseRows.map((row) => ({ ...row, rls_forced: true })),
+        ],
+        caseForcedInventory,
+      ),
+      [],
     );
   });
 
@@ -1177,6 +1217,9 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       inventory.rlsForceTables,
       [
+        "Case",
+        "CaseMessage",
+        "CaseMessageAttachment",
         "CaseOpenApplication",
         "CaseResolutionClaim",
         "CaseSellerRefundApplication",

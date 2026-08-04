@@ -70,13 +70,13 @@ completed alternative.
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
-| `Case` | `RLS_LIVE_PHASE_A` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Policyless ENABLE, zero policies, zero direct runtime table/column authority and the 27-operation fixed authority are live and pooled-runtime accepted in migration run `30939836526`. FORCE remains a separate posture-only release |
+| `Case` | `RLS_LIVE_PHASE_A` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Policyless ENABLE, zero policies, zero direct runtime table/column authority and the 27-operation fixed authority are live and pooled-runtime accepted in migration run `30939836526`. The posture-only FORCE release is byte-pinned on an isolated branch but is not live |
 | `CaseResolutionClaim` | `PLANNED_RLS` | Case resolution service ledger | Private staff/provider handshake, refund intent, local payment evidence and reconciliation state; no ordinary participant table access | Candidate preparation creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only reviewed source-validating fixed operations can prepare, record, reconcile and finalize claims |
 | `CaseStripeDisputeApplication` | `PLANNED_RLS` | Case Stripe-dispute service ledger | Immutable exact payment-event-to-Case replay authority; no ordinary participant table access | Candidate creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only `grainline_case_stripe_dispute_apply` can create or read exact replay evidence |
 | `CaseSellerRefundApplication` | `PLANNED_RLS` | Case seller-refund service ledger | Immutable exact local-refund-event-to-Case replay authority; no ordinary participant table access | Candidate creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only `grainline_case_seller_refund_apply` can create or read exact replay evidence |
 | `CaseOpenApplication` | `PLANNED_RLS` | Case buyer-open service ledger | Immutable exact Order-to-Case opening replay authority; no ordinary participant table access | Candidate creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only `grainline_case_open` can create or validate exact replay evidence |
-| `CaseMessage` | `RLS_LIVE_PHASE_A` | Case and case message | Private dispute discussion; buyer, seller and staff | Policyless ENABLE and zero direct runtime table/column authority are live with parent-bound fixed reads/writes, invariant triggers and pooled-runtime denial proof. FORCE remains separate |
-| `CaseMessageAttachment` | `RLS_LIVE_PHASE_A` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Policyless ENABLE and zero direct runtime table/column authority are live and accepted with the Case family. Case evidence stays disabled; signed-read feature promotion, cleanup scheduling and FORCE remain separate |
+| `CaseMessage` | `RLS_LIVE_PHASE_A` | Case and case message | Private dispute discussion; buyer, seller and staff | Policyless ENABLE and zero direct runtime table/column authority are live with parent-bound fixed reads/writes, invariant triggers and pooled-runtime denial proof. The posture-only FORCE release is prepared but not live |
+| `CaseMessageAttachment` | `RLS_LIVE_PHASE_A` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Policyless ENABLE and zero direct runtime table/column authority are live and accepted with the Case family. Case evidence stays disabled; signed-read promotion and cleanup scheduling remain separate, and FORCE is prepared but not live |
 | `SavedSearch` | `RLS_LIVE_PHASE_B` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Phase B FORCE is live; retain exact policies, grants, canary, rollback, and maintenance proof |
 | `StockNotification` | `PLANNED_RLS` | Stock notification | Direct user subscription with listing-wide notification fanout and cleanup | Owner reads and writes plus explicit service fanout and listing cleanup path; do not fold silently into Bucket B |
 | `MakerVerification` | `BLOCKED_DESIGN` | Verification | Seller application evidence and staff review notes; applicant, employee and admin | Applicant projection, staff review path, decision writes and notification side effects |
@@ -211,10 +211,9 @@ preclude a later reviewed policy or grant migration.
 3. Bucket B Notification `ENABLE` plus `FORCE` is complete in production.
 4. Conversation plus Message ENABLE/FORCE and the actual pooled-runtime
    postflight are complete in production.
-5. Audit and independently activate Case/CaseMessage next. Keep participant,
-   staff, cron, Stripe, account-lifecycle, refund and aggregate paths in one
-   explicit authority inventory because CaseMessage policy depends on its
-   parent Case, but do not bundle Order/payment/shipping activation.
+5. Complete the separately prepared Case-family FORCE release and exact
+   pooled-runtime postflight. Keep Case evidence enablement, cleanup scheduling
+   and provider/token changes outside that database boundary.
 6. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger

@@ -34,7 +34,8 @@ test("Case activation proof refuses persistent or remote databases", () => {
 
 test("Case activation proof pins policyless ENABLE without FORCE or direct grants", () => {
   assert.match(source, /relrowsecurity: true/);
-  assert.match(source, /relforcerowsecurity: false/);
+  assert.match(source, /relforcerowsecurity: forceExpected/);
+  assert.match(source, /forceExpected = false/);
   assert.match(source, /policy_count: 0/);
   assert.match(source, /runtime_table_authority: false/);
   assert.match(source, /runtime_column_authority: false/);
