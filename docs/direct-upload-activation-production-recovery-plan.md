@@ -275,11 +275,40 @@ The corrected migration/proof in PR #139 and recovery workflow in PR #140 are
 merged. Recovery run `30760097011` was dispatched but stopped read-only before
 the exact ledger resolve boundary. The original unfinished zero-step row and
 compatible RLS-off DirectUpload posture therefore remain the expected
-production state. The aggregate alias proof and isolated fail-closed verifier
-candidate proofs are now complete. Reviewed draft PR #146 remains the separate
-merge boundary. After its exact head is merged, exact-main CI and a separate
-protected read-only Failure Inspection must both pass before recovery is
-reconsidered; neither success automatically authorizes a recovery dispatch.
+production state. The aggregate alias proof and fail-closed verifier proofs are
+complete. PR #146 exact head
+`4ea7c2f47480795d74ad4dafc5461d5ed060555c` merged as exact main commit
+`3b5efc3e4c56f3918e2b0d6191685a044354f092`. Exact-main CI run
+`30867712101`, Conversation and Message RLS FORCE Proof run `30867712139`,
+and Notification RLS FORCE Proof run `30867712080` all passed.
+
+Protected Failure Inspection run `30869536394` / job `91868485683` then ran
+against that exact main commit and failed migration run `30729632410`. Inside a
+repeatable-read, read-only transaction it proved all of the following:
+
+- the original activation ledger row still has failed checksum
+  `41c2099157737e7457997d5ad71932671f5813dcbb436b699671b8af29458ffb`,
+  no finish or rollback marker and zero applied steps;
+- the reviewed recovery migration remains byte-pinned separately to
+  `1bceed7a5076f15ae5c9c46a89bbaecdf583953f7a1ff80b26a8b0e7c21157c4`;
+- the corrected role/function preflight passes live for both restricted roles,
+  including only the proven non-effective `neondb_owner` bootstrap edges;
+- the sole migration-tree difference remains the exact listing-variants alias:
+  one completed canonical row plus one same-checksum, zero-step rolled-back
+  historical row;
+- `DirectUpload` remains policyless with RLS and FORCE off,
+  `DirectUploadReference` remains policyless ENABLE plus FORCE, and the
+  compatible grant/function posture is restored; and
+- `productionChangedByInspection=false`.
+
+The sanitized artifact is
+`direct-upload-activation-failure-inspection-3b5efc3e4c56f3918e2b0d6191685a044354f092`;
+the GitHub artifact archive digest is
+`8ad0d9e1132bf6241c5eb6f894748eac43aca2013a00b10a56c9d81a7a173a9a`.
+No production recovery has been dispatched from this commit. The successful
+CI and inspection satisfy the read-only prerequisites for reconsidering the
+restart-safe recovery, but they do not themselves authorize the ledger resolve,
+migration replay, grant convergence or activation.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those
