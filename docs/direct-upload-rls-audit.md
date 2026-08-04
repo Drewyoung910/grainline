@@ -1863,7 +1863,11 @@ proof `30865542314` / job `91856468869` at exact head
 `5f8f761ead7619baf5037dcdce595bfc4e877329`, and static contracts pin the run,
 branch and SHA. This is a branch-only fail-closed binding correction; no
 production workflow was dispatched and no production or provider state
-changed.
+changed. Exact-head disposable PostgreSQL run `30866643733` / job
+`91859847929` and full CI run `30866645901` / job `91859854716` passed at
+commit `dfa9bad6f17abe7079ee955be097f68bc345ba01`, including the updated operator
+contract, complete recovery sequence, TypeScript, lint, 2,680 tests, security
+audit and production build.
 
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are
@@ -1873,11 +1877,13 @@ disposable-object proof, and the compatibility key is retired in production.
 deployed and drained, the rejected Cloudflare `v3` token is absent, the
 activation-aware postflights are merged, and the original production
 activation attempt is fully classified as a zero-step rolled-back preflight
-failure. PR `#139` holds the corrected membership preflight and passed the
-complete disposable resolve/replay proof. Next, finish exact-head CI and the
-Extra-High PR review, then stage a separately guarded production recovery
-operator. Do not resolve the production ledger row, retry activation, schedule
-the protected worker or enable Case evidence until that operator is reviewed.
+failure. Reviewed draft PR `#146` holds the current two-edge membership
+preflight, symmetric 14-check proof and corrected recovery-evidence binding.
+Its branch proofs are complete. Next, merge only that reviewed exact head, wait
+for exact-main CI, and run the separate protected read-only Failure Inspection.
+Do not resolve the production ledger row, retry activation, schedule the
+protected worker or enable Case evidence merely because those read-only gates
+pass; production recovery remains a distinct guarded action.
 Standing authorization permits routine continuation through this
 already-scoped rollout without conversational micro-approval. Exact-commit
 proof, protected-environment, migration, deployment and production postflight

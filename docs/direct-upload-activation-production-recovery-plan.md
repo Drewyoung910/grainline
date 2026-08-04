@@ -92,6 +92,13 @@ job `91856468869`, branch
 exact proof head `5f8f761ead7619baf5037dcdce595bfc4e877329`. Static contracts reject the
 old run, branch or SHA. This changes only branch-side recovery evidence
 bindings and does not authorize or execute the production recovery workflow.
+The corrected operator contract then passed exact-head disposable PostgreSQL
+run `30866643733` / job `91859847929` and full CI run `30866645901` / job
+`91859854716` at commit
+`dfa9bad6f17abe7079ee955be097f68bc345ba01`. The focused run re-proved the
+complete failure, resolution, activation, grant, authority and rollback
+sequence; CI also passed TypeScript, lint, 2,680 tests, security audit and the
+production build.
 
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
@@ -269,9 +276,10 @@ merged. Recovery run `30760097011` was dispatched but stopped read-only before
 the exact ledger resolve boundary. The original unfinished zero-step row and
 compatible RLS-off DirectUpload posture therefore remain the expected
 production state. The aggregate alias proof and isolated fail-closed verifier
-candidate proofs are now complete. The next boundary is separate review and
-merge; no recovery retry is accepted until exact-main CI passes and a new exact
-production authorization is given.
+candidate proofs are now complete. Reviewed draft PR #146 remains the separate
+merge boundary. After its exact head is merged, exact-main CI and a separate
+protected read-only Failure Inspection must both pass before recovery is
+reconsidered; neither success automatically authorizes a recovery dispatch.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those
