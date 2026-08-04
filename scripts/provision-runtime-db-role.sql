@@ -535,9 +535,9 @@ WITH table_state AS (
     COUNT(*) = 3
       AND bool_and(
         relrowsecurity
-        AND NOT relforcerowsecurity
         AND policy_count = 0
-      ) AS active,
+      )
+      AND COUNT(DISTINCT relforcerowsecurity) = 1 AS active,
     COUNT(*) = 3
       AND bool_and(
         NOT relrowsecurity

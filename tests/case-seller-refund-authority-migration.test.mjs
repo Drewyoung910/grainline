@@ -22,7 +22,7 @@ test("Case seller-refund authority is a compatible private-ledger release", () =
   assert.doesNotMatch(normalizedSql, /DROP (?:TABLE|COLUMN|FUNCTION)/);
 });
 
-test("Case seller-refund packaging remains compatible through policyless Case activation", () => {
+test("Case seller-refund packaging remains included through Case FORCE", () => {
   const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const productionWorkflow = fs.readFileSync(
     ".github/workflows/production-migrations.yml",
@@ -30,15 +30,11 @@ test("Case seller-refund packaging remains compatible through policyless Case ac
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed/,
-  );
-  assert.doesNotMatch(
-    productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force[-a-z]*/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed/,
   );
 });
 

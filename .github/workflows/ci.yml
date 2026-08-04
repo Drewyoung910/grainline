@@ -82,12 +82,12 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify Case activation migration tree
+      - name: Verify Case FORCE migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed
         run: npm run verify:rls-release-artifact
-      - name: Verify Case activation proof equivalence
-        run: npm run audit:rls-case-activation-release
+      - name: Verify Case FORCE proof equivalence
+        run: npm run audit:rls-case-force-release
       - name: Verify Case read-mode release bytes
         run: npm run audit:rls-case-read-mode-candidate
       - name: Verify Conversation and Message authority proof equivalence
@@ -117,6 +117,11 @@ jobs:
           mv
           prisma/migrations/20260804160000_enable_case_rls
           "$RUNNER_TEMP/case-activation-release"
+      - name: Isolate the exact Case FORCE release until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260804191000_force_case_rls
+          "$RUNNER_TEMP/case-force-release"
       - name: Isolate the exact DirectUpload activation until external grants converge
         run: >-
           mv
@@ -224,6 +229,23 @@ jobs:
         run: npm run audit:rls-case-activation-postgres
         env:
           CASE_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore the exact Case FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-force-release"
+          prisma/migrations/20260804191000_force_case_rls
+      - name: Apply the exact Case FORCE release
+        run: npx prisma migrate deploy
+      - name: Converge FORCE-hardened Case runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened runtime grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened Case authority under the runtime role
+        run: npm run audit:rls-case-force-postgres
+        env:
+          CASE_FORCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

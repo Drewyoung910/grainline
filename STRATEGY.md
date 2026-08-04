@@ -1239,6 +1239,16 @@ all passed. Its durable evidence and exact catalog are recorded in
 enablement, cleanup scheduling, provider/token changes, deployment and the
 Order/payment/shipping group separate.
 
+The next database boundary is now prepared, not live: posture-only Case FORCE
+migration `20260804191000_force_case_rls` is reconstructed from the reviewed
+historical draft plus a separately pinned correction for Neon's proven
+non-effective runtime bootstrap edge, pins the accepted Phase A catalog, and
+changes only the FORCE flag on the same three tables. Every other direct or
+transitive runtime membership still fails closed. Its release contract is
+`docs/case-force-production-release.md`. Complete guarded FORCE plus a fresh
+pooled-runtime read-only postflight before enabling Case evidence or beginning
+the separate Order/payment/shipping activation program.
+
 Release packaging preserves a strict two-step coexistence boundary. The
 database-only package installs the additive schema, private ledgers and 27
 fixed operations without converted app source or promoted activation SQL.

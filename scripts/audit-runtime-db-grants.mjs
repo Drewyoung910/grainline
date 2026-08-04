@@ -208,11 +208,21 @@ export function caseRlsActivationExpected(inventory) {
   const enabled = new Set(inventory?.rlsEnableTables ?? []);
   const forced = new Set(inventory?.rlsForceTables ?? []);
   const policies = new Set(inventory?.rlsPolicyTables ?? []);
-  return CASE_ACTIVATION_TABLES.every(
+  const protectedTablesEnabled = CASE_ACTIVATION_TABLES.every(
     (tableName) => enabled.has(tableName)
-      && !forced.has(tableName)
       && !policies.has(tableName),
   );
+  const forceCount = CASE_ACTIVATION_TABLES.filter(
+    (tableName) => forced.has(tableName),
+  ).length;
+  return protectedTablesEnabled
+    && (forceCount === 0 || forceCount === CASE_ACTIVATION_TABLES.length);
+}
+
+export function caseRlsForceExpected(inventory) {
+  const forced = new Set(inventory?.rlsForceTables ?? []);
+  return caseRlsActivationExpected(inventory)
+    && CASE_ACTIVATION_TABLES.every((tableName) => forced.has(tableName));
 }
 
 export function runtimePrivateFunctionNames(inventory) {
@@ -1066,7 +1076,9 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
   for (const tableName of policylessServiceRlsTableNames(inventory)) {
     if (!(inventory?.tables ?? []).includes(tableName)) continue;
     const row = rowByTable.get(tableName);
-    const forceExpected = !CASE_ACTIVATION_TABLE_NAME_SET.has(tableName);
+    const forceExpected = CASE_ACTIVATION_TABLE_NAME_SET.has(tableName)
+      ? caseRlsForceExpected(inventory)
+      : true;
     if (!row) {
       issues.push(
         forceExpected

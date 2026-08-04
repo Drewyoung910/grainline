@@ -5,10 +5,6 @@ import test from "node:test";
 import {
   CASE_INVARIANT_MIGRATION,
   CASE_INVARIANT_MIGRATION_TREE_SHA256,
-  CASE_ACTIVATION_MIGRATION,
-  CASE_READ_MODE_MIGRATION,
-  DIRECT_UPLOAD_ACTIVATION_MIGRATION,
-  DIRECT_UPLOAD_RETIREMENT_MIGRATION,
   computeMigrationTreeSha256,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
 import {
@@ -42,12 +38,7 @@ test("Case invariant release pins exact source, migration, and tree bytes", () =
   )
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .filter((name) => ![
-      CASE_READ_MODE_MIGRATION,
-      CASE_ACTIVATION_MIGRATION,
-      DIRECT_UPLOAD_RETIREMENT_MIGRATION,
-      DIRECT_UPLOAD_ACTIVATION_MIGRATION,
-    ].includes(name));
+    .filter((name) => name.localeCompare(CASE_INVARIANT_MIGRATION) <= 0);
   assert.equal(
     computeMigrationTreeSha256("prisma/migrations", migrationNames),
     CASE_INVARIANT_MIGRATION_TREE_SHA256,
@@ -70,8 +61,7 @@ test("Case invariant release excludes read-mode and RLS activation", () => {
     migration,
     /(?:GRANT|REVOKE)[\s\S]{0,160}\bON TABLE public\."(?:Case|CaseMessage|CaseMessageAttachment)"/i,
   );
-  assert.match(workflow, /case-activation-reviewed/);
-  assert.doesNotMatch(workflow, /case-force-reviewed/);
+  assert.match(workflow, /case-force-reviewed/);
 });
 
 test("Case invariant release keeps a read-only pooled-runtime postflight", () => {
