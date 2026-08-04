@@ -95,23 +95,23 @@ ALTER TABLE public."Order"
   ADD CONSTRAINT "Order_sellerProfileId_fkey"
   FOREIGN KEY ("sellerProfileId")
   REFERENCES public."SellerProfile"(id)
-  ON DELETE RESTRICT ON UPDATE CASCADE
+  ON DELETE RESTRICT ON UPDATE RESTRICT
   NOT VALID;
 ALTER TABLE public."OrderItem"
   ADD CONSTRAINT "OrderItem_sellerProfileId_fkey"
   FOREIGN KEY ("sellerProfileId")
   REFERENCES public."SellerProfile"(id)
-  ON DELETE RESTRICT ON UPDATE CASCADE
+  ON DELETE RESTRICT ON UPDATE RESTRICT
   NOT VALID,
   ADD CONSTRAINT "OrderItem_orderId_sellerProfileId_fkey"
   FOREIGN KEY ("orderId", "sellerProfileId")
   REFERENCES public."Order"(id, "sellerProfileId")
-  ON DELETE CASCADE ON UPDATE CASCADE
+  ON DELETE CASCADE ON UPDATE RESTRICT
   NOT VALID,
   ADD CONSTRAINT "OrderItem_listingId_sellerProfileId_fkey"
   FOREIGN KEY ("listingId", "sellerProfileId")
   REFERENCES public."Listing"(id, "sellerId")
-  ON DELETE RESTRICT ON UPDATE CASCADE
+  ON DELETE RESTRICT ON UPDATE RESTRICT
   NOT VALID;
 
 ALTER TABLE public."Order"

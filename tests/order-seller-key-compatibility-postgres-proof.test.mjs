@@ -71,6 +71,8 @@ test("candidate binds both rows to the durable seller under an Order lock", () =
     draft,
     /FOREIGN KEY \("listingId", "sellerProfileId"\)[\s\S]*REFERENCES public\."Listing"\(id, "sellerId"\)/,
   );
+  assert.equal((draft.match(/ON UPDATE RESTRICT/g) ?? []).length, 4);
+  assert.doesNotMatch(draft, /ON UPDATE CASCADE/);
   assert.match(
     draft,
     /SELECT orders\."sellerProfileId"[\s\S]*FOR UPDATE;/,
@@ -108,6 +110,7 @@ test("proof covers old app, new app, forgery and ownership drift", () => {
     assert.match(proof, new RegExp(marker.replaceAll("-", "[-_]")), marker);
   }
   assert.match(proof, /checks: 12/);
+  assert.match(proof, /unexpected PostgreSQL error/);
 });
 
 test("CI runs the exact rollback-only PostgreSQL proof", () => {

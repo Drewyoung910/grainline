@@ -75,7 +75,12 @@ async function expectPostgresError(client, name, work, pattern) {
   await client.query(`RELEASE SAVEPOINT ${savepoint}`);
   await client.query("SET CONSTRAINTS ALL DEFERRED");
   assert.ok(caught, `${name} unexpectedly succeeded`);
-  assert.match(safeError(caught), pattern, name);
+  const caughtMessage = safeError(caught);
+  assert.match(
+    caughtMessage,
+    pattern,
+    `${name}: unexpected PostgreSQL error: ${caughtMessage}`,
+  );
 }
 
 async function seedIdentityFixtures(client) {

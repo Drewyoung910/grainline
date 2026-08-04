@@ -40,7 +40,16 @@ Raw-managed keys and indexes:
 The composite Listing foreign key intentionally prevents seller reassignment
 after a Listing has been purchased. Grainline has no legitimate listing-sale
 or seller-transfer feature; changing historical order authority is not an
-acceptable side effect of editing catalog ownership.
+acceptable side effect of editing catalog ownership. Every new seller-key
+foreign key uses `ON UPDATE RESTRICT`; cascading an authority key into retained
+transaction history is forbidden.
+
+The first PostgreSQL engine run, GitHub CI `30957471941` at checkpoint
+`9b997490eb0ebbaba00e5b321a9f3368170b8a3f`, failed safely during the purchased
+Listing reassignment proof. The candidate had used `ON UPDATE CASCADE`, so
+PostgreSQL attempted to rewrite the historical OrderItem before the immutable
+authority trigger rejected it. No state persisted. The corrected candidate
+uses `ON UPDATE RESTRICT`, and a class guard rejects any return of CASCADE.
 
 ## Old/new application coexistence
 
