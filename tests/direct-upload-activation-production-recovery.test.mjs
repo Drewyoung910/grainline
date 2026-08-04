@@ -604,6 +604,10 @@ describe("DirectUpload activation production recovery", () => {
       workflow,
       /if: steps\.inspect\.outputs\.state != 'activated'[\s\S]*--resolved[\s\S]*if: steps\.inspect\.outputs\.state != 'activated'[\s\S]*npx prisma migrate deploy/u,
     );
+    assert.match(
+      workflow,
+      /Converge activated runtime and cleanup grants[\s\S]*DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}[\s\S]*PGSSLROOTCERT: system[\s\S]*psql "\$DIRECT_URL"/u,
+    );
     assert.match(workflow, /if: always\(\)[\s\S]*actions\/upload-artifact@v4/u);
     assert.doesNotMatch(
       workflow,
