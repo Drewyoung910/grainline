@@ -1,0 +1,75 @@
+# Case-family policyless RLS activation release
+
+Prepared 2026-08-04 on isolated branch
+`agent/case-rls-activation-release-20260804`. This record packages the first
+Case-family RLS state change. It does not claim that the migration is merged or
+live and does not authorize a production workflow dispatch.
+
+## Exact release unit
+
+- Migration: `20260804160000_enable_case_rls`
+- Reviewed draft SHA-256:
+  `99ddbca8ede5144e7f3d7482bc8c0360b7b4acf4ca0e69ebd6836fa715e5f8ab`
+- Promoted migration SHA-256:
+  `df2469781d766612b3d7de97f989cbbf5f37d569d382a79bd51e66a3553ff19f`
+- Complete 188-migration tree SHA-256:
+  `644201c5cf602eb8be253fa90e62749cb5276a54f691e37bf5b44d3e5ddfed18`
+- Guard phase: `case-activation-reviewed`
+
+The transaction acts on exactly `Case`, `CaseMessage`, and
+`CaseMessageAttachment`. It enables RLS, explicitly leaves FORCE off, creates
+no policy, creates or replaces no function, changes no row data, and revokes
+all direct table and column authority from `PUBLIC` and
+`grainline_app_runtime`. All permitted application behavior continues through
+the 27 purpose-bound functions already live and proved during the compatible
+authority releases.
+
+## Accepted predecessor evidence
+
+- The aggregate-only protected inspection in run `30413133843` found zero
+  Cases, zero CaseMessages, zero CaseMessageAttachments, and zero anomaly
+  counts. No cleanup or backfill is required.
+- The compatible database and application releases are live. Invariant
+  migration `20260730010000_enforce_case_message_invariants` and read-mode
+  migration `20260730020000_converge_case_read_modes` are live and retained in
+  their production release records.
+- DirectUpload policyless FORCE activation completed in recovery run
+  `30877508811`. Exact-main CI `30881395864` and restricted-role postflight run
+  `30924905247` accepted the pooled-runtime and cleanup-role boundaries in
+  PostgreSQL-attested read-only transactions. Case evidence remains disabled.
+
+## Proof and workflow ordering
+
+The release verifier reconstructs the migration from the byte-pinned draft,
+pins the full migration tree, and also pins the separate rollback and FORCE
+drafts. CI physically removes the Case activation migration before the first
+Prisma deploy. It then:
+
+1. applies and proves the compatible tree and DirectUpload predecessor;
+2. runs every Case authority/concurrency proof and the rollback-only invariant,
+   activation, FORCE, and rollback harness while Case RLS is still off;
+3. runs the compatible pooled-runtime postflight;
+4. restores and applies only the exact promoted Case activation migration;
+5. reconverges runtime grants, verifies migration status, and runs the global
+   grant/RLS audit; and
+6. runs a second rollback-only PostgreSQL proof against the promoted catalog,
+   asserting policyless ENABLE without FORCE or direct table/column grants and
+   SQLSTATE `42501` for SELECT, INSERT, UPDATE, and DELETE on all three tables.
+
+The guarded production workflow validates the same exact bytes and tree before
+Prisma deploy. It does not deploy application code or change provider state.
+
+## Separate later boundaries
+
+The reviewed activation rollback remains a draft at SHA-256
+`3aa35aaaa3e02583965fc1ae5fd7301b2caeba797deb9b8e807309a51b2db8b0`.
+The posture-only FORCE candidate remains a separate draft at SHA-256
+`2620be10dba8e1c9074742f925e7f146ce2a8f4acaea4b6a6dd88e0a0b92b4d9`,
+with rollback SHA-256
+`dc6ead925a61509465925d880f6338d0494ab583b9c38dda012f0eeea6e0a59d`.
+
+Do not bundle FORCE, Case-evidence enablement, DirectUpload cleanup scheduling,
+token retirement, provider-variable changes, application deployment, or the
+later Order/payment/shipping RLS group into this activation. Production remains
+unchanged until this branch passes exact-head CI, is reviewed and merged, and a
+separately guarded production migration run is deliberately dispatched.

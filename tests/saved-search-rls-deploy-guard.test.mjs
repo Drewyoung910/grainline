@@ -13,6 +13,8 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
+  CASE_ACTIVATION_MIGRATION,
+  CASE_ACTIVATION_MIGRATION_TREE_SHA256,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
   CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
@@ -175,6 +177,7 @@ const REVIEWED_DIRECT_UPLOAD_RETIREMENT =
   "direct-upload-retirement-reviewed";
 const REVIEWED_DIRECT_UPLOAD_ACTIVATION =
   "direct-upload-activation-reviewed";
+const REVIEWED_CASE_ACTIVATION = "case-activation-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -275,6 +278,7 @@ function validate(
         DIRECT_UPLOAD_RETIREMENT_MIGRATION_TREE_SHA256,
       [REVIEWED_DIRECT_UPLOAD_ACTIVATION]:
         DIRECT_UPLOAD_ACTIVATION_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_ACTIVATION]: CASE_ACTIVATION_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -339,6 +343,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     CASE_READ_MODE_MIGRATION,
     DIRECT_UPLOAD_RETIREMENT_MIGRATION,
     DIRECT_UPLOAD_ACTIVATION_MIGRATION,
+    CASE_ACTIVATION_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -484,6 +489,10 @@ const REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS = [
   ...REVIEWED_DIRECT_UPLOAD_RETIREMENT_MIGRATIONS,
   DIRECT_UPLOAD_ACTIVATION_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_ACTIVATION_MIGRATIONS = [
+  ...REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS,
+  CASE_ACTIVATION_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -554,6 +563,7 @@ function migrationsFor(phase) {
       REVIEWED_DIRECT_UPLOAD_RETIREMENT_MIGRATIONS,
     [REVIEWED_DIRECT_UPLOAD_ACTIVATION]:
       REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS,
+    [REVIEWED_CASE_ACTIVATION]: REVIEWED_CASE_ACTIVATION_MIGRATIONS,
   }[phase];
 }
 
@@ -1008,9 +1018,13 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_DIRECT_UPLOAD_RETIREMENT, currentMigrations),
       /remain the latest migration/,
     );
+    assert.throws(
+      () => validate(REVIEWED_DIRECT_UPLOAD_ACTIVATION, currentMigrations),
+      /remain the latest migration/,
+    );
     assert.equal(
-      validate(REVIEWED_DIRECT_UPLOAD_ACTIVATION, currentMigrations).phase,
-      REVIEWED_DIRECT_UPLOAD_ACTIVATION,
+      validate(REVIEWED_CASE_ACTIVATION, currentMigrations).phase,
+      REVIEWED_CASE_ACTIVATION,
     );
   });
 
@@ -2179,6 +2193,33 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact policyless Case activation after DirectUpload acceptance", () => {
+    assert.deepEqual(
+      validate(REVIEWED_CASE_ACTIVATION, REVIEWED_CASE_ACTIVATION_MIGRATIONS),
+      {
+        phase: REVIEWED_CASE_ACTIVATION,
+        hasCaseActivationMigration: true,
+        hasDirectUploadActivationMigration: true,
+      },
+    );
+    for (const migration of [
+      CASE_READ_MODE_MIGRATION,
+      DIRECT_UPLOAD_RETIREMENT_MIGRATION,
+      DIRECT_UPLOAD_ACTIVATION_MIGRATION,
+      CASE_ACTIVATION_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_CASE_ACTIVATION,
+          REVIEWED_CASE_ACTIVATION_MIGRATIONS.filter(
+            (name) => name !== migration,
+          ),
+        ),
+        /requires the accepted Case read-mode and DirectUpload activation boundaries plus the policyless Case ENABLE migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2215,6 +2256,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_CASE_READ_MODE,
     REVIEWED_DIRECT_UPLOAD_RETIREMENT,
     REVIEWED_DIRECT_UPLOAD_ACTIVATION,
+    REVIEWED_CASE_ACTIVATION,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -2308,7 +2350,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current DirectUpload activation guard before CI migrations", () => {
+  it("runs the current Case activation guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -2318,7 +2360,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify DirectUpload activation migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,220}Verify Case read-mode release bytes[\s\S]{0,180}npm run audit:rls-case-read-mode-candidate[\s\S]{0,260}Verify Conversation and Message authority proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-authority-release[\s\S]{0,300}Verify Conversation and Message activation proof equivalence[\s\S]{0,180}npm run audit:rls-conversation-message-activation-release[\s\S]{0,300}Verify Conversation and Message FORCE release artifact[\s\S]{0,180}npm run audit:rls-conversation-message-force-release[\s\S]{0,300}Verify Notification activation proof equivalence[\s\S]{0,180}npm run audit:rls-notification-activation-release[\s\S]{0,300}Verify Notification FORCE release artifact[\s\S]{0,180}npm run audit:rls-notification-force-release[\s\S]{0,800}Verify DirectUpload activation proof equivalence[\s\S]{0,180}npm run audit:rls-direct-upload-activation-release[\s\S]{0,500}Prove runtime-role provisioning refusals exit nonzero[\s\S]{0,1800}Apply migrations to CI Postgres/,
+      /Verify Case activation migration tree[\s\S]{0,240}SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,220}Verify Case activation proof equivalence[\s\S]{0,180}npm run audit:rls-case-activation-release[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*npm run audit:rls-direct-upload-activation-release[\s\S]*Prove runtime-role provisioning refusals exit nonzero[\s\S]*Isolate the exact Case activation until authority proofs pass[\s\S]*Apply compatible migrations to CI Postgres/,
     );
   });
 
@@ -2893,6 +2935,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS,
       ),
       DIRECT_UPLOAD_ACTIVATION_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_ACTIVATION_MIGRATIONS,
+      ),
+      CASE_ACTIVATION_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

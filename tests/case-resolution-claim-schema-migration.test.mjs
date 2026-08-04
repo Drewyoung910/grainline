@@ -24,7 +24,7 @@ test("CaseResolutionClaim preparation is additive and coexistence-safe", () => {
   );
 });
 
-test("Case claim preparation is included only through the compatible authority boundary", () => {
+test("Case claim preparation remains included through the reviewed policyless activation boundary", () => {
   const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const productionWorkflow = fs.readFileSync(
     ".github/workflows/production-migrations.yml",
@@ -32,15 +32,15 @@ test("Case claim preparation is included only through the compatible authority b
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed/,
   );
   assert.doesNotMatch(
     productionWorkflow,
-    /case-resolution-claim-preparation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force[-a-z]*/,
   );
 });
 

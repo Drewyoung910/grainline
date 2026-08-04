@@ -1,10 +1,11 @@
 # Case, CaseMessage, and CaseMessageAttachment RLS Plan
 
-Opened 2026-07-26. Current phase: invariant-only production release after a
+Opened 2026-07-26. Current phase: policyless ENABLE release packaging after a
 clean Phase 2 production inspection, completed Phase 3 proof, live Phase 4
-compatible database/application conversion, and zero ordinary direct
+compatible database/application conversion, live invariant/read-mode
+convergence, accepted DirectUpload activation, and zero ordinary direct
 Case-family access. Production RLS remains off for Case, CaseMessage and
-CaseMessageAttachment.
+CaseMessageAttachment until the separately guarded activation is dispatched.
 
 The behavior findings, 80-reference conversion baseline and current
 52-reference countdown live in
@@ -1291,6 +1292,14 @@ PostgreSQL server or client; static or PGlite execution is not accepted as a
 substitute for PostgreSQL role, RLS, ACL and row-lock behavior.
 
 ## Phase 5: ENABLE activation
+
+Release package prepared 2026-08-04: migration
+`20260804160000_enable_case_rls` promotes the already-proven activation draft
+without changing its SQL body. Exact hashes, predecessor evidence, workflow
+ordering, rollback boundary and production non-authorization are recorded in
+`docs/case-activation-production-release.md`. The package is not a live-state
+claim; production remains at the accepted RLS-off predecessor until an exact
+merged commit passes CI and a separate guarded migration run succeeds.
 
 - Inspect/backup legacy rows and confirm no cleanup is pending.
 - Converge the four remaining bounded `SECURITY INVOKER` projections to
