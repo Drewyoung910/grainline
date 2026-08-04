@@ -3,11 +3,11 @@
 Prepared 2026-08-04 on isolated branch
 `agent/case-force-release-20260804` and merged through PR `#154` from exact
 head `a4d825d8b55dd1e237cfae0fb9f3133407300845` as exact main merge
-`5c1564a8e6994497987fe62e28b61db03737285c`. This package has not been
-applied. Production remains at the accepted policyless Phase A state: RLS is
-enabled without FORCE on `Case`, `CaseMessage` and
-`CaseMessageAttachment`, with zero policies and zero direct runtime table or
-column authority.
+`5c1564a8e6994497987fe62e28b61db03737285c`. The package is live in
+production after the guarded release from exact main
+`9e5d87f4c5b4a529bc84c6c2cf077778fe553186`. RLS is enabled and forced on
+`Case`, `CaseMessage` and `CaseMessageAttachment`, with zero policies and zero
+direct runtime table or column authority.
 
 ## Exact release unit
 
@@ -110,6 +110,30 @@ helper denial proofs. It records the exact successful main CI and migration
 run IDs without granting the runtime role access to the private Prisma
 migration ledger.
 
+## Production completion
+
+Exact-main CI `30951067980` passed for
+`9e5d87f4c5b4a529bc84c6c2cf077778fe553186`. Guarded Production Migrations
+run `30953378226` then passed every source, owner, role, byte-equivalence,
+migration-status and global grant/RLS check. It applied only
+`20260804191000_force_case_rls`; it did not deploy application code or alter
+rows, policies, grants, functions, triggers, constraints, provider variables,
+tokens or Case-evidence flags.
+
+The separate pooled-runtime FORCE postflight passed from a clean checkout of
+that exact main commit. It used the actual pooled `grainline_app_runtime`
+credential in an engine-attested repeatable-read read-only transaction and
+confirmed all three Case-family tables are policyless ENABLE/FORCE with no
+direct runtime table or column access. It also re-proved the exact 27 runtime
+functions, 3 private helpers, private-helper denial, direct table denial and
+invalid-actor fail-closed reads. The transaction was rolled back and changed
+no production state.
+
+Sanitized mode-`0600` evidence is retained outside the repository as
+`case-force-production-postflight-9e5d87f4c5b4a529bc84c6c2cf077778fe553186.json`
+with SHA-256
+`b6494fda1b00f96f60a6696ba6893fe3aad6609f9af5227d8c9f214f583084b3`.
+
 ## Separate later boundaries
 
 Case evidence remains disabled. Enabling its UI/API feature flag, private R2
@@ -119,7 +143,5 @@ operations. Order, payment and shipping RLS remain the next separately audited
 sensitive-data group after the Case-family database boundary is fully
 accepted.
 
-After a guarded production FORCE migration, run the fresh pooled-runtime
-read-only FORCE postflight from the exact successful main release and retain
-sanitized mode-`0600` evidence before declaring the Case-family RLS group
-complete.
+The Case-family database RLS group is complete. The feature and provider work
+listed above remains intentionally separate.
