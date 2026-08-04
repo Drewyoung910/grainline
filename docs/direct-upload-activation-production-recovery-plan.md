@@ -57,6 +57,17 @@ ran and the workflow had no production credential. The helper now exports and
 unit-tests the same exact two-edge contract used by the fixture before the
 complete disposable recovery sequence is repeated.
 
+The corrected executable head
+`595098e9f19af737a2f70f5567a99c00a6d15c55` then passed the complete
+disposable PostgreSQL 16 recovery sequence in run `30863895210` / job
+`91851469212`: membership drift proof, exact old-failure reproduction,
+compatible rollback posture, disposable resolution boundary, corrected
+activation, dual-row ledger, grant convergence, activated authority and
+database-first rollback all passed. Full PR CI run `30863897027` / job
+`91851475050` passed at the same executable head, including TypeScript, lint,
+2,680 tests, security audit and the production build. These are branch-only
+proofs and do not authorize merge or production recovery.
+
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
 checksum, zero applied steps, no finish marker and no rollback marker. Both

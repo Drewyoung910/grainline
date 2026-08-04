@@ -1835,6 +1835,13 @@ uses an exported, unit-tested two-edge contract. The failed run had no
 production credential and changed no provider or production state; a complete
 exact-head rerun remains required.
 
+That complete rerun passed at executable commit
+`595098e9f19af737a2f70f5567a99c00a6d15c55`: disposable PostgreSQL 16 run
+`30863895210` / job `91851469212` completed every membership, failure,
+resolution, activation, grant, authority and rollback stage. Full PR CI run
+`30863897027` / job `91851475050` also passed, including the production build.
+No production credential or persistent provider was available to the proof.
+
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket
