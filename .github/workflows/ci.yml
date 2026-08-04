@@ -212,6 +212,10 @@ jobs:
         run: npm run audit:rls-order-seller-key-compatibility
         env:
           ORDER_SELLER_KEY_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove compatible Stripe webhook leases in rollback-only PostgreSQL
+        run: npm run audit:rls-stripe-webhook-lease-compatibility
+        env:
+          STRIPE_WEBHOOK_LEASE_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message legacy cleanup in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-legacy-cleanup
         env:
