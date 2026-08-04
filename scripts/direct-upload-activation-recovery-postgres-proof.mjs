@@ -1,14 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import {
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-} from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import {
@@ -21,12 +14,6 @@ import {
 import {
   readDirectUploadActivationDetailedFunctions,
 } from "./direct-upload-activation-production-recovery.mjs";
-import {
-  DIRECT_UPLOAD_ACTIVATION_ACCEPTED_COMMIT,
-  DIRECT_UPLOAD_ACTIVATION_RECOVERY_RUN_ID,
-  readDirectUploadActivationPostflightGitState,
-  runDirectUploadActivationPostflight,
-} from "./direct-upload-activation-production-postflight.mjs";
 import {
   readDirectUploadCleanupAuthority,
 } from "./direct-upload-cleanup-worker.mjs";
@@ -207,116 +194,6 @@ function assertTypeOnlyFunctionIdentities(rows, label) {
   );
 }
 
-function restrictedRoleUrl(databaseUrl, role) {
-  const parsed = new URL(databaseUrl);
-  parsed.username = role;
-  parsed.password = "ci";
-  return parsed.toString();
-}
-
-async function assertMigrationLedgerDenied(databaseUrl, expectedRole) {
-  const client = new Client({
-    connectionString: databaseUrl,
-    application_name:
-      `grainline-direct-upload-postflight-ledger-denial-${expectedRole}`,
-    connectionTimeoutMillis: 10_000,
-    statement_timeout: 30_000,
-    query_timeout: 35_000,
-  });
-  try {
-    await client.connect();
-    const identity = (await client.query(`
-      SELECT
-        current_user AS current_user,
-        session_user AS session_user,
-        pg_catalog.has_table_privilege(
-          current_user,
-          'public._prisma_migrations',
-          'SELECT'
-        ) AS can_select_migration_ledger
-    `)).rows[0];
-    assert.deepEqual(identity, {
-      can_select_migration_ledger: false,
-      current_user: expectedRole,
-      session_user: expectedRole,
-    });
-    let caught;
-    try {
-      await client.query(`SELECT 1 FROM public._prisma_migrations LIMIT 1`);
-    } catch (error) {
-      caught = error;
-    }
-    assert.equal(
-      caught?.code,
-      "42501",
-      `${expectedRole} migration-ledger read did not fail closed`,
-    );
-  } finally {
-    await client.end().catch(() => {});
-  }
-}
-
-async function proveRestrictedRoleActivationPostflights(databaseUrl) {
-  const releaseCommit = readDirectUploadActivationPostflightGitState().head;
-  const directory = mkdtempSync(
-    path.join(os.tmpdir(), "direct-upload-restricted-postflights-"),
-  );
-  const modes = [
-    {
-      mode: "runtime",
-      role: "grainline_app_runtime",
-      runId: null,
-    },
-    {
-      mode: "cleanup",
-      role: "grainline_direct_upload_cleanup_v2",
-      runId: "1",
-    },
-  ];
-  try {
-    const results = [];
-    for (const selected of modes) {
-      const roleDatabaseUrl = restrictedRoleUrl(databaseUrl, selected.role);
-      await assertMigrationLedgerDenied(roleDatabaseUrl, selected.role);
-      const evidencePath = path.join(
-        directory,
-        `direct-upload-activation-${selected.mode}-postflight-${releaseCommit}.json`,
-      );
-      const evidence = await runDirectUploadActivationPostflight({
-        activationCommit: DIRECT_UPLOAD_ACTIVATION_ACCEPTED_COMMIT,
-        databaseUrl: roleDatabaseUrl,
-        databaseUrlSha256: createHash("sha256")
-          .update(roleDatabaseUrl, "utf8")
-          .digest("hex"),
-        evidencePath,
-        mainCiRunId: 1,
-        mode: selected.mode,
-        recoveryRunId: DIRECT_UPLOAD_ACTIVATION_RECOVERY_RUN_ID,
-        releaseCommit,
-        runId: selected.runId,
-      });
-      assert.equal(evidence.status, "passed");
-      assert.equal(evidence.target.mode, selected.mode);
-      assert.equal(evidence.target.role, selected.role);
-      assert.equal(evidence.proof.postflightReadOnly, true);
-      assert.equal(evidence.productionChangedByPostflight, false);
-      assert.equal(statSync(evidencePath).mode & 0o777, 0o600);
-      assert.deepEqual(
-        JSON.parse(readFileSync(evidencePath, "utf8")),
-        evidence,
-      );
-      results.push(Object.freeze({
-        ledgerSelectDenied: true,
-        mode: selected.mode,
-        postflightReadOnly: evidence.proof.postflightReadOnly,
-      }));
-    }
-    return Object.freeze(results);
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
-}
-
 export async function proveDirectUploadActivationRecovery(config) {
   const client = new Client({
     connectionString: config.databaseUrl,
@@ -479,9 +356,6 @@ export async function proveDirectUploadActivationRecovery(config) {
     );
     await client.query("ROLLBACK");
     transactionOpen = false;
-    const restrictedRolePostflights = config.mode === "activated"
-      ? await proveRestrictedRoleActivationPostflights(config.databaseUrl)
-      : [];
     return Object.freeze({
       correctedChecksum: DIRECT_UPLOAD_ACTIVATION_RELEASE.sha256,
       failedChecksum: FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
@@ -492,7 +366,6 @@ export async function proveDirectUploadActivationRecovery(config) {
       namedArgumentFunctionCount,
       persistentEnvironmentChanged: false,
       productionChanged: false,
-      restrictedRolePostflights,
       signatureReaderFunctionCount: recoveryFunctions.length,
       status: "passed",
       transactionReadOnly: true,

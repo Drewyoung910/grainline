@@ -435,3 +435,14 @@ Disposable PostgreSQL must prove both restricted roles receive SQLSTATE
 `42501` on direct ledger reads while their exact read-only authority
 postflights pass and leave mode-0600 sanitized evidence. This correction does
 not authorize merge or either production postflight rerun.
+
+The first exact-head disposable proof of this correction, run `30879641020`,
+reached the restricted runtime session and failed because the disposable
+migration tree owns its functions as `ci`, while the unchanged production
+postflight correctly requires `neondb_owner`. Do not parameterize or weaken the
+production owner invariant. The corrected loopback-only harness temporarily
+mirrors the 35 exact function owners to `neondb_owner`, runs both production
+postflight implementations and the `42501` ledger-denial checks, then restores
+every function to `ci` before migration status, global grants and rollback
+proofs continue. A restoration failure fails the disposable run; no owner
+fixture is ever used against production.

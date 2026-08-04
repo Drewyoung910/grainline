@@ -16,6 +16,7 @@ on:
       - scripts/direct-upload-activation-catalog.mjs
       - scripts/direct-upload-activation-membership-preflight-postgres-proof.mjs
       - scripts/direct-upload-activation-postgres-proof.mjs
+      - scripts/direct-upload-activation-postflight-postgres-proof.mjs
       - scripts/direct-upload-activation-production-postflight.mjs
       - scripts/direct-upload-activation-production-recovery.mjs
       - scripts/direct-upload-activation-recovery-fixture.mjs
@@ -34,6 +35,7 @@ on:
       - scripts/stage-direct-upload-recovery-historical-alias-fixture.sql
       - scripts/verify-direct-upload-activation-release.mjs
       - tests/direct-upload-activation-candidate.test.mjs
+      - tests/direct-upload-activation-postflight-postgres-proof.test.mjs
       - tests/direct-upload-activation-postgres-proof.test.mjs
       - tests/direct-upload-activation-production-postflight.test.mjs
       - tests/direct-upload-activation-production-recovery.test.mjs
@@ -88,6 +90,7 @@ jobs:
         run: >-
           node --test
           tests/direct-upload-activation-candidate.test.mjs
+          tests/direct-upload-activation-postflight-postgres-proof.test.mjs
           tests/direct-upload-activation-postgres-proof.test.mjs
           tests/direct-upload-activation-production-postflight.test.mjs
           tests/direct-upload-activation-production-recovery.test.mjs
@@ -167,6 +170,10 @@ jobs:
         run: |
           psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
           psql "$DIRECT_UPLOAD_ACTIVATION_RECOVERY_OWNER_FIXTURE_URL" -v cleanup_role=grainline_direct_upload_cleanup_v2 -v runtime_role=grainline_app_runtime -v migration_role=neondb_owner -f scripts/provision-direct-upload-cleanup-role.sql
+      - name: Prove both restricted-role activation postflights without ledger access
+        run: npm run audit:rls-direct-upload-activation-postflight
+        env:
+          DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Verify recovered migration status
         run: npx prisma migrate status
       - name: Audit recovered runtime grants and RLS catalog
