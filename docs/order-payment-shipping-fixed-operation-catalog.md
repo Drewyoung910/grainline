@@ -153,6 +153,20 @@ finalizer transaction and preserve the existing Case authority functions.
     projections with fixed periods and caps; no arbitrary predicate or raw row
     set escapes.
 
+## Stripe prerequisite maintenance catalog
+
+34. `grainline_stripe_webhook_prune_batch(p_limit integer)` deletes only
+    processed rows older than the fixed retention interval in stable order,
+    with a hard cap. The caller cannot supply row IDs or a cutoff.
+35. `grainline_stripe_webhook_health_summary()` returns only fixed-window
+    aggregate counts for failed, released and stale leases; it cannot enumerate
+    event IDs, types or retained errors.
+36. `grainline_legacy_stock_restore_claim(p_session_id text)` derives the
+    canonical `checkout-stock-restore:` identity and fixed event type inside
+    the function, locks the checkout session mutation key and returns whether
+    this exact legacy restoration was first. The caller cannot mint an
+    arbitrary webhook identity or type.
+
 All page limits are clamped in the database. Hot buyer/seller pages use
 `(createdAt,id)` keyset cursors. Existing offset page numbers may remain only at
 the application compatibility layer until converted.

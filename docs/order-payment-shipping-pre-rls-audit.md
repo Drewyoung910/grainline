@@ -386,6 +386,16 @@ The first fixed-operation and projection catalog is saved in
 lease generations, participant/staff projection boundaries, provider
 claim/finalize families and release dependency order; it remains design-only.
 
+The prerequisite inventory also includes three ordinary-runtime accesses that
+must be converted before `StripeWebhookEvent` table privileges can be revoked:
+`src/lib/webhookEventRetention.ts` deletes processed rows,
+`src/app/api/cron/ops-health/route.ts` counts unhealthy rows, and
+`src/lib/checkoutStockRestore.ts` inserts the synthetic
+`checkout-stock-restore:<session>` dedup row. Their fixed destinations are
+catalog operations 34 through 36. Operator-only replay proof scripts remain
+outside ordinary runtime and need an explicitly reviewed operator/owner path,
+not a runtime table grant.
+
 ## Rollout sequence
 
 The aggregate-only inspector scaffold is now saved as

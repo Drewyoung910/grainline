@@ -171,6 +171,9 @@ describe("order/payment/shipping pre-RLS audit", () => {
     assert.match(audit, /Stripe webhook lease has an ABA finalizer race/);
     assert.match(audit, /database-derived monotonic claim generation/);
     assert.match(audit, /duplicate event ID with another type is an error/);
+    assert.match(audit, /`src\/lib\/webhookEventRetention\.ts` deletes processed rows/);
+    assert.match(audit, /`src\/app\/api\/cron\/ops-health\/route\.ts` counts unhealthy rows/);
+    assert.match(audit, /`src\/lib\/checkoutStockRestore\.ts` inserts the synthetic/);
   });
 
   it("classifies the first complete write-authority families", () => {

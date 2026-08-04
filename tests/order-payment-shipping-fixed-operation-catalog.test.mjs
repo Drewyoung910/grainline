@@ -14,13 +14,13 @@ test("Order fixed-operation catalog is design-only and policyless-targeted", () 
   assert.match(catalog, /PUBLIC` has no EXECUTE/);
 });
 
-test("catalog pins every numbered operation family from 1 through 33", () => {
+test("catalog pins every numbered operation family from 1 through 36", () => {
   const operationNumbers = [...catalog.matchAll(/^([0-9]+)\. `grainline_/gm)].map(
     (match) => Number(match[1]),
   );
   assert.deepEqual(
     operationNumbers,
-    Array.from({ length: 33 }, (_, index) => index + 1),
+    Array.from({ length: 36 }, (_, index) => index + 1),
   );
 });
 
@@ -72,4 +72,13 @@ test("catalog refuses generic CRUD escape hatches", () => {
   for (const marker of ["get_order", "update_order", "set_status", "cleanup_rows"])
     assert.match(catalog, new RegExp("`" + marker + "`"), marker);
   assert.match(catalog, /leave an unconverted ordinary\s+runtime base-table access behind/);
+});
+
+test("catalog covers Stripe lease maintenance and legacy stock dedup", () => {
+  assert.match(catalog, /grainline_stripe_webhook_prune_batch/);
+  assert.match(catalog, /caller cannot supply row IDs or a cutoff/);
+  assert.match(catalog, /grainline_stripe_webhook_health_summary/);
+  assert.match(catalog, /cannot enumerate\s+event IDs, types or retained errors/);
+  assert.match(catalog, /grainline_legacy_stock_restore_claim/);
+  assert.match(catalog, /canonical `checkout-stock-restore:` identity/);
 });
