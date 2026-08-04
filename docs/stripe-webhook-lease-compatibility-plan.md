@@ -60,6 +60,7 @@ The rollback-only loopback proof must establish:
 
 - first claim, duplicate-in-progress and processed replay results;
 - immutable event type;
+- bounded, nonblank event identity and type;
 - failed-lease retry and database-clock stale reclaim increment generation;
 - old-generation complete/fail cannot mutate a newer lease;
 - exact-generation completion is idempotent;
@@ -82,3 +83,9 @@ cannot be schema-qualified as a function. The same review found qualified
 Neither production nor persistent staging was inspected or changed. The fix
 uses bare special forms and makes the lease proof run the repository-wide
 special-form guard before invoking PostgreSQL.
+
+Corrected checkpoint `b1a6ceaa957e048b981e520297ec151b6f203596`
+passed the rollback-only lease lifecycle and every repository gate in exact-SHA
+CI run `30959248923`. The subsequent hard review tightened all three event-ID
+entry points against whitespace-only identities, also rejects a blank event
+type at begin, and makes the catalog proof require migration-owner ownership.

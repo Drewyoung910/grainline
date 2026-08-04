@@ -133,6 +133,7 @@ async function proveCatalog(client) {
             ('grainline_stripe_webhook_fail', 'text, bigint, text')
           )
           AND procedure.prosecdef
+          AND procedure.proowner = (CURRENT_USER::pg_catalog.regrole)::oid
           AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
           AND pg_catalog.has_function_privilege(
             'grainline_app_runtime', procedure.oid, 'EXECUTE'
@@ -157,6 +158,25 @@ async function proveCatalog(client) {
 }
 
 async function proveLeaseLifecycle(client) {
+  await expectRuntimePostgresError(
+    client,
+    "blank_identity",
+    () => client.query(
+      "SELECT * FROM public.grainline_stripe_webhook_begin($1, $2)",
+      ["   ", "checkout.session.completed"],
+    ),
+    /event id is invalid/,
+  );
+  await expectRuntimePostgresError(
+    client,
+    "blank_type",
+    () => client.query(
+      "SELECT * FROM public.grainline_stripe_webhook_begin($1, $2)",
+      ["evt_grainline_blank_type", "   "],
+    ),
+    /event type is invalid/,
+  );
+
   assert.deepEqual(await callBegin(client, ids.fresh, "checkout.session.completed"), {
     action: "process",
     claim_generation: "1",
@@ -316,7 +336,7 @@ export async function runStripeWebhookLeaseCompatibilityProof(env = process.env)
 
     return Object.freeze({
       database: DATABASE_NAME,
-      checks: 9,
+      checks: 10,
       rolledBack: true,
       productionTouched: false,
     });

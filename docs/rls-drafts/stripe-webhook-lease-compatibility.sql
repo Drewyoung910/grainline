@@ -31,13 +31,13 @@ DECLARE
   inserted_count integer;
 BEGIN
   IF p_event_id IS NULL
-     OR pg_catalog.char_length(p_event_id) = 0
+     OR pg_catalog.char_length(pg_catalog.btrim(p_event_id)) = 0
      OR pg_catalog.char_length(p_event_id) > 255 THEN
     RAISE EXCEPTION 'Stripe webhook event id is invalid'
       USING ERRCODE = 'check_violation';
   END IF;
   IF p_event_type IS NULL
-     OR pg_catalog.char_length(p_event_type) = 0
+     OR pg_catalog.char_length(pg_catalog.btrim(p_event_type)) = 0
      OR pg_catalog.char_length(p_event_type) > 100 THEN
     RAISE EXCEPTION 'Stripe webhook event type is invalid'
       USING ERRCODE = 'check_violation';
@@ -119,6 +119,12 @@ DECLARE
   source_event public."StripeWebhookEvent"%ROWTYPE;
   source_now timestamp(3) without time zone := pg_catalog.clock_timestamp();
 BEGIN
+  IF p_event_id IS NULL
+     OR pg_catalog.char_length(pg_catalog.btrim(p_event_id)) = 0
+     OR pg_catalog.char_length(p_event_id) > 255 THEN
+    RAISE EXCEPTION 'Stripe webhook event id is invalid'
+      USING ERRCODE = 'check_violation';
+  END IF;
   IF p_claim_generation IS NULL OR p_claim_generation < 1 THEN
     RAISE EXCEPTION 'Stripe webhook claim generation is invalid'
       USING ERRCODE = 'check_violation';
@@ -168,6 +174,12 @@ DECLARE
   source_event public."StripeWebhookEvent"%ROWTYPE;
   source_now timestamp(3) without time zone := pg_catalog.clock_timestamp();
 BEGIN
+  IF p_event_id IS NULL
+     OR pg_catalog.char_length(pg_catalog.btrim(p_event_id)) = 0
+     OR pg_catalog.char_length(p_event_id) > 255 THEN
+    RAISE EXCEPTION 'Stripe webhook event id is invalid'
+      USING ERRCODE = 'check_violation';
+  END IF;
   IF p_claim_generation IS NULL OR p_claim_generation < 1 THEN
     RAISE EXCEPTION 'Stripe webhook claim generation is invalid'
       USING ERRCODE = 'check_violation';

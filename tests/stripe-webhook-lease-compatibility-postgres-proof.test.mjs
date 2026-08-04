@@ -59,6 +59,10 @@ test("begin derives database time, locks duplicates and freezes event type", () 
   assert.match(draft, /clock_timestamp\(\)/);
   assert.match(draft, /FOR UPDATE/);
   assert.match(draft, /event type is immutable/);
+  assert.ok(
+    (draft.match(/char_length\(pg_catalog\.btrim\(p_event_id\)\) = 0/g) ?? []).length === 3,
+  );
+  assert.match(draft, /char_length\(pg_catalog\.btrim\(p_event_type\)\) = 0/);
   assert.match(draft, /"claimGeneration" = event\."claimGeneration" \+ 1/);
   assert.doesNotMatch(draft, /EXECUTE\s+[^;]*format\s*\(/i);
   assert.doesNotMatch(draft, /pg_catalog\.(?:coalesce|nullif|greatest|least)/i);
@@ -93,6 +97,7 @@ test("only the three reviewed function signatures are granted", () => {
   assert.ok((draft.match(/SET search_path = pg_catalog/g) ?? []).length === 3);
   assert.match(proof, /pg_catalog\.aclexplode/);
   assert.match(proof, /acl\.grantee = 0/);
+  assert.match(proof, /procedure\.proowner = \(CURRENT_USER::pg_catalog\.regrole\)::oid/);
 });
 
 test("engine proof covers ABA rejection and exact rollback", () => {
@@ -100,6 +105,9 @@ test("engine proof covers ABA rejection and exact rollback", () => {
   assert.match(proof, /callFail\(client, ids\.fresh, "1"[\s\S]*"superseded"/);
   assert.match(proof, /claim_generation: "8"/);
   assert.match(proof, /error_length: 500/);
+  assert.match(proof, /"blank_identity"/);
+  assert.match(proof, /"blank_type"/);
+  assert.match(proof, /checks: 10/);
   assert.match(proof, /rolledBack: true/);
   assert.match(proof, /productionTouched: false/);
 });
