@@ -430,6 +430,13 @@ production build all passed. This closes SQL syntax/shape/read-only readiness;
 it does not inspect production or establish that production legacy data is
 clean.
 
+The later hard-readiness review rechecked the manual-main SHA and confirmation
+binding, protected owner endpoint/digest, clean checkout, 50-second statement
+timeout, aggregate-only evidence shape, mode-0600 fresh-file write and exact
+transaction sequence. Tests now pin exactly 54 fields and require posture plus
+count reads to occur after engine-attested `READ ONLY` begins and before
+rollback. The workflow remains prepared but undispatched.
+
 1. Finish the semantic direct/nested access inventory and actor projections.
 2. Build and test an aggregate-only legacy inspector; inspect production under
    the protected read-only gate and decide cleanup separately from its result.

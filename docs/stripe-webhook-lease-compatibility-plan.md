@@ -89,3 +89,6 @@ passed the rollback-only lease lifecycle and every repository gate in exact-SHA
 CI run `30959248923`. The subsequent hard review tightened all three event-ID
 entry points against whitespace-only identities, also rejects a blank event
 type at begin, and makes the catalog proof require migration-owner ownership.
+Final checkpoint `d2601ba7f842dca7c544df809751737b62bf5c68`
+passed the resulting 10-check rollback-only proof and every repository gate in
+CI `30959675486`. No production or persistent staging database was contacted.

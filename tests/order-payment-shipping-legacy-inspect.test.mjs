@@ -126,6 +126,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
   });
 
   it("normalizes only the exact nonnegative aggregate shape", () => {
+    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 54);
     const normalized = normalizeOrderPaymentShippingLegacyCounts(countRow("2"));
     assert.equal(
       Object.keys(normalized).length,
@@ -220,6 +221,13 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(source, /transaction_read_only/);
     assert.match(source, /ROLLBACK/);
     assert.match(source, /rawRows: false/);
+    const begin = source.indexOf(
+      'client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")',
+    );
+    const posture = source.indexOf("readPosture(client)", begin);
+    const counts = source.indexOf("readCounts(client)", posture);
+    const rollback = source.indexOf('client.query("ROLLBACK")', counts);
+    assert.ok(begin >= 0 && begin < posture && posture < counts && counts < rollback);
   });
 
   it("wires only a protected aggregate-only production inspection", () => {
