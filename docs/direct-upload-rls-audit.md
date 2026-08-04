@@ -1842,6 +1842,19 @@ resolution, activation, grant, authority and rollback stage. Full PR CI run
 `30863897027` / job `91851475050` also passed, including the production build.
 No production credential or persistent provider was available to the proof.
 
+The subsequent Extra-High review found no defect in the exact two-edge SQL
+allowlist or root-labelled recursive rejection. It did find a proof-coverage
+asymmetry: the live harness had exercised unexpected direct/parent membership
+and bootstrap option drift primarily through the runtime role. Commit
+`99eab93713a7bfcbbea450c97e5e0b1192f4e3c9` makes those cases symmetric across
+both restricted roles and expands the rolled-back membership matrix from
+seven to 14 checks. Disposable PostgreSQL 16 run `30865221934` / job
+`91855473752` passed the expanded matrix and the complete recovery sequence;
+full CI run `30865224129` / job `91855481718` passed all database proofs,
+TypeScript, lint, 2,680 tests, security audit and the production build at the
+same exact head. The draft branch remains non-production: no migration ledger,
+database, deployment or provider state changed.
+
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket

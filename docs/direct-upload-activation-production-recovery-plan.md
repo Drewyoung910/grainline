@@ -68,6 +68,21 @@ database-first rollback all passed. Full PR CI run `30863897027` / job
 2,680 tests, security audit and the production build. These are branch-only
 proofs and do not authorize merge or production recovery.
 
+Extra-High review found no SQL-policy defect, but it found that the executable
+membership proof exercised direct-member, parent-membership and option-drift
+rejection asymmetrically. Commit
+`99eab93713a7bfcbbea450c97e5e0b1192f4e3c9` expands that proof from seven to
+14 checks: both restricted roles now reject unexpected direct members and
+parent roles, and each role independently rejects drift in `ADMIN`, `INHERIT`
+and `SET` while every negative scenario rolls back and leaves zero role
+residue. Exact-head disposable PostgreSQL 16 run `30865221934` / job
+`91855473752` passed the full failure, resolution, activation, grant,
+authority and rollback sequence. Exact-head CI run `30865224129` / job
+`91855481718` passed all database proofs, TypeScript, lint, 2,680 tests,
+security audit and the production build. This is stronger branch-only review
+evidence; it still does not authorize merge, ledger resolution, production
+recovery, deployment or any provider change.
+
 The failed production activation remains unchanged. Production migration run
 `30729632410` created one unfinished Prisma ledger row with the original
 checksum, zero applied steps, no finish marker and no rollback marker. Both
