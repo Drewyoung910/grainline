@@ -112,20 +112,24 @@ test("production workflow gates exact Case release before Prisma deploy", () => 
   assert.doesNotMatch(production, /vercel|CASE_EVIDENCE_ATTACHMENTS_ENABLED/i);
 });
 
-test("release records exact accepted predecessors and an unchanged production boundary", () => {
+test("release records exact predecessors and accepted production activation", () => {
   for (const value of [
     "30413133843",
     "30877508811",
     "30881395864",
     "30924905247",
+    "a9abaec057ab80a455a81503080bcd3b9027c4be",
+    "30937766824",
+    "30939836526",
+    "92095126727",
+    "117590a50316ff0efb783c490e95aa31014221a4b93e4372f5f6995c5a15ee15",
   ]) {
     assert.match(release, new RegExp(value));
   }
-  assert.match(
-    release,
-    /does not claim that the migration is merged or\s+live/,
-  );
-  assert.match(release, /Production remains\s+unchanged/);
+  assert.match(release, /applied only `20260804160000_enable_case_rls`/);
+  assert.match(release, /postflight rolled back and changed no production state/);
+  assert.match(release, /Case evidence remains disabled/);
+  assert.match(release, /FORCE[\s\S]*remain separate release\s+boundaries/);
 });
 
 test("production acceptance is prepared as a separate read-only runtime proof", () => {
@@ -149,4 +153,5 @@ test("production acceptance is prepared as a separate read-only runtime proof", 
     release,
     /must run only after the\s+guarded production migration succeeds/,
   );
+  assert.match(release, /real pooled `grainline_app_runtime` postflight then passed/);
 });

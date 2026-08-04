@@ -7,9 +7,9 @@ Last updated: 2026-08-04
 This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Snapshot scope: 64 Prisma models.
 
-`SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`, and
-`DirectUploadReference` are the six tables in this snapshot with production
-RLS. Every other row is **not active
+`SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`,
+`DirectUploadReference`, `Case`, `CaseMessage`, and `CaseMessageAttachment` are
+the nine tables in this snapshot with production RLS. Every other row is **not active
 RLS** and remains work to design, prove, and promote.
 The target column is a planning disposition, not a claim that the control is
 implemented. Re-read the production catalog before making any current-state
@@ -70,13 +70,13 @@ completed alternative.
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
-| `Case` | `BLOCKED_DESIGN` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Phase 4 preparation, compatible app, invariants and read-mode are live with RLS still off. The zero-direct-access 27-operation authority is complete, DirectUpload acceptance passed, and the byte-pinned policyless ENABLE package is prepared for separate exact-head CI/review/production execution. FORCE remains later |
+| `Case` | `RLS_LIVE_PHASE_A` | Case and case message | Dispute narrative, status and refund identifiers; buyer, seller, staff, cron and Stripe | Policyless ENABLE, zero policies, zero direct runtime table/column authority and the 27-operation fixed authority are live and pooled-runtime accepted in migration run `30939836526`. FORCE remains a separate posture-only release |
 | `CaseResolutionClaim` | `PLANNED_RLS` | Case resolution service ledger | Private staff/provider handshake, refund intent, local payment evidence and reconciliation state; no ordinary participant table access | Candidate preparation creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only reviewed source-validating fixed operations can prepare, record, reconcile and finalize claims |
 | `CaseStripeDisputeApplication` | `PLANNED_RLS` | Case Stripe-dispute service ledger | Immutable exact payment-event-to-Case replay authority; no ordinary participant table access | Candidate creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only `grainline_case_stripe_dispute_apply` can create or read exact replay evidence |
 | `CaseSellerRefundApplication` | `PLANNED_RLS` | Case seller-refund service ledger | Immutable exact local-refund-event-to-Case replay authority; no ordinary participant table access | Candidate creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only `grainline_case_seller_refund_apply` can create or read exact replay evidence |
 | `CaseOpenApplication` | `PLANNED_RLS` | Case buyer-open service ledger | Immutable exact Order-to-Case opening replay authority; no ordinary participant table access | Candidate creates it ENABLE plus FORCE with zero policies and zero runtime/PUBLIC table grants; prove only `grainline_case_open` can create or validate exact replay evidence |
-| `CaseMessage` | `BLOCKED_DESIGN` | Case and case message | Private dispute discussion; buyer, seller and staff | Durable author kind, parent authority, bounded history, locked transitions, compatible app, invariants and read-mode are live. Policyless ENABLE is packaged with rollback-only and promoted-state PostgreSQL proofs; production RLS remains off pending the separate gate |
-| `CaseMessageAttachment` | `BLOCKED_DESIGN` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | DirectUpload FORCE acceptance is complete and the Case-family policyless ENABLE package includes this table. Case evidence stays disabled; signed-read feature promotion, cleanup scheduling and FORCE remain separate after activation acceptance |
+| `CaseMessage` | `RLS_LIVE_PHASE_A` | Case and case message | Private dispute discussion; buyer, seller and staff | Policyless ENABLE and zero direct runtime table/column authority are live with parent-bound fixed reads/writes, invariant triggers and pooled-runtime denial proof. FORCE remains separate |
+| `CaseMessageAttachment` | `RLS_LIVE_PHASE_A` | Case and case message | Private dispute image evidence; inherits exact parent Case visibility | Policyless ENABLE and zero direct runtime table/column authority are live and accepted with the Case family. Case evidence stays disabled; signed-read feature promotion, cleanup scheduling and FORCE remain separate |
 | `SavedSearch` | `RLS_LIVE_PHASE_B` | Bucket A SavedSearch | Direct user-owned search criteria; owner and bounded canary | Phase B FORCE is live; retain exact policies, grants, canary, rollback, and maintenance proof |
 | `StockNotification` | `PLANNED_RLS` | Stock notification | Direct user subscription with listing-wide notification fanout and cleanup | Owner reads and writes plus explicit service fanout and listing cleanup path; do not fold silently into Bucket B |
 | `MakerVerification` | `BLOCKED_DESIGN` | Verification | Seller application evidence and staff review notes; applicant, employee and admin | Applicant projection, staff review path, decision writes and notification side effects |
