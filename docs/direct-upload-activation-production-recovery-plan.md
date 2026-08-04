@@ -1,8 +1,12 @@
 # DirectUpload activation production recovery
 
-Status: corrected-migration PR #139 and recovery PR #140 are merged. The first
-production recovery run stopped in its initial read-only migration-tree guard;
-no recovery mutation ran and DirectUpload RLS remains off.
+Status: the corrected activation migration committed during recovery run
+`30871995372`, but that run stopped before external grant convergence and final
+proofs. Restart run `30873322551` then stopped in its initial read-only activated
+catalog inspection because two production readers compared named PostgreSQL
+arguments with the reviewed type-only signature catalog. That second run made
+no production change. Activation acceptance, grant convergence and final
+postflights remain open.
 
 Read-only inspection run `30862128758` at exact main commit
 `1cfc9c75f87c90fa82e989c4897a21fd9aa99d68` closed the historical-alias
@@ -341,6 +345,41 @@ that setting on every protected owner-URL `psql` step. Do not declare the
 activation accepted until a restart classifies the exact activated ledger,
 converges grants, passes migration status and the global grant audit, and writes
 the activated owner proof.
+
+## Second authorized restart attempt
+
+PR #148 exact head `e8f3f8c4d420fcaaec0f72b985da8bfaf34bdfdc`
+merged as exact main `4fd7f60108237cabaaa9c88d360d7dd87e5a66cc`.
+Exact-main CI run `30872943444` passed every migration, PostgreSQL, grant,
+TypeScript, lint, test, audit and build gate. Authorized recovery run
+`30873322551` / job `91879565759` verified the exact failed-run, disposable-proof
+and main-CI bindings, then stopped in `--inspect` before every mutation-capable
+step. It did not run Prisma generation, resolve or deploy a migration, connect
+through `psql`, converge grants, deploy the app, enable Case evidence, schedule
+cleanup, revoke tokens or change provider variables. The evidence writer was
+not reached, so the artifact uploader correctly reported no file rather than
+publishing partial evidence.
+
+The read-only failure reported identity-argument drift for exactly 28 of the 35
+reviewed functions. Those are exactly the 28 functions with input arguments;
+the seven no-argument functions passed. The reviewed activation catalog and
+disposable activation/rollback proofs deliberately use type-only identities
+from `pg_catalog.oidvectortypes(procedure.proargtypes)`, for example `text,
+text`. The production recovery reader and the shared cleanup/postflight reader
+instead used `pg_catalog.pg_get_function_identity_arguments(procedure.oid)`,
+which includes declared parameter names such as `p_user_id text, p_key text`.
+This is a verifier representation defect, not evidence that the live function
+types, source, owner, execution mode or ACL drifted.
+
+The isolated correction changes only those two comparison readers to the
+reviewed type-only representation. Human-readable unexpected-privilege
+diagnostics may retain `pg_get_function_identity_arguments`; they do not compare
+against the type-only catalog. The disposable PostgreSQL 16 recovery sequence
+must call both exact production readers against the real named-parameter
+functions and prove all 35 normalized signatures in failed, resolved and
+activated modes. Static contracts must reject reintroducing the named-argument
+reader at either comparison boundary. This correction does not authorize a
+merge or recovery retry.
 
 The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those

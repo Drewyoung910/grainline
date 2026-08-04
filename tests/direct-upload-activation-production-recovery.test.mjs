@@ -503,6 +503,14 @@ describe("DirectUpload activation production recovery", () => {
       "docs/direct-upload-activation-production-recovery-plan.md",
       "utf8",
     );
+    const cleanupWorker = fs.readFileSync(
+      "scripts/direct-upload-cleanup-worker.mjs",
+      "utf8",
+    );
+    const disposableProof = fs.readFileSync(
+      "scripts/direct-upload-activation-recovery-postgres-proof.mjs",
+      "utf8",
+    );
     assert.match(
       script,
       /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/u,
@@ -513,6 +521,26 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.doesNotMatch(script, /GROUP BY migration_name, checksum/u);
     assert.match(script, /productionChangedByProof: false/u);
+    assert.match(
+      script,
+      /oidvectortypes\(procedure\.proargtypes\)[\s\S]*AS identity_arguments/u,
+    );
+    assert.doesNotMatch(
+      script,
+      /pg_get_function_identity_arguments\(procedure\.oid\)[\s\S]{0,80}AS identity_arguments/u,
+    );
+    assert.match(
+      cleanupWorker,
+      /oidvectortypes\(procedure\.proargtypes\)[\s\S]*AS identity_arguments/u,
+    );
+    assert.doesNotMatch(
+      cleanupWorker,
+      /pg_get_function_identity_arguments\(procedure\.oid\)[\s\S]{0,80}AS identity_arguments/u,
+    );
+    assert.match(
+      disposableProof,
+      /readDirectUploadActivationDetailedFunctions[\s\S]*readDirectUploadCleanupAuthority[\s\S]*pg_get_function_identity_arguments\(procedure\.oid\)[\s\S]*IS DISTINCT FROM[\s\S]*oidvectortypes\(procedure\.proargtypes\)/u,
+    );
     assert.doesNotMatch(
       script,
       /client\.query\(`?(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP|GRANT|REVOKE)/u,
@@ -523,7 +551,7 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.match(
       plan,
-      /Status: corrected-migration PR #139 and recovery PR #140 are merged[\s\S]*initial read-only migration-tree guard/u,
+      /Status:[\s\S]*30871995372[\s\S]*30873322551[\s\S]*no production change/u,
     );
     assert.match(
       plan,
@@ -532,6 +560,10 @@ describe("DirectUpload activation production recovery", () => {
     assert.match(
       plan,
       /30729632410[\s\S]*30865542314[\s\S]*exact successful main CI run/u,
+    );
+    assert.match(
+      plan,
+      /30873322551[\s\S]*28 of the 35[\s\S]*oidvectortypes\(procedure\.proargtypes\)[\s\S]*does not authorize a[\s\S]*recovery retry/u,
     );
     assert.match(
       plan,

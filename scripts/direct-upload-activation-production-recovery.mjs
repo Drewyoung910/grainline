@@ -572,11 +572,11 @@ async function readProductionBaseState(client, incompleteMigrationCount) {
   };
 }
 
-async function readDetailedFunctions(client) {
+export async function readDirectUploadActivationDetailedFunctions(client) {
   return (await client.query(`
     SELECT
       procedure.proname AS function_name,
-      pg_catalog.pg_get_function_identity_arguments(procedure.oid)
+      pg_catalog.oidvectortypes(procedure.proargtypes)
         AS identity_arguments,
       pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
       procedure.prosrc AS function_source,
@@ -852,7 +852,7 @@ export async function runDirectUploadActivationProductionRecoveryProof(config) {
     if (state === "activated") {
       authorityIssues = collectDirectUploadActivatedRecoveryIssues(
         snapshot,
-        await readDetailedFunctions(client),
+        await readDirectUploadActivationDetailedFunctions(client),
       );
     } else {
       authorityIssues = collectDirectUploadCleanupRoleProvisionIssues(snapshot)
