@@ -34,6 +34,11 @@ export const SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES = ["SELECT", "INSERT", "DELET
 export const NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
 export const NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES = ["read:UPDATE"];
 export const CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES = ["SELECT"];
+export const CASE_ACTIVATION_TABLES = Object.freeze([
+  "Case",
+  "CaseMessage",
+  "CaseMessageAttachment",
+]);
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -192,10 +197,22 @@ const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);
 const POLICYLESS_SERVICE_RLS_TABLE_NAME_SET = new Set(
   POLICYLESS_SERVICE_RLS_TABLES,
 );
+const CASE_ACTIVATION_TABLE_NAME_SET = new Set(CASE_ACTIVATION_TABLES);
 
 export function directUploadRlsActivationExpected(inventory) {
   return (inventory?.rlsForceTables ?? []).includes("DirectUpload")
     && !(inventory?.rlsPolicyTables ?? []).includes("DirectUpload");
+}
+
+export function caseRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const forced = new Set(inventory?.rlsForceTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return CASE_ACTIVATION_TABLES.every(
+    (tableName) => enabled.has(tableName)
+      && !forced.has(tableName)
+      && !policies.has(tableName),
+  );
 }
 
 export function runtimePrivateFunctionNames(inventory) {
@@ -211,9 +228,11 @@ export function runtimePrivateFunctionNames(inventory) {
 }
 
 export function policylessServiceRlsTableNames(inventory) {
-  return directUploadRlsActivationExpected(inventory)
-    ? [...POLICYLESS_SERVICE_RLS_TABLES, "DirectUpload"]
-    : [...POLICYLESS_SERVICE_RLS_TABLES];
+  return [
+    ...POLICYLESS_SERVICE_RLS_TABLES,
+    ...(directUploadRlsActivationExpected(inventory) ? ["DirectUpload"] : []),
+    ...(caseRlsActivationExpected(inventory) ? CASE_ACTIVATION_TABLES : []),
+  ];
 }
 
 function sortedUnique(values) {
@@ -948,6 +967,14 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     if (match[3]) rlsForceTables.delete(tableName);
     else rlsForceTables.add(tableName);
   }
+  const rlsEnableTables = new Set();
+  for (const match of migrationSql.matchAll(
+    /\bALTER\s+TABLE\s+(?:public\.)?(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))\s+(ENABLE|DISABLE)\s+ROW\s+LEVEL\s+SECURITY\b/gi,
+  )) {
+    const tableName = match[1] ?? match[2];
+    if (match[3].toUpperCase() === "ENABLE") rlsEnableTables.add(tableName);
+    else rlsEnableTables.delete(tableName);
+  }
 
   return {
     tables,
@@ -960,6 +987,7 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
     publicRevokes,
     publicDefaultPrivilegeRevokes,
     rlsPolicyTables,
+    rlsEnableTables: sortedUnique([...rlsEnableTables]),
     rlsForceTables: sortedUnique([...rlsForceTables]),
   };
 }
@@ -998,6 +1026,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
   if (
     RUNTIME_PRIVATE_TABLE_NAME_SET.has(tableName)
     || (
+      CASE_ACTIVATION_TABLE_NAME_SET.has(tableName)
+      && caseRlsActivationExpected(inventory)
+    )
+    || (
       tableName === "DirectUpload"
       && directUploadRlsActivationExpected(inventory)
     )
@@ -1034,9 +1066,12 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
   for (const tableName of policylessServiceRlsTableNames(inventory)) {
     if (!(inventory?.tables ?? []).includes(tableName)) continue;
     const row = rowByTable.get(tableName);
+    const forceExpected = !CASE_ACTIVATION_TABLE_NAME_SET.has(tableName);
     if (!row) {
       issues.push(
-        `service-only table ${tableName} must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies`,
+        forceExpected
+          ? `service-only table ${tableName} must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies`
+          : `service-only table ${tableName} must have ENABLE ROW LEVEL SECURITY, NO FORCE and zero policies`,
       );
       continue;
     }
@@ -1045,9 +1080,11 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
         `service-only table ${tableName} must have ROW LEVEL SECURITY enabled`,
       );
     }
-    if (!row.rls_forced) {
+    if (Boolean(row.rls_forced) !== forceExpected) {
       issues.push(
-        `service-only table ${tableName} must have FORCE ROW LEVEL SECURITY enabled`,
+        forceExpected
+          ? `service-only table ${tableName} must have FORCE ROW LEVEL SECURITY enabled`
+          : `service-only table ${tableName} must keep FORCE ROW LEVEL SECURITY disabled for this release`,
       );
     }
     if (Number(row.policy_count) !== 0) {
@@ -1629,6 +1666,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
     }
     const policylessServiceTable =
       POLICYLESS_SERVICE_RLS_TABLE_NAME_SET.has(row.table_name)
+      || (
+        CASE_ACTIVATION_TABLE_NAME_SET.has(row.table_name)
+        && caseRlsActivationExpected(inventory)
+      )
       || (
         row.table_name === "DirectUpload"
         && directUploadRlsActivationExpected(inventory)

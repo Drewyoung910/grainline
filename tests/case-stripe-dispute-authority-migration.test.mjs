@@ -22,7 +22,7 @@ test("Case Stripe dispute authority is a compatible private-ledger release", () 
   assert.doesNotMatch(normalizedSql, /DROP (?:TABLE|COLUMN|FUNCTION)/);
 });
 
-test("Case Stripe dispute production packaging stops at the compatible boundary", () => {
+test("Case Stripe dispute packaging remains compatible through policyless Case activation", () => {
   const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const productionWorkflow = fs.readFileSync(
     ".github/workflows/production-migrations.yml",
@@ -30,15 +30,15 @@ test("Case Stripe dispute production packaging stops at the compatible boundary"
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed/,
   );
   assert.doesNotMatch(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-(?:enable|activation|force)[-a-z]*/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force[-a-z]*/,
   );
 });
 

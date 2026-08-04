@@ -77,7 +77,7 @@ test("compatible migrations do not activate or revoke direct Case-family access"
   }
 });
 
-test("read mode and DirectUpload activation are promoted while Case activation remains draft", () => {
+test("compatible history remains intact while Case activation is promoted separately", () => {
   for (const draft of [
     "case-case-message-read-mode.sql",
     "case-case-message-activation.sql",
@@ -90,16 +90,14 @@ test("read mode and DirectUpload activation are promoted while Case activation r
 
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*direct-upload-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*case-activation-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /Verify exact DirectUpload activation migration tree/,
+    /Verify exact Case activation migration tree/,
   );
-  assert.doesNotMatch(
-    productionWorkflow,
-    /case-(?:activation|force)-reviewed/,
-  );
+  assert.match(productionWorkflow, /audit:rls-case-activation-release/);
+  assert.doesNotMatch(productionWorkflow, /case-force-reviewed/);
   assert.match(
     packageDoc,
     /4728f673fdf0a11d38aaac384f3d9afe2cf86117/,

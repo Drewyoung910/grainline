@@ -82,10 +82,12 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify DirectUpload activation migration tree
+      - name: Verify Case activation migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: direct-upload-activation-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-activation-reviewed
         run: npm run verify:rls-release-artifact
+      - name: Verify Case activation proof equivalence
+        run: npm run audit:rls-case-activation-release
       - name: Verify Case read-mode release bytes
         run: npm run audit:rls-case-read-mode-candidate
       - name: Verify Conversation and Message authority proof equivalence
@@ -110,6 +112,11 @@ jobs:
             echo "runtime-role provisioning unexpectedly accepted the migration owner as runtime"
             exit 1
           fi
+      - name: Isolate the exact Case activation until authority proofs pass
+        run: >-
+          mv
+          prisma/migrations/20260804160000_enable_case_rls
+          "$RUNNER_TEMP/case-activation-release"
       - name: Isolate the exact DirectUpload activation until external grants converge
         run: >-
           mv
@@ -196,14 +203,27 @@ jobs:
         run: npm run audit:rls-conversation-message-legacy-cleanup
         env:
           CONVERSATION_MESSAGE_LEGACY_CLEANUP_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Verify migration status
-        run: npx prisma migrate status
-      - name: Audit final runtime grants and RLS catalog
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove compatible Case production postflight under the runtime role
         run: npm run audit:rls-case-compatible-db-postflight
         env:
           CASE_COMPATIBLE_DB_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore the exact Case activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-activation-release"
+          prisma/migrations/20260804160000_enable_case_rls
+      - name: Apply the exact Case activation release
+        run: npx prisma migrate deploy
+      - name: Converge activated Case runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Audit final runtime grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove promoted Case activation under the runtime role
+        run: npm run audit:rls-case-activation-postgres
+        env:
+          CASE_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

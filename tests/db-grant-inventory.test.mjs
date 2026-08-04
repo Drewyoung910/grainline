@@ -26,6 +26,7 @@ const {
   REQUIRED_TABLE_PRIVILEGES,
   REQUIRED_TYPE_PRIVILEGES,
   CONVERSATION_MESSAGE_ACTIVATION_TABLE_PRIVILEGES,
+  CASE_ACTIVATION_TABLES,
   NOTIFICATION_ACTIVATION_COLUMN_PRIVILEGES,
   NOTIFICATION_ACTIVATION_TABLE_PRIVILEGES,
   NOTIFICATION_RECIPIENT_RPC_FUNCTIONS,
@@ -44,6 +45,7 @@ const {
   collectNotificationPolicyIssues,
   collectPolicylessServiceRlsIssues,
   collectTablePrivilegeAllowlistIssues,
+  caseRlsActivationExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -395,6 +397,11 @@ describe("database grant inventory guardrails", () => {
       rlsForceTables: ["DirectUpload", "DirectUploadReference"],
       rlsPolicyTables: [],
     };
+    const caseActivationInventory = {
+      rlsEnableTables: ["Case", "CaseMessage", "CaseMessageAttachment"],
+      rlsForceTables: ["DirectUpload", "DirectUploadReference"],
+      rlsPolicyTables: [],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -429,6 +436,23 @@ describe("database grant inventory guardrails", () => {
       directUploadRlsActivationExpected(directUploadActivationInventory),
       true,
     );
+    assert.deepEqual(CASE_ACTIVATION_TABLES, [
+      "Case",
+      "CaseMessage",
+      "CaseMessageAttachment",
+    ]);
+    assert.equal(caseRlsActivationExpected(caseActivationInventory), true);
+    assert.equal(
+      caseRlsActivationExpected({
+        ...caseActivationInventory,
+        rlsForceTables: [
+          "Case",
+          "DirectUpload",
+          "DirectUploadReference",
+        ],
+      }),
+      false,
+    );
     assert.deepEqual(
       policylessServiceRlsTableNames(directUploadActivationInventory),
       [
@@ -438,6 +462,20 @@ describe("database grant inventory guardrails", () => {
         "CaseOpenApplication",
         "DirectUploadReference",
         "DirectUpload",
+      ],
+    );
+    assert.deepEqual(
+      policylessServiceRlsTableNames(caseActivationInventory),
+      [
+        "CaseResolutionClaim",
+        "CaseStripeDisputeApplication",
+        "CaseSellerRefundApplication",
+        "CaseOpenApplication",
+        "DirectUploadReference",
+        "DirectUpload",
+        "Case",
+        "CaseMessage",
+        "CaseMessageAttachment",
       ],
     );
     const activatedPrivateFunctions = runtimePrivateFunctionNames(
@@ -484,6 +522,16 @@ describe("database grant inventory guardrails", () => {
       ),
       REQUIRED_TABLE_PRIVILEGES,
     );
+    for (const tableName of CASE_ACTIVATION_TABLES) {
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(tableName, caseActivationInventory),
+        [],
+      );
+      assert.deepEqual(
+        requiredRuntimeTablePrivileges(tableName, directUploadActivationInventory),
+        REQUIRED_TABLE_PRIVILEGES,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges("Notification", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -671,6 +719,73 @@ describe("database grant inventory guardrails", () => {
       collectPolicylessServiceRlsIssues(exact, activatedInventory),
       [
         "service-only table DirectUpload must have ENABLE and FORCE ROW LEVEL SECURITY with zero policies",
+      ],
+    );
+    const caseActivatedInventory = {
+      ...activatedInventory,
+      tables: [...inventory.tables, ...CASE_ACTIVATION_TABLES],
+      rlsEnableTables: [...CASE_ACTIVATION_TABLES],
+    };
+    const caseRows = CASE_ACTIVATION_TABLES.map((tableName) => ({
+      table_name: tableName,
+      rls_enabled: true,
+      rls_forced: false,
+      policy_count: 0,
+    }));
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: "DirectUpload",
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          ...caseRows,
+        ],
+        caseActivatedInventory,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: "DirectUpload",
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          ...caseRows.slice(1),
+        ],
+        caseActivatedInventory,
+      ),
+      [
+        "service-only table Case must have ENABLE ROW LEVEL SECURITY, NO FORCE and zero policies",
+      ],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: "DirectUpload",
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          {
+            ...caseRows[0],
+            rls_forced: true,
+          },
+          ...caseRows.slice(1),
+        ],
+        caseActivatedInventory,
+      ),
+      [
+        "service-only table Case must keep FORCE ROW LEVEL SECURITY disabled for this release",
       ],
     );
   });
@@ -958,7 +1073,9 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      147 + (conversationMessageAuthorityPrepared ? 25 : 0),
+      147
+        + (conversationMessageAuthorityPrepared ? 25 : 0)
+        + (caseRlsActivationExpected(inventory) ? 3 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -1038,6 +1155,24 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(
       inventory.rlsPolicyTables,
       ["Conversation", "Message", "Notification", "SavedSearch"],
+    );
+    assert.deepEqual(
+      inventory.rlsEnableTables,
+      [
+        "Case",
+        "CaseMessage",
+        "CaseMessageAttachment",
+        "CaseOpenApplication",
+        "CaseResolutionClaim",
+        "CaseSellerRefundApplication",
+        "CaseStripeDisputeApplication",
+        "Conversation",
+        "DirectUpload",
+        "DirectUploadReference",
+        "Message",
+        "Notification",
+        "SavedSearch",
+      ],
     );
     assert.deepEqual(
       inventory.rlsForceTables,
@@ -1791,7 +1926,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 11);
+    assert.equal(guardResultCount, 12);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -1820,6 +1955,14 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :direct_upload_rls_active[\s\S]*REVOKE ALL ON TABLE public\."DirectUpload"/,
+    );
+    assert.match(
+      provision,
+      /Case-family RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :case_rls_active[\s\S]*REVOKE ALL ON TABLE[\s\S]*public\."Case"[\s\S]*public\."CaseMessage"[\s\S]*public\."CaseMessageAttachment"/,
     );
     assert.match(
       provision,

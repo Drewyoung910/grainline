@@ -88,7 +88,10 @@ describe("ordinary Message private-object remediation plan", () => {
     const matrix = source("docs/rls-coverage-matrix.md");
 
     assert.match(matrix, /\| `DirectUpload` \| `RLS_LIVE_FORCE` \|/);
-    assert.match(matrix, /restricted-role postflights remain an acceptance gate/);
+    assert.match(
+      matrix,
+      /Pooled-runtime and cleanup-role acceptance passed read-only/,
+    );
     assert.match(plan, /DirectUpload boundary \(CM-A21\)/);
     assert.match(plan, /Do not silently bundle `DirectUpload` activation into Message or Case/);
     assert.match(plan, /complete the separate `DirectUpload` RLS\/fixed-lifecycle rollout/);

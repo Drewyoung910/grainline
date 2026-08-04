@@ -77,7 +77,10 @@ describe("site-wide RLS coverage matrix", () => {
       ],
     );
     assert.match(matrix, /six tables in this snapshot with production\s+RLS/);
-    assert.match(matrix, /restricted-role postflights remain an acceptance gate/);
+    assert.match(
+      matrix,
+      /Pooled-runtime and cleanup-role acceptance passed read-only/,
+    );
     assert.match(matrix, /Every\s+other row is \*\*not active\s+RLS\*\*/);
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
   });

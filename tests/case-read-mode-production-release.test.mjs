@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import test from "node:test";
 import {
+  CASE_ACTIVATION_MIGRATION,
   CASE_READ_MODE_MIGRATION,
   CASE_READ_MODE_MIGRATION_TREE_SHA256,
   DIRECT_UPLOAD_ACTIVATION_MIGRATION,
@@ -71,6 +72,7 @@ test("Case read-mode release pins exact source, migration, and tree bytes", () =
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .filter((name) => ![
+      CASE_ACTIVATION_MIGRATION,
       DIRECT_UPLOAD_RETIREMENT_MIGRATION,
       DIRECT_UPLOAD_ACTIVATION_MIGRATION,
     ].includes(name));
@@ -134,8 +136,8 @@ test("Case read-mode release is compatible and exact", () => {
       `${functionName} source digest must be pinned preflight and postflight`,
     );
   }
-  assert.match(workflow, /direct-upload-activation-reviewed/);
-  assert.doesNotMatch(workflow, /case-(?:activation|force)-reviewed/);
+  assert.match(workflow, /case-activation-reviewed/);
+  assert.doesNotMatch(workflow, /case-force-reviewed/);
 });
 
 test("Case read-mode release records the threat boundary and live predecessor", () => {
