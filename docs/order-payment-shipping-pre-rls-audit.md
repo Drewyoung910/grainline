@@ -228,6 +228,10 @@ classification/backfill, both new columns can become non-null. This proves one
 seller per Order, makes seller paging stable, and prevents a purchased Listing
 from being reassigned in a way that transfers historical order authority.
 
+The detailed coexistence, trigger, composite-key, backfill and convergence
+contract is saved in `docs/order-payment-shipping-compatible-schema-plan.md`.
+It remains design-only until the aggregate production result is reviewed.
+
 ### OPS-A12: PostgreSQL cannot authenticate a Stripe signature by itself
 
 The application verifies Stripe's signature before calling the current
@@ -367,7 +371,8 @@ The aggregate-only inspector scaffold is now saved as
 contract. The exact aggregate SQL is wired into normal CI against the
 disposable loopback PostgreSQL 16 service after the compatible migration tree,
 where PostgreSQL itself attests that the proof transaction is read-only. No
-The protected aggregate-only workflow is prepared on this isolated branch. It
+production data is read by that CI proof. The protected aggregate-only workflow
+is prepared on this isolated branch. It
 requires an exact main commit, exact confirmation, the Production environment,
 the protected owner-URL digest, the reviewed Case FORCE prerequisite, a clean
 checkout and the shared production-migration concurrency group. It cannot be
@@ -384,10 +389,14 @@ only and did not inspect or change production.
 That first engine pass exposed a completeness gap in review rather than a SQL
 failure: the query did not yet count every label/clawback, live-quote,
 refund-total, reservation-member or stale-webhook contradiction required by
-OPS-A10. The expanded query now adds those families plus payment currency and
-mutable payout-state classification. Its exact field count and second
-PostgreSQL engine run must pass before this workflow can be considered ready
-for production inspection.
+OPS-A10. The expanded query adds those families plus payment currency and
+mutable payout-state classification. Exact checkpoint
+`29d055564b499b3edca78462cc31fa5ccacf93cc` was proved by GitHub CI run
+`30956595275` on 2026-08-04: the exact 54-field query passed against disposable
+PostgreSQL 16, and TypeScript, lint, the full test suite, security audit and
+production build all passed. This closes SQL syntax/shape/read-only readiness;
+it does not inspect production or establish that production legacy data is
+clean.
 
 1. Finish the semantic direct/nested access inventory and actor projections.
 2. Build and test an aggregate-only legacy inspector; inspect production under
