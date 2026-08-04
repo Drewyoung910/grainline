@@ -165,6 +165,10 @@ describe("DirectUpload failed-activation recovery proof", () => {
       "scripts/direct-upload-activation-recovery-postgres-proof.mjs",
       "utf8",
     );
+    const postflightProof = readFileSync(
+      "scripts/direct-upload-activation-postflight-postgres-proof.mjs",
+      "utf8",
+    );
     const historicalAliasFixture = readFileSync(
       "scripts/stage-direct-upload-recovery-historical-alias-fixture.sql",
       "utf8",
@@ -193,6 +197,10 @@ describe("DirectUpload failed-activation recovery proof", () => {
     );
     assert.match(
       roleFixture,
+      /ALTER ROLE grainline_app_runtime PASSWORD 'ci';[\s\S]*ALTER ROLE grainline_direct_upload_cleanup_v2 PASSWORD 'ci';/u,
+    );
+    assert.match(
+      roleFixture,
       /GRANT grainline_app_runtime TO neondb_owner[\s\S]*WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;/u,
     );
     assert.match(
@@ -217,6 +225,10 @@ describe("DirectUpload failed-activation recovery proof", () => {
     assert.match(proof, /FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256/u);
     assert.match(proof, /DIRECT_UPLOAD_ACTIVATION_RELEASE\.sha256/u);
     assert.match(proof, /assertListingVariantsLedgerAlias/u);
+    assert.doesNotMatch(proof, /runDirectUploadActivationPostflight/u);
+    assert.match(postflightProof, /assertMigrationLedgerDenied/u);
+    assert.match(postflightProof, /runDirectUploadActivationPostflight/u);
+    assert.match(postflightProof, /restrictedRolePostflights/u);
     assert.match(
       historicalAliasFixture,
       /current_database\(\) <> 'grainline_ci' OR current_user <> 'ci'/u,
@@ -238,11 +250,23 @@ describe("DirectUpload failed-activation recovery proof", () => {
     );
     assert.match(
       workflow,
+      /tests\/direct-upload-activation-postflight-postgres-proof\.test\.mjs/u,
+    );
+    assert.match(
+      workflow,
       /agent\/direct-upload-activation-runtime-bootstrap-preflight-20260803[\s\S]*scripts\/direct-upload-activation-membership-preflight-postgres-proof\.mjs/u,
     );
     assert.match(
       workflow,
       /agent\/direct-upload-signature-reader-fix-20260803[\s\S]*scripts\/direct-upload-activation-production-postflight\.mjs[\s\S]*scripts\/direct-upload-cleanup-worker\.mjs[\s\S]*tests\/direct-upload-activation-production-postflight\.test\.mjs[\s\S]*tests\/direct-upload-cleanup-worker\.test\.mjs/u,
+    );
+    assert.match(
+      workflow,
+      /agent\/direct-upload-activation-postflight-ledger-fix-20260803/u,
+    );
+    assert.match(
+      workflow,
+      /Prove both restricted-role activation postflights without ledger access[\s\S]*audit:rls-direct-upload-activation-postflight/u,
     );
     assert.match(
       workflow,

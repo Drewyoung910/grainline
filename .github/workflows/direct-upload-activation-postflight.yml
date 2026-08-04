@@ -11,8 +11,8 @@ on:
         description: Successful full CI run for the exact release commit
         required: true
         type: string
-      migration_run_id:
-        description: Successful guarded Production Migrations run
+      recovery_run_id:
+        description: Successful guarded DirectUpload activation recovery run
         required: true
         type: string
       confirmation:
@@ -21,6 +21,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -36,8 +37,9 @@ jobs:
     environment: Production DirectUpload Cleanup
     env:
       DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_CONFIRM: ${{ inputs.confirmation }}
+      DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_ACTIVATION_COMMIT: 64409058d0023a434b36f1af31655caeb4915ac3
       DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
-      DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID: ${{ inputs.migration_run_id }}
+      DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
       DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT: ${{ inputs.release_commit }}
       DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256: ${{ vars.DIRECT_UPLOAD_CLEANUP_DATABASE_URL_SHA256 }}
     steps:
@@ -50,6 +52,76 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Verify exact activation recovery and main-CI runs
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_ACTIVATION_COMMIT: 64409058d0023a434b36f1af31655caeb4915ac3
+          REVIEWED_RECOVERY_RUN_ID: "30877508811"
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          PROVIDED_RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+        with:
+          script: |
+            const parseRunId = (name) => {
+              const value = process.env[name];
+              if (!/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+                throw new Error(`${name} is not one positive run id`);
+              }
+              const parsed = Number(value);
+              if (!Number.isSafeInteger(parsed)) {
+                throw new Error(`${name} is not a safe run id`);
+              }
+              return parsed;
+            };
+            const releaseCommit = process.env.REVIEWED_RELEASE_COMMIT;
+            const activationCommit = process.env.REVIEWED_ACTIVATION_COMMIT;
+            const recoveryRunId = parseRunId('PROVIDED_RECOVERY_RUN_ID');
+            const reviewedRecoveryRunId = parseRunId('REVIEWED_RECOVERY_RUN_ID');
+            const mainCiRunId = parseRunId('REVIEWED_MAIN_CI_RUN_ID');
+            if (
+              releaseCommit !== context.sha
+              || activationCommit !== '64409058d0023a434b36f1af31655caeb4915ac3'
+              || recoveryRunId !== reviewedRecoveryRunId
+              || recoveryRunId === mainCiRunId
+            ) {
+              throw new Error('DirectUpload activation postflight run bindings drifted');
+            }
+            const expected = [
+              {
+                id: recoveryRunId,
+                name: 'DirectUpload Activation Production Recovery',
+                event: 'workflow_dispatch',
+                headBranch: 'main',
+                headSha: activationCommit,
+                conclusion: 'success',
+              },
+              {
+                id: mainCiRunId,
+                name: 'CI',
+                event: 'push',
+                headBranch: 'main',
+                headSha: releaseCommit,
+                conclusion: 'success',
+              },
+            ];
+            for (const reviewed of expected) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: reviewed.id,
+              });
+              if (
+                run.id !== reviewed.id
+                || run.name !== reviewed.name
+                || run.event !== reviewed.event
+                || run.head_branch !== reviewed.headBranch
+                || run.head_sha !== reviewed.headSha
+                || run.status !== 'completed'
+                || run.conclusion !== reviewed.conclusion
+              ) {
+                throw new Error(`Reviewed workflow run ${reviewed.id} drifted`);
+              }
+            }
       - name: Prove exact cleanup-role activation boundary
         run: npm run ops:direct-upload-activation-postflight -- --cleanup
         env:

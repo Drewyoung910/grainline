@@ -51,6 +51,9 @@ export const DIRECT_UPLOAD_ACTIVATION_RUNTIME_POSTFLIGHT_CONFIRMATION =
   "verify-production-direct-upload-activation-runtime-read-only";
 export const DIRECT_UPLOAD_ACTIVATION_CLEANUP_POSTFLIGHT_CONFIRMATION =
   "verify-production-direct-upload-activation-cleanup-read-only";
+export const DIRECT_UPLOAD_ACTIVATION_ACCEPTED_COMMIT =
+  "64409058d0023a434b36f1af31655caeb4915ac3";
+export const DIRECT_UPLOAD_ACTIVATION_RECOVERY_RUN_ID = 30877508811;
 
 const REVIEWED_TARGET = Object.freeze({
   databaseName: "neondb",
@@ -159,10 +162,24 @@ export function parseDirectUploadActivationPostflightConfig(
     env,
     "DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID",
   );
-  const migrationRunId = parsePositiveInteger(
+  const recoveryRunId = parsePositiveInteger(
     env,
-    "DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID",
+    "DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_RECOVERY_RUN_ID",
   );
+  const activationCommit = required(
+    env,
+    "DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_ACTIVATION_COMMIT",
+  );
+  if (activationCommit !== DIRECT_UPLOAD_ACTIVATION_ACCEPTED_COMMIT) {
+    throw new Error(
+      "DirectUpload activation postflight activation commit is not exact",
+    );
+  }
+  if (recoveryRunId !== DIRECT_UPLOAD_ACTIVATION_RECOVERY_RUN_ID) {
+    throw new Error(
+      "DirectUpload activation postflight recovery run is not exact",
+    );
+  }
   const evidencePath = path.resolve(
     required(env, "DIRECT_UPLOAD_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH"),
   );
@@ -208,7 +225,8 @@ export function parseDirectUploadActivationPostflightConfig(
       databaseUrlSha256: sha256(databaseUrl),
       evidencePath,
       mainCiRunId,
-      migrationRunId,
+      recoveryRunId,
+      activationCommit,
       mode,
       releaseCommit,
       runId: null,
@@ -277,7 +295,8 @@ export function parseDirectUploadActivationPostflightConfig(
     databaseUrlSha256,
     evidencePath,
     mainCiRunId,
-    migrationRunId,
+    recoveryRunId,
+    activationCommit,
     mode,
     releaseCommit,
     runId,
@@ -586,12 +605,6 @@ export async function runDirectUploadActivationPostflight(config) {
         `DirectUpload activation ${config.mode} authority drifted: ${issues.join("; ")}`,
       );
     }
-    const incompleteMigrationCount = Number((await client.query(`
-      SELECT pg_catalog.count(*)::integer AS count
-      FROM public._prisma_migrations
-      WHERE finished_at IS NULL AND rolled_back_at IS NULL
-    `)).rows[0]?.count);
-    assert.equal(incompleteMigrationCount, 0);
     const boundaryChecks = config.mode === "runtime"
       ? await proveRuntimeBoundary(client)
       : await proveCleanupBoundary(client);
@@ -613,15 +626,15 @@ export async function runDirectUploadActivationPostflight(config) {
           : REVIEWED_TARGET.cleanupRole,
       }),
       runs: Object.freeze({
+        activationCommit: config.activationCommit,
         cleanupPostflightRunId: config.runId,
         mainCiRunId: config.mainCiRunId,
-        migrationRunId: config.migrationRunId,
+        recoveryRunId: config.recoveryRunId,
       }),
       proof: Object.freeze({
         boundaryChecks,
         cleanupFunctionCount: DIRECT_UPLOAD_CLEANUP_FUNCTION_NAMES.length,
         functionCount: DIRECT_UPLOAD_ACTIVATION_FUNCTION_NAMES.length,
-        incompleteMigrationCount,
         policyCount: 0,
         postflightReadOnly: true,
         privateFunctionCount:

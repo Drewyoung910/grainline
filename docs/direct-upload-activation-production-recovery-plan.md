@@ -385,3 +385,64 @@ The recovery must not deploy the app, enable Case evidence, schedule cleanup,
 revoke Cloudflare tokens, change provider variables, or combine Case RLS. Those
 remain separate releases. The generic Production Migrations guard remains
 strict and must not be weakened to admit incomplete migrations.
+
+## Successful activated-state recovery acceptance
+
+PR #149 exact head `faff8af9908bc129b176ad66b2dab6d1c2bc76e3`
+corrected the two type-only signature readers and merged as exact main commit
+`64409058d0023a434b36f1af31655caeb4915ac3`. Exact-main CI run
+`30875687956` passed, and the additional exact-main disposable PostgreSQL 16
+recovery run `30877377186` passed the complete failed, resolved, activated,
+grant, authority and rollback sequence.
+
+Authorized recovery run `30877508811` / job `91891843696` then classified the
+live database as the exact already-activated restart state. It therefore
+skipped ledger resolution, the resolved-state proof and migration replay. It
+converged the reviewed runtime and cleanup-role grants, proved zero pending or
+incomplete migrations, passed the global runtime grant/RLS audit and passed
+the activated owner proof. Both `DirectUpload` and `DirectUploadReference`
+were policyless ENABLE plus FORCE, the runtime and cleanup roles had no table
+CRUD, all 35 function identities matched and the proof transaction was
+repeatable-read plus read-only.
+
+Sanitized artifact `8880075629` has archive digest
+`5c21c3d283a8bb1170bbca17ce957fc84d1bf55280a9a8bb50fd1c755f38365b`.
+Its inspect and activated evidence files have SHA-256 values
+`ca452ceb69e769d9d22be7670da9799a5b2670fd7f960cbf71f1c96b0e58b3ab`
+and
+`a1c5f6bd54ea3a2235eb0292e2cb86c132b58e6c0561055eb490c501faa1da54`.
+They retain no credential, row, migration log or function source. Recovery
+did not deploy, enable Case evidence, schedule cleanup, revoke tokens or change
+provider variables.
+
+## Restricted-role postflight verifier correction
+
+The first cleanup-role acceptance run `30877717135` / job `91892430762`
+failed safely inside its read-only proof with SQLSTATE `42501`, `permission
+denied for table _prisma_migrations`. No evidence artifact was written and the
+run changed no production state. The denial is the reviewed least-privilege
+posture: both the cleanup role and pooled runtime role must have no direct
+migration-ledger access. The postflight verifier was wrong to query the owner
+ledger through either restricted credential.
+
+The isolated correction removes that invalid ledger query rather than granting
+new authority. Migration completeness remains established by successful owner
+recovery `30877508811`. The cleanup workflow separately verifies through the
+GitHub Actions API that this exact recovery succeeded at activation commit
+`64409058d0023a434b36f1af31655caeb4915ac3` and that full CI succeeded for
+the exact postflight release commit before the cleanup credential is used.
+Disposable PostgreSQL must prove both restricted roles receive SQLSTATE
+`42501` on direct ledger reads while their exact read-only authority
+postflights pass and leave mode-0600 sanitized evidence. This correction does
+not authorize merge or either production postflight rerun.
+
+The first exact-head disposable proof of this correction, run `30879641020`,
+reached the restricted runtime session and failed because the disposable
+migration tree owns its functions as `ci`, while the unchanged production
+postflight correctly requires `neondb_owner`. Do not parameterize or weaken the
+production owner invariant. The corrected loopback-only harness temporarily
+mirrors the 35 exact function owners to `neondb_owner`, runs both production
+postflight implementations and the `42501` ledger-denial checks, then restores
+every function to `ci` before migration status, global grants and rollback
+proofs continue. A restoration failure fails the disposable run; no owner
+fixture is ever used against production.

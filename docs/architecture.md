@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-07-26
+Last updated: 2026-08-03
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -34,12 +34,18 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 ## Request Boundaries
 
 Grainline uses database-level Row Level Security for `SavedSearch`,
-`Notification`, `Conversation`, and `Message`; all four tables are
-`FORCE ROW LEVEL SECURITY` hardened with retained production proof. The
-ordinary application runtime uses a dedicated `NOBYPASSRLS` role, while
-owner/migration credentials are kept out of the Vercel runtime. The rest of
-the schema still relies primarily on application-layer authorization while
-independently reviewed RLS or least-privilege database groups roll out:
+`Notification`, `Conversation`, `Message`, `DirectUpload`, and
+`DirectUploadReference`; all six tables are `FORCE ROW LEVEL SECURITY`
+hardened. The two DirectUpload lifecycle tables intentionally have no policies
+and no direct runtime or cleanup-role table grants: all permitted behavior
+goes through the reviewed fixed function catalog. Production activation and
+its owner proof are complete; the restricted runtime/cleanup acceptance
+postflights remain pending while their verifier is corrected to avoid reading
+the owner-only Prisma migration ledger. The ordinary application runtime uses
+a dedicated `NOBYPASSRLS` role, while owner/migration credentials are kept out
+of the Vercel runtime. The rest of the schema still relies primarily on
+application-layer authorization while independently reviewed RLS or
+least-privilege database groups roll out:
 
 - `src/middleware.ts` enforces signed-out redirects, API 401s, terms acceptance, suspended/deleted account blocks, admin role/PIN checks, cron auth, geo-blocking, and request IDs.
 - Geo-blocking uses Vercel's `x-vercel-ip-country` header and trusts it only behind Vercel managed ingress. A future hosting or proxy migration must replace that header with a trusted geo source or revisit the US-only gate before accepting traffic.
@@ -47,12 +53,12 @@ independently reviewed RLS or least-privilege database groups roll out:
 - Public routes must use shared visibility predicates (`publicListingWhere`, `publicListingDetailWhere`, `visibleSellerProfileWhere`, `activeSellerProfileWhere`, `publicBlogPostWhere`) rather than ad hoc filters.
 - Webhooks and cron routes are middleware-public only because they authenticate with provider signatures or shared secrets inside the route.
 
-Notification and Conversation/Message are complete independent production
-groups. Case/CaseMessage/CaseMessageAttachment is in compatible Phase 4
-authority conversion: its exact 80-reference baseline is retained, 28
-references have moved behind fixed operations, and 52 direct/nested/raw
-references remain. The current Case-message preflight is a narrow
-source-validating `SECURITY DEFINER` read so later self-only User RLS cannot
+Notification, Conversation/Message, and DirectUpload are independent
+production groups. Case/CaseMessage/CaseMessageAttachment remains a separate
+compatible authority-conversion group with its source inventory and fixed
+operations retained in the Case rollout records. The current Case-message
+preflight is a narrow source-validating `SECURITY DEFINER` read so later
+self-only User RLS cannot
 hide the counterparty state it must derive; its separate application
 conversion uses one strict result in the reply and private-evidence upload
 routes. Case-family RLS is still off. Cases, orders/payment/shipping, User, and
@@ -83,7 +89,7 @@ Conversations are participant-scoped, with specific staff/admin exceptions only 
 
 ### Uploads
 
-Write paths must persist only first-party Grainline media URLs, and new user-submitted upload URLs must be scoped to the current uploader's R2 key segment and expected endpoint. Edit paths may preserve existing DB-owned media rows/fields for legacy compatibility, but hidden fields must not let one signed-in user attach another user's public Grainline media URL. Image upload routes validate MIME/size/count rules, strip image metadata where applicable, verify object availability, and clean up failed writes. Direct-to-R2 PDF/video uploads are tracked in `DirectUpload` from presign through verify, claim, and cleanup so abandoned successful uploads can be deleted without bucket listing. DirectUpload cleanup is isolated from the ordinary Vercel runtime: the compatible retirement removes its route and schedule before FORCE RLS, and the dedicated GitHub worker is scheduled only after activation and worker-role postflight. Chat/file upload paths have different friction than profile/listing image paths.
+Write paths must persist only first-party Grainline media URLs, and new user-submitted upload URLs must be scoped to the current uploader's R2 key segment and expected endpoint. Edit paths may preserve existing DB-owned media rows/fields for legacy compatibility, but hidden fields must not let one signed-in user attach another user's public Grainline media URL. Image upload routes validate MIME/size/count rules, strip image metadata where applicable, verify object availability, and clean up failed writes. Direct-to-R2 PDF/video uploads are tracked in `DirectUpload` from presign through verify, claim, and cleanup so abandoned successful uploads can be deleted without bucket listing. DirectUpload cleanup is isolated from the ordinary Vercel runtime: the compatible retirement removed its route and schedule before FORCE RLS, and the dedicated GitHub worker remains unscheduled until the restricted cleanup-role postflight is accepted. Chat/file upload paths have different friction than profile/listing image paths.
 
 ### Email And Notifications
 

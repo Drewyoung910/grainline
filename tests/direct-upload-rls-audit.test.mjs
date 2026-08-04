@@ -159,8 +159,10 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(audit, /grainline_direct_upload_cleanup_v2/);
     assert.match(audit, /create-versioned-sql-cleanup-role/);
     assert.match(audit, /contains no provider `DELETE` request/);
-    assert.match(matrix, /\| `DirectUpload` \| `PLANNED_RLS` \|/);
-    assert.match(matrix, /dedicated NOBYPASSRLS worker role/);
+    assert.match(matrix, /\| `DirectUpload` \| `RLS_LIVE_FORCE` \|/);
+    assert.match(matrix, /Policyless ENABLE plus FORCE/);
+    assert.match(matrix, /recovery run `30877508811`/);
+    assert.match(matrix, /restricted-role postflights remain an acceptance gate/);
     assert.match(strategy, /CM-A21 execution contract/);
     assert.match(strategy, /run `30225445722`/);
     assert.match(strategy, /Withhold the unused future\s+private-message recorder/);

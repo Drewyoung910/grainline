@@ -30,6 +30,7 @@ describe("site-wide RLS coverage matrix", () => {
     const documentedModels = rows.map((row) => row.model).sort();
 
     assert.equal(models.length, 64, "review the snapshot count when the schema changes");
+    assert.match(matrix, /Snapshot scope: 64 Prisma models\./);
     assert.equal(rows.length, models.length, "matrix must have exactly one row per model");
     assert.deepEqual(documentedModels, models);
     assert.equal(new Set(documentedModels).size, documentedModels.length);
@@ -60,6 +61,8 @@ describe("site-wide RLS coverage matrix", () => {
       "Conversation",
       "Message",
       "SavedSearch",
+      "DirectUpload",
+      "DirectUploadReference",
       "Notification",
     ]);
     assert.deepEqual(
@@ -68,9 +71,13 @@ describe("site-wide RLS coverage matrix", () => {
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
+        ["DirectUpload", "RLS_LIVE_FORCE"],
+        ["DirectUploadReference", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
+    assert.match(matrix, /six tables in this snapshot with production\s+RLS/);
+    assert.match(matrix, /restricted-role postflights remain an acceptance gate/);
     assert.match(matrix, /Every\s+other row is \*\*not active\s+RLS\*\*/);
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
   });

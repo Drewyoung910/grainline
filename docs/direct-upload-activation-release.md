@@ -1,6 +1,18 @@
 # DirectUpload FORCE-RLS activation release
 
-Status on 2026-08-01: PR `#131` merged the byte-pinned activation release at
+Status on 2026-08-03: the corrected activation is live in production.
+Restart-safe recovery run `30877508811` accepted the exact activated ledger,
+skipped migration replay, converged the reviewed grants, passed migration
+status and the global grant/RLS audit, and passed the activated owner proof.
+The first cleanup-role acceptance postflight `30877717135` then failed safely
+because the restricted role was correctly denied direct access to
+`_prisma_migrations` but the postflight verifier queried that owner ledger.
+The isolated correction keeps the denial and moves run validation to the
+GitHub workflow. Pooled-runtime and cleanup-role acceptance postflights remain
+open; Case evidence, cleanup scheduling and token/provider changes remain
+disabled and separate.
+
+The initial release history follows. PR `#131` merged the byte-pinned activation release at
 exact head `07c745bd0578a0020d14697c25ed4b6ca52da4a2` into main commit
 `f23437779e101d6ec3beddf14d03abbf938ae000`. PR `#133` then repaired only the
 two older focused FORCE-proof workflows and merged at exact head
@@ -154,9 +166,10 @@ read-only modes:
 The cleanup mode runs in a dedicated `Production DirectUpload Cleanup`
 workflow that never receives the owner URL, runtime URL or R2 credentials. The
 runtime mode remains a separate exact-clean-commit local proof using only the
-pooled runtime credential. Both bind evidence to the exact release, successful
-main-CI and migration run ids, execute `BEGIN TRANSACTION READ ONLY`, roll back,
-write only a fresh mode-0600 sanitized artifact and record
+pooled runtime credential. Both bind evidence to the exact release, the
+accepted activation commit, successful recovery and exact-release main-CI
+runs, execute `BEGIN TRANSACTION READ ONLY`, roll back, write only a fresh
+mode-0600 sanitized artifact and record
 `productionChangedByPostflight=false`.
 
 ## Production gates still open
@@ -174,11 +187,13 @@ cleanup-only credential had already passed the exact two-bucket
 disposable-object proof in protected run `30710557050`. The credential gate is
 accepted.
 
-The activation-aware postflight branch must merge and pass exact-main CI before
-the guarded production migration runs. A successful migration must be followed
-by both postflight modes before the rollout is accepted. Case-evidence
+The corrected activation-aware postflight branch must merge and pass exact-main
+CI before either restricted-role acceptance run. Successful recovery
+`30877508811` already accepted the owner-side activated state, so neither
+postflight may resolve or replay a migration. Both restricted modes must pass
+before cleanup scheduling or private Case evidence is enabled. Case-evidence
 enablement, cleanup scheduling, provider-variable changes and token retirement
-remain separate releases and must not be bundled into this activation.
+remain separate releases and must not be bundled into postflight acceptance.
 
 ## Failed production activation evidence
 
