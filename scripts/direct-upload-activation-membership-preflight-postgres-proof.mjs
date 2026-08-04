@@ -16,6 +16,15 @@ const ROLE_PREFLIGHT_END =
   "$grainline_direct_upload_activation_role_preflight$;";
 const REJECTION =
   /DirectUpload runtime or cleanup role retains unreviewed role membership/u;
+const RESTRICTED_ROLES = Object.freeze([
+  "grainline_app_runtime",
+  "grainline_direct_upload_cleanup_v2",
+]);
+const BOOTSTRAP_OPTION_DRIFTS = Object.freeze([
+  Object.freeze({ admin: false, inherit: false, set: false }),
+  Object.freeze({ admin: true, inherit: true, set: false }),
+  Object.freeze({ admin: true, inherit: false, set: true }),
+]);
 const PROBE_ROLES = Object.freeze([
   "grainline_du_direct_member_probe",
   "grainline_du_parent_membership_probe",
@@ -129,17 +138,19 @@ export async function runDirectUploadActivationMembershipProof(config) {
       await client.query(preflight);
     });
 
-    await expectPreflightRejection(client, preflight, [
-      "CREATE ROLE grainline_du_direct_member_probe NOLOGIN",
-      `GRANT grainline_app_runtime TO grainline_du_direct_member_probe
-        WITH ADMIN FALSE, INHERIT FALSE, SET FALSE`,
-    ]);
+    for (const restrictedRole of RESTRICTED_ROLES) {
+      await expectPreflightRejection(client, preflight, [
+        "CREATE ROLE grainline_du_direct_member_probe NOLOGIN",
+        `GRANT ${restrictedRole} TO grainline_du_direct_member_probe
+          WITH ADMIN FALSE, INHERIT FALSE, SET FALSE`,
+      ]);
 
-    await expectPreflightRejection(client, preflight, [
-      "CREATE ROLE grainline_du_parent_membership_probe NOLOGIN",
-      `GRANT grainline_du_parent_membership_probe TO grainline_app_runtime
-        WITH ADMIN FALSE, INHERIT FALSE, SET FALSE`,
-    ]);
+      await expectPreflightRejection(client, preflight, [
+        "CREATE ROLE grainline_du_parent_membership_probe NOLOGIN",
+        `GRANT grainline_du_parent_membership_probe TO ${restrictedRole}
+          WITH ADMIN FALSE, INHERIT FALSE, SET FALSE`,
+      ]);
+    }
 
     await expectPreflightRejection(client, preflight, [
       "CREATE ROLE grainline_du_transitive_member_probe NOLOGIN",
@@ -147,11 +158,15 @@ export async function runDirectUploadActivationMembershipProof(config) {
         WITH ADMIN FALSE, INHERIT FALSE, SET FALSE`,
     ]);
 
-    await expectPreflightRejection(client, preflight, [
-      "REVOKE grainline_app_runtime FROM neondb_owner",
-      `GRANT grainline_app_runtime TO neondb_owner
-        WITH ADMIN TRUE, INHERIT FALSE, SET TRUE`,
-    ]);
+    for (const restrictedRole of RESTRICTED_ROLES) {
+      for (const options of BOOTSTRAP_OPTION_DRIFTS) {
+        await expectPreflightRejection(client, preflight, [
+          `REVOKE ${restrictedRole} FROM neondb_owner`,
+          `GRANT ${restrictedRole} TO neondb_owner
+            WITH ADMIN ${options.admin}, INHERIT ${options.inherit}, SET ${options.set}`,
+        ]);
+      }
+    }
 
     await client.query(preflight);
     const residue = Number((await client.query(`
@@ -161,13 +176,16 @@ export async function runDirectUploadActivationMembershipProof(config) {
     `, [PROBE_ROLES])).rows[0]?.count);
     assert.equal(residue, 0, "membership proof retained probe roles");
     return Object.freeze({
-      checks: 7,
+      checks: 14,
       exactBootstrapEdgesAccepted: true,
       noBootstrapEdgesAccepted: true,
       unexpectedDirectMemberRejected: true,
       restrictedRoleParentRejected: true,
       transitiveMemberRejected: true,
       optionDriftRejected: true,
+      restrictedRolesProven: RESTRICTED_ROLES.length,
+      optionDriftCasesRejected:
+        RESTRICTED_ROLES.length * BOOTSTRAP_OPTION_DRIFTS.length,
       residue: 0,
       productionChanged: false,
     });

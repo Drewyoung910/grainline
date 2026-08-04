@@ -207,6 +207,8 @@ describe("DirectUpload failed-activation recovery proof", () => {
       "restrictedRoleParentRejected",
       "transitiveMemberRejected",
       "optionDriftRejected",
+      "restrictedRolesProven: RESTRICTED_ROLES.length",
+      "RESTRICTED_ROLES\\.length \\* BOOTSTRAP_OPTION_DRIFTS\\.length",
       "residue: 0",
     ]) {
       assert.match(membershipProof, new RegExp(marker, "u"));
