@@ -175,7 +175,11 @@ test("production workflow permits only the reviewed Case FORCE tree", () => {
 });
 
 test("release record keeps all later mutations outside this boundary", () => {
-  assert.match(normalizedRelease, /not been merged or applied/i);
+  assert.match(normalizedRelease, /has not been applied/i);
+  assert.match(
+    normalizedRelease,
+    /merged through PR `#154`[\s\S]*5c1564a8e6994497987fe62e28b61db03737285c/i,
+  );
   assert.match(normalizedRelease, /Case evidence remains disabled/);
   assert.match(normalizedRelease, /does not deploy/i);
   assert.match(normalizedRelease, /Order, payment and shipping/i);

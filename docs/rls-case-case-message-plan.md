@@ -6,7 +6,9 @@ live Phase 4 compatible database/application conversion, live invariant/read-mod
 convergence, accepted DirectUpload activation, and zero ordinary direct
 Case-family access. The separate posture-only FORCE release for `Case`,
 `CaseMessage` and `CaseMessageAttachment` is now byte-pinned and staged on an
-isolated branch, but is not merged or applied. Case evidence remains disabled.
+isolated branch, merged through PR `#154` at exact main
+`5c1564a8e6994497987fe62e28b61db03737285c`, but is not applied. Case evidence
+remains disabled.
 
 The exact candidate, predecessor evidence, CI ordering and later boundaries
 are recorded in `docs/case-force-production-release.md`. Production must not be
