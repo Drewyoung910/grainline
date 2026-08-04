@@ -168,6 +168,9 @@ describe("order/payment/shipping pre-RLS audit", () => {
     assert.match(audit, /`SellerPayoutEvent` is a mutable latest-state row/);
     assert.match(audit, /durable claim derived under the shared Order lock/);
     assert.match(audit, /success\/ambiguous\/failure finalizer/);
+    assert.match(audit, /Stripe webhook lease has an ABA finalizer race/);
+    assert.match(audit, /database-derived monotonic claim generation/);
+    assert.match(audit, /duplicate event ID with another type is an error/);
   });
 
   it("classifies the first complete write-authority families", () => {

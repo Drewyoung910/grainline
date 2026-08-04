@@ -1,0 +1,173 @@
+# Order/payment/shipping fixed-operation catalog
+
+Status: design only on `agent/order-payment-shipping-rls-audit-20260804`.
+This is not SQL, a migration, an EXECUTE grant, an application conversion or a
+production approval. Exact signatures may narrow after aggregate-only
+production inspection, but no family may become broader than this contract.
+
+## Global contract
+
+Every operation is a pinned-search-path, no-dynamic-SQL `SECURITY DEFINER`
+function owned by the migration owner. `PUBLIC` has no EXECUTE. The ordinary
+runtime role receives EXECUTE only after the matching application conversion
+is deployed and proved. Base tables remain directly accessible until their
+separate compatibility boundary; activation later revokes direct access and
+uses policyless ENABLE/FORCE RLS.
+
+Actor IDs, signed-provider fields and bounded error text still originate in the
+application. Clerk, staff checks and Stripe signatures remain authentication
+boundaries. Each function independently derives target relationships, current
+database time, replay identity, seller/buyer authority, allowable transitions
+and canonical retained values from locked database rows.
+
+No function may be named or shaped as generic `get_order`, `update_order`,
+`write_payment_event`, `set_status`, `delete_quote` or `cleanup_rows`.
+
+## Service-ledger prerequisite catalog
+
+### Stripe delivery lease
+
+1. `grainline_stripe_webhook_begin(p_event_id text, p_event_type text)` returns
+   `{action, claimGeneration}` where action is `process`, `processed` or
+   `in_progress`. The database clock decides staleness. First insert sets
+   generation 1; a stale reclaim increments it under a row lock. Existing type
+   mismatch fails. Processed rows never reopen.
+2. `grainline_stripe_webhook_complete(p_event_id text,
+   p_claim_generation bigint)` updates only an unprocessed row holding that
+   generation and returns `completed`, `already_processed` or `superseded`.
+3. `grainline_stripe_webhook_fail(p_event_id text,
+   p_claim_generation bigint, p_sanitized_error text)` clears only the exact
+   active generation, stores bounded sanitized text and returns `failed` or
+   `superseded`.
+
+The application must carry the returned generation through every early return,
+thin-event retrieval path, duplicate checkout branch and outer error handler.
+ID-only finalization is forbidden.
+
+### Checkout stock reservation lifecycle
+
+4. `grainline_checkout_reservation_create(...)` derives one seller from locked
+   Listings, validates positive quantities and price versions, decrements stock
+   atomically, stores a bounded canonical item array and returns reservation ID,
+   generation, expiry and canonical checkout lock key.
+5. `grainline_checkout_reservation_bind_session(...)` binds once to the same
+   buyer/seller context; a Stripe session cannot move between reservations.
+6. `grainline_checkout_reservation_complete(...)` requires the active webhook
+   lease and exact seller-scoped Order.
+7. `grainline_checkout_reservation_restore_claim(...)` claims one eligible
+   expired/failed reservation under the checkout lock and returns a new
+   restoration generation plus canonical items.
+8. `grainline_checkout_reservation_restore_finalize(...)` accepts only the
+   exact restoration generation and database-derived restored stock result.
+9. `grainline_checkout_reservation_prune_batch(p_limit integer)` deletes only
+   terminal rows older than the fixed retention interval, with a hard cap.
+
+Reservation item lists, actor IDs, clocks, restore reasons and deletion targets
+are not freely caller-selected. Account deletion gets a distinct account-owned
+terminalization operation, not the prune function.
+
+### Payment, dispute and payout evidence
+
+10. `grainline_order_payment_event_append(...)` requires an active exact
+    webhook generation, locks the Order, derives currency agreement and replay
+    identity, permits only the reviewed event taxonomy and is append-only.
+11. `grainline_seller_payout_event_apply(...)` requires the active webhook
+    generation, derives SellerProfile from the Stripe account mapping and
+    permits only a monotonic payout transition for one payout ID.
+12. `grainline_seller_deauthorization_flag_orders(...)` requires the webhook
+    generation and uses the durable Order seller key in a bounded batch; it
+    never reconstructs historical ownership through Listing.
+
+Participants never execute these writers and never read raw provider rows.
+
+## Order creation and participant transition catalog
+
+13. `grainline_stripe_checkout_order_create(...)` requires the active webhook
+    generation and exact reservation/session binding; locks buyer, seller,
+    Listings and reservation in the global order; derives durable seller keys
+    and canonical snapshots; validates totals/currency; creates exactly one
+    Order and at least one same-seller OrderItem; and is idempotent.
+14. `grainline_seller_fulfillment_transition(...)` derives seller authority,
+    locks the Order and permits only reviewed shipping/pickup transitions and
+    bounded tracking fields.
+15. `grainline_buyer_delivery_confirm(p_actor_user_id, p_order_id)` derives
+    buyer ownership, locks the Order and permits only shipped to delivered.
+16. `grainline_seller_refund_claim(...)` derives seller authority and maximum
+    refundable amount under the Order lock, returning a database-derived claim
+    ID, generation and Stripe idempotency key.
+17. `grainline_seller_refund_provider_record(...)` and
+    `grainline_seller_refund_finalize(...)` require the exact claim generation;
+    ambiguous results enter reconciliation and stale workers cannot finalize.
+18. `grainline_refund_claim_release_batch(p_limit integer)` releases only stale
+    no-provider-effect claims using a fixed clock and hard cap.
+
+Stock restoration and Case resolution caused by a refund occur in the exact
+finalizer transaction and preserve the existing Case authority functions.
+
+## Quote, label and clawback catalog
+
+19. `grainline_seller_label_preflight(...)` returns only seller-safe shipping
+    facts and the current label/claim generation.
+20. `grainline_seller_quote_replace(...)` locks the Order, validates seller and
+    an exact claim generation, bounds every rate member and expiry, and replaces
+    only that Order's quote set.
+21. `grainline_seller_label_claim(...)` derives the selected rate from the
+    stored unexpired quote or retained Order rate and returns a generation plus
+    provider idempotency key.
+22. `grainline_seller_label_provider_record(...)` and
+    `grainline_seller_label_finalize(...)` compare the exact generation and
+    cannot overwrite shipped/delivered/refunded/reconciled state.
+23. `grainline_label_clawback_claim_batch(p_limit integer)` claims only eligible
+    rows in stable order with `SKIP LOCKED`, a fixed cap and per-row generation.
+24. `grainline_label_clawback_finalize(...)` records success, retry or manual
+    review only for the exact generation and database-derived retry schedule.
+
+## Fixed participant and staff projections
+
+25. `grainline_buyer_order_page(...)` returns buyer-owned order/list item
+    snapshots, totals, bounded refund outcome, fulfillment and tracking. It
+    excludes raw Stripe, Shippo, internal review, seller-note and reconciliation
+    fields.
+26. `grainline_buyer_order_detail(...)` adds retained buyer shipping/gift facts
+    and participant Case summary only for the buyer.
+27. `grainline_seller_order_page(...)` derives SellerProfile and pages by the
+    durable seller key, returning seller-safe buyer label, snapshots and totals.
+28. `grainline_seller_order_detail(...)` adds retained fulfillment address,
+    gift, label/refund outcome and active Case summary, but no raw payment-event
+    rows.
+29. `grainline_staff_order_page(...)` and
+    `grainline_staff_order_detail(...)` require a live EMPLOYEE/ADMIN row and
+    expose only reviewed queue/detail columns.
+30. `grainline_checkout_success_order(p_actor_user_id, p_session_id)` returns a
+    buyer-bound projection; knowing a Stripe session ID is insufficient.
+31. `grainline_order_review_eligibility(...)` and
+    `grainline_order_report_eligibility(...)` return booleans/minimal source IDs,
+    never Order rows.
+32. `grainline_buyer_order_export_page(...)`,
+    `grainline_seller_order_export_page(...)`,
+    `grainline_seller_payout_export_page(...)` and
+    `grainline_buyer_reservation_export_page(...)` return only the matching
+    actor's bounded retained facts with stable cursors.
+33. `grainline_seller_order_analytics(...)` and
+    `grainline_public_order_metrics(...)` return dedicated aggregate-only
+    projections with fixed periods and caps; no arbitrary predicate or raw row
+    set escapes.
+
+All page limits are clamped in the database. Hot buyer/seller pages use
+`(createdAt,id)` keyset cursors. Existing offset page numbers may remain only at
+the application compatibility layer until converted.
+
+## Release dependencies
+
+1. Run and review the aggregate-only production inspection.
+2. Prepare durable seller keys, webhook claim generation and compatible
+   invariants without changing grants/RLS.
+3. Deploy dual-write/dual-read app compatibility and prove old/new overlap.
+4. Activate webhook and reservation ledgers through fixed operations.
+5. Activate payment/payout and quote/label ledgers through fixed operations.
+6. Convert every participant, staff, export and aggregate read/mutation.
+7. Activate Order/OrderItem with policyless RLS and zero direct runtime access.
+8. Run pooled-runtime actor/service proofs, then apply FORCE and repeat.
+
+No release may claim a later dependency or leave an unconverted ordinary
+runtime base-table access behind.

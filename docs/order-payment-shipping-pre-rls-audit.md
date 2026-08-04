@@ -273,6 +273,23 @@ compares the exact claim generation. Directly updating an Order before or after
 a provider call is not sufficient because stale workers can otherwise finalize
 over newer refund, dispute, fulfillment or reconciliation state.
 
+### OPS-A15: the Stripe webhook lease has an ABA finalizer race
+
+`beginStripeWebhookEvent()` can reclaim an old `processingStartedAt`, but its
+result contains only `"process"`. `markStripeWebhookEventProcessed(id)` and
+`markStripeWebhookEventFailed(id, error)` identify the lease only by event ID.
+If worker A stalls, worker B reclaims the same event, and A later resumes, A can
+complete or clear B's newer lease. The current row has no claim generation or
+nonce with which a finalizer can reject that stale worker.
+
+Compatible preparation must add a database-derived monotonic claim generation.
+The fixed begin operation returns it; complete/fail require the exact current
+generation and event type, and return a superseded result rather than mutating
+a newer lease. The database derives reclaim time from its own clock. Initial
+event type is immutable: a duplicate event ID with another type is an error,
+not a reason to rewrite the source identity. This is independent of Stripe
+signature verification, which remains in the application.
+
 ## Semantic write conversion map
 
 This is the first exact write-authority map. Read projections and aggregate
@@ -363,6 +380,11 @@ Service, safety and aggregate consumers:
 Fixed Case functions already read bounded Order facts. They must remain in the
 function-catalog/global-grant audit, but they do not justify restoring runtime
 base-table SELECT after this group activates.
+
+The first fixed-operation and projection catalog is saved in
+`docs/order-payment-shipping-fixed-operation-catalog.md`. It pins the service
+lease generations, participant/staff projection boundaries, provider
+claim/finalize families and release dependency order; it remains design-only.
 
 ## Rollout sequence
 

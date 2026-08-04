@@ -34,6 +34,12 @@ source-validating fixed writes and a protected aggregate-only legacy
 inspection before any cleanup or activation. Finish the complete group before
 moving to the next sensitive-data family.
 
+The webhook prerequisite must replace ID-only stale-lease finalization with a
+database-derived claim generation. A reclaimed event may be completed or
+failed only by the worker holding the exact current generation; event type is
+immutable after the first accepted reservation. This closes the documented
+stale-worker ABA race before the webhook ledger becomes authority evidence.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

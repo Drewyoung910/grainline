@@ -55,6 +55,14 @@ corrected rollback-only PostgreSQL proof and every repository CI gate in run
 `30957665683` on 2026-08-04. This is disposable engine evidence only; it did
 not inspect or change production.
 
+The final authority-hardening checkpoint
+`880b9481e07d89294e71202747149daa8140ba52` additionally revokes both
+`PUBLIC` and ordinary-runtime EXECUTE on every trigger helper, proves direct
+Order seller rebinding fails, and brings the rollback-only engine proof to 13
+checks. Exact-SHA CI run `30957980736` passed that proof and all 66 substantive
+CI steps, including full tests, dependency audit and production build. It also
+did not inspect or change production.
+
 ## Old/new application coexistence
 
 The preparation migration needs a pinned `BEFORE INSERT OR UPDATE` OrderItem
