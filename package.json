@@ -55,6 +55,8 @@
     "audit:rls-case-force-candidate": "node scripts/stage-case-force-migration.mjs --verify",
     "audit:rls-case-force-release": "node scripts/verify-case-force-release.mjs",
     "audit:rls-case-force-postgres": "node scripts/case-force-postgres-proof.mjs",
+    "audit:rls-order-payment-shipping-legacy-inspect": "node scripts/order-payment-shipping-legacy-inspect.mjs",
+    "audit:rls-order-payment-shipping-legacy-inspection-postgres": "node scripts/order-payment-shipping-legacy-inspection-postgres-proof.mjs",
     "ops:case-force-postflight": "node scripts/case-activation-production-postflight.mjs --post-force",
     "audit:rls-case-participant-resolution": "node scripts/case-participant-resolution-postgres-proof.mjs",
     "audit:rls-case-open-authority": "node scripts/case-open-authority-postgres-proof.mjs",

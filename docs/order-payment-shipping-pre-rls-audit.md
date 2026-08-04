@@ -212,6 +212,15 @@ No backfill or cleanup is pre-authorized by the inspection.
 
 ## Rollout sequence
 
+The aggregate-only inspector scaffold is now saved as
+`scripts/order-payment-shipping-legacy-inspect.mjs` with a fail-closed unit
+contract. The exact aggregate SQL is wired into normal CI against the
+disposable loopback PostgreSQL 16 service after the compatible migration tree,
+where PostgreSQL itself attests that the proof transaction is read-only. No
+production inspection workflow exists or can be dispatched from this branch;
+an exact-main workflow binding and separate production inspection review are
+still required.
+
 1. Finish the semantic direct/nested access inventory and actor projections.
 2. Build and test an aggregate-only legacy inspector; inspect production under
    the protected read-only gate and decide cleanup separately from its result.
