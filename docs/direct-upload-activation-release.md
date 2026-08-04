@@ -1,16 +1,19 @@
 # DirectUpload FORCE-RLS activation release
 
-Status on 2026-08-03: the corrected activation is live in production.
+Status on 2026-08-04: the corrected activation and both restricted-role
+acceptance postflights are complete in production.
 Restart-safe recovery run `30877508811` accepted the exact activated ledger,
 skipped migration replay, converged the reviewed grants, passed migration
 status and the global grant/RLS audit, and passed the activated owner proof.
 The first cleanup-role acceptance postflight `30877717135` then failed safely
 because the restricted role was correctly denied direct access to
 `_prisma_migrations` but the postflight verifier queried that owner ledger.
-The isolated correction keeps the denial and moves run validation to the
-GitHub workflow. Pooled-runtime and cleanup-role acceptance postflights remain
-open; Case evidence, cleanup scheduling and token/provider changes remain
-disabled and separate.
+PR `#150` merged the corrected verifier as exact main commit
+`b98490ab09bcf395b45af04750d9b5606dbff7d5`; exact-main CI run
+`30881395864` passed. The pooled-runtime proof and cleanup-role workflow run
+`30924905247` then passed read-only against the exact activated production
+catalog without migration-ledger access. Case evidence, cleanup scheduling and
+token/provider changes remain disabled and separate.
 
 The initial release history follows. PR `#131` merged the byte-pinned activation release at
 exact head `07c745bd0578a0020d14697c25ed4b6ca52da4a2` into main commit
@@ -172,7 +175,7 @@ runs, execute `BEGIN TRANSACTION READ ONLY`, roll back, write only a fresh
 mode-0600 sanitized artifact and record
 `productionChangedByPostflight=false`.
 
-## Production gates still open
+## Postflight acceptance and remaining release boundaries
 
 The compatible app retirement is live: deployment
 `dpl_2o2yBehsStAiVWUhoj1LQTmZ9HJe` serves exact commit
@@ -187,13 +190,38 @@ cleanup-only credential had already passed the exact two-bucket
 disposable-object proof in protected run `30710557050`. The credential gate is
 accepted.
 
-The corrected activation-aware postflight branch must merge and pass exact-main
-CI before either restricted-role acceptance run. Successful recovery
-`30877508811` already accepted the owner-side activated state, so neither
-postflight may resolve or replay a migration. Both restricted modes must pass
-before cleanup scheduling or private Case evidence is enabled. Case-evidence
-enablement, cleanup scheduling, provider-variable changes and token retirement
-remain separate releases and must not be bundled into postflight acceptance.
+PR `#150` merged the corrected postflight verifier at exact main commit
+`b98490ab09bcf395b45af04750d9b5606dbff7d5`. Exact-main CI run
+`30881395864`, Notification FORCE proof `30881395925`, and
+Conversation/Message FORCE proof `30881395867` all passed.
+
+The pooled-runtime postflight then passed from that exact clean commit using
+only the pooled `grainline_app_runtime` credential. It proved the exact role,
+policyless ENABLE plus FORCE catalog, 35-function source/signature/ACL
+partition, direct-table/private/cleanup denial and invalid-actor fail-closed
+reads inside a PostgreSQL-attested read-only transaction. Sanitized mode-0600
+evidence
+`direct-upload-activation-runtime-postflight-b98490ab09bcf395b45af04750d9b5606dbff7d5.json`
+has SHA-256
+`3d43c66b6f18ea5d6e5b25b4d7677eda0b0a7bf3e38fe9390623dec95bd611c2`.
+
+Protected cleanup-role workflow run `30924905247` / job `92044644153`
+verified recovery run `30877508811` and exact-main CI `30881395864` through
+the GitHub Actions API before receiving the cleanup credential. It then proved
+the exact `grainline_direct_upload_cleanup_v2` catalog, direct-table and
+runtime-function denial, and the cleanup lease's read-only `25006` fence.
+Sanitized mode-0600 evidence
+`direct-upload-activation-cleanup-postflight-b98490ab09bcf395b45af04750d9b5606dbff7d5.json`
+has SHA-256
+`86b638ffe67ee31b56980e0d22ae922922dd7b88ccbe476d9c51c6940784d0eb`.
+
+Both records bind activation commit
+`64409058d0023a434b36f1af31655caeb4915ac3`, recovery run `30877508811`,
+release commit `b98490ab09bcf395b45af04750d9b5606dbff7d5`, and main CI
+`30881395864`; both report `postflightReadOnly=true` and
+`productionChangedByPostflight=false`. DirectUpload activation acceptance is
+complete. Case-evidence enablement, cleanup scheduling, provider-variable
+changes and token retirement remain separate releases and must not be bundled.
 
 ## Failed production activation evidence
 

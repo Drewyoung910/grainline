@@ -678,6 +678,19 @@ and cleanup postflight code in disposable PostgreSQL sessions where direct
 ledger reads fail with `42501`. Case evidence, cleanup scheduling, token
 retirement and provider-variable changes remain later, independent releases.
 
+PR `#150` subsequently merged the corrected postflight verifier as exact main
+`b98490ab09bcf395b45af04750d9b5606dbff7d5`; exact-main CI
+`30881395864` passed. The pooled-runtime acceptance proof and protected
+cleanup-role workflow run `30924905247` then both passed in PostgreSQL-attested
+read-only transactions, bound to recovery run `30877508811`. Their retained
+mode-0600 evidence SHA-256 values are respectively
+`3d43c66b6f18ea5d6e5b25b4d7677eda0b0a7bf3e38fe9390623dec95bd611c2`
+and
+`86b638ffe67ee31b56980e0d22ae922922dd7b88ccbe476d9c51c6940784d0eb`.
+DirectUpload activation acceptance is complete. Keep Case evidence, cleanup
+scheduling, token retirement and provider-variable changes separate; the next
+RLS activation group is Case/CaseMessage/CaseMessageAttachment.
+
 ### Messaging architecture decision (2026-07-22)
 
 Keep one ordinary Conversation per unordered participant pair. Do not create a

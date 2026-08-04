@@ -39,9 +39,10 @@ Grainline uses database-level Row Level Security for `SavedSearch`,
 hardened. The two DirectUpload lifecycle tables intentionally have no policies
 and no direct runtime or cleanup-role table grants: all permitted behavior
 goes through the reviewed fixed function catalog. Production activation and
-its owner proof are complete; the restricted runtime/cleanup acceptance
-postflights remain pending while their verifier is corrected to avoid reading
-the owner-only Prisma migration ledger. The ordinary application runtime uses
+its owner proof are complete; the restricted runtime and cleanup-role
+acceptance postflights passed read-only from exact main
+`b98490ab09bcf395b45af04750d9b5606dbff7d5` without migration-ledger access.
+The ordinary application runtime uses
 a dedicated `NOBYPASSRLS` role, while owner/migration credentials are kept out
 of the Vercel runtime. The rest of the schema still relies primarily on
 application-layer authorization while independently reviewed RLS or
