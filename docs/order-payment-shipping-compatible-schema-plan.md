@@ -4,6 +4,10 @@ Status: design only on `agent/order-payment-shipping-rls-audit-20260804`.
 This is not a Prisma migration, deployable SQL artifact or production approval.
 It may change after the aggregate-only production inspection.
 
+The design is mirrored by a draft-only, rollback-only PostgreSQL candidate in
+`docs/rls-drafts/order-seller-key-compatibility.sql`. CI executes it only on
+the disposable loopback `grainline_ci` database; it cannot target production.
+
 ## Problem being solved
 
 An Order is created for one seller-scoped Stripe session, but historical seller
@@ -57,6 +61,12 @@ Order before comparing/updating it, and fail on missing Listing/Order or more
 than one source row. It is not a general service function and receives no
 PUBLIC EXECUTE grant. The later fixed checkout creation function will execute
 the same invariant as its owner; the trigger remains a defense against drift.
+
+Deferred constraint triggers must also reject a committed Order with no items,
+a null seller key, or mismatched item sellers. This preserves the old cart
+sequence (Order first, then items in the same transaction) without allowing a
+zero-item source row to survive commit. Deleting the final OrderItem is rejected
+unless the parent Order is deleted in the same transaction.
 
 ## Backfill and validation gates
 

@@ -208,6 +208,10 @@ jobs:
         run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
         env:
           ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove compatible Order seller key in rollback-only PostgreSQL
+        run: npm run audit:rls-order-seller-key-compatibility
+        env:
+          ORDER_SELLER_KEY_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message legacy cleanup in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-legacy-cleanup
         env:
