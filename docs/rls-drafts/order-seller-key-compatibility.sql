@@ -268,13 +268,13 @@ END
 $grainline_order_item_seller_key_complete$;
 
 REVOKE ALL ON FUNCTION public.grainline_order_item_seller_key_bind()
-  FROM PUBLIC;
+  FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_order_seller_key_assert(text)
-  FROM PUBLIC;
+  FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_order_seller_key_complete()
-  FROM PUBLIC;
+  FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION public.grainline_order_item_seller_key_complete()
-  FROM PUBLIC;
+  FROM PUBLIC, grainline_app_runtime;
 
 CREATE TRIGGER grainline_order_item_seller_key_bind
 BEFORE INSERT OR UPDATE OF "orderId", "listingId", "sellerProfileId"

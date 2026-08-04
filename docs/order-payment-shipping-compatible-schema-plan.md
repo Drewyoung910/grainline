@@ -50,6 +50,10 @@ Listing reassignment proof. The candidate had used `ON UPDATE CASCADE`, so
 PostgreSQL attempted to rewrite the historical OrderItem before the immutable
 authority trigger rejected it. No state persisted. The corrected candidate
 uses `ON UPDATE RESTRICT`, and a class guard rejects any return of CASCADE.
+Checkpoint `dbc40343fe3e9f92056143317927046d78a1ea6d` then passed the
+corrected rollback-only PostgreSQL proof and every repository CI gate in run
+`30957665683` on 2026-08-04. This is disposable engine evidence only; it did
+not inspect or change production.
 
 ## Old/new application coexistence
 

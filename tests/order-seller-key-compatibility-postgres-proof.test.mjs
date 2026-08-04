@@ -94,6 +94,7 @@ test("all trigger helpers are private pinned SECURITY DEFINER functions", () => 
   assert.equal((draft.match(/SECURITY DEFINER/g) ?? []).length, 4);
   assert.equal((draft.match(/SET search_path = pg_catalog/g) ?? []).length, 4);
   assert.equal((draft.match(/REVOKE ALL ON FUNCTION/g) ?? []).length, 4);
+  assert.equal((draft.match(/FROM PUBLIC, grainline_app_runtime/g) ?? []).length, 4);
   assert.doesNotMatch(draft, /\bEXECUTE\s+(?:format|immediate)\b/i);
   assert.match(proof, /private_function_count: 4/);
 });
@@ -106,10 +107,11 @@ test("proof covers old app, new app, forgery and ownership drift", () => {
     "cross_seller_item",
     "authority_key_rebinding",
     "purchased_listing_seller_rebinding",
+    "order_seller_rebinding",
   ]) {
     assert.match(proof, new RegExp(marker.replaceAll("-", "[-_]")), marker);
   }
-  assert.match(proof, /checks: 12/);
+  assert.match(proof, /checks: 13/);
   assert.match(proof, /unexpected PostgreSQL error/);
 });
 

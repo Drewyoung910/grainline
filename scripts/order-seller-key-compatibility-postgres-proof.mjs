@@ -367,6 +367,17 @@ async function proveCompatibility(client) {
 
   await expectPostgresError(
     client,
+    "order_seller_rebinding",
+    () => client.query(`
+      UPDATE public."Order"
+         SET "sellerProfileId" = $2
+       WHERE id = $1
+    `, ["order-seller-key-proof-new-app", ids.sellerB]),
+    /OrderItem_orderId_sellerProfileId_fkey/,
+  );
+
+  await expectPostgresError(
+    client,
     "zero_item_order",
     async () => {
       await client.query(`
@@ -423,7 +434,7 @@ export async function runOrderSellerKeyCompatibilityProof(env = process.env) {
     await client.query("ROLLBACK");
     transactionOpen = false;
     return Object.freeze({
-      checks: 12,
+      checks: 13,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
