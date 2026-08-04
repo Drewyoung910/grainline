@@ -187,6 +187,20 @@ describe("order/payment/shipping pre-RLS audit", () => {
     }
   });
 
+  it("assigns every direct source file to a conversion family", () => {
+    const documentedSources = new Set(
+      [...audit.matchAll(/`(src\/[A-Za-z0-9_./\[\]-]+)`/g)]
+        .map((match) => match[1]),
+    );
+    for (const files of Object.values(expected)) {
+      for (const file of files) {
+        assert.equal(documentedSources.has(file), true, file);
+      }
+    }
+    assert.match(audit, /must be removed from production\s+reachability or converted to a separately gated test-only operation/);
+    assert.match(audit, /do not justify restoring runtime\s+base-table SELECT/);
+  });
+
   it("confirms broad runtime CRUD is still the predecessor", () => {
     const grants = fs.readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
     for (const model of Object.keys(expected)) {

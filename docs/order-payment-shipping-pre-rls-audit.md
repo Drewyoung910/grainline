@@ -290,6 +290,76 @@ or migration yet.
 | Payout failure state | `src/app/api/stripe/webhook/route.ts` | webhook-bound monotonic payout-state upsert; seller receives only a bounded projection |
 | Seller deauthorization review flag | `src/app/api/stripe/webhook/route.ts` | exact affected-seller batch operation using the durable Order seller key, not live Listing ownership |
 
+## Semantic read and aggregate conversion map
+
+Every direct-access source pinned by the scanner now has an explicit
+destination family. This is a source disposition, not yet a function catalog;
+the next design pass must specify exact input/output columns and pagination for
+each fixed projection.
+
+Buyer and participant projections:
+
+- compact account history: `src/app/account/page.tsx` and
+  `src/app/account/orders/page.tsx`;
+- buyer dashboard list/detail: `src/app/dashboard/orders/page.tsx` and
+  `src/app/dashboard/orders/[id]/page.tsx`;
+- checkout recovery/success lookup: `src/app/checkout/success/page.tsx`;
+- purchase/review eligibility: `src/app/api/reviews/route.ts` and
+  `src/components/ReviewsSection.tsx`;
+- private-target report eligibility: `src/app/api/users/[id]/report/route.ts`;
+  and
+- account portability: `src/app/api/account/export/route.ts`, with separate
+  buyer-order, seller-order, payout and reservation projections.
+
+Seller projections:
+
+- seller home payout summary: `src/app/dashboard/seller/page.tsx`;
+- sales list/detail: `src/app/dashboard/sales/page.tsx` and
+  `src/app/dashboard/sales/[orderId]/page.tsx`;
+- recent-sales and bounded analytics:
+  `src/app/api/seller/analytics/recent-sales/route.ts` and
+  `src/app/api/seller/analytics/route.ts`; and
+- verification eligibility: `src/app/api/verification/apply/route.ts` and
+  `src/app/dashboard/verification/page.tsx`.
+
+Staff projections and transitions:
+
+- order queues/detail: `src/app/admin/orders/page.tsx` and
+  `src/app/admin/orders/[id]/page.tsx`;
+- flagged queue: `src/app/admin/flagged/page.tsx`;
+- Case-linked staff order detail: `src/app/admin/cases/[id]/page.tsx`;
+- verification evidence: `src/app/admin/verification/page.tsx`; and
+- reviewed mutations: `src/app/admin/actions.ts`.
+
+Service, safety and aggregate consumers:
+
+- signed provider ingestion and checkout creation:
+  `src/app/api/stripe/webhook/route.ts`;
+- reservation resume/restore: `src/app/api/cart/checkout/resume/route.ts` and
+  `src/lib/checkoutStockRestore.ts`;
+- participant state transitions:
+  `src/app/api/orders/[id]/confirm-delivery/route.ts`,
+  `src/app/api/orders/[id]/fulfillment/route.ts`,
+  `src/app/api/orders/[id]/label/route.ts` and
+  `src/app/api/orders/[id]/refund/route.ts`;
+- PII expiry/account lifecycle: `src/lib/accountDeletion.ts`;
+- staff ban/undo and listing-retention blockers: `src/lib/ban.ts`,
+  `src/lib/audit.ts` and `src/lib/listingSoftDelete.ts`;
+- shared lock/refund/label helpers: `src/lib/caseLifecycleLocks.ts`,
+  `src/lib/refundLocks.ts`, `src/lib/localRefundEvidence.ts`,
+  `src/lib/refundLedgerSql.ts` and `src/lib/labelClawbackRetry.ts`;
+- public and staff-safe aggregates: `src/lib/homepageStats.ts`,
+  `src/lib/metrics.ts`, `src/lib/publicSellerStats.ts`,
+  `src/lib/quality-score.ts` and `src/lib/site-metrics-snapshot.ts`; and
+- the development-only synthetic creator:
+  `src/app/api/dev/make-order/route.ts`, which must be removed from production
+  reachability or converted to a separately gated test-only operation before
+  runtime INSERT is revoked.
+
+Fixed Case functions already read bounded Order facts. They must remain in the
+function-catalog/global-grant audit, but they do not justify restoring runtime
+base-table SELECT after this group activates.
+
 ## Rollout sequence
 
 The aggregate-only inspector scaffold is now saved as
