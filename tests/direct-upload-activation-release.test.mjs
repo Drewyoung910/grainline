@@ -47,9 +47,9 @@ describe("DirectUpload service-only activation release", () => {
       status: "passed",
       migrationName: "20260801194000_enable_direct_upload_rls",
       migrationSha256:
-        "810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71",
+        "1bceed7a5076f15ae5c9c46a89bbaecdf583953f7a1ff80b26a8b0e7c21157c4",
       disposableProofSha256:
-        "1db96ec58d7cfd9e53967c0fc1698f03679acfcf77ef30b6ee36b6daaf160554",
+        "6600e6b96bf1d151befb860bab2fa268199d3847b4e4b7ccb3be647ca44c4a8b",
       executableBodyMatchesDisposableProof: true,
       followsReviewedProductionHistory: true,
       functionCount: 35,
@@ -62,7 +62,7 @@ describe("DirectUpload service-only activation release", () => {
     });
     assert.equal(
       DISPOSABLE_DIRECT_UPLOAD_ACTIVATION_SHA256,
-      "1db96ec58d7cfd9e53967c0fc1698f03679acfcf77ef30b6ee36b6daaf160554",
+      "6600e6b96bf1d151befb860bab2fa268199d3847b4e4b7ccb3be647ca44c4a8b",
     );
     assert.equal(
       FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,

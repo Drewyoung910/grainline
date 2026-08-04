@@ -24,6 +24,15 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1
       FROM pg_catalog.pg_roles
+     WHERE rolname = 'grainline_app_runtime'
+  ) THEN
+    CREATE ROLE grainline_app_runtime
+      LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+      NOREPLICATION NOBYPASSRLS;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_roles
      WHERE rolname = 'grainline_direct_upload_cleanup_v2'
   ) THEN
     CREATE ROLE grainline_direct_upload_cleanup_v2
@@ -41,8 +50,10 @@ END
 $grainline_direct_upload_recovery_provider_roles$;
 
 -- This disposable cluster starts with cloud_admin as PostgreSQL's bootstrap
--- superuser. PostgreSQL therefore records the same provider grantor identity
--- that Neon records, without adding a second membership dependency.
+-- superuser. These explicit grants therefore record the same provider grantor
+-- identity and non-effective membership options that Neon records.
+GRANT grainline_app_runtime TO neondb_owner
+  WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
 GRANT grainline_direct_upload_cleanup_v2 TO neondb_owner
   WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
 
@@ -53,7 +64,10 @@ DECLARE
 BEGIN
   SELECT
     pg_catalog.count(*) FILTER (
-      WHERE granted_role.rolname = 'grainline_direct_upload_cleanup_v2'
+      WHERE granted_role.rolname IN (
+              'grainline_app_runtime',
+              'grainline_direct_upload_cleanup_v2'
+            )
         AND member.rolname = 'neondb_owner'
         AND grantor.rolname = 'cloud_admin'
         AND membership.admin_option
@@ -77,7 +91,7 @@ BEGIN
            'grainline_app_runtime',
            'grainline_direct_upload_cleanup_v2'
          );
-  IF matching_edges <> 1 OR touching_edges <> 1 THEN
+  IF matching_edges <> 2 OR touching_edges <> 2 THEN
     RAISE EXCEPTION
       'DirectUpload recovery role fixture membership is not exact';
   END IF;

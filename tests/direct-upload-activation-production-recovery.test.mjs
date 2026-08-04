@@ -243,7 +243,7 @@ describe("DirectUpload activation production recovery", () => {
         { GITHUB_SHA: "d".repeat(40) },
         { DIRECT_UPLOAD_ACTIVATION_RECOVERY_CONFIRM: "yes" },
         { DIRECT_UPLOAD_ACTIVATION_FAILED_MIGRATION_RUN_ID: "30729632411" },
-        { DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID: "30734098368" },
+        { DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROOF_RUN_ID: "30865542313" },
         { DIRECT_UPLOAD_ACTIVATION_RECOVERY_MAIN_CI_RUN_ID: "0" },
         { DATABASE_URL: "present" },
         { PRODUCTION_MIGRATION_DIRECT_URL: "present" },
@@ -531,7 +531,7 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.match(
       plan,
-      /30729632410[\s\S]*30734098369[\s\S]*exact successful main CI run/u,
+      /30729632410[\s\S]*30865542314[\s\S]*exact successful main CI run/u,
     );
     assert.match(
       plan,
@@ -555,6 +555,11 @@ describe("DirectUpload activation production recovery", () => {
     assert.doesNotMatch(workflow, /Number\('\$\{\{ inputs\./u);
     assert.match(workflow, /process\.env\.REVIEWED_RELEASE_COMMIT/u);
     assert.match(workflow, /run\.event !== reviewed\.event/u);
+    assert.match(workflow, /proofRunId !== 30865542314/u);
+    assert.match(
+      workflow,
+      /id: proofRunId,[\s\S]*headBranch: 'agent\/direct-upload-activation-runtime-bootstrap-preflight-20260803',[\s\S]*headSha: '5f8f761ead7619baf5037dcdce595bfc4e877329'/u,
+    );
     const inspect = workflow.indexOf("Inspect exact restart state read-only");
     const release = workflow.indexOf(
       "Verify exact corrected DirectUpload activation release",

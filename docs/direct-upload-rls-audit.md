@@ -1761,12 +1761,15 @@ activation SQL was inconsistent and rejected all edges. Production remained
 in the exact compatible posture with the original failed row at zero applied
 steps.
 
-The recovery candidate changes only that membership preflight. It continues to
-reject all runtime memberships, every cleanup parent membership, every direct
-cleanup member edge except the exact bootstrap tuple, and every transitive
-cleanup member beyond `neondb_owner`. The failed original checksum remains
-pinned separately; the corrected reviewed checksum is
+The first recovery candidate changed only that membership preflight. It
+continues to reject all runtime memberships, every cleanup parent membership,
+every direct cleanup member edge except the exact bootstrap tuple, and every
+transitive cleanup member beyond `neondb_owner`. The failed original checksum
+remains pinned separately; the corrected reviewed checksum is
 `810ecc8b7ab121ff13c517f5bd71ee71754cdf6421f25a71f10e3eb73c99aa71`.
+That checksum is retained as superseded evidence after the later protected
+inspection proved the equivalent runtime bootstrap edge also needs exact
+allowlisting; it is no longer the current recovery candidate.
 A disposable PostgreSQL proof of failed-row resolution plus corrected replay is
 required before any production recovery operator may be staged. That proof
 passed in run `30733990797` / job `91459182538` at exact branch head
@@ -1777,6 +1780,95 @@ all passed. No production credential or persistent provider was reachable.
 
 ## Exit
 
+### 2026-08-03 hardened alias inspection and second preflight mismatch
+
+Protected read-only inspection run `30862128758` passed at exact main
+`1cfc9c75f87c90fa82e989c4897a21fd9aa99d68`. It independently proved the
+historical listing-variants alias has no finish timestamp, one rollback marker
+and zero applied steps while the reviewed current name has the sole completed
+application. The DirectUpload activation row remains the exact unfinished,
+unrolled-back zero-step failure; DirectUpload RLS remains off; compatible
+authority is restored; and the repeatable-read transaction reported read-only.
+The inspection changed no production state.
+
+The extracted live activation preflight still failed with SQLSTATE `P0001` and
+the allowlisted membership message. This is not drift in the cleanup edge that
+PR #139 fixed. The production baseline intentionally has the owner as a
+non-inheriting, non-settable admin member of both restricted login roles, while
+the current activation SQL permits the exact provider bootstrap tuple only for
+`grainline_direct_upload_cleanup_v2`. It therefore rejects the equally
+non-effective `grainline_app_runtime` owner edge that the global production
+migration guard already requires. Do not resolve the failed row or retry
+recovery. A successor candidate must model both exact direct edges, recursively
+reject any transitive member other than `neondb_owner`, replay both edges in
+the disposable PostgreSQL recovery proof, refresh byte pins, and re-run the
+protected read-only preflight before any production mutation.
+
+The sanitized evidence file SHA-256 is
+`b881c9a64029c621b01e820975082b7a1eff4cfbd9b7851028724c41b72d708e`;
+GitHub artifact `8874773325` belongs to inspection run `30862128758`.
+
+Isolated branch
+`agent/direct-upload-activation-runtime-bootstrap-preflight-20260803` now
+contains the authorized successor candidate. It allowlists the exact
+`cloud_admin`-granted, `ADMIN=true`, `INHERIT=false`, `SET=false` direct edge
+from each restricted role to `neondb_owner`, and no other touching edge. A
+root-labelled recursive membership walk starts independently at both
+`grainline_app_runtime` and `grainline_direct_upload_cleanup_v2` and rejects
+every descendant other than `neondb_owner`. The production migration and its
+generator remain byte-equivalent at promoted SHA-256
+`1bceed7a5076f15ae5c9c46a89bbaecdf583953f7a1ff80b26a8b0e7c21157c4`
+and disposable SHA-256
+`6600e6b96bf1d151befb860bab2fa268199d3847b4e4b7ccb3be647ca44c4a8b`.
+The failed original checksum remains separately pinned. The disposable fixture
+now reproduces both exact provider edges, and a transaction-rolled-back proof
+tests exact-edge and no-edge acceptance plus direct-member, parent-membership,
+transitive-member and option-drift rejection with zero role residue. Local
+focused contracts and the full non-database suite pass after Prisma generation;
+the PostgreSQL 16 workflow remains the required execution proof before review.
+
+The first exact-head execution, run `30863620128`, passed the new seven-check
+membership-preflight step on PostgreSQL 16. It then stopped before disposable
+resolution/replay because the pre-existing recovery-posture assertion still
+pinned only the cleanup bootstrap edge. That harness-only expectation now
+uses an exported, unit-tested two-edge contract. The failed run had no
+production credential and changed no provider or production state; a complete
+exact-head rerun remains required.
+
+That complete rerun passed at executable commit
+`595098e9f19af737a2f70f5567a99c00a6d15c55`: disposable PostgreSQL 16 run
+`30863895210` / job `91851469212` completed every membership, failure,
+resolution, activation, grant, authority and rollback stage. Full PR CI run
+`30863897027` / job `91851475050` also passed, including the production build.
+No production credential or persistent provider was available to the proof.
+
+The subsequent Extra-High review found no defect in the exact two-edge SQL
+allowlist or root-labelled recursive rejection. It did find a proof-coverage
+asymmetry: the live harness had exercised unexpected direct/parent membership
+and bootstrap option drift primarily through the runtime role. Commit
+`99eab93713a7bfcbbea450c97e5e0b1192f4e3c9` makes those cases symmetric across
+both restricted roles and expands the rolled-back membership matrix from
+seven to 14 checks. Disposable PostgreSQL 16 run `30865221934` / job
+`91855473752` passed the expanded matrix and the complete recovery sequence;
+full CI run `30865224129` / job `91855481718` passed all database proofs,
+TypeScript, lint, 2,680 tests, security audit and the production build at the
+same exact head. The draft branch remains non-production: no migration ledger,
+database, deployment or provider state changed.
+
+A follow-on operator audit found that the production recovery workflow and
+verifier still pinned superseded cleanup-edge-only proof `30734098369`. That
+would have rejected the new proof input while preserving evidence for obsolete
+migration bytes. The isolated branch now binds successful two-edge disposable
+proof `30865542314` / job `91856468869` at exact head
+`5f8f761ead7619baf5037dcdce595bfc4e877329`, and static contracts pin the run,
+branch and SHA. This is a branch-only fail-closed binding correction; no
+production workflow was dispatched and no production or provider state
+changed. Exact-head disposable PostgreSQL run `30866643733` / job
+`91859847929` and full CI run `30866645901` / job `91859854716` passed at
+commit `dfa9bad6f17abe7079ee955be097f68bc345ba01`, including the updated operator
+contract, complete recovery sequence, TypeScript, lint, 2,680 tests, security
+audit and production build.
+
 Keep Extra High through the activation sequencing and authority review. The
 production v2 cleanup login and its exact three-function authority are
 provisioned and proved, the cleanup-only R2 credential passed its exact-bucket
@@ -1785,11 +1877,13 @@ disposable-object proof, and the compatibility key is retired in production.
 deployed and drained, the rejected Cloudflare `v3` token is absent, the
 activation-aware postflights are merged, and the original production
 activation attempt is fully classified as a zero-step rolled-back preflight
-failure. PR `#139` holds the corrected membership preflight and passed the
-complete disposable resolve/replay proof. Next, finish exact-head CI and the
-Extra-High PR review, then stage a separately guarded production recovery
-operator. Do not resolve the production ledger row, retry activation, schedule
-the protected worker or enable Case evidence until that operator is reviewed.
+failure. Reviewed draft PR `#146` holds the current two-edge membership
+preflight, symmetric 14-check proof and corrected recovery-evidence binding.
+Its branch proofs are complete. Next, merge only that reviewed exact head, wait
+for exact-main CI, and run the separate protected read-only Failure Inspection.
+Do not resolve the production ledger row, retry activation, schedule the
+protected worker or enable Case evidence merely because those read-only gates
+pass; production recovery remains a distinct guarded action.
 Standing authorization permits routine continuation through this
 already-scoped rollout without conversational micro-approval. Exact-commit
 proof, protected-environment, migration, deployment and production postflight

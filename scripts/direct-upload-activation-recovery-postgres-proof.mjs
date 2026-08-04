@@ -24,6 +24,25 @@ const LISTING_VARIANTS_CHECKSUM = createHash("sha256").update(
   ),
 ).digest("hex");
 
+export const DIRECT_UPLOAD_ACTIVATION_REVIEWED_MEMBERSHIPS = Object.freeze([
+  Object.freeze({
+    admin_option: true,
+    granted_role: "grainline_app_runtime",
+    grantor_role: "cloud_admin",
+    inherit_option: false,
+    member_role: "neondb_owner",
+    set_option: false,
+  }),
+  Object.freeze({
+    admin_option: true,
+    granted_role: "grainline_direct_upload_cleanup_v2",
+    grantor_role: "cloud_admin",
+    inherit_option: false,
+    member_role: "neondb_owner",
+    set_option: false,
+  }),
+]);
+
 export function parseDirectUploadActivationRecoveryProofConfig(
   env = process.env,
   argv = process.argv.slice(2),
@@ -47,14 +66,7 @@ export function parseDirectUploadActivationRecoveryProofConfig(
 }
 
 function assertExactMembership(rows) {
-  assert.deepEqual(rows, [{
-    admin_option: true,
-    granted_role: "grainline_direct_upload_cleanup_v2",
-    grantor_role: "cloud_admin",
-    inherit_option: false,
-    member_role: "neondb_owner",
-    set_option: false,
-  }]);
+  assert.deepEqual(rows, DIRECT_UPLOAD_ACTIVATION_REVIEWED_MEMBERSHIPS);
 }
 
 function assertCompatibleTables(rows) {
