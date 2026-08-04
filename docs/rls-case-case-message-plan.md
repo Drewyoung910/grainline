@@ -1,16 +1,32 @@
 # Case, CaseMessage, and CaseMessageAttachment RLS Plan
 
-Opened 2026-07-26. Current phase: policyless ENABLE release packaging after a
-clean Phase 2 production inspection, completed Phase 3 proof, live Phase 4
-compatible database/application conversion, live invariant/read-mode
+Opened 2026-07-26. Current phase: policyless ENABLE is live and pooled-runtime
+accepted after a clean Phase 2 production inspection, completed Phase 3 proof,
+live Phase 4 compatible database/application conversion, live invariant/read-mode
 convergence, accepted DirectUpload activation, and zero ordinary direct
-Case-family access. Production RLS remains off for Case, CaseMessage and
-CaseMessageAttachment until the separately guarded activation is dispatched.
+Case-family access. FORCE remains a separate posture-only release for `Case`,
+`CaseMessage` and `CaseMessageAttachment`; Case evidence remains disabled.
 
 The behavior findings, 80-reference conversion baseline and current
 52-reference countdown live in
 `docs/case-case-message-pre-rls-audit.md`. This document controls sequencing.
 It contains no approved policy or function SQL.
+
+## Policyless ENABLE production acceptance (2026-08-04)
+
+Exact main `a9abaec057ab80a455a81503080bcd3b9027c4be` passed CI run
+`30937766824`. Protected migration run `30939836526` applied only
+`20260804160000_enable_case_rls` and passed migration status plus the global
+grant/RLS audit. The real pooled `grainline_app_runtime` postflight then proved
+all three Case-family tables RLS-enabled without FORCE, with zero policies,
+zero direct runtime table/column authority, 27 reviewed runtime functions,
+three private helpers, direct-read `42501` denials and fail-closed invalid-actor
+reads in an engine-attested read-only transaction.
+
+Sanitized mode-`0600` evidence SHA-256 is
+`117590a50316ff0efb783c490e95aa31014221a4b93e4372f5f6995c5a15ee15`.
+No application deployment, Case-evidence enablement, FORCE, cleanup scheduling,
+token revocation or provider change was included.
 
 ## Scope boundary
 

@@ -1,9 +1,41 @@
 # Case-family policyless RLS activation release
 
-Prepared 2026-08-04 on isolated branch
-`agent/case-rls-activation-release-20260804`. This record packages the first
-Case-family RLS state change. It does not claim that the migration is merged or
-live and does not authorize a production workflow dispatch.
+Prepared and accepted 2026-08-04. The release was reviewed on isolated branch
+`agent/case-rls-activation-release-20260804`, merged from exact head
+`6bfcfda88193cd1ecbe316c3d665321c7d965887` as main commit
+`a9abaec057ab80a455a81503080bcd3b9027c4be`, and promoted through the protected
+production workflow described below.
+
+## Production acceptance
+
+- Exact-main CI run `30937766824` passed the migration-tree, authority,
+  concurrency, rollback, grant, TypeScript, lint, full test, dependency-audit
+  and production-build gates.
+- Protected Production Migrations run `30939836526` (job `92095126727`) passed
+  the live owner-role, credential, membership, Phase-B and migration-ledger
+  preflight; applied only `20260804160000_enable_case_rls`; reported the full
+  migration tree applied; and passed the final runtime grant/RLS audit.
+- The real pooled `grainline_app_runtime` postflight then passed in an
+  engine-attested `REPEATABLE READ READ ONLY` transaction. It proved RLS
+  enabled without FORCE on `Case`, `CaseMessage` and
+  `CaseMessageAttachment`, zero policies, zero direct runtime table or column
+  authority, the exact 27-function runtime partition, three private helpers,
+  direct-read SQLSTATE `42501`, and fail-closed invalid-actor reads. The
+  postflight rolled back and changed no production state.
+- Sanitized mode-`0600` evidence is retained outside the runtime repository as
+  `case-activation-production-postflight-a9abaec057ab80a455a81503080bcd3b9027c4be.json`
+  with SHA-256
+  `117590a50316ff0efb783c490e95aa31014221a4b93e4372f5f6995c5a15ee15`.
+
+The first local postflight invocation exited before importing the operator or
+contacting PostgreSQL because the disposable worktree dependency link did not
+contain `pg`. The evidence path remained fresh. The link was replaced with an
+exact-lockfile `pg@8.20.0` dependency tree and the unchanged postflight passed.
+This was a local operator setup failure, not a database or RLS failure.
+
+Case evidence remains disabled. FORCE, deployment, cleanup scheduling,
+provider variables and token state were unchanged and remain separate release
+boundaries.
 
 ## Exact release unit
 
@@ -87,8 +119,7 @@ The posture-only FORCE candidate remains a separate draft at SHA-256
 with rollback SHA-256
 `dc6ead925a61509465925d880f6338d0494ab583b9c38dda012f0eeea6e0a59d`.
 
-Do not bundle FORCE, Case-evidence enablement, DirectUpload cleanup scheduling,
-token retirement, provider-variable changes, application deployment, or the
-later Order/payment/shipping RLS group into this activation. Production remains
-unchanged until this branch passes exact-head CI, is reviewed and merged, and a
-separately guarded production migration run is deliberately dispatched.
+This activation did not bundle FORCE, Case-evidence enablement, DirectUpload
+cleanup scheduling, token retirement, provider-variable changes, application
+deployment, or the later Order/payment/shipping RLS group. The next Case-family
+database boundary is the separately reviewed posture-only FORCE release.

@@ -60,6 +60,9 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(liveRows.map((row) => row.model), [
       "Conversation",
       "Message",
+      "Case",
+      "CaseMessage",
+      "CaseMessageAttachment",
       "SavedSearch",
       "DirectUpload",
       "DirectUploadReference",
@@ -70,13 +73,16 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
+        ["Case", "RLS_LIVE_PHASE_A"],
+        ["CaseMessage", "RLS_LIVE_PHASE_A"],
+        ["CaseMessageAttachment", "RLS_LIVE_PHASE_A"],
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
-    assert.match(matrix, /six tables in this snapshot with production\s+RLS/);
+    assert.match(matrix, /nine tables in this snapshot with production RLS/);
     assert.match(
       matrix,
       /Pooled-runtime and cleanup-role acceptance passed read-only/,

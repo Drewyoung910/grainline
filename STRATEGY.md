@@ -1227,16 +1227,17 @@ complete repository suite, dependency audit and production build succeeded.
 This closes the draft authority gate and moves Case-family work to compatible
 release packaging; production Case-family RLS remains off.
 
-The prerequisite chain is now complete through DirectUpload restricted-role
+The prerequisite chain is complete through DirectUpload restricted-role
 acceptance. Recovery run `30877508811`, exact-main CI `30881395864`, and
 read-only restricted-role postflight run `30924905247` accepted the shared
-private-object lifecycle boundary. The next release is the isolated,
-byte-pinned policyless Case-family ENABLE migration
-`20260804160000_enable_case_rls`; its durable release record is
+private-object lifecycle boundary. The byte-pinned policyless Case-family
+ENABLE migration `20260804160000_enable_case_rls` is now live from exact main
+`a9abaec057ab80a455a81503080bcd3b9027c4be`: main CI `30937766824`, protected
+migration run `30939836526`, and the real pooled-runtime read-only postflight
+all passed. Its durable evidence and exact catalog are recorded in
 `docs/case-activation-production-release.md`. Keep FORCE, Case-evidence
 enablement, cleanup scheduling, provider/token changes, deployment and the
-Order/payment/shipping group separate. Production Case-family RLS remains off
-until the guarded activation itself succeeds and is postflighted.
+Order/payment/shipping group separate.
 
 Release packaging preserves a strict two-step coexistence boundary. The
 database-only package installs the additive schema, private ledgers and 27
