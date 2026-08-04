@@ -190,7 +190,7 @@ export function assertCaseCompatibleDatabaseGitState(state, releaseCommit) {
   return Object.freeze({ clean: true, head: state.head });
 }
 
-async function verifyRuntimeIdentity(
+export async function verifyRuntimeIdentity(
   client,
   expectedIdentity,
   migrationRole,
@@ -224,7 +224,7 @@ async function verifyRuntimeIdentity(
   }]);
 }
 
-async function verifyReadOnlyTransaction(client) {
+export async function verifyReadOnlyTransaction(client) {
   const result = await client.query(`
     SELECT pg_catalog.current_setting('transaction_read_only') AS read_only
   `);
@@ -289,7 +289,7 @@ async function verifyTablePosture(client, migrationRole) {
   }
 }
 
-async function verifyTriggerCatalog(client) {
+export async function verifyTriggerCatalog(client) {
   const result = await client.query(`
     SELECT
       trigger.tgname AS trigger_name,
@@ -336,7 +336,7 @@ async function verifyTriggerCatalog(client) {
   ]);
 }
 
-async function verifyFunctionCatalog(client, migrationRole) {
+export async function verifyFunctionCatalog(client, migrationRole) {
   const runtimeNames = new Set(CASE_COMPATIBLE_RUNTIME_FUNCTIONS);
   const expectedNames = [
     ...CASE_COMPATIBLE_RUNTIME_FUNCTIONS,
@@ -409,7 +409,7 @@ async function expectInsufficientPrivilege(client, operation, label) {
   assert.equal(caught?.code, "42501", `${label} did not fail with 42501`);
 }
 
-async function proveRuntimeBoundary(client) {
+export async function proveRuntimeBoundary(client) {
   await expectInsufficientPrivilege(
     client,
     () => client.query(

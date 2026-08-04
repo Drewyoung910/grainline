@@ -127,3 +127,26 @@ test("release records exact accepted predecessors and an unchanged production bo
   );
   assert.match(release, /Production remains\s+unchanged/);
 });
+
+test("production acceptance is prepared as a separate read-only runtime proof", () => {
+  const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  const operator = fs.readFileSync(
+    "scripts/case-activation-production-postflight.mjs",
+    "utf8",
+  );
+  assert.equal(
+    packageJson.scripts?.["ops:case-activation-postflight"],
+    "node scripts/case-activation-production-postflight.mjs",
+  );
+  assert.match(operator, /REPEATABLE READ READ ONLY/);
+  assert.match(operator, /productionChangedByPostflight: false/);
+  assert.match(
+    release,
+    /verify-production-case-policyless-activation-read-only/,
+  );
+  assert.match(release, /mode-`0600` JSON evidence file/);
+  assert.match(
+    release,
+    /must run only after the\s+guarded production migration succeeds/,
+  );
+});

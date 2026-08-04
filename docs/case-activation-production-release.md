@@ -59,6 +59,25 @@ Prisma deploy. It then:
 The guarded production workflow validates the same exact bytes and tree before
 Prisma deploy. It does not deploy application code or change provider state.
 
+## Prepared production acceptance
+
+`npm run ops:case-activation-postflight` is the separate read-only acceptance
+operator for the exact clean main release after the guarded migration run. It
+accepts only the reviewed pooled `grainline_app_runtime` production identity,
+rejects owner and aliased PostgreSQL credentials, binds the exact release
+commit plus successful main-CI and migration run ids, and starts an
+engine-attested `REPEATABLE READ READ ONLY` transaction before catalog work.
+
+The operator proves policyless ENABLE without FORCE on all three Case-family
+tables, zero direct runtime table or column authority, the complete 27-function
+runtime partition, private-helper denial, invalid-actor recipient denial, and
+SQLSTATE `42501` for a direct read of each protected table. It always rolls
+back, writes a fresh sanitized mode-`0600` JSON evidence file containing no
+connection string, and makes no production mutation. Its exact confirmation
+is `verify-production-case-policyless-activation-read-only`. This postflight
+is not evidence that activation is already live; it must run only after the
+guarded production migration succeeds.
+
 ## Separate later boundaries
 
 The reviewed activation rollback remains a draft at SHA-256

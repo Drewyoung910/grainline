@@ -1301,6 +1301,13 @@ ordering, rollback boundary and production non-authorization are recorded in
 claim; production remains at the accepted RLS-off predecessor until an exact
 merged commit passes CI and a separate guarded migration run succeeds.
 
+The activation package also prepares the separate pooled-runtime acceptance
+operator `ops:case-activation-postflight`. After the exact migration run, it
+must bind the exact clean main release, its successful main CI run and the
+successful migration run, then prove the policyless ENABLE catalog and direct
+read denial inside a PostgreSQL-attested read-only transaction. FORCE remains
+a later release even after that acceptance passes.
+
 - Inspect/backup legacy rows and confirm no cleanup is pending.
 - Converge the four remaining bounded `SECURITY INVOKER` projections to
   `SECURITY DEFINER` in a compatible pre-activation migration. Their bodies
