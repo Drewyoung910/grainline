@@ -4,6 +4,42 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Case FORCE completion and Order/payment/shipping start (2026-08-04)
+
+The Case-family database RLS group is complete. Exact main
+`9e5d87f4c5b4a529bc84c6c2cf077778fe553186` passed CI `30951067980`;
+guarded Production Migrations run `30953378226` applied only
+`20260804191000_force_case_rls`; and the separate actual pooled-runtime
+read-only postflight confirmed policyless ENABLE plus FORCE, zero direct
+runtime table/column authority and the exact fixed-function partition for
+`Case`, `CaseMessage` and `CaseMessageAttachment`. Case evidence enablement,
+private R2 route smoke, cleanup scheduling, token retirement and provider
+variables remain separate and disabled.
+
+The active sensitive-data program is now Order/payment/shipping. Its audit
+contract is `docs/order-payment-shipping-pre-rls-audit.md`. Treat `Order`,
+`OrderItem`, `OrderShippingRateQuote`, `OrderPaymentEvent`,
+`SellerPayoutEvent` and `CheckoutStockReservation` as one program with
+separately sequenced production releases. `StripeWebhookEvent` isolation is a
+hard service-ledger prerequisite. Do not fold Cart/CartItem, SellerProfile,
+Listing or public analytics into the activation merely because fixed order
+operations validate them.
+
+The first two design decisions are pinned: durable seller authority must be
+captured at checkout rather than derived from a Listing's mutable current
+seller, and mixed-column Order data should use actor-specific fixed projections
+instead of broad participant base-table SELECT policies. The target is
+policyless ENABLE plus FORCE with zero ordinary runtime/PUBLIC table grants,
+source-validating fixed writes and a protected aggregate-only legacy
+inspection before any cleanup or activation. Finish the complete group before
+moving to the next sensitive-data family.
+
+The webhook prerequisite must replace ID-only stale-lease finalization with a
+database-derived claim generation. A reclaimed event may be completed or
+failed only by the worker holding the exact current generation; event type is
+immutable after the first accepted reservation. This closes the documented
+stale-worker ABA race before the webhook ledger becomes authority evidence.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
