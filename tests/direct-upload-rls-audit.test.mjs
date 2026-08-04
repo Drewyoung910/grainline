@@ -162,7 +162,7 @@ describe("DirectUpload RLS audit contracts", () => {
     assert.match(matrix, /\| `DirectUpload` \| `RLS_LIVE_FORCE` \|/);
     assert.match(matrix, /Policyless ENABLE plus FORCE/);
     assert.match(matrix, /recovery run `30877508811`/);
-    assert.match(matrix, /restricted-role postflights remain an acceptance gate/);
+    assert.match(matrix, /Exact-main pooled-runtime and protected cleanup-role postflights are accepted read-only/);
     assert.match(strategy, /CM-A21 execution contract/);
     assert.match(strategy, /run `30225445722`/);
     assert.match(strategy, /Withhold the unused future\s+private-message recorder/);

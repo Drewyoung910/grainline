@@ -1,12 +1,15 @@
 # DirectUpload activation production recovery
 
-Status: the corrected activation migration committed during recovery run
-`30871995372`, but that run stopped before external grant convergence and final
-proofs. Restart run `30873322551` then stopped in its initial read-only activated
-catalog inspection because two production readers compared named PostgreSQL
-arguments with the reviewed type-only signature catalog. That second run made
-no production change. Activation acceptance, grant convergence and final
-postflights remain open.
+Status on 2026-08-04: recovery and restricted-role acceptance are complete.
+Restart-safe production recovery run `30877508811` accepted the exact activated
+ledger, converged the reviewed grants and passed migration status, the global
+grant/RLS audit and activated owner proof. PR `#150` merged the ledger-safe
+postflight verifier as exact main
+`b98490ab09bcf395b45af04750d9b5606dbff7d5`; exact-main CI
+`30881395864`, the pooled-runtime postflight and protected cleanup-role run
+`30924905247` all passed. Neither postflight changed production state.
+DirectUpload activation acceptance is closed; Case evidence, cleanup
+scheduling, provider changes and token retirement remain separate releases.
 
 Read-only inspection run `30862128758` at exact main commit
 `1cfc9c75f87c90fa82e989c4897a21fd9aa99d68` closed the historical-alias
@@ -446,3 +449,25 @@ postflight implementations and the `42501` ledger-denial checks, then restores
 every function to `ci` before migration status, global grants and rollback
 proofs continue. A restoration failure fails the disposable run; no owner
 fixture is ever used against production.
+
+## Restricted-role postflight acceptance
+
+PR `#150` merged the correction at exact main
+`b98490ab09bcf395b45af04750d9b5606dbff7d5`. Exact-main CI run
+`30881395864` passed, as did the automatic Notification FORCE proof
+`30881395925` and Conversation/Message FORCE proof `30881395867`.
+
+The pooled-runtime proof passed from the exact clean merge commit as
+`grainline_app_runtime`. Protected cleanup-role workflow run `30924905247` /
+job `92044644153` separately verified the exact recovery and CI runs through
+the GitHub API, then passed as `grainline_direct_upload_cleanup_v2`. Both used
+PostgreSQL-attested read-only transactions and reported
+`productionChangedByPostflight=false`.
+
+The retained mode-0600 evidence digests are:
+
+- runtime: `3d43c66b6f18ea5d6e5b25b4d7677eda0b0a7bf3e38fe9390623dec95bd611c2`;
+- cleanup: `86b638ffe67ee31b56980e0d22ae922922dd7b88ccbe476d9c51c6940784d0eb`.
+
+No migration was resolved or replayed, and no deployment, grant, provider,
+Case-evidence, scheduler or token change was part of acceptance.

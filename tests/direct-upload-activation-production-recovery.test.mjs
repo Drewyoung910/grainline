@@ -551,7 +551,7 @@ describe("DirectUpload activation production recovery", () => {
     );
     assert.match(
       plan,
-      /Status:[\s\S]*30871995372[\s\S]*30873322551[\s\S]*no production change/u,
+      /Status on 2026-08-04:[\s\S]*30877508811[\s\S]*30924905247[\s\S]*Neither postflight changed production state/u,
     );
     assert.match(
       plan,
