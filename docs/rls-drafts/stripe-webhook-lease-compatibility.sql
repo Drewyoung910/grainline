@@ -176,8 +176,8 @@ BEGIN
   UPDATE public."StripeWebhookEvent" AS event
      SET "processingStartedAt" = NULL,
          "lastError" = pg_catalog.left(
-           pg_catalog.coalesce(
-             pg_catalog.nullif(p_sanitized_error, ''),
+           COALESCE(
+             NULLIF(p_sanitized_error, ''),
              'Webhook processing failed'
            ),
            500

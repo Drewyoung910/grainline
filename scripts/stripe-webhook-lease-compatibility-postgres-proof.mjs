@@ -140,7 +140,7 @@ async function proveCatalog(client) {
           AND NOT EXISTS (
             SELECT 1
               FROM pg_catalog.aclexplode(
-                pg_catalog.coalesce(
+                COALESCE(
                   procedure.proacl,
                   pg_catalog.acldefault('f', procedure.proowner)
                 )

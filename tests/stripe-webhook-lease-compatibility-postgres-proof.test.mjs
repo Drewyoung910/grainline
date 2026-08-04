@@ -61,6 +61,8 @@ test("begin derives database time, locks duplicates and freezes event type", () 
   assert.match(draft, /event type is immutable/);
   assert.match(draft, /"claimGeneration" = event\."claimGeneration" \+ 1/);
   assert.doesNotMatch(draft, /EXECUTE\s+[^;]*format\s*\(/i);
+  assert.doesNotMatch(draft, /pg_catalog\.(?:coalesce|nullif|greatest|least)/i);
+  assert.doesNotMatch(proof, /pg_catalog\.(?:coalesce|nullif|greatest|least)/i);
 });
 
 test("complete and fail bind the exact live generation", () => {
@@ -105,7 +107,7 @@ test("engine proof covers ABA rejection and exact rollback", () => {
 test("CI runs the exact rollback-only Stripe lease proof", () => {
   assert.equal(
     packageJson.scripts["audit:rls-stripe-webhook-lease-compatibility"],
-    "node scripts/stripe-webhook-lease-compatibility-postgres-proof.mjs",
+    "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-lease-compatibility-postgres-proof.mjs",
   );
   assert.match(
     workflow,

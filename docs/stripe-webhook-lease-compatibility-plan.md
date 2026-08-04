@@ -70,3 +70,15 @@ The later application conversion needs route-contract tests for both Stripe
 webhook versions and a real concurrent lock-wait proof. Production preparation
 still waits for the aggregate-only Order/payment/shipping inspection and its
 separate result review.
+
+## Engine evidence
+
+The first disposable PostgreSQL run, CI `30959062084` at checkpoint
+`4eb1a44571141d56216ebf03d7ad227c8bdffe24`, failed safely in the function
+catalog assertion before any lease lifecycle call. The proof had incorrectly
+written `pg_catalog.coalesce(...)`; `COALESCE` is parser-resolved syntax and
+cannot be schema-qualified as a function. The same review found qualified
+`NULLIF` in the draft error-bound expression before execution reached it.
+Neither production nor persistent staging was inspected or changed. The fix
+uses bare special forms and makes the lease proof run the repository-wide
+special-form guard before invoking PostgreSQL.
