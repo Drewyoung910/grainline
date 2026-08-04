@@ -19,6 +19,11 @@ import {
 const COMMIT = "c".repeat(40);
 const DIRECT_URL =
   "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
+const workflow = fs.readFileSync(
+  ".github/workflows/order-payment-shipping-legacy-inspection.yml",
+  "utf8",
+);
+const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
 function tempDirectory() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "order-payment-shipping-inspect-"));
@@ -189,7 +194,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     }
   });
 
-  it("keeps the script engine-attested read-only and not workflow-wired", () => {
+  it("keeps the script engine-attested read-only", () => {
     const source = fs.readFileSync(
       "scripts/order-payment-shipping-legacy-inspect.mjs",
       "utf8",
@@ -198,9 +203,30 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(source, /transaction_read_only/);
     assert.match(source, /ROLLBACK/);
     assert.match(source, /rawRows: false/);
+  });
+
+  it("wires only a protected aggregate-only production inspection", () => {
+    assert.match(workflow, /workflow_dispatch:/);
+    assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
+    assert.match(workflow, /environment: Production/);
+    assert.match(workflow, /group: production-database-migrations/);
+    assert.match(workflow, /cancel-in-progress: false/);
+    assert.match(workflow, /permissions:\s+contents: read/);
+    assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/);
+    assert.match(workflow, /persist-credentials: false/);
+    assert.match(
+      workflow,
+      /ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED: case-force-and-runtime-separation-postflights-passed/,
+    );
+    assert.match(
+      workflow,
+      /DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/,
+    );
+    assert.match(workflow, /Upload sanitized aggregate evidence/);
+    assert.doesNotMatch(workflow, /DATABASE_URL|prisma migrate|vercel|deploy/);
     assert.equal(
-      fs.existsSync(".github/workflows/order-payment-shipping-legacy-inspection.yml"),
-      false,
+      packageJson.scripts["ops:order-payment-shipping-legacy-inspect"],
+      "node scripts/order-payment-shipping-legacy-inspect.mjs",
     );
   });
 });

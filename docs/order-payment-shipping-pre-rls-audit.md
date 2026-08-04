@@ -367,9 +367,13 @@ The aggregate-only inspector scaffold is now saved as
 contract. The exact aggregate SQL is wired into normal CI against the
 disposable loopback PostgreSQL 16 service after the compatible migration tree,
 where PostgreSQL itself attests that the proof transaction is read-only. No
-production inspection workflow exists or can be dispatched from this branch;
-an exact-main workflow binding and separate production inspection review are
-still required.
+The protected aggregate-only workflow is prepared on this isolated branch. It
+requires an exact main commit, exact confirmation, the Production environment,
+the protected owner-URL digest, the reviewed Case FORCE prerequisite, a clean
+checkout and the shared production-migration concurrency group. It cannot be
+dispatched unless the workflow is first reviewed and merged to main. No
+production inspection has been run, and a separate exact-main dispatch review
+is still required.
 
 Checkpoint `7065e961ec7afc20c3a58c76fcca814b940620b8` was proved by GitHub
 CI run `30955791275` on 2026-08-04. The PostgreSQL 16 step executed the exact
