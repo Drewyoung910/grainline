@@ -210,6 +210,86 @@ orphan/duplicate quote and provider-ledger rows; refund/dispute contradictions;
 reservation state/shape drift; and hot-path cardinality/maximum-history sizes.
 No backfill or cleanup is pre-authorized by the inspection.
 
+### OPS-A11: checkout sessions are seller-scoped, Orders must preserve that fact
+
+The cart UI can prepare several Stripe sessions for a cart containing several
+sellers, but `POST /api/cart/checkout-seller` filters one seller's items into
+each session. `cartSellerCount` and `multiSellerCheckout` describe the overall
+cart/email experience; they do not authorize a multi-seller `Order`. The
+webhook nevertheless derives seller authority again from mutable Listings and
+does not persist the seller on the Order or OrderItem.
+
+The compatible schema target is nullable `sellerProfileId` on both `Order` and
+`OrderItem`, written from the locked checkout Listings. Raw-managed composite
+keys should bind `(OrderItem.orderId, OrderItem.sellerProfileId)` to
+`(Order.id, Order.sellerProfileId)` and `(OrderItem.listingId,
+OrderItem.sellerProfileId)` to `(Listing.id, Listing.sellerId)`. After legacy
+classification/backfill, both new columns can become non-null. This proves one
+seller per Order, makes seller paging stable, and prevents a purchased Listing
+from being reassigned in a way that transfers historical order authority.
+
+### OPS-A12: PostgreSQL cannot authenticate a Stripe signature by itself
+
+The application verifies Stripe's signature before calling the current
+webhook helpers. A fixed `stripe_webhook_begin(event_id, event_type)` database
+operation can enforce replay, lease and state-transition rules, but a caller
+holding only the runtime database credential can still invent its input. The
+same is true for provider payload fields passed to checkout/refund/dispute and
+payout functions. Do not describe the fixed functions as independently
+proving Stripe authenticity.
+
+The honest boundary is: application-held Stripe secrets authenticate the
+provider; database operations bind one accepted event to narrowly valid state
+transitions and prevent arbitrary table enumeration, deletion and unrelated
+row mutation. A separate webhook worker credential/attestation design could
+strengthen that boundary later, but is not silently assumed by this rollout.
+
+### OPS-A13: the provider tables do not all have immutable-event semantics
+
+`OrderPaymentEvent` is append-only today (`createMany` with Stripe-event
+deduplication). `StripeWebhookEvent` is a mutable processing lease/state row,
+and `SellerPayoutEvent` is a mutable latest-state row upserted by Stripe payout
+ID. `OrderShippingRateQuote` is an expiring replaceable quote set, while
+`CheckoutStockReservation` is a lifecycle state machine.
+
+Fixed operations must preserve those intentional semantics rather than label
+every table an immutable ledger. They should make `OrderPaymentEvent`
+append-only; expose explicit begin/complete/fail webhook transitions; allow
+only monotonic payout state updates from a reserved webhook event; and keep
+quote/reservation replacement, restoration and pruning behind exact lifecycle
+predicates. None should retain general DELETE or arbitrary UPDATE authority.
+
+### OPS-A14: provider side effects require claim/finalize operations
+
+Refunds, label purchases, transfer reversals and some checkout repair paths
+cannot hold a database transaction open across Stripe or Shippo calls. Each
+must use a durable claim derived under the shared Order lock, an idempotency key
+derived from database facts, and a success/ambiguous/failure finalizer that
+compares the exact claim generation. Directly updating an Order before or after
+a provider call is not sufficient because stale workers can otherwise finalize
+over newer refund, dispute, fulfillment or reconciliation state.
+
+## Semantic write conversion map
+
+This is the first exact write-authority map. Read projections and aggregate
+jobs remain the next inventory layer; none of these rows authorizes a function
+or migration yet.
+
+| Operation family | Current source | Required fixed destination |
+|---|---|---|
+| Stripe delivery reservation | `src/lib/stripeWebhookEvents.ts` | begin/reclaim, complete and fail transitions; no direct table read/delete |
+| Seller-scoped checkout Order + items | `src/app/api/stripe/webhook/route.ts` | one transaction deriving durable seller, buyer, listing, totals, snapshot, provider replay source and reservation completion |
+| Stripe refund/dispute evidence | `src/app/api/stripe/webhook/route.ts`, `src/lib/localRefundEvidence.ts`, `src/lib/refundLedgerSql.ts` | append-only payment evidence plus separately locked Order/Case application |
+| Seller refund | `src/app/api/orders/[id]/refund/route.ts`, `src/lib/refundLocks.ts` | seller-authorized refund claim and exact provider finalizers; stale-claim release is an operator/cron transition |
+| Fulfillment and buyer delivery | `src/app/api/orders/[id]/fulfillment/route.ts`, `src/app/api/orders/[id]/confirm-delivery/route.ts` | seller/buyer-specific monotonic transitions under the Order lock |
+| Shippo quote and label purchase | `src/app/api/orders/[id]/label/route.ts` | seller-authorized quote replacement and label claim/finalize operations with bounded provider snapshots |
+| Label clawback retry | `src/lib/labelClawbackRetry.ts` | bounded batch claim plus generation-checked success/failure finalizers |
+| Checkout stock lifecycle | `src/lib/checkoutStockRestore.ts`, `src/app/api/cart/checkout/resume/route.ts` | reserve, bind session, complete, restore, repair and terminal-prune transitions with one lock order |
+| Account deletion and PII expiry | `src/lib/accountDeletion.ts` | bounded account-owned reservation cleanup, Order PII purge, quote deletion and seller-history anonymization |
+| Admin reconciliation | `src/app/admin/actions.ts` | staff-authorized review, void/reconcile and append-note transitions with durable audit evidence |
+| Payout failure state | `src/app/api/stripe/webhook/route.ts` | webhook-bound monotonic payout-state upsert; seller receives only a bounded projection |
+| Seller deauthorization review flag | `src/app/api/stripe/webhook/route.ts` | exact affected-seller batch operation using the durable Order seller key, not live Listing ownership |
+
 ## Rollout sequence
 
 The aggregate-only inspector scaffold is now saved as
@@ -220,6 +300,12 @@ where PostgreSQL itself attests that the proof transaction is read-only. No
 production inspection workflow exists or can be dispatched from this branch;
 an exact-main workflow binding and separate production inspection review are
 still required.
+
+Checkpoint `7065e961ec7afc20c3a58c76fcca814b940620b8` was proved by GitHub
+CI run `30955791275` on 2026-08-04. The PostgreSQL 16 step executed the exact
+40-field aggregate query successfully in the disposable `grainline_ci`
+database; the full CI run also passed. This is syntax/shape/read-only evidence
+only and did not inspect or change production.
 
 1. Finish the semantic direct/nested access inventory and actor projections.
 2. Build and test an aggregate-only legacy inspector; inspect production under

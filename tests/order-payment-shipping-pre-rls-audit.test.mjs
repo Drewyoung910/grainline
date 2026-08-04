@@ -155,6 +155,36 @@ describe("order/payment/shipping pre-RLS audit", () => {
     assert.match(audit, /positive `OrderItem\.quantity`/);
     assert.match(audit, /aggregate-only production inspector/);
     assert.match(audit, /shared Order lock coverage must be completed/);
+    assert.match(audit, /cart UI can prepare several Stripe sessions[\s\S]*do not authorize a multi-seller `Order`/);
+    assert.match(audit, /nullable `sellerProfileId` on both `Order` and\s+`OrderItem`/);
+    assert.match(audit, /\(OrderItem\.orderId, OrderItem\.sellerProfileId\)[\s\S]*\(Listing\.id, Listing\.sellerId\)/);
+  });
+
+  it("keeps provider authentication and state-table semantics honest", () => {
+    assert.match(audit, /PostgreSQL cannot authenticate a Stripe signature by itself/);
+    assert.match(audit, /application-held Stripe secrets authenticate the\s+provider/);
+    assert.match(audit, /`OrderPaymentEvent` is append-only/);
+    assert.match(audit, /`StripeWebhookEvent` is a mutable processing lease\/state row/);
+    assert.match(audit, /`SellerPayoutEvent` is a mutable latest-state row/);
+    assert.match(audit, /durable claim derived under the shared Order lock/);
+    assert.match(audit, /success\/ambiguous\/failure finalizer/);
+  });
+
+  it("classifies the first complete write-authority families", () => {
+    for (const source of [
+      "src/lib/stripeWebhookEvents.ts",
+      "src/app/api/stripe/webhook/route.ts",
+      "src/app/api/orders/[id]/refund/route.ts",
+      "src/app/api/orders/[id]/fulfillment/route.ts",
+      "src/app/api/orders/[id]/confirm-delivery/route.ts",
+      "src/app/api/orders/[id]/label/route.ts",
+      "src/lib/labelClawbackRetry.ts",
+      "src/lib/checkoutStockRestore.ts",
+      "src/lib/accountDeletion.ts",
+      "src/app/admin/actions.ts",
+    ]) {
+      assert.match(audit, new RegExp(source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
   });
 
   it("confirms broad runtime CRUD is still the predecessor", () => {
