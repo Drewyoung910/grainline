@@ -48,6 +48,21 @@ with SHA-256
 `117590a50316ff0efb783c490e95aa31014221a4b93e4372f5f6995c5a15ee15`.
 The durable Phase A record is `docs/case-activation-production-release.md`.
 
+## Candidate validation
+
+Draft PR `#154` initially published exact candidate commit
+`a68c1fe7b27075089ef2e3a10ff1f44a2de6f5ae`. GitHub CI run `30944365759`
+passed the complete disposable PostgreSQL sequence: compatible predecessor,
+policyless Phase A ENABLE/NO FORCE, posture-only FORCE, grant convergence,
+migration status, global grant/RLS audits and pooled-runtime direct-denial
+proofs. TypeScript, lint, the complete repository suite, dependency audit and
+the production build also passed.
+
+Vercel Preview deployment `dpl_Bs6FkSGuQpqCwUDGTQHiZvKpuGH3` failed before
+build at the expected `DATABASE_URL_SHAPE` runtime-isolation guard. This is an
+intentional database-only Preview boundary, not an application-build failure,
+and it changed no production state.
+
 ## Proof and workflow ordering
 
 The release verifier reconstructs the FORCE migration from the byte-pinned
