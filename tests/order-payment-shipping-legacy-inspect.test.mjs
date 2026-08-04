@@ -159,6 +159,23 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
         table,
       );
     }
+    for (const field of [
+      "label_state_coherence_count",
+      "label_clawback_state_coherence_count",
+      "quote_invalid_rate_member_count",
+      "duplicate_live_quote_order_count",
+      "payment_currency_mismatch_count",
+      "refund_amount_exceeds_order_count",
+      "refund_marker_coherence_count",
+      "payout_mutated_count",
+      "reservation_invalid_item_member_count",
+      "reservation_missing_actor_count",
+      "reservation_duplicate_active_lock_count",
+      "webhook_blank_identity_count",
+      "webhook_stale_processing_count",
+    ]) {
+      assert.match(ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL, new RegExp(`\\b${field}\\b`));
+    }
   });
 
   it("writes only private sanitized aggregate evidence", () => {

@@ -381,6 +381,14 @@ CI run `30955791275` on 2026-08-04. The PostgreSQL 16 step executed the exact
 database; the full CI run also passed. This is syntax/shape/read-only evidence
 only and did not inspect or change production.
 
+That first engine pass exposed a completeness gap in review rather than a SQL
+failure: the query did not yet count every label/clawback, live-quote,
+refund-total, reservation-member or stale-webhook contradiction required by
+OPS-A10. The expanded query now adds those families plus payment currency and
+mutable payout-state classification. Its exact field count and second
+PostgreSQL engine run must pass before this workflow can be considered ready
+for production inspection.
+
 1. Finish the semantic direct/nested access inventory and actor projections.
 2. Build and test an aggregate-only legacy inspector; inspect production under
    the protected read-only gate and decide cleanup separately from its result.

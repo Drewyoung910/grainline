@@ -68,23 +68,37 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
   "pickup_state_invalid_count",
   "shipping_state_invalid_count",
   "fulfillment_timestamp_order_count",
+  "label_state_coherence_count",
+  "label_clawback_state_coherence_count",
   "quote_invalid_shape_count",
+  "quote_invalid_rate_member_count",
+  "duplicate_live_quote_order_count",
   "payment_negative_amount_count",
   "payment_unknown_type_count",
   "payment_mutated_count",
+  "payment_currency_mismatch_count",
+  "refund_amount_exceeds_order_count",
+  "refund_marker_coherence_count",
   "payout_negative_amount_count",
   "payout_source_missing_count",
+  "payout_mutated_count",
   "reservation_invalid_payload_hash_count",
   "reservation_invalid_items_shape_count",
+  "reservation_invalid_item_member_count",
+  "reservation_missing_actor_count",
+  "reservation_duplicate_active_lock_count",
   "reservation_state_coherence_count",
   "stale_reservation_count",
   "webhook_state_coherence_count",
+  "webhook_blank_identity_count",
+  "webhook_stale_processing_count",
   "max_items_per_order",
   "max_orders_per_buyer",
   "max_orders_per_current_seller",
   "max_payment_events_per_order",
   "max_quotes_per_order",
   "max_reservations_per_buyer",
+  "max_payout_events_per_seller",
 ]);
 
 const REVIEWED_MAIN_REF = "refs/heads/main";
@@ -345,6 +359,26 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       pg_catalog.sum(item."priceCents"::bigint * item.quantity::bigint) AS item_total
     FROM public."OrderItem" AS item
     GROUP BY item."orderId"
+  ), refund_sources AS (
+    SELECT
+      event."orderId" AS order_id,
+      COALESCE(NULLIF(event."stripeObjectId", ''), event."stripeEventId") AS refund_key,
+      pg_catalog.max(COALESCE(event."amountCents", 0))::bigint AS refund_amount
+    FROM public."OrderPaymentEvent" AS event
+    WHERE event."eventType" = 'REFUND'
+      AND (
+        event.status IS NULL
+        OR pg_catalog.lower(event.status) NOT IN ('failed', 'canceled', 'cancelled')
+      )
+    GROUP BY
+      event."orderId",
+      COALESCE(NULLIF(event."stripeObjectId", ''), event."stripeEventId")
+  ), refund_totals AS (
+    SELECT
+      order_id,
+      pg_catalog.sum(refund_amount)::bigint AS refund_total
+    FROM refund_sources
+    GROUP BY order_id
   )
   SELECT
     (SELECT pg_catalog.count(*) FROM public."Order") AS order_count,
@@ -462,10 +496,105 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     ) AS fulfillment_timestamp_order_count,
     (
       SELECT pg_catalog.count(*)
+      FROM public."Order"
+      WHERE "labelCostCents" < 0
+        OR (
+          "labelStatus" = 'PURCHASED'
+          AND (
+            "shippoTransactionId" IS NULL
+            OR "labelUrl" IS NULL
+            OR "labelPurchasedAt" IS NULL
+            OR "fulfillmentMethod" IS DISTINCT FROM 'SHIPPING'::public."FulfillmentMethod"
+            OR "fulfillmentStatus" NOT IN ('SHIPPED', 'DELIVERED')
+          )
+        )
+        OR (
+          "labelStatus" IS NULL
+          AND (
+            "shippoTransactionId" IS NOT NULL
+            OR "labelUrl" IS NOT NULL
+            OR "labelPurchasedAt" IS NOT NULL
+            OR "labelCostCents" IS NOT NULL
+          )
+        )
+    ) AS label_state_coherence_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."Order"
+      WHERE "labelClawbackRetryCount" < 0
+        OR "labelClawbackStatus" NOT IN ('RETRY_PENDING', 'RETRYING', 'REVERSED', 'MANUAL_REVIEW')
+        OR (
+          "labelClawbackStatus" IS NULL
+          AND (
+            "labelClawbackReversalId" IS NOT NULL
+            OR "labelClawbackLastAttemptAt" IS NOT NULL
+            OR "labelClawbackNextAttemptAt" IS NOT NULL
+            OR "labelClawbackResolvedAt" IS NOT NULL
+          )
+        )
+        OR (
+          "labelClawbackStatus" = 'RETRY_PENDING'
+          AND (
+            "labelClawbackRetryCount" <= 0
+            OR "labelClawbackLastAttemptAt" IS NULL
+            OR "labelClawbackNextAttemptAt" IS NULL
+            OR "labelClawbackResolvedAt" IS NOT NULL
+          )
+        )
+        OR (
+          "labelClawbackStatus" = 'RETRYING'
+          AND (
+            "labelClawbackRetryCount" <= 0
+            OR "labelClawbackLastAttemptAt" IS NULL
+            OR "labelClawbackResolvedAt" IS NOT NULL
+          )
+        )
+        OR (
+          "labelClawbackStatus" = 'REVERSED'
+          AND (
+            "labelClawbackLastAttemptAt" IS NULL
+            OR "labelClawbackResolvedAt" IS NULL
+            OR "labelClawbackNextAttemptAt" IS NOT NULL
+          )
+        )
+        OR (
+          "labelClawbackStatus" = 'MANUAL_REVIEW'
+          AND (
+            "labelClawbackResolvedAt" IS NOT NULL
+            OR "labelClawbackNextAttemptAt" IS NOT NULL
+          )
+        )
+    ) AS label_clawback_state_coherence_count,
+    (
+      SELECT pg_catalog.count(*)
       FROM public."OrderShippingRateQuote"
       WHERE pg_catalog.jsonb_typeof(rates) <> 'array'
         OR "expiresAt" <= "createdAt"
     ) AS quote_invalid_shape_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderShippingRateQuote" AS quote
+      WHERE pg_catalog.jsonb_typeof(quote.rates) = 'array'
+        AND EXISTS (
+          SELECT 1
+          FROM pg_catalog.jsonb_array_elements(quote.rates) AS rate(value)
+          WHERE pg_catalog.jsonb_typeof(rate.value) <> 'object'
+            OR pg_catalog.jsonb_typeof(rate.value->'objectId') <> 'string'
+            OR pg_catalog.jsonb_typeof(rate.value->'amountCents') <> 'number'
+            OR pg_catalog.jsonb_typeof(rate.value->'currency') <> 'string'
+            OR pg_catalog.jsonb_typeof(rate.value->'label') <> 'string'
+        )
+    ) AS quote_invalid_rate_member_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM (
+        SELECT "orderId"
+        FROM public."OrderShippingRateQuote"
+        WHERE "expiresAt" > pg_catalog.clock_timestamp()
+        GROUP BY "orderId"
+        HAVING pg_catalog.count(*) > 1
+      ) AS duplicate_live_quotes
+    ) AS duplicate_live_quote_order_count,
     (
       SELECT pg_catalog.count(*) FROM public."OrderPaymentEvent" WHERE "amountCents" < 0
     ) AS payment_negative_amount_count,
@@ -476,6 +605,38 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       SELECT pg_catalog.count(*) FROM public."OrderPaymentEvent" WHERE "updatedAt" <> "createdAt"
     ) AS payment_mutated_count,
     (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent" AS event
+      JOIN public."Order" AS orders ON orders.id = event."orderId"
+      WHERE event.currency <> orders.currency
+    ) AS payment_currency_mismatch_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."Order" AS orders
+      JOIN refund_totals AS refunds ON refunds.order_id = orders.id
+      WHERE refunds.refund_total > (
+        orders."itemsSubtotalCents"::bigint
+        + orders."shippingAmountCents"::bigint
+        + COALESCE(orders."giftWrappingPriceCents", 0)::bigint
+        + orders."taxAmountCents"::bigint
+      )
+    ) AS refund_amount_exceeds_order_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."Order"
+      WHERE ("sellerRefundId" IS NULL AND "sellerRefundAmountCents" IS NOT NULL)
+        OR (
+          "sellerRefundId" IS NOT NULL
+          AND "sellerRefundId" NOT IN ('pending', 'ambiguous_refund_pending_reconciliation')
+          AND ("sellerRefundAmountCents" IS NULL OR "sellerRefundAmountCents" <= 0)
+        )
+        OR ("sellerRefundId" = 'pending' AND "sellerRefundLockedAt" IS NULL)
+        OR (
+          "sellerRefundId" IS DISTINCT FROM 'pending'
+          AND "sellerRefundLockedAt" IS NOT NULL
+        )
+    ) AS refund_marker_coherence_count,
+    (
       SELECT pg_catalog.count(*) FROM public."SellerPayoutEvent" WHERE "amountCents" < 0
     ) AS payout_negative_amount_count,
     (
@@ -483,6 +644,9 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       FROM public."SellerPayoutEvent"
       WHERE "stripeEventId" IS NULL OR btrim("stripeEventId") = ''
     ) AS payout_source_missing_count,
+    (
+      SELECT pg_catalog.count(*) FROM public."SellerPayoutEvent" WHERE "updatedAt" <> "createdAt"
+    ) AS payout_mutated_count,
     (
       SELECT pg_catalog.count(*)
       FROM public."CheckoutStockReservation"
@@ -493,6 +657,36 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       FROM public."CheckoutStockReservation"
       WHERE pg_catalog.jsonb_typeof("reservedItems") <> 'array'
     ) AS reservation_invalid_items_shape_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."CheckoutStockReservation" AS reservation
+      WHERE pg_catalog.jsonb_typeof(reservation."reservedItems") = 'array'
+        AND EXISTS (
+          SELECT 1
+          FROM pg_catalog.jsonb_array_elements(reservation."reservedItems") AS item(value)
+          WHERE pg_catalog.jsonb_typeof(item.value) <> 'object'
+            OR pg_catalog.jsonb_typeof(item.value->'listingId') <> 'string'
+            OR pg_catalog.jsonb_typeof(item.value->'sellerId') <> 'string'
+            OR pg_catalog.jsonb_typeof(item.value->'quantity') <> 'number'
+            OR NOT (item.value->>'quantity' ~ '^[1-9][0-9]*$')
+        )
+    ) AS reservation_invalid_item_member_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."CheckoutStockReservation"
+      WHERE status IN ('RESERVED', 'SESSION_CREATED')
+        AND ("buyerId" IS NULL OR "sellerId" IS NULL)
+    ) AS reservation_missing_actor_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM (
+        SELECT "checkoutLockKey"
+        FROM public."CheckoutStockReservation"
+        WHERE status IN ('RESERVED', 'SESSION_CREATED')
+        GROUP BY "checkoutLockKey"
+        HAVING pg_catalog.count(*) > 1
+      ) AS duplicate_active_reservations
+    ) AS reservation_duplicate_active_lock_count,
     (
       SELECT pg_catalog.count(*)
       FROM public."CheckoutStockReservation"
@@ -514,6 +708,20 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
         OR ("processedAt" IS NOT NULL AND "processedAt" < "createdAt")
         OR ("processedAt" IS NOT NULL AND "lastError" IS NOT NULL)
     ) AS webhook_state_coherence_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."StripeWebhookEvent"
+      WHERE btrim(id) = '' OR btrim(type) = ''
+    ) AS webhook_blank_identity_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."StripeWebhookEvent"
+      WHERE "processedAt" IS NULL
+        AND (
+          "processingStartedAt" IS NULL
+          OR "processingStartedAt" < pg_catalog.clock_timestamp() - INTERVAL '2 minutes'
+        )
+    ) AS webhook_stale_processing_count,
     (
       SELECT COALESCE(pg_catalog.max(item_count), 0)
       FROM (
@@ -559,7 +767,14 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
         WHERE "buyerId" IS NOT NULL
         GROUP BY "buyerId"
       ) AS counts
-    ) AS max_reservations_per_buyer
+    ) AS max_reservations_per_buyer,
+    (
+      SELECT COALESCE(pg_catalog.max(payout_count), 0)
+      FROM (
+        SELECT pg_catalog.count(*)::integer AS payout_count
+        FROM public."SellerPayoutEvent" GROUP BY "sellerProfileId"
+      ) AS counts
+    ) AS max_payout_events_per_seller
 `;
 
 async function readCounts(client) {
