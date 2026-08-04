@@ -5,9 +5,18 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import {
+  DIRECT_UPLOAD_ACTIVATION_FUNCTIONS,
+} from "./direct-upload-activation-catalog.mjs";
+import {
   LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
   LISTING_VARIANTS_REVIEWED_MIGRATION,
 } from "./direct-upload-activation-failure-inspect.mjs";
+import {
+  readDirectUploadActivationDetailedFunctions,
+} from "./direct-upload-activation-production-recovery.mjs";
+import {
+  readDirectUploadCleanupAuthority,
+} from "./direct-upload-cleanup-worker.mjs";
 import {
   DIRECT_UPLOAD_ACTIVATION_RELEASE,
   FAILED_DIRECT_UPLOAD_ACTIVATION_SHA256,
@@ -163,6 +172,28 @@ function assertListingVariantsLedgerAlias(rows) {
   ]);
 }
 
+function assertTypeOnlyFunctionIdentities(rows, label) {
+  const actual = rows
+    .map((row) => ({
+      function_name: row.function_name,
+      identity_arguments: row.identity_arguments,
+    }))
+    .sort((left, right) =>
+      left.function_name.localeCompare(right.function_name));
+  const expected = DIRECT_UPLOAD_ACTIVATION_FUNCTIONS
+    .map((entry) => ({
+      function_name: entry.name,
+      identity_arguments: entry.identityArguments,
+    }))
+    .sort((left, right) =>
+      left.function_name.localeCompare(right.function_name));
+  assert.deepEqual(
+    actual,
+    expected,
+    `${label} function identities are not type-only`,
+  );
+}
+
 export async function proveDirectUploadActivationRecovery(config) {
   const client = new Client({
     connectionString: config.databaseUrl,
@@ -294,6 +325,35 @@ export async function proveDirectUploadActivationRecovery(config) {
           ESCAPE '\\'
     `)).rows[0]?.count);
     assert.equal(functionCount, 35);
+    const recoveryFunctions =
+      await readDirectUploadActivationDetailedFunctions(client);
+    assertTypeOnlyFunctionIdentities(
+      recoveryFunctions,
+      "production recovery reader",
+    );
+    const cleanupSnapshot = await readDirectUploadCleanupAuthority(client);
+    assertTypeOnlyFunctionIdentities(
+      cleanupSnapshot.functions,
+      "cleanup and activation-postflight reader",
+    );
+    const namedArgumentFunctionCount = Number((await client.query(`
+      SELECT pg_catalog.count(*)::integer AS count
+      FROM pg_catalog.pg_proc AS procedure
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = procedure.pronamespace
+      WHERE namespace.nspname = 'public'
+        AND procedure.proname LIKE 'grainline\\_direct\\_upload\\_%'
+          ESCAPE '\\'
+        AND pg_catalog.pg_get_function_identity_arguments(procedure.oid)
+              IS DISTINCT FROM
+            pg_catalog.oidvectortypes(procedure.proargtypes)
+    `)).rows[0]?.count);
+    assert.equal(
+      namedArgumentFunctionCount,
+      DIRECT_UPLOAD_ACTIVATION_FUNCTIONS
+        .filter((entry) => entry.identityArguments !== "").length,
+      "named-argument fixture no longer exercises type-only normalization",
+    );
     await client.query("ROLLBACK");
     transactionOpen = false;
     return Object.freeze({
@@ -303,8 +363,10 @@ export async function proveDirectUploadActivationRecovery(config) {
       historicalListingVariantsAliasRows: listingVariantsLedger.length,
       ledgerRows: ledger.length,
       mode: config.mode,
+      namedArgumentFunctionCount,
       persistentEnvironmentChanged: false,
       productionChanged: false,
+      signatureReaderFunctionCount: recoveryFunctions.length,
       status: "passed",
       transactionReadOnly: true,
     });

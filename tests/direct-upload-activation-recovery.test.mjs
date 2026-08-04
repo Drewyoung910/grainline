@@ -242,6 +242,10 @@ describe("DirectUpload failed-activation recovery proof", () => {
     );
     assert.match(
       workflow,
+      /agent\/direct-upload-signature-reader-fix-20260803[\s\S]*scripts\/direct-upload-activation-production-postflight\.mjs[\s\S]*scripts\/direct-upload-cleanup-worker\.mjs[\s\S]*tests\/direct-upload-activation-production-postflight\.test\.mjs[\s\S]*tests\/direct-upload-cleanup-worker\.test\.mjs/u,
+    );
+    assert.match(
+      workflow,
       /DIRECT_UPLOAD_ACTIVATION_RECOVERY_PROVIDER_FIXTURE_URL: postgresql:\/\/cloud_admin:ci@localhost:5432\/grainline_ci\?sslmode=disable/u,
     );
     assert.match(
