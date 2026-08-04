@@ -1,7 +1,9 @@
 # Case-family FORCE RLS release
 
 Prepared 2026-08-04 on isolated branch
-`agent/case-force-release-20260804`. This package has not been merged or
+`agent/case-force-release-20260804` and merged through PR `#154` from exact
+head `a4d825d8b55dd1e237cfae0fb9f3133407300845` as exact main merge
+`5c1564a8e6994497987fe62e28b61db03737285c`. This package has not been
 applied. Production remains at the accepted policyless Phase A state: RLS is
 enabled without FORCE on `Case`, `CaseMessage` and
 `CaseMessageAttachment`, with zero policies and zero direct runtime table or
@@ -88,6 +90,26 @@ migration status and the global grant/RLS catalog. It does not deploy
 application code or alter Vercel, Cloudflare, Clerk, Neon configuration,
 tokens or Case-evidence flags.
 
+Exact-main CI `30947643851`, Conversation/Message FORCE proof
+`30947643836`, and Notification FORCE proof `30947643302` all passed for
+`5c1564a8e6994497987fe62e28b61db03737285c`. No Production Migrations run or
+manual deployment was dispatched by the merge.
+
+## Pooled-runtime FORCE postflight package
+
+The existing Case activation postflight now has a separate `--post-force`
+mode exposed as `npm run ops:case-force-postflight`. The mode has distinct
+confirmation and environment bindings, requires a fresh exact
+`case-force-production-postflight-<release-commit>.json` evidence path, rejects
+every privileged or aliased database URL, accepts only the reviewed pooled
+`grainline_app_runtime` identity, and runs in an engine-attested repeatable-read
+read-only transaction. It requires all three Case-family tables to be
+policyless ENABLE plus FORCE with zero direct table or column authority, then
+reruns the fixed-function catalog, direct-denial, invalid-actor and private
+helper denial proofs. It records the exact successful main CI and migration
+run IDs without granting the runtime role access to the private Prisma
+migration ledger.
+
 ## Separate later boundaries
 
 Case evidence remains disabled. Enabling its UI/API feature flag, private R2
@@ -97,6 +119,7 @@ operations. Order, payment and shipping RLS remain the next separately audited
 sensitive-data group after the Case-family database boundary is fully
 accepted.
 
-After a guarded production FORCE migration, run a fresh pooled-runtime
+After a guarded production FORCE migration, run the fresh pooled-runtime
 read-only FORCE postflight from the exact successful main release and retain
-sanitized evidence before declaring the Case-family RLS group complete.
+sanitized mode-`0600` evidence before declaring the Case-family RLS group
+complete.

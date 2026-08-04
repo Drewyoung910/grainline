@@ -39,6 +39,10 @@ export const CASE_ACTIVATION_POSTFLIGHT_CONFIRMATION =
   "verify-production-case-policyless-activation-read-only";
 export const CASE_ACTIVATION_MIGRATION =
   "20260804160000_enable_case_rls";
+export const CASE_FORCE_POSTFLIGHT_CONFIRMATION =
+  "verify-production-case-policyless-force-read-only";
+export const CASE_FORCE_MIGRATION =
+  "20260804191000_force_case_rls";
 export const CASE_ACTIVATION_RUNTIME_FUNCTION =
   "grainline_direct_upload_case_attachment_read";
 export const CASE_ACTIVATION_RUNTIME_FUNCTION_ARGUMENTS =
@@ -47,7 +51,7 @@ export const CASE_ACTIVATION_RUNTIME_FUNCTION_ARGUMENTS =
 const REVIEWED_MIGRATION_ROLE = "neondb_owner";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const SAFE_POSITIVE_INTEGER = /^[1-9][0-9]{0,15}$/;
-const EVIDENCE_PREFIX = "case-activation-production-postflight-";
+const POST_FORCE_FLAG = "--post-force";
 const CASE_DATA_TABLES = Object.freeze([
   "Case",
   "CaseMessage",
@@ -74,16 +78,28 @@ function parseSafePositiveInteger(env, key) {
   return value;
 }
 
-export function parseCaseActivationPostflightConfig(env = process.env) {
+function parseCasePostflightConfig(env, forceExpected) {
+  const environmentPrefix = forceExpected
+    ? "CASE_FORCE_POSTFLIGHT"
+    : "CASE_ACTIVATION_POSTFLIGHT";
+  const confirmation = forceExpected
+    ? CASE_FORCE_POSTFLIGHT_CONFIRMATION
+    : CASE_ACTIVATION_POSTFLIGHT_CONFIRMATION;
+  const evidencePrefix = forceExpected
+    ? "case-force-production-postflight-"
+    : "case-activation-production-postflight-";
+  const migration = forceExpected
+    ? CASE_FORCE_MIGRATION
+    : CASE_ACTIVATION_MIGRATION;
+  const label = forceExpected
+    ? "Case FORCE production postflight"
+    : "Case activation production postflight";
   assertDeterministicPostgresEnvironment(
     env,
-    "Case activation production postflight",
+    label,
   );
-  if (
-    env.CASE_ACTIVATION_POSTFLIGHT_CONFIRM
-      !== CASE_ACTIVATION_POSTFLIGHT_CONFIRMATION
-  ) {
-    throw new Error("Case activation postflight confirmation is invalid");
+  if (env[`${environmentPrefix}_CONFIRM`] !== confirmation) {
+    throw new Error(`${label} confirmation is invalid`);
   }
   const privilegedKeys = privilegedDatabaseEnvironmentKeys(env);
   if (privilegedKeys.length > 0) {
@@ -100,18 +116,18 @@ export function parseCaseActivationPostflightConfig(env = process.env) {
 
   const releaseCommit = required(
     env,
-    "CASE_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT",
+    `${environmentPrefix}_RELEASE_COMMIT`,
   );
   if (!COMMIT_PATTERN.test(releaseCommit)) {
-    throw new Error("Case activation postflight release commit is invalid");
+    throw new Error(`${label} release commit is invalid`);
   }
   const mainCiRunId = parseSafePositiveInteger(
     env,
-    "CASE_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID",
+    `${environmentPrefix}_MAIN_CI_RUN_ID`,
   );
   const migrationRunId = parseSafePositiveInteger(
     env,
-    "CASE_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID",
+    `${environmentPrefix}_MIGRATION_RUN_ID`,
   );
   const databaseUrl = required(env, "DATABASE_URL");
   const runtimeGuard = assertVercelRuntimeDatabaseIsolation({
@@ -123,19 +139,24 @@ export function parseCaseActivationPostflightConfig(env = process.env) {
     PGOPTIONS: env.PGOPTIONS,
   });
   const evidencePath = path.resolve(
-    required(env, "CASE_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH"),
+    required(env, `${environmentPrefix}_EVIDENCE_PATH`),
   );
   if (
-    path.basename(evidencePath) !== `${EVIDENCE_PREFIX}${releaseCommit}.json`
+    path.basename(evidencePath) !== `${evidencePrefix}${releaseCommit}.json`
     || existsSync(evidencePath)
   ) {
-    throw new Error("Case activation evidence path is not fresh and exact");
+    throw new Error(`${label} evidence path is not fresh and exact`);
   }
 
   return Object.freeze({
+    applicationName: forceExpected
+      ? "grainline-case-force-production-postflight"
+      : "grainline-case-activation-production-postflight",
     databaseUrl,
     evidencePath,
+    forceExpected,
     mainCiRunId,
+    migration,
     migrationRole: REVIEWED_MIGRATION_ROLE,
     migrationRunId,
     releaseCommit,
@@ -143,7 +164,31 @@ export function parseCaseActivationPostflightConfig(env = process.env) {
   });
 }
 
-async function verifyActivatedTablePosture(client, migrationRole) {
+export function parseCaseActivationPostflightConfig(env = process.env) {
+  return parseCasePostflightConfig(env, false);
+}
+
+export function parseCaseForcePostflightConfig(env = process.env) {
+  return parseCasePostflightConfig(env, true);
+}
+
+export function parseCasePostflightMode(argv = process.argv.slice(2)) {
+  if (
+    argv.length > 1
+    || (argv.length === 1 && argv[0] !== POST_FORCE_FLAG)
+  ) {
+    throw new Error(
+      `usage: case-activation-production-postflight.mjs [${POST_FORCE_FLAG}]`,
+    );
+  }
+  return argv[0] === POST_FORCE_FLAG;
+}
+
+async function verifyActivatedTablePosture(
+  client,
+  migrationRole,
+  forceExpected,
+) {
   const result = await client.query(
     `
       SELECT
@@ -180,7 +225,7 @@ async function verifyActivatedTablePosture(client, migrationRole) {
   for (const row of result.rows) {
     assert.equal(row.owner_name, migrationRole, row.table_name);
     assert.equal(row.rls_enabled, true, row.table_name);
-    assert.equal(row.rls_forced, false, row.table_name);
+    assert.equal(row.rls_forced, forceExpected, row.table_name);
     assert.equal(row.policy_count, 0, row.table_name);
     assert.equal(row.has_table_access, false, row.table_name);
     assert.equal(row.has_column_access, false, row.table_name);
@@ -252,7 +297,7 @@ export async function runCaseActivationPostflight(config) {
   const parsed = new URL(config.databaseUrl);
   const client = new Client({
     connectionString: config.databaseUrl,
-    application_name: "grainline-case-activation-production-postflight",
+    application_name: config.applicationName,
     connectionTimeoutMillis: 10_000,
     statement_timeout: 30_000,
     query_timeout: 35_000,
@@ -270,7 +315,11 @@ export async function runCaseActivationPostflight(config) {
       config.runtimeGuard,
       config.migrationRole,
     );
-    await verifyActivatedTablePosture(client, config.migrationRole);
+    await verifyActivatedTablePosture(
+      client,
+      config.migrationRole,
+      config.forceExpected,
+    );
     await verifyTriggerCatalog(client);
     await verifyFunctionCatalog(client, config.migrationRole);
     await verifyAttachmentFunction(client, config.migrationRole);
@@ -285,13 +334,13 @@ export async function runCaseActivationPostflight(config) {
       releaseCommit: config.releaseCommit,
       mainCiRunId: config.mainCiRunId,
       migrationRunId: config.migrationRunId,
-      migration: CASE_ACTIVATION_MIGRATION,
+      migration: config.migration,
       database: config.runtimeGuard.databaseName,
       endpointId: config.runtimeGuard.endpointId,
       region: config.runtimeGuard.region,
       runtimeRole: config.runtimeGuard.runtimeRole,
       caseFamilyRlsEnabled: true,
-      caseFamilyRlsForced: false,
+      caseFamilyRlsForced: config.forceExpected,
       caseFamilyPolicyCount: 0,
       caseFamilyRuntimeTableAccess: false,
       runtimeFunctionCount:
@@ -302,7 +351,9 @@ export async function runCaseActivationPostflight(config) {
       completedChecks: [
         "engine_attested_repeatable_read_read_only_transaction",
         "actual_pooled_runtime_role_identity",
-        "case_family_policyless_enable_without_force",
+        config.forceExpected
+          ? "case_family_policyless_enable_with_force"
+          : "case_family_policyless_enable_without_force",
         "zero_case_family_table_or_column_authority",
         "exact_case_runtime_function_partition",
         "private_ledger_and_helper_direct_denial",
@@ -328,8 +379,15 @@ export function writeCaseActivationPostflightEvidence(evidencePath, evidence) {
 }
 
 async function main() {
+  let label = "Case activation production postflight";
   try {
-    const config = parseCaseActivationPostflightConfig(process.env);
+    const forceExpected = parseCasePostflightMode();
+    label = forceExpected
+      ? "Case FORCE production postflight"
+      : label;
+    const config = forceExpected
+      ? parseCaseForcePostflightConfig(process.env)
+      : parseCaseActivationPostflightConfig(process.env);
     assertCaseCompatibleDatabaseGitState(
       readCaseCompatibleDatabaseGitState(),
       config.releaseCommit,
@@ -339,7 +397,7 @@ async function main() {
     process.stdout.write(`${JSON.stringify(evidence)}\n`);
   } catch (error) {
     process.stderr.write(
-      `Case activation production postflight failed: ${
+      `${label} failed: ${
         error instanceof Error ? error.message : "unknown error"
       }\n`,
     );

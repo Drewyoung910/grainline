@@ -50,6 +50,8 @@ describe("Case activation production postflight", () => {
       assert.equal(config.mainCiRunId, 30935572049);
       assert.equal(config.migrationRunId, 30940000001);
       assert.equal(config.releaseCommit, RELEASE_COMMIT);
+      assert.equal(config.forceExpected, false);
+      assert.equal(config.migration, CASE_ACTIVATION_MIGRATION);
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -124,7 +126,8 @@ describe("Case activation production postflight", () => {
     assert.match(source, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/);
     assert.match(source, /verifyReadOnlyTransaction/);
     assert.match(source, /rls_enabled, true/);
-    assert.match(source, /rls_forced, false/);
+    assert.match(source, /rls_forced, forceExpected/);
+    assert.match(source, /parseCasePostflightConfig\(env, false\)/);
     assert.match(source, /policy_count, 0/);
     assert.match(source, /has_table_access, false/);
     assert.match(source, /has_column_access, false/);
