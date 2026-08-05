@@ -45,10 +45,12 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify exact Case FORCE migration tree
+      - name: Verify exact Order/payment/shipping compatibility migration tree
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-shipping-compatibility-reviewed
+      - name: Verify exact Order/payment/shipping compatibility proof equivalence
+        run: npm run audit:rls-order-payment-shipping-compatible-preparation
       - name: Verify exact Case FORCE proof equivalence
         run: npm run audit:rls-case-force-release
       - name: Verify exact Case read-mode release bytes

@@ -27,7 +27,8 @@ SET search_path = pg_catalog
 AS $grainline_stripe_webhook_begin$
 DECLARE
   source_event public."StripeWebhookEvent"%ROWTYPE;
-  source_now timestamp(3) without time zone := pg_catalog.clock_timestamp();
+  source_now timestamp(3) without time zone :=
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC';
   inserted_count integer;
 BEGIN
   IF p_event_id IS NULL
@@ -117,7 +118,8 @@ SET search_path = pg_catalog
 AS $grainline_stripe_webhook_complete$
 DECLARE
   source_event public."StripeWebhookEvent"%ROWTYPE;
-  source_now timestamp(3) without time zone := pg_catalog.clock_timestamp();
+  source_now timestamp(3) without time zone :=
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC';
 BEGIN
   IF p_event_id IS NULL
      OR pg_catalog.char_length(pg_catalog.btrim(p_event_id)) = 0
@@ -172,7 +174,8 @@ SET search_path = pg_catalog
 AS $grainline_stripe_webhook_fail$
 DECLARE
   source_event public."StripeWebhookEvent"%ROWTYPE;
-  source_now timestamp(3) without time zone := pg_catalog.clock_timestamp();
+  source_now timestamp(3) without time zone :=
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC';
 BEGIN
   IF p_event_id IS NULL
      OR pg_catalog.char_length(pg_catalog.btrim(p_event_id)) = 0

@@ -50,7 +50,7 @@ describe("Case-open authority PostgreSQL proof", () => {
     for (const check of [
       "foreign_buyer_rejected",
       "unpaid_order_rejected",
-      "multi_seller_order_rejected",
+      "multi_seller_item_invariant_rejected",
       "refund_sentinel_rejected",
       "refund_event_rejected",
       "pending_order_rejected",
