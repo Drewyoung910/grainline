@@ -73,9 +73,9 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
-        ["Case", "RLS_LIVE_PHASE_A"],
-        ["CaseMessage", "RLS_LIVE_PHASE_A"],
-        ["CaseMessageAttachment", "RLS_LIVE_PHASE_A"],
+        ["Case", "RLS_LIVE_FORCE"],
+        ["CaseMessage", "RLS_LIVE_FORCE"],
+        ["CaseMessageAttachment", "RLS_LIVE_FORCE"],
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
