@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 
+import fs from "node:fs";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { validateCurrentSavedSearchRlsDeployShape } from "./guard-saved-search-rls-deploy.mjs";
+import {
+  ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION_TREE_SHA256,
+  computeMigrationTreeSha256,
+} from "./guard-saved-search-rls-deploy.mjs";
 import { verifyPromotedOrderPaymentShippingCompatibility } from "./stage-order-payment-shipping-compatible-preparation.mjs";
 
 export const ORDER_PAYMENT_SHIPPING_COMPATIBILITY_PHASE =
@@ -13,10 +18,23 @@ export function verifyOrderPaymentShippingCompatiblePreparation(
   const candidate = verifyPromotedOrderPaymentShippingCompatibility(
     rootDirectory,
   );
-  const guard = validateCurrentSavedSearchRlsDeployShape({
-    phase: ORDER_PAYMENT_SHIPPING_COMPATIBILITY_PHASE,
-    rootDirectory,
-  });
+  const migrationDirectory = path.join(rootDirectory, "prisma/migrations");
+  const migrationNames = fs.readdirSync(migrationDirectory, {
+    withFileTypes: true,
+  })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => name <= candidate.migrationName);
+  const migrationTreeSha256 = computeMigrationTreeSha256(
+    migrationDirectory,
+    migrationNames,
+  );
+  if (
+    migrationTreeSha256
+    !== ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION_TREE_SHA256
+  ) {
+    throw new Error("Order/payment/shipping compatibility prefix drifted");
+  }
   return Object.freeze({
     phase: ORDER_PAYMENT_SHIPPING_COMPATIBILITY_PHASE,
     migrationName: candidate.migrationName,
@@ -28,7 +46,11 @@ export function verifyOrderPaymentShippingCompatiblePreparation(
     runtimeServiceFunctions: 3,
     rlsChanged: false,
     predecessorTableGrantsChanged: false,
-    guard,
+    migrationTreeSha256,
+    sealedPrefix: Object.freeze({
+      migrationCutoff: candidate.migrationName,
+      reviewed: true,
+    }),
   });
 }
 

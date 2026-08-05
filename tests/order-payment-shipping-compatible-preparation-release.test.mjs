@@ -80,10 +80,10 @@ test("release verifier pins promoted bytes and the complete current tree", () =>
 test("CI and production migration workflows fail closed on the exact release", () => {
   for (const workflow of [ci, production]) {
     const treeGuard = workflow.indexOf(
-      "SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-shipping-compatibility-reviewed",
+      "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-maintenance-authority-reviewed",
     );
     const proof = workflow.indexOf(
-      "npm run audit:rls-order-payment-shipping-compatible-preparation",
+      "npm run audit:rls-stripe-webhook-maintenance-authority",
     );
     const deploy = workflow.indexOf("npx prisma migrate deploy");
     assert.ok(treeGuard >= 0);

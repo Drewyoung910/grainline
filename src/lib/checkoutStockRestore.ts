@@ -6,10 +6,7 @@ import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/
 import { parsePositiveInt } from "@/lib/stripeWebhookState";
 import { stripe } from "@/lib/stripe";
 import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReservationRepairState";
-import {
-  beginStripeWebhookEvent,
-  markStripeWebhookEventProcessed,
-} from "@/lib/stripeWebhookEvents";
+import { claimLegacyStockRestore } from "@/lib/stripeWebhookMaintenance";
 
 export const CHECKOUT_STOCK_RESERVATION_TTL_MS = 31 * 60 * 1000;
 export const CHECKOUT_STOCK_RESERVATION_STALE_GRACE_MS = 2 * 60 * 60 * 1000;
@@ -582,15 +579,7 @@ export async function pruneTerminalCheckoutStockReservations(input: {
 }
 
 async function claimCheckoutStockRestore(tx: Prisma.TransactionClient, sessionId: string) {
-  const id = `checkout-stock-restore:${sessionId}`;
-  const reservation = await beginStripeWebhookEvent(
-    id,
-    "checkout.session.stock_restored",
-    tx,
-  );
-  if (reservation.action !== "process") return false;
-  await markStripeWebhookEventProcessed(id, reservation.claimGeneration, tx);
-  return true;
+  return claimLegacyStockRestore(sessionId, tx);
 }
 
 export async function restoreUnorderedCheckoutStockOnce(input: {

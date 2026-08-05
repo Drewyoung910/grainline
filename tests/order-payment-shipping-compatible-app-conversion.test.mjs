@@ -22,7 +22,8 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     assert.match(record, /must not deploy until that exact preparation\s+migration/);
     assert.match(record, /not the complete Order\/OrderItem\/payment\/\s*shipping authority conversion/);
     assert.match(record, /grainline_legacy_stock_restore_claim/);
-    assert.match(record, /explicit later\s+activation prerequisite/);
+    assert.match(record, /Operation 36 is\s+implemented and proven only in that stacked candidate/);
+    assert.match(record, /not merged,\s+deployed, applied or represented as live production authority/);
     assert.match(record, /No test, commit or CI result on this branch changes production state/);
   });
 
@@ -63,19 +64,14 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     }
   });
 
-  it("keeps the legacy stock-restore dedup claim on the fixed lifecycle functions", () => {
+  it("moves the legacy stock-restore dedup claim to its dedicated fixed operation", () => {
     const restore = source("src/lib/checkoutStockRestore.ts");
+    const maintenance = source("src/lib/stripeWebhookMaintenance.ts");
 
-    assert.match(restore, /const id = `checkout-stock-restore:\$\{sessionId\}`/);
-    assert.match(
-      restore,
-      /beginStripeWebhookEvent\([\s\S]*"checkout\.session\.stock_restored",[\s\S]*tx,[\s\S]*\)/,
-    );
-    assert.match(restore, /reservation\.action !== "process"/);
-    assert.match(
-      restore,
-      /markStripeWebhookEventProcessed\(id, reservation\.claimGeneration, tx\)/,
-    );
+    assert.match(restore, /claimLegacyStockRestore\(sessionId, tx\)/);
+    assert.match(maintenance, /grainline_legacy_stock_restore_claim\(\$\{sessionId\}\)/);
+    assert.doesNotMatch(restore, /beginStripeWebhookEvent/);
+    assert.doesNotMatch(restore, /markStripeWebhookEventProcessed/);
     assert.doesNotMatch(restore, /tx\.stripeWebhookEvent\.create/);
   });
 

@@ -53,14 +53,14 @@ database functions protect row lifecycle, replay identity, type immutability
 and stale-worker finalization; they do not independently authenticate a Stripe
 payload.
 
-The legacy `checkout-stock-restore:<session>` dedup path uses the same prepared
-begin/complete lifecycle inside its already-held checkout-session advisory lock
-and the surrounding stock-restore transaction. The claim, completion and stock
-update therefore commit or roll back together. The catalogued dedicated
-`grainline_legacy_stock_restore_claim` operation remains an explicit later
-activation prerequisite before direct `StripeWebhookEvent` grants are revoked;
-the current reuse is compatibility-only and is not represented as completion
-of operation 36.
+This branch is now the predecessor of the separate isolated
+StripeWebhookEvent maintenance-authority candidate. That later candidate moves
+the legacy `checkout-stock-restore:<session>` dedup path to the dedicated
+`grainline_legacy_stock_restore_claim` operation inside its already-held
+checkout-session advisory lock and surrounding stock-restore transaction. The
+claim and stock update therefore commit or roll back together. Operation 36 is
+implemented and proven only in that stacked candidate; it is not merged,
+deployed, applied or represented as live production authority here.
 
 ## Durable seller-key dual write
 

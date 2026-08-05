@@ -45,7 +45,15 @@ describe("retention and ops-health follow-ups", () => {
 
     assert.equal(webhookRetention.WEBHOOK_EVENT_RETENTION_DAYS, 90);
     assert.equal(cutoff.toISOString(), "2026-02-20T12:00:00.000Z");
-    assert.match(source, /FROM "StripeWebhookEvent"/);
+    assert.equal(webhookRetention.webhookEventRetentionBatchSize(0), 1);
+    assert.equal(webhookRetention.webhookEventRetentionBatchSize(12.8), 12);
+    assert.equal(webhookRetention.webhookEventRetentionBatchSize(5_000), 1_000);
+    assert.throws(
+      () => webhookRetention.webhookEventRetentionBatchSize(Number.NaN),
+      /must be finite/,
+    );
+    assert.match(source, /pruneStripeWebhookEventServiceBatch\(effectiveBatchSize\)/);
+    assert.doesNotMatch(source, /FROM "StripeWebhookEvent"/);
     assert.match(source, /FROM "ResendWebhookEvent"/);
     assert.match(source, /FROM "ClerkWebhookEvent"/);
     assert.match(source, /"processedAt" IS NOT NULL/);
@@ -106,10 +114,10 @@ describe("retention and ops-health follow-ups", () => {
 
     assert.match(source, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS/);
-    assert.match(source, /STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS/);
+    assert.match(source, /stripeWebhookHealthSummary/);
     assert.match(source, /STALE_SVIX_WEBHOOK_PROCESSING_MS/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS/);
-    assert.match(source, /staleStripeWebhookBefore/);
+    assert.doesNotMatch(source, /staleStripeWebhookBefore/);
     assert.match(source, /staleSvixWebhookBefore/);
     assert.match(source, /staleAccountDeletionSideEffectBefore/);
     assert.match(source, /RECENT_COMPLETED_CRON_RUN_SCAN_LIMIT = 50/);
@@ -124,7 +132,9 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /lastError:\s*\{\s*not:\s*null\s*\}/);
     assert.match(source, /processedAt:\s*null/);
     assert.match(source, /processingStartedAt:\s*null/);
-    assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleStripeWebhookBefore\s*\}/);
+    assert.match(source, /stripeWebhookFailedLeaseCount/);
+    assert.match(source, /stripeWebhookReleasedLeaseCount/);
+    assert.match(source, /stripeWebhookStaleLeaseCount/);
     assert.match(source, /processingStartedAt:\s*\{\s*lt:\s*staleSvixWebhookBefore\s*\}/);
     assert.match(source, /status:\s*ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.FAILED/);
     assert.match(source, /ACCOUNT_DELETION_SIDE_EFFECT_STATUS\.PENDING/);
