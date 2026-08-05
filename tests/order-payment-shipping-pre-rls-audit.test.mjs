@@ -217,4 +217,15 @@ describe("order/payment/shipping pre-RLS audit", () => {
       );
     }
   });
+
+  it("records the corrected clean production inspection without widening authority", () => {
+    assert.match(audit, /8f22ebe326fa67bc3b71b8998b2f6b440ad7f69b/);
+    assert.match(audit, /GitHub Actions run\s+`30963859119`/);
+    assert.match(audit, /exact-main CI run `30963597414` passed/);
+    assert.match(audit, /Artifact `8913958032`/);
+    assert.match(audit, /b469b7d23054194ac48fd9f57ee7ec7789105401c58e3952a6c2990270b4104a/);
+    assert.match(audit, /Every structural and integrity inconsistency count was zero/);
+    assert.match(audit, /closes the OPS-A10 legacy-data classification gate/);
+    assert.match(audit, /does not authorize cleanup, deployment, fixed\s+operation grants, RLS activation, FORCE, provider changes/);
+  });
 });

@@ -478,9 +478,39 @@ transition. A new exact-main protected inspection must be
 reviewed separately before the legacy-data gate can be called clean; this
 record authorizes no rerun, cleanup, migration, grant/RLS change or deployment.
 
+### Corrected protected production inspection result
+
+The separately reviewed corrected inspection ran from exact merged main
+`8f22ebe326fa67bc3b71b8998b2f6b440ad7f69b` in GitHub Actions run
+`30963859119` on 2026-08-05, after exact-main CI run `30963597414` passed.
+PostgreSQL again attested `repeatable read` and
+`transaction_read_only=on`; the transaction rolled back, and production was
+not mutated. Artifact `8913958032` retained only the sanitized aggregate JSON.
+GitHub recorded the uploaded artifact digest as
+`36909b30062e5fbdab2a3700b1f477ee65be74cc0d6dc9a4c737ebbbfbfeff26`;
+the independently downloaded mode-0600 JSON SHA-256 was
+`b469b7d23054194ac48fd9f57ee7ec7789105401c58e3952a6c2990270b4104a`.
+
+The predecessor posture and base cardinalities were unchanged: the seven
+tables remained owned by `neondb_owner`, with RLS and FORCE disabled, zero
+policies and broad runtime CRUD; production contained two Orders, three
+OrderItems, 27 Stripe webhook rows and no quote, payment-event, payout-event or
+reservation rows. Every structural and integrity inconsistency count was zero,
+including `pickup_state_invalid_count`,
+`fulfillment_timestamp_order_count` and
+`webhook_state_coherence_count`. The retained artifact contains no raw rows,
+IDs, addresses, credentials, provider identifiers, snapshots or other PII.
+
+This closes the OPS-A10 legacy-data classification gate for the inspected
+predecessor state. It authorizes compatible seller-key, webhook-generation and
+invariant preparation only. It does not authorize cleanup, deployment, fixed
+operation grants, RLS activation, FORCE, provider changes or another
+sensitive-data group.
+
 1. Finish the semantic direct/nested access inventory and actor projections.
-2. Build and test an aggregate-only legacy inspector; inspect production under
-   the protected read-only gate and decide cleanup separately from its result.
+2. Treat the completed corrected aggregate inspection as the pinned production
+   predecessor record; rerun it if preparation is delayed or predecessor data
+   can materially change before migration.
 3. Add compatible durable seller/snapshot/invariant schema and fixed functions
    without changing existing grants or RLS posture.
 4. Deploy the compatible application conversion and prove old/new coexistence
