@@ -435,7 +435,48 @@ binding, protected owner endpoint/digest, clean checkout, 50-second statement
 timeout, aggregate-only evidence shape, mode-0600 fresh-file write and exact
 transaction sequence. Tests now pin exactly 54 fields and require posture plus
 count reads to occur after engine-attested `READ ONLY` begins and before
-rollback. The workflow remains prepared but undispatched.
+rollback.
+
+### First protected production inspection result
+
+The first protected production inspection ran from exact merged main
+`d52add7eb8047c7c1f040f5e6efd40d64ab5d861` in GitHub Actions run
+`30962036218` on 2026-08-05. Every workflow step passed. PostgreSQL reported
+`repeatable read` and `transaction_read_only=on`; the transaction rolled back,
+and production was not mutated. Artifact `8913326042` retained one sanitized
+54-count JSON file and no row data, user IDs, provider IDs, addresses,
+credentials, snapshots or object IDs. The uploaded zip SHA-256 was
+`4d3d2c7f8ec0ec04b7502f6a3916df581286e27433ecbfdbaaf5402929db33a9`;
+the extracted JSON SHA-256 was
+`be708caa323c4c74e0f62e461eb9915d08af1acca736858ebe50fd485f09d3cc`.
+
+The inspected predecessor posture matched review exactly: all seven tables
+were owned by `neondb_owner`, had RLS and FORCE disabled, had zero policies,
+and retained broad runtime CRUD. The base cardinalities were two Orders, three
+OrderItems, zero quotes/payment events/payout events/reservations and 27 Stripe
+webhook events. Every structural, currency, snapshot, subtotal, PII purge,
+fulfillment-state, label, quote, payment, refund, payout, reservation, blank
+webhook and stale-webhook count was zero except two timestamp buckets:
+`fulfillment_timestamp_order_count=2` and
+`webhook_state_coherence_count=5`.
+
+Review found that those two predicates compared application-generated
+timestamps with database-default `createdAt`. Checkout captures `paidAt` before
+inserting the Order, so both valid Orders were necessarily eligible for the
+first false positive. Webhook creation similarly captures lease/completion
+timestamps before the database supplies `createdAt` on the reviewed synthetic
+stock-restore path, so the five webhook rows are not accepted as corrupt data
+from this aggregate alone. The corrected
+contract compares only causal application timestamps: pickup ready to picked
+up, shipped to delivered, and webhook processing start to completion. It keeps
+missing processing start and retained error-after-completion as invalid. The
+exact predicates now have class-wide unit coverage and read-only disposable
+PostgreSQL fixture coverage. The same hard review also closed an adjacent
+completeness gap: `PICKED_UP` now requires both `pickupReadyAt` and
+`pickedUpAt`, matching the enforced `READY_FOR_PICKUP` to `PICKED_UP`
+transition. A new exact-main protected inspection must be
+reviewed separately before the legacy-data gate can be called clean; this
+record authorizes no rerun, cleanup, migration, grant/RLS change or deployment.
 
 1. Finish the semantic direct/nested access inventory and actor projections.
 2. Build and test an aggregate-only legacy inspector; inspect production under

@@ -54,6 +54,10 @@ describe("Order/payment/shipping legacy inspection PostgreSQL proof", () => {
     );
     assert.match(proof, /transaction_read_only/);
     assert.match(proof, /normalizeOrderPaymentShippingLegacyCounts/);
+    assert.match(proof, /ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE/);
+    assert.match(proof, /ORDER_PICKUP_STATE_INVALID_PREDICATE/);
+    assert.match(proof, /STRIPE_WEBHOOK_STATE_INVALID_PREDICATE/);
+    assert.match(proof, /timestampSemanticsAccepted: true/);
     assert.match(proof, /await client\.query\("ROLLBACK"\)/);
     assert.match(proof, /productionChanged: false/);
     assert.doesNotMatch(proof, /process\.env\.DATABASE_URL/);

@@ -345,6 +345,40 @@ async function readPosture(client) {
   });
 }
 
+// These predicates are exported so the disposable PostgreSQL proof exercises
+// the exact expressions used by the production aggregate query. Application
+// timestamps can be captured before an INSERT while createdAt is supplied by
+// the database, so comparing either paidAt or processedAt to createdAt can
+// classify normal sub-millisecond clock ordering as corrupt legacy state.
+export const ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE = `
+  ("pickupReadyAt" IS NOT NULL AND "pickedUpAt" < "pickupReadyAt")
+  OR ("shippedAt" IS NOT NULL AND "deliveredAt" < "shippedAt")
+`;
+
+export const ORDER_PICKUP_STATE_INVALID_PREDICATE = `
+  "fulfillmentStatus" IN ('READY_FOR_PICKUP', 'PICKED_UP')
+  AND (
+    "fulfillmentMethod" IS DISTINCT FROM 'PICKUP'::public."FulfillmentMethod"
+    OR (
+      "fulfillmentStatus" = 'READY_FOR_PICKUP'
+      AND "pickupReadyAt" IS NULL
+    )
+    OR (
+      "fulfillmentStatus" = 'PICKED_UP'
+      AND ("pickupReadyAt" IS NULL OR "pickedUpAt" IS NULL)
+    )
+  )
+`;
+
+export const STRIPE_WEBHOOK_STATE_INVALID_PREDICATE = `
+  ("processedAt" IS NOT NULL AND "processingStartedAt" IS NULL)
+  OR (
+    "processedAt" IS NOT NULL
+    AND "processedAt" < "processingStartedAt"
+  )
+  OR ("processedAt" IS NOT NULL AND "lastError" IS NOT NULL)
+`;
+
 export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
   WITH order_seller_counts AS (
     SELECT
@@ -470,12 +504,7 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     (
       SELECT pg_catalog.count(*)
       FROM public."Order"
-      WHERE "fulfillmentStatus" IN ('READY_FOR_PICKUP', 'PICKED_UP')
-        AND (
-          "fulfillmentMethod" IS DISTINCT FROM 'PICKUP'::public."FulfillmentMethod"
-          OR ("fulfillmentStatus" = 'READY_FOR_PICKUP' AND "pickupReadyAt" IS NULL)
-          OR ("fulfillmentStatus" = 'PICKED_UP' AND "pickedUpAt" IS NULL)
-        )
+      WHERE ${ORDER_PICKUP_STATE_INVALID_PREDICATE}
     ) AS pickup_state_invalid_count,
     (
       SELECT pg_catalog.count(*)
@@ -490,9 +519,7 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     (
       SELECT pg_catalog.count(*)
       FROM public."Order"
-      WHERE ("pickupReadyAt" IS NOT NULL AND "pickedUpAt" < "pickupReadyAt")
-        OR ("shippedAt" IS NOT NULL AND "deliveredAt" < "shippedAt")
-        OR ("paidAt" IS NOT NULL AND "paidAt" < "createdAt")
+      WHERE ${ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE}
     ) AS fulfillment_timestamp_order_count,
     (
       SELECT pg_catalog.count(*)
@@ -704,9 +731,7 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     (
       SELECT pg_catalog.count(*)
       FROM public."StripeWebhookEvent"
-      WHERE ("processedAt" IS NOT NULL AND "processingStartedAt" IS NULL)
-        OR ("processedAt" IS NOT NULL AND "processedAt" < "createdAt")
-        OR ("processedAt" IS NOT NULL AND "lastError" IS NOT NULL)
+      WHERE ${STRIPE_WEBHOOK_STATE_INVALID_PREDICATE}
     ) AS webhook_state_coherence_count,
     (
       SELECT pg_catalog.count(*)
