@@ -49,6 +49,18 @@ evidence rather than protection. Proceed to compatible seller-key,
 webhook-generation and invariant preparation; do not skip the compatible app
 deployment/coexistence boundary or bundle later activation releases.
 
+The Stripe webhook prerequisite activation design is now pinned in
+`docs/stripe-webhook-event-activation-audit.md`: policyless ENABLE first,
+FORCE later, zero runtime/PUBLIC table or column authority and exactly six
+generation/maintenance functions. The buyer-deletion launch proof must not
+retain direct webhook-table SELECT or motivate a seventh lookup function; it
+uses the exact Stripe event plus an always-rollback fixed `begin` probe and
+accepts only `processed`. Merge/apply compatible preparation, deploy and drain
+the converted app, record the final predecessor postflight, then activate and
+prove pooled-runtime direct denial. Human traffic being absent does not remove
+the old/new boundary because Stripe retries and cron/maintenance jobs remain
+active.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

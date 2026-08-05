@@ -5,8 +5,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import Stripe from "stripe";
+import { stripeWebhookEventReservationFromRows } from "../src/lib/stripeWebhookEventState.ts";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STRIPE_API_VERSION = "2025-10-29.clover";
@@ -171,6 +172,37 @@ function addIssue(issues, condition, message) {
   if (!condition) issues.push(message);
 }
 
+class StripeWebhookLeaseProofRollback extends Error {
+  constructor(reservation) {
+    super("Rollback buyer-deletion Stripe webhook lease proof");
+    this.name = "StripeWebhookLeaseProofRollback";
+    this.reservation = reservation;
+  }
+}
+
+export async function proveProcessedStripeWebhookEvent(prisma, eventId, eventType) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw(Prisma.sql`
+        SELECT action, claim_generation
+          FROM public.grainline_stripe_webhook_begin(${eventId}, ${eventType})
+      `);
+      const reservation = stripeWebhookEventReservationFromRows(rows);
+
+      // The fixed begin operation can insert or reclaim an unprocessed event.
+      // This verifier is read-only in effect: always throw so PostgreSQL rolls
+      // back even when the launch evidence is missing or stale.
+      throw new StripeWebhookLeaseProofRollback(reservation);
+    });
+  } catch (error) {
+    if (error instanceof StripeWebhookLeaseProofRollback) {
+      return error.reservation;
+    }
+    throw error;
+  }
+  throw new Error("Stripe webhook lease proof transaction returned without rollback");
+}
+
 function jsonObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -201,7 +233,7 @@ function sanitizedProofSnapshot({
   session,
   sourceBuyer,
   sourceBuyerState,
-  webhookEvent,
+  webhookReservation,
 }) {
   const piiFieldsWithValues = order
     ? BUYER_PII_FIELDS.filter((field) => order[field] != null)
@@ -249,7 +281,8 @@ function sanitizedProofSnapshot({
       retrievedEventIdHash: event?.id ? hashValue(event.id) : null,
       checkoutAuditIdHash: checkoutAudit?.id ? hashValue(checkoutAudit.id) : null,
       checkoutAuditActorIdHash: checkoutAudit?.actorId ? hashValue(checkoutAudit.actorId) : null,
-      webhookEventProcessed: Boolean(webhookEvent?.processedAt),
+      webhookEventProcessed: webhookReservation?.action === "processed",
+      webhookLeaseAction: webhookReservation?.action ?? null,
       refundEventIdHash: refundEvent?.id ? hashValue(refundEvent.id) : null,
       refundAuditIdHash: refundAudit?.id ? hashValue(refundAudit.id) : null,
     },
@@ -270,21 +303,6 @@ async function collectProof({ config, prisma, stripe }) {
   addIssue(issues, Boolean(sessionBuyerId), "Stripe Checkout Session metadata must retain the original buyerId");
 
   let retrievedEvent = null;
-  if (config.expectedEventId) {
-    retrievedEvent = await stripe.events.retrieve(config.expectedEventId);
-    addIssue(issues, retrievedEvent.livemode === false, "Stripe event must be test mode");
-    addIssue(
-      issues,
-      retrievedEvent.type === "checkout.session.completed" ||
-        retrievedEvent.type === "checkout.session.async_payment_succeeded",
-      "Stripe event must be a checkout completion event",
-    );
-    addIssue(
-      issues,
-      stripeObjectId(retrievedEvent.data?.object) === config.sessionId,
-      "Stripe event object must be the proof Checkout Session",
-    );
-  }
 
   const sourceBuyer = sessionBuyerId
     ? await prisma.user.findUnique({
@@ -363,7 +381,7 @@ async function collectProof({ config, prisma, stripe }) {
   let checkoutAudit = null;
   let refundAudit = null;
   let refundEvent = null;
-  let webhookEvent = null;
+  let webhookReservation = null;
 
   if (order) {
     const piiFieldsWithValues = BUYER_PII_FIELDS.filter((field) => order[field] != null);
@@ -481,20 +499,34 @@ async function collectProof({ config, prisma, stripe }) {
 
     const webhookEventId = config.expectedEventId ?? checkoutAudit?.actorId ?? null;
     if (webhookEventId) {
-      webhookEvent = await prisma.stripeWebhookEvent.findUnique({
-        where: { id: webhookEventId },
-        select: { id: true, type: true, processedAt: true, lastError: true },
-      });
-      addIssue(issues, Boolean(webhookEvent), "StripeWebhookEvent row is missing for the replay event");
-      if (webhookEvent) {
+      if (config.expectedEventId && checkoutAudit?.actorId) {
         addIssue(
           issues,
-          webhookEvent.type === "checkout.session.completed" ||
-            webhookEvent.type === "checkout.session.async_payment_succeeded",
-          "StripeWebhookEvent must be a checkout completion type",
+          config.expectedEventId === checkoutAudit.actorId,
+          "Explicit Stripe event id must match the checkout audit actorId",
         );
-        addIssue(issues, Boolean(webhookEvent.processedAt), "StripeWebhookEvent must be marked processed");
-        addIssue(issues, !webhookEvent.lastError, "StripeWebhookEvent must not retain lastError after replay");
+      }
+
+      retrievedEvent = await stripe.events.retrieve(webhookEventId);
+      const isCheckoutCompletion =
+        retrievedEvent.type === "checkout.session.completed" ||
+        retrievedEvent.type === "checkout.session.async_payment_succeeded";
+      const isProofSession = stripeObjectId(retrievedEvent.data?.object) === config.sessionId;
+      addIssue(issues, retrievedEvent.livemode === false, "Stripe event must be test mode");
+      addIssue(issues, isCheckoutCompletion, "Stripe event must be a checkout completion event");
+      addIssue(issues, isProofSession, "Stripe event object must be the proof Checkout Session");
+
+      if (retrievedEvent.livemode === false && isCheckoutCompletion && isProofSession) {
+        webhookReservation = await proveProcessedStripeWebhookEvent(
+          prisma,
+          webhookEventId,
+          retrievedEvent.type,
+        );
+        addIssue(
+          issues,
+          webhookReservation.action === "processed",
+          `StripeWebhookEvent fixed lease must report processed, received ${webhookReservation.action}`,
+        );
       }
     } else {
       issues.push("No webhook event id was available from env or checkout audit actorId");
@@ -513,7 +545,7 @@ async function collectProof({ config, prisma, stripe }) {
       session,
       sourceBuyer,
       sourceBuyerState,
-      webhookEvent,
+      webhookReservation,
     }),
     issues,
   };

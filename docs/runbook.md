@@ -415,9 +415,12 @@ Pre-launch buyer-deletion Stripe replay proof:
   `BUYER_DELETION_REPLAY_PROOF_CONFIRM=test-mode-replay BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=staging-or-local-read BUYER_DELETION_REPLAY_PROOF_SESSION_ID="<cs_test...>" BUYER_DELETION_REPLAY_PROOF_EVIDENCE_PATH="buyer-deletion-replay-evidence.json" npm run audit:buyer-deletion-replay`.
 - Retain the sanitized JSON artifact with launch records. A passing run verifies
   the Stripe session is test-mode and paid, the source buyer is no longer valid,
-  the local order is blocked for review with buyer snapshots purged, the webhook
-  event row is processed, and the blocked-checkout refund ledger plus system
-  audit evidence were written.
+  the local order is blocked for review with buyer snapshots purged, and the
+  exact Stripe-bound event's fixed lease reports `processed`. The lease probe
+  deliberately rolls back for every result, so a missing/stale event cannot
+  leave a verifier-created row or reclaim. It does not require direct
+  `StripeWebhookEvent` SELECT and does not independently project `lastError`.
+  The blocked-checkout refund ledger and system audit evidence must also exist.
 - Do not close this launch blocker from source tests alone, and do not run this
   verifier with live Stripe keys or against production data.
 

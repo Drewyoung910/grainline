@@ -41,8 +41,9 @@ describe("buyer-deletion Stripe replay proof harness", () => {
     assert.match(script, /session\.livemode === false/);
     assert.match(script, /session\.payment_status === "paid"/);
     assert.match(script, /session\.metadata\?\.buyerId/);
-    assert.match(script, /stripe\.events\.retrieve\(config\.expectedEventId\)/);
+    assert.match(script, /stripe\.events\.retrieve\(webhookEventId\)/);
     assert.match(script, /retrievedEvent\.type === "checkout\.session\.completed"/);
+    assert.match(script, /config\.expectedEventId === checkoutAudit\.actorId/);
     assert.doesNotMatch(script, /checkout\.sessions\.create/);
     assert.doesNotMatch(script, /paymentIntents\.create/);
     assert.doesNotMatch(script, /order\.create\(/);
@@ -67,7 +68,7 @@ describe("buyer-deletion Stripe replay proof harness", () => {
     assert.match(script, /BLOCKED_CHECKOUT_REVIEW_MARKER/);
   });
 
-  it("requires processed webhook, refund ledger, and system audit evidence", () => {
+  it("requires processed fixed-lease, refund ledger, and system audit evidence", () => {
     const script = source("scripts/buyer-deletion-stripe-replay-proof.mjs");
 
     assert.match(script, /order\.sellerRefundId\?\.startsWith\("re_"\)/);
@@ -78,9 +79,47 @@ describe("buyer-deletion Stripe replay proof harness", () => {
     assert.match(script, /prisma\.systemAuditLog\.findFirst/);
     assert.match(script, /action: CHECKOUT_CREATED_ACTION/);
     assert.match(script, /action: BLOCKED_REFUND_ACTION/);
-    assert.match(script, /prisma\.stripeWebhookEvent\.findUnique/);
-    assert.match(script, /Boolean\(webhookEvent\.processedAt\)/);
-    assert.match(script, /!webhookEvent\.lastError/);
+    assert.match(script, /proveProcessedStripeWebhookEvent/);
+    assert.match(script, /grainline_stripe_webhook_begin/);
+    assert.match(script, /webhookReservation\.action === "processed"/);
+    assert.doesNotMatch(script, /prisma\.stripeWebhookEvent/);
+    assert.doesNotMatch(script, /webhookEvent\.lastError/);
+  });
+
+  it("always rolls back the fixed lease probe, including a missing-row process claim", async () => {
+    const { proveProcessedStripeWebhookEvent } = await import(
+      "../scripts/buyer-deletion-stripe-replay-proof.mjs"
+    );
+
+    for (const expectedAction of ["processed", "process", "in_progress"]) {
+      let rolledBack = false;
+      let querySeen = false;
+      const prisma = {
+        async $transaction(work) {
+          try {
+            return await work({
+              async $queryRaw(query) {
+                querySeen = true;
+                assert.match(query.text, /grainline_stripe_webhook_begin/);
+                return [{ action: expectedAction, claim_generation: expectedAction === "process" ? 1n : 2n }];
+              },
+            });
+          } catch (error) {
+            rolledBack = true;
+            throw error;
+          }
+        },
+      };
+
+      const reservation = await proveProcessedStripeWebhookEvent(
+        prisma,
+        "evt_test_buyer_deletion",
+        "checkout.session.completed",
+      );
+      assert.equal(querySeen, true);
+      assert.equal(rolledBack, true);
+      assert.equal(reservation.action, expectedAction);
+    }
   });
 
   it("redacts retained evidence and stores hashes instead of raw Stripe or DB identifiers", async () => {
