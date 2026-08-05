@@ -4,8 +4,11 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE,
+  ORDER_PICKUP_STATE_INVALID_PREDICATE,
   ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS,
   ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+  STRIPE_WEBHOOK_STATE_INVALID_PREDICATE,
   normalizeOrderPaymentShippingLegacyCounts,
 } from "./order-payment-shipping-legacy-inspect.mjs";
 
@@ -91,6 +94,127 @@ export async function runOrderPaymentShippingLegacyInspectionProof(databaseUrl) 
       "on",
       "Order/payment/shipping legacy inspection proof transaction is not read-only",
     );
+    const timestampSemantics = await client.query(`
+      WITH order_fixtures(
+        "pickupReadyAt",
+        "pickedUpAt",
+        "shippedAt",
+        "deliveredAt",
+        "createdAt",
+        "paidAt"
+      ) AS (
+        VALUES
+          (
+            NULL::timestamp,
+            NULL::timestamp,
+            NULL::timestamp,
+            NULL::timestamp,
+            TIMESTAMP '2026-08-05 00:00:00.001',
+            TIMESTAMP '2026-08-05 00:00:00.000'
+          ),
+          (
+            TIMESTAMP '2026-08-05 00:00:01.001',
+            TIMESTAMP '2026-08-05 00:00:01.000',
+            NULL::timestamp,
+            NULL::timestamp,
+            TIMESTAMP '2026-08-05 00:00:00.001',
+            TIMESTAMP '2026-08-05 00:00:00.000'
+          ),
+          (
+            NULL::timestamp,
+            NULL::timestamp,
+            TIMESTAMP '2026-08-05 00:00:02.001',
+            TIMESTAMP '2026-08-05 00:00:02.000',
+            TIMESTAMP '2026-08-05 00:00:00.001',
+            TIMESTAMP '2026-08-05 00:00:00.000'
+          )
+      ), pickup_fixtures(
+        "fulfillmentMethod",
+        "fulfillmentStatus",
+        "pickupReadyAt",
+        "pickedUpAt"
+      ) AS (
+        VALUES
+          (
+            'PICKUP'::public."FulfillmentMethod",
+            'PICKED_UP'::public."FulfillmentStatus",
+            TIMESTAMP '2026-08-05 00:00:00.000',
+            TIMESTAMP '2026-08-05 00:00:00.001'
+          ),
+          (
+            'PICKUP'::public."FulfillmentMethod",
+            'PICKED_UP'::public."FulfillmentStatus",
+            NULL::timestamp,
+            TIMESTAMP '2026-08-05 00:00:00.001'
+          ),
+          (
+            'PICKUP'::public."FulfillmentMethod",
+            'PICKED_UP'::public."FulfillmentStatus",
+            TIMESTAMP '2026-08-05 00:00:00.000',
+            NULL::timestamp
+          ),
+          (
+            'SHIPPING'::public."FulfillmentMethod",
+            'READY_FOR_PICKUP'::public."FulfillmentStatus",
+            TIMESTAMP '2026-08-05 00:00:00.000',
+            NULL::timestamp
+          )
+      ), webhook_fixtures(
+        "processingStartedAt",
+        "processedAt",
+        "createdAt",
+        "lastError"
+      ) AS (
+        VALUES
+          (
+            TIMESTAMP '2026-08-05 00:00:00.000',
+            TIMESTAMP '2026-08-05 00:00:00.001',
+            TIMESTAMP '2026-08-05 00:00:00.002',
+            NULL::text
+          ),
+          (
+            TIMESTAMP '2026-08-05 00:00:01.001',
+            TIMESTAMP '2026-08-05 00:00:01.000',
+            TIMESTAMP '2026-08-05 00:00:00.999',
+            NULL::text
+          ),
+          (
+            NULL::timestamp,
+            TIMESTAMP '2026-08-05 00:00:02.000',
+            TIMESTAMP '2026-08-05 00:00:01.999',
+            NULL::text
+          ),
+          (
+            TIMESTAMP '2026-08-05 00:00:03.000',
+            TIMESTAMP '2026-08-05 00:00:03.001',
+            TIMESTAMP '2026-08-05 00:00:03.000',
+            'legacy error'::text
+          )
+      )
+      SELECT
+        (
+          SELECT pg_catalog.count(*)
+          FROM order_fixtures
+          WHERE ${ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE}
+        )::integer AS invalid_order_timestamps,
+        (
+          SELECT pg_catalog.count(*)
+          FROM webhook_fixtures
+          WHERE ${STRIPE_WEBHOOK_STATE_INVALID_PREDICATE}
+        )::integer AS invalid_webhook_states,
+        (
+          SELECT pg_catalog.count(*)
+          FROM pickup_fixtures
+          WHERE ${ORDER_PICKUP_STATE_INVALID_PREDICATE}
+        )::integer AS invalid_pickup_states
+    `);
+    assert.deepEqual(timestampSemantics.rows, [
+      {
+        invalid_order_timestamps: 2,
+        invalid_pickup_states: 3,
+        invalid_webhook_states: 3,
+      },
+    ]);
     const result = await client.query(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
     );
@@ -114,6 +238,7 @@ export async function runOrderPaymentShippingLegacyInspectionProof(databaseUrl) 
     productionChanged: false,
     queryExecuted: true,
     schemaAccepted: true,
+    timestampSemanticsAccepted: true,
     zeroRowDatabase: Object.values(counts).every((value) => value === 0),
   });
 }

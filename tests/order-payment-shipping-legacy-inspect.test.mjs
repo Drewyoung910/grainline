@@ -179,6 +179,33 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     }
   });
 
+  it("compares application timestamps only to their causal predecessor", () => {
+    assert.doesNotMatch(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"paidAt"\s+IS\s+NOT\s+NULL\s+AND\s+"paidAt"\s*<\s*"createdAt"/i,
+    );
+    assert.doesNotMatch(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"processedAt"\s+IS\s+NOT\s+NULL\s+AND\s+"processedAt"\s*<\s*"createdAt"/i,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"pickedUpAt"\s*<\s*"pickupReadyAt"/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"deliveredAt"\s*<\s*"shippedAt"/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"processedAt"\s*<\s*"processingStartedAt"/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"fulfillmentStatus"\s*=\s*'PICKED_UP'[\s\S]*"pickupReadyAt"\s+IS\s+NULL\s+OR\s+"pickedUpAt"\s+IS\s+NULL/,
+    );
+  });
+
   it("writes only private sanitized aggregate evidence", () => {
     const directory = tempDirectory();
     const evidencePath = path.join(directory, "evidence.json");
