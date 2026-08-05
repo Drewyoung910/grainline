@@ -36,6 +36,7 @@ const {
   RUNTIME_PRIVATE_TABLES,
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
+  STRIPE_WEBHOOK_EVENT_TABLE,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
   collectConversationMessageFunctionIssues,
@@ -54,6 +55,8 @@ const {
   requiredRuntimeColumnPrivileges,
   requiredRuntimeTablePrivileges,
   runtimePrivateFunctionNames,
+  stripeWebhookEventRlsActivationExpected,
+  stripeWebhookEventRlsForceExpected,
   formatSavedSearchCatalogEvidence,
   normalizeSavedSearchCatalogState,
   parseGrantAuditDatabaseIdentity,
@@ -840,6 +843,63 @@ describe("database grant inventory guardrails", () => {
       ),
       [],
     );
+
+    const stripeActivatedInventory = {
+      ...caseForcedInventory,
+      tables: [...caseForcedInventory.tables, STRIPE_WEBHOOK_EVENT_TABLE],
+      rlsEnableTables: [
+        ...caseForcedInventory.rlsEnableTables,
+        STRIPE_WEBHOOK_EVENT_TABLE,
+      ],
+    };
+    assert.equal(
+      stripeWebhookEventRlsActivationExpected(stripeActivatedInventory),
+      true,
+    );
+    assert.equal(
+      stripeWebhookEventRlsForceExpected(stripeActivatedInventory),
+      false,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        STRIPE_WEBHOOK_EVENT_TABLE,
+        stripeActivatedInventory,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: "DirectUpload",
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          ...caseRows.map((row) => ({ ...row, rls_forced: true })),
+          {
+            table_name: STRIPE_WEBHOOK_EVENT_TABLE,
+            rls_enabled: true,
+            rls_forced: false,
+            policy_count: 0,
+          },
+        ],
+        stripeActivatedInventory,
+      ),
+      [],
+    );
+    const stripeForcedInventory = {
+      ...stripeActivatedInventory,
+      rlsForceTables: [
+        ...stripeActivatedInventory.rlsForceTables,
+        STRIPE_WEBHOOK_EVENT_TABLE,
+      ],
+    };
+    assert.equal(
+      stripeWebhookEventRlsForceExpected(stripeForcedInventory),
+      true,
+    );
   });
 
   it("pins the exact initial Notification recipient policy contract without FORCE", () => {
@@ -1137,7 +1197,8 @@ describe("database grant inventory guardrails", () => {
       inventory.publicRevokes.length,
       157
         + (conversationMessageAuthorityPrepared ? 25 : 0)
-        + (caseRlsActivationExpected(inventory) ? 3 : 0),
+        + (caseRlsActivationExpected(inventory) ? 3 : 0)
+        + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -1234,6 +1295,7 @@ describe("database grant inventory guardrails", () => {
         "Message",
         "Notification",
         "SavedSearch",
+        "StripeWebhookEvent",
       ],
     );
     assert.deepEqual(
@@ -1991,7 +2053,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 12);
+    assert.equal(guardResultCount, 13);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -2028,6 +2090,14 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :case_rls_active[\s\S]*REVOKE ALL ON TABLE[\s\S]*public\."Case"[\s\S]*public\."CaseMessage"[\s\S]*public\."CaseMessageAttachment"/,
+    );
+    assert.match(
+      provision,
+      /StripeWebhookEvent RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :stripe_webhook_event_rls_active[\s\S]*REVOKE ALL ON TABLE public\."StripeWebhookEvent"/,
     );
     assert.match(
       provision,

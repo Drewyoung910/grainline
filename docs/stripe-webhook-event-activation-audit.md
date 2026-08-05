@@ -318,3 +318,14 @@ operational issue counts at zero and is retained at
 `archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
 Connect v2 signed delivery, predecessor drain and final compatibility
 postflight remain before activation.
+
+The isolated activation candidate now exists with byte-pinned activation and
+rollback SQL, conditional role-provisioning convergence, global grant-audit
+classification, direct-denial and rollback engine proofs, and guarded CI plus
+production-release wiring. Its exact boundary and remaining gates live in
+`docs/stripe-webhook-event-activation-release.md`.
+
+This remains a candidate, not an activation claim. The historical exact-head
+PostgreSQL proof must be refreshed against current main and the accepted
+provider evidence before a separate production release review. Production
+StripeWebhookEvent posture remains unchanged.
