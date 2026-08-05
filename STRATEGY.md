@@ -40,6 +40,15 @@ failed only by the worker holding the exact current generation; event type is
 immutable after the first accepted reservation. This closes the documented
 stale-worker ABA race before the webhook ledger becomes authority evidence.
 
+The corrected aggregate-only production inspection is complete. Exact main
+`8f22ebe326fa67bc3b71b8998b2f6b440ad7f69b` passed CI `30963597414`, and
+protected read-only run `30963859119` reported zero structural/integrity
+inconsistencies across the 54-count contract. The seven-table predecessor still
+has RLS off, zero policies and broad runtime CRUD, so this is classification
+evidence rather than protection. Proceed to compatible seller-key,
+webhook-generation and invariant preparation; do not skip the compatible app
+deployment/coexistence boundary or bundle later activation releases.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
