@@ -77,10 +77,26 @@ commit `3981e151864a9e9cd5631f63b7a8a3a76c75904f`.
   inventory now explicitly requires those four functions to remain
   runtime-ungranted, while the three Stripe webhook service operations remain
   the only newly runtime-executable functions.
+- Commit `924615e2062adb0e59a5e88c5728bb9c6cfbe1d3` passed the complete CI run
+  `30971289032`: promoted migration application, runtime grant convergence,
+  every disposable PostgreSQL authority and concurrency proof, the global
+  grant/RLS audit, TypeScript, lint, the full test suite, dependency audit and
+  production build.
 
 The lease proof sets a non-UTC session timezone and proves that all persisted
 timezone-without-time-zone lease clocks are derived in UTC. This prevents the
 five-hour offset defect previously caught in rollout evidence.
+
+The production postflight implementation is saved as
+`scripts/order-payment-shipping-compatible-production-postflight.mjs`. It
+requires the exact clean release commit, main CI run, migration run, explicit
+confirmation and fresh evidence path; accepts only the reviewed pooled runtime
+identity; rejects privileged or aliased database URLs; and runs inside an
+engine-attested repeatable-read read-only transaction. Its evidence is written
+once with mode `0600`, contains no connection string or row data, and records
+only catalog posture plus aggregate zero-count integrity results. The same
+code path is exercised under the restricted runtime role in disposable
+PostgreSQL before release.
 
 ## Required release order
 

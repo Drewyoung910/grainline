@@ -218,6 +218,10 @@ jobs:
         run: npm run audit:rls-stripe-webhook-lease-compatibility
         env:
           STRIPE_WEBHOOK_LEASE_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Order/payment/shipping compatible postflight under the runtime role
+        run: npm run audit:rls-order-payment-shipping-compatible-postflight
+        env:
+          ORDER_PAYMENT_SHIPPING_COMPATIBLE_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message legacy cleanup in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-legacy-cleanup
         env:
