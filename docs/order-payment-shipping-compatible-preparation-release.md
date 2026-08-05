@@ -55,6 +55,14 @@ commit `3981e151864a9e9cd5631f63b7a8a3a76c75904f`.
 - CI run `30965587927` then passed all rollback-only PostgreSQL authority and
   lease proofs, TypeScript, lint, the full test suite, dependency audit, and
   production build.
+- Candidate CI run `30970644693` applied the promoted migration and passed its
+  byte pins, migration, and grant convergence, then correctly exposed a stale
+  Case-open fixture: it committed each disposable Order before inserting its
+  required OrderItem and still constructed a multi-seller Order that the new
+  database invariant deliberately makes impossible. The proof now seeds each
+  Order and its item in one transaction and replaces that obsolete Case-layer
+  denial with an engine-level assertion that the second-seller item is rejected.
+  No production state was involved.
 
 The lease proof sets a non-UTC session timezone and proves that all persisted
 timezone-without-time-zone lease clocks are derived in UTC. This prevents the
