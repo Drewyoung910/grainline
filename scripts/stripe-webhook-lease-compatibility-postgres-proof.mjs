@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import { verifyPromotedOrderPaymentShippingCompatibility } from "./stage-order-payment-shipping-compatible-preparation.mjs";
 
 const { Client } = pg;
 const PROOF_ENV = "STRIPE_WEBHOOK_LEASE_COMPATIBILITY_PROOF_DATABASE_URL";
@@ -247,6 +248,12 @@ async function proveLeaseLifecycle(client) {
 }
 
 async function proveDatabaseClockStaleReclaim(client) {
+  await client.query("SET LOCAL TIME ZONE 'America/Chicago'");
+  const timeZone = await client.query(
+    "SELECT pg_catalog.current_setting('TimeZone') AS time_zone",
+  );
+  assert.deepEqual(timeZone.rows, [{ time_zone: "America/Chicago" }]);
+
   await client.query(`
     INSERT INTO public."StripeWebhookEvent" (
       id,
@@ -260,25 +267,35 @@ async function proveDatabaseClockStaleReclaim(client) {
       $1,
       'account.updated',
       7,
-      pg_catalog.clock_timestamp() - interval '3 minutes',
-      pg_catalog.clock_timestamp() - interval '4 minutes',
-      pg_catalog.clock_timestamp() - interval '3 minutes'
+      (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - interval '3 minutes',
+      (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - interval '4 minutes',
+      (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - interval '3 minutes'
     )
   `, [ids.stale]);
 
-  const before = await client.query("SELECT pg_catalog.clock_timestamp() AS now");
+  const before = await client.query(`
+    SELECT EXTRACT(
+      epoch FROM (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+    )::double precision AS now_epoch
+  `);
   assert.deepEqual(await callBegin(client, ids.stale, "account.updated"), {
     action: "process",
     claim_generation: "8",
   });
-  const after = await client.query("SELECT pg_catalog.clock_timestamp() AS now");
+  const after = await client.query(`
+    SELECT EXTRACT(
+      epoch FROM (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+    )::double precision AS now_epoch
+  `);
   const row = await client.query(`
-    SELECT "processingStartedAt" AS started
+    SELECT EXTRACT(
+      epoch FROM "processingStartedAt"
+    )::double precision AS started_epoch
       FROM public."StripeWebhookEvent"
      WHERE id = $1
   `, [ids.stale]);
-  assert.ok(row.rows[0].started >= before.rows[0].now);
-  assert.ok(row.rows[0].started <= after.rows[0].now);
+  assert.ok(row.rows[0].started_epoch >= before.rows[0].now_epoch - 0.01);
+  assert.ok(row.rows[0].started_epoch <= after.rows[0].now_epoch + 0.01);
 }
 
 export async function runStripeWebhookLeaseCompatibilityProof(env = process.env) {
@@ -300,12 +317,25 @@ export async function runStripeWebhookLeaseCompatibilityProof(env = process.env)
            JOIN pg_catalog.pg_namespace AS namespace
              ON namespace.oid = procedure.pronamespace
           WHERE namespace.nspname = 'public'
-            AND procedure.proname LIKE 'grainline_stripe_webhook_%') AS function_count
+            AND (
+              procedure.proname,
+              pg_catalog.oidvectortypes(procedure.proargtypes)
+            ) IN (
+              ('grainline_stripe_webhook_begin', 'text, text'),
+              ('grainline_stripe_webhook_complete', 'text, bigint'),
+              ('grainline_stripe_webhook_fail', 'text, bigint, text')
+            )) AS lease_function_count
     `);
-    assert.deepEqual(originalCatalog.rows, [{ column_count: 0, function_count: 0 }]);
+    const promoted = originalCatalog.rows[0]?.column_count === 1
+      && originalCatalog.rows[0]?.lease_function_count === 3;
+    if (promoted) {
+      verifyPromotedOrderPaymentShippingCompatibility();
+    } else {
+      assert.deepEqual(originalCatalog.rows, [{ column_count: 0, lease_function_count: 0 }]);
+    }
 
     await client.query("BEGIN");
-    await client.query(draftBody);
+    if (!promoted) await client.query(draftBody);
     await proveCatalog(client);
     await proveLeaseLifecycle(client);
     await proveDatabaseClockStaleReclaim(client);
@@ -323,20 +353,30 @@ export async function runStripeWebhookLeaseCompatibilityProof(env = process.env)
            JOIN pg_catalog.pg_namespace AS namespace
              ON namespace.oid = procedure.pronamespace
           WHERE namespace.nspname = 'public'
-            AND procedure.proname LIKE 'grainline_stripe_webhook_%') AS function_count,
+            AND (
+              procedure.proname,
+              pg_catalog.oidvectortypes(procedure.proargtypes)
+            ) IN (
+              ('grainline_stripe_webhook_begin', 'text, text'),
+              ('grainline_stripe_webhook_complete', 'text, bigint'),
+              ('grainline_stripe_webhook_fail', 'text, bigint, text')
+            )) AS lease_function_count,
         (SELECT pg_catalog.count(*)::integer
            FROM public."StripeWebhookEvent"
           WHERE id IN ($1, $2)) AS residue_count
     `, [ids.fresh, ids.stale]);
     assert.deepEqual(restoredCatalog.rows, [{
-      column_count: 0,
-      function_count: 0,
+      column_count: promoted ? 1 : 0,
+      lease_function_count: promoted ? 3 : 0,
       residue_count: 0,
     }]);
 
     return Object.freeze({
       database: DATABASE_NAME,
       checks: 10,
+      proofMode: promoted
+        ? "ephemeral-loopback-promoted-migration-rollback"
+        : "ephemeral-loopback-draft-rollback",
       rolledBack: true,
       productionTouched: false,
     });

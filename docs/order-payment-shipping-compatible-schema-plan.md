@@ -129,6 +129,13 @@ deployment overlap is closed may a later invariant migration set both seller
 columns `NOT NULL`. RLS/function activation remains a separate release after
 all ordinary-runtime base-table access is converted.
 
+The first isolated application checkpoint is recorded in
+`docs/order-payment-shipping-compatible-app-conversion.md`. It converts the
+generation-bound Stripe lease callers and explicit seller-key dual writes
+provided by the preparation migration. It deliberately does not claim the
+later participant/staff projections, provider claim/finalize families,
+maintenance operations, table-grant revocation or RLS activation are complete.
+
 ## Failure and rollback boundaries
 
 Preparation rollback may remove the nullable columns, raw-managed keys,

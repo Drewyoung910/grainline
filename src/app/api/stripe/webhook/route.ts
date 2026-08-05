@@ -66,6 +66,7 @@ import {
   revalidatePublicSellerVisibilityCaches,
 } from "@/lib/searchCache";
 import { DEAUTHORIZED_SELLER_REVIEW_NOTE } from "@/lib/orderReviewHolds";
+import { requireSingleOrderSellerProfileId } from "@/lib/orderSellerKey";
 import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
@@ -431,17 +432,18 @@ export async function POST(req: Request) {
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
     );
   }
-  if (reservation === "processed") return NextResponse.json({ ok: true });
-  if (reservation === "in_progress") {
+  if (reservation.action === "processed") return NextResponse.json({ ok: true });
+  if (reservation.action === "in_progress") {
     return NextResponse.json(
-      { ok: false, status: reservation },
+      { ok: false, status: reservation.action },
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(STRIPE_WEBHOOK_RETRY_AFTER_SECONDS) } },
     );
   }
+  const claimGeneration = reservation.claimGeneration;
 
   async function markCurrentStripeWebhookEventFailed(handlerErr: unknown) {
     try {
-      await markStripeWebhookEventFailed(event.id, handlerErr);
+      await markStripeWebhookEventFailed(event.id, claimGeneration, handlerErr);
     } catch (markErr) {
       Sentry.captureException(markErr, {
         tags: { source: "stripe_webhook_mark_failed" },
@@ -516,7 +518,7 @@ export async function POST(req: Request) {
   ): Promise<NextResponse> {
     try {
       const response = await handler();
-      await markStripeWebhookEventProcessed(event.id);
+      await markStripeWebhookEventProcessed(event.id, claimGeneration);
       return response;
     } catch (handlerErr) {
       await markCurrentStripeWebhookEventFailed(handlerErr);
@@ -1628,6 +1630,7 @@ export async function POST(req: Request) {
           if (existingOrder) return null;
 
           const cartSellerIds = [...new Set(checkoutItems.map((item) => item.listing.sellerId))];
+          const cartSellerProfileId = requireSingleOrderSellerProfileId(cartSellerIds);
           const cartListingIds = [...new Set(checkoutItems.map((item) => item.listing.id))];
           await lockUserRowsForUpdate(tx, [buyerId]);
           await lockSellerProfileRowsForUpdate(tx, cartSellerIds);
@@ -1691,6 +1694,7 @@ export async function POST(req: Request) {
           const order = await tx.order.create({
             data: {
               buyerId: cartInvalidState.buyerUserId,
+              sellerProfileId: cartSellerProfileId,
               paidAt: new Date(),
               stripeSessionId: sessionId,
 
@@ -1817,6 +1821,7 @@ export async function POST(req: Request) {
             await tx.orderItem.create({
               data: {
                 orderId: order.id,
+                sellerProfileId: cartSellerProfileId,
                 listingId: paid.listingId,
                 quantity: orderQuantity,
                 priceCents: orderPriceCents,
@@ -2034,6 +2039,9 @@ export async function POST(req: Request) {
               },
             },
           });
+          const singleSellerProfileId = requireSingleOrderSellerProfileId([
+            transactionListing?.seller?.id,
+          ]);
           const singleInvalidState = checkoutInvalidReasonState({
             buyer: transactionBuyer,
             sellers: [transactionListing?.seller],
@@ -2064,6 +2072,7 @@ export async function POST(req: Request) {
           const order = await tx.order.create({
             data: {
               buyerId: singleInvalidState.buyerUserId,
+              sellerProfileId: singleSellerProfileId,
               paidAt: new Date(),
               stripeSessionId: sessionId,
 
@@ -2093,6 +2102,7 @@ export async function POST(req: Request) {
               items: {
                 create: [{
                   listingId,
+                  sellerProfileId: singleSellerProfileId,
                   quantity,
                   priceCents: singleOrderPriceCents,
                   listingSnapshot: {
@@ -2683,7 +2693,7 @@ export async function POST(req: Request) {
       });
     }
 
-    await markStripeWebhookEventProcessed(event.id);
+    await markStripeWebhookEventProcessed(event.id, claimGeneration);
     return NextResponse.json({ received: true });
   } catch (err) {
     // Only stripeSessionId P2002s are duplicate webhook deliveries. Other unique
@@ -2700,7 +2710,7 @@ export async function POST(req: Request) {
         ? p2002Target.includes("stripeSessionId")
         : typeof p2002Target === "string" && p2002Target.includes("stripeSessionId"));
     if (duplicateSession) {
-      await markStripeWebhookEventProcessed(event.id);
+      await markStripeWebhookEventProcessed(event.id, claimGeneration);
       return NextResponse.json({ ok: true });
     }
     console.error("Stripe webhook handler error:", sanitizeEmailOutboxError(err));

@@ -139,17 +139,18 @@ export async function POST(req: Request) {
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
     );
   }
-  if (reservation === "processed") return NextResponse.json({ received: true });
-  if (reservation === "in_progress") {
+  if (reservation.action === "processed") return NextResponse.json({ received: true });
+  if (reservation.action === "in_progress") {
     return NextResponse.json(
-      { received: false, status: reservation },
+      { received: false, status: reservation.action },
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS) } },
     );
   }
+  const claimGeneration = reservation.claimGeneration;
 
   async function markCurrentStripeWebhookEventFailed(handlerErr: unknown) {
     try {
-      await markStripeWebhookEventFailed(stripeEventId, handlerErr);
+      await markStripeWebhookEventFailed(stripeEventId, claimGeneration, handlerErr);
     } catch (markErr) {
       Sentry.captureException(markErr, {
         tags: { source: "stripe_v2_webhook_mark_failed" },
@@ -161,7 +162,7 @@ export async function POST(req: Request) {
   async function processIdempotentEvent(handler: () => Promise<NextResponse>): Promise<NextResponse> {
     try {
       const response = await handler();
-      await markStripeWebhookEventProcessed(stripeEventId);
+      await markStripeWebhookEventProcessed(stripeEventId, claimGeneration);
       return response;
     } catch (handlerErr) {
       await markCurrentStripeWebhookEventFailed(handlerErr);

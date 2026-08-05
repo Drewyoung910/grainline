@@ -4,7 +4,7 @@ import { verifyCronRequest } from "@/lib/cronAuth";
 import { withSentryCronMonitor } from "@/lib/cronMonitor";
 import { beginCronRun, completeCronRun, failCronRun, skippedCronRunResponse } from "@/lib/cronRun";
 import { prisma } from "@/lib/db";
-import { STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS } from "@/lib/stripeWebhookEventState";
+import { stripeWebhookHealthSummary } from "@/lib/stripeWebhookMaintenance";
 import {
   ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS,
   ACCOUNT_DELETION_SIDE_EFFECT_STATUS,
@@ -37,7 +37,6 @@ export async function GET(request: Request) {
       const failedCronSince = new Date(now.getTime() - FAILED_CRON_LOOKBACK_MS);
       const staleCronRunningBefore = new Date(now.getTime() - STALE_CRON_RUNNING_MS);
       const staleEmailBefore = new Date(now.getTime() - STALE_EMAIL_OUTBOX_MS);
-      const staleStripeWebhookBefore = new Date(now.getTime() - STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS);
       const staleSvixWebhookBefore = new Date(now.getTime() - STALE_SVIX_WEBHOOK_PROCESSING_MS);
       const staleAccountDeletionSideEffectBefore = new Date(now.getTime() - ACCOUNT_DELETION_SIDE_EFFECT_STALE_PROCESSING_MS);
 
@@ -48,7 +47,7 @@ export async function GET(request: Request) {
         staleEmailOutboxCount,
         deadEmailOutboxCount,
         overdueSupportRequestCount,
-        stripeWebhookFailureCount,
+        stripeWebhookHealth,
         resendWebhookFailureCount,
         clerkWebhookFailureCount,
         accountDeletionSideEffectFailureCount,
@@ -99,16 +98,7 @@ export async function GET(request: Request) {
             slaDueAt: { lt: now },
           },
         }),
-        prisma.stripeWebhookEvent.count({
-          where: {
-            processedAt: null,
-            OR: [
-              { lastError: { not: null } },
-              { processingStartedAt: null },
-              { processingStartedAt: { lt: staleStripeWebhookBefore } },
-            ],
-          },
-        }),
+        stripeWebhookHealthSummary(),
         prisma.resendWebhookEvent.count({
           where: {
             processedAt: null,
@@ -179,7 +169,10 @@ export async function GET(request: Request) {
         staleEmailOutboxCount,
         deadEmailOutboxCount,
         overdueSupportRequestCount,
-        stripeWebhookFailureCount,
+        stripeWebhookFailureCount: stripeWebhookHealth.issueCount,
+        stripeWebhookFailedLeaseCount: stripeWebhookHealth.failedCount,
+        stripeWebhookReleasedLeaseCount: stripeWebhookHealth.releasedCount,
+        stripeWebhookStaleLeaseCount: stripeWebhookHealth.staleCount,
         resendWebhookFailureCount,
         clerkWebhookFailureCount,
         accountDeletionSideEffectFailureCount,
