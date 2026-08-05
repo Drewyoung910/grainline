@@ -207,7 +207,13 @@ must never simulate the runtime role through the owner connection.
 The six-function, policyless-table design is appropriate and proportionate.
 The launch-proof direct read was a real compatibility blocker, not a reason to
 add broader authority; the rollback-only fixed-lease conversion closes it.
-After this checkpoint passes exact CI, the next isolated work is the activation
-migration, its rollback SQL, disposable PostgreSQL authority/concurrency proof,
-provisioning convergence and guarded release wiring. Production remains
-unchanged until those artifacts receive a separate hard review.
+The isolated activation candidate now exists with byte-pinned activation and
+rollback SQL, conditional role-provisioning convergence, global grant-audit
+classification, direct-denial and rollback engine proofs, and guarded CI plus
+production-release wiring. Its exact boundary and remaining gates live in
+`docs/stripe-webhook-event-activation-release.md`.
+
+This is not an activation claim. Local static tests pass, but disposable
+PostgreSQL, full-suite, dependency and build evidence must come from exact-head
+CI before the candidate can receive its separate hard review. Production
+remains unchanged.
