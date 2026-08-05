@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import { verifyPromotedOrderPaymentShippingCompatibility } from "./stage-order-payment-shipping-compatible-preparation.mjs";
 
 const { Client } = pg;
 const PROOF_ENV = "STRIPE_WEBHOOK_LEASE_COMPATIBILITY_PROOF_DATABASE_URL";
@@ -318,10 +319,16 @@ export async function runStripeWebhookLeaseCompatibilityProof(env = process.env)
           WHERE namespace.nspname = 'public'
             AND procedure.proname LIKE 'grainline_stripe_webhook_%') AS function_count
     `);
-    assert.deepEqual(originalCatalog.rows, [{ column_count: 0, function_count: 0 }]);
+    const promoted = originalCatalog.rows[0]?.column_count === 1
+      && originalCatalog.rows[0]?.function_count === 3;
+    if (promoted) {
+      verifyPromotedOrderPaymentShippingCompatibility();
+    } else {
+      assert.deepEqual(originalCatalog.rows, [{ column_count: 0, function_count: 0 }]);
+    }
 
     await client.query("BEGIN");
-    await client.query(draftBody);
+    if (!promoted) await client.query(draftBody);
     await proveCatalog(client);
     await proveLeaseLifecycle(client);
     await proveDatabaseClockStaleReclaim(client);
@@ -345,14 +352,17 @@ export async function runStripeWebhookLeaseCompatibilityProof(env = process.env)
           WHERE id IN ($1, $2)) AS residue_count
     `, [ids.fresh, ids.stale]);
     assert.deepEqual(restoredCatalog.rows, [{
-      column_count: 0,
-      function_count: 0,
+      column_count: promoted ? 1 : 0,
+      function_count: promoted ? 3 : 0,
       residue_count: 0,
     }]);
 
     return Object.freeze({
       database: DATABASE_NAME,
       checks: 10,
+      proofMode: promoted
+        ? "ephemeral-loopback-promoted-migration-rollback"
+        : "ephemeral-loopback-draft-rollback",
       rolledBack: true,
       productionTouched: false,
     });

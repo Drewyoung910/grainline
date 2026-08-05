@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import { verifyPromotedOrderPaymentShippingCompatibility } from "./stage-order-payment-shipping-compatible-preparation.mjs";
 
 const { Client } = pg;
 const PROOF_ENV = "ORDER_SELLER_KEY_COMPATIBILITY_PROOF_DATABASE_URL";
@@ -20,6 +21,8 @@ const ids = Object.freeze({
   listingB: "order-seller-key-proof-listing-b",
   legacyOrder: "order-seller-key-proof-legacy-order",
   legacyItem: "order-seller-key-proof-legacy-item",
+  raceSameSellerItem: "order-seller-key-proof-race-same-seller-item",
+  raceCrossSellerItem: "order-seller-key-proof-race-cross-seller-item",
 });
 
 function safeError(error) {
@@ -403,6 +406,132 @@ async function proveCompatibility(client) {
   );
 }
 
+async function cleanupCommittedRaceFixtures(client) {
+  await client.query("BEGIN");
+  try {
+    await client.query(
+      'DELETE FROM public."OrderItem" WHERE id LIKE $1',
+      ["order-seller-key-proof-%"],
+    );
+    await client.query(
+      'DELETE FROM public."Order" WHERE id LIKE $1',
+      ["order-seller-key-proof-%"],
+    );
+    await client.query(
+      'DELETE FROM public."Listing" WHERE id IN ($1, $2)',
+      [ids.listingA, ids.listingB],
+    );
+    await client.query(
+      'DELETE FROM public."SellerProfile" WHERE id IN ($1, $2)',
+      [ids.sellerA, ids.sellerB],
+    );
+    await client.query(
+      'DELETE FROM public."User" WHERE id IN ($1, $2, $3)',
+      [ids.buyer, ids.sellerAUser, ids.sellerBUser],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
+}
+
+async function proveConcurrentSellerBinding(databaseUrl, observer) {
+  const sameSeller = new Client({
+    application_name: "grainline-order-seller-key-race-same",
+    connectionString: databaseUrl,
+    query_timeout: 15_000,
+    statement_timeout: 12_000,
+  });
+  const crossSeller = new Client({
+    application_name: "grainline-order-seller-key-race-cross",
+    connectionString: databaseUrl,
+    query_timeout: 15_000,
+    statement_timeout: 12_000,
+  });
+  let sameOpen = false;
+  let crossOpen = false;
+  try {
+    await observer.query("BEGIN");
+    await seedIdentityFixtures(observer);
+    await seedLegacyOrder(
+      observer,
+      ids.legacyOrder,
+      ids.legacyItem,
+      ids.listingA,
+    );
+    await observer.query("COMMIT");
+
+    await Promise.all([sameSeller.connect(), crossSeller.connect()]);
+    await sameSeller.query("BEGIN");
+    sameOpen = true;
+    await sameSeller.query(`
+      INSERT INTO public."OrderItem" (
+        id, "orderId", "listingId", quantity, "priceCents"
+      )
+      VALUES ($1, $2, $3, 1, 1000)
+    `, [ids.raceSameSellerItem, ids.legacyOrder, ids.listingA]);
+
+    await crossSeller.query("BEGIN");
+    crossOpen = true;
+    const crossInsert = crossSeller.query(`
+      INSERT INTO public."OrderItem" (
+        id, "orderId", "listingId", quantity, "priceCents"
+      )
+      VALUES ($1, $2, $3, 1, 2000)
+    `, [ids.raceCrossSellerItem, ids.legacyOrder, ids.listingB])
+      .then(() => ({ error: null }))
+      .catch((error) => ({ error }));
+
+    let lockWaitObserved = false;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const wait = await observer.query(`
+        SELECT wait_event_type
+          FROM pg_catalog.pg_stat_activity
+         WHERE application_name = 'grainline-order-seller-key-race-cross'
+           AND state = 'active'
+      `);
+      if (wait.rows[0]?.wait_event_type === "Lock") {
+        lockWaitObserved = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.equal(
+      lockWaitObserved,
+      true,
+      "cross-seller insert did not wait on the Order authority lock",
+    );
+
+    await sameSeller.query("COMMIT");
+    sameOpen = false;
+    const crossResult = await crossInsert;
+    assert.ok(crossResult.error, "cross-seller race unexpectedly succeeded");
+    assert.match(
+      safeError(crossResult.error),
+      /cannot contain items from multiple sellers/,
+    );
+    await crossSeller.query("ROLLBACK");
+    crossOpen = false;
+
+    const committed = await observer.query(`
+      SELECT pg_catalog.count(*)::integer AS count
+        FROM public."OrderItem"
+       WHERE id = $1
+         AND "sellerProfileId" = $2
+    `, [ids.raceSameSellerItem, ids.sellerA]);
+    assert.deepEqual(committed.rows, [{ count: 1 }]);
+  } finally {
+    if (sameOpen) await sameSeller.query("ROLLBACK").catch(() => {});
+    if (crossOpen) await crossSeller.query("ROLLBACK").catch(() => {});
+    await Promise.all([
+      sameSeller.end().catch(() => {}),
+      crossSeller.end().catch(() => {}),
+    ]);
+    await cleanupCommittedRaceFixtures(observer);
+  }
+}
+
 export async function runOrderSellerKeyCompatibilityProof(env = process.env) {
   const { databaseUrl } = parseOrderSellerKeyCompatibilityProofConfig(env);
   const client = new Client({
@@ -416,8 +545,21 @@ export async function runOrderSellerKeyCompatibilityProof(env = process.env) {
   let transactionOpen = false;
   try {
     const draftBody = readOrderSellerKeyDraftBody();
-    await provePreflightRejects(client, draftBody, "zero-item");
-    await provePreflightRejects(client, draftBody, "multi-seller");
+    const predecessor = await client.query(`
+      SELECT pg_catalog.count(*)::integer AS promoted_column_count
+        FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name IN ('Order', 'OrderItem')
+         AND column_name = 'sellerProfileId'
+    `);
+    const promoted = predecessor.rows[0]?.promoted_column_count === 2;
+    if (!promoted) {
+      assert.equal(predecessor.rows[0]?.promoted_column_count, 0);
+      await provePreflightRejects(client, draftBody, "zero-item");
+      await provePreflightRejects(client, draftBody, "multi-seller");
+    } else {
+      verifyPromotedOrderPaymentShippingCompatibility();
+    }
 
     await client.query("BEGIN");
     transactionOpen = true;
@@ -428,17 +570,39 @@ export async function runOrderSellerKeyCompatibilityProof(env = process.env) {
       ids.legacyItem,
       ids.listingA,
     );
-    await client.query(draftBody);
+    if (!promoted) await client.query(draftBody);
     await proveCatalog(client);
     await proveCompatibility(client);
     await client.query("ROLLBACK");
     transactionOpen = false;
+    if (promoted) {
+      await proveConcurrentSellerBinding(databaseUrl, client);
+    }
+    const residue = await client.query(`
+      SELECT
+        (SELECT pg_catalog.count(*)::integer
+           FROM public."User"
+          WHERE id IN ($1, $2, $3)) AS user_count,
+        (SELECT pg_catalog.count(*)::integer
+           FROM public."Order"
+          WHERE id LIKE 'order-seller-key-proof-%') AS order_count,
+        (SELECT pg_catalog.count(*)::integer
+           FROM public."OrderItem"
+          WHERE id LIKE 'order-seller-key-proof-%') AS item_count
+    `, [ids.buyer, ids.sellerAUser, ids.sellerBUser]);
+    assert.deepEqual(residue.rows, [{
+      user_count: 0,
+      order_count: 0,
+      item_count: 0,
+    }]);
     return Object.freeze({
-      checks: 13,
+      checks: promoted ? 15 : 14,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,
-      proofMode: "ephemeral-loopback-draft-rollback",
+      proofMode: promoted
+        ? "ephemeral-loopback-promoted-migration-rollback"
+        : "ephemeral-loopback-draft-rollback",
       status: "passed",
     });
   } finally {

@@ -17,6 +17,8 @@ import {
   CASE_ACTIVATION_MIGRATION_TREE_SHA256,
   CASE_FORCE_MIGRATION,
   CASE_FORCE_MIGRATION_TREE_SHA256,
+  ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION,
+  ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION_TREE_SHA256,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
   CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
@@ -181,6 +183,8 @@ const REVIEWED_DIRECT_UPLOAD_ACTIVATION =
   "direct-upload-activation-reviewed";
 const REVIEWED_CASE_ACTIVATION = "case-activation-reviewed";
 const REVIEWED_CASE_FORCE = "case-force-reviewed";
+const REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY =
+  "order-payment-shipping-compatibility-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -283,6 +287,8 @@ function validate(
         DIRECT_UPLOAD_ACTIVATION_MIGRATION_TREE_SHA256,
       [REVIEWED_CASE_ACTIVATION]: CASE_ACTIVATION_MIGRATION_TREE_SHA256,
       [REVIEWED_CASE_FORCE]: CASE_FORCE_MIGRATION_TREE_SHA256,
+      [REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY]:
+        ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -313,6 +319,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     NOTIFICATION_FORCE_MIGRATION,
     CONVERSATION_MESSAGE_CONTEXT_MIGRATION,
     CONVERSATION_MESSAGE_SCALE_INDEXES_MIGRATION,
+    ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION,
     CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
     CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
     CONVERSATION_MESSAGE_LEGACY_CLEANUP_MIGRATION,
@@ -502,6 +509,10 @@ const REVIEWED_CASE_FORCE_MIGRATIONS = [
   ...REVIEWED_CASE_ACTIVATION_MIGRATIONS,
   CASE_FORCE_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATIONS = [
+  ...REVIEWED_CASE_FORCE_MIGRATIONS,
+  ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -574,6 +585,8 @@ function migrationsFor(phase) {
       REVIEWED_DIRECT_UPLOAD_ACTIVATION_MIGRATIONS,
     [REVIEWED_CASE_ACTIVATION]: REVIEWED_CASE_ACTIVATION_MIGRATIONS,
     [REVIEWED_CASE_FORCE]: REVIEWED_CASE_FORCE_MIGRATIONS,
+    [REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY]:
+      REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATIONS,
   }[phase];
 }
 
@@ -1036,9 +1049,16 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_CASE_ACTIVATION, currentMigrations),
       /remain the latest migration/,
     );
+    assert.throws(
+      () => validate(REVIEWED_CASE_FORCE, currentMigrations),
+      /remain the latest migration/,
+    );
     assert.equal(
-      validate(REVIEWED_CASE_FORCE, currentMigrations).phase,
-      REVIEWED_CASE_FORCE,
+      validate(
+        REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY,
+        currentMigrations,
+      ).phase,
+      REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY,
     );
   });
 
@@ -2261,6 +2281,34 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact additive Order/payment/shipping compatibility migration after Case FORCE", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY,
+        REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY,
+        hasCaseForceMigration: true,
+        hasOrderPaymentShippingCompatibilityMigration: true,
+      },
+    );
+    for (const migration of [
+      CASE_FORCE_MIGRATION,
+      ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY,
+          REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATIONS.filter(
+            (name) => name !== migration,
+          ),
+        ),
+        /requires the completed Case FORCE boundary plus the reviewed additive Order\/payment\/shipping compatibility migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2299,6 +2347,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_DIRECT_UPLOAD_ACTIVATION,
     REVIEWED_CASE_ACTIVATION,
     REVIEWED_CASE_FORCE,
+    REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -2392,7 +2441,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current Case FORCE guard before CI migrations", () => {
+  it("runs the current Order/payment/shipping compatibility guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -2402,7 +2451,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify Case FORCE migration tree[\s\S]{0,240}SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,220}Verify Case FORCE proof equivalence[\s\S]{0,180}npm run audit:rls-case-force-release[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*npm run audit:rls-direct-upload-activation-release[\s\S]*Prove runtime-role provisioning refusals exit nonzero[\s\S]*Isolate the exact Case activation until authority proofs pass[\s\S]*Isolate the exact Case FORCE release until Phase A passes[\s\S]*Apply compatible migrations to CI Postgres/,
+      /Verify Order\/payment\/shipping compatibility migration tree[\s\S]{0,280}SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-shipping-compatibility-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify Order\/payment\/shipping compatibility proof equivalence[\s\S]{0,200}npm run audit:rls-order-payment-shipping-compatible-preparation[\s\S]{0,220}Verify Case FORCE proof equivalence[\s\S]{0,180}npm run audit:rls-case-force-release[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*npm run audit:rls-direct-upload-activation-release[\s\S]*Prove runtime-role provisioning refusals exit nonzero[\s\S]*Isolate the exact Case activation until authority proofs pass[\s\S]*Isolate the exact Case FORCE release until Phase A passes[\s\S]*Apply compatible migrations to CI Postgres/,
     );
   });
 
@@ -2739,6 +2788,18 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /review or retire the temporary SavedSearch deploy guard/,
     );
+    const laterOrderPaymentShippingMigration =
+      "20260805012001_unreviewed_after_order_payment_shipping_compatibility";
+    assert.throws(
+      () => validate(
+        REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY,
+        [
+          ...REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATIONS,
+          laterOrderPaymentShippingMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
   });
 
   it("pins the exact reviewed migration inventory and SQL contents", () => {
@@ -2991,6 +3052,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_CASE_FORCE_MIGRATIONS,
       ),
       CASE_FORCE_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATIONS,
+      ),
+      ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

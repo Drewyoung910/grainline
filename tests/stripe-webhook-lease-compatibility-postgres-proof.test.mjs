@@ -115,6 +115,9 @@ test("engine proof covers ABA rejection and exact rollback", () => {
   assert.match(proof, /checks: 10/);
   assert.match(proof, /rolledBack: true/);
   assert.match(proof, /productionTouched: false/);
+  assert.match(proof, /verifyPromotedOrderPaymentShippingCompatibility/);
+  assert.match(proof, /promoted \? 1 : 0/);
+  assert.match(proof, /promoted \? 3 : 0/);
 });
 
 test("CI runs the exact rollback-only Stripe lease proof", () => {
