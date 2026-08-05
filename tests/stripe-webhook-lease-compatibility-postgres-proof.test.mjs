@@ -56,7 +56,10 @@ test("Stripe lease draft is additive, rollback-only and production-gated", () =>
 
 test("begin derives database time, locks duplicates and freezes event type", () => {
   assert.match(draft, /grainline_stripe_webhook_begin/);
-  assert.match(draft, /clock_timestamp\(\)/);
+  assert.equal(
+    (draft.match(/clock_timestamp\(\) AT TIME ZONE 'UTC'/g) ?? []).length,
+    3,
+  );
   assert.match(draft, /FOR UPDATE/);
   assert.match(draft, /event type is immutable/);
   assert.ok(
@@ -107,6 +110,8 @@ test("engine proof covers ABA rejection and exact rollback", () => {
   assert.match(proof, /error_length: 500/);
   assert.match(proof, /"blank_identity"/);
   assert.match(proof, /"blank_type"/);
+  assert.match(proof, /SET LOCAL TIME ZONE 'America\/Chicago'/);
+  assert.match(proof, /epoch FROM \(pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'\)/);
   assert.match(proof, /checks: 10/);
   assert.match(proof, /rolledBack: true/);
   assert.match(proof, /productionTouched: false/);

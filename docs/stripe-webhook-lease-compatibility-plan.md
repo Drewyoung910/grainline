@@ -92,3 +92,11 @@ type at begin, and makes the catalog proof require migration-owner ownership.
 Final checkpoint `d2601ba7f842dca7c544df809751737b62bf5c68`
 passed the resulting 10-check rollback-only proof and every repository gate in
 CI `30959675486`. No production or persistent staging database was contacted.
+
+The production-readiness review after the clean aggregate inspection found a
+timestamp-without-time-zone conversion hazard: assigning
+`clock_timestamp()` directly would depend on the migration session's time
+zone. The candidate now derives every retained lease timestamp with
+`clock_timestamp() AT TIME ZONE 'UTC'`. Its PostgreSQL proof deliberately runs
+the lease path with the session set to `America/Chicago` and compares UTC epoch
+values, so a later return to session-local conversion fails before promotion.

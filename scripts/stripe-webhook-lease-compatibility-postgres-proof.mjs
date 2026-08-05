@@ -247,6 +247,12 @@ async function proveLeaseLifecycle(client) {
 }
 
 async function proveDatabaseClockStaleReclaim(client) {
+  await client.query("SET LOCAL TIME ZONE 'America/Chicago'");
+  const timeZone = await client.query(
+    "SELECT pg_catalog.current_setting('TimeZone') AS time_zone",
+  );
+  assert.deepEqual(timeZone.rows, [{ time_zone: "America/Chicago" }]);
+
   await client.query(`
     INSERT INTO public."StripeWebhookEvent" (
       id,
@@ -260,25 +266,35 @@ async function proveDatabaseClockStaleReclaim(client) {
       $1,
       'account.updated',
       7,
-      pg_catalog.clock_timestamp() - interval '3 minutes',
-      pg_catalog.clock_timestamp() - interval '4 minutes',
-      pg_catalog.clock_timestamp() - interval '3 minutes'
+      (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - interval '3 minutes',
+      (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - interval '4 minutes',
+      (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - interval '3 minutes'
     )
   `, [ids.stale]);
 
-  const before = await client.query("SELECT pg_catalog.clock_timestamp() AS now");
+  const before = await client.query(`
+    SELECT pg_catalog.extract(
+      epoch FROM (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+    )::double precision AS now_epoch
+  `);
   assert.deepEqual(await callBegin(client, ids.stale, "account.updated"), {
     action: "process",
     claim_generation: "8",
   });
-  const after = await client.query("SELECT pg_catalog.clock_timestamp() AS now");
+  const after = await client.query(`
+    SELECT pg_catalog.extract(
+      epoch FROM (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
+    )::double precision AS now_epoch
+  `);
   const row = await client.query(`
-    SELECT "processingStartedAt" AS started
+    SELECT pg_catalog.extract(
+      epoch FROM "processingStartedAt"
+    )::double precision AS started_epoch
       FROM public."StripeWebhookEvent"
      WHERE id = $1
   `, [ids.stale]);
-  assert.ok(row.rows[0].started >= before.rows[0].now);
-  assert.ok(row.rows[0].started <= after.rows[0].now);
+  assert.ok(row.rows[0].started_epoch >= before.rows[0].now_epoch - 0.01);
+  assert.ok(row.rows[0].started_epoch <= after.rows[0].now_epoch + 0.01);
 }
 
 export async function runStripeWebhookLeaseCompatibilityProof(env = process.env) {
