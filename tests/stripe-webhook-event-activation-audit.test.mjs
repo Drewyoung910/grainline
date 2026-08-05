@@ -72,6 +72,8 @@ test("all remaining script-level direct access is explicitly classified", () => 
   assert.deepEqual(directScripts, [
     "scripts/order-payment-shipping-compatible-production-postflight.mjs",
     "scripts/order-payment-shipping-legacy-inspect.mjs",
+    "scripts/stripe-webhook-event-activation-postgres-proof.mjs",
+    "scripts/stripe-webhook-event-activation-rollback-proof.mjs",
     "scripts/stripe-webhook-lease-compatibility-postgres-proof.mjs",
     "scripts/stripe-webhook-maintenance-authority-postgres-proof.mjs",
   ]);

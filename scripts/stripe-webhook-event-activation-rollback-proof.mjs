@@ -111,6 +111,7 @@ export async function runStripeWebhookEventRollbackProof(env = process.env) {
   verifyStripeWebhookEventActivationRelease();
   const owner = new Client({ connectionString: databaseUrl });
   await owner.connect();
+  let restoreRequired = false;
   try {
     assert.deepEqual(await tableState(owner), {
       rls_enabled: true,
@@ -122,6 +123,7 @@ export async function runStripeWebhookEventRollbackProof(env = process.env) {
       can_delete: false,
       other_authority: false,
     });
+    restoreRequired = true;
     await owner.query(fs.readFileSync(ROLLBACK, "utf8"));
     assert.deepEqual(await tableState(owner), {
       rls_enabled: false,
@@ -160,13 +162,15 @@ export async function runStripeWebhookEventRollbackProof(env = process.env) {
     });
   } catch (error) {
     await owner.query("ROLLBACK").catch(() => {});
-    try {
-      await restoreActivation(owner);
-    } catch (restoreError) {
-      throw new AggregateError(
-        [error, restoreError],
-        "rollback proof failed and could not restore activation",
-      );
+    if (restoreRequired) {
+      try {
+        await restoreActivation(owner);
+      } catch (restoreError) {
+        throw new AggregateError(
+          [error, restoreError],
+          "rollback proof failed and could not restore activation",
+        );
+      }
     }
     throw error;
   } finally {
