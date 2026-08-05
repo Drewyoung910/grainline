@@ -63,6 +63,13 @@ commit `3981e151864a9e9cd5631f63b7a8a3a76c75904f`.
   Order and its item in one transaction and replaces that obsolete Case-layer
   denial with an engine-level assertion that the second-seller item is rejected.
   No production state was involved.
+- Replacement CI run `30970850390` passed that corrected Case-open proof and
+  then found the same intentional contract change in the Case-aware Order
+  fixture, which still committed mixed-seller and empty Orders. Those
+  impossible post-migration fixtures are now valid single-seller Orders, with
+  savepoint-scoped engine assertions proving that both a cross-seller insert
+  and deletion of the last item fail closed. Participant-function denials stay
+  focused on states that can still exist after the invariant is installed.
 
 The lease proof sets a non-UTC session timezone and proves that all persisted
 timezone-without-time-zone lease clocks are derived in UTC. This prevents the
