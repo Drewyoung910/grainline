@@ -282,6 +282,8 @@ model SellerProfile {
   broadcasts          SellerBroadcast[]
   commissionInterests CommissionInterest[]
   payoutEvents        SellerPayoutEvent[]
+  ordersBySeller      Order[]                  @relation("OrdersBySeller")
+  orderItemsBySeller  OrderItem[]              @relation("OrderItemsBySeller")
 
   @@index([featuredUntil])
   @@index([guildLevel, chargesEnabled, vacationMode])
@@ -401,6 +403,8 @@ model Listing {
   cityMetroId String?
   cityMetro   Metro?  @relation("ListingCityMetro", fields: [cityMetroId], references: [id])
 
+  // Supports the raw-managed composite OrderItem seller-authority FK.
+  @@unique([id, sellerId], map: "Listing_id_sellerId_key")
   @@index([sellerId, status])
   @@index([status, createdAt])
   @@index([title])
@@ -564,11 +568,13 @@ enum LabelStatus {
 }
 
 model Order {
-  id        String    @id @default(cuid())
-  buyerId   String?
-  buyer     User?     @relation("OrdersByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
-  createdAt DateTime  @default(now())
-  paidAt    DateTime?
+  id              String         @id @default(cuid())
+  buyerId         String?
+  buyer           User?          @relation("OrdersByBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  sellerProfileId String?
+  sellerProfile   SellerProfile? @relation("OrdersBySeller", fields: [sellerProfileId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdAt       DateTime       @default(now())
+  paidAt          DateTime?
 
   // Stripe idempotency
   stripeSessionId String? @unique @db.VarChar(255)
@@ -685,6 +691,8 @@ model Order {
   shippingRateQuotes OrderShippingRateQuote[]
   paymentEvents      OrderPaymentEvent[]
 
+  // Supports the raw-managed same-Order seller-authority FK from OrderItem.
+  @@unique([id, sellerProfileId], map: "Order_id_sellerProfileId_key")
   @@index([buyerId])
   @@index([buyerId, createdAt])
   @@index([paidAt])
@@ -694,6 +702,8 @@ model Order {
   @@index([sellerRefundId, sellerRefundLockedAt])
   @@index([labelClawbackStatus, labelClawbackNextAttemptAt])
   @@index([buyerDataPurgedAt, fulfillmentStatus, deliveredAt, pickedUpAt], map: "Order_buyer_pii_prune_idx")
+  @@index([sellerProfileId, createdAt, id])
+  @@index([sellerProfileId, fulfillmentStatus, createdAt, id])
 }
 
 model OrderShippingRateQuote {
@@ -759,21 +769,24 @@ model SellerPayoutEvent {
 }
 
 model OrderItem {
-  id               String   @id @default(cuid())
+  id               String         @id @default(cuid())
   orderId          String
-  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
   listingId        String
-  listing          Listing  @relation(fields: [listingId], references: [id], onDelete: Restrict)
-  quantity         Int      @default(1)
+  listing          Listing        @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  sellerProfileId  String?
+  sellerProfile    SellerProfile? @relation("OrderItemsBySeller", fields: [sellerProfileId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  quantity         Int            @default(1)
   priceCents       Int
   // Bounded checkout-time listing snapshot for retained order history.
   listingSnapshot  Json?
   selectedVariants Json? // [{ groupName, optionLabel, priceAdjustCents }]
-  createdAt        DateTime @default(now())
+  createdAt        DateTime       @default(now())
 
   @@index([orderId])
   @@index([listingId])
   @@index([listingId, orderId])
+  @@index([sellerProfileId, createdAt, id])
 }
 
 model Cart {
@@ -1457,6 +1470,7 @@ model SupportRequest {
 model StripeWebhookEvent {
   id                  String    @id @db.VarChar(255)
   type                String    @db.VarChar(100)
+  claimGeneration     BigInt    @default(0)
   processingStartedAt DateTime?
   processedAt         DateTime?
   lastError           String?   @db.VarChar(2000)

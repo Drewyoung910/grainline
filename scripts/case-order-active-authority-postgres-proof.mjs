@@ -325,6 +325,7 @@ async function seedFixtures(client) {
       ids.activeOrder,
       ids.clearOrder,
       ids.mixedOrder,
+      ids.emptyOrder,
       ids.bannedBuyerOrder,
       ids.retentionEligible,
       ids.retentionHeld,
@@ -342,16 +343,50 @@ async function seedFixtures(client) {
     }
     await seedOrderItem(
       client,
-      ids.mixedOrder,
-      ids.foreignListing,
-      String(itemIndex++),
-    );
-    await seedOrderItem(
-      client,
       ids.deletedSellerOrder,
       ids.deletedListing,
       String(itemIndex++),
     );
+
+    await client.query("SAVEPOINT reject_mixed_seller_order");
+    let mixedSellerError;
+    try {
+      await seedOrderItem(
+        client,
+        ids.mixedOrder,
+        ids.foreignListing,
+        "mixed-seller-rejected",
+      );
+      await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+    } catch (error) {
+      mixedSellerError = error;
+      await client.query("ROLLBACK TO SAVEPOINT reject_mixed_seller_order");
+    }
+    assert.ok(mixedSellerError, "mixed_seller_order_invariant_rejected");
+    assert.match(
+      safeError(mixedSellerError),
+      /Order cannot contain items from multiple sellers/,
+    );
+    await client.query("RELEASE SAVEPOINT reject_mixed_seller_order");
+
+    await client.query("SAVEPOINT reject_empty_order");
+    let emptyOrderError;
+    try {
+      await client.query(
+        'DELETE FROM public."OrderItem" WHERE "orderId" = $1',
+        [ids.emptyOrder],
+      );
+      await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+    } catch (error) {
+      emptyOrderError = error;
+      await client.query("ROLLBACK TO SAVEPOINT reject_empty_order");
+    }
+    assert.ok(emptyOrderError, "empty_order_invariant_rejected");
+    assert.match(
+      safeError(emptyOrderError),
+      /Order durable seller key is incomplete or inconsistent/,
+    );
+    await client.query("RELEASE SAVEPOINT reject_empty_order");
 
     await seedCase(client, ids.activeOrder, "OPEN", "active");
     await seedCase(client, ids.clearOrder, "CLOSED", "clear");
@@ -615,14 +650,12 @@ export async function runCaseOrderActiveProof(env = process.env) {
     }
     for (const [actorId, orderId] of [
       [ids.foreignSellerUser, ids.activeOrder],
-      [ids.sellerUser, ids.mixedOrder],
-      [ids.sellerUser, ids.emptyOrder],
       [ids.deletedSellerUser, ids.deletedSellerOrder],
       [`${PREFIX}-missing`, ids.activeOrder],
     ]) {
       assert.equal(await sellerGuard(runtime, actorId, orderId), null);
     }
-    checks.push("foreign-disabled-mixed-and-empty-denial");
+    checks.push("foreign-disabled-deleted-and-missing-denial");
 
     for (const [sql, params] of [
       [
