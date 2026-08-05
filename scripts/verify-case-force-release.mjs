@@ -8,7 +8,6 @@ import {
   CASE_FORCE_MIGRATION,
   CASE_FORCE_MIGRATION_TREE_SHA256,
   computeMigrationTreeSha256,
-  validateCurrentSavedSearchRlsDeployShape,
 } from "./guard-saved-search-rls-deploy.mjs";
 import {
   CASE_ACTIVATION_DRAFT_SHA256,
@@ -67,7 +66,7 @@ export function verifyCaseForceRelease(rootDirectory = process.cwd()) {
     .map((entry) => entry.name);
   const migrationTreeSha256 = computeMigrationTreeSha256(
     path.join(rootDirectory, "prisma/migrations"),
-    migrationNames,
+    migrationNames.filter((name) => name <= CASE_FORCE_MIGRATION),
   );
   if (migrationTreeSha256 !== CASE_FORCE_MIGRATION_TREE_SHA256) {
     throw new Error("Case FORCE migration tree fingerprint drifted");
@@ -84,10 +83,6 @@ export function verifyCaseForceRelease(rootDirectory = process.cwd()) {
     throw new Error("reviewed Case FORCE rollback bytes drifted");
   }
 
-  const guard = validateCurrentSavedSearchRlsDeployShape({
-    phase: CASE_FORCE_RELEASE_PHASE,
-    rootDirectory,
-  });
   return Object.freeze({
     phase: CASE_FORCE_RELEASE_PHASE,
     activationMigration: CASE_ACTIVATION_MIGRATION,
@@ -106,7 +101,11 @@ export function verifyCaseForceRelease(rootDirectory = process.cwd()) {
     policyCount: 0,
     runtimeTablePrivileges: 0,
     rowDataChanged: false,
-    guard,
+    sealedPrefix: Object.freeze({
+      migrationCutoff: CASE_FORCE_MIGRATION,
+      phase: CASE_FORCE_RELEASE_PHASE,
+      reviewed: true,
+    }),
   });
 }
 

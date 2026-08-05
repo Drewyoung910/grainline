@@ -522,6 +522,18 @@ describe("database grant inventory guardrails", () => {
         `${functionName} must remain classified as runtime-private`,
       );
     }
+    for (const functionName of [
+      "grainline_order_item_seller_key_bind",
+      "grainline_order_item_seller_key_complete",
+      "grainline_order_seller_key_assert",
+      "grainline_order_seller_key_complete",
+    ]) {
+      assert.equal(
+        RUNTIME_PRIVATE_FUNCTIONS.includes(functionName),
+        true,
+        `${functionName} must remain classified as runtime-private`,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges(
         "DirectUpload",
@@ -1093,6 +1105,16 @@ describe("database grant inventory guardrails", () => {
       "grainline_case_staff_queue",
       "grainline_case_stripe_dispute_apply",
       "grainline_order_buyer_pii_prune_batch",
+      "grainline_order_item_seller_key_bind",
+      "grainline_order_item_seller_key_complete",
+      "grainline_order_seller_key_assert",
+      "grainline_order_seller_key_complete",
+      "grainline_stripe_webhook_begin",
+      "grainline_stripe_webhook_complete",
+      "grainline_stripe_webhook_fail",
+      "grainline_stripe_webhook_health_summary",
+      "grainline_stripe_webhook_prune_batch",
+      "grainline_legacy_stock_restore_claim",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
       "grainline_message_participants_match_conversation",
@@ -1113,7 +1135,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      147
+      157
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0),
     );

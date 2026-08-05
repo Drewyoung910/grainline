@@ -290,6 +290,22 @@ event type is immutable: a duplicate event ID with another type is an error,
 not a reason to rewrite the source identity. This is independent of Stripe
 signature verification, which remains in the application.
 
+### OPS-A16: launch proof must survive policyless webhook-ledger RLS
+
+The staging/local buyer-deletion replay proof directly selected the
+`StripeWebhookEvent` row to check processed state and `lastError`. That proof
+would fail after base-table SELECT is revoked, but a new runtime-readable row
+or error projection would expand production authority solely for a test
+harness.
+
+The activation audit in `docs/stripe-webhook-event-activation-audit.md`
+chooses the narrower path. The proof resolves and validates the exact event
+through Stripe, then calls the existing fixed `begin(event_id,event_type)` in
+an always-rollback transaction. Only `processed` passes; missing, stale,
+in-progress or type-mismatched evidence fails without durable mutation. The
+proof no longer claims a direct `lastError IS NULL` read. This closes the
+activation compatibility gap without adding a seventh runtime function.
+
 ## Semantic write conversion map
 
 This is the first exact write-authority map. Read projections and aggregate
@@ -386,15 +402,18 @@ The first fixed-operation and projection catalog is saved in
 lease generations, participant/staff projection boundaries, provider
 claim/finalize families and release dependency order; it remains design-only.
 
-The prerequisite inventory also includes three ordinary-runtime accesses that
+The prerequisite inventory identified three ordinary-runtime accesses that
 must be converted before `StripeWebhookEvent` table privileges can be revoked:
-`src/lib/webhookEventRetention.ts` deletes processed rows,
-`src/app/api/cron/ops-health/route.ts` counts unhealthy rows, and
-`src/lib/checkoutStockRestore.ts` inserts the synthetic
-`checkout-stock-restore:<session>` dedup row. Their fixed destinations are
-catalog operations 34 through 36. Operator-only replay proof scripts remain
-outside ordinary runtime and need an explicitly reviewed operator/owner path,
-not a runtime table grant.
+processed-row retention, aggregate ops health, and the synthetic
+`checkout-stock-restore:<session>` dedup claim. The isolated
+`20260805040000_prepare_stripe_webhook_maintenance_authority` candidate routes
+those three paths through catalog operations 34 through 36 and retains exact
+rollback-only PostgreSQL proof. It is not merged, deployed or applied, so the
+production finding remains open and predecessor table grants remain unchanged.
+Owner-only predecessor inspection and disposable PostgreSQL proofs remain
+outside ordinary runtime and do not justify a runtime table grant. The
+staging/local buyer-deletion replay proof now uses the same fixed lease surface
+inside an always-rollback transaction rather than direct table SELECT.
 
 ## Rollout sequence
 

@@ -1065,7 +1065,11 @@ WITH private_trigger(function_signature) AS (
     ('public."grainline_conversation_participants_immutable"()'),
     ('public."grainline_message_participants_match_conversation"()'),
     ('public."grainline_message_route_immutable"()'),
-    ('public."grainline_message_maintain_thread_state"()')
+    ('public."grainline_message_maintain_thread_state"()'),
+    ('public."grainline_order_item_seller_key_bind"()'),
+    ('public."grainline_order_seller_key_assert"(text)'),
+    ('public."grainline_order_seller_key_complete"()'),
+    ('public."grainline_order_item_seller_key_complete"()')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM private_trigger
@@ -1087,7 +1091,11 @@ WITH private_trigger(function_signature) AS (
     ('public."grainline_conversation_participants_immutable"()'),
     ('public."grainline_message_participants_match_conversation"()'),
     ('public."grainline_message_route_immutable"()'),
-    ('public."grainline_message_maintain_thread_state"()')
+    ('public."grainline_message_maintain_thread_state"()'),
+    ('public."grainline_order_item_seller_key_bind"()'),
+    ('public."grainline_order_seller_key_assert"(text)'),
+    ('public."grainline_order_seller_key_complete"()'),
+    ('public."grainline_order_item_seller_key_complete"()')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -1095,6 +1103,59 @@ SELECT format(
   :'runtime_role'
 )
   FROM private_trigger
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Stripe webhook generation-bound lease and maintenance operations are
+-- additive before their later table-RLS boundary. Keep PUBLIC closed, remove
+-- stale direct runtime ACLs, and grant only the exact reviewed signatures.
+WITH stripe_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_complete"(text, bigint)'),
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM stripe_webhook_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH stripe_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_complete"(text, bigint)'),
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM stripe_webhook_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH stripe_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_complete"(text, bigint)'),
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM stripe_webhook_service
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 

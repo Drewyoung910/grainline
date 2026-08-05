@@ -6,6 +6,9 @@ const {
   STRIPE_WEBHOOK_EVENT_LAST_ERROR_MAX_CHARS,
   STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS,
   shouldReclaimStripeWebhookEvent,
+  stripeWebhookCompletionFromRows,
+  stripeWebhookEventReservationFromRows,
+  stripeWebhookFailureFromRows,
   stripeWebhookEventLastError,
 } = await import("../src/lib/stripeWebhookEventState.ts");
 
@@ -45,10 +48,73 @@ describe("Stripe webhook event idempotency state", () => {
     assert.doesNotMatch(sanitized, /buyer@example\.com|https:\/\/api\.stripe\.com|pi_1234567890abcdef|ch_1234567890abcdef|c123456789012345678901234|4242|1881/);
   });
 
+  it("parses one exact generation-bound database lease row", () => {
+    assert.deepEqual(
+      stripeWebhookEventReservationFromRows([
+        { action: "process", claim_generation: "7" },
+      ]),
+      { action: "process", claimGeneration: 7n },
+    );
+    assert.deepEqual(
+      stripeWebhookEventReservationFromRows([
+        { action: "processed", claim_generation: 0n },
+      ]),
+      { action: "processed", claimGeneration: 0n },
+    );
+    assert.throws(
+      () => stripeWebhookEventReservationFromRows([]),
+      /invalid row count/,
+    );
+    assert.throws(
+      () => stripeWebhookEventReservationFromRows([
+        { action: "process", claim_generation: 0n },
+      ]),
+      /generation zero/,
+    );
+    assert.throws(
+      () => stripeWebhookEventReservationFromRows([
+        { action: "unknown", claim_generation: 1n },
+      ]),
+      /invalid action/,
+    );
+    assert.throws(
+      () => stripeWebhookEventReservationFromRows([
+        { action: "process", claim_generation: Number.MAX_SAFE_INTEGER + 1 },
+      ]),
+      /invalid claim generation/,
+    );
+  });
+
+  it("fails closed on superseded completion and preserves superseded failure", () => {
+    assert.equal(
+      stripeWebhookCompletionFromRows([{ result: "completed" }]),
+      "completed",
+    );
+    assert.equal(
+      stripeWebhookCompletionFromRows([{ result: "already_processed" }]),
+      "already_processed",
+    );
+    assert.throws(
+      () => stripeWebhookCompletionFromRows([{ result: "superseded" }]),
+      /superseded before completion/,
+    );
+    assert.equal(
+      stripeWebhookFailureFromRows([{ result: "superseded" }]),
+      "superseded",
+    );
+    assert.throws(
+      () => stripeWebhookFailureFromRows([{ result: "unknown" }]),
+      /invalid result/,
+    );
+  });
+
   it("routes failed Stripe webhook idempotency rows through the sanitizer helper", () => {
     const source = fs.readFileSync("src/lib/stripeWebhookEvents.ts", "utf8");
 
-    assert.match(source, /lastError: stripeWebhookEventLastError\(error\)/);
-    assert.doesNotMatch(source, /lastError: truncateText\(error instanceof Error \? error\.message : String\(error\)/);
+    assert.match(source, /const sanitizedError = stripeWebhookEventLastError\(error\)/);
+    assert.match(source, /grainline_stripe_webhook_fail/);
+    assert.match(source, /\$\{sanitizedError\}/);
+    assert.match(source, /stripeWebhookFailureFromRows\(rows\)/);
+    assert.doesNotMatch(source, /prisma\.stripeWebhookEvent\.update/);
   });
 });
