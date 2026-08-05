@@ -51,6 +51,14 @@ invalid collision rejection, advisory-lock waiting and complete rollback with
 zero residue. CI runs the verifier, special-form regression test and disposable
 PostgreSQL proof.
 
+Initial exact-head CI run `30974931167` stopped before the new proof because the
+historical lease proof counted every function whose name began with
+`grainline_stripe_webhook_`. The successor migration correctly increased that
+prefix count from three to five. The historical proof now identifies only its
+three exact lease function signatures with `oidvectortypes(proargtypes)`, so it
+continues to prove its own boundary without treating reviewed successor
+functions as drift. No production state was involved in the failed run.
+
 Before StripeWebhookEvent RLS or table-grant revocation, the stacked preparation
 and application candidates must merge and deploy in order, production webhook
 destinations and legacy stock restoration must be proven, and old deployment
