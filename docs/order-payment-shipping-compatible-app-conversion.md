@@ -114,3 +114,21 @@ The candidate must keep all of the following green:
 - a production build in exact-head CI.
 
 No test, commit or CI result on this branch changes production state.
+
+## Candidate proof history
+
+- Code checkpoint `7f48f92e723b55cb2b3ae9996128346dc1253bea` passed the focused
+  32-test security/checkout set, TypeScript after Prisma regeneration, focused
+  lint, and the complete local suite: 2,790 passed, 7 skipped and zero failed.
+- Draft PR `#161` initially targeted the preparation branch, which correctly
+  preserved the stacked review but could not trigger the repository CI workflow
+  because that workflow listens only to pull requests targeting `main`.
+- Documentation checkpoint `b64f8018eb8942f7c341f7e5823a88f111233c0e`
+  recorded the logical PR `#160` dependency while retargeting the draft to
+  `main` for exact combined-head proof.
+- Exact-head CI run `30973093698` passed the compatibility migration-tree and
+  equivalence gates, disposable PostgreSQL migration/grant/RLS/concurrency
+  proofs, restricted-runtime compatible postflight, TypeScript, lint, the full
+  test suite, dependency audit and production build. The Vercel Preview guard
+  failed as expected because this isolated security branch is not provided the
+  protected production database environment; it did not deploy anything.
