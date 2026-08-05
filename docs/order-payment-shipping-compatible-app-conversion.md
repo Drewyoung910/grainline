@@ -13,6 +13,12 @@ predecessor contains migration
 `20260805012000_prepare_order_payment_shipping_compatibility`, whose SHA-256 is
 `29f56fa82b68c743e0d081324c5caa9795f0dd0d43e8d0ed42acd28311ef03d3`.
 
+The application candidate is published as draft PR `#161`. GitHub CI is
+configured only for pull requests whose base is `main`, so PR `#161` targets
+`main` for exact combined-head proof while retaining PR `#160` as a mandatory
+logical and release-order dependency. The draft must not be treated as an
+independent merge candidate merely because its displayed base is `main`.
+
 The application candidate must not deploy until that exact preparation
 migration, or a separately reviewed byte-identical successor, is live and its
 pooled-runtime production postflight passes. The preparation intentionally
