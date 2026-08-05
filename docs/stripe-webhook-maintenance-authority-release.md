@@ -59,6 +59,15 @@ three exact lease function signatures with `oidvectortypes(proargtypes)`, so it
 continues to prove its own boundary without treating reviewed successor
 functions as drift. No production state was involved in the failed run.
 
+Follow-up exact-head CI run `30975112231` passed that historical proof and then
+stopped when the new PostgreSQL proof re-ran the complete deployment-tree guard
+after CI had intentionally isolated the Case FORCE migration for later rollback
+proofs. The release verifier remains the pre-isolation whole-tree gate. The
+engine proof now invokes a separately named byte verifier for only its exact
+maintenance migration, then proves the promoted functions from PostgreSQL's
+catalog. This avoids treating CI's temporary proof workspace as a deployable
+tree without weakening either boundary. Production was not involved.
+
 Before StripeWebhookEvent RLS or table-grant revocation, the stacked preparation
 and application candidates must merge and deploy in order, production webhook
 destinations and legacy stock restoration must be proven, and old deployment

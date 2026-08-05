@@ -3,7 +3,9 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
-import { verifyStripeWebhookMaintenanceAuthority } from "./verify-stripe-webhook-maintenance-authority.mjs";
+import {
+  verifyStripeWebhookMaintenanceAuthorityMigration,
+} from "./verify-stripe-webhook-maintenance-authority.mjs";
 
 const { Client } = pg;
 const PROOF_ENV = "STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL";
@@ -297,7 +299,7 @@ export async function runStripeWebhookMaintenanceAuthorityProof(
   env = process.env,
 ) {
   const { databaseUrl } = parseStripeWebhookMaintenanceProofConfig(env);
-  verifyStripeWebhookMaintenanceAuthority();
+  verifyStripeWebhookMaintenanceAuthorityMigration();
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {

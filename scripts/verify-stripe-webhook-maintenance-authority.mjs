@@ -35,7 +35,7 @@ function sha256(source) {
   return createHash("sha256").update(source).digest("hex");
 }
 
-export function verifyStripeWebhookMaintenanceAuthority(
+export function verifyStripeWebhookMaintenanceAuthorityMigration(
   rootDirectory = process.cwd(),
 ) {
   const migrationPath = path.join(
@@ -91,6 +91,22 @@ export function verifyStripeWebhookMaintenanceAuthority(
     throw new Error("PostgreSQL special forms must remain unqualified");
   }
 
+  return Object.freeze({
+    migrationName: STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION,
+    migrationSha256,
+    runtimeServiceFunctions: functions.length,
+    rlsChanged: false,
+    predecessorTableGrantsChanged: false,
+    rowDataChanged: false,
+  });
+}
+
+export function verifyStripeWebhookMaintenanceAuthority(
+  rootDirectory = process.cwd(),
+) {
+  const migration = verifyStripeWebhookMaintenanceAuthorityMigration(
+    rootDirectory,
+  );
   const predecessor = verifyPromotedOrderPaymentShippingCompatibility(
     rootDirectory,
   );
@@ -100,16 +116,11 @@ export function verifyStripeWebhookMaintenanceAuthority(
   });
   return Object.freeze({
     phase: STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_PHASE,
-    migrationName: STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION,
-    migrationSha256,
+    ...migration,
     migrationTreeSha256:
       STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_TREE_SHA256,
     predecessorMigration: predecessor.migrationName,
     predecessorMigrationSha256: predecessor.migrationSha256,
-    runtimeServiceFunctions: functions.length,
-    rlsChanged: false,
-    predecessorTableGrantsChanged: false,
-    rowDataChanged: false,
     guard,
   });
 }

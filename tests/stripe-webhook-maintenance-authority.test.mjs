@@ -14,6 +14,7 @@ import {
   STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_SHA256,
   STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_PHASE,
   verifyStripeWebhookMaintenanceAuthority,
+  verifyStripeWebhookMaintenanceAuthorityMigration,
 } from "../scripts/verify-stripe-webhook-maintenance-authority.mjs";
 
 const migration = fs.readFileSync(
@@ -45,7 +46,13 @@ function sourceFiles(root = "src") {
 }
 
 test("maintenance release pins an additive three-function migration", () => {
+  const migrationResult = verifyStripeWebhookMaintenanceAuthorityMigration();
   const result = verifyStripeWebhookMaintenanceAuthority();
+  assert.equal(
+    migrationResult.migrationSha256,
+    STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_SHA256,
+  );
+  assert.equal(migrationResult.runtimeServiceFunctions, 3);
   assert.equal(result.phase, STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_PHASE);
   assert.equal(result.migrationSha256, STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_SHA256);
   assert.equal(result.runtimeServiceFunctions, 3);
@@ -126,6 +133,8 @@ test("engine proof is loopback-only, rollback-only and covers lock races", () =>
   assert.match(proof, /residue_count: 0/);
   assert.match(proof, /rolledBack: true/);
   assert.match(proof, /productionTouched: false/);
+  assert.match(proof, /verifyStripeWebhookMaintenanceAuthorityMigration/);
+  assert.doesNotMatch(proof, /verifyStripeWebhookMaintenanceAuthority\(\)/);
 });
 
 test("CI and production migration runner use the exact maintenance phase", () => {
