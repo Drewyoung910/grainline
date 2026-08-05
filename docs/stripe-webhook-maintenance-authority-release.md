@@ -13,6 +13,9 @@ conversion in draft PR #161.
 - migration-tree SHA-256:
   `09453990d08bd8b95c49b05e198fea42ae0145fbb566a8ea77f31af001c72212`
 - guarded phase: `stripe-webhook-maintenance-authority-reviewed`
+- draft PR: `#162`
+- green implementation head: `8a6b2e7899f2b568ccce710f9c4f04c96c2a8d62`
+- green exact-head CI: `30975260896`
 
 This is compatible preparation, not RLS activation. It creates exactly three
 fixed `SECURITY DEFINER` functions, revokes `PUBLIC`, grants their exact
@@ -67,6 +70,14 @@ engine proof now invokes a separately named byte verifier for only its exact
 maintenance migration, then proves the promoted functions from PostgreSQL's
 catalog. This avoids treating CI's temporary proof workspace as a deployable
 tree without weakening either boundary. Production was not involved.
+
+Run `30975260896` then passed the exact release/tree verifiers, the historical
+lease proof, the new 14-check maintenance catalog/behavior/concurrency proof,
+the pooled-runtime compatibility proofs, all global RLS/grant audits,
+TypeScript, lint, the full test suite, dependency audit and production build.
+That run proves the implementation head above; the release remains a draft
+stacked candidate and was not merged, deployed, migrated or applied to any
+provider or production state.
 
 Before StripeWebhookEvent RLS or table-grant revocation, the stacked preparation
 and application candidates must merge and deploy in order, production webhook
