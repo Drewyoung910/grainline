@@ -32,11 +32,11 @@ test("Case claim preparation remains included through the reviewed FORCE boundar
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-maintenance-authority-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-maintenance-authority-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed/,
   );
 });
 

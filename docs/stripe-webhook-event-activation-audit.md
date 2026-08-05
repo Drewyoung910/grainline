@@ -116,6 +116,14 @@ defect. Each remaining path is classified:
   owner-authenticated, aggregate-only production predecessor inspector. It
   runs in an engine-attested repeatable-read read-only transaction and exports
   no rows or provider identifiers. It is not an ordinary runtime path.
+- `scripts/stripe-webhook-event-activation-postgres-proof.mjs` is the
+  loopback-only activated-boundary proof. It uses owner catalog reads and
+  deliberately attempts direct operations after `SET LOCAL ROLE` to prove
+  SQLSTATE `42501`, then rolls back every function fixture.
+- `scripts/stripe-webhook-event-activation-rollback-proof.mjs` is the
+  loopback-only database-first rollback rehearsal. It temporarily restores
+  predecessor CRUD in disposable PostgreSQL, proves old-runtime compatibility,
+  and restores activation in a fail-closed cleanup path.
 - `scripts/order-payment-shipping-compatible-production-postflight.mjs` is a
   historical compatibility-posture proof that directly reads the table under
   the pooled runtime role while predecessor CRUD remains present. It must run
