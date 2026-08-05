@@ -522,6 +522,18 @@ describe("database grant inventory guardrails", () => {
         `${functionName} must remain classified as runtime-private`,
       );
     }
+    for (const functionName of [
+      "grainline_order_item_seller_key_bind",
+      "grainline_order_item_seller_key_complete",
+      "grainline_order_seller_key_assert",
+      "grainline_order_seller_key_complete",
+    ]) {
+      assert.equal(
+        RUNTIME_PRIVATE_FUNCTIONS.includes(functionName),
+        true,
+        `${functionName} must remain classified as runtime-private`,
+      );
+    }
     assert.deepEqual(
       requiredRuntimeTablePrivileges(
         "DirectUpload",

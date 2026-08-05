@@ -70,6 +70,13 @@ commit `3981e151864a9e9cd5631f63b7a8a3a76c75904f`.
   savepoint-scoped engine assertions proving that both a cross-seller insert
   and deletion of the last item fail closed. Participant-function denials stay
   focused on states that can still exist after the invariant is installed.
+- CI run `30971054410` passed both corrected Case proofs and every intervening
+  authority check, then the global grant audit correctly rejected the four new
+  owner-private Order trigger helpers because the derived function inventory
+  knew they existed but had not yet classified them as runtime-private. The
+  inventory now explicitly requires those four functions to remain
+  runtime-ungranted, while the three Stripe webhook service operations remain
+  the only newly runtime-executable functions.
 
 The lease proof sets a non-UTC session timezone and proves that all persisted
 timezone-without-time-zone lease clocks are derived in UTC. This prevents the
