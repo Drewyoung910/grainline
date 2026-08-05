@@ -98,6 +98,13 @@ only catalog posture plus aggregate zero-count integrity results. The same
 code path is exercised under the restricted runtime role in disposable
 PostgreSQL before release.
 
+Commit `f07787ca346d0d0b04fe12198495a47e2846e0ef` passed complete CI run
+`30971615946`. That run applied the promoted migration, converged the reviewed
+grants, passed the new production-postflight code path under the restricted
+runtime role, passed all other PostgreSQL authority/concurrency/rollback
+proofs and global catalog audits, then completed TypeScript, lint, the full
+test suite, dependency audit and production build.
+
 ## Required release order
 
 1. Review and merge this exact candidate only after its full CI and disposable
