@@ -111,7 +111,7 @@ test("engine proof covers ABA rejection and exact rollback", () => {
   assert.match(proof, /"blank_identity"/);
   assert.match(proof, /"blank_type"/);
   assert.match(proof, /SET LOCAL TIME ZONE 'America\/Chicago'/);
-  assert.match(proof, /epoch FROM \(pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'\)/);
+  assert.match(proof, /EXTRACT\(\s*epoch FROM \(pg_catalog\.clock_timestamp\(\) AT TIME ZONE 'UTC'\)/);
   assert.match(proof, /checks: 10/);
   assert.match(proof, /rolledBack: true/);
   assert.match(proof, /productionTouched: false/);

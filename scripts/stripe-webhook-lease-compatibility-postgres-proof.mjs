@@ -273,7 +273,7 @@ async function proveDatabaseClockStaleReclaim(client) {
   `, [ids.stale]);
 
   const before = await client.query(`
-    SELECT pg_catalog.extract(
+    SELECT EXTRACT(
       epoch FROM (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
     )::double precision AS now_epoch
   `);
@@ -282,12 +282,12 @@ async function proveDatabaseClockStaleReclaim(client) {
     claim_generation: "8",
   });
   const after = await client.query(`
-    SELECT pg_catalog.extract(
+    SELECT EXTRACT(
       epoch FROM (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC')
     )::double precision AS now_epoch
   `);
   const row = await client.query(`
-    SELECT pg_catalog.extract(
+    SELECT EXTRACT(
       epoch FROM "processingStartedAt"
     )::double precision AS started_epoch
       FROM public."StripeWebhookEvent"

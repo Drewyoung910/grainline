@@ -100,3 +100,11 @@ zone. The candidate now derives every retained lease timestamp with
 `clock_timestamp() AT TIME ZONE 'UTC'`. Its PostgreSQL proof deliberately runs
 the lease path with the session set to `America/Chicago` and compares UTC epoch
 values, so a later return to session-local conversion fails before promotion.
+
+The first CI execution of that new proof, run `30964592546` at checkpoint
+`106ad8039029951e04a236deaff1e79e205e9e5b`, failed safely before any
+lifecycle assertion because the proof incorrectly schema-qualified the
+parser-resolved `EXTRACT` form as `pg_catalog.extract`. The proof now uses bare
+`EXTRACT`, and the repository-wide special-form guard also rejects qualified
+`extract` so the class cannot recur silently. The run used disposable
+PostgreSQL only; production and persistent staging were untouched.
