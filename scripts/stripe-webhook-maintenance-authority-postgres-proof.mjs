@@ -25,6 +25,7 @@ const ids = Object.freeze({
   collisionType: "cs_test_grainlinemaintenancewrongtype",
   collisionOpen: "cs_test_grainlinemaintenanceopen",
   concurrency: "cs_test_grainlinemaintenanceconcurrency",
+  retainedLegacy: "cs_test_grainlinemaintenanceretained",
 });
 
 function safeError(error) {
@@ -128,7 +129,8 @@ async function seedRows(client) {
       ($5, 'proof.failed', 2, NULL, NULL, 'fixed proof failure', (clock_timestamp() AT TIME ZONE 'UTC') - interval '4 minutes', (clock_timestamp() AT TIME ZONE 'UTC') - interval '1 minute'),
       ($6, 'proof.released', 1, NULL, NULL, NULL, (clock_timestamp() AT TIME ZONE 'UTC') - interval '4 minutes', (clock_timestamp() AT TIME ZONE 'UTC') - interval '1 minute'),
       ($7, 'proof.stale', 3, (clock_timestamp() AT TIME ZONE 'UTC') - interval '3 minutes', NULL, NULL, (clock_timestamp() AT TIME ZONE 'UTC') - interval '4 minutes', (clock_timestamp() AT TIME ZONE 'UTC') - interval '3 minutes'),
-      ($8, 'proof.healthy', 1, (clock_timestamp() AT TIME ZONE 'UTC') - interval '30 seconds', NULL, NULL, (clock_timestamp() AT TIME ZONE 'UTC') - interval '1 minute', (clock_timestamp() AT TIME ZONE 'UTC') - interval '30 seconds')
+      ($8, 'proof.healthy', 1, (clock_timestamp() AT TIME ZONE 'UTC') - interval '30 seconds', NULL, NULL, (clock_timestamp() AT TIME ZONE 'UTC') - interval '1 minute', (clock_timestamp() AT TIME ZONE 'UTC') - interval '30 seconds'),
+      ($9, 'checkout.session.stock_restored', 1, (clock_timestamp() AT TIME ZONE 'UTC') - interval '100 days', (clock_timestamp() AT TIME ZONE 'UTC') - interval '100 days', NULL, (clock_timestamp() AT TIME ZONE 'UTC') - interval '100 days', (clock_timestamp() AT TIME ZONE 'UTC') - interval '100 days')
   `, [
     ids.oldFirst,
     ids.oldSecond,
@@ -138,6 +140,7 @@ async function seedRows(client) {
     ids.released,
     ids.stale,
     ids.healthy,
+    `checkout-stock-restore:${ids.retainedLegacy}`,
   ]);
 }
 
@@ -166,11 +169,16 @@ async function provePruneAndHealth(client) {
   assert.deepEqual(second.rows, [{ deleted: "1" }]);
   const survivors = await client.query(`
     SELECT id FROM public."StripeWebhookEvent"
-     WHERE id IN ($1, $2) ORDER BY id
-  `, [ids.recent, ids.unprocessed]);
+     WHERE id IN ($1, $2, $3) ORDER BY id
+  `, [
+    ids.recent,
+    ids.unprocessed,
+    `checkout-stock-restore:${ids.retainedLegacy}`,
+  ]);
   assert.deepEqual(survivors.rows, [
     { id: ids.recent },
     { id: ids.unprocessed },
+    { id: `checkout-stock-restore:${ids.retainedLegacy}` },
   ].sort((left, right) => left.id.localeCompare(right.id)));
 
   const health = await runtimeQuery(client, `

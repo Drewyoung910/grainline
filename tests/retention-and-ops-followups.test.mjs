@@ -38,7 +38,7 @@ describe("retention and ops-health follow-ups", () => {
     assert.doesNotMatch(route, /releaseStaleRefundLocks\(\),/);
   });
 
-  it("retains processed webhook events for 90 days only", () => {
+  it("retains ordinary processed webhook events for 90 days and permanent stock-restore claims", () => {
     const now = new Date("2026-05-21T12:00:00.000Z");
     const cutoff = webhookRetention.webhookEventRetentionCutoff(now);
     const source = readFileSync("src/lib/webhookEventRetention.ts", "utf8");
@@ -58,6 +58,14 @@ describe("retention and ops-health follow-ups", () => {
     assert.match(source, /FROM "ClerkWebhookEvent"/);
     assert.match(source, /"processedAt" IS NOT NULL/);
     assert.doesNotMatch(source, /lastError/);
+    const maintenanceMigration = readFileSync(
+      "prisma/migrations/20260805040000_prepare_stripe_webhook_maintenance_authority/migration.sql",
+      "utf8",
+    );
+    assert.match(
+      maintenanceMigration,
+      /event\.type <> 'checkout\.session\.stock_restored'/,
+    );
   });
 
   it("keeps listing-view cleanup time-budgeted inside guild metrics", () => {
