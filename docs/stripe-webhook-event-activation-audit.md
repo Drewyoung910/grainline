@@ -340,7 +340,11 @@ classification, direct-denial and rollback engine proofs, and guarded CI plus
 production-release wiring. Its exact boundary and remaining gates live in
 `docs/stripe-webhook-event-activation-release.md`.
 
-This remains a candidate, not an activation claim. The historical exact-head
-PostgreSQL proof must be refreshed against current main and the accepted
-provider evidence before a separate production release review. Production
-StripeWebhookEvent posture remains unchanged.
+This remains a candidate, not an activation claim. The historical activation
+checkpoint
+`fb0facf146e58123ddd2f4a727fda1b966669d5d` passed exact-head CI run
+`31272188477`, including disposable PostgreSQL, the full suite, clean dependency
+audits and the production build, and its Extra-High authority review completed.
+This refresh must now re-prove that candidate against current main and the
+accepted provider evidence before a separate production release review.
+Production StripeWebhookEvent posture remains unchanged.
