@@ -35,6 +35,7 @@ const release = fs.readFileSync(
   "docs/stripe-webhook-maintenance-authority-release.md",
   "utf8",
 );
+const normalizedRelease = release.replace(/\s+/g, " ");
 
 function sourceFiles(root = "src") {
   const files = [];
@@ -177,6 +178,25 @@ test("historical maintenance proof remains while workflows advance to activation
   assert.match(ci, /STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL/);
   assert.match(production, /stripe-webhook-event-activation-reviewed/);
   assert.match(production, /audit:rls-stripe-webhook-event-activation-release/);
+});
+
+test("release applies additive authority before deploying its call sites", () => {
+  const mergeIndex = normalizedRelease.indexOf(
+    "merge PR #161, then merge this PR #162",
+  );
+  const migrationIndex = normalizedRelease.indexOf(
+    "run the guarded Production Migrations workflow",
+  );
+  const deployIndex = normalizedRelease.indexOf(
+    "deploy the exact compatible application",
+  );
+  assert.ok(mergeIndex >= 0, "reviewed merge boundary is absent");
+  assert.ok(migrationIndex > mergeIndex, "migration does not follow merge");
+  assert.ok(deployIndex > migrationIndex, "deployment precedes migration");
+  assert.match(
+    normalizedRelease,
+    /apply only `20260805040000_prepare_stripe_webhook_maintenance_authority`/,
+  );
 });
 
 test("release record preserves the synchronized Extra-High proof boundary", () => {
