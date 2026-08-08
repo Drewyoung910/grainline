@@ -97,6 +97,15 @@ canonical URL and be enabled for signed delivery plus retry. If immediate
 disable cannot be verified, delete the endpoint and stop. Do not use a random
 placeholder secret or expose the creation response in evidence.
 
+The activation migration must also pin the exact PostgreSQL source body of all
+six functions, not merely signatures and function attributes, and its
+database-first rollback must reject direct PUBLIC table and column grants both
+before and after restoration. After activation, run a separate engine-attested
+repeatable-read/read-only postflight using the actual pooled production runtime
+credential. Keep that credential out of the owner-only GitHub Production
+migration environment; local operator execution with sanitized mode-0600
+evidence is the deliberate separation boundary.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

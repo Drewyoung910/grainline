@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 import {
   verifyStripeWebhookEventActivationRelease,
 } from "./verify-stripe-webhook-event-activation-release.mjs";
+import {
+  STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS,
+  stripeWebhookEventFunctionSourceSha256,
+} from "./stripe-webhook-event-function-source-catalog.mjs";
 
 const { Client } = pg;
 const PROOF_ENV = "STRIPE_WEBHOOK_EVENT_ACTIVATION_PROOF_DATABASE_URL";
@@ -69,7 +74,30 @@ async function proveCatalog(owner) {
       ) AS runtime_table_authority,
       pg_catalog.has_any_column_privilege(
         $1, class.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
-      ) AS runtime_column_authority
+      ) AS runtime_column_authority,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.aclexplode(
+            COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+          ) AS acl
+         WHERE acl.grantee = 0
+           AND acl.privilege_type IN (
+             'SELECT', 'INSERT', 'UPDATE', 'DELETE',
+             'TRUNCATE', 'REFERENCES', 'TRIGGER'
+           )
+      ) AS public_table_authority,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.pg_attribute AS attribute
+          CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+         WHERE attribute.attrelid = class.oid
+           AND attribute.attnum > 0
+           AND NOT attribute.attisdropped
+           AND acl.grantee = 0
+           AND acl.privilege_type IN (
+             'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+           )
+      ) AS public_column_authority
     FROM pg_catalog.pg_class AS class
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = class.relnamespace
@@ -83,6 +111,8 @@ async function proveCatalog(owner) {
     policy_count: 0,
     runtime_table_authority: false,
     runtime_column_authority: false,
+    public_table_authority: false,
+    public_column_authority: false,
   }]);
 
   const functions = await owner.query(`
@@ -95,7 +125,10 @@ async function proveCatalog(owner) {
         ('grainline_stripe_webhook_health_summary', ''),
         ('grainline_legacy_stock_restore_claim', 'text')
     )
-    SELECT pg_catalog.count(*)::integer AS accepted_count
+    SELECT
+      procedure.proname AS function_name,
+      pg_catalog.oidvectortypes(procedure.proargtypes) AS identity_arguments,
+      procedure.prosrc AS function_source
       FROM expected
       JOIN pg_catalog.pg_proc AS procedure
         ON procedure.proname = expected.proname
@@ -139,8 +172,26 @@ async function proveCatalog(owner) {
               )
             )
        )
+     ORDER BY procedure.proname
   `, [RUNTIME_ROLE]);
-  assert.deepEqual(functions.rows, [{ accepted_count: 6 }]);
+  assert.equal(
+    functions.rows.length,
+    STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.length,
+  );
+  const expectedByName = new Map(
+    STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map((entry) => [entry.name, entry]),
+  );
+  const sourceHashes = stripeWebhookEventFunctionSourceSha256();
+  for (const row of functions.rows) {
+    const expected = expectedByName.get(row.function_name);
+    assert.ok(expected, row.function_name);
+    assert.equal(row.identity_arguments, expected.identityArguments);
+    assert.equal(
+      createHash("sha256").update(row.function_source, "utf8").digest("hex"),
+      sourceHashes[row.function_name],
+      `${row.function_name} source drifted`,
+    );
+  }
 }
 
 async function proveRuntimeBoundary(owner) {

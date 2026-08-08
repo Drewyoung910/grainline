@@ -1264,3 +1264,38 @@ Open work:
   refresh cannot silently restore the vulnerable versions. Both the production
   and complete audit must be clean; no exception, forced audit rewrite, direct
   dependency or npm override is introduced.
+
+## Stripe webhook activation source and postflight hardening (2026-08-08)
+
+- A second Extra-High review found that the policyless activation pinned all
+  six function signatures, owners, modes, search paths and ACLs but not their
+  exact PostgreSQL source bodies. A signature-compatible `CREATE OR REPLACE`
+  drift could therefore have passed the migration preflight. The candidate now
+  derives the latest reviewed function sources from the committed preparation
+  migrations, pins each `md5(prosrc)` in activation SQL, and compares SHA-256
+  under the actual runtime postflight. The source catalog fails closed unless
+  all six expected functions are found exactly.
+- The database-first rollback previously proved the restricted runtime role's
+  direct authority but did not explicitly reject direct PUBLIC table or column
+  ACL drift. Both rollback preflight and postflight now reject those classes.
+  Disposable PostgreSQL injects a PUBLIC table grant and a PUBLIC column grant
+  separately and proves each aborts before posture mutation.
+- A dedicated production postflight now uses only the pooled
+  `grainline_app_runtime` credential, rejects owner and aliased URLs, attests
+  the exact production endpoint/database/role plus repeatable-read/read-only
+  transaction state, and records sanitized mode-0600 evidence. It is an
+  operator tool rather than a GitHub Production workflow because that protected
+  environment intentionally contains only the owner migration credential.
+  CI separately gives its ephemeral runtime role a disposable password and
+  opens a new connection as that role to exercise the same catalog, denial,
+  health and read-only-fence path without owner `SET ROLE`.
+- Corrected candidate hashes are: draft
+  `fd92c05ca2581eeeec19fd81e41a0dd672300381ad2d55396234a8f2fb0907d3`,
+  promoted migration
+  `c500e2c5135488d81929025a184f384fd53eed37f38d8dbf7e7e9bb8445e1299`,
+  rollback
+  `2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722`,
+  and migration tree
+  `d525a4d8e7982f49dbfd280b9d9cc46e0dac39da0507b66881b7828786cd4bdc`.
+  These bytes remain isolated on PR #164. No production migration, grant, RLS,
+  deployment or provider state changed in this review.

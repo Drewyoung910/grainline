@@ -274,14 +274,38 @@ BEGIN
       invalid_row_count;
   END IF;
 
-  WITH expected(proname, identity_arguments) AS (
+  WITH expected(proname, identity_arguments, source_md5) AS (
     VALUES
-      ('grainline_stripe_webhook_begin', 'text, text'),
-      ('grainline_stripe_webhook_complete', 'text, bigint'),
-      ('grainline_stripe_webhook_fail', 'text, bigint, text'),
-      ('grainline_stripe_webhook_prune_batch', 'integer'),
-      ('grainline_stripe_webhook_health_summary', ''),
-      ('grainline_legacy_stock_restore_claim', 'text')
+      (
+        'grainline_stripe_webhook_begin',
+        'text, text',
+        '76421b45f39a6d8f8888566c7fd0667f'
+      ),
+      (
+        'grainline_stripe_webhook_complete',
+        'text, bigint',
+        'b7e9d6868d1486bdaa91f76ecebd9e7d'
+      ),
+      (
+        'grainline_stripe_webhook_fail',
+        'text, bigint, text',
+        '3dd97d373d6b1ea656910cd35ca75f87'
+      ),
+      (
+        'grainline_stripe_webhook_prune_batch',
+        'integer',
+        'f3e59deb8001d61005da054afd4f3b5c'
+      ),
+      (
+        'grainline_stripe_webhook_health_summary',
+        '',
+        'c2686377090f63e21198b3a4e33f97c0'
+      ),
+      (
+        'grainline_legacy_stock_restore_claim',
+        'text',
+        'ab76c2d07eee3433973a7a72c1014864'
+      )
   )
   SELECT pg_catalog.count(*)::integer
     INTO function_count
@@ -301,6 +325,7 @@ BEGIN
      AND procedure.proconfig IS NOT DISTINCT FROM
          ARRAY['search_path=pg_catalog']::text[]
      AND procedure.proowner = table_owner
+     AND pg_catalog.md5(procedure.prosrc) = expected.source_md5
      AND pg_catalog.has_function_privilege(
        'grainline_app_runtime', procedure.oid, 'EXECUTE'
      )

@@ -3,13 +3,17 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS,
+  stripeWebhookEventFunctionSourceMd5,
+} from "./stripe-webhook-event-function-source-catalog.mjs";
 
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION =
   "20260805060000_enable_stripe_webhook_event_rls";
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_DRAFT =
   "docs/rls-drafts/stripe-webhook-event-activation.sql";
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_DRAFT_SHA256 =
-  "29dcf34d4438999469313b22415f221f917c372fb6e880c57276c0e9ee177c2b";
+  "fd92c05ca2581eeeec19fd81e41a0dd672300381ad2d55396234a8f2fb0907d3";
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_STAGING_ACK =
   "I_ACKNOWLEDGE_LOOPBACK_STRIPE_WEBHOOK_EVENT_ACTIVATION_STAGING";
 
@@ -83,21 +87,21 @@ export function buildStripeWebhookEventActivationCandidate(
     || count(migration, /IF function_count <> 6/g) !== 1
     || count(migration, /IF table_function_count <> 6/g) !== 1
     || count(migration, /IF accepted_table_count <> 1/g) !== 1
+    || count(
+      migration,
+      /pg_catalog\.md5\(procedure\.prosrc\) = expected\.source_md5/g,
+    ) !== 1
   ) {
     throw new Error("StripeWebhookEvent activation catalog count drifted");
   }
 
-  for (const signature of [
-    "grainline_stripe_webhook_begin', 'text, text",
-    "grainline_stripe_webhook_complete', 'text, bigint",
-    "grainline_stripe_webhook_fail', 'text, bigint, text",
-    "grainline_stripe_webhook_prune_batch', 'integer",
-    "grainline_stripe_webhook_health_summary', ''",
-    "grainline_legacy_stock_restore_claim', 'text",
-  ]) {
-    if (!migration.includes(signature)) {
+  const compactMigration = migration.replace(/\s+/g, " ");
+  const sourceMd5 = stripeWebhookEventFunctionSourceMd5(rootDirectory);
+  for (const entry of STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS) {
+    const signature = `'${entry.name}', '${entry.identityArguments}', '${sourceMd5[entry.name]}'`;
+    if (!compactMigration.includes(signature)) {
       throw new Error(
-        `StripeWebhookEvent activation omitted fixed function ${signature}`,
+        `StripeWebhookEvent activation omitted pinned function ${entry.name}`,
       );
     }
   }
