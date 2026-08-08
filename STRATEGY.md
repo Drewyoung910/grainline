@@ -55,11 +55,15 @@ FORCE later, zero runtime/PUBLIC table or column authority and exactly six
 generation/maintenance functions. The buyer-deletion launch proof must not
 retain direct webhook-table SELECT or motivate a seventh lookup function; it
 uses the exact Stripe event plus an always-rollback fixed `begin` probe and
-accepts only `processed`. Merge/apply compatible preparation, deploy and drain
-the converted app, record the final predecessor postflight, then activate and
-prove pooled-runtime direct denial. Human traffic being absent does not remove
-the old/new boundary because Stripe retries and cron/maintenance jobs remain
-active.
+accepts only `processed`. The proof must bind a dedicated restricted-runtime
+URL to an explicit non-production target before connection and then obtain
+engine-attested runtime role attributes; a confirmation string alone is not a
+database identity boundary. Its actual Prisma rollback behavior is covered in
+disposable PostgreSQL. Compatible preparation is complete in production;
+merge, deploy and drain the converted PR #161/#162 app next, record the final
+predecessor postflight, then activate and prove pooled-runtime direct denial.
+Human traffic being absent does not remove the old/new boundary because Stripe
+retries and cron/maintenance jobs remain active.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

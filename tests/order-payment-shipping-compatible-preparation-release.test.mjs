@@ -96,6 +96,9 @@ test("release record preserves the non-activation boundary and proof history", (
   assert.match(release, new RegExp(candidate.migrationSha256));
   assert.match(release, /30964592546/);
   assert.match(release, /30965587927/);
+  assert.match(release, /6f1f4c1e99fb21726744ecd1652a37b6be35c294/);
+  assert.match(release, /31277540714/);
+  assert.match(release, /a2348cd61fed8e3bf9f5ffc3cf1906c71cb4c45a0ec2325e90d117893c001809/);
   assert.match(release, /does \*\*not\*\* enable or FORCE RLS/i);
-  assert.match(release, /Nothing[\s\S]*authorizes a merge/i);
+  assert.match(release, /does not authorize the remaining application merge/i);
 });
