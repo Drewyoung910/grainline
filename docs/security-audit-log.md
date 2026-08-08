@@ -1308,3 +1308,12 @@ Open work:
   TypeScript, lint, 2,846 tests with seven intentional skips, both dependency
   audits and the production build. This is isolated candidate evidence only;
   production was not changed.
+- A later release-order review found an operator-documentation gap: PR #162's
+  application calls three functions introduced by its own additive migration,
+  while the written stack sequence moved directly from merge to deployment.
+  The release contract now requires applying only
+  `20260805040000_prepare_stripe_webhook_maintenance_authority` from the exact
+  green main commit, then verifying migration status and the global grant/RLS
+  audit, before any deployment containing those call sites. The code and
+  migration boundary were unchanged; this prevents a new deployment from
+  calling not-yet-created functions.
