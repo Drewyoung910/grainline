@@ -888,3 +888,22 @@ Follow-up fix from this pass:
 Open work:
 
 - Continue with abuse/volume economics and any new Claude-proposed findings added to `audit_open_findings.md`; treat those entries as suspected until locally reproduced.
+
+## Dependency security refresh (2026-08-08)
+
+- StripeWebhookEvent activation PR #164 exact-head CI run `31268968442`
+  passed the complete disposable-PostgreSQL activation, fixed-operation,
+  rollback/restoration and grant/RLS proof chain, then failed at the independent
+  dependency gate before the production build. The RLS branch did not introduce
+  the advisory and production was not touched.
+- The production tree resolved `nanoid@3.3.16` through `postcss@8.5.23`.
+  GHSA-2v37-7h3g-55p8 affects custom generators called with a zero size and is
+  fixed on the compatible 3.x line. The isolated lockfile now resolves
+  `nanoid@3.3.18` without adding a direct dependency or override.
+- After that production-tree repair, the full audit exposed
+  GHSA-5p4m-2wfm-xmqj in development-only `js-yaml@4.3.0` through ESLint. The
+  compatible transitive resolution is `js-yaml@4.3.1`.
+- Dependency hygiene tests pin both reviewed resolutions so a later lockfile
+  refresh cannot silently restore the vulnerable versions. Both the production
+  and complete audit must be clean; no exception, forced audit rewrite, direct
+  dependency or npm override is introduced.
