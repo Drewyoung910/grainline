@@ -151,19 +151,24 @@ evidence only; it did not merge, deploy or change production.
 ## Remaining gates
 
 1. Merge PR #161, PR #162 and PR #163 in their reviewed stack order. PR #160's
-   compatible preparation migration is already live and its actual pooled
-   runtime postflight passed; no additional preparation migration is needed.
-2. Deploy the exact compatible app without the activation migration, exercise
+   first compatible preparation migration is already live and its actual
+   pooled-runtime postflight passed.
+2. From the resulting exact green main commit, run the guarded Production
+   Migrations workflow and apply only PR #162's additive
+   `20260805040000_prepare_stripe_webhook_maintenance_authority` migration.
+   Verify migration status and the global grant/RLS audit before deploying any
+   PR #162 runtime call sites.
+3. Deploy the exact compatible app without the activation migration, exercise
    signed webhook, retry, ops-health, retention and legacy stock-restore paths,
    drain the prior deployment, and rerun the predecessor postflight.
-3. Recut or merge this activation-only candidate from that exact compatible
+4. Recut or merge this activation-only candidate from that exact compatible
    main state and obtain fresh exact-head CI again if the merge/rebase changes
    its exact commit or migration-tree bytes. The current isolated candidate's
    source-drift and PUBLIC-authority PostgreSQL proofs are green at
    `7a57316bcd16daeef5ac9d595180284d1953e316` / `31282060518`.
-4. Only then review an exact-main production activation dispatch and run the
+5. Only then review an exact-main production activation dispatch and run the
    separate actual pooled-runtime postflight described above.
-5. Prepare FORCE as its own later posture-only release after stable activation
+6. Prepare FORCE as its own later posture-only release after stable activation
    evidence.
 
 No production state or provider variable changes are authorized by this
