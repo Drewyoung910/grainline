@@ -190,19 +190,24 @@ is:
 1. **complete:** merge and apply only the reviewed compatible preparation
    migrations from PR #160; run their predecessor-compatible owner and
    pooled-runtime proofs;
-2. merge the exact app conversions from PR #161 and PR #162, deploy the exact
+2. merge the exact app conversions from PR #161 and PR #162, then apply only
+   PR #162's additive
+   `20260805040000_prepare_stripe_webhook_maintenance_authority` migration from
+   the resulting exact green main commit before deploying any PR #162 runtime
+   call sites;
+3. verify migration status and the global grant/RLS audit, deploy the exact
    compatible app, and exercise signed webhook, retry, ops-health, retention
    and legacy restore paths while direct table grants still exist;
-3. let the prior app deployment drain and verify no production route or job
+4. let the prior app deployment drain and verify no production route or job
    still uses direct table access;
-4. run the historical compatibility postflight for the final predecessor
+5. run the historical compatibility postflight for the final predecessor
    record;
-5. apply a separately reviewed, byte-pinned policyless ENABLE migration that
+6. apply a separately reviewed, byte-pinned policyless ENABLE migration that
    revokes table/column grants and preserves only the six functions;
-6. run actual pooled-runtime direct-denial and all-six-function postflights;
-7. deploy no app change merely to activate RLS; rollback database posture
+7. run actual pooled-runtime direct-denial and all-six-function postflights;
+8. deploy no app change merely to activate RLS; rollback database posture
    first if the fixed-operation smoke fails; and
-8. only after a stable observation window, prepare a separate posture-only
+9. only after a stable observation window, prepare a separate posture-only
    FORCE migration and repeat owner plus pooled-runtime proofs.
 
 No long arbitrary wait substitutes for proof, but the old/new application
