@@ -109,9 +109,28 @@ fail closed and documented the canonical-claim provider-auth boundary. The
 Vercel Preview guard failed separately as expected because protected runtime
 database environment is not exposed to this draft branch; nothing deployed.
 
-Before StripeWebhookEvent RLS or table-grant revocation, the stacked preparation
-and application candidates must merge and deploy in order, production webhook
-destinations and legacy stock restoration must be proven, and old deployment
-overlap must drain. Order, OrderItem, CheckoutStockReservation, payment and
-shipping functions remain separate later authority groups; this candidate does
-not claim their completion.
+Before StripeWebhookEvent RLS or table-grant revocation, use this exact
+compatibility sequence:
+
+1. merge PR #161, then merge this PR #162 at its reviewed exact head;
+2. from the resulting exact main commit with green exact-main CI, run the
+   guarded Production Migrations workflow and apply only
+   `20260805040000_prepare_stripe_webhook_maintenance_authority`;
+3. verify migration status and the global grant/RLS audit before deploying any
+   application commit that contains this PR's maintenance call sites;
+4. deploy the exact compatible application, exercise both signed webhook
+   destinations plus retry, ops-health, retention and legacy stock restoration,
+   and then drain the predecessor deployment; and
+5. record the final predecessor pooled-runtime postflight before a separate
+   activation release revokes table authority.
+
+The migration is additive and retains predecessor table grants, so applying it
+before the compatible deployment preserves old/new coexistence. Reversing
+steps 2 and 4 would let the new ops-health, retention or stock-restore code call
+functions that do not yet exist. A deploy guard is additional protection, not a
+substitute for this ordering contract.
+
+Production webhook destinations and legacy stock restoration must be proven,
+and old deployment overlap must drain. Order, OrderItem,
+CheckoutStockReservation, payment and shipping functions remain separate later
+authority groups; this candidate does not claim their completion.

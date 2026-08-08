@@ -60,8 +60,10 @@ URL to an explicit non-production target before connection and then obtain
 engine-attested runtime role attributes; a confirmation string alone is not a
 database identity boundary. Its actual Prisma rollback behavior is covered in
 disposable PostgreSQL. Compatible preparation is complete in production;
-merge, deploy and drain the converted PR #161/#162 app next, record the final
-predecessor postflight, then activate and prove pooled-runtime direct denial.
+merge PR #161/#162 next, apply PR #162's additive maintenance-function
+migration before deploying its runtime call sites, then deploy and drain the
+converted app, record the final predecessor postflight, and activate and prove
+pooled-runtime direct denial.
 Human traffic being absent does not remove the old/new boundary because Stripe
 retries and cron/maintenance jobs remain active.
 
