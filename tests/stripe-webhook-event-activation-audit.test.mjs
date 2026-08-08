@@ -39,6 +39,8 @@ test("activation audit pins the accepted compatible stack and remaining boundary
   assert.match(audit, /stripe-webhook-subscriptions-test-20260810-b9444e34\.json/);
   assert.match(audit, /stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34\.json/);
   assert.match(normalizedAudit, /Connect v2 signed delivery, predecessor drain and final compatibility postflight remain before activation/);
+  assert.match(audit, /fb0facf146e58123ddd2f4a727fda1b966669d5d/);
+  assert.match(audit, /31272188477/);
   assert.match(audit, /predecessor table posture/);
 });
 
