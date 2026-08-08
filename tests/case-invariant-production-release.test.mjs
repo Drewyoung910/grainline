@@ -61,7 +61,7 @@ test("Case invariant release excludes read-mode and RLS activation", () => {
     migration,
     /(?:GRANT|REVOKE)[\s\S]{0,160}\bON TABLE public\."(?:Case|CaseMessage|CaseMessageAttachment)"/i,
   );
-  assert.match(workflow, /order-payment-shipping-compatibility-reviewed/);
+  assert.match(workflow, /stripe-webhook-event-activation-reviewed/);
 });
 
 test("Case invariant release keeps a read-only pooled-runtime postflight", () => {

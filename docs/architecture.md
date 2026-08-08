@@ -65,6 +65,13 @@ sensitive-data program. User, public/private catalog data, carts, and other
 service/audit ledgers remain separately reviewed later groups; do not bundle
 their policies or grants.
 
+The first Order/payment/shipping database boundary is the service-owned
+`StripeWebhookEvent` ledger. Its target is policyless ENABLE (FORCE later), zero
+ordinary-runtime/PUBLIC table or column authority, and exactly six
+source-pinned fixed functions. Production activation evidence must include a
+separate actual pooled-runtime read-only postflight; do not add the runtime URL
+to the owner-only GitHub Production migration environment to automate it.
+
 ## Core Lifecycles
 
 ### Users And Sellers

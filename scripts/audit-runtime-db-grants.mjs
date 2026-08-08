@@ -39,6 +39,7 @@ export const CASE_ACTIVATION_TABLES = Object.freeze([
   "CaseMessage",
   "CaseMessageAttachment",
 ]);
+export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -229,6 +230,18 @@ export function caseRlsForceExpected(inventory) {
     && CASE_ACTIVATION_TABLES.every((tableName) => forced.has(tableName));
 }
 
+export function stripeWebhookEventRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(STRIPE_WEBHOOK_EVENT_TABLE)
+    && !policies.has(STRIPE_WEBHOOK_EVENT_TABLE);
+}
+
+export function stripeWebhookEventRlsForceExpected(inventory) {
+  return stripeWebhookEventRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(STRIPE_WEBHOOK_EVENT_TABLE);
+}
+
 export function runtimePrivateFunctionNames(inventory) {
   if (!directUploadRlsActivationExpected(inventory)) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
@@ -246,6 +259,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...POLICYLESS_SERVICE_RLS_TABLES,
     ...(directUploadRlsActivationExpected(inventory) ? ["DirectUpload"] : []),
     ...(caseRlsActivationExpected(inventory) ? CASE_ACTIVATION_TABLES : []),
+    ...(stripeWebhookEventRlsActivationExpected(inventory)
+      ? [STRIPE_WEBHOOK_EVENT_TABLE]
+      : []),
   ];
 }
 
@@ -919,6 +935,14 @@ export function collectConversationMessageFunctionIssues(
   return issues;
 }
 
+export function collectRuntimeFunctionGrantOptionIssues(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => row.runtime_execute_grantable)
+    .map((row) => (
+      `${row.function_name}(${row.args ?? "unknown"}) runtime EXECUTE must not be grantable`
+    ));
+}
+
 export function deriveGrantInventory(rootDir = ROOT_DIR) {
   const schema = readFileSync(path.join(rootDir, "prisma", "schema.prisma"), "utf8");
   const migrationSql = readMigrationSql(rootDir);
@@ -1047,6 +1071,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === "DirectUpload"
       && directUploadRlsActivationExpected(inventory)
     )
+    || (
+      tableName === STRIPE_WEBHOOK_EVENT_TABLE
+      && stripeWebhookEventRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -1082,7 +1110,9 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
     const row = rowByTable.get(tableName);
     const forceExpected = CASE_ACTIVATION_TABLE_NAME_SET.has(tableName)
       ? caseRlsForceExpected(inventory)
-      : true;
+      : tableName === STRIPE_WEBHOOK_EVENT_TABLE
+        ? stripeWebhookEventRlsForceExpected(inventory)
+        : true;
     if (!row) {
       issues.push(
         forceExpected
@@ -1689,6 +1719,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       || (
         row.table_name === "DirectUpload"
         && directUploadRlsActivationExpected(inventory)
+      )
+      || (
+        row.table_name === STRIPE_WEBHOOK_EVENT_TABLE
+        && stripeWebhookEventRlsActivationExpected(inventory)
       );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(
@@ -1950,6 +1984,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   const runtimePrivateFunctionNameSet = new Set(
     runtimePrivateFunctionNames(inventory),
   );
+  issues.push(...collectRuntimeFunctionGrantOptionIssues(functionResult.rows));
   issues.push(
     ...missingItems(inventory.functions, functionNames).map((fn) => `missing expected function ${fn}`),
   );

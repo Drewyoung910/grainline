@@ -202,7 +202,7 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     assert.match(
       workflow,
-      /Verify exact Order\/payment\/shipping compatibility migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-shipping-compatibility-reviewed[\s\S]{0,260}Verify exact Order\/payment\/shipping compatibility proof equivalence[\s\S]{0,220}audit:rls-order-payment-shipping-compatible-preparation[\s\S]{0,220}Verify exact Case FORCE proof equivalence[\s\S]{0,180}audit:rls-case-force-release[\s\S]*Verify exact Case read-mode release bytes[\s\S]*audit:rls-case-read-mode-candidate[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*audit:rls-direct-upload-activation-release[\s\S]{0,220}Generate Prisma client/,
+      /Verify exact StripeWebhookEvent activation migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed[\s\S]{0,260}Verify exact StripeWebhookEvent activation release[\s\S]{0,220}audit:rls-stripe-webhook-event-activation-release[\s\S]{0,220}Verify exact Case FORCE proof equivalence[\s\S]{0,180}audit:rls-case-force-release[\s\S]*Verify exact Case read-mode release bytes[\s\S]*audit:rls-case-read-mode-candidate[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*audit:rls-direct-upload-activation-release[\s\S]{0,220}Generate Prisma client/,
     );
     assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);

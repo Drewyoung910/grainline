@@ -5,13 +5,32 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import Stripe from "stripe";
+import { stripeWebhookEventReservationFromRows } from "../src/lib/stripeWebhookEventState.ts";
+import {
+  REVIEWED_PRODUCTION_RUNTIME_IDENTITY,
+  parseVercelRuntimeDatabaseIdentity,
+  privilegedDatabaseEnvironmentKeys,
+} from "./guard-runtime-db-env.mjs";
+import {
+  assertDeterministicPostgresEnvironment,
+  assertExplicitPostgresConnectionAuthority,
+  parseCanonicalPostgresDatabaseName,
+  parseExactPostgresUrl,
+} from "./postgres-url-safety.mjs";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STRIPE_API_VERSION = "2025-10-29.clover";
 const CONFIRMATION_VALUE = "test-mode-replay";
 const DB_CONFIRMATION_VALUE = "staging-or-local-read";
+const DATABASE_URL_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_URL";
+const DATABASE_TARGET_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_TARGET";
+const DATABASE_NAME_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_NAME";
+const DATABASE_ENDPOINT_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_ENDPOINT_ID";
+const DATABASE_REGION_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_REGION";
+const RUNTIME_ROLE = "grainline_app_runtime";
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const EVIDENCE_MAX_ISSUES = 20;
 const BLOCKED_CHECKOUT_REVIEW_MARKER = "Order was held for staff review.";
 const BLOCKED_REFUND_ACTION = "BLOCKED_CHECKOUT_REFUND_RECORDED";
@@ -71,7 +90,9 @@ function safeError(error) {
 
 function required(env, name) {
   const value = env[name];
-  if (!value) throw new Error(`${name} is required`);
+  if (typeof value !== "string" || value.length === 0 || value !== value.trim()) {
+    throw new Error(`${name} is required without surrounding whitespace`);
+  }
   return value;
 }
 
@@ -105,14 +126,134 @@ function parseExpectedBuyerState(value) {
   return value;
 }
 
+function unexpectedPostgresUrlEnvironmentKeys(env) {
+  return Object.entries(env ?? {})
+    .filter(([key, value]) => (
+      key !== DATABASE_URL_ENV
+      && typeof value === "string"
+      && /^postgres(?:ql)?:\/\//i.test(value.trim())
+    ))
+    .map(([key]) => key)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function parseLocalRuntimeDatabaseIdentity(databaseUrl, expectedDatabaseName) {
+  const parsed = parseExactPostgresUrl(databaseUrl, DATABASE_URL_ENV);
+  const { username } = assertExplicitPostgresConnectionAuthority(
+    parsed,
+    DATABASE_URL_ENV,
+  );
+  const databaseName = parseCanonicalPostgresDatabaseName(
+    parsed,
+    DATABASE_URL_ENV,
+  );
+  if (!LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error(`${DATABASE_URL_ENV} must use a loopback host for target=local`);
+  }
+  const parameters = [...parsed.searchParams.entries()];
+  if (
+    parameters.length !== 1
+    || parameters[0][0] !== "sslmode"
+    || parameters[0][1] !== "disable"
+  ) {
+    throw new Error(`${DATABASE_URL_ENV} local target must use only sslmode=disable`);
+  }
+  if (username !== RUNTIME_ROLE) {
+    throw new Error(`${DATABASE_URL_ENV} must authenticate as ${RUNTIME_ROLE}`);
+  }
+  if (databaseName !== expectedDatabaseName) {
+    throw new Error(`${DATABASE_URL_ENV} database does not match ${DATABASE_NAME_ENV}`);
+  }
+  return Object.freeze({
+    databaseName,
+    endpointId: "loopback",
+    isPooler: false,
+    region: "loopback",
+    runtimeRole: username,
+    target: "local",
+  });
+}
+
+function parseStagingRuntimeDatabaseIdentity(databaseUrl, env) {
+  const expectedDatabaseName = required(env, DATABASE_NAME_ENV);
+  const expectedEndpointId = required(env, DATABASE_ENDPOINT_ENV);
+  const expectedRegion = required(env, DATABASE_REGION_ENV);
+  if (!/^ep-[a-z0-9-]+$/.test(expectedEndpointId)) {
+    throw new Error(`${DATABASE_ENDPOINT_ENV} must identify one Neon endpoint`);
+  }
+  if (!/^[a-z0-9-]+\.[a-z0-9-]+$/.test(expectedRegion)) {
+    throw new Error(`${DATABASE_REGION_ENV} must identify one Neon region`);
+  }
+  const identity = parseVercelRuntimeDatabaseIdentity(
+    databaseUrl,
+    DATABASE_URL_ENV,
+  );
+  if (!identity.isPooler) {
+    throw new Error(`${DATABASE_URL_ENV} staging target must use the pooled endpoint`);
+  }
+  if (identity.username !== RUNTIME_ROLE) {
+    throw new Error(`${DATABASE_URL_ENV} must authenticate as ${RUNTIME_ROLE}`);
+  }
+  if (identity.endpointId === REVIEWED_PRODUCTION_RUNTIME_IDENTITY.endpointId) {
+    throw new Error(`${DATABASE_URL_ENV} must not identify the reviewed production endpoint`);
+  }
+  if (
+    identity.databaseName !== expectedDatabaseName
+    || identity.endpointId !== expectedEndpointId
+    || identity.region !== expectedRegion
+  ) {
+    throw new Error(`${DATABASE_URL_ENV} does not match the explicit staging target`);
+  }
+  return Object.freeze({
+    databaseName: identity.databaseName,
+    endpointId: identity.endpointId,
+    isPooler: true,
+    region: identity.region,
+    runtimeRole: identity.username,
+    target: "neon-staging",
+  });
+}
+
+export function parseBuyerDeletionReplayDatabaseTarget(env, databaseUrl) {
+  const target = required(env, DATABASE_TARGET_ENV);
+  const expectedDatabaseName = required(env, DATABASE_NAME_ENV);
+  if (target === "local") {
+    return parseLocalRuntimeDatabaseIdentity(databaseUrl, expectedDatabaseName);
+  }
+  if (target === "neon-staging") {
+    return parseStagingRuntimeDatabaseIdentity(databaseUrl, env);
+  }
+  throw new Error(`${DATABASE_TARGET_ENV} must be local or neon-staging`);
+}
+
 export function parseConfig(env = process.env) {
+  assertDeterministicPostgresEnvironment(
+    env,
+    "Buyer-deletion Stripe replay proof",
+  );
   if (env.BUYER_DELETION_REPLAY_PROOF_CONFIRM !== CONFIRMATION_VALUE) {
     throw new Error(`BUYER_DELETION_REPLAY_PROOF_CONFIRM=${CONFIRMATION_VALUE} is required`);
   }
   if (env.BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM !== DB_CONFIRMATION_VALUE) {
     throw new Error(`BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=${DB_CONFIRMATION_VALUE} is required`);
   }
-  const databaseUrl = required(env, "DATABASE_URL");
+  const privilegedKeys = privilegedDatabaseEnvironmentKeys(env);
+  if (privilegedKeys.length > 0) {
+    throw new Error(
+      `Buyer-deletion Stripe replay proof rejects privileged database keys: ${privilegedKeys.join(", ")}`,
+    );
+  }
+  const unexpectedDatabaseUrls = unexpectedPostgresUrlEnvironmentKeys(env);
+  if (unexpectedDatabaseUrls.length > 0) {
+    throw new Error(
+      `Buyer-deletion Stripe replay proof rejects aliased PostgreSQL URLs: ${unexpectedDatabaseUrls.join(", ")}`,
+    );
+  }
+  const databaseUrl = required(env, DATABASE_URL_ENV);
+  const databaseIdentity = parseBuyerDeletionReplayDatabaseTarget(
+    env,
+    databaseUrl,
+  );
   const secretKey = required(env, "STRIPE_SECRET_KEY");
   if (!secretKey.startsWith("sk_test_")) {
     throw new Error("STRIPE_SECRET_KEY must be a Stripe test-mode secret key");
@@ -126,6 +267,7 @@ export function parseConfig(env = process.env) {
     throw new Error("BUYER_DELETION_REPLAY_PROOF_EVENT_ID must start with evt_ when provided");
   }
   return {
+    databaseIdentity,
     databaseUrl,
     evidencePath: evidencePathFromEnv(env),
     expectedBuyerState: parseExpectedBuyerState(env.BUYER_DELETION_REPLAY_PROOF_EXPECTED_BUYER_STATE),
@@ -146,6 +288,57 @@ function gitHead() {
 function createPrismaClient(databaseUrl) {
   const adapter = new PrismaPg({ connectionString: databaseUrl });
   return new PrismaClient({ adapter });
+}
+
+export function assertBuyerDeletionReplayRuntimeIdentityRows(
+  rows,
+  expectedIdentity,
+) {
+  const expected = [{
+    databaseName: expectedIdentity.databaseName,
+    currentUser: expectedIdentity.runtimeRole,
+    sessionUser: expectedIdentity.runtimeRole,
+    superuser: false,
+    createDatabase: false,
+    createRole: false,
+    inherit: false,
+    login: true,
+    replication: false,
+    bypassRls: false,
+  }];
+  if (
+    !Array.isArray(rows)
+    || rows.length !== 1
+    || Object.keys(rows[0] ?? {}).length !== Object.keys(expected[0]).length
+    || !Object.entries(expected[0]).every(([key, value]) => rows[0]?.[key] === value)
+  ) {
+    throw new Error(
+      "Buyer-deletion Stripe replay proof is not connected as the exact restricted runtime role",
+    );
+  }
+  return Object.freeze({ ...expected[0] });
+}
+
+export async function verifyBuyerDeletionReplayRuntimeIdentity(
+  prisma,
+  expectedIdentity,
+) {
+  const rows = await prisma.$queryRaw(Prisma.sql`
+    SELECT
+      pg_catalog.current_database() AS "databaseName",
+      CURRENT_USER AS "currentUser",
+      SESSION_USER AS "sessionUser",
+      role.rolsuper AS "superuser",
+      role.rolcreatedb AS "createDatabase",
+      role.rolcreaterole AS "createRole",
+      role.rolinherit AS "inherit",
+      role.rolcanlogin AS "login",
+      role.rolreplication AS "replication",
+      role.rolbypassrls AS "bypassRls"
+    FROM pg_catalog.pg_roles AS role
+    WHERE role.rolname = CURRENT_USER
+  `);
+  return assertBuyerDeletionReplayRuntimeIdentityRows(rows, expectedIdentity);
 }
 
 function stripeObjectId(value) {
@@ -169,6 +362,37 @@ function buyerStateReason(sourceBuyer) {
 
 function addIssue(issues, condition, message) {
   if (!condition) issues.push(message);
+}
+
+class StripeWebhookLeaseProofRollback extends Error {
+  constructor(reservation) {
+    super("Rollback buyer-deletion Stripe webhook lease proof");
+    this.name = "StripeWebhookLeaseProofRollback";
+    this.reservation = reservation;
+  }
+}
+
+export async function proveProcessedStripeWebhookEvent(prisma, eventId, eventType) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw(Prisma.sql`
+        SELECT action, claim_generation
+          FROM public.grainline_stripe_webhook_begin(${eventId}, ${eventType})
+      `);
+      const reservation = stripeWebhookEventReservationFromRows(rows);
+
+      // The fixed begin operation can insert or reclaim an unprocessed event.
+      // This verifier is read-only in effect: always throw so PostgreSQL rolls
+      // back even when the launch evidence is missing or stale.
+      throw new StripeWebhookLeaseProofRollback(reservation);
+    });
+  } catch (error) {
+    if (error instanceof StripeWebhookLeaseProofRollback) {
+      return error.reservation;
+    }
+    throw error;
+  }
+  throw new Error("Stripe webhook lease proof transaction returned without rollback");
 }
 
 function jsonObject(value) {
@@ -201,7 +425,7 @@ function sanitizedProofSnapshot({
   session,
   sourceBuyer,
   sourceBuyerState,
-  webhookEvent,
+  webhookReservation,
 }) {
   const piiFieldsWithValues = order
     ? BUYER_PII_FIELDS.filter((field) => order[field] != null)
@@ -249,7 +473,8 @@ function sanitizedProofSnapshot({
       retrievedEventIdHash: event?.id ? hashValue(event.id) : null,
       checkoutAuditIdHash: checkoutAudit?.id ? hashValue(checkoutAudit.id) : null,
       checkoutAuditActorIdHash: checkoutAudit?.actorId ? hashValue(checkoutAudit.actorId) : null,
-      webhookEventProcessed: Boolean(webhookEvent?.processedAt),
+      webhookEventProcessed: webhookReservation?.action === "processed",
+      webhookLeaseAction: webhookReservation?.action ?? null,
       refundEventIdHash: refundEvent?.id ? hashValue(refundEvent.id) : null,
       refundAuditIdHash: refundAudit?.id ? hashValue(refundAudit.id) : null,
     },
@@ -270,21 +495,6 @@ async function collectProof({ config, prisma, stripe }) {
   addIssue(issues, Boolean(sessionBuyerId), "Stripe Checkout Session metadata must retain the original buyerId");
 
   let retrievedEvent = null;
-  if (config.expectedEventId) {
-    retrievedEvent = await stripe.events.retrieve(config.expectedEventId);
-    addIssue(issues, retrievedEvent.livemode === false, "Stripe event must be test mode");
-    addIssue(
-      issues,
-      retrievedEvent.type === "checkout.session.completed" ||
-        retrievedEvent.type === "checkout.session.async_payment_succeeded",
-      "Stripe event must be a checkout completion event",
-    );
-    addIssue(
-      issues,
-      stripeObjectId(retrievedEvent.data?.object) === config.sessionId,
-      "Stripe event object must be the proof Checkout Session",
-    );
-  }
 
   const sourceBuyer = sessionBuyerId
     ? await prisma.user.findUnique({
@@ -363,7 +573,7 @@ async function collectProof({ config, prisma, stripe }) {
   let checkoutAudit = null;
   let refundAudit = null;
   let refundEvent = null;
-  let webhookEvent = null;
+  let webhookReservation = null;
 
   if (order) {
     const piiFieldsWithValues = BUYER_PII_FIELDS.filter((field) => order[field] != null);
@@ -481,20 +691,34 @@ async function collectProof({ config, prisma, stripe }) {
 
     const webhookEventId = config.expectedEventId ?? checkoutAudit?.actorId ?? null;
     if (webhookEventId) {
-      webhookEvent = await prisma.stripeWebhookEvent.findUnique({
-        where: { id: webhookEventId },
-        select: { id: true, type: true, processedAt: true, lastError: true },
-      });
-      addIssue(issues, Boolean(webhookEvent), "StripeWebhookEvent row is missing for the replay event");
-      if (webhookEvent) {
+      if (config.expectedEventId && checkoutAudit?.actorId) {
         addIssue(
           issues,
-          webhookEvent.type === "checkout.session.completed" ||
-            webhookEvent.type === "checkout.session.async_payment_succeeded",
-          "StripeWebhookEvent must be a checkout completion type",
+          config.expectedEventId === checkoutAudit.actorId,
+          "Explicit Stripe event id must match the checkout audit actorId",
         );
-        addIssue(issues, Boolean(webhookEvent.processedAt), "StripeWebhookEvent must be marked processed");
-        addIssue(issues, !webhookEvent.lastError, "StripeWebhookEvent must not retain lastError after replay");
+      }
+
+      retrievedEvent = await stripe.events.retrieve(webhookEventId);
+      const isCheckoutCompletion =
+        retrievedEvent.type === "checkout.session.completed" ||
+        retrievedEvent.type === "checkout.session.async_payment_succeeded";
+      const isProofSession = stripeObjectId(retrievedEvent.data?.object) === config.sessionId;
+      addIssue(issues, retrievedEvent.livemode === false, "Stripe event must be test mode");
+      addIssue(issues, isCheckoutCompletion, "Stripe event must be a checkout completion event");
+      addIssue(issues, isProofSession, "Stripe event object must be the proof Checkout Session");
+
+      if (retrievedEvent.livemode === false && isCheckoutCompletion && isProofSession) {
+        webhookReservation = await proveProcessedStripeWebhookEvent(
+          prisma,
+          webhookEventId,
+          retrievedEvent.type,
+        );
+        addIssue(
+          issues,
+          webhookReservation.action === "processed",
+          `StripeWebhookEvent fixed lease must report processed, received ${webhookReservation.action}`,
+        );
       }
     } else {
       issues.push("No webhook event id was available from env or checkout audit actorId");
@@ -513,13 +737,22 @@ async function collectProof({ config, prisma, stripe }) {
       session,
       sourceBuyer,
       sourceBuyerState,
-      webhookEvent,
+      webhookReservation,
     }),
     issues,
   };
 }
 
-export function buildEvidencePayload({ actionableCount, config, issues, proof, startedAt, completedAt, status }) {
+export function buildEvidencePayload({
+  actionableCount,
+  completedAt,
+  config,
+  databaseRuntimeIdentity,
+  issues,
+  proof,
+  startedAt,
+  status,
+}) {
   return {
     status,
     generatedAt: completedAt,
@@ -533,6 +766,19 @@ export function buildEvidencePayload({ actionableCount, config, issues, proof, s
       sessionIdHash: config?.sessionId ? hashValue(config.sessionId) : null,
       expectedEventIdHash: config?.expectedEventId ? hashValue(config.expectedEventId) : null,
     },
+    database: config?.databaseIdentity
+      ? {
+          configuredTarget: {
+            databaseName: config.databaseIdentity.databaseName,
+            endpointId: config.databaseIdentity.endpointId,
+            isPooler: config.databaseIdentity.isPooler,
+            region: config.databaseIdentity.region,
+            runtimeRole: config.databaseIdentity.runtimeRole,
+            target: config.databaseIdentity.target,
+          },
+          engineAttestedRuntime: databaseRuntimeIdentity ?? null,
+        }
+      : null,
     expectedBuyerState: config?.expectedBuyerState ?? null,
     actionableFindingCount: actionableCount,
     proof,
@@ -550,6 +796,7 @@ export async function runBuyerDeletionReplayProof(env = process.env) {
   const issues = [];
   let actionableCount = 0;
   let config;
+  let databaseRuntimeIdentity = null;
   let prisma;
   let proof = null;
   let status = "passed";
@@ -558,6 +805,10 @@ export async function runBuyerDeletionReplayProof(env = process.env) {
     config = parseConfig(env);
     prisma = createPrismaClient(config.databaseUrl);
     await prisma.$connect();
+    databaseRuntimeIdentity = await verifyBuyerDeletionReplayRuntimeIdentity(
+      prisma,
+      config.databaseIdentity,
+    );
     const stripe = new Stripe(config.secretKey, { apiVersion: STRIPE_API_VERSION });
     const collected = await collectProof({ config, prisma, stripe });
     proof = collected.proof;
@@ -576,6 +827,7 @@ export async function runBuyerDeletionReplayProof(env = process.env) {
   const payload = buildEvidencePayload({
     actionableCount,
     config,
+    databaseRuntimeIdentity,
     issues,
     proof,
     startedAt,

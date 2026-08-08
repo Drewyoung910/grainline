@@ -129,7 +129,7 @@ test("Case read-mode release is compatible and exact", () => {
       `${functionName} source digest must be pinned preflight and postflight`,
     );
   }
-  assert.match(workflow, /order-payment-shipping-compatibility-reviewed/);
+  assert.match(workflow, /stripe-webhook-event-activation-reviewed/);
 });
 
 test("Case read-mode release records the threat boundary and live predecessor", () => {

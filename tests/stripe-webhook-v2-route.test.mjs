@@ -35,12 +35,13 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     const mirror = source("src/lib/stripeWebhookMirror.ts");
 
     assert.match(route, /beginStripeWebhookEvent\(stripeEventId, stripeEventType\)/);
-    assert.match(route, /reservation === "processed"/);
-    assert.match(route, /reservation === "in_progress"/);
+    assert.match(route, /reservation\.action === "processed"/);
+    assert.match(route, /reservation\.action === "in_progress"/);
+    assert.match(route, /const claimGeneration = reservation\.claimGeneration/);
     assert.match(route, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(route, /"Retry-After": String\(STRIPE_V2_WEBHOOK_RETRY_AFTER_SECONDS\)/);
-    assert.match(route, /markStripeWebhookEventProcessed\(stripeEventId\)/);
-    assert.match(route, /markStripeWebhookEventFailed\(stripeEventId, handlerErr\)/);
+    assert.match(route, /markStripeWebhookEventProcessed\(stripeEventId, claimGeneration\)/);
+    assert.match(route, /markStripeWebhookEventFailed\(stripeEventId, claimGeneration, handlerErr\)/);
     assert.match(route, /isStripeConnectV2AccountEvent\(stripeEventType\)/);
     assert.match(route, /stripeConnectV2AccountIdFromNotification\(notification\)/);
     assert.match(route, /if \(!accountId\) \{/);
@@ -81,18 +82,26 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
   it("keeps legacy snapshot webhooks retryable while an event is in progress", () => {
     const legacyRoute = source("src/app/api/stripe/webhook/route.ts");
     const events = source("src/lib/stripeWebhookEvents.ts");
+    const eventState = source("src/lib/stripeWebhookEventState.ts");
 
-    assert.match(events, /export type StripeWebhookEventReservation = "process" \| "processed" \| "in_progress"/);
-    assert.match(events, /if \(existing\?\.processedAt\) return "processed"/);
-    assert.match(events, /return claimed\.count > 0 \? "process" : "in_progress"/);
-    assert.match(legacyRoute, /reservation === "processed"/);
-    assert.match(legacyRoute, /reservation === "in_progress"/);
+    assert.match(eventState, /action: StripeWebhookEventAction/);
+    assert.match(eventState, /claimGeneration: bigint/);
+    assert.match(events, /grainline_stripe_webhook_begin/);
+    assert.match(events, /grainline_stripe_webhook_complete/);
+    assert.match(events, /grainline_stripe_webhook_fail/);
+    assert.doesNotMatch(events, /prisma\.stripeWebhookEvent\.(?:create|findUnique|updateMany)/);
+    assert.match(legacyRoute, /reservation\.action === "processed"/);
+    assert.match(legacyRoute, /reservation\.action === "in_progress"/);
+    assert.match(legacyRoute, /const claimGeneration = reservation\.claimGeneration/);
     assert.match(legacyRoute, /status: HTTP_STATUS\.SERVICE_UNAVAILABLE/);
     assert.match(legacyRoute, /"Retry-After": String\(STRIPE_WEBHOOK_RETRY_AFTER_SECONDS\)/);
   });
 
   it("marks known duplicate checkout sessions processed before returning webhook success", () => {
     const legacyRoute = source("src/app/api/stripe/webhook/route.ts");
+    const processStart = legacyRoute.indexOf("async function processIdempotentEvent(");
+    const processEnd = legacyRoute.indexOf("type OrderPaymentEventClient", processStart);
+    const processHelper = legacyRoute.slice(processStart, processEnd);
     const duplicateStart = legacyRoute.indexOf("const duplicateSession =");
     const duplicateBranch = legacyRoute.slice(
       duplicateStart,
@@ -100,12 +109,15 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     );
 
     assert.ok(duplicateStart >= 0, "legacy webhook route must keep an explicit duplicate-session branch");
-    assert.match(duplicateBranch, /code === "P2002"/);
-    assert.match(duplicateBranch, /p2002Target\.includes\("stripeSessionId"\)/);
-    assert.match(duplicateBranch, /markStripeWebhookEventProcessed\(event\.id\)/);
+    assert.match(
+      processHelper,
+      /if \(!isStripeSessionUniqueConstraintError\(handlerErr\)\) \{\s*await markCurrentStripeWebhookEventFailed\(handlerErr\)/,
+    );
+    assert.match(duplicateBranch, /isStripeSessionUniqueConstraintError\(err\)/);
+    assert.match(duplicateBranch, /markStripeWebhookEventProcessed\(event\.id, claimGeneration\)/);
     assert.match(duplicateBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
     assert.ok(
-      duplicateBranch.indexOf("markStripeWebhookEventProcessed(event.id)") <
+      duplicateBranch.indexOf("markStripeWebhookEventProcessed(event.id, claimGeneration)") <
         duplicateBranch.indexOf("return NextResponse.json({ ok: true })"),
       "duplicate-session webhook success should not leave a failed/unprocessed reservation row",
     );

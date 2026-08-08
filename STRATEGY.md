@@ -49,6 +49,33 @@ evidence rather than protection. Proceed to compatible seller-key,
 webhook-generation and invariant preparation; do not skip the compatible app
 deployment/coexistence boundary or bundle later activation releases.
 
+The Stripe webhook prerequisite activation design is now pinned in
+`docs/stripe-webhook-event-activation-audit.md`: policyless ENABLE first,
+FORCE later, zero runtime/PUBLIC table or column authority and exactly six
+generation/maintenance functions. The buyer-deletion launch proof must not
+retain direct webhook-table SELECT or motivate a seventh lookup function; it
+uses the exact Stripe event plus an always-rollback fixed `begin` probe and
+accepts only `processed`. The proof must bind a dedicated restricted-runtime
+URL to an explicit non-production target before connection and then obtain
+engine-attested runtime role attributes; a confirmation string alone is not a
+database identity boundary. Its actual Prisma rollback behavior is covered in
+disposable PostgreSQL. Compatible preparation is complete in production;
+merge PR #161/#162 next, apply PR #162's additive maintenance-function
+migration before deploying its runtime call sites, then deploy and drain the
+converted app, record the final predecessor postflight, and activate and prove
+pooled-runtime direct denial.
+Human traffic being absent does not remove the old/new boundary because Stripe
+retries and cron/maintenance jobs remain active.
+
+The activation migration must also pin the exact PostgreSQL source body of all
+six functions, not merely signatures and function attributes, and its
+database-first rollback must reject direct PUBLIC table and column grants both
+before and after restoration. After activation, run a separate engine-attested
+repeatable-read/read-only postflight using the actual pooled production runtime
+credential. Keep that credential out of the owner-only GitHub Production
+migration environment; local operator execution with sanitized mode-0600
+evidence is the deliberate separation boundary.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

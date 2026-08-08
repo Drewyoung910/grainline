@@ -82,12 +82,12 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify Order/payment/shipping compatibility migration tree
+      - name: Verify StripeWebhookEvent activation migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-shipping-compatibility-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed
         run: npm run verify:rls-release-artifact
-      - name: Verify Order/payment/shipping compatibility proof equivalence
-        run: npm run audit:rls-order-payment-shipping-compatible-preparation
+      - name: Verify StripeWebhookEvent activation release
+        run: npm run audit:rls-stripe-webhook-event-activation-release
       - name: Verify Case FORCE proof equivalence
         run: npm run audit:rls-case-force-release
       - name: Verify Case read-mode release bytes
@@ -129,6 +129,11 @@ jobs:
           mv
           prisma/migrations/20260801194000_enable_direct_upload_rls
           "$RUNNER_TEMP/direct-upload-activation-release"
+      - name: Isolate the exact StripeWebhookEvent activation until compatibility proofs pass
+        run: >-
+          mv
+          prisma/migrations/20260805060000_enable_stripe_webhook_event_rls
+          "$RUNNER_TEMP/stripe-webhook-event-activation-release"
       - name: Apply compatible migrations to CI Postgres
         run: npx prisma migrate deploy
       - name: Converge pre-activation production-style runtime grants
@@ -218,6 +223,14 @@ jobs:
         run: npm run audit:rls-stripe-webhook-lease-compatibility
         env:
           STRIPE_WEBHOOK_LEASE_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Stripe webhook maintenance authority in rollback-only PostgreSQL
+        run: npm run audit:rls-stripe-webhook-maintenance-postgres
+        env:
+          STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove buyer-deletion fixed-lease verifier rollback in PostgreSQL
+        run: npm run audit:buyer-deletion-replay-postgres
+        env:
+          BUYER_DELETION_REPLAY_POSTGRES_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Order/payment/shipping compatible postflight under the runtime role
         run: npm run audit:rls-order-payment-shipping-compatible-postflight
         env:
@@ -264,6 +277,44 @@ jobs:
         run: npm run audit:rls-case-force-postgres
         env:
           CASE_FORCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore the exact StripeWebhookEvent activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/stripe-webhook-event-activation-release"
+          prisma/migrations/20260805060000_enable_stripe_webhook_event_rls
+      - name: Apply the exact StripeWebhookEvent activation release
+        run: npx prisma migrate deploy
+      - name: Converge activated StripeWebhookEvent runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Audit activated StripeWebhookEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove policyless StripeWebhookEvent activation
+        run: npm run audit:rls-stripe-webhook-event-activation-postgres
+        env:
+          STRIPE_WEBHOOK_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Enable disposable direct runtime login for the activation postflight proof
+        run: >-
+          psql "$DIRECT_URL"
+          -v ON_ERROR_STOP=1
+          -c "ALTER ROLE grainline_app_runtime PASSWORD 'grainline-ci-runtime-postflight-only'"
+      - name: Prove activation postflight through the actual runtime login
+        run: npm run audit:rls-stripe-webhook-event-activation-postflight-postgres
+        env:
+          STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Re-prove Stripe webhook leases behind policyless activation
+        run: npm run audit:rls-stripe-webhook-lease-compatibility
+        env:
+          STRIPE_WEBHOOK_LEASE_COMPATIBILITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-prove Stripe webhook maintenance behind policyless activation
+        run: npm run audit:rls-stripe-webhook-maintenance-postgres
+        env:
+          STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove StripeWebhookEvent database-first rollback and restoration
+        run: npm run audit:rls-stripe-webhook-event-activation-rollback
+        env:
+          STRIPE_WEBHOOK_EVENT_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-audit restored StripeWebhookEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

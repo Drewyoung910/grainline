@@ -404,7 +404,15 @@ Pre-launch buyer-deletion Stripe replay proof:
   event, then run the verifier against that `cs_test_...` session.
 - Required inputs:
   - `STRIPE_SECRET_KEY` set to a `sk_test_...` key.
-  - `DATABASE_URL` set to the staging/local database that processed the replay.
+  - `BUYER_DELETION_REPLAY_PROOF_DATABASE_URL` set to the dedicated
+    `grainline_app_runtime` staging/local connection that processed the replay.
+    Do not export `DATABASE_URL`, `DIRECT_URL`, or another PostgreSQL URL into
+    the proof process.
+  - `BUYER_DELETION_REPLAY_PROOF_DATABASE_TARGET=local` or `neon-staging`.
+  - `BUYER_DELETION_REPLAY_PROOF_DATABASE_NAME=<exact database>`.
+  - For `neon-staging` only,
+    `BUYER_DELETION_REPLAY_PROOF_DATABASE_ENDPOINT_ID=<exact ep-...>` and
+    `BUYER_DELETION_REPLAY_PROOF_DATABASE_REGION=<exact region.provider>`.
   - `BUYER_DELETION_REPLAY_PROOF_CONFIRM=test-mode-replay`.
   - `BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=staging-or-local-read`.
   - `BUYER_DELETION_REPLAY_PROOF_SESSION_ID=<cs_test...>`.
@@ -412,14 +420,46 @@ Pre-launch buyer-deletion Stripe replay proof:
   - Optional: `BUYER_DELETION_REPLAY_PROOF_EXPECTED_BUYER_STATE=deleted`,
     `suspended`, or `missing`, and `BUYER_DELETION_REPLAY_PROOF_EVENT_ID=<evt_...>`.
 - Command:
-  `BUYER_DELETION_REPLAY_PROOF_CONFIRM=test-mode-replay BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=staging-or-local-read BUYER_DELETION_REPLAY_PROOF_SESSION_ID="<cs_test...>" BUYER_DELETION_REPLAY_PROOF_EVIDENCE_PATH="buyer-deletion-replay-evidence.json" npm run audit:buyer-deletion-replay`.
+  `BUYER_DELETION_REPLAY_PROOF_CONFIRM=test-mode-replay BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=staging-or-local-read BUYER_DELETION_REPLAY_PROOF_DATABASE_URL="<restricted-runtime-url>" BUYER_DELETION_REPLAY_PROOF_DATABASE_TARGET=neon-staging BUYER_DELETION_REPLAY_PROOF_DATABASE_NAME="<database>" BUYER_DELETION_REPLAY_PROOF_DATABASE_ENDPOINT_ID="<ep-staging>" BUYER_DELETION_REPLAY_PROOF_DATABASE_REGION="<region.provider>" BUYER_DELETION_REPLAY_PROOF_SESSION_ID="<cs_test...>" BUYER_DELETION_REPLAY_PROOF_EVIDENCE_PATH="buyer-deletion-replay-evidence.json" npm run audit:buyer-deletion-replay`.
 - Retain the sanitized JSON artifact with launch records. A passing run verifies
   the Stripe session is test-mode and paid, the source buyer is no longer valid,
-  the local order is blocked for review with buyer snapshots purged, the webhook
-  event row is processed, and the blocked-checkout refund ledger plus system
-  audit evidence were written.
+  the local order is blocked for review with buyer snapshots purged, and the
+  exact Stripe-bound event's fixed lease reports `processed`. The lease probe
+  deliberately rolls back for every result, so a missing/stale event cannot
+  leave a verifier-created row or reclaim. It does not require direct
+  `StripeWebhookEvent` SELECT and does not independently project `lastError`.
+  Before querying evidence, it rejects the reviewed production endpoint and
+  owner/aliased credentials, then requires PostgreSQL to attest the exact
+  database, runtime session identity and restricted role attributes.
+  The blocked-checkout refund ledger and system audit evidence must also exist.
 - Do not close this launch blocker from source tests alone, and do not run this
   verifier with live Stripe keys or against production data.
+
+StripeWebhookEvent RLS activation postflight:
+
+- Run only after the byte-pinned policyless activation migration succeeds from
+  an exact main commit and that commit's full CI is green.
+- Use the local pooled production `DATABASE_URL` for
+  `grainline_app_runtime`. Do not source an owner URL, add the runtime URL to
+  GitHub's owner-only Production environment, or simulate runtime through
+  owner `SET ROLE`.
+- Bind the exact release and workflow evidence:
+  `STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT=<40-char-main>`,
+  `STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-ci>`,
+  and
+  `STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID=<successful-production-migration>`.
+- Use a fresh ignored evidence path named exactly
+  `stripe-webhook-event-activation-production-postflight-<40-char-main>.json`
+  and confirmation
+  `verify-production-stripe-webhook-event-activation-runtime-read-only`.
+- Command:
+  `STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_CONFIRM=verify-production-stripe-webhook-event-activation-runtime-read-only STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT=<40-char-main> STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-ci> STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID=<successful-production-migration> STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH="stripe-webhook-event-activation-production-postflight-<40-char-main>.json" npm run ops:stripe-webhook-event-activation-postflight`.
+- The script opens an engine-attested repeatable-read/read-only transaction,
+  verifies actual runtime identity, exact source/owner/mode/ACL state for six
+  functions, zero PUBLIC/runtime table or column authority, direct SELECT
+  denial, aggregate health access, and a write-function SQLSTATE `25006` fence.
+  It rolls back and writes sanitized mode-0600 evidence; it must not change
+  production.
 
 Clerk:
 

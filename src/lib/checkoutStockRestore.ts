@@ -6,6 +6,7 @@ import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/
 import { parsePositiveInt } from "@/lib/stripeWebhookState";
 import { stripe } from "@/lib/stripe";
 import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReservationRepairState";
+import { claimLegacyStockRestore } from "@/lib/stripeWebhookMaintenance";
 
 export const CHECKOUT_STOCK_RESERVATION_TTL_MS = 31 * 60 * 1000;
 export const CHECKOUT_STOCK_RESERVATION_STALE_GRACE_MS = 2 * 60 * 60 * 1000;
@@ -41,15 +42,6 @@ export class CheckoutStockReservationStockError extends Error {
 
 export async function lockCheckoutSessionMutation(tx: Prisma.TransactionClient, sessionId: string) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(913337, hashtext(${sessionId}))`;
-}
-
-function isPrismaUniqueViolation(error: unknown) {
-  return Boolean(
-    error &&
-    typeof error === "object" &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2002",
-  );
 }
 
 function mergeRestorableStockItems(items: RestorableStockItem[]) {
@@ -587,20 +579,7 @@ export async function pruneTerminalCheckoutStockReservations(input: {
 }
 
 async function claimCheckoutStockRestore(tx: Prisma.TransactionClient, sessionId: string) {
-  try {
-    await tx.stripeWebhookEvent.create({
-      data: {
-        id: `checkout-stock-restore:${sessionId}`,
-        type: "checkout.session.stock_restored",
-        processingStartedAt: new Date(),
-        processedAt: new Date(),
-      },
-    });
-    return true;
-  } catch (error) {
-    if (isPrismaUniqueViolation(error)) return false;
-    throw error;
-  }
+  return claimLegacyStockRestore(sessionId, tx);
 }
 
 export async function restoreUnorderedCheckoutStockOnce(input: {

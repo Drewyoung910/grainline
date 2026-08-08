@@ -858,6 +858,24 @@ Follow-up fix from this pass:
 - **Hardened 2026-05-18:** message-thread body media rendering now requires `isTrustedMediaUrl()` before turning bare URLs or parsed file-message URLs into image/PDF/download bubbles. Arbitrary external `https://...jpg/pdf` message text remains plain text, while trusted Grainline/legacy media continues rendering as attachments. Regression coverage lives in `tests/rendering-security.test.mjs`.
 - **Documented 2026-05-18:** security/runtime documentation now reflects the resolved `next@16.2.6` runtime and the actual `Cross-Origin-Opener-Policy: same-origin-allow-popups` header used for Clerk/Stripe popup compatibility. Regression coverage lives in `tests/verified-audit-followups.test.mjs`.
 
+## Stripe webhook maintenance replay-barrier correction (2026-08-08)
+
+- The Extra-High activation review found that the general 90-day processed
+  webhook prune included legacy `checkout.session.stock_restored` claim rows.
+  These rows are permanent replay barriers: after one was pruned, a buyer-held
+  old expired Checkout Session could pass the authenticated stock-rollback path
+  again and restore inventory twice.
+- The maintenance migration now excludes that finite event class while keeping
+  ordinary processed-event cleanup bounded to 1,000 rows with a database-derived
+  cutoff and `FOR UPDATE SKIP LOCKED`. Its disposable PostgreSQL proof creates
+  an old permanent claim and proves it survives pruning.
+- The corrected migration SHA-256 is
+  `0c34cc94f6a602e8f686487277b422f3ba4e89a1f2c50b9b3b673cb63d259df5`;
+  the corrected maintenance phase-tree fingerprint is
+  `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`.
+  The earlier PR #162 migration bytes are superseded before merge or production
+  application. Production was not changed.
+
 ## Dependency security refresh (2026-07-25)
 
 - GitHub Actions run `30174843104` first proved the Conversation/Message PostgreSQL invariants, grant convergence, TypeScript, lint, and tests, then failed at the independent dependency-audit step because advisories published after the last green `main` run affected the unchanged lockfile. This is repository-wide security drift, not an RLS proof failure.
@@ -889,6 +907,48 @@ Open work:
 
 - Continue with abuse/volume economics and any new Claude-proposed findings added to `audit_open_findings.md`; treat those entries as suspected until locally reproduced.
 
+## Stripe webhook RLS activation authority review (2026-08-08)
+
+- The Extra-High pre-activation review found that the activation preflight and
+  disposable PostgreSQL proof required runtime `EXECUTE` on the six fixed
+  Stripe webhook functions, but did not reject `EXECUTE WITH GRANT OPTION`.
+  The activation migration itself granted plain `EXECUTE`, so no reviewed
+  production state had the broader authority; the defect was in proving the
+  exact intended ACL. The activation SQL and PostgreSQL proof now reject a
+  runtime function ACL whose grantor is not the owner or whose grant is
+  grantable. The global grant audit independently applies the same class-wide
+  check to every Grainline function. Unit coverage exercises both plain and
+  grantable runtime ACLs.
+- The same review found that the bounded 90-day Stripe webhook maintenance
+  prune included legacy `checkout.session.stock_restored` claim rows. Those
+  rows are permanent replay barriers: deleting one could allow an old expired
+  Checkout Session to pass the authenticated stock-rollback path again and
+  restore inventory twice. The maintenance migration now excludes that event
+  type from the general prune. Its disposable PostgreSQL proof creates an old
+  permanent claim and proves it survives, while ordinary terminal events still
+  prune in bounded batches.
+- The corrected maintenance migration SHA-256 is
+  `0c34cc94f6a602e8f686487277b422f3ba4e89a1f2c50b9b3b673cb63d259df5`;
+  the corrected maintenance phase-tree fingerprint is
+  `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`.
+  The corrected activation draft SHA-256 is
+  `29dcf34d4438999469313b22415f221f917c372fb6e880c57276c0e9ee177c2b`,
+  the promoted activation migration SHA-256 is
+  `f33fc6c9b65444b437d62856c22116cac56c6a4d8c7b05340117120a06aab66b`,
+  and the resulting full migration-tree fingerprint is
+  `72b5648c4cdc98245dd3b2887a0aab89b264ed860f6141d5a215c2fe34569a13`.
+- These changes remain isolated on the cumulative activation branch. Production
+  was not changed. The corrected maintenance bytes must replace the earlier
+  bytes on PR #162 before that migration can merge or run; otherwise a later
+  edit would create a Prisma migration-checksum mismatch. The cumulative PR
+  #164 must not be merged as one release batch.
+- Exact reviewed checkpoint `fb0facf146e58123ddd2f4a727fda1b966669d5d`
+  passed CI run `31272188477`: disposable PostgreSQL activation and rollback,
+  four direct runtime denial probes, restored-posture grant/RLS audit, 2,824
+  tests with seven intentional skips, TypeScript, lint, both dependency audits,
+  and the production build. This is candidate evidence only, not production
+  activation authority.
+
 ## Dependency security refresh (2026-08-08)
 
 - StripeWebhookEvent activation PR #164 exact-head CI run `31268968442`
@@ -907,3 +967,56 @@ Open work:
   refresh cannot silently restore the vulnerable versions. Both the production
   and complete audit must be clean; no exception, forced audit rewrite, direct
   dependency or npm override is introduced.
+
+## Stripe webhook activation source and postflight hardening (2026-08-08)
+
+- A second Extra-High review found that the policyless activation pinned all
+  six function signatures, owners, modes, search paths and ACLs but not their
+  exact PostgreSQL source bodies. A signature-compatible `CREATE OR REPLACE`
+  drift could therefore have passed the migration preflight. The candidate now
+  derives the latest reviewed function sources from the committed preparation
+  migrations, pins each `md5(prosrc)` in activation SQL, and compares SHA-256
+  under the actual runtime postflight. The source catalog fails closed unless
+  all six expected functions are found exactly.
+- The database-first rollback previously proved the restricted runtime role's
+  direct authority but did not explicitly reject direct PUBLIC table or column
+  ACL drift. Both rollback preflight and postflight now reject those classes.
+  Disposable PostgreSQL injects a PUBLIC table grant and a PUBLIC column grant
+  separately and proves each aborts before posture mutation.
+- A dedicated production postflight now uses only the pooled
+  `grainline_app_runtime` credential, rejects owner and aliased URLs, attests
+  the exact production endpoint/database/role plus repeatable-read/read-only
+  transaction state, and records sanitized mode-0600 evidence. It is an
+  operator tool rather than a GitHub Production workflow because that protected
+  environment intentionally contains only the owner migration credential.
+  CI separately gives its ephemeral runtime role a disposable password and
+  opens a new connection as that role to exercise the same catalog, denial,
+  health and read-only-fence path without owner `SET ROLE`.
+- Corrected candidate hashes are: draft
+  `fd92c05ca2581eeeec19fd81e41a0dd672300381ad2d55396234a8f2fb0907d3`,
+  promoted migration
+  `c500e2c5135488d81929025a184f384fd53eed37f38d8dbf7e7e9bb8445e1299`,
+  rollback
+  `2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722`,
+  and migration tree
+  `d525a4d8e7982f49dbfd280b9d9cc46e0dac39da0507b66881b7828786cd4bdc`.
+  These bytes remain isolated on PR #164. No production migration, grant, RLS,
+  deployment or provider state changed in this review.
+- Exact authority-hardening checkpoint
+  `7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
+  `31282060518`. The run exercised the actual direct disposable runtime login,
+  exact six-function source catalog, policyless activation, direct denial,
+  read-only write fence, lease and maintenance behavior, PUBLIC table/column
+  rollback drift rejection, restoration and final catalog audit, followed by
+  TypeScript, lint, 2,846 tests with seven intentional skips, both dependency
+  audits and the production build. This is isolated candidate evidence only;
+  production was not changed.
+- A later release-order review found an operator-documentation gap: PR #162's
+  application calls three functions introduced by its own additive migration,
+  while the written stack sequence moved directly from merge to deployment.
+  The release contract now requires applying only
+  `20260805040000_prepare_stripe_webhook_maintenance_authority` from the exact
+  green main commit, then verifying migration status and the global grant/RLS
+  audit, before any deployment containing those call sites. The code and
+  migration boundary were unchanged; this prevents a new deployment from
+  calling not-yet-created functions.
