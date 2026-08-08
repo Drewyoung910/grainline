@@ -324,7 +324,10 @@ BEGIN
                 SELECT role.oid FROM pg_catalog.pg_roles AS role
                  WHERE role.rolname = 'grainline_app_runtime'
               )
-              AND acl.grantor <> procedure.proowner
+              AND (
+                acl.grantor <> procedure.proowner
+                OR acl.is_grantable
+              )
             )
           )
      )

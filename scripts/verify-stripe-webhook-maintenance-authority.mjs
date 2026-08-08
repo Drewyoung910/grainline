@@ -13,7 +13,7 @@ import { verifyPromotedOrderPaymentShippingCompatibility } from "./stage-order-p
 export const STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_PHASE =
   "stripe-webhook-maintenance-authority-reviewed";
 export const STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_SHA256 =
-  "407707e05a803cded0036c301141fb665c3a0f1b25b114a78f9188b0e52c62d8";
+  "0c34cc94f6a602e8f686487277b422f3ba4e89a1f2c50b9b3b673cb63d259df5";
 
 const functions = Object.freeze([
   Object.freeze({

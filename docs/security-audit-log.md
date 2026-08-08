@@ -889,6 +889,42 @@ Open work:
 
 - Continue with abuse/volume economics and any new Claude-proposed findings added to `audit_open_findings.md`; treat those entries as suspected until locally reproduced.
 
+## Stripe webhook RLS activation authority review (2026-08-08)
+
+- The Extra-High pre-activation review found that the activation preflight and
+  disposable PostgreSQL proof required runtime `EXECUTE` on the six fixed
+  Stripe webhook functions, but did not reject `EXECUTE WITH GRANT OPTION`.
+  The activation migration itself granted plain `EXECUTE`, so no reviewed
+  production state had the broader authority; the defect was in proving the
+  exact intended ACL. The activation SQL and PostgreSQL proof now reject a
+  runtime function ACL whose grantor is not the owner or whose grant is
+  grantable. The global grant audit independently applies the same class-wide
+  check to every Grainline function. Unit coverage exercises both plain and
+  grantable runtime ACLs.
+- The same review found that the bounded 90-day Stripe webhook maintenance
+  prune included legacy `checkout.session.stock_restored` claim rows. Those
+  rows are permanent replay barriers: deleting one could allow an old expired
+  Checkout Session to pass the authenticated stock-rollback path again and
+  restore inventory twice. The maintenance migration now excludes that event
+  type from the general prune. Its disposable PostgreSQL proof creates an old
+  permanent claim and proves it survives, while ordinary terminal events still
+  prune in bounded batches.
+- The corrected maintenance migration SHA-256 is
+  `0c34cc94f6a602e8f686487277b422f3ba4e89a1f2c50b9b3b673cb63d259df5`;
+  the corrected maintenance phase-tree fingerprint is
+  `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`.
+  The corrected activation draft SHA-256 is
+  `29dcf34d4438999469313b22415f221f917c372fb6e880c57276c0e9ee177c2b`,
+  the promoted activation migration SHA-256 is
+  `f33fc6c9b65444b437d62856c22116cac56c6a4d8c7b05340117120a06aab66b`,
+  and the resulting full migration-tree fingerprint is
+  `72b5648c4cdc98245dd3b2887a0aab89b264ed860f6141d5a215c2fe34569a13`.
+- These changes remain isolated on the cumulative activation branch. Production
+  was not changed. The corrected maintenance bytes must replace the earlier
+  bytes on PR #162 before that migration can merge or run; otherwise a later
+  edit would create a Prisma migration-checksum mismatch. The cumulative PR
+  #164 must not be merged as one release batch.
+
 ## Dependency security refresh (2026-08-08)
 
 - StripeWebhookEvent activation PR #164 exact-head CI run `31268968442`

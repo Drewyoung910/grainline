@@ -27,6 +27,7 @@ BEGIN
       FROM public."StripeWebhookEvent" AS event
      WHERE event."processedAt" IS NOT NULL
        AND event."processedAt" < source_cutoff
+       AND event.type <> 'checkout.session.stock_restored'
      ORDER BY event."processedAt" ASC, event.id ASC
      LIMIT safe_limit
      FOR UPDATE SKIP LOCKED

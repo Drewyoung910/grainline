@@ -9,11 +9,11 @@ compatibility.
 
 - migration: `20260805060000_enable_stripe_webhook_event_rls`
 - draft SHA-256:
-  `cd34605de8d48601283ebeae8be24458e2ec49e32c871726ec18c9e84169aebe`
+  `29dcf34d4438999469313b22415f221f917c372fb6e880c57276c0e9ee177c2b`
 - promoted migration SHA-256:
-  `044c662136daaf68a78e0ada7b2a3a2501c17fde6bfa3d69f321985402848b72`
+  `f33fc6c9b65444b437d62856c22116cac56c6a4d8c7b05340117120a06aab66b`
 - migration-tree SHA-256:
-  `4a59c7f9cc42b334371cf5ff91e1b9f1a734f720be3472d7e1d8565d87bf08b6`
+  `72b5648c4cdc98245dd3b2887a0aab89b264ed860f6141d5a215c2fe34569a13`
 - database-first rollback SHA-256:
   `a59b087417806305e6fe114c6bddebf7b164e1a2be64d077858403ba7d4cd555`
 - guarded phase: `stripe-webhook-event-activation-reviewed`
@@ -50,6 +50,9 @@ edge. It recursively rejects other membership. It also pins the predecessor
 grant/policy state, claim-generation invariant, required indexes, row
 coherence, exact function identities through `oidvectortypes(proargtypes)`,
 owners, search paths, volatility, ACLs and absence of dynamic SQL.
+Runtime `EXECUTE WITH GRANT OPTION` is rejected both by the activation
+preflight and class-wide by the global grant audit; the runtime role may call
+reviewed functions but may never delegate them.
 
 ## Mixed-deployment sequence
 

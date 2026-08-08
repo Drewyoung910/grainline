@@ -45,6 +45,7 @@ const {
   collectNotificationFunctionIssues,
   collectNotificationPolicyIssues,
   collectPolicylessServiceRlsIssues,
+  collectRuntimeFunctionGrantOptionIssues,
   collectTablePrivilegeAllowlistIssues,
   caseRlsActivationExpected,
   caseRlsForceExpected,
@@ -1123,6 +1124,31 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       issues,
       /unexpected Conversation\/Message RPC grainline_conversation_unreviewed/,
+    );
+  });
+
+  it("rejects grantable runtime EXECUTE for every Grainline function", () => {
+    assert.deepEqual(
+      collectRuntimeFunctionGrantOptionIssues([
+        {
+          function_name: "grainline_stripe_webhook_begin",
+          args: "p_event_id text, p_event_type text",
+          runtime_execute_grantable: false,
+        },
+      ]),
+      [],
+    );
+    assert.deepEqual(
+      collectRuntimeFunctionGrantOptionIssues([
+        {
+          function_name: "grainline_stripe_webhook_begin",
+          args: "p_event_id text, p_event_type text",
+          runtime_execute_grantable: true,
+        },
+      ]),
+      [
+        "grainline_stripe_webhook_begin(p_event_id text, p_event_type text) runtime EXECUTE must not be grantable",
+      ],
     );
   });
 

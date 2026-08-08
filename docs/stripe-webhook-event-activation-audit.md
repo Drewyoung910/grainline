@@ -158,8 +158,9 @@ add a speculative write-amplifying index at this boundary.
 
 The begin function locks only the exact event row after a conflict. Complete
 and fail compare the exact claim generation. Maintenance pruning uses bounded
-stable batches and the legacy claim takes the canonical checkout mutation
-lock. Disposable PostgreSQL proof must retain stale-worker, block/wait,
+stable batches while permanently excluding the finite legacy stock-restore
+dedup class; the legacy claim takes the canonical checkout mutation lock.
+Disposable PostgreSQL proof must retain stale-worker, block/wait,
 concurrent prune/claim and rollback-zero-residue coverage.
 
 ## Mixed-deployment and activation sequence
@@ -202,6 +203,12 @@ The later activation candidate must fail closed unless it proves:
 - policyless ENABLE, NO FORCE, zero direct PUBLIC/runtime authority after the
   mutation; and
 - exact migration-tree and byte pins in CI and the guarded production runner.
+
+The Extra-High exact-head review found and closed one ACL-proof gap before
+activation: the functions already granted ordinary runtime `EXECUTE`, but the
+catalog predicate did not explicitly reject runtime `EXECUTE WITH GRANT
+OPTION`. The activation preflight now rejects that drift, and the global grant
+audit applies the same no-delegation rule to every `grainline_*` function.
 
 The disposable PostgreSQL activation proof must demonstrate runtime denial of
 direct SELECT, INSERT, UPDATE and DELETE; successful behavior of every fixed

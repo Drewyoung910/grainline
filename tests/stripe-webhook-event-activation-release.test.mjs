@@ -79,6 +79,7 @@ test("activation preflight pins owner, role graph, table invariants and six func
   assert.match(migration, /required index catalog drifted/);
   assert.match(migration, /activation found invalid rows/);
   assert.match(migration, /oidvectortypes\(procedure\.proargtypes\)/);
+  assert.match(migration, /OR acl\.is_grantable/);
   assert.match(migration, /IF function_count <> 6/);
   assert.match(migration, /IF table_function_count <> 6/);
   assert.doesNotMatch(migration, /pg_catalog\.(?:coalesce|nullif|greatest|least)\b/i);
@@ -111,6 +112,7 @@ test("provisioning and global grant audit converge both exact states", () => {
   assert.match(audit, /stripeWebhookEventRlsActivationExpected/);
   assert.match(audit, /stripeWebhookEventRlsForceExpected/);
   assert.match(audit, /STRIPE_WEBHOOK_EVENT_TABLE/);
+  assert.match(audit, /collectRuntimeFunctionGrantOptionIssues/);
 });
 
 test("engine proofs are loopback-only, rollback-safe, and cover the changed boundary", () => {
@@ -139,6 +141,7 @@ test("engine proofs are loopback-only, rollback-safe, and cover the changed boun
   assert.match(proof, /direct_insert/);
   assert.match(proof, /direct_update/);
   assert.match(proof, /direct_delete/);
+  assert.match(proof, /acl\.is_grantable/);
   for (const functionName of [
     "grainline_stripe_webhook_begin",
     "grainline_stripe_webhook_complete",

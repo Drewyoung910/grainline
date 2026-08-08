@@ -9,9 +9,9 @@ conversion in draft PR #161.
 
 - migration: `20260805040000_prepare_stripe_webhook_maintenance_authority`
 - migration SHA-256:
-  `407707e05a803cded0036c301141fb665c3a0f1b25b114a78f9188b0e52c62d8`
+  `0c34cc94f6a602e8f686487277b422f3ba4e89a1f2c50b9b3b673cb63d259df5`
 - migration-tree SHA-256:
-  `09453990d08bd8b95c49b05e198fea42ae0145fbb566a8ea77f31af001c72212`
+  `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`
 - guarded phase: `stripe-webhook-maintenance-authority-reviewed`
 - draft PR: `#162`
 - green implementation head: `8a6b2e7899f2b568ccce710f9c4f04c96c2a8d62`
@@ -27,7 +27,10 @@ grants and RLS posture unchanged. No row data is rewritten by the migration.
 `grainline_stripe_webhook_prune_batch(integer)` derives a 90-day cutoff from
 the PostgreSQL UTC clock, clamps the batch to 1,000 and deletes only processed
 rows in stable `(processedAt,id)` order under `FOR UPDATE SKIP LOCKED`. The
-caller supplies neither IDs nor a cutoff.
+caller supplies neither IDs nor a cutoff. It deliberately retains the finite
+legacy `checkout.session.stock_restored` claim class indefinitely: deleting
+those dedup rows would permit a buyer-held old Checkout Session to replay a
+second inventory restoration after the general retention window.
 
 `grainline_stripe_webhook_health_summary()` returns only four aggregate counts
 over a fixed two-minute stale-lease window. It cannot expose event IDs, event
@@ -71,13 +74,19 @@ maintenance migration, then proves the promoted functions from PostgreSQL's
 catalog. This avoids treating CI's temporary proof workspace as a deployable
 tree without weakening either boundary. Production was not involved.
 
-Run `30975260896` then passed the exact release/tree verifiers, the historical
+Run `30975260896` then passed the prior exact release/tree verifiers, the historical
 lease proof, the new 14-check maintenance catalog/behavior/concurrency proof,
 the pooled-runtime compatibility proofs, all global RLS/grant audits,
 TypeScript, lint, the full test suite, dependency audit and production build.
 That run proves the implementation head above; the release remains a draft
 stacked candidate and was not merged, deployed, migrated or applied to any
 provider or production state.
+
+The later Extra-High activation review correctly superseded that exact
+maintenance migration byte by excluding permanent legacy stock-restore dedup
+claims from general 90-day pruning. Deleting one of those rows could permit an
+old buyer-held Checkout Session to restore inventory a second time. Fresh
+exact-head CI is therefore required before this candidate can move.
 
 Before StripeWebhookEvent RLS or table-grant revocation, the stacked preparation
 and application candidates must merge and deploy in order, production webhook
