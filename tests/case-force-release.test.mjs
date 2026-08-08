@@ -59,6 +59,15 @@ test("Case FORCE release is byte-identical to the reviewed draft", () => {
   assert.match(release, new RegExp(CASE_FORCE_ROLLBACK_DRAFT_SHA256));
 });
 
+test("Case FORCE release records the accepted production boundary", () => {
+  assert.match(release, /The package is complete in\s+production\./);
+  assert.match(release, /9e5d87f4c5b4a529bc84c6c2cf077778fe553186/);
+  assert.match(release, /CI `30951067980`/);
+  assert.match(release, /Production Migrations run `30953378226`/);
+  assert.match(release, /separate pooled-runtime\s+read-only postflight accepted/);
+  assert.doesNotMatch(release, /This package has not been\s+applied/);
+});
+
 test("Case FORCE migration is posture-only and exact", () => {
   const migration = fs.readFileSync(
     `prisma/migrations/${CASE_FORCE_MIGRATION}/migration.sql`,
@@ -179,7 +188,8 @@ test("production workflow permits only the reviewed Case FORCE tree", () => {
 });
 
 test("release record keeps all later mutations outside this boundary", () => {
-  assert.match(normalizedRelease, /has not been applied/i);
+  assert.match(normalizedRelease, /package is complete in production/i);
+  assert.match(normalizedRelease, /applied only `20260804191000_force_case_rls`/i);
   assert.match(
     normalizedRelease,
     /merged through PR `#154`[\s\S]*5c1564a8e6994497987fe62e28b61db03737285c/i,
