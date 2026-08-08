@@ -59,11 +59,11 @@ completed alternative.
 | `Message` | `RLS_LIVE_FORCE` | Conversation and message | Private message bodies and attachment references; sender, recipient, exact reported-staff exception and structured service messages. Ordinary attachment bytes currently remain public bearer-link objects outside PostgreSQL | ENABLE plus FORCE, one parent-derived SELECT policy, SELECT-only runtime grant and fixed write authority are live with the Conversation release and retained pooled-runtime proof. CM-A20 separately requires private object storage, participant-authorized reads and legacy-object classification before claiming byte confidentiality |
 | `ReviewPhoto` | `BLOCKED_DESIGN` | Review and UGC | Review media; public readers, reviewer and moderation cleanup | Parent review visibility and author-control policy |
 | `ReviewVote` | `BLOCKED_DESIGN` | Review and UGC | User vote history plus public helpful counts | Preserve aggregate counts while restricting per-user rows and writes |
-| `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
+| `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Durable seller-key compatibility and invariants are live from run `31277540714`, with RLS/FORCE off and predecessor CRUD retained. Next: compatible app conversion, coexistence/drain proof, then fixed projections and writes |
 | `OrderShippingRateQuote` | `BLOCKED_DESIGN` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Parent-order participant rules and service re-quote cleanup path |
 | `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Payment and dispute ledger; buyer, relevant seller, staff and Stripe | Decide user-visible projection versus service-only fields and immutable webhook writes |
 | `SellerPayoutEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Seller payout status and failure data; seller, staff and Stripe | Seller ownership through profile plus webhook-only mutation and support access |
-| `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
+| `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, durable checkout seller, staff and provider workflows | Durable seller key, composite relationship validation and invariant triggers are live from run `31277540714`; next convert callers before direct-write retirement and RLS design |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
 | `CheckoutStockReservation` | `BLOCKED_DESIGN` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | Service-owned mutation model and bounded participant observability decision |
@@ -211,11 +211,12 @@ preclude a later reviewed policy or grant migration.
 3. Bucket B Notification `ENABLE` plus `FORCE` is complete in production.
 4. Conversation plus Message ENABLE/FORCE and the actual pooled-runtime
    postflight are complete in production.
-5. Complete the separately prepared Case-family FORCE release and exact
-   pooled-runtime postflight. Keep Case evidence enablement, cleanup scheduling
-   and provider/token changes outside that database boundary.
-6. Continue the remaining matrix groups separately. Order/payment/shipping
-   retains high sensitive-data priority; Cart/CartItem,
+5. Case-family FORCE and its exact pooled-runtime postflight are complete. Keep
+   Case evidence enablement, cleanup scheduling and provider/token changes
+   outside that completed database boundary.
+6. Continue Order/payment/shipping: its additive database compatibility
+   preparation is live and proved read-only; compatible app conversion and
+   coexistence/drain come next, while RLS remains off. Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger
    groups remain required and must not be silently dropped or bundled into the
    messaging activation.

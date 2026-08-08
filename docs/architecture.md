@@ -83,6 +83,14 @@ Public discovery routes are split by purpose. `/browse` remains the full filter 
 
 Checkout uses Stripe Checkout Sessions and local lock/idempotency state. Destination-charge accounting keeps platform tax handling and seller transfer math explicit. Order, payment event, refund, dispute, label, and case state transitions must be idempotent and race-aware. Full refunds restore eligible in-stock inventory automatically before buyer handoff; seller and staff partial refunds restore inventory only through explicit bounded quantities validated against purchased in-stock order items.
 
+The Order/payment/shipping RLS program is in its compatibility stage. Production
+now has nullable, backfilled durable seller keys on `Order` and `OrderItem`,
+database relationship invariants, and generation-bound `StripeWebhookEvent`
+lease operations. Those additions deliberately retain predecessor table CRUD:
+the Order-family tables still have RLS and FORCE off and zero policies until
+the compatible application conversion, deployment-coexistence proof, direct-
+write retirement and separately reviewed activation releases complete.
+
 ### Messaging
 
 Conversations are participant-scoped, with specific staff/admin exceptions only where intentionally implemented. Listing context attached to conversations must be visible and valid for the parties.
