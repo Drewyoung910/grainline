@@ -87,6 +87,16 @@ GitHub Actions is the load-bearing engine/syntax/concurrency proof. Static
 release, grant-inventory and deploy-guard tests passing locally do not by
 themselves claim PostgreSQL acceptance.
 
+Exact-head CI run `30978141342` reached the activated disposable PostgreSQL
+posture and passed migration application, grant convergence and the global
+grant/RLS audit, then failed closed in the activation proof because its
+synthetic legacy-claim value contained underscores after the accepted Stripe
+test prefix. The fixed function correctly rejected that noncanonical fixture.
+The proof now uses `cs_test_grainlineactivationproof`, asserts that the fixture
+and migration retain the same canonical checkout-session format, and binds its
+rollback residue check to that exported value. This was a proof-fixture defect;
+it did not reach or change production.
+
 ## Remaining gates
 
 1. Commit and push the isolated candidate and open a draft PR.

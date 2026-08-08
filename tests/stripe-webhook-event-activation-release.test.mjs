@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import {
+  LEGACY_CLAIM_SESSION_ID,
   parseStripeWebhookEventActivationProofConfig,
 } from "../scripts/stripe-webhook-event-activation-postgres-proof.mjs";
 import {
@@ -18,6 +19,10 @@ import {
 
 const migration = fs.readFileSync(
   "prisma/migrations/20260805060000_enable_stripe_webhook_event_rls/migration.sql",
+  "utf8",
+);
+const maintenanceMigration = fs.readFileSync(
+  "prisma/migrations/20260805040000_prepare_stripe_webhook_maintenance_authority/migration.sql",
   "utf8",
 );
 const rollback = fs.readFileSync(
@@ -118,6 +123,17 @@ test("engine proofs are loopback-only, rollback-safe, and cover the changed boun
     /refuses a non-loopback database/,
   );
   assert.throws(() => parseStripeWebhookEventRollbackProofConfig({}), /is required/);
+  assert.match(
+    LEGACY_CLAIM_SESSION_ID,
+    /^cs_(?:test_|live_)?[A-Za-z0-9]+$/,
+    "activation proof claim fixture must satisfy the fixed-function validator",
+  );
+  assert.match(
+    maintenanceMigration,
+    /p_session_id !~ '\^cs_\(test_\|live_\)\?\[A-Za-z0-9\]\+\$'/,
+    "release must retain the canonical checkout-session validator proved above",
+  );
+  assert.doesNotMatch(proof, /cs_test_grainline_activation_proof/);
   assert.match(proof, /"42501"/);
   assert.match(proof, /direct_select/);
   assert.match(proof, /direct_insert/);
