@@ -3,11 +3,13 @@
 Prepared 2026-08-04 on isolated branch
 `agent/case-force-release-20260804` and merged through PR `#154` from exact
 head `a4d825d8b55dd1e237cfae0fb9f3133407300845` as exact main merge
-`5c1564a8e6994497987fe62e28b61db03737285c`. This package has not been
-applied. Production remains at the accepted policyless Phase A state: RLS is
-enabled without FORCE on `Case`, `CaseMessage` and
-`CaseMessageAttachment`, with zero policies and zero direct runtime table or
-column authority.
+`5c1564a8e6994497987fe62e28b61db03737285c`. The package is complete in
+production. Exact main `9e5d87f4c5b4a529bc84c6c2cf077778fe553186`
+passed CI `30951067980`; guarded Production Migrations run `30953378226`
+applied only `20260804191000_force_case_rls`; and the separate pooled-runtime
+read-only postflight accepted policyless ENABLE plus FORCE on `Case`,
+`CaseMessage`, and `CaseMessageAttachment`, with zero policies and zero
+direct runtime table or column authority.
 
 ## Exact release unit
 
@@ -115,11 +117,6 @@ migration ledger.
 Case evidence remains disabled. Enabling its UI/API feature flag, private R2
 route smoke, DirectUpload cleanup scheduling, cleanup-token retirement, any
 provider-variable change, and any application deployment remain separate
-operations. Order, payment and shipping RLS remain the next separately audited
-sensitive-data group after the Case-family database boundary is fully
-accepted.
-
-After a guarded production FORCE migration, run the fresh pooled-runtime
-read-only FORCE postflight from the exact successful main release and retain
-sanitized mode-`0600` evidence before declaring the Case-family RLS group
-complete.
+operations. They do not reopen the completed Case-family database RLS group.
+Order, payment and shipping is the active separately audited sensitive-data
+program.
