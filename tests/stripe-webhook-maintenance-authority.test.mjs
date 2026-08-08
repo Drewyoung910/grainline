@@ -31,6 +31,10 @@ const production = fs.readFileSync(
   ".github/workflows/production-migrations.yml",
   "utf8",
 );
+const release = fs.readFileSync(
+  "docs/stripe-webhook-maintenance-authority-release.md",
+  "utf8",
+);
 
 function sourceFiles(root = "src") {
   const files = [];
@@ -173,4 +177,12 @@ test("CI and production migration runner use the exact maintenance phase", () =>
   assert.match(ci, /STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL/);
   assert.match(production, /stripe-webhook-maintenance-authority-reviewed/);
   assert.match(production, /audit:rls-stripe-webhook-maintenance-authority/);
+});
+
+test("release record preserves the synchronized Extra-High proof boundary", () => {
+  assert.match(release, /4c2dc09a9f832d930b9ab6160e65a545258cfcf3/);
+  assert.match(release, /31279623247/);
+  assert.match(release, /2,805 passed and 7 skipped/);
+  assert.match(release, /impossible aggregate health-count combinations/);
+  assert.match(release, /nothing deployed/);
 });
