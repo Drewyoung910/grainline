@@ -119,12 +119,24 @@ async function proveCatalog(owner) {
                procedure.proacl,
                pg_catalog.acldefault('f', procedure.proowner)
              )
-           ) AS acl
-          WHERE acl.privilege_type = 'EXECUTE'
-            AND acl.grantee NOT IN (
-              procedure.proowner,
-              (SELECT role.oid FROM pg_catalog.pg_roles AS role
-                WHERE role.rolname = $1)
+          ) AS acl
+         WHERE acl.privilege_type = 'EXECUTE'
+            AND (
+              acl.grantee NOT IN (
+                procedure.proowner,
+                (SELECT role.oid FROM pg_catalog.pg_roles AS role
+                  WHERE role.rolname = $1)
+              )
+              OR (
+                acl.grantee = (
+                  SELECT role.oid FROM pg_catalog.pg_roles AS role
+                   WHERE role.rolname = $1
+                )
+                AND (
+                  acl.grantor <> procedure.proowner
+                  OR acl.is_grantable
+                )
+              )
             )
        )
   `, [RUNTIME_ROLE]);

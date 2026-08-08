@@ -935,6 +935,14 @@ export function collectConversationMessageFunctionIssues(
   return issues;
 }
 
+export function collectRuntimeFunctionGrantOptionIssues(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => row.runtime_execute_grantable)
+    .map((row) => (
+      `${row.function_name}(${row.args ?? "unknown"}) runtime EXECUTE must not be grantable`
+    ));
+}
+
 export function deriveGrantInventory(rootDir = ROOT_DIR) {
   const schema = readFileSync(path.join(rootDir, "prisma", "schema.prisma"), "utf8");
   const migrationSql = readMigrationSql(rootDir);
@@ -1976,6 +1984,7 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
   const runtimePrivateFunctionNameSet = new Set(
     runtimePrivateFunctionNames(inventory),
   );
+  issues.push(...collectRuntimeFunctionGrantOptionIssues(functionResult.rows));
   issues.push(
     ...missingItems(inventory.functions, functionNames).map((fn) => `missing expected function ${fn}`),
   );
