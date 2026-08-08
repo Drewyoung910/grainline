@@ -20,8 +20,10 @@ function filesUnder(root, suffix) {
 test("activation audit pins the exact draft stack and keeps production unchanged", () => {
   assert.match(audit, /PR #160[\s\S]*2b624afe219bc982dd0945284895326ee6893a1e/);
   assert.match(audit, /PR #161[\s\S]*566edf0e301a475577d53b84776fe9ee375ed506/);
-  assert.match(audit, /PR #162[\s\S]*eb2c49d5d8a061ca410cd42e4da06d2a6b4cf806/);
-  assert.match(audit, /30975525699/);
+  assert.match(audit, /PR #162[\s\S]*7d955061d438e75ef692378e48291163775f5f47/);
+  assert.match(audit, /31272365854/);
+  assert.match(audit, /fb0facf146e58123ddd2f4a727fda1b966669d5d/);
+  assert.match(audit, /31272188477/);
   assert.match(audit, /All three PRs remain draft/);
   assert.match(audit, /production retains the inspected predecessor/);
 });

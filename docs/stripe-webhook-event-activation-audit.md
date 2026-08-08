@@ -16,9 +16,12 @@ The activation candidate is stacked on three draft-only compatibility heads:
    `566edf0e301a475577d53b84776fe9ee375ed506`, converts the signed Stripe
    route to the generation-bound begin/complete/fail functions.
 3. PR #162, `agent/stripe-webhook-maintenance-authority-20260805`, exact head
-   `eb2c49d5d8a061ca410cd42e4da06d2a6b4cf806`, converts retention,
+   `7d955061d438e75ef692378e48291163775f5f47`, converts retention,
    aggregate health and the legacy stock-restore claim to three narrow fixed
-   functions. Exact-head CI run `30975525699` passed.
+   functions. Focused local verification passes 306 tests. Exact-head CI run
+   `31272365854` passed the corrected release and PostgreSQL boundaries before
+   the independent dependency audit rejected the branch's older `nanoid`
+   resolution; the dependency fix remains separate in PR #165.
 
 All three PRs remain draft and production retains the inspected predecessor:
 `StripeWebhookEvent` RLS/FORCE off, zero policies and broad runtime CRUD. The
@@ -207,7 +210,10 @@ must never simulate the runtime role through the owner connection.
 The six-function, policyless-table design is appropriate and proportionate.
 The launch-proof direct read was a real compatibility blocker, not a reason to
 add broader authority; the rollback-only fixed-lease conversion closes it.
-After this checkpoint passes exact CI, the next isolated work is the activation
-migration, its rollback SQL, disposable PostgreSQL authority/concurrency proof,
-provisioning convergence and guarded release wiring. Production remains
-unchanged until those artifacts receive a separate hard review.
+The later activation checkpoint
+`fb0facf146e58123ddd2f4a727fda1b966669d5d` passed exact-head CI run
+`31272188477`, including disposable PostgreSQL, the full suite, clean dependency
+audits and the production build. Its Extra-High authority review is complete,
+but the candidate remains cumulative and must be recut from the compatible
+production predecessor before any activation release. Production remains
+unchanged.
