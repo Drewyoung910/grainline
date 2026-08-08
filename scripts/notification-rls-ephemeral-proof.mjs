@@ -141,7 +141,7 @@ async function setRuntimeRole(client) {
   assert.equal(role.rows[0].session_user, "ci");
 }
 
-async function cleanFixtures(owner) {
+async function cleanFixturesInTransaction(owner) {
   const userIds = [
     fixture.sellerUserId,
     fixture.actorUserId,
@@ -218,6 +218,17 @@ async function cleanFixtures(owner) {
     fixture.bannedSellerProfileId,
   ]]);
   await owner.query('DELETE FROM public."User" WHERE id = ANY($1::text[])', [userIds]);
+}
+
+async function cleanFixtures(owner) {
+  await owner.query("BEGIN");
+  try {
+    await cleanFixturesInTransaction(owner);
+    await owner.query("COMMIT");
+  } catch (error) {
+    await owner.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function seedFixturesInTransaction(owner) {

@@ -31,6 +31,10 @@ const production = fs.readFileSync(
   ".github/workflows/production-migrations.yml",
   "utf8",
 );
+const release = fs.readFileSync(
+  "docs/stripe-webhook-maintenance-authority-release.md",
+  "utf8",
+);
 
 function sourceFiles(root = "src") {
   const files = [];
@@ -103,6 +107,24 @@ test("application wrappers parse fail closed", () => {
     }]),
     /inconsistent counts/,
   );
+  assert.throws(
+    () => stripeWebhookHealthSummaryFromRows([{
+      failed_count: "1",
+      released_count: "2",
+      stale_count: "1",
+      issue_count: "2",
+    }]),
+    /inconsistent counts/,
+  );
+  assert.throws(
+    () => stripeWebhookHealthSummaryFromRows([{
+      failed_count: "1",
+      released_count: "2",
+      stale_count: "1",
+      issue_count: "5",
+    }]),
+    /inconsistent counts/,
+  );
   assert.equal(legacyStockRestoreClaimFromRows([{ claimed: true }]), true);
   assert.throws(() => legacyStockRestoreClaimFromRows([{ claimed: "true" }]), /invalid result/);
   assert.match(app, /grainline_stripe_webhook_prune_batch/);
@@ -155,4 +177,14 @@ test("historical maintenance proof remains while workflows advance to activation
   assert.match(ci, /STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL/);
   assert.match(production, /stripe-webhook-event-activation-reviewed/);
   assert.match(production, /audit:rls-stripe-webhook-event-activation-release/);
+});
+
+test("release record preserves the synchronized Extra-High proof boundary", () => {
+  assert.match(release, /78fb92546362d3744db924b312c27a7e915b279c/);
+  assert.match(release, /31279844745/);
+  assert.match(release, /4c2dc09a9f832d930b9ab6160e65a545258cfcf3/);
+  assert.match(release, /31279623247/);
+  assert.match(release, /2,805 passed and 7 skipped/);
+  assert.match(release, /impossible aggregate health-count combinations/);
+  assert.match(release, /nothing deployed/);
 });

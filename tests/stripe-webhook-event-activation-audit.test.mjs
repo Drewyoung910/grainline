@@ -18,14 +18,14 @@ function filesUnder(root, suffix) {
 }
 
 test("activation audit pins the exact draft stack and keeps production unchanged", () => {
-  assert.match(audit, /PR #160[\s\S]*2b624afe219bc982dd0945284895326ee6893a1e/);
-  assert.match(audit, /PR #161[\s\S]*566edf0e301a475577d53b84776fe9ee375ed506/);
-  assert.match(audit, /PR #162[\s\S]*7d955061d438e75ef692378e48291163775f5f47/);
-  assert.match(audit, /31272365854/);
-  assert.match(audit, /fb0facf146e58123ddd2f4a727fda1b966669d5d/);
-  assert.match(audit, /31272188477/);
-  assert.match(audit, /All three PRs remain draft/);
-  assert.match(audit, /production retains the inspected predecessor/);
+  assert.match(audit, /PR #160 is merged[\s\S]*6f1f4c1e99fb21726744ecd1652a37b6be35c294/);
+  assert.match(audit, /31277540714/);
+  assert.match(audit, /PR #161[\s\S]*d2ef37b4c86a0ff174016be77113fa1b888131b4/);
+  assert.match(audit, /31278958695/);
+  assert.match(audit, /PR #162[\s\S]*78fb92546362d3744db924b312c27a7e915b279c/);
+  assert.match(audit, /31279844745/);
+  assert.match(audit, /PR #161 and PR #162 remain draft/);
+  assert.match(audit, /Production retains the compatible\s+predecessor/);
 });
 
 test("activation target is policyless ENABLE with exactly six runtime functions", () => {
@@ -72,6 +72,7 @@ test("all remaining script-level direct access is explicitly classified", () => 
     .filter((file) => directAccess.test(fs.readFileSync(file, "utf8")))
     .sort();
   assert.deepEqual(directScripts, [
+    "scripts/buyer-deletion-stripe-replay-postgres-proof.mjs",
     "scripts/order-payment-shipping-compatible-production-postflight.mjs",
     "scripts/order-payment-shipping-legacy-inspect.mjs",
     "scripts/stripe-webhook-event-activation-postgres-proof.mjs",
@@ -81,6 +82,7 @@ test("all remaining script-level direct access is explicitly classified", () => 
   ]);
   for (const file of directScripts) assert.match(audit, new RegExp(file.replaceAll(".", "\\.")));
   assert.match(audit, /historical compatibility-posture proof/);
+  assert.match(audit, /loopback-only\s+disposable PostgreSQL proof of the real Prisma/);
   assert.match(audit, /excluded from post-activation CI\/release phases/);
 });
 
@@ -91,4 +93,19 @@ test("audit pins mixed-deployment, rollback and engine-proof boundaries", () => 
   assert.match(audit, /rollback restoration of the\s+predecessor/);
   assert.match(audit, /Production postflights are read-only/);
   assert.match(audit, /must never simulate the runtime role through the owner connection/);
+});
+
+test("operator proof binds target before connect and attests restricted runtime identity", () => {
+  assert.match(buyerProof, /BUYER_DELETION_REPLAY_PROOF_DATABASE_URL/);
+  assert.match(buyerProof, /BUYER_DELETION_REPLAY_PROOF_DATABASE_TARGET/);
+  assert.match(buyerProof, /must not identify the reviewed production endpoint/);
+  assert.match(buyerProof, /rejects privileged database keys/);
+  assert.match(buyerProof, /CURRENT_USER AS "currentUser"/);
+  assert.match(buyerProof, /SESSION_USER AS "sessionUser"/);
+  assert.match(buyerProof, /role\.rolbypassrls AS "bypassRls"/);
+  assert.match(audit, /Sanitized evidence records both the configured target/);
+  assert.match(audit, /9d2d9d3a82252b991d5fa3f832bd9f629eb1ade9/);
+  assert.match(audit, /31280779769/);
+  assert.match(audit, /dpl_2u3r9ip2soVEirdbLgQWbfZH8X41/);
+  assert.match(audit, /DATABASE_URL_SHAPE/);
 });

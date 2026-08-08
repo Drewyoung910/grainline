@@ -227,6 +227,10 @@ jobs:
         run: npm run audit:rls-stripe-webhook-maintenance-postgres
         env:
           STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove buyer-deletion fixed-lease verifier rollback in PostgreSQL
+        run: npm run audit:buyer-deletion-replay-postgres
+        env:
+          BUYER_DELETION_REPLAY_POSTGRES_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Order/payment/shipping compatible postflight under the runtime role
         run: npm run audit:rls-order-payment-shipping-compatible-postflight
         env:

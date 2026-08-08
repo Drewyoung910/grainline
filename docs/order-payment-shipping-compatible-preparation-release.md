@@ -1,7 +1,7 @@
 # Order, Payment, and Shipping Compatible Preparation Release
 
-Status: isolated draft release candidate; not merged, deployed, or applied to
-production.
+Status: compatible database preparation complete in production. Application
+conversion, RLS activation, FORCE, cleanup and provider state remain separate.
 
 Date: 2026-08-04
 
@@ -98,6 +98,19 @@ only catalog posture plus aggregate zero-count integrity results. The same
 code path is exercised under the restricted runtime role in disposable
 PostgreSQL before release.
 
+## Production completion
+
+Exact main `6f1f4c1e99fb21726744ecd1652a37b6be35c294` passed CI
+`31276366947`. Guarded Production Migrations run `31277540714` applied only
+`20260805012000_prepare_order_payment_shipping_compatibility`. The separate
+actual pooled-runtime postflight then passed read-only as
+`grainline_app_runtime`: RLS and FORCE remained off, zero policies and
+predecessor CRUD remained, the four private plus three runtime functions
+matched, and all six aggregate integrity counts were zero. Sanitized postflight
+evidence SHA-256 is
+`a2348cd61fed8e3bf9f5ffc3cf1906c71cb4c45a0ec2325e90d117893c001809`.
+No application deployment was part of this database release.
+
 Commit `f07787ca346d0d0b04fe12198495a47e2846e0ef` passed complete CI run
 `30971615946`. That run applied the promoted migration, converged the reviewed
 grants, passed the new production-postflight code path under the restricted
@@ -107,18 +120,17 @@ test suite, dependency audit and production build.
 
 ## Required release order
 
-1. Review and merge this exact candidate only after its full CI and disposable
-   PostgreSQL proofs pass.
-2. Run the guarded Production Migrations workflow from an exact green main
-   commit, applying only the committed compatibility migration.
-3. Run a read-only compatible-preparation production postflight and record the
-   resulting catalog and row-count evidence.
+1. **Complete:** review and merge this exact candidate after its full CI and
+   disposable PostgreSQL proofs pass.
+2. **Complete:** run the guarded Production Migrations workflow from an exact
+   green main commit, applying only the committed compatibility migration.
+3. **Complete:** run a read-only compatible-preparation production postflight
+   and record the resulting catalog and row-count evidence.
 4. Convert application call sites to the durable seller key and generation-
    bound webhook functions while retaining old/new deployment coexistence.
 5. Audit and activate the Order, payment, and shipping RLS groups as separate
    production boundaries. Payment and payout authority must not be bundled
    into an unrelated table activation.
 
-Nothing in this document authorizes a merge, workflow dispatch, production
-migration, deployment, RLS activation, grant change, cleanup, or provider
-mutation.
+The completed preparation does not authorize the remaining application merge,
+deployment, RLS activation, grant revocation, cleanup or provider mutation.

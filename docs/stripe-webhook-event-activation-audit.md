@@ -7,25 +7,31 @@ change is authorized by this record.
 
 ## Exact reviewed stack
 
-The activation candidate is stacked on three draft-only compatibility heads:
+The compatible database preparation is complete, while the application and
+maintenance conversions remain isolated:
 
-1. PR #160, `agent/order-payment-shipping-compatible-preparation-20260804`,
-   exact head `2b624afe219bc982dd0945284895326ee6893a1e`, prepares the compatible
-   seller keys, invariants and generation-bound Stripe lease functions.
+1. PR #160 is merged. Exact main
+   `6f1f4c1e99fb21726744ecd1652a37b6be35c294` passed CI `31276366947`;
+   guarded Production Migrations run `31277540714` applied only
+   `20260805012000_prepare_order_payment_shipping_compatibility`; and the
+   separate actual pooled-runtime read-only postflight passed with all six
+   integrity counts at zero. This installed compatible seller keys,
+   invariants and generation-bound Stripe lease functions without changing
+   RLS, policies or predecessor table grants.
 2. PR #161, `agent/order-payment-shipping-app-conversion-20260805`, exact head
-   `566edf0e301a475577d53b84776fe9ee375ed506`, converts the signed Stripe
-   route to the generation-bound begin/complete/fail functions.
+   `d2ef37b4c86a0ff174016be77113fa1b888131b4`, converts the signed Stripe
+   route to the generation-bound begin/complete/fail functions and closes the
+   duplicate-delivery lease race. Exact-head CI `31278958695` passed.
 3. PR #162, `agent/stripe-webhook-maintenance-authority-20260805`, exact head
-   `7d955061d438e75ef692378e48291163775f5f47`, converts retention,
+   `78fb92546362d3744db924b312c27a7e915b279c`, converts retention,
    aggregate health and the legacy stock-restore claim to three narrow fixed
-   functions. Focused local verification passes 306 tests. Exact-head CI run
-   `31272365854` passed the corrected release and PostgreSQL boundaries before
-   the independent dependency audit rejected the branch's older `nanoid`
-   resolution; the dependency fix remains separate in PR #165.
+   functions. Exact-head CI `31279844745` passed the disposable PostgreSQL
+   proofs, 2,812-test suite, dependency audit and production build.
 
-All three PRs remain draft and production retains the inspected predecessor:
-`StripeWebhookEvent` RLS/FORCE off, zero policies and broad runtime CRUD. The
-stack order is a release dependency, not approval to merge or deploy it.
+PR #161 and PR #162 remain draft. Production retains the compatible
+predecessor for `StripeWebhookEvent`: RLS/FORCE off, zero policies and broad
+runtime CRUD. The stack order is a release dependency, not approval to merge,
+deploy or activate it.
 
 ## Authority decision
 
@@ -108,6 +114,11 @@ defect. Each remaining path is classified:
   the pooled runtime role while predecessor CRUD remains present. It must run
   before activation and be excluded from post-activation CI/release phases;
   it is not evidence for the activated posture.
+- `scripts/buyer-deletion-stripe-replay-postgres-proof.mjs` is a loopback-only
+  disposable PostgreSQL proof of the real Prisma interactive-transaction
+  rollback behavior. It proves missing-row inserts and stale reclaims roll
+  back, processed/in-progress classification is preserved, type mismatch
+  fails, and exact fixture residue returns to zero.
 - `tests/retention-and-ops-followups.test.mjs` contains only source assertions
   about the retired direct SQL and has no database access.
 - `scripts/buyer-deletion-stripe-replay-proof.mjs` is a staging/local launch
@@ -133,7 +144,7 @@ The corrected proof now:
    mode, an accepted checkout-completion type and the exact proof Checkout
    Session;
 4. calls `grainline_stripe_webhook_begin(event_id,event_type)` through the
-   staging/local runtime connection; and
+   engine-attested staging/local runtime connection; and
 5. deliberately throws inside the interactive transaction for every returned
    action so PostgreSQL rolls back any missing-row insert or stale reclaim.
 
@@ -141,6 +152,19 @@ Only `action=processed` passes. `process` or `in_progress` fails the launch
 proof, and a type mismatch fails in PostgreSQL. This proves the exact
 provider-bound row exists, has the immutable expected type and is terminally
 processed without raw table visibility or durable verifier mutation.
+
+The operator harness uses the dedicated
+`BUYER_DELETION_REPLAY_PROOF_DATABASE_URL`, never ambient `DATABASE_URL` or an
+owner/direct alias. Before connecting it requires an explicit `local` or
+`neon-staging` target, the expected database and, for Neon, the exact staging
+endpoint and region. It rejects the reviewed production endpoint, remote URLs
+disguised as local, non-pooled Neon URLs, owner usernames, unreviewed connection
+parameters, privileged database environment keys and every additional
+PostgreSQL URL in the environment. After connecting, PostgreSQL must attest
+`current_user=session_user=grainline_app_runtime`, the exact database, LOGIN,
+NOSUPERUSER, NOCREATEDB, NOCREATEROLE, NOINHERIT, NOREPLICATION and
+NOBYPASSRLS. Sanitized evidence records both the configured target and this
+engine-attested identity, never the URL or credentials.
 
 The converted proof no longer claims to independently read `lastError IS
 NULL`. A successful `complete` operation clears `lastError`, the fixed `begin`
@@ -172,8 +196,9 @@ RLS activation cannot precede the compatible application release. Old Vercel
 instances and webhook retries still use direct table CRUD. The required order
 is:
 
-1. merge and apply only the reviewed compatible preparation migrations from
-   PR #160; run their predecessor-compatible owner and pooled-runtime proofs;
+1. **complete:** merge and apply only the reviewed compatible preparation
+   migrations from PR #160; run their predecessor-compatible owner and
+   pooled-runtime proofs;
 2. merge the exact app conversions from PR #161 and PR #162, deploy the exact
    compatible app, and exercise signed webhook, retry, ops-health, retention
    and legacy restore paths while direct table grants still exist;
@@ -231,10 +256,21 @@ classification, direct-denial and rollback engine proofs, and guarded CI plus
 production-release wiring. Its exact boundary and remaining gates live in
 `docs/stripe-webhook-event-activation-release.md`.
 
-This is not an activation claim. The later activation checkpoint
-`fb0facf146e58123ddd2f4a727fda1b966669d5d` passed exact-head CI run
-`31272188477`, including disposable PostgreSQL, the full suite, clean dependency
-audits and the production build. Its Extra-High authority review is complete,
-but the candidate remains cumulative and must be recut from the compatible
-production predecessor before any activation release. Production remains
-unchanged.
+The proof now also fails closed on database target and engine role identity and
+has actual disposable-PostgreSQL coverage for the Prisma rollback mechanism.
+Exact audit checkpoint `9d2d9d3a82252b991d5fa3f832bd9f629eb1ade9`
+passed CI `31280779769`: the new PostgreSQL 16 step proved missing insert and
+stale reclaim rollback through the real Prisma transaction with exact zero
+residue; all migration, authority, grant/RLS, TypeScript, lint, 2,827-test,
+dependency-audit and production-build gates also passed. Vercel deployment
+`dpl_2u3r9ip2soVEirdbLgQWbfZH8X41` failed at the intentional Preview runtime
+database isolation guard (`DATABASE_URL_SHAPE`) before application build; it is
+not contrary application-build evidence and nothing deployed.
+
+This is not an activation claim. PR #163 exact documentation head
+`2c084d470df7805f9c5616044a2c58b7586b2650` passed exact-head CI run
+`31281007479`; it remains audit and proof work only and contains no activation
+migration. The activation candidate remains isolated on PR #164 and must pass
+its own exact-head authority and release review after synchronization. Production
+remains on the compatible predecessor until PR #161 and PR #162 are merged,
+deployed, drained and exercised in the documented order.

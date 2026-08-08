@@ -8,11 +8,29 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "@prisma/client";
 import Stripe from "stripe";
 import { stripeWebhookEventReservationFromRows } from "../src/lib/stripeWebhookEventState.ts";
+import {
+  REVIEWED_PRODUCTION_RUNTIME_IDENTITY,
+  parseVercelRuntimeDatabaseIdentity,
+  privilegedDatabaseEnvironmentKeys,
+} from "./guard-runtime-db-env.mjs";
+import {
+  assertDeterministicPostgresEnvironment,
+  assertExplicitPostgresConnectionAuthority,
+  parseCanonicalPostgresDatabaseName,
+  parseExactPostgresUrl,
+} from "./postgres-url-safety.mjs";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STRIPE_API_VERSION = "2025-10-29.clover";
 const CONFIRMATION_VALUE = "test-mode-replay";
 const DB_CONFIRMATION_VALUE = "staging-or-local-read";
+const DATABASE_URL_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_URL";
+const DATABASE_TARGET_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_TARGET";
+const DATABASE_NAME_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_NAME";
+const DATABASE_ENDPOINT_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_ENDPOINT_ID";
+const DATABASE_REGION_ENV = "BUYER_DELETION_REPLAY_PROOF_DATABASE_REGION";
+const RUNTIME_ROLE = "grainline_app_runtime";
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const EVIDENCE_MAX_ISSUES = 20;
 const BLOCKED_CHECKOUT_REVIEW_MARKER = "Order was held for staff review.";
 const BLOCKED_REFUND_ACTION = "BLOCKED_CHECKOUT_REFUND_RECORDED";
@@ -72,7 +90,9 @@ function safeError(error) {
 
 function required(env, name) {
   const value = env[name];
-  if (!value) throw new Error(`${name} is required`);
+  if (typeof value !== "string" || value.length === 0 || value !== value.trim()) {
+    throw new Error(`${name} is required without surrounding whitespace`);
+  }
   return value;
 }
 
@@ -106,14 +126,134 @@ function parseExpectedBuyerState(value) {
   return value;
 }
 
+function unexpectedPostgresUrlEnvironmentKeys(env) {
+  return Object.entries(env ?? {})
+    .filter(([key, value]) => (
+      key !== DATABASE_URL_ENV
+      && typeof value === "string"
+      && /^postgres(?:ql)?:\/\//i.test(value.trim())
+    ))
+    .map(([key]) => key)
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function parseLocalRuntimeDatabaseIdentity(databaseUrl, expectedDatabaseName) {
+  const parsed = parseExactPostgresUrl(databaseUrl, DATABASE_URL_ENV);
+  const { username } = assertExplicitPostgresConnectionAuthority(
+    parsed,
+    DATABASE_URL_ENV,
+  );
+  const databaseName = parseCanonicalPostgresDatabaseName(
+    parsed,
+    DATABASE_URL_ENV,
+  );
+  if (!LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error(`${DATABASE_URL_ENV} must use a loopback host for target=local`);
+  }
+  const parameters = [...parsed.searchParams.entries()];
+  if (
+    parameters.length !== 1
+    || parameters[0][0] !== "sslmode"
+    || parameters[0][1] !== "disable"
+  ) {
+    throw new Error(`${DATABASE_URL_ENV} local target must use only sslmode=disable`);
+  }
+  if (username !== RUNTIME_ROLE) {
+    throw new Error(`${DATABASE_URL_ENV} must authenticate as ${RUNTIME_ROLE}`);
+  }
+  if (databaseName !== expectedDatabaseName) {
+    throw new Error(`${DATABASE_URL_ENV} database does not match ${DATABASE_NAME_ENV}`);
+  }
+  return Object.freeze({
+    databaseName,
+    endpointId: "loopback",
+    isPooler: false,
+    region: "loopback",
+    runtimeRole: username,
+    target: "local",
+  });
+}
+
+function parseStagingRuntimeDatabaseIdentity(databaseUrl, env) {
+  const expectedDatabaseName = required(env, DATABASE_NAME_ENV);
+  const expectedEndpointId = required(env, DATABASE_ENDPOINT_ENV);
+  const expectedRegion = required(env, DATABASE_REGION_ENV);
+  if (!/^ep-[a-z0-9-]+$/.test(expectedEndpointId)) {
+    throw new Error(`${DATABASE_ENDPOINT_ENV} must identify one Neon endpoint`);
+  }
+  if (!/^[a-z0-9-]+\.[a-z0-9-]+$/.test(expectedRegion)) {
+    throw new Error(`${DATABASE_REGION_ENV} must identify one Neon region`);
+  }
+  const identity = parseVercelRuntimeDatabaseIdentity(
+    databaseUrl,
+    DATABASE_URL_ENV,
+  );
+  if (!identity.isPooler) {
+    throw new Error(`${DATABASE_URL_ENV} staging target must use the pooled endpoint`);
+  }
+  if (identity.username !== RUNTIME_ROLE) {
+    throw new Error(`${DATABASE_URL_ENV} must authenticate as ${RUNTIME_ROLE}`);
+  }
+  if (identity.endpointId === REVIEWED_PRODUCTION_RUNTIME_IDENTITY.endpointId) {
+    throw new Error(`${DATABASE_URL_ENV} must not identify the reviewed production endpoint`);
+  }
+  if (
+    identity.databaseName !== expectedDatabaseName
+    || identity.endpointId !== expectedEndpointId
+    || identity.region !== expectedRegion
+  ) {
+    throw new Error(`${DATABASE_URL_ENV} does not match the explicit staging target`);
+  }
+  return Object.freeze({
+    databaseName: identity.databaseName,
+    endpointId: identity.endpointId,
+    isPooler: true,
+    region: identity.region,
+    runtimeRole: identity.username,
+    target: "neon-staging",
+  });
+}
+
+export function parseBuyerDeletionReplayDatabaseTarget(env, databaseUrl) {
+  const target = required(env, DATABASE_TARGET_ENV);
+  const expectedDatabaseName = required(env, DATABASE_NAME_ENV);
+  if (target === "local") {
+    return parseLocalRuntimeDatabaseIdentity(databaseUrl, expectedDatabaseName);
+  }
+  if (target === "neon-staging") {
+    return parseStagingRuntimeDatabaseIdentity(databaseUrl, env);
+  }
+  throw new Error(`${DATABASE_TARGET_ENV} must be local or neon-staging`);
+}
+
 export function parseConfig(env = process.env) {
+  assertDeterministicPostgresEnvironment(
+    env,
+    "Buyer-deletion Stripe replay proof",
+  );
   if (env.BUYER_DELETION_REPLAY_PROOF_CONFIRM !== CONFIRMATION_VALUE) {
     throw new Error(`BUYER_DELETION_REPLAY_PROOF_CONFIRM=${CONFIRMATION_VALUE} is required`);
   }
   if (env.BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM !== DB_CONFIRMATION_VALUE) {
     throw new Error(`BUYER_DELETION_REPLAY_PROOF_DB_CONFIRM=${DB_CONFIRMATION_VALUE} is required`);
   }
-  const databaseUrl = required(env, "DATABASE_URL");
+  const privilegedKeys = privilegedDatabaseEnvironmentKeys(env);
+  if (privilegedKeys.length > 0) {
+    throw new Error(
+      `Buyer-deletion Stripe replay proof rejects privileged database keys: ${privilegedKeys.join(", ")}`,
+    );
+  }
+  const unexpectedDatabaseUrls = unexpectedPostgresUrlEnvironmentKeys(env);
+  if (unexpectedDatabaseUrls.length > 0) {
+    throw new Error(
+      `Buyer-deletion Stripe replay proof rejects aliased PostgreSQL URLs: ${unexpectedDatabaseUrls.join(", ")}`,
+    );
+  }
+  const databaseUrl = required(env, DATABASE_URL_ENV);
+  const databaseIdentity = parseBuyerDeletionReplayDatabaseTarget(
+    env,
+    databaseUrl,
+  );
   const secretKey = required(env, "STRIPE_SECRET_KEY");
   if (!secretKey.startsWith("sk_test_")) {
     throw new Error("STRIPE_SECRET_KEY must be a Stripe test-mode secret key");
@@ -127,6 +267,7 @@ export function parseConfig(env = process.env) {
     throw new Error("BUYER_DELETION_REPLAY_PROOF_EVENT_ID must start with evt_ when provided");
   }
   return {
+    databaseIdentity,
     databaseUrl,
     evidencePath: evidencePathFromEnv(env),
     expectedBuyerState: parseExpectedBuyerState(env.BUYER_DELETION_REPLAY_PROOF_EXPECTED_BUYER_STATE),
@@ -147,6 +288,57 @@ function gitHead() {
 function createPrismaClient(databaseUrl) {
   const adapter = new PrismaPg({ connectionString: databaseUrl });
   return new PrismaClient({ adapter });
+}
+
+export function assertBuyerDeletionReplayRuntimeIdentityRows(
+  rows,
+  expectedIdentity,
+) {
+  const expected = [{
+    databaseName: expectedIdentity.databaseName,
+    currentUser: expectedIdentity.runtimeRole,
+    sessionUser: expectedIdentity.runtimeRole,
+    superuser: false,
+    createDatabase: false,
+    createRole: false,
+    inherit: false,
+    login: true,
+    replication: false,
+    bypassRls: false,
+  }];
+  if (
+    !Array.isArray(rows)
+    || rows.length !== 1
+    || Object.keys(rows[0] ?? {}).length !== Object.keys(expected[0]).length
+    || !Object.entries(expected[0]).every(([key, value]) => rows[0]?.[key] === value)
+  ) {
+    throw new Error(
+      "Buyer-deletion Stripe replay proof is not connected as the exact restricted runtime role",
+    );
+  }
+  return Object.freeze({ ...expected[0] });
+}
+
+export async function verifyBuyerDeletionReplayRuntimeIdentity(
+  prisma,
+  expectedIdentity,
+) {
+  const rows = await prisma.$queryRaw(Prisma.sql`
+    SELECT
+      pg_catalog.current_database() AS "databaseName",
+      CURRENT_USER AS "currentUser",
+      SESSION_USER AS "sessionUser",
+      role.rolsuper AS "superuser",
+      role.rolcreatedb AS "createDatabase",
+      role.rolcreaterole AS "createRole",
+      role.rolinherit AS "inherit",
+      role.rolcanlogin AS "login",
+      role.rolreplication AS "replication",
+      role.rolbypassrls AS "bypassRls"
+    FROM pg_catalog.pg_roles AS role
+    WHERE role.rolname = CURRENT_USER
+  `);
+  return assertBuyerDeletionReplayRuntimeIdentityRows(rows, expectedIdentity);
 }
 
 function stripeObjectId(value) {
@@ -551,7 +743,16 @@ async function collectProof({ config, prisma, stripe }) {
   };
 }
 
-export function buildEvidencePayload({ actionableCount, config, issues, proof, startedAt, completedAt, status }) {
+export function buildEvidencePayload({
+  actionableCount,
+  completedAt,
+  config,
+  databaseRuntimeIdentity,
+  issues,
+  proof,
+  startedAt,
+  status,
+}) {
   return {
     status,
     generatedAt: completedAt,
@@ -565,6 +766,19 @@ export function buildEvidencePayload({ actionableCount, config, issues, proof, s
       sessionIdHash: config?.sessionId ? hashValue(config.sessionId) : null,
       expectedEventIdHash: config?.expectedEventId ? hashValue(config.expectedEventId) : null,
     },
+    database: config?.databaseIdentity
+      ? {
+          configuredTarget: {
+            databaseName: config.databaseIdentity.databaseName,
+            endpointId: config.databaseIdentity.endpointId,
+            isPooler: config.databaseIdentity.isPooler,
+            region: config.databaseIdentity.region,
+            runtimeRole: config.databaseIdentity.runtimeRole,
+            target: config.databaseIdentity.target,
+          },
+          engineAttestedRuntime: databaseRuntimeIdentity ?? null,
+        }
+      : null,
     expectedBuyerState: config?.expectedBuyerState ?? null,
     actionableFindingCount: actionableCount,
     proof,
@@ -582,6 +796,7 @@ export async function runBuyerDeletionReplayProof(env = process.env) {
   const issues = [];
   let actionableCount = 0;
   let config;
+  let databaseRuntimeIdentity = null;
   let prisma;
   let proof = null;
   let status = "passed";
@@ -590,6 +805,10 @@ export async function runBuyerDeletionReplayProof(env = process.env) {
     config = parseConfig(env);
     prisma = createPrismaClient(config.databaseUrl);
     await prisma.$connect();
+    databaseRuntimeIdentity = await verifyBuyerDeletionReplayRuntimeIdentity(
+      prisma,
+      config.databaseIdentity,
+    );
     const stripe = new Stripe(config.secretKey, { apiVersion: STRIPE_API_VERSION });
     const collected = await collectProof({ config, prisma, stripe });
     proof = collected.proof;
@@ -608,6 +827,7 @@ export async function runBuyerDeletionReplayProof(env = process.env) {
   const payload = buildEvidencePayload({
     actionableCount,
     config,
+    databaseRuntimeIdentity,
     issues,
     proof,
     startedAt,

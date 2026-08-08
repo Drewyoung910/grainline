@@ -69,10 +69,14 @@ export function stripeWebhookHealthSummaryFromRows(
       Number.MAX_SAFE_INTEGER,
     ),
   });
+  const failedCount = BigInt(summary.failedCount);
+  const releasedCount = BigInt(summary.releasedCount);
+  const staleCount = BigInt(summary.staleCount);
+  const issueCount = BigInt(summary.issueCount);
   if (
-    summary.issueCount < summary.failedCount
-    || summary.issueCount < summary.releasedCount
-    || summary.issueCount < summary.staleCount
+    issueCount < failedCount
+    || issueCount < releasedCount + staleCount
+    || issueCount > failedCount + releasedCount + staleCount
   ) {
     throw new Error("Stripe webhook health summary returned inconsistent counts");
   }
