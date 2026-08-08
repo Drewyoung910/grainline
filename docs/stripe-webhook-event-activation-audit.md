@@ -105,6 +105,17 @@ defect. Each remaining path is classified:
   loopback-only activated-boundary proof. It uses owner catalog reads and
   deliberately attempts direct operations after `SET LOCAL ROLE` to prove
   SQLSTATE `42501`, then rolls back every function fixture.
+- `scripts/stripe-webhook-event-activation-production-postflight.mjs` is the
+  actual pooled-production-runtime, repeatable-read/read-only postflight. It
+  rejects owner and aliased URLs, verifies exact source and ACL catalog state,
+  proves direct read denial and the write-function read-only fence, rolls back,
+  and retains only sanitized mode-0600 evidence. It never uses owner
+  `SET ROLE` and is not a migration path.
+- `scripts/stripe-webhook-event-activation-postflight-postgres-proof.mjs` is
+  the loopback-only PostgreSQL proof of that postflight's catalog and denial
+  path. CI gives the ephemeral restricted role a disposable password and the
+  proof opens a new connection as that role; it never uses owner `SET ROLE` and
+  touches no persistent database.
 - `scripts/stripe-webhook-event-activation-rollback-proof.mjs` is the
   loopback-only database-first rollback rehearsal. It temporarily restores
   predecessor CRUD in disposable PostgreSQL, proves old-runtime compatibility,

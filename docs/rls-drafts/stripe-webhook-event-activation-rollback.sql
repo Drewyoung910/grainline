@@ -38,6 +38,33 @@ BEGIN
        'SELECT,INSERT,UPDATE,REFERENCES'
      )
      AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.aclexplode(
+           COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+         ) AS acl
+        WHERE acl.grantee = 0
+          AND acl.privilege_type IN (
+            'SELECT', 'INSERT', 'UPDATE', 'DELETE',
+            'TRUNCATE', 'REFERENCES', 'TRIGGER'
+          )
+     )
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_attribute AS attribute
+         CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+        WHERE attribute.attrelid = class.oid
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped
+          AND acl.grantee IN (
+            0,
+            (SELECT role.oid FROM pg_catalog.pg_roles AS role
+              WHERE role.rolname = 'grainline_app_runtime')
+          )
+          AND acl.privilege_type IN (
+            'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+          )
+     )
+     AND NOT EXISTS (
        SELECT 1 FROM pg_catalog.pg_policy AS policy
         WHERE policy.polrelid = class.oid
      );
@@ -84,6 +111,33 @@ BEGIN
      AND NOT pg_catalog.has_table_privilege(
        'grainline_app_runtime', class.oid,
        'TRUNCATE,REFERENCES,TRIGGER'
+     )
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.aclexplode(
+           COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+         ) AS acl
+        WHERE acl.grantee = 0
+          AND acl.privilege_type IN (
+            'SELECT', 'INSERT', 'UPDATE', 'DELETE',
+            'TRUNCATE', 'REFERENCES', 'TRIGGER'
+          )
+     )
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.pg_attribute AS attribute
+         CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+        WHERE attribute.attrelid = class.oid
+          AND attribute.attnum > 0
+          AND NOT attribute.attisdropped
+          AND acl.grantee IN (
+            0,
+            (SELECT role.oid FROM pg_catalog.pg_roles AS role
+              WHERE role.rolname = 'grainline_app_runtime')
+          )
+          AND acl.privilege_type IN (
+            'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+          )
      )
      AND NOT EXISTS (
        SELECT 1 FROM pg_catalog.pg_policy AS policy

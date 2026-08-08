@@ -47,7 +47,33 @@ async function tableState(owner) {
       pg_catalog.has_table_privilege($1, class.oid, 'DELETE') AS can_delete,
       pg_catalog.has_table_privilege(
         $1, class.oid, 'TRUNCATE,REFERENCES,TRIGGER'
-      ) AS other_authority
+      ) AS other_authority,
+      pg_catalog.has_any_column_privilege(
+        $1, class.oid, 'SELECT,INSERT,UPDATE,REFERENCES'
+      ) AS runtime_column_authority,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.aclexplode(
+            COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+          ) AS acl
+         WHERE acl.grantee = 0
+           AND acl.privilege_type IN (
+             'SELECT', 'INSERT', 'UPDATE', 'DELETE',
+             'TRUNCATE', 'REFERENCES', 'TRIGGER'
+           )
+      ) AS public_table_authority,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.pg_attribute AS attribute
+          CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+         WHERE attribute.attrelid = class.oid
+           AND attribute.attnum > 0
+           AND NOT attribute.attisdropped
+           AND acl.grantee = 0
+           AND acl.privilege_type IN (
+             'SELECT', 'INSERT', 'UPDATE', 'REFERENCES'
+           )
+      ) AS public_column_authority
     FROM pg_catalog.pg_class AS class
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = class.relnamespace
@@ -56,6 +82,20 @@ async function tableState(owner) {
   `, [RUNTIME_ROLE]);
   assert.equal(result.rowCount, 1);
   return result.rows[0];
+}
+
+async function proveRollbackRejectsPublicDrift(owner, rollbackSql, grantSql) {
+  await owner.query("BEGIN");
+  let caught;
+  try {
+    await owner.query(grantSql);
+    await owner.query(rollbackSql);
+  } catch (error) {
+    caught = error;
+  }
+  await owner.query("ROLLBACK");
+  assert.equal(caught?.code, "P0001");
+  assert.match(caught?.message ?? "", /rollback predecessor drifted/);
 }
 
 async function restoreActivation(owner) {
@@ -113,7 +153,7 @@ export async function runStripeWebhookEventRollbackProof(env = process.env) {
   await owner.connect();
   let restoreRequired = false;
   try {
-    assert.deepEqual(await tableState(owner), {
+    const activatedState = {
       rls_enabled: true,
       rls_forced: false,
       policy_count: 0,
@@ -122,9 +162,26 @@ export async function runStripeWebhookEventRollbackProof(env = process.env) {
       can_update: false,
       can_delete: false,
       other_authority: false,
-    });
+      runtime_column_authority: false,
+      public_table_authority: false,
+      public_column_authority: false,
+    };
+    assert.deepEqual(await tableState(owner), activatedState);
+    const rollbackSql = fs.readFileSync(ROLLBACK, "utf8");
+    await proveRollbackRejectsPublicDrift(
+      owner,
+      rollbackSql,
+      `GRANT SELECT ON TABLE public."StripeWebhookEvent" TO PUBLIC`,
+    );
+    assert.deepEqual(await tableState(owner), activatedState);
+    await proveRollbackRejectsPublicDrift(
+      owner,
+      rollbackSql,
+      `GRANT SELECT (id) ON TABLE public."StripeWebhookEvent" TO PUBLIC`,
+    );
+    assert.deepEqual(await tableState(owner), activatedState);
     restoreRequired = true;
-    await owner.query(fs.readFileSync(ROLLBACK, "utf8"));
+    await owner.query(rollbackSql);
     assert.deepEqual(await tableState(owner), {
       rls_enabled: false,
       rls_forced: false,
@@ -134,19 +191,13 @@ export async function runStripeWebhookEventRollbackProof(env = process.env) {
       can_update: true,
       can_delete: true,
       other_authority: false,
+      runtime_column_authority: true,
+      public_table_authority: false,
+      public_column_authority: false,
     });
     await proveOldRuntimeCrud(databaseUrl);
     await restoreActivation(owner);
-    assert.deepEqual(await tableState(owner), {
-      rls_enabled: true,
-      rls_forced: false,
-      policy_count: 0,
-      can_select: false,
-      can_insert: false,
-      can_update: false,
-      can_delete: false,
-      other_authority: false,
-    });
+    assert.deepEqual(await tableState(owner), activatedState);
     const residue = await owner.query(
       `SELECT pg_catalog.count(*)::integer AS residue_count
          FROM public."StripeWebhookEvent" WHERE id = $1`,
@@ -156,6 +207,7 @@ export async function runStripeWebhookEventRollbackProof(env = process.env) {
     return Object.freeze({
       database: DATABASE_NAME,
       predecessorCrudProven: true,
+      publicAuthorityDriftRejected: true,
       activationRestored: true,
       rowResidue: 0,
       productionTouched: false,

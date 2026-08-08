@@ -17,7 +17,7 @@ import {
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE =
   "stripe-webhook-event-activation-reviewed";
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_ROLLBACK_SHA256 =
-  "a59b087417806305e6fe114c6bddebf7b164e1a2be64d077858403ba7d4cd555";
+  "2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722";
 
 function sha256(source) {
   return createHash("sha256").update(source).digest("hex");

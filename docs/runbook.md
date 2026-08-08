@@ -435,6 +435,32 @@ Pre-launch buyer-deletion Stripe replay proof:
 - Do not close this launch blocker from source tests alone, and do not run this
   verifier with live Stripe keys or against production data.
 
+StripeWebhookEvent RLS activation postflight:
+
+- Run only after the byte-pinned policyless activation migration succeeds from
+  an exact main commit and that commit's full CI is green.
+- Use the local pooled production `DATABASE_URL` for
+  `grainline_app_runtime`. Do not source an owner URL, add the runtime URL to
+  GitHub's owner-only Production environment, or simulate runtime through
+  owner `SET ROLE`.
+- Bind the exact release and workflow evidence:
+  `STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT=<40-char-main>`,
+  `STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-ci>`,
+  and
+  `STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID=<successful-production-migration>`.
+- Use a fresh ignored evidence path named exactly
+  `stripe-webhook-event-activation-production-postflight-<40-char-main>.json`
+  and confirmation
+  `verify-production-stripe-webhook-event-activation-runtime-read-only`.
+- Command:
+  `STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_CONFIRM=verify-production-stripe-webhook-event-activation-runtime-read-only STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT=<40-char-main> STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-ci> STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID=<successful-production-migration> STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH="stripe-webhook-event-activation-production-postflight-<40-char-main>.json" npm run ops:stripe-webhook-event-activation-postflight`.
+- The script opens an engine-attested repeatable-read/read-only transaction,
+  verifies actual runtime identity, exact source/owner/mode/ACL state for six
+  functions, zero PUBLIC/runtime table or column authority, direct SELECT
+  denial, aggregate health access, and a write-function SQLSTATE `25006` fence.
+  It rolls back and writes sanitized mode-0600 evidence; it must not change
+  production.
+
 Clerk:
 
 1. Confirm the production endpoint is `/api/clerk/webhook`.

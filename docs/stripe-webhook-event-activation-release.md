@@ -9,13 +9,13 @@ compatibility.
 
 - migration: `20260805060000_enable_stripe_webhook_event_rls`
 - draft SHA-256:
-  `29dcf34d4438999469313b22415f221f917c372fb6e880c57276c0e9ee177c2b`
+  `fd92c05ca2581eeeec19fd81e41a0dd672300381ad2d55396234a8f2fb0907d3`
 - promoted migration SHA-256:
-  `f33fc6c9b65444b437d62856c22116cac56c6a4d8c7b05340117120a06aab66b`
+  `c500e2c5135488d81929025a184f384fd53eed37f38d8dbf7e7e9bb8445e1299`
 - migration-tree SHA-256:
-  `72b5648c4cdc98245dd3b2887a0aab89b264ed860f6141d5a215c2fe34569a13`
+  `d525a4d8e7982f49dbfd280b9d9cc46e0dac39da0507b66881b7828786cd4bdc`
 - database-first rollback SHA-256:
-  `a59b087417806305e6fe114c6bddebf7b164e1a2be64d077858403ba7d4cd555`
+  `2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722`
 - guarded phase: `stripe-webhook-event-activation-reviewed`
 - protected table: exactly `public."StripeWebhookEvent"`
 - fixed runtime functions: exactly six
@@ -50,6 +50,10 @@ edge. It recursively rejects other membership. It also pins the predecessor
 grant/policy state, claim-generation invariant, required indexes, row
 coherence, exact function identities through `oidvectortypes(proargtypes)`,
 owners, search paths, volatility, ACLs and absence of dynamic SQL.
+Every function body is pinned to the MD5 of the exact current `prosrc` derived
+from its reviewed preparation migration; signature-compatible body drift aborts
+activation before table posture changes. The operator postflight independently
+compares SHA-256 digests of those same sources under the actual runtime login.
 Runtime `EXECUTE WITH GRANT OPTION` is rejected both by the activation
 preflight and class-wide by the global grant audit; the runtime role may call
 reviewed functions but may never delegate them.
@@ -74,6 +78,9 @@ The disposable PostgreSQL proof must establish:
 
 - exact policyless ENABLE/NO-FORCE posture and zero runtime table/column
   privileges;
+- the production-postflight catalog and denial path through a new direct
+  connection authenticated as the disposable CI runtime role, never owner
+  `SET ROLE`;
 - SQLSTATE `42501` for direct runtime SELECT, INSERT, UPDATE and DELETE;
 - exact six-function catalog and successful begin/fail/reclaim/complete,
   health, prune and legacy-claim calls with zero residue;
@@ -83,6 +90,24 @@ The disposable PostgreSQL proof must establish:
   prune, aggregate health and advisory-lock claim race; and
 - a database-first rollback that restores predecessor CRUD for old code, then
   always restores the exact activated posture and leaves no fixture row.
+
+The rollback preflight and postflight reject direct PUBLIC table and column
+authority as well as runtime authority. The disposable PostgreSQL proof injects
+each PUBLIC drift class separately and proves the rollback aborts before any
+posture mutation.
+
+After production activation, run
+`scripts/stripe-webhook-event-activation-production-postflight.mjs` only from
+the exact clean activated main commit with the local pooled production
+`grainline_app_runtime` credential. It rejects owner or aliased credentials,
+attests the exact endpoint, database, role and repeatable-read/read-only engine
+state, verifies exact table/function/source/ACL posture, proves direct SELECT
+denial, calls the aggregate health function, and proves the write-capable begin
+function reaches SQLSTATE `25006` at the engine read-only fence. Its fresh
+mode-0600 evidence contains only sanitized target identity, run bindings and
+aggregate proof results. This remains a separate operator step because the
+GitHub Production environment holds only the owner migration credential; the
+runtime URL must not be added there merely to automate this proof.
 
 The new engine scripts reject every non-loopback target and require the
 `grainline_ci` database. Local PostgreSQL is unavailable in this worktree, so
@@ -100,7 +125,7 @@ and migration retain the same canonical checkout-session format, and binds its
 rollback residue check to that exported value. This was a proof-fixture defect;
 it did not reach or change production.
 
-The Extra-High authority-review checkpoint
+The earlier Extra-High authority-review checkpoint
 `fb0facf146e58123ddd2f4a727fda1b966669d5d` then passed exact-head CI run
 `31272188477`. That run accepted the corrected maintenance and activation byte
 pins; applied and rolled back the disposable PostgreSQL release; proved direct
@@ -108,21 +133,27 @@ runtime SELECT, INSERT, UPDATE and DELETE denial; re-audited the restored
 activated posture; passed 2,824 tests with seven intentional skips, TypeScript,
 lint, clean production and complete dependency audits, and the production
 build. The expected Vercel Preview guard failure is not application-build
-evidence and does not authorize a deployment.
+evidence and does not authorize a deployment. PR #164 has since been
+synchronized through PR #163 exact head
+`2c084d470df7805f9c5616044a2c58b7586b2650`, whose CI run `31281007479`
+passed. The source pins, PUBLIC rollback checks and production postflight added
+after that synchronization require their own fresh exact-head CI before this
+candidate may advance.
 
 ## Remaining gates
 
-1. Merge the isolated dependency-security PR before relying on earlier stacked
-   PR CI, whose independent audit now fails on the superseded lockfile.
-2. Merge the stacked compatible preparation/application/maintenance releases
-   in order; run the compatible production migrations and deploy the compatible
-   app without activating this migration.
-3. Verify signed webhook, retry, ops-health, retention and legacy stock-restore
-   behavior, drain the prior deployment, and run the predecessor postflight.
-4. Recut this cumulative draft as an activation-only release from that exact
-   compatible main state and obtain fresh exact-head CI.
-5. Only then review an exact-main production activation dispatch.
-6. Prepare FORCE as its own later posture-only release after stable activation
+1. Merge PR #161, PR #162 and PR #163 in their reviewed stack order. PR #160's
+   compatible preparation migration is already live and its actual pooled
+   runtime postflight passed; no additional preparation migration is needed.
+2. Deploy the exact compatible app without the activation migration, exercise
+   signed webhook, retry, ops-health, retention and legacy stock-restore paths,
+   drain the prior deployment, and rerun the predecessor postflight.
+3. Recut or merge this activation-only candidate from that exact compatible
+   main state and obtain fresh exact-head CI including the source-drift and
+   PUBLIC-authority PostgreSQL proofs.
+4. Only then review an exact-main production activation dispatch and run the
+   separate actual pooled-runtime postflight described above.
+5. Prepare FORCE as its own later posture-only release after stable activation
    evidence.
 
 No production state or provider variable changes are authorized by this

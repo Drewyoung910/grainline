@@ -79,6 +79,10 @@ test("activation preflight pins owner, role graph, table invariants and six func
   assert.match(migration, /required index catalog drifted/);
   assert.match(migration, /activation found invalid rows/);
   assert.match(migration, /oidvectortypes\(procedure\.proargtypes\)/);
+  assert.match(
+    migration,
+    /pg_catalog\.md5\(procedure\.prosrc\) = expected\.source_md5/,
+  );
   assert.match(migration, /OR acl\.is_grantable/);
   assert.match(migration, /IF function_count <> 6/);
   assert.match(migration, /IF table_function_count <> 6/);
@@ -97,6 +101,11 @@ test("rollback is database-first, narrow, and restores compatible CRUD", () => {
   assert.match(rollback, /NO FORCE ROW LEVEL SECURITY/);
   assert.match(rollback, /predecessor drifted/);
   assert.match(rollback, /did not restore predecessor/);
+  assert.match(rollback, /acl\.grantee = 0/);
+  assert.match(rollback, /pg_catalog\.pg_attribute AS attribute/);
+  assert.match(rollbackProof, /publicAuthorityDriftRejected: true/);
+  assert.match(rollbackProof, /GRANT SELECT ON TABLE/);
+  assert.match(rollbackProof, /GRANT SELECT \(id\) ON TABLE/);
   assert.doesNotMatch(rollback, /\bDROP\s+(?:TABLE|FUNCTION|COLUMN)\b/i);
   assert.doesNotMatch(rollback, /^\s*(?:INSERT\s+INTO|UPDATE\s+public\.|DELETE\s+FROM|TRUNCATE)\b/im);
 });
@@ -174,6 +183,16 @@ test("CI stages compatibility first and proves activation before production can 
     pkg.scripts["audit:rls-stripe-webhook-event-activation-rollback"],
     "node scripts/stripe-webhook-event-activation-rollback-proof.mjs",
   );
+  assert.equal(
+    pkg.scripts[
+      "audit:rls-stripe-webhook-event-activation-postflight-postgres"
+    ],
+    "node scripts/stripe-webhook-event-activation-postflight-postgres-proof.mjs",
+  );
+  assert.equal(
+    pkg.scripts["ops:stripe-webhook-event-activation-postflight"],
+    "node scripts/stripe-webhook-event-activation-production-postflight.mjs",
+  );
   const isolate = ci.indexOf("Isolate the exact StripeWebhookEvent activation");
   const compatibility = ci.indexOf("Apply compatible migrations to CI Postgres");
   const restore = ci.indexOf("Restore the exact StripeWebhookEvent activation");
@@ -182,6 +201,12 @@ test("CI stages compatibility first and proves activation before production can 
   assert.ok(isolate >= 0 && isolate < compatibility);
   assert.ok(restore > compatibility && activationProof > restore);
   assert.ok(rollbackProofIndex > activationProof);
+  assert.match(ci, /Enable disposable direct runtime login/);
+  assert.match(ci, /activation postflight through the actual runtime login/);
+  assert.match(
+    ci,
+    /STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql:\/\/grainline_app_runtime:/,
+  );
   assert.match(ci, /stripe-webhook-event-activation-reviewed/);
   assert.match(production, /stripe-webhook-event-activation-reviewed/);
   assert.ok(

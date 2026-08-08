@@ -292,6 +292,15 @@ jobs:
         run: npm run audit:rls-stripe-webhook-event-activation-postgres
         env:
           STRIPE_WEBHOOK_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Enable disposable direct runtime login for the activation postflight proof
+        run: >-
+          psql "$DIRECT_URL"
+          -v ON_ERROR_STOP=1
+          -c "ALTER ROLE grainline_app_runtime PASSWORD 'grainline-ci-runtime-postflight-only'"
+      - name: Prove activation postflight through the actual runtime login
+        run: npm run audit:rls-stripe-webhook-event-activation-postflight-postgres
+        env:
+          STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Re-prove Stripe webhook leases behind policyless activation
         run: npm run audit:rls-stripe-webhook-lease-compatibility
         env:
