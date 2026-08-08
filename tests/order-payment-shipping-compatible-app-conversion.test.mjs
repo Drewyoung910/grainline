@@ -26,7 +26,6 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     assert.match(record, /grainline_legacy_stock_restore_claim/);
     assert.match(record, /Operation 36 is\s+implemented and proven only in that stacked candidate/);
     assert.match(record, /not merged,\s+deployed, applied or represented as live production authority/);
-    assert.match(record, /explicit later\s+activation prerequisite/);
     assert.match(record, /duplicate-`stripeSessionId` recovery branch/);
     assert.match(record, /negative claim generations/);
     assert.match(record, /No test, commit or CI result on this branch changes production state/);

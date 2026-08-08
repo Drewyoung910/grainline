@@ -103,6 +103,24 @@ test("application wrappers parse fail closed", () => {
     }]),
     /inconsistent counts/,
   );
+  assert.throws(
+    () => stripeWebhookHealthSummaryFromRows([{
+      failed_count: "1",
+      released_count: "2",
+      stale_count: "1",
+      issue_count: "2",
+    }]),
+    /inconsistent counts/,
+  );
+  assert.throws(
+    () => stripeWebhookHealthSummaryFromRows([{
+      failed_count: "1",
+      released_count: "2",
+      stale_count: "1",
+      issue_count: "5",
+    }]),
+    /inconsistent counts/,
+  );
   assert.equal(legacyStockRestoreClaimFromRows([{ claimed: true }]), true);
   assert.throws(() => legacyStockRestoreClaimFromRows([{ claimed: "true" }]), /invalid result/);
   assert.match(app, /grainline_stripe_webhook_prune_batch/);

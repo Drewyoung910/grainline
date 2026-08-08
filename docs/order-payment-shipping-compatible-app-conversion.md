@@ -145,3 +145,8 @@ No test, commit or CI result on this branch changes production state.
   completes the event and then returns success. The same review made the row
   parser reject negative claim generations for every action and reject blank
   durable seller IDs. Semantic regression tests cover all three cases.
+- Corrected exact head `d2ef37b4c86a0ff174016be77113fa1b888131b4`
+  passed exact-head CI run `31278958695`: all disposable PostgreSQL proofs,
+  TypeScript, lint, 2,799 tests (2,792 passed and 7 skipped), dependency audit
+  and the production build succeeded. No deployment or production mutation
+  occurred.

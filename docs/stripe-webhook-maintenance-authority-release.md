@@ -1,9 +1,10 @@
 # Stripe webhook maintenance-authority candidate
 
 Status: isolated stacked candidate only. This branch is not merged, deployed or
-applied to production. It depends on the exact Order/payment/shipping
-compatibility preparation in draft PR #160 and the compatible application
-conversion in draft PR #161.
+applied to production. The exact Order/payment/shipping compatibility
+preparation is live; this candidate is synchronized with corrected, green
+compatible-application head
+`d2ef37b4c86a0ff174016be77113fa1b888131b4` in draft PR #161.
 
 ## Exact release boundary
 
@@ -40,7 +41,12 @@ types, errors or provider payloads.
 Checkout session IDs, derives the `checkout-stock-restore:` identity and fixed
 event type inside PostgreSQL, takes the same transaction-scoped checkout lock,
 and atomically returns first-claim versus replay. A collision with another type
-or an unfinished row fails closed.
+or an unfinished row fails closed. PostgreSQL validates the identifier shape,
+namespace and replay state; it cannot authenticate that the session exists at
+Stripe. The signed webhook or authenticated rollback path remains that provider
+trust boundary. A stolen runtime credential could mint canonical-shaped claim
+rows and cause bounded availability pressure, but cannot select another event
+type or directly restore stock through this function alone.
 
 The application routes pruning, ops-health aggregation and the legacy stock
 restore dedup operation through these functions. Ordinary application source
@@ -87,6 +93,11 @@ maintenance migration byte by excluding permanent legacy stock-restore dedup
 claims from general 90-day pruning. Deleting one of those rows could permit an
 old buyer-held Checkout Session to restore inventory a second time. Fresh
 exact-head CI is therefore required before this candidate can move.
+
+The candidate was then synchronized with corrected PR #161 head
+`d2ef37b4c86a0ff174016be77113fa1b888131b4`, whose exact-head CI run
+`31278958695` passed. The synchronized maintenance candidate requires fresh
+focused, full-suite and exact-head CI proof before it can move.
 
 Before StripeWebhookEvent RLS or table-grant revocation, the stacked preparation
 and application candidates must merge and deploy in order, production webhook
