@@ -1,29 +1,32 @@
 # Order, Payment, and Shipping Compatible Application Conversion
 
-Status: isolated stacked candidate; not merged, deployed, or applied to
-production.
+Status: isolated application candidate synchronized with the accepted
+production preparation; not merged or deployed.
 
-Date: 2026-08-05
+Prepared: 2026-08-05
+
+Production-preparation prerequisite accepted: 2026-08-08
 
 ## Exact predecessor and release boundary
 
-This candidate is stacked on the verified compatible-preparation head
-`2b624afe219bc982dd0945284895326ee6893a1e` from draft PR `#160`. That
-predecessor contains migration
+The compatible-preparation prerequisite is live from exact main
+`6f1f4c1e99fb21726744ecd1652a37b6be35c294`, exact-main CI
+`31276366947`, and guarded migration run `31277540714`. That predecessor
+contains migration
 `20260805012000_prepare_order_payment_shipping_compatibility`, whose SHA-256 is
 `29f56fa82b68c743e0d081324c5caa9795f0dd0d43e8d0ed42acd28311ef03d3`.
+The separate actual pooled-runtime postflight passed read-only with all six
+integrity counts at zero and proved RLS off, FORCE off, zero policies and
+predecessor CRUD retained.
 
-The application candidate is published as draft PR `#161`. GitHub CI is
-configured only for pull requests whose base is `main`, so PR `#161` targets
-`main` for exact combined-head proof while retaining PR `#160` as a mandatory
-logical and release-order dependency. The draft must not be treated as an
-independent merge candidate merely because its displayed base is `main`.
+The application candidate is published as draft PR `#161` and targets `main`.
+It was synchronized with the accepted production-preparation main commit
+before the post-production authority review.
 
-The application candidate must not deploy until that exact preparation
-migration, or a separately reviewed byte-identical successor, is live and its
-pooled-runtime production postflight passes. The preparation intentionally
-retains the predecessor table grants and RLS posture so old and new app
-instances can coexist during deployment.
+The database prerequisite is satisfied, but that does not itself authorize an
+application deployment. The preparation intentionally retains the predecessor
+table grants and RLS posture so old and new app instances can coexist during a
+separately reviewed deployment.
 
 This is the first application checkpoint for the two capabilities installed by
 the preparation migration. It is not the complete Order/OrderItem/payment/
@@ -132,3 +135,18 @@ No test, commit or CI result on this branch changes production state.
   test suite, dependency audit and production build. The Vercel Preview guard
   failed as expected because this isolated security branch is not provided the
   protected production database environment; it did not deploy anything.
+- Exact-head refresh CI run `31274070492` passed before the production
+  preparation release. The expected Vercel Preview environment guard again
+  rejected the isolated branch without deploying it.
+- The post-preparation Extra-High source review found that the original
+  generation conversion cleared a valid event lease before the existing
+  duplicate-`stripeSessionId` recovery branch tried to complete it. The fixed
+  path recognizes only the reviewed `P2002` target, preserves that lease,
+  completes the event and then returns success. The same review made the row
+  parser reject negative claim generations for every action and reject blank
+  durable seller IDs. Semantic regression tests cover all three cases.
+- Corrected exact head `d2ef37b4c86a0ff174016be77113fa1b888131b4`
+  passed exact-head CI run `31278958695`: all disposable PostgreSQL proofs,
+  TypeScript, lint, 2,799 tests (2,792 passed and 7 skipped), dependency audit
+  and the production build succeeded. No deployment or production mutation
+  occurred.

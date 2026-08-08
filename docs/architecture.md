@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-03
+Last updated: 2026-08-08
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -34,16 +34,17 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 ## Request Boundaries
 
 Grainline uses database-level Row Level Security for `SavedSearch`,
-`Notification`, `Conversation`, `Message`, `DirectUpload`, and
-`DirectUploadReference`; all six tables are `FORCE ROW LEVEL SECURITY`
-hardened. The two DirectUpload lifecycle tables intentionally have no policies
-and no direct runtime or cleanup-role table grants: all permitted behavior
-goes through the reviewed fixed function catalog. Production activation and
-its owner proof are complete; the restricted runtime/cleanup acceptance
-postflights remain pending while their verifier is corrected to avoid reading
-the owner-only Prisma migration ledger. The ordinary application runtime uses
-a dedicated `NOBYPASSRLS` role, while owner/migration credentials are kept out
-of the Vercel runtime. The rest of the schema still relies primarily on
+`Notification`, `Conversation`, `Message`, `DirectUpload`,
+`DirectUploadReference`, `Case`, `CaseMessage`, and
+`CaseMessageAttachment`; all nine tables are `FORCE ROW LEVEL SECURITY`
+hardened in production. DirectUpload and the Case family intentionally use
+policyless RLS with no direct ordinary-runtime table or column authority: all
+permitted behavior goes through reviewed fixed functions. DirectUpload's
+owner, pooled-runtime, and cleanup-role proofs are accepted; its dedicated
+cleanup job remains unscheduled as a separate operational release. The
+ordinary application runtime uses a dedicated `NOBYPASSRLS` role, while
+owner/migration credentials are kept out of the Vercel runtime. The rest of
+the schema still relies primarily on
 application-layer authorization while independently reviewed RLS or
 least-privilege database groups roll out:
 
@@ -53,16 +54,15 @@ least-privilege database groups roll out:
 - Public routes must use shared visibility predicates (`publicListingWhere`, `publicListingDetailWhere`, `visibleSellerProfileWhere`, `activeSellerProfileWhere`, `publicBlogPostWhere`) rather than ad hoc filters.
 - Webhooks and cron routes are middleware-public only because they authenticate with provider signatures or shared secrets inside the route.
 
-Notification, Conversation/Message, and DirectUpload are independent
-production groups. Case/CaseMessage/CaseMessageAttachment remains a separate
-compatible authority-conversion group with its source inventory and fixed
-operations retained in the Case rollout records. The current Case-message
-preflight is a narrow source-validating `SECURITY DEFINER` read so later
-self-only User RLS cannot
-hide the counterparty state it must derive; its separate application
-conversion uses one strict result in the reply and private-evidence upload
-routes. Case-family RLS is still off. Cases, orders/payment/shipping, User, and
-service/audit ledgers remain separate later activation groups; do not bundle
+Notification, Conversation/Message, DirectUpload, and the Case family are
+independent completed production database groups. The Case source inventory,
+fixed-operation catalog, policyless ENABLE/FORCE posture, and pooled-runtime
+proof remain retained in the Case rollout records. Case evidence UI/API
+enablement, private-R2 route smoke, cleanup scheduling, token retirement, and
+provider variables remain disabled separate releases; they are not evidence
+that Case database RLS is incomplete. Order/payment/shipping is the active
+sensitive-data program. User, public/private catalog data, carts, and other
+service/audit ledgers remain separately reviewed later groups; do not bundle
 their policies or grants.
 
 ## Core Lifecycles
@@ -99,6 +99,11 @@ Notifications respect preference keys and deduplication helpers. Time-critical t
 
 ## Operational References
 
+- `docs/rls-coverage-matrix.md`: schema-complete database-isolation status and
+  the next proof for every Prisma model.
+- `docs/rls-operator-guide.md`: shared RLS release and evidence conventions.
+- `STRATEGY.md`: current sensitive-data rollout order and exact accepted
+  production boundary.
 - `docs/runbook.md`: production incidents, rollback, webhook recovery, restore drills, secret rotation.
 - `docs/launch-checklist.md`: launch env/vendor/smoke-test checklist.
 - `docs/security-hardening-plan.md`: adversarial security audit process.
