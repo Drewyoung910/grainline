@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 const schema = fs.readFileSync("prisma/schema.prisma", "utf8");
 const matrix = fs.readFileSync("docs/rls-coverage-matrix.md", "utf8");
+const architecture = fs.readFileSync("docs/architecture.md", "utf8");
 
 function schemaModels() {
   return [...schema.matchAll(/^model\s+([A-Za-z][A-Za-z0-9_]*)\s+\{/gm)]
@@ -73,9 +74,9 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
-        ["Case", "RLS_LIVE_PHASE_A"],
-        ["CaseMessage", "RLS_LIVE_PHASE_A"],
-        ["CaseMessageAttachment", "RLS_LIVE_PHASE_A"],
+        ["Case", "RLS_LIVE_FORCE"],
+        ["CaseMessage", "RLS_LIVE_FORCE"],
+        ["CaseMessageAttachment", "RLS_LIVE_FORCE"],
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
@@ -89,6 +90,10 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(matrix, /Every\s+other row is \*\*not active\s+RLS\*\*/);
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
+    assert.match(matrix, /migration run `30953378226`/);
+    assert.match(architecture, /all nine tables are `FORCE ROW LEVEL SECURITY`/);
+    assert.match(architecture, /Order\/payment\/shipping is the active/);
+    assert.doesNotMatch(architecture, /Case-family RLS is still off/);
   });
 
   it("keeps future saved-search alerts outside the sealed Phase B contract", () => {

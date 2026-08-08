@@ -184,6 +184,12 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(proof, /family\.expectedBodyIncludes/);
     assert.match(proof, /SET "actorId" = \$2::text/);
     assert.match(proof, /recipient RPC p_user_id must come from server-resolved identity/);
+    assert.match(proof, /async function cleanFixturesInTransaction\(owner\)/);
+    assert.match(
+      proof,
+      /async function cleanFixtures\(owner\) \{[\s\S]*await owner\.query\("BEGIN"\);[\s\S]*await cleanFixturesInTransaction\(owner\);[\s\S]*await owner\.query\("COMMIT"\);[\s\S]*await owner\.query\("ROLLBACK"\)/,
+      "fixture cleanup must delete each Order and its OrderItems in one transaction so deferred seller-key constraints see a complete final state",
+    );
     assert.ok(
       (recipientSql.match(/notification\.title::text/g) ?? []).length >= 3,
       "text-returning recipient RPCs must cast varchar title columns",
