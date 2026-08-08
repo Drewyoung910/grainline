@@ -290,6 +290,22 @@ event type is immutable: a duplicate event ID with another type is an error,
 not a reason to rewrite the source identity. This is independent of Stripe
 signature verification, which remains in the application.
 
+### OPS-A16: launch proof must survive policyless webhook-ledger RLS
+
+The staging/local buyer-deletion replay proof directly selected the
+`StripeWebhookEvent` row to check processed state and `lastError`. That proof
+would fail after base-table SELECT is revoked, but a new runtime-readable row
+or error projection would expand production authority solely for a test
+harness.
+
+The activation audit in `docs/stripe-webhook-event-activation-audit.md`
+chooses the narrower path. The proof resolves and validates the exact event
+through Stripe, then calls the existing fixed `begin(event_id,event_type)` in
+an always-rollback transaction. Only `processed` passes; missing, stale,
+in-progress or type-mismatched evidence fails without durable mutation. The
+proof no longer claims a direct `lastError IS NULL` read. This closes the
+activation compatibility gap without adding a seventh runtime function.
+
 ## Semantic write conversion map
 
 This is the first exact write-authority map. Read projections and aggregate
@@ -392,26 +408,34 @@ processed-row retention, aggregate ops health, and the synthetic
 `checkout-stock-restore:<session>` dedup claim. The isolated
 `20260805040000_prepare_stripe_webhook_maintenance_authority` candidate routes
 those three paths through catalog operations 34 through 36 and retains exact
-rollback-only PostgreSQL proof. It is not merged, deployed or applied, so the
-production finding remains open and predecessor table grants remain unchanged.
-Operator-only replay proof scripts remain outside ordinary runtime and need an
-explicitly reviewed operator/owner path, not a runtime table grant.
+rollback-only PostgreSQL proof. It is reviewed at PR #162 exact head
+`78fb92546362d3744db924b312c27a7e915b279c` with green exact-head CI
+`31279844745`, but remains unmerged, undeployed and unapplied, so the production
+finding remains open and predecessor table grants remain unchanged.
+Owner-only predecessor inspection and disposable PostgreSQL proofs remain
+outside ordinary runtime and do not justify a runtime table grant. The
+staging/local buyer-deletion replay proof now uses the same fixed lease surface
+inside an always-rollback transaction rather than direct table SELECT. Its
+dedicated database URL is bound to an explicit non-production target and the
+engine must attest the exact restricted runtime role; disposable PostgreSQL
+also proves the real Prisma transaction rolls back missing inserts and stale
+reclaims with zero residue.
 
 ## Rollout sequence
 
-The aggregate-only inspector scaffold is now saved as
+The aggregate-only inspector scaffold was saved as
 `scripts/order-payment-shipping-legacy-inspect.mjs` with a fail-closed unit
 contract. The exact aggregate SQL is wired into normal CI against the
 disposable loopback PostgreSQL 16 service after the compatible migration tree,
 where PostgreSQL itself attests that the proof transaction is read-only. No
 production data is read by that CI proof. The protected aggregate-only workflow
-is prepared on this isolated branch. It
+was prepared on its isolated branch. It
 requires an exact main commit, exact confirmation, the Production environment,
 the protected owner-URL digest, the reviewed Case FORCE prerequisite, a clean
 checkout and the shared production-migration concurrency group. It cannot be
-dispatched unless the workflow is first reviewed and merged to main. No
-production inspection has been run, and a separate exact-main dispatch review
-is still required.
+dispatched unless the workflow is first reviewed and merged to main. The
+completed protected results are retained below; this paragraph records the
+original safety boundary, not current status.
 
 Checkpoint `7065e961ec7afc20c3a58c76fcca814b940620b8` was proved by GitHub
 CI run `30955791275` on 2026-08-04. The PostgreSQL 16 step executed the exact
@@ -508,12 +532,18 @@ invariant preparation only. It does not authorize cleanup, deployment, fixed
 operation grants, RLS activation, FORCE, provider changes or another
 sensitive-data group.
 
-1. Finish the semantic direct/nested access inventory and actor projections.
-2. Treat the completed corrected aggregate inspection as the pinned production
+1. **Complete:** finish the semantic direct/nested access inventory and actor
+   projections.
+2. **Complete:** treat the completed corrected aggregate inspection as the pinned production
    predecessor record; rerun it if preparation is delayed or predecessor data
    can materially change before migration.
-3. Add compatible durable seller/snapshot/invariant schema and fixed functions
-   without changing existing grants or RLS posture.
+3. **Complete in production:** add compatible durable seller/snapshot/invariant
+   schema and generation-bound Stripe functions without changing existing
+   grants or RLS posture. Exact main
+   `6f1f4c1e99fb21726744ecd1652a37b6be35c294`, CI `31276366947` and guarded
+   migration run `31277540714` applied only
+   `20260805012000_prepare_order_payment_shipping_compatibility`; the separate
+   actual pooled-runtime read-only postflight passed.
 4. Deploy the compatible application conversion and prove old/new coexistence
    for checkout, webhook, refund, fulfillment, label, export, deletion and jobs.
 5. Activate the provider/service ledgers through their reviewed fixed

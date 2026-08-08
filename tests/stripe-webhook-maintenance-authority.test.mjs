@@ -200,6 +200,8 @@ test("release applies additive authority before deploying its call sites", () =>
 });
 
 test("release record preserves the synchronized Extra-High proof boundary", () => {
+  assert.match(release, /78fb92546362d3744db924b312c27a7e915b279c/);
+  assert.match(release, /31279844745/);
   assert.match(release, /4c2dc09a9f832d930b9ab6160e65a545258cfcf3/);
   assert.match(release, /31279623247/);
   assert.match(release, /2,805 passed and 7 skipped/);

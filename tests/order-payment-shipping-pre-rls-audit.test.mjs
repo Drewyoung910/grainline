@@ -174,7 +174,7 @@ describe("order/payment/shipping pre-RLS audit", () => {
     assert.match(audit, /processed-row retention, aggregate ops health, and the synthetic/);
     assert.match(audit, /20260805040000_prepare_stripe_webhook_maintenance_authority/);
     assert.match(audit, /catalog operations 34 through 36/);
-    assert.match(audit, /not merged, deployed or applied/);
+    assert.match(audit, /remains unmerged, undeployed and unapplied/);
   });
 
   it("classifies the first complete write-authority families", () => {

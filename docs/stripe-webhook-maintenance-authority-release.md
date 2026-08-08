@@ -15,8 +15,8 @@ compatible-application head
   `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`
 - guarded phase: `stripe-webhook-maintenance-authority-reviewed`
 - draft PR: `#162`
-- green implementation head: `8a6b2e7899f2b568ccce710f9c4f04c96c2a8d62`
-- green exact-head CI: `30975260896`
+- reviewed branch head: `78fb92546362d3744db924b312c27a7e915b279c`
+- green exact-head CI: `31279844745`
 
 This is compatible preparation, not RLS activation. It creates exactly three
 fixed `SECURITY DEFINER` functions, revokes `PUBLIC`, grants their exact
