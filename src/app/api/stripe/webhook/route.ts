@@ -51,6 +51,7 @@ import {
   blockingRefundOrLatestOpenDisputeLedgerExistsSql,
   latestOpenDisputeLedgerRowsSql,
 } from "@/lib/refundLedgerSql";
+import { isStripeSessionUniqueConstraintError } from "@/lib/stripeWebhookEventState";
 import {
   REFUND_AMBIGUOUS_SENTINEL,
   REFUND_LOCK_SENTINEL,
@@ -66,6 +67,7 @@ import {
   revalidatePublicSellerVisibilityCaches,
 } from "@/lib/searchCache";
 import { DEAUTHORIZED_SELLER_REVIEW_NOTE } from "@/lib/orderReviewHolds";
+import { requireSingleOrderSellerProfileId } from "@/lib/orderSellerKey";
 import {
   blockedCheckoutDisputeState,
   chargeDisputeLedgerState,
@@ -431,17 +433,18 @@ export async function POST(req: Request) {
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE },
     );
   }
-  if (reservation === "processed") return NextResponse.json({ ok: true });
-  if (reservation === "in_progress") {
+  if (reservation.action === "processed") return NextResponse.json({ ok: true });
+  if (reservation.action === "in_progress") {
     return NextResponse.json(
-      { ok: false, status: reservation },
+      { ok: false, status: reservation.action },
       { status: HTTP_STATUS.SERVICE_UNAVAILABLE, headers: { "Retry-After": String(STRIPE_WEBHOOK_RETRY_AFTER_SECONDS) } },
     );
   }
+  const claimGeneration = reservation.claimGeneration;
 
   async function markCurrentStripeWebhookEventFailed(handlerErr: unknown) {
     try {
-      await markStripeWebhookEventFailed(event.id, handlerErr);
+      await markStripeWebhookEventFailed(event.id, claimGeneration, handlerErr);
     } catch (markErr) {
       Sentry.captureException(markErr, {
         tags: { source: "stripe_webhook_mark_failed" },
@@ -516,10 +519,15 @@ export async function POST(req: Request) {
   ): Promise<NextResponse> {
     try {
       const response = await handler();
-      await markStripeWebhookEventProcessed(event.id);
+      await markStripeWebhookEventProcessed(event.id, claimGeneration);
       return response;
     } catch (handlerErr) {
-      await markCurrentStripeWebhookEventFailed(handlerErr);
+      // A concurrent delivery may have committed the Order first. Preserve
+      // this lease so the outer duplicate-session branch can complete this
+      // distinct Stripe event instead of trying to complete a failed lease.
+      if (!isStripeSessionUniqueConstraintError(handlerErr)) {
+        await markCurrentStripeWebhookEventFailed(handlerErr);
+      }
       throw handlerErr;
     } finally {
       if (cleanup) {
@@ -1628,6 +1636,7 @@ export async function POST(req: Request) {
           if (existingOrder) return null;
 
           const cartSellerIds = [...new Set(checkoutItems.map((item) => item.listing.sellerId))];
+          const cartSellerProfileId = requireSingleOrderSellerProfileId(cartSellerIds);
           const cartListingIds = [...new Set(checkoutItems.map((item) => item.listing.id))];
           await lockUserRowsForUpdate(tx, [buyerId]);
           await lockSellerProfileRowsForUpdate(tx, cartSellerIds);
@@ -1691,6 +1700,7 @@ export async function POST(req: Request) {
           const order = await tx.order.create({
             data: {
               buyerId: cartInvalidState.buyerUserId,
+              sellerProfileId: cartSellerProfileId,
               paidAt: new Date(),
               stripeSessionId: sessionId,
 
@@ -1817,6 +1827,7 @@ export async function POST(req: Request) {
             await tx.orderItem.create({
               data: {
                 orderId: order.id,
+                sellerProfileId: cartSellerProfileId,
                 listingId: paid.listingId,
                 quantity: orderQuantity,
                 priceCents: orderPriceCents,
@@ -2034,6 +2045,9 @@ export async function POST(req: Request) {
               },
             },
           });
+          const singleSellerProfileId = requireSingleOrderSellerProfileId([
+            transactionListing?.seller?.id,
+          ]);
           const singleInvalidState = checkoutInvalidReasonState({
             buyer: transactionBuyer,
             sellers: [transactionListing?.seller],
@@ -2064,6 +2078,7 @@ export async function POST(req: Request) {
           const order = await tx.order.create({
             data: {
               buyerId: singleInvalidState.buyerUserId,
+              sellerProfileId: singleSellerProfileId,
               paidAt: new Date(),
               stripeSessionId: sessionId,
 
@@ -2093,6 +2108,7 @@ export async function POST(req: Request) {
               items: {
                 create: [{
                   listingId,
+                  sellerProfileId: singleSellerProfileId,
                   quantity,
                   priceCents: singleOrderPriceCents,
                   listingSnapshot: {
@@ -2683,24 +2699,14 @@ export async function POST(req: Request) {
       });
     }
 
-    await markStripeWebhookEventProcessed(event.id);
+    await markStripeWebhookEventProcessed(event.id, claimGeneration);
     return NextResponse.json({ received: true });
   } catch (err) {
     // Only stripeSessionId P2002s are duplicate webhook deliveries. Other unique
     // constraint failures are real bugs and must surface.
-    const p2002Target = err && typeof err === "object" && "meta" in err
-      ? (err as { meta?: { target?: string[] | string } }).meta?.target
-      : undefined;
-    const duplicateSession =
-      err &&
-      typeof err === "object" &&
-      "code" in err &&
-      (err as { code: string }).code === "P2002" &&
-      (Array.isArray(p2002Target)
-        ? p2002Target.includes("stripeSessionId")
-        : typeof p2002Target === "string" && p2002Target.includes("stripeSessionId"));
+    const duplicateSession = isStripeSessionUniqueConstraintError(err);
     if (duplicateSession) {
-      await markStripeWebhookEventProcessed(event.id);
+      await markStripeWebhookEventProcessed(event.id, claimGeneration);
       return NextResponse.json({ ok: true });
     }
     console.error("Stripe webhook handler error:", sanitizeEmailOutboxError(err));
