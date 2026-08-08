@@ -100,19 +100,29 @@ and migration retain the same canonical checkout-session format, and binds its
 rollback residue check to that exported value. This was a proof-fixture defect;
 it did not reach or change production.
 
+The Extra-High authority-review checkpoint
+`fb0facf146e58123ddd2f4a727fda1b966669d5d` then passed exact-head CI run
+`31272188477`. That run accepted the corrected maintenance and activation byte
+pins; applied and rolled back the disposable PostgreSQL release; proved direct
+runtime SELECT, INSERT, UPDATE and DELETE denial; re-audited the restored
+activated posture; passed 2,824 tests with seven intentional skips, TypeScript,
+lint, clean production and complete dependency audits, and the production
+build. The expected Vercel Preview guard failure is not application-build
+evidence and does not authorize a deployment.
+
 ## Remaining gates
 
-1. Commit and push the isolated candidate and open a draft PR.
-2. Obtain green exact-head CI, including disposable PostgreSQL, full tests,
-   dependency audit and production build.
-3. Perform a separate Extra-High authority/SQL review of the exact head.
-4. Merge the stacked compatible preparation/application/maintenance releases
+1. Merge the isolated dependency-security PR before relying on earlier stacked
+   PR CI, whose independent audit now fails on the superseded lockfile.
+2. Merge the stacked compatible preparation/application/maintenance releases
    in order; run the compatible production migrations and deploy the compatible
    app without activating this migration.
-5. Verify signed webhook, retry, ops-health, retention and legacy stock-restore
+3. Verify signed webhook, retry, ops-health, retention and legacy stock-restore
    behavior, drain the prior deployment, and run the predecessor postflight.
-6. Only then review an exact-main production activation dispatch.
-7. Prepare FORCE as its own later posture-only release after stable activation
+4. Recut this cumulative draft as an activation-only release from that exact
+   compatible main state and obtain fresh exact-head CI.
+5. Only then review an exact-main production activation dispatch.
+6. Prepare FORCE as its own later posture-only release after stable activation
    evidence.
 
 No production state or provider variable changes are authorized by this

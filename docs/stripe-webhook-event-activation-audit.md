@@ -16,9 +16,12 @@ The activation candidate is stacked on three draft-only compatibility heads:
    `566edf0e301a475577d53b84776fe9ee375ed506`, converts the signed Stripe
    route to the generation-bound begin/complete/fail functions.
 3. PR #162, `agent/stripe-webhook-maintenance-authority-20260805`, exact head
-   `eb2c49d5d8a061ca410cd42e4da06d2a6b4cf806`, converts retention,
+   `7d955061d438e75ef692378e48291163775f5f47`, converts retention,
    aggregate health and the legacy stock-restore claim to three narrow fixed
-   functions. Exact-head CI run `30975525699` passed.
+   functions. Focused local verification passes 306 tests. Exact-head CI run
+   `31272365854` passed the corrected release and PostgreSQL boundaries before
+   the independent dependency audit rejected the branch's older `nanoid`
+   resolution; the dependency fix remains separate in PR #165.
 
 All three PRs remain draft and production retains the inspected predecessor:
 `StripeWebhookEvent` RLS/FORCE off, zero policies and broad runtime CRUD. The
@@ -228,7 +231,10 @@ classification, direct-denial and rollback engine proofs, and guarded CI plus
 production-release wiring. Its exact boundary and remaining gates live in
 `docs/stripe-webhook-event-activation-release.md`.
 
-This is not an activation claim. Local static tests pass, but disposable
-PostgreSQL, full-suite, dependency and build evidence must come from exact-head
-CI before the candidate can receive its separate hard review. Production
-remains unchanged.
+This is not an activation claim. The later activation checkpoint
+`fb0facf146e58123ddd2f4a727fda1b966669d5d` passed exact-head CI run
+`31272188477`, including disposable PostgreSQL, the full suite, clean dependency
+audits and the production build. Its Extra-High authority review is complete,
+but the candidate remains cumulative and must be recut from the compatible
+production predecessor before any activation release. Production remains
+unchanged.

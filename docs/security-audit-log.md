@@ -924,6 +924,12 @@ Open work:
   bytes on PR #162 before that migration can merge or run; otherwise a later
   edit would create a Prisma migration-checksum mismatch. The cumulative PR
   #164 must not be merged as one release batch.
+- Exact reviewed checkpoint `fb0facf146e58123ddd2f4a727fda1b966669d5d`
+  passed CI run `31272188477`: disposable PostgreSQL activation and rollback,
+  four direct runtime denial probes, restored-posture grant/RLS audit, 2,824
+  tests with seven intentional skips, TypeScript, lint, both dependency audits,
+  and the production build. This is candidate evidence only, not production
+  activation authority.
 
 ## Dependency security refresh (2026-08-08)
 
