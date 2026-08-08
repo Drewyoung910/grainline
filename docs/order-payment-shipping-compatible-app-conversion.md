@@ -56,14 +56,14 @@ database functions protect row lifecycle, replay identity, type immutability
 and stale-worker finalization; they do not independently authenticate a Stripe
 payload.
 
-The legacy `checkout-stock-restore:<session>` dedup path uses the same prepared
-begin/complete lifecycle inside its already-held checkout-session advisory lock
-and the surrounding stock-restore transaction. The claim, completion and stock
-update therefore commit or roll back together. The catalogued dedicated
-`grainline_legacy_stock_restore_claim` operation remains an explicit later
-activation prerequisite before direct `StripeWebhookEvent` grants are revoked;
-the current reuse is compatibility-only and is not represented as completion
-of operation 36.
+This branch is now the predecessor of the separate isolated
+StripeWebhookEvent maintenance-authority candidate. That later candidate moves
+the legacy `checkout-stock-restore:<session>` dedup path to the dedicated
+`grainline_legacy_stock_restore_claim` operation inside its already-held
+checkout-session advisory lock and surrounding stock-restore transaction. The
+claim and stock update therefore commit or roll back together. Operation 36 is
+implemented and proven only in that stacked candidate; it is not merged,
+deployed, applied or represented as live production authority here.
 
 ## Durable seller-key dual write
 
@@ -145,3 +145,8 @@ No test, commit or CI result on this branch changes production state.
   completes the event and then returns success. The same review made the row
   parser reject negative claim generations for every action and reject blank
   durable seller IDs. Semantic regression tests cover all three cases.
+- Corrected exact head `d2ef37b4c86a0ff174016be77113fa1b888131b4`
+  passed exact-head CI run `31278958695`: all disposable PostgreSQL proofs,
+  TypeScript, lint, 2,799 tests (2,792 passed and 7 skipped), dependency audit
+  and the production build succeeded. No deployment or production mutation
+  occurred.

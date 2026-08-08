@@ -144,7 +144,7 @@ describe("DirectUpload service-only activation release", () => {
       assert.ok(verifier >= 0, `${workflowPath} omits activation verifier`);
       assert.ok(deploy >= 0, `${workflowPath} omits Prisma deploy`);
       assert.ok(verifier < deploy, `${workflowPath} verifies activation too late`);
-      assert.match(workflow, /order-payment-shipping-compatibility-reviewed/);
+      assert.match(workflow, /stripe-webhook-maintenance-authority-reviewed/);
     }
     const ci = readFileSync(".github/workflows/ci.yml", "utf8");
     assert.match(

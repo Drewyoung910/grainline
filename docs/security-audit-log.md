@@ -858,6 +858,24 @@ Follow-up fix from this pass:
 - **Hardened 2026-05-18:** message-thread body media rendering now requires `isTrustedMediaUrl()` before turning bare URLs or parsed file-message URLs into image/PDF/download bubbles. Arbitrary external `https://...jpg/pdf` message text remains plain text, while trusted Grainline/legacy media continues rendering as attachments. Regression coverage lives in `tests/rendering-security.test.mjs`.
 - **Documented 2026-05-18:** security/runtime documentation now reflects the resolved `next@16.2.6` runtime and the actual `Cross-Origin-Opener-Policy: same-origin-allow-popups` header used for Clerk/Stripe popup compatibility. Regression coverage lives in `tests/verified-audit-followups.test.mjs`.
 
+## Stripe webhook maintenance replay-barrier correction (2026-08-08)
+
+- The Extra-High activation review found that the general 90-day processed
+  webhook prune included legacy `checkout.session.stock_restored` claim rows.
+  These rows are permanent replay barriers: after one was pruned, a buyer-held
+  old expired Checkout Session could pass the authenticated stock-rollback path
+  again and restore inventory twice.
+- The maintenance migration now excludes that finite event class while keeping
+  ordinary processed-event cleanup bounded to 1,000 rows with a database-derived
+  cutoff and `FOR UPDATE SKIP LOCKED`. Its disposable PostgreSQL proof creates
+  an old permanent claim and proves it survives pruning.
+- The corrected migration SHA-256 is
+  `0c34cc94f6a602e8f686487277b422f3ba4e89a1f2c50b9b3b673cb63d259df5`;
+  the corrected maintenance phase-tree fingerprint is
+  `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`.
+  The earlier PR #162 migration bytes are superseded before merge or production
+  application. Production was not changed.
+
 ## Dependency security refresh (2026-07-25)
 
 - GitHub Actions run `30174843104` first proved the Conversation/Message PostgreSQL invariants, grant convergence, TypeScript, lint, and tests, then failed at the independent dependency-audit step because advisories published after the last green `main` run affected the unchanged lockfile. This is repository-wide security drift, not an RLS proof failure.

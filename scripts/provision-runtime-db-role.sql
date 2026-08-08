@@ -1106,47 +1106,56 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
--- Stripe webhook generation-bound lease operations are additive before their
--- later table-RLS boundary. Keep PUBLIC closed, remove stale direct runtime
--- ACLs, and grant only the three exact reviewed service signatures.
-WITH stripe_webhook_lease(function_signature) AS (
+-- Stripe webhook generation-bound lease and maintenance operations are
+-- additive before their later table-RLS boundary. Keep PUBLIC closed, remove
+-- stale direct runtime ACLs, and grant only the exact reviewed signatures.
+WITH stripe_webhook_service(function_signature) AS (
   VALUES
     ('public."grainline_stripe_webhook_begin"(text, text)'),
     ('public."grainline_stripe_webhook_complete"(text, bigint)'),
-    ('public."grainline_stripe_webhook_fail"(text, bigint, text)')
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
-  FROM stripe_webhook_lease
+  FROM stripe_webhook_service
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
-WITH stripe_webhook_lease(function_signature) AS (
+WITH stripe_webhook_service(function_signature) AS (
   VALUES
     ('public."grainline_stripe_webhook_begin"(text, text)'),
     ('public."grainline_stripe_webhook_complete"(text, bigint)'),
-    ('public."grainline_stripe_webhook_fail"(text, bigint, text)')
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
   function_signature,
   :'runtime_role'
 )
-  FROM stripe_webhook_lease
+  FROM stripe_webhook_service
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
-WITH stripe_webhook_lease(function_signature) AS (
+WITH stripe_webhook_service(function_signature) AS (
   VALUES
     ('public."grainline_stripe_webhook_begin"(text, text)'),
     ('public."grainline_stripe_webhook_complete"(text, bigint)'),
-    ('public."grainline_stripe_webhook_fail"(text, bigint, text)')
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',
   function_signature,
   :'runtime_role'
 )
-  FROM stripe_webhook_lease
+  FROM stripe_webhook_service
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 

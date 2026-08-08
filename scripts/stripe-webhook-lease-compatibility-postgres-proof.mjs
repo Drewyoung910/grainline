@@ -317,14 +317,21 @@ export async function runStripeWebhookLeaseCompatibilityProof(env = process.env)
            JOIN pg_catalog.pg_namespace AS namespace
              ON namespace.oid = procedure.pronamespace
           WHERE namespace.nspname = 'public'
-            AND procedure.proname LIKE 'grainline_stripe_webhook_%') AS function_count
+            AND (
+              procedure.proname,
+              pg_catalog.oidvectortypes(procedure.proargtypes)
+            ) IN (
+              ('grainline_stripe_webhook_begin', 'text, text'),
+              ('grainline_stripe_webhook_complete', 'text, bigint'),
+              ('grainline_stripe_webhook_fail', 'text, bigint, text')
+            )) AS lease_function_count
     `);
     const promoted = originalCatalog.rows[0]?.column_count === 1
-      && originalCatalog.rows[0]?.function_count === 3;
+      && originalCatalog.rows[0]?.lease_function_count === 3;
     if (promoted) {
       verifyPromotedOrderPaymentShippingCompatibility();
     } else {
-      assert.deepEqual(originalCatalog.rows, [{ column_count: 0, function_count: 0 }]);
+      assert.deepEqual(originalCatalog.rows, [{ column_count: 0, lease_function_count: 0 }]);
     }
 
     await client.query("BEGIN");
@@ -346,14 +353,21 @@ export async function runStripeWebhookLeaseCompatibilityProof(env = process.env)
            JOIN pg_catalog.pg_namespace AS namespace
              ON namespace.oid = procedure.pronamespace
           WHERE namespace.nspname = 'public'
-            AND procedure.proname LIKE 'grainline_stripe_webhook_%') AS function_count,
+            AND (
+              procedure.proname,
+              pg_catalog.oidvectortypes(procedure.proargtypes)
+            ) IN (
+              ('grainline_stripe_webhook_begin', 'text, text'),
+              ('grainline_stripe_webhook_complete', 'text, bigint'),
+              ('grainline_stripe_webhook_fail', 'text, bigint, text')
+            )) AS lease_function_count,
         (SELECT pg_catalog.count(*)::integer
            FROM public."StripeWebhookEvent"
           WHERE id IN ($1, $2)) AS residue_count
     `, [ids.fresh, ids.stale]);
     assert.deepEqual(restoredCatalog.rows, [{
       column_count: promoted ? 1 : 0,
-      function_count: promoted ? 3 : 0,
+      lease_function_count: promoted ? 3 : 0,
       residue_count: 0,
     }]);
 

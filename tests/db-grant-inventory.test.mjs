@@ -1112,6 +1112,9 @@ describe("database grant inventory guardrails", () => {
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
       "grainline_stripe_webhook_fail",
+      "grainline_stripe_webhook_health_summary",
+      "grainline_stripe_webhook_prune_batch",
+      "grainline_legacy_stock_restore_claim",
       "grainline_conversation_participants_immutable",
       "grainline_message_maintain_thread_state",
       "grainline_message_participants_match_conversation",
@@ -1132,7 +1135,7 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.fixedIntSingletonIds, ["SiteConfig.id", "SiteMetricsSnapshot.id"]);
     assert.equal(
       inventory.publicRevokes.length,
-      154
+      157
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0),
     );
