@@ -12,6 +12,7 @@ const PROOF_ENV = "STRIPE_WEBHOOK_EVENT_ACTIVATION_PROOF_DATABASE_URL";
 const DATABASE_NAME = "grainline_ci";
 const RUNTIME_ROLE = "grainline_app_runtime";
 const PREFIX = "evt_grainline_activation_proof";
+export const LEGACY_CLAIM_SESSION_ID = "cs_test_grainlineactivationproof";
 
 function safeError(error) {
   return (error instanceof Error ? error.message : String(error))
@@ -165,7 +166,7 @@ async function proveRuntimeBoundary(owner) {
     assert.deepEqual(completed.rows, [{ result: "completed" }]);
     const claimed = await owner.query(
       "SELECT public.grainline_legacy_stock_restore_claim($1) AS claimed",
-      ["cs_test_grainline_activation_proof"],
+      [LEGACY_CLAIM_SESSION_ID],
     );
     assert.deepEqual(claimed.rows, [{ claimed: true }]);
     const health = await owner.query(
@@ -194,9 +195,9 @@ export async function runStripeWebhookEventActivationProof(env = process.env) {
     const residue = await owner.query(`
       SELECT pg_catalog.count(*)::integer AS residue_count
         FROM public."StripeWebhookEvent"
-       WHERE id LIKE '${PREFIX}%'
-          OR id = 'checkout-stock-restore:cs_test_grainline_activation_proof'
-    `);
+       WHERE id LIKE $1
+          OR id = $2
+    `, [`${PREFIX}%`, `checkout-stock-restore:${LEGACY_CLAIM_SESSION_ID}`]);
     assert.deepEqual(residue.rows, [{ residue_count: 0 }]);
     return Object.freeze({
       database: DATABASE_NAME,
