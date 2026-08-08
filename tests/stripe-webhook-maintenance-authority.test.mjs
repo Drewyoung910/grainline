@@ -69,6 +69,7 @@ test("maintenance release pins an additive three-function migration", () => {
 test("maintenance functions derive fixed authority rather than caller targets", () => {
   assert.match(migration, /LEAST\(p_limit, 1000\)/);
   assert.match(migration, /interval '90 days'/);
+  assert.match(migration, /event\.type <> 'checkout\.session\.stock_restored'/);
   assert.match(migration, /ORDER BY event\."processedAt" ASC, event\.id ASC/);
   assert.match(migration, /FOR UPDATE SKIP LOCKED/);
   assert.doesNotMatch(migration, /p_cutoff|p_event_id|p_event_type/);
@@ -130,6 +131,7 @@ test("engine proof is loopback-only, rollback-only and covers lock races", () =>
   assert.match(proof, /oidvectortypes\(procedure\.proargtypes\)/);
   assert.match(proof, /competing claim did not wait for the advisory lock/);
   assert.match(proof, /5000/);
+  assert.match(proof, /retainedLegacy/);
   assert.match(proof, /residue_count: 0/);
   assert.match(proof, /rolledBack: true/);
   assert.match(proof, /productionTouched: false/);
