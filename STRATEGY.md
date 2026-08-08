@@ -4,7 +4,7 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Case FORCE completion and Order/payment/shipping start (2026-08-04)
+### Case FORCE completion and Order/payment/shipping rollout (updated 2026-08-08)
 
 The Case-family database RLS group is complete. Exact main
 `9e5d87f4c5b4a529bc84c6c2cf077778fe553186` passed CI `30951067980`;
@@ -48,6 +48,18 @@ has RLS off, zero policies and broad runtime CRUD, so this is classification
 evidence rather than protection. Proceed to compatible seller-key,
 webhook-generation and invariant preparation; do not skip the compatible app
 deployment/coexistence boundary or bundle later activation releases.
+
+The database-first compatibility preparation is now also complete in
+production. PR `#160` and corrective PR `#166` produced exact main
+`6f1f4c1e99fb21726744ecd1652a37b6be35c294`; CI `31276366947` passed; and
+guarded migration run `31277540714` applied only
+`20260805012000_prepare_order_payment_shipping_compatibility`. The separate
+actual pooled-runtime read-only postflight reported all six integrity counts
+at zero and proved RLS off, FORCE off, zero policies and predecessor CRUD
+retained. The next boundary is compatible application conversion to the
+durable seller keys and generation-bound Stripe webhook operations, followed
+by coexistence/drain proof. Do not activate or FORCE any Order-family table
+until that application boundary and its authority audit are accepted.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

@@ -143,7 +143,10 @@ describe("order/payment/shipping pre-RLS audit", () => {
     assert.match(audit, /policyless `ENABLE` plus `FORCE` RLS with zero\s+direct runtime\/PUBLIC table or column grants/);
     assert.match(audit, /derive seller, buyer,\s+target row, provider identity, clocks, replay identity and state transitions/);
     assert.match(audit, /RLS removes arbitrary table CRUD[\s\S]*does not independently authenticate/);
-    assert.match(strategy, /Case FORCE completion and Order\/payment\/shipping start/);
+    assert.match(
+      strategy,
+      /Case FORCE completion and Order\/payment\/shipping (?:start|rollout)/,
+    );
     assert.match(strategy, /StripeWebhookEvent` isolation is a\s+hard service-ledger prerequisite/);
     assert.match(strategy, /Finish the complete group before\s+moving to the next sensitive-data family/);
   });

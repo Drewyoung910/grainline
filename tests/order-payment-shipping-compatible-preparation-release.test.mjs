@@ -92,10 +92,14 @@ test("CI and production migration workflows fail closed on the exact release", (
   }
 });
 
-test("release record preserves the non-activation boundary and proof history", () => {
+test("release record preserves accepted production preparation and the non-activation boundary", () => {
   assert.match(release, new RegExp(candidate.migrationSha256));
   assert.match(release, /30964592546/);
   assert.match(release, /30965587927/);
+  assert.match(release, /31276366947/);
+  assert.match(release, /31277540714/);
+  assert.match(release, /a2348cd61fed8e3bf9f5ffc3cf1906c71cb4c45a0ec2325e90d117893c001809/);
+  assert.match(release, /RLS off, FORCE off, zero\s+policies/i);
   assert.match(release, /does \*\*not\*\* enable or FORCE RLS/i);
-  assert.match(release, /Nothing[\s\S]*authorizes a merge/i);
+  assert.match(release, /does not authorize[\s\S]*RLS[\s\S]*activation/i);
 });

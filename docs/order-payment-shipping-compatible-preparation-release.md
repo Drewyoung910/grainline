@@ -1,9 +1,11 @@
 # Order, Payment, and Shipping Compatible Preparation Release
 
-Status: isolated draft release candidate; not merged, deployed, or applied to
-production.
+Status: compatible database preparation accepted in production; application
+conversion and every RLS/grant activation remain pending.
 
-Date: 2026-08-04
+Prepared: 2026-08-04
+
+Accepted in production: 2026-08-08
 
 ## Boundary
 
@@ -105,20 +107,48 @@ runtime role, passed all other PostgreSQL authority/concurrency/rollback
 proofs and global catalog audits, then completed TypeScript, lint, the full
 test suite, dependency audit and production build.
 
+## Accepted production state
+
+PR `#160` merged candidate head
+`91f13706f8cb1931c1c9bf8a6c5a627aba20e254` at main merge
+`8ac2d9c8ca6e1e6d78d849f2babfddafa35f34ae`. PR `#166` then merged the
+exact-main proof correction at head
+`24e4534363cd456886799845421e661c76e33839`, producing accepted main commit
+`6f1f4c1e99fb21726744ecd1652a37b6be35c294`. Exact-main CI run
+`31276366947` passed.
+
+Guarded Production Migrations run `31277540714` applied only
+`20260805012000_prepare_order_payment_shipping_compatibility` from that exact
+main commit. The applied migration SHA-256 is
+`29f56fa82b68c743e0d081324c5caa9795f0dd0d43e8d0ed42acd28311ef03d3`.
+No application deployment or provider change accompanied it.
+
+The required separate pooled-runtime postflight then passed in an
+engine-attested repeatable-read, read-only transaction. It proved the real
+`grainline_app_runtime` identity, the expected columns, keys, indexes,
+triggers, four private functions, three runtime functions and private-helper
+denial. All six aggregate integrity counts were zero. It also proved the
+predecessor boundary is intentionally intact: RLS off, FORCE off, zero
+policies and predecessor table CRUD retained. The sanitized mode-`0600`
+evidence file is
+`order-payment-shipping-compatible-production-postflight-6f1f4c1e99fb21726744ecd1652a37b6be35c294.json`;
+its SHA-256 is
+`a2348cd61fed8e3bf9f5ffc3cf1906c71cb4c45a0ec2325e90d117893c001809`.
+
 ## Required release order
 
-1. Review and merge this exact candidate only after its full CI and disposable
-   PostgreSQL proofs pass.
-2. Run the guarded Production Migrations workflow from an exact green main
-   commit, applying only the committed compatibility migration.
-3. Run a read-only compatible-preparation production postflight and record the
-   resulting catalog and row-count evidence.
+1. **Complete:** merge the exact candidate after full CI and disposable
+   PostgreSQL proofs.
+2. **Complete:** apply only the committed compatibility migration through the
+   guarded Production Migrations workflow from exact green main.
+3. **Complete:** run and retain the read-only compatible-preparation production
+   postflight.
 4. Convert application call sites to the durable seller key and generation-
    bound webhook functions while retaining old/new deployment coexistence.
 5. Audit and activate the Order, payment, and shipping RLS groups as separate
    production boundaries. Payment and payout authority must not be bundled
    into an unrelated table activation.
 
-Nothing in this document authorizes a merge, workflow dispatch, production
-migration, deployment, RLS activation, grant change, cleanup, or provider
-mutation.
+This record does not authorize the compatible application deployment, any RLS
+or grant activation, cleanup, or provider mutation. Each remains a separately
+reviewed release boundary.
