@@ -281,7 +281,11 @@ not contrary application-build evidence and nothing deployed.
 This is not an activation claim. PR #163 exact documentation head
 `2c084d470df7805f9c5616044a2c58b7586b2650` passed exact-head CI run
 `31281007479`; it remains audit and proof work only and contains no activation
-migration. The activation candidate remains isolated on PR #164 and must pass
-its own exact-head authority and release review after synchronization. Production
-remains on the compatible predecessor until PR #161 and PR #162 are merged,
-deployed, drained and exercised in the documented order.
+migration. The synchronized PR #164 authority-hardening checkpoint
+`7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
+`31282060518`, including actual disposable direct-runtime-login proof, pinned
+six-function source bodies, PUBLIC table/column rollback drift cases, restored
+activation audit, TypeScript, lint, 2,846 tests with seven intentional skips,
+dependency audits and production build. It remains isolated candidate evidence
+only. Production remains on the compatible predecessor until PR #161 and PR
+#162 are merged, deployed, drained and exercised in the documented order.

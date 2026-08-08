@@ -137,8 +137,16 @@ evidence and does not authorize a deployment. PR #164 has since been
 synchronized through PR #163 exact head
 `2c084d470df7805f9c5616044a2c58b7586b2650`, whose CI run `31281007479`
 passed. The source pins, PUBLIC rollback checks and production postflight added
-after that synchronization require their own fresh exact-head CI before this
-candidate may advance.
+after that synchronization passed exact-head CI run `31282060518` at exact
+checkpoint `7a57316bcd16daeef5ac9d595180284d1953e316`. That run applied the
+activation in disposable PostgreSQL, converged and audited the policyless
+posture, opened a new direct connection authenticated as the disposable
+runtime role for the production-postflight-equivalent denial/health/read-only
+fence proof, re-proved the lease and maintenance contracts, injected both
+PUBLIC grant-drift classes into the rollback proof, restored and re-audited
+the activation, and passed TypeScript, lint, 2,846 tests with seven intentional
+skips, both dependency audits and the production build. This is candidate
+evidence only; it did not merge, deploy or change production.
 
 ## Remaining gates
 
@@ -149,8 +157,10 @@ candidate may advance.
    signed webhook, retry, ops-health, retention and legacy stock-restore paths,
    drain the prior deployment, and rerun the predecessor postflight.
 3. Recut or merge this activation-only candidate from that exact compatible
-   main state and obtain fresh exact-head CI including the source-drift and
-   PUBLIC-authority PostgreSQL proofs.
+   main state and obtain fresh exact-head CI again if the merge/rebase changes
+   its exact commit or migration-tree bytes. The current isolated candidate's
+   source-drift and PUBLIC-authority PostgreSQL proofs are green at
+   `7a57316bcd16daeef5ac9d595180284d1953e316` / `31282060518`.
 4. Only then review an exact-main production activation dispatch and run the
    separate actual pooled-runtime postflight described above.
 5. Prepare FORCE as its own later posture-only release after stable activation
