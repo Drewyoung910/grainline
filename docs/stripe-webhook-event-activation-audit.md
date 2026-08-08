@@ -237,6 +237,14 @@ The launch-proof direct read was a real compatibility blocker, not a reason to
 add broader authority; the rollback-only fixed-lease conversion closes it.
 The proof now also fails closed on database target and engine role identity and
 has actual disposable-PostgreSQL coverage for the Prisma rollback mechanism.
+Exact checkpoint `9d2d9d3a82252b991d5fa3f832bd9f629eb1ade9` passed CI
+`31280779769`: the new PostgreSQL 16 step proved missing insert and stale
+reclaim rollback through the real Prisma transaction with exact zero residue;
+all migration, authority, grant/RLS, TypeScript, lint, 2,827-test, dependency
+audit and production-build gates also passed. Vercel deployment
+`dpl_2u3r9ip2soVEirdbLgQWbfZH8X41` failed at the intentional Preview runtime
+database isolation guard (`DATABASE_URL_SHAPE`) before application build; it is
+not contrary application-build evidence and nothing deployed.
 PR #163 remains audit and proof work only; it contains no activation migration.
 Production remains on the compatible predecessor until PR #161 and PR #162 are
 merged, deployed, drained and exercised in the documented order.

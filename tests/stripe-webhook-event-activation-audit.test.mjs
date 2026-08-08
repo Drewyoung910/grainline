@@ -102,4 +102,8 @@ test("operator proof binds target before connect and attests restricted runtime 
   assert.match(buyerProof, /SESSION_USER AS "sessionUser"/);
   assert.match(buyerProof, /role\.rolbypassrls AS "bypassRls"/);
   assert.match(audit, /Sanitized evidence records both the configured target/);
+  assert.match(audit, /9d2d9d3a82252b991d5fa3f832bd9f629eb1ade9/);
+  assert.match(audit, /31280779769/);
+  assert.match(audit, /dpl_2u3r9ip2soVEirdbLgQWbfZH8X41/);
+  assert.match(audit, /DATABASE_URL_SHAPE/);
 });
