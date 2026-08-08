@@ -30,11 +30,11 @@ test("Case Stripe dispute packaging remains included through Case FORCE", () => 
   );
   assert.match(
     ciWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed/,
   );
 });
 

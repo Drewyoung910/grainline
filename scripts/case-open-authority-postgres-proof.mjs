@@ -236,74 +236,96 @@ async function seedOrder(
 }
 
 async function seedFixtures(client) {
-  await seedUsersAndListings(client);
-  await seedOrder(client, ids.validOrder);
-  await seedOrder(client, ids.unpaidOrder, { paid: false });
-  await seedOrder(client, ids.multiSellerOrder);
-  await seedOrder(client, ids.refundSentinelOrder);
-  await seedOrder(client, ids.refundEventOrder);
-  await seedOrder(client, ids.earlyOrder, {
-    fulfillmentStatus: "PENDING",
-  });
-  await seedOrder(client, ids.labelOrder, {
-    fulfillmentStatus: "PENDING",
-    labelStatus: "PURCHASED",
-  });
-  await seedOrder(client, ids.futureOrder, { estimated: "future" });
-  await seedOrder(client, ids.reviewNeededOrder, {
-    estimated: "future",
-    fulfillmentStatus: "PENDING",
-    reviewNeeded: true,
-  });
-  await seedOrder(client, ids.expiredOrder, {
-    estimated: "expired",
-    fulfillmentStatus: "DELIVERED",
-  });
-  await seedOrder(client, ids.malformedReplayOrder);
-  await seedOrder(client, ids.concurrencyOrder);
-  await seedOrder(client, ids.rollbackOrder);
+  await client.query("BEGIN");
+  try {
+    await seedUsersAndListings(client);
+    await seedOrder(client, ids.validOrder);
+    await seedOrder(client, ids.unpaidOrder, { paid: false });
+    await seedOrder(client, ids.multiSellerOrder);
+    await seedOrder(client, ids.refundSentinelOrder);
+    await seedOrder(client, ids.refundEventOrder);
+    await seedOrder(client, ids.earlyOrder, {
+      fulfillmentStatus: "PENDING",
+    });
+    await seedOrder(client, ids.labelOrder, {
+      fulfillmentStatus: "PENDING",
+      labelStatus: "PURCHASED",
+    });
+    await seedOrder(client, ids.futureOrder, { estimated: "future" });
+    await seedOrder(client, ids.reviewNeededOrder, {
+      estimated: "future",
+      fulfillmentStatus: "PENDING",
+      reviewNeeded: true,
+    });
+    await seedOrder(client, ids.expiredOrder, {
+      estimated: "expired",
+      fulfillmentStatus: "DELIVERED",
+    });
+    await seedOrder(client, ids.malformedReplayOrder);
+    await seedOrder(client, ids.concurrencyOrder);
+    await seedOrder(client, ids.rollbackOrder);
 
-  await client.query(`
-    INSERT INTO public."OrderItem" (
-      id, "orderId", "listingId", quantity, "priceCents"
-    )
-    VALUES ($1, $2, $3, 1, 10000)
-  `, [
-    `${ids.multiSellerOrder}-item-second`,
-    ids.multiSellerOrder,
-    ids.secondListing,
-  ]);
-  await client.query(`
-    UPDATE public."Order"
-       SET "sellerRefundId" = 'pending',
-           "sellerRefundLockedAt" = CURRENT_TIMESTAMP
-     WHERE id = $1
-  `, [ids.refundSentinelOrder]);
-  await client.query(`
-    INSERT INTO public."OrderPaymentEvent" (
-      id,
-      "orderId",
-      "stripeEventId",
-      "stripeObjectId",
-      "stripeObjectType",
-      "eventType",
-      "amountCents",
-      currency,
-      status,
-      "createdAt",
-      "updatedAt"
-    )
-    VALUES (
-      $1, $2, $3, $4, 'refund', 'REFUND', 1000, 'usd', 'succeeded',
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-    )
-  `, [
-    `${PREFIX}-refund-event`,
-    ids.refundEventOrder,
-    `${PREFIX}-stripe-refund-event`,
-    `${PREFIX}-stripe-refund`,
-  ]);
-  await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+    await client.query("SAVEPOINT reject_multi_seller_item");
+    let multiSellerError;
+    try {
+      await client.query(`
+        INSERT INTO public."OrderItem" (
+          id, "orderId", "listingId", quantity, "priceCents"
+        )
+        VALUES ($1, $2, $3, 1, 10000)
+      `, [
+        `${ids.multiSellerOrder}-item-second`,
+        ids.multiSellerOrder,
+        ids.secondListing,
+      ]);
+      await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+    } catch (error) {
+      multiSellerError = error;
+      await client.query("ROLLBACK TO SAVEPOINT reject_multi_seller_item");
+    }
+    assert.ok(multiSellerError, "multi_seller_item_invariant_rejected");
+    assert.match(
+      safeError(multiSellerError),
+      /Order cannot contain items from multiple sellers/,
+    );
+    await client.query("RELEASE SAVEPOINT reject_multi_seller_item");
+
+    await client.query(`
+      UPDATE public."Order"
+         SET "sellerRefundId" = 'pending',
+             "sellerRefundLockedAt" = CURRENT_TIMESTAMP
+       WHERE id = $1
+    `, [ids.refundSentinelOrder]);
+    await client.query(`
+      INSERT INTO public."OrderPaymentEvent" (
+        id,
+        "orderId",
+        "stripeEventId",
+        "stripeObjectId",
+        "stripeObjectType",
+        "eventType",
+        "amountCents",
+        currency,
+        status,
+        "createdAt",
+        "updatedAt"
+      )
+      VALUES (
+        $1, $2, $3, $4, 'refund', 'REFUND', 1000, 'usd', 'succeeded',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [
+      `${PREFIX}-refund-event`,
+      ids.refundEventOrder,
+      `${PREFIX}-stripe-refund-event`,
+      `${PREFIX}-stripe-refund`,
+    ]);
+    await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function cleanupFixtures(client) {
@@ -370,13 +392,6 @@ async function proveInputAndSourceDenials(runtime) {
     "SELECT public.grainline_case_open($1, $2, $3, $4)",
     [ids.buyer, ids.unpaidOrder, "OTHER", DESCRIPTION],
     /Order is not paid/,
-  );
-  await expectRuntimeError(
-    runtime,
-    "multi_seller_order_rejected",
-    "SELECT public.grainline_case_open($1, $2, $3, $4)",
-    [ids.buyer, ids.multiSellerOrder, "OTHER", DESCRIPTION],
-    /invalid participants/,
   );
   await expectRuntimeError(
     runtime,

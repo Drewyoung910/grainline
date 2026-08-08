@@ -94,6 +94,14 @@ describe("dependency hygiene guardrails", () => {
       lock.packages?.["node_modules/fast-uri"]?.version,
       "3.1.5",
     );
+    assert.equal(
+      lock.packages?.["node_modules/nanoid"]?.version,
+      "3.3.18",
+    );
+    assert.equal(
+      lock.packages?.["node_modules/js-yaml"]?.version,
+      "4.3.1",
+    );
   });
 
   it("pins the patched user-content sanitizer", () => {

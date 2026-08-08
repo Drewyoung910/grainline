@@ -111,8 +111,17 @@ test("proof covers old app, new app, forgery and ownership drift", () => {
   ]) {
     assert.match(proof, new RegExp(marker.replaceAll("-", "[-_]")), marker);
   }
-  assert.match(proof, /checks: 13/);
+  assert.match(proof, /checks: promoted \? 15 : 14/);
   assert.match(proof, /unexpected PostgreSQL error/);
+});
+
+test("promoted proof observes the Order lock before rejecting a cross-seller race", () => {
+  assert.match(proof, /verifyPromotedOrderPaymentShippingCompatibility/);
+  assert.match(proof, /grainline-order-seller-key-race-cross/);
+  assert.match(proof, /wait_event_type === "Lock"/);
+  assert.match(proof, /cross-seller insert did not wait on the Order authority lock/);
+  assert.match(proof, /cannot contain items from multiple sellers/);
+  assert.match(proof, /cleanupCommittedRaceFixtures/);
 });
 
 test("CI runs the exact rollback-only PostgreSQL proof", () => {

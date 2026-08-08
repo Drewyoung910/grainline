@@ -369,6 +369,66 @@ TO :"runtime_role";
 -- silently restore UPDATE after the RLS migration removes it.
 REVOKE UPDATE ON TABLE public."SavedSearch" FROM :"runtime_role";
 
+-- StripeWebhookEvent begins as a compatible CRUD table. Its separate
+-- policyless service-ledger activation enables RLS with zero policies and
+-- removes all direct runtime authority. FORCE may be either off (initial
+-- activation) or on (later posture hardening); partial state is refused so a
+-- provisioning rerun cannot silently reopen the ledger.
+WITH table_state AS (
+  SELECT
+    c.relrowsecurity,
+    c.relforcerowsecurity,
+    COUNT(p.oid)::integer AS policy_count
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  LEFT JOIN pg_policy p ON p.polrelid = c.oid
+  WHERE n.nspname = 'public'
+    AND c.relname = 'StripeWebhookEvent'
+    AND c.relkind IN ('r', 'p')
+  GROUP BY c.relrowsecurity, c.relforcerowsecurity
+), stripe_webhook_event_activation AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND policy_count = 0) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+  FROM table_state
+), failure AS (
+  SELECT
+    'StripeWebhookEvent RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+  FROM stripe_webhook_event_activation
+  WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE(
+    (SELECT active FROM stripe_webhook_event_activation),
+    false
+  ) AS stripe_webhook_event_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_role_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_role_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :stripe_webhook_event_rls_active
+REVOKE ALL ON TABLE public."StripeWebhookEvent"
+FROM :"runtime_role";
+\endif
+
 -- Notification keeps ordinary CRUD until its reviewed recipient policies are
 -- installed. Once those exact policies exist, every provisioning rerun must
 -- converge back to SELECT plus column-only UPDATE(read). The surrounding
@@ -1065,7 +1125,11 @@ WITH private_trigger(function_signature) AS (
     ('public."grainline_conversation_participants_immutable"()'),
     ('public."grainline_message_participants_match_conversation"()'),
     ('public."grainline_message_route_immutable"()'),
-    ('public."grainline_message_maintain_thread_state"()')
+    ('public."grainline_message_maintain_thread_state"()'),
+    ('public."grainline_order_item_seller_key_bind"()'),
+    ('public."grainline_order_seller_key_assert"(text)'),
+    ('public."grainline_order_seller_key_complete"()'),
+    ('public."grainline_order_item_seller_key_complete"()')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM private_trigger
@@ -1087,7 +1151,11 @@ WITH private_trigger(function_signature) AS (
     ('public."grainline_conversation_participants_immutable"()'),
     ('public."grainline_message_participants_match_conversation"()'),
     ('public."grainline_message_route_immutable"()'),
-    ('public."grainline_message_maintain_thread_state"()')
+    ('public."grainline_message_maintain_thread_state"()'),
+    ('public."grainline_order_item_seller_key_bind"()'),
+    ('public."grainline_order_seller_key_assert"(text)'),
+    ('public."grainline_order_seller_key_complete"()'),
+    ('public."grainline_order_item_seller_key_complete"()')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -1095,6 +1163,59 @@ SELECT format(
   :'runtime_role'
 )
   FROM private_trigger
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Stripe webhook generation-bound lease and maintenance operations are
+-- additive before their later table-RLS boundary. Keep PUBLIC closed, remove
+-- stale direct runtime ACLs, and grant only the exact reviewed signatures.
+WITH stripe_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_complete"(text, bigint)'),
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM stripe_webhook_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH stripe_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_complete"(text, bigint)'),
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM stripe_webhook_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH stripe_webhook_service(function_signature) AS (
+  VALUES
+    ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_complete"(text, bigint)'),
+    ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
+    ('public."grainline_stripe_webhook_prune_batch"(integer)'),
+    ('public."grainline_stripe_webhook_health_summary"()'),
+    ('public."grainline_legacy_stock_restore_claim"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM stripe_webhook_service
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 

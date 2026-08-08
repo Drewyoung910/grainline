@@ -2,8 +2,10 @@ import { prisma } from "@/lib/db";
 import {
   WEBHOOK_EVENT_RETENTION_BATCH_SIZE,
   WEBHOOK_EVENT_RETENTION_TIME_BUDGET_MS,
+  webhookEventRetentionBatchSize,
   webhookEventRetentionCutoff,
 } from "@/lib/webhookEventRetentionState";
+import { pruneStripeWebhookEventServiceBatch } from "@/lib/stripeWebhookMaintenance";
 
 type PruneResult = { count: number; complete: boolean };
 
@@ -18,12 +20,13 @@ export async function pruneWebhookEventRetention({
 } = {}): Promise<PruneResult> {
   const deadline = Date.now() + timeBudgetMs;
   const cutoff = webhookEventRetentionCutoff(now);
+  const effectiveBatchSize = webhookEventRetentionBatchSize(batchSize);
   let totalDeleted = 0;
 
   const pruners = [
-    () => pruneStripeWebhookEvents(cutoff, batchSize),
-    () => pruneResendWebhookEvents(cutoff, batchSize),
-    () => pruneClerkWebhookEvents(cutoff, batchSize),
+    () => pruneStripeWebhookEventServiceBatch(effectiveBatchSize),
+    () => pruneResendWebhookEvents(cutoff, effectiveBatchSize),
+    () => pruneClerkWebhookEvents(cutoff, effectiveBatchSize),
   ];
 
   while (Date.now() < deadline) {
@@ -32,7 +35,7 @@ export async function pruneWebhookEventRetention({
       if (Date.now() >= deadline) return { count: totalDeleted, complete: false };
       const count = await prune();
       totalDeleted += count;
-      if (count >= batchSize) anyBatchMayRemain = true;
+      if (count >= effectiveBatchSize) anyBatchMayRemain = true;
     }
     if (!anyBatchMayRemain) {
       return { count: totalDeleted, complete: true };
@@ -40,20 +43,6 @@ export async function pruneWebhookEventRetention({
   }
 
   return { count: totalDeleted, complete: false };
-}
-
-function pruneStripeWebhookEvents(cutoff: Date, batchSize: number) {
-  return prisma.$executeRaw<number>`
-    DELETE FROM "StripeWebhookEvent"
-    WHERE id IN (
-      SELECT id
-      FROM "StripeWebhookEvent"
-      WHERE "processedAt" IS NOT NULL
-        AND "processedAt" < ${cutoff}
-      ORDER BY "processedAt" ASC
-      LIMIT ${batchSize}
-    )
-  `;
 }
 
 function pruneResendWebhookEvents(cutoff: Date, batchSize: number) {

@@ -90,11 +90,11 @@ test("compatible history remains intact while Case FORCE is promoted separately"
 
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*case-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE:\s*stripe-webhook-event-activation-reviewed/,
   );
   assert.match(
     productionWorkflow,
-    /Verify exact Case FORCE migration tree/,
+    /Verify exact StripeWebhookEvent activation migration tree/,
   );
   assert.match(productionWorkflow, /audit:rls-case-force-release/);
   assert.match(
