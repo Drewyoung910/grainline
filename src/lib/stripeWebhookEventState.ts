@@ -18,14 +18,33 @@ const STRIPE_CARD_LAST4_PATTERNS = [
 ];
 
 function stripeWebhookClaimGeneration(value: unknown): bigint {
-  if (typeof value === "bigint") return value;
+  if (typeof value === "bigint") {
+    if (value < 0n) {
+      throw new Error("Stripe webhook lease returned an invalid claim generation");
+    }
+    return value;
+  }
   if (typeof value === "number" && Number.isSafeInteger(value)) {
+    if (value < 0) {
+      throw new Error("Stripe webhook lease returned an invalid claim generation");
+    }
     return BigInt(value);
   }
   if (typeof value === "string" && /^(?:0|[1-9][0-9]*)$/.test(value)) {
     return BigInt(value);
   }
   throw new Error("Stripe webhook lease returned an invalid claim generation");
+}
+
+export function isStripeSessionUniqueConstraintError(error: unknown) {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  if ((error as { code?: unknown }).code !== "P2002") return false;
+  const target = "meta" in error
+    ? (error as { meta?: { target?: unknown } }).meta?.target
+    : undefined;
+  return Array.isArray(target)
+    ? target.includes("stripeSessionId")
+    : typeof target === "string" && target.includes("stripeSessionId");
 }
 
 export function stripeWebhookEventReservationFromRows(

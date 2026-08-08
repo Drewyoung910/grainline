@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 const {
   STRIPE_WEBHOOK_EVENT_LAST_ERROR_MAX_CHARS,
   STRIPE_WEBHOOK_EVENT_STALE_PROCESSING_MS,
+  isStripeSessionUniqueConstraintError,
   shouldReclaimStripeWebhookEvent,
   stripeWebhookCompletionFromRows,
   stripeWebhookEventReservationFromRows,
@@ -82,6 +83,40 @@ describe("Stripe webhook event idempotency state", () => {
         { action: "process", claim_generation: Number.MAX_SAFE_INTEGER + 1 },
       ]),
       /invalid claim generation/,
+    );
+    assert.throws(
+      () => stripeWebhookEventReservationFromRows([
+        { action: "processed", claim_generation: -1n },
+      ]),
+      /invalid claim generation/,
+    );
+  });
+
+  it("recognizes only the reviewed duplicate checkout-session constraint", () => {
+    assert.equal(
+      isStripeSessionUniqueConstraintError({
+        code: "P2002",
+        meta: { target: ["stripeSessionId"] },
+      }),
+      true,
+    );
+    assert.equal(
+      isStripeSessionUniqueConstraintError({
+        code: "P2002",
+        meta: { target: "Order_stripeSessionId_key" },
+      }),
+      true,
+    );
+    assert.equal(
+      isStripeSessionUniqueConstraintError({
+        code: "P2002",
+        meta: { target: ["stripeEventId"] },
+      }),
+      false,
+    );
+    assert.equal(
+      isStripeSessionUniqueConstraintError({ code: "P2034" }),
+      false,
     );
   });
 

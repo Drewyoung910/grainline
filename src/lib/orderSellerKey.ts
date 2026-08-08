@@ -4,7 +4,7 @@ export function requireSingleOrderSellerProfileId(
   if (
     sellerProfileIds.length === 0
     || sellerProfileIds.some(
-      (value) => typeof value !== "string" || value.length === 0,
+      (value) => typeof value !== "string" || value.trim().length === 0,
     )
   ) {
     throw new Error("Order seller authority requires one complete seller id");
