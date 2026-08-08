@@ -11,18 +11,22 @@ function source(path) {
 }
 
 describe("Order, payment, and shipping compatible application conversion", () => {
-  it("records the stacked, production-unchanged compatibility boundary", () => {
+  it("records the accepted preparation and undeployed application boundary", () => {
     const record = source("docs/order-payment-shipping-compatible-app-conversion.md");
 
-    assert.match(record, /isolated stacked candidate/);
-    assert.match(record, /not merged, deployed, or applied to\s+production/);
-    assert.match(record, /2b624afe219bc982dd0945284895326ee6893a1e/);
+    assert.match(record, /isolated application candidate/);
+    assert.match(record, /not merged or deployed/);
+    assert.match(record, /6f1f4c1e99fb21726744ecd1652a37b6be35c294/);
+    assert.match(record, /31276366947/);
+    assert.match(record, /31277540714/);
     assert.match(record, /20260805012000_prepare_order_payment_shipping_compatibility/);
     assert.match(record, /29f56fa82b68c743e0d081324c5caa9795f0dd0d43e8d0ed42acd28311ef03d3/);
-    assert.match(record, /must not deploy until that exact preparation\s+migration/);
+    assert.match(record, /does not itself authorize an\s+application deployment/);
     assert.match(record, /not the complete Order\/OrderItem\/payment\/\s*shipping authority conversion/);
     assert.match(record, /grainline_legacy_stock_restore_claim/);
     assert.match(record, /explicit later\s+activation prerequisite/);
+    assert.match(record, /duplicate-`stripeSessionId` recovery branch/);
+    assert.match(record, /negative claim generations/);
     assert.match(record, /No test, commit or CI result on this branch changes production state/);
   });
 
@@ -40,6 +44,10 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     assert.throws(
       () => requireSingleOrderSellerProfileId(["seller-a", "seller-b"]),
       /exactly one seller/,
+    );
+    assert.throws(
+      () => requireSingleOrderSellerProfileId(["   "]),
+      /one complete seller id/,
     );
   });
 

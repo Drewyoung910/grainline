@@ -99,6 +99,9 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
 
   it("marks known duplicate checkout sessions processed before returning webhook success", () => {
     const legacyRoute = source("src/app/api/stripe/webhook/route.ts");
+    const processStart = legacyRoute.indexOf("async function processIdempotentEvent(");
+    const processEnd = legacyRoute.indexOf("type OrderPaymentEventClient", processStart);
+    const processHelper = legacyRoute.slice(processStart, processEnd);
     const duplicateStart = legacyRoute.indexOf("const duplicateSession =");
     const duplicateBranch = legacyRoute.slice(
       duplicateStart,
@@ -106,8 +109,11 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     );
 
     assert.ok(duplicateStart >= 0, "legacy webhook route must keep an explicit duplicate-session branch");
-    assert.match(duplicateBranch, /code === "P2002"/);
-    assert.match(duplicateBranch, /p2002Target\.includes\("stripeSessionId"\)/);
+    assert.match(
+      processHelper,
+      /if \(!isStripeSessionUniqueConstraintError\(handlerErr\)\) \{\s*await markCurrentStripeWebhookEventFailed\(handlerErr\)/,
+    );
+    assert.match(duplicateBranch, /isStripeSessionUniqueConstraintError\(err\)/);
     assert.match(duplicateBranch, /markStripeWebhookEventProcessed\(event\.id, claimGeneration\)/);
     assert.match(duplicateBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
     assert.ok(

@@ -51,6 +51,7 @@ import {
   blockingRefundOrLatestOpenDisputeLedgerExistsSql,
   latestOpenDisputeLedgerRowsSql,
 } from "@/lib/refundLedgerSql";
+import { isStripeSessionUniqueConstraintError } from "@/lib/stripeWebhookEventState";
 import {
   REFUND_AMBIGUOUS_SENTINEL,
   REFUND_LOCK_SENTINEL,
@@ -521,7 +522,12 @@ export async function POST(req: Request) {
       await markStripeWebhookEventProcessed(event.id, claimGeneration);
       return response;
     } catch (handlerErr) {
-      await markCurrentStripeWebhookEventFailed(handlerErr);
+      // A concurrent delivery may have committed the Order first. Preserve
+      // this lease so the outer duplicate-session branch can complete this
+      // distinct Stripe event instead of trying to complete a failed lease.
+      if (!isStripeSessionUniqueConstraintError(handlerErr)) {
+        await markCurrentStripeWebhookEventFailed(handlerErr);
+      }
       throw handlerErr;
     } finally {
       if (cleanup) {
@@ -2698,17 +2704,7 @@ export async function POST(req: Request) {
   } catch (err) {
     // Only stripeSessionId P2002s are duplicate webhook deliveries. Other unique
     // constraint failures are real bugs and must surface.
-    const p2002Target = err && typeof err === "object" && "meta" in err
-      ? (err as { meta?: { target?: string[] | string } }).meta?.target
-      : undefined;
-    const duplicateSession =
-      err &&
-      typeof err === "object" &&
-      "code" in err &&
-      (err as { code: string }).code === "P2002" &&
-      (Array.isArray(p2002Target)
-        ? p2002Target.includes("stripeSessionId")
-        : typeof p2002Target === "string" && p2002Target.includes("stripeSessionId"));
+    const duplicateSession = isStripeSessionUniqueConstraintError(err);
     if (duplicateSession) {
       await markStripeWebhookEventProcessed(event.id, claimGeneration);
       return NextResponse.json({ ok: true });
