@@ -356,6 +356,29 @@ checkpoint
 `fb0facf146e58123ddd2f4a727fda1b966669d5d` passed exact-head CI run
 `31272188477`, including disposable PostgreSQL, the full suite, clean dependency
 audits and the production build, and its Extra-High authority review completed.
+
+The proof now also fails closed on database target and engine role identity and
+has actual disposable-PostgreSQL coverage for the Prisma rollback mechanism.
+Exact audit checkpoint `9d2d9d3a82252b991d5fa3f832bd9f629eb1ade9`
+passed CI `31280779769`: the new PostgreSQL 16 step proved missing insert and
+stale reclaim rollback through the real Prisma transaction with exact zero
+residue; all migration, authority, grant/RLS, TypeScript, lint, 2,827-test,
+dependency-audit and production-build gates also passed. Vercel deployment
+`dpl_2u3r9ip2soVEirdbLgQWbfZH8X41` failed at the intentional Preview runtime
+database isolation guard (`DATABASE_URL_SHAPE`) before application build; it is
+not contrary application-build evidence and nothing deployed.
+
+This is not an activation claim. PR #163 exact documentation head
+`2c084d470df7805f9c5616044a2c58b7586b2650` passed exact-head CI run
+`31281007479`; it remains audit and proof work only and contains no activation
+migration. The synchronized PR #164 authority-hardening checkpoint
+`7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
+`31282060518`, including actual disposable direct-runtime-login proof, pinned
+six-function source bodies, PUBLIC table/column rollback drift cases, restored
+activation audit, TypeScript, lint, 2,846 tests with seven intentional skips,
+dependency audits and production build. It remains isolated candidate evidence
+only.
+
 This refresh must now re-prove that candidate against current main and the
 accepted provider evidence before a separate production release review.
 Production StripeWebhookEvent posture remains unchanged.

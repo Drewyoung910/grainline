@@ -1299,3 +1299,12 @@ Open work:
   `d525a4d8e7982f49dbfd280b9d9cc46e0dac39da0507b66881b7828786cd4bdc`.
   These bytes remain isolated on PR #164. No production migration, grant, RLS,
   deployment or provider state changed in this review.
+- Exact authority-hardening checkpoint
+  `7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
+  `31282060518`. The run exercised the actual direct disposable runtime login,
+  exact six-function source catalog, policyless activation, direct denial,
+  read-only write fence, lease and maintenance behavior, PUBLIC table/column
+  rollback drift rejection, restoration and final catalog audit, followed by
+  TypeScript, lint, 2,846 tests with seven intentional skips, both dependency
+  audits and the production build. This is isolated candidate evidence only;
+  production was not changed.
