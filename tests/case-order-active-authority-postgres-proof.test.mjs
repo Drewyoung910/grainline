@@ -39,7 +39,9 @@ describe("Case-aware Order PostgreSQL proof", () => {
     assert.match(source, /catalog-and-grants/);
     assert.match(source, /forced-rls-source-posture/);
     assert.match(source, /participant-active-and-terminal-results/);
-    assert.match(source, /foreign-disabled-mixed-and-empty-denial/);
+    assert.match(source, /foreign-disabled-deleted-and-missing-denial/);
+    assert.match(source, /mixed_seller_order_invariant_rejected/);
+    assert.match(source, /empty_order_invariant_rejected/);
     assert.match(source, /function-only-forced-rls-case-read/);
     assert.match(source, /fixed-retention-targets-and-rollback/);
     assert.match(source, /retention-skip-locked-race/);

@@ -92,7 +92,7 @@ test("Case FORCE migration is posture-only and exact", () => {
   assert.doesNotMatch(migration, /must remain membership-free/);
 });
 
-test("Case FORCE verifier pins the exact predecessor and complete tree", () => {
+test("Case FORCE verifier pins the exact predecessor tree through FORCE", () => {
   const result = verifyCaseForceRelease();
   assert.equal(result.phase, CASE_FORCE_RELEASE_PHASE);
   assert.equal(result.activationMigration, CASE_ACTIVATION_MIGRATION);
@@ -107,7 +107,8 @@ test("Case FORCE verifier pins the exact predecessor and complete tree", () => {
     withFileTypes: true,
   })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+    .map((entry) => entry.name)
+    .filter((name) => name <= CASE_FORCE_MIGRATION);
   assert.equal(
     computeMigrationTreeSha256("prisma/migrations", migrationNames),
     CASE_FORCE_MIGRATION_TREE_SHA256,
@@ -127,7 +128,10 @@ test("Case FORCE PostgreSQL proof reuses denial checks with FORCE required", () 
 });
 
 test("CI proves Phase A before restoring and proving Case FORCE", () => {
-  assert.match(ci, /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed/);
+  assert.match(
+    ci,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-shipping-compatibility-reviewed/,
+  );
   assert.match(ci, /npm run audit:rls-case-force-release/);
   assert.match(
     ci,
@@ -159,7 +163,7 @@ test("runtime grant convergence accepts only uniform Case ENABLE or FORCE", () =
 
 test("production workflow permits only the reviewed Case FORCE tree", () => {
   const guard = production.indexOf(
-    "SAVED_SEARCH_RLS_DEPLOY_PHASE: case-force-reviewed",
+    "SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-shipping-compatibility-reviewed",
   );
   const verifier = production.indexOf(
     "npm run audit:rls-case-force-release",
