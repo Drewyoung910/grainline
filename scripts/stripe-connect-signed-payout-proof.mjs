@@ -145,9 +145,13 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
   }
   const expectedCommit = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_EXPECTED_COMMIT");
   const ciRunId = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_CI_RUN_ID");
+  const cutoverCommit = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_COMMIT");
+  const cutoverCiRunId = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_CI_RUN_ID");
   const deploymentId = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_DEPLOYMENT_ID");
   if (!COMMIT_PATTERN.test(expectedCommit)) throw new Error("expected commit is invalid");
   if (!RUN_ID_PATTERN.test(ciRunId)) throw new Error("CI run ID is invalid");
+  if (!COMMIT_PATTERN.test(cutoverCommit)) throw new Error("cutover commit is invalid");
+  if (!RUN_ID_PATTERN.test(cutoverCiRunId)) throw new Error("cutover CI run ID is invalid");
   if (!DEPLOYMENT_PATTERN.test(deploymentId)) throw new Error("deployment ID is invalid");
 
   const resolvedHandoffPath = handoffPath(env);
@@ -167,6 +171,8 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
     );
   const config = {
     ciRunId,
+    cutoverCiRunId,
+    cutoverCommit,
     cutoverEvidencePath,
     deploymentId,
     evidencePath: finalEvidencePath,
@@ -274,8 +280,8 @@ export function assertCutoverEvidence(payload, config) {
     payload?.phase !== "stripe-connect-provider-cutover"
     || payload?.status !== "passed"
     || payload?.mode !== "test"
-    || payload?.commit !== config.expectedCommit
-    || String(payload?.ciRunId) !== String(config.ciRunId)
+    || payload?.commit !== config.cutoverCommit
+    || String(payload?.ciRunId) !== String(config.cutoverCiRunId)
     || payload?.deploymentId !== config.deploymentId
     || payload?.providerStage !== 3
     || payload?.stripe?.connectUrl !== CONNECT_URL

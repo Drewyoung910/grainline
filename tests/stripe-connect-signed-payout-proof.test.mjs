@@ -20,6 +20,8 @@ import {
 
 const COMMIT = "b".repeat(40);
 const CI_RUN = "31340000001";
+const CUTOVER_COMMIT = "a".repeat(40);
+const CUTOVER_CI_RUN = "31339275512";
 const DEPLOYMENT_ID = "dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP";
 const CONNECT_URL = "https://thegrainline.com/api/stripe/webhook/connect";
 const V2_URL = "https://thegrainline.com/api/stripe/webhook/v2";
@@ -40,6 +42,8 @@ function baseEnv(mode = "prepare", overrides = {}) {
       : "enable-and-prove-signed-test-payout-failure",
     STRIPE_CONNECT_PAYOUT_PROOF_EXPECTED_COMMIT: COMMIT,
     STRIPE_CONNECT_PAYOUT_PROOF_CI_RUN_ID: CI_RUN,
+    STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_COMMIT: CUTOVER_COMMIT,
+    STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_CI_RUN_ID: CUTOVER_CI_RUN,
     STRIPE_CONNECT_PAYOUT_PROOF_DEPLOYMENT_ID: DEPLOYMENT_ID,
     STRIPE_CONNECT_PAYOUT_PROOF_VERCEL_PROJECT_DIRECTORY: "/reviewed/grainline",
     STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_EVIDENCE_PATH:
@@ -81,8 +85,8 @@ function cutoverEvidence(config) {
     phase: "stripe-connect-provider-cutover",
     status: "passed",
     mode: "test",
-    commit: config.expectedCommit,
-    ciRunId: config.ciRunId,
+    commit: config.cutoverCommit,
+    ciRunId: config.cutoverCiRunId,
     deploymentId: config.deploymentId,
     providerStage: 3,
     stripe: {
@@ -319,7 +323,16 @@ test("configuration is exact-main, test-mode and runtime-role bound", () => {
 
 test("cutover evidence remains bound to disabled canonical stage 3", () => {
   const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
+  assert.notEqual(config.cutoverCommit, config.expectedCommit);
+  assert.notEqual(config.cutoverCiRunId, config.ciRunId);
   assert.doesNotThrow(() => assertCutoverEvidence(cutoverEvidence(config), config));
+  assert.throws(
+    () => assertCutoverEvidence({
+      ...cutoverEvidence(config),
+      commit: config.expectedCommit,
+    }, config),
+    /disabled-canonical predecessor/,
+  );
   assert.throws(
     () => assertCutoverEvidence({
       ...cutoverEvidence(config),

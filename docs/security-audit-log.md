@@ -1058,6 +1058,15 @@ Follow-up fix from this pass:
   correction removes only the redundant `type` field, retains the exact
   Custom-equivalent controller contract, and requires the returned account to
   re-attest that controller before any funding charge or payout can be created.
+- Before retry, the controller fix exposed a separate provenance coupling: the
+  signed-payout operator required the completed stage-3 cutover artifact to
+  claim the later proof commit and CI run. Re-running a provider mutator merely
+  to rewrite historical evidence would erase the true release boundary and
+  could roll stage 3 backward on a late local failure. The corrected contract
+  therefore requires two explicit exact bindings: the retained cutover
+  commit/CI inside the immutable stage-3 evidence and the current proof
+  commit/CI used for source code and GitHub gates. This is proof-chain code and
+  documentation only; Stripe remains disabled at stage 3.
 
 ## Dependency security refresh (2026-07-25)
 
