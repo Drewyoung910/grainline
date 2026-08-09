@@ -111,6 +111,13 @@ token, creates a one-dollar payout, waits for the real failed payout and exact
 - a temporary mode-`0600` handoff containing the raw account, payout and event
   IDs needed for exact resend.
 
+The disposable account uses the current controller contract
+(`requirement_collection=application`, application-paid fees and losses, and
+no Stripe dashboard). It deliberately omits the legacy top-level
+`type=custom`: Stripe rejects requests that send `type` and `controller`
+together. The returned account must re-attest the exact controller properties
+before funding or payout creation proceeds.
+
 The handoff and preparation-attempt journal stay under `/private/tmp` (or the
 system temporary directory), are never committed, and contain no API key or
 signing secret. If preparation fails and exact account deletion succeeds, the
