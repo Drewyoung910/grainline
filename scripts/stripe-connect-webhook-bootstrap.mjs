@@ -245,6 +245,19 @@ function defaultCommand(command, args, options = {}) {
   return result.stdout;
 }
 
+export function normalizeGitHubCiRun(payload, config) {
+  if (Number(payload?.id) !== Number(config.ciRunId) || payload?.repository?.full_name !== REPOSITORY) {
+    throw new Error("GitHub CI lookup returned a different run or repository");
+  }
+  return {
+    conclusion: payload.conclusion,
+    event: payload.event,
+    headBranch: payload.head_branch,
+    headSha: payload.head_sha,
+    workflowName: payload.name,
+  };
+}
+
 async function fetchExactCiRun(config) {
   const headers = {
     Accept: "application/vnd.github+json",
@@ -262,17 +275,7 @@ async function fetchExactCiRun(config) {
   if (!response.ok) {
     throw new Error(`GitHub CI lookup failed with HTTP ${response.status}`);
   }
-  const payload = await response.json();
-  if (Number(payload?.id) !== Number(config.ciRunId) || payload?.repository?.full_name !== REPOSITORY) {
-    throw new Error("GitHub CI lookup returned a different run or repository");
-  }
-  return {
-    conclusion: payload.conclusion,
-    event: payload.event,
-    headBranch: payload.head_branch,
-    headSha: payload.head_sha,
-    workflowName: payload.name,
-  };
+  return normalizeGitHubCiRun(await response.json(), config);
 }
 
 function vercelArgs(...args) {

@@ -5,6 +5,7 @@ import {
   assertExactDisabledEndpoint,
   assertSensitiveProductionVariable,
   findProductionEnvironmentVariable,
+  normalizeGitHubCiRun,
   parseConfig,
   runStripeConnectBootstrap,
 } from "../scripts/stripe-connect-webhook-bootstrap.mjs";
@@ -177,6 +178,34 @@ test("Vercel helpers require one unbranched Sensitive production variable", () =
       type: "sensitive",
     }],
   }).length, 0);
+});
+
+test("GitHub REST run normalization stays bound to the exact repository and run", () => {
+  const config = parseConfig(baseEnv());
+  const payload = {
+    conclusion: "success",
+    event: "push",
+    head_branch: "main",
+    head_sha: COMMIT,
+    id: Number(CI_RUN),
+    name: "CI",
+    repository: { full_name: "Drewyoung910/grainline" },
+  };
+  assert.deepEqual(normalizeGitHubCiRun(payload, config), {
+    conclusion: "success",
+    event: "push",
+    headBranch: "main",
+    headSha: COMMIT,
+    workflowName: "CI",
+  });
+  assert.throws(
+    () => normalizeGitHubCiRun({ ...payload, id: Number(CI_RUN) + 1 }, config),
+    /different run or repository/,
+  );
+  assert.throws(
+    () => normalizeGitHubCiRun({ ...payload, repository: { full_name: "other/repo" } }, config),
+    /different run or repository/,
+  );
 });
 
 test("endpoint proof rejects an enabled endpoint or expanded event set", () => {
