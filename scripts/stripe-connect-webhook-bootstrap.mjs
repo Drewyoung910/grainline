@@ -339,7 +339,6 @@ function finalizeEvidence(pendingPath, evidencePath, payload) {
   });
   chmodSync(pendingPath, 0o600);
   renameSync(pendingPath, evidencePath);
-  chmodSync(evidencePath, 0o600);
 }
 
 function discardEvidence(pendingPath) {
