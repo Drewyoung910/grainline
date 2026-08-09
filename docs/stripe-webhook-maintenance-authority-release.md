@@ -222,6 +222,12 @@ unused `v2.core.account_person.*` event types outside the accepted
 `v2.core.account` family. This is provider-configuration drift, not an
 application or RLS failure; no Stripe setting was changed during inspection.
 
-The next boundary is an independently reviewed provider-subscription
-correction, then Connect v2 signed-delivery evidence, predecessor drain and a
-final pooled-runtime postflight. Activation remains a separate release.
+The provider drift cannot be corrected as one mixed classic event list. The
+read-only source/topology review in
+`docs/stripe-webhook-provider-topology-audit.md` separates the required
+platform snapshot destination, Connect v2 account destination and a new,
+separately signed classic Connect payout destination. The next boundary is the
+compatible three-surface implementation and proof; provider mutation remains a
+later separately reviewed operation. Signed delivery for every surface,
+predecessor drain and a final pooled-runtime postflight still precede the
+separate activation release.

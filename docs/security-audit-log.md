@@ -908,6 +908,15 @@ Follow-up fix from this pass:
   destination contains three unused `v2.core.account_person.*` event types
   outside the reviewed `v2.core.account` family. This is provider subscription
   drift; no endpoint, event set, secret or other provider state was changed.
+- The follow-up source/topology audit found that the old expected classic set
+  mixed platform-account Checkout/refund/dispute events with connected-account
+  payout/account events. The executable replacement contract is three distinct
+  source-bound surfaces: the platform snapshot route, the current Connect v2
+  account route and a new separately signed classic Connect payout route.
+  `docs/stripe-webhook-provider-topology-audit.md` retains the aggregate-only
+  seller-version evidence, retirement decision boundary for legacy classic
+  account events, implementation proofs and release order. No provider or
+  production state changed during that audit.
 
 ## Dependency security refresh (2026-07-25)
 

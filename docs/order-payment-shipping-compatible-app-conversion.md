@@ -172,6 +172,10 @@ No test, commit or CI result on this branch changes production state.
   Sensitive signing secret on readback.
   The retained read-only provider proof also found exact subscription drift:
   the classic destination is missing 11 handled events and has four extras,
-  while the thin v2 destination has three unused `account_person` events. No
-  provider setting was changed; correction and signed v2 delivery remain
-  separate gates.
+  while the thin v2 destination has three unused `account_person` events. The
+  old expected classic set incorrectly mixes platform-account events with
+  connected-account payout events. The replacement platform snapshot,
+  Connect v2 account and separately signed classic Connect payout topology is
+  recorded in `docs/stripe-webhook-provider-topology-audit.md`. No provider
+  setting was changed; compatible implementation, exact correction and signed
+  delivery remain separate gates.

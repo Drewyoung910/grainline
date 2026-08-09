@@ -222,7 +222,9 @@ test("release record pins production preparation without claiming activation", (
   assert.match(release, /dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3/);
   assert.match(release, /fresh correctly signed classic snapshot event completed/);
   assert.match(release, /cron_run_already_claimed/);
-  assert.match(release, /Connect v2 signed-delivery evidence/);
+  assert.match(release, /stripe-webhook-provider-topology-audit\.md/);
+  assert.match(release, /classic Connect payout destination/);
+  assert.match(release, /Signed delivery for every surface/);
   assert.match(release, /No invalid-signature request was generated/);
   assert.match(release, /stripe-webhook-subscriptions-compatible-production-20260808\.json/);
   assert.match(release, /missing 11 handled event types/);

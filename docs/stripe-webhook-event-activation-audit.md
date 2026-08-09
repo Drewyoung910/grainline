@@ -4,8 +4,10 @@ Status: audit and launch-proof conversion merged; compatible maintenance
 functions and exact compatible application are live in production. No
 activation migration, grant revocation, provider change or StripeWebhookEvent
 RLS change has occurred. Classic signed delivery and retry, rollback-only
-retention, expanded ops health and legacy restoration are proved; Connect v2
-signed delivery and provider-subscription correction remain gates.
+retention, expanded ops health and legacy restoration are proved. The
+three-surface provider topology in
+`docs/stripe-webhook-provider-topology-audit.md`, signed delivery for each
+surface and provider-subscription correction remain gates.
 
 ## Exact reviewed stack
 
@@ -211,8 +213,10 @@ is:
 3. **partially complete:** migration status and the global grant/RLS audit
    passed; the exact compatible app is deployed; classic signed delivery and
    retry, rollback-only retention, expanded aggregate health and legacy restore
-   passed. Provider-subscription correction plus a valid Connect v2 signed
-   delivery remain before this step is complete;
+   passed. The provider review proved that platform snapshot events, Connect
+   v2 account events and classic Connect payout events require three distinct
+   source-bound surfaces. Their compatible implementation, exact subscription
+   correction and valid signed deliveries remain before this step is complete;
 4. let the prior app deployment drain and verify no production route or job
    still uses direct table access;
 5. run the historical compatibility postflight for the final predecessor
@@ -283,6 +287,9 @@ read-only provider proof retained at
 `archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
 also failed the exact-subscription contract: classic is missing 11 handled
 events and has four unused events, while v2 has three unused
-`v2.core.account_person.*` events. Provider configuration was not changed.
-Correcting and re-proving those subscriptions precedes signed v2 exercise and
-activation.
+`v2.core.account_person.*` events. Provider configuration was not changed. The
+old expected classic event set mixed platform-account and connected-account
+sources and therefore cannot be applied safely as written. The replacement
+three-surface contract and release order are retained in
+`docs/stripe-webhook-provider-topology-audit.md`. Implementing and re-proving
+that contract precedes signed provider exercises and activation.
