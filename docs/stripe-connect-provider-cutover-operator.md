@@ -216,12 +216,17 @@ STRIPE_CONNECT_CUTOVER_CONFIRM=execute-test-connect-provider-cutover
 ```
 
 The payout preparation and signed proof use the same exact release bindings,
-the stage-3 cutover evidence path, separate fresh durable evidence paths, and
-one shared temporary handoff path. Their confirmations are:
+the independently pinned stage-3 cutover commit and CI run, the cutover
+evidence path, separate fresh durable evidence paths, and one shared temporary
+handoff path. A later operator-only fix does not rewrite or re-run the earlier
+provider cutover; the proof validates both exact releases instead. Their
+confirmations are:
 
 ```text
 STRIPE_CONNECT_PAYOUT_PROOF_MODE=prepare
 STRIPE_CONNECT_PAYOUT_PROOF_CONFIRM=create-disposable-test-payout-failure
+STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_COMMIT=<exact-cutover-main-sha>
+STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_CI_RUN_ID=<successful-cutover-main-ci-run>
 
 STRIPE_CONNECT_PAYOUT_PROOF_MODE=prove
 STRIPE_CONNECT_PAYOUT_PROOF_CONFIRM=enable-and-prove-signed-test-payout-failure
