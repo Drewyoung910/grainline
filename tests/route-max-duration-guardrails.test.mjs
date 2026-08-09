@@ -20,6 +20,7 @@ describe("route maxDuration guardrails", () => {
       "src/app/api/cart/checkout/single/route.ts": 60,
       "src/app/api/cart/checkout/rollback/route.ts": 60,
       "src/app/api/stripe/webhook/route.ts": 60,
+      "src/app/api/stripe/webhook/connect/route.ts": 30,
       "src/app/api/stripe/webhook/v2/route.ts": 30,
       "src/app/api/orders/[id]/label/route.ts": 60,
       "src/app/api/orders/[id]/refund/route.ts": 60,

@@ -893,7 +893,7 @@ Bucket B means `Notification` only. It does not include `StockNotification`,
 production releases.
 
 The refreshed source snapshot contains 52 direct `createNotification` calls
-across 29 caller files: 51 object-literal calls plus the fulfillment route's
+across 30 caller files: 51 object-literal calls plus the fulfillment route's
 typed wrapper call. That wrapper serves three distinct fulfillment payloads,
 and back-in-stock uses one dedicated owner-backed claim, so the authority
 inventory contains 55 distinct emission paths. All 55 are currently

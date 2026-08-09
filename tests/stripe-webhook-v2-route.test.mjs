@@ -9,6 +9,7 @@ function source(path) {
 describe("Stripe Connect v2 thin webhook route guardrails", () => {
   it("keeps v2 thin events on a separate route and signing secret", () => {
     const route = source("src/app/api/stripe/webhook/v2/route.ts");
+    const connectRoute = source("src/app/api/stripe/webhook/connect/route.ts");
     const legacyRoute = source("src/app/api/stripe/webhook/route.ts");
 
     assert.match(route, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
@@ -21,6 +22,12 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(route, /readBoundedText\(req, STRIPE_V2_WEBHOOK_BODY_MAX_BYTES\)/);
     assert.match(route, /stripe\.parseEventNotification\(body, signature, secret\)/);
     assert.doesNotMatch(route, /STRIPE_WEBHOOK_SECRET/);
+    assert.doesNotMatch(route, /STRIPE_CONNECT_WEBHOOK_SECRET/);
+
+    assert.match(connectRoute, /process\.env\.STRIPE_CONNECT_WEBHOOK_SECRET/);
+    assert.match(connectRoute, /stripe\.webhooks\.constructEvent\(body, signature, secret\)/);
+    assert.doesNotMatch(connectRoute, /process\.env\.STRIPE_WEBHOOK_SECRET/);
+    assert.doesNotMatch(connectRoute, /STRIPE_V2_WEBHOOK_SECRET/);
 
     assert.match(legacyRoute, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(legacyRoute, /process\.env\.STRIPE_WEBHOOK_SECRET/);
@@ -28,6 +35,7 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(legacyRoute, /stripe\.webhooks\.constructEvent\(body, signature, secret\)/);
     assert.doesNotMatch(legacyRoute, /parseEventNotification/);
     assert.doesNotMatch(legacyRoute, /STRIPE_V2_WEBHOOK_SECRET/);
+    assert.doesNotMatch(legacyRoute, /STRIPE_CONNECT_WEBHOOK_SECRET/);
   });
 
   it("mirrors v2 account capability state through the shared helper with idempotency", () => {
@@ -130,10 +138,14 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     const securityAuditLog = source("docs/security-audit-log.md");
 
     assert.match(middleware, /"\/api\/stripe\/webhook\/v2"/);
+    assert.match(middleware, /"\/api\/stripe\/webhook\/connect"/);
     assert.match(middleware, /pathname === "\/api\/stripe\/webhook\/v2"/);
+    assert.match(middleware, /pathname === "\/api\/stripe\/webhook\/connect"/);
     assert.match(env, /STRIPE_V2_WEBHOOK_SECRET=whsec_xxx/);
-    assert.match(claude, /Stripe Connect v2 thin events are delivered to `\/api\/stripe\/webhook\/v2` with `STRIPE_V2_WEBHOOK_SECRET`/);
-    assert.match(claude, /Snapshot events continue at `\/api\/stripe\/webhook` with `STRIPE_WEBHOOK_SECRET`/);
+    assert.match(env, /STRIPE_CONNECT_WEBHOOK_SECRET=whsec_xxx/);
+    assert.match(claude, /Stripe Connect v2 thin (?:account )?events (?:are delivered|stay) (?:to|on) `\/api\/stripe\/webhook\/v2` with `STRIPE_V2_WEBHOOK_SECRET`/);
+    assert.match(claude, /(?:Platform )?[Ss]napshot events (?:continue|stay) (?:at|on) `\/api\/stripe\/webhook` with `STRIPE_WEBHOOK_SECRET`/);
+    assert.match(claude, /`\/api\/stripe\/webhook\/connect` with `STRIPE_CONNECT_WEBHOOK_SECRET`/);
     assert.match(claude, /Connect v2 thin webhooks require the separate `STRIPE_V2_WEBHOOK_SECRET`/);
     assert.doesNotMatch(claude, /No new env vars are required/);
     assert.match(claude, /Do not consolidate these destinations/);
@@ -152,8 +164,6 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
       assert.match(doc, /checkout\.session\.async_payment_succeeded/);
       assert.match(doc, /checkout\.session\.expired/);
       assert.match(doc, /checkout\.session\.async_payment_failed/);
-      assert.match(doc, /account\.updated/);
-      assert.match(doc, /account\.application\.deauthorized/);
       assert.match(doc, /charge\.refunded/);
       assert.match(doc, /charge\.dispute\.created/);
       assert.match(doc, /charge\.dispute\.updated/);
@@ -163,12 +173,14 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
       assert.match(doc, /payout\.failed/);
       assert.match(doc, /payment_intent\.\*/);
       assert.match(doc, /\/api\/stripe\/webhook\/v2/);
+      assert.match(doc, /\/api\/stripe\/webhook\/connect/);
+      assert.match(doc, /STRIPE_CONNECT_WEBHOOK_SECRET/);
       assert.match(doc, /STRIPE_V2_WEBHOOK_SECRET/);
       assert.match(doc, /v2\.core\.account/);
     }
 
     assert.doesNotMatch(launch, /with at least `checkout\.session\.completed`/);
     assert.match(launch, /screenshots or exported evidence of the exact event subscriptions/);
-    assert.match(runbook, /subscribed only to the handled snapshot events/);
+    assert.match(runbook, /subscribed only to the handled platform snapshot events/);
   });
 });

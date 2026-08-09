@@ -94,7 +94,7 @@ describe("Stripe webhook subscriptions proof harness", () => {
     assert.equal(dryRun.mode, "test-dry-run");
   });
 
-  it("checks the exact snapshot event set and fails on over-subscription", () => {
+  it("checks exact platform snapshot and classic Connect payout sets", () => {
     const script = source("scripts/stripe-webhook-subscriptions-proof.mjs");
 
     for (const eventType of [
@@ -102,8 +102,6 @@ describe("Stripe webhook subscriptions proof harness", () => {
       "checkout.session.async_payment_succeeded",
       "checkout.session.expired",
       "checkout.session.async_payment_failed",
-      "account.updated",
-      "account.application.deauthorized",
       "charge.refunded",
       "charge.dispute.created",
       "charge.dispute.updated",
@@ -116,7 +114,10 @@ describe("Stripe webhook subscriptions proof harness", () => {
     }
 
     assert.match(script, /assertExactSnapshotEvents/);
+    assert.match(script, /EXPECTED_CONNECT_PAYOUT_EVENTS = \["payout\.failed"\]/);
+    assert.match(script, /assertExactConnectPayoutEvents/);
     assert.match(script, /snapshot webhook endpoint subscribes to wildcard events/);
+    assert.match(script, /classic Connect payout webhook endpoint subscribes to wildcard events/);
     assert.match(script, /snapshot webhook events mismatch/);
     assert.match(script, /missing=\$\{diff\.missing\.join/);
     assert.match(script, /extra=\$\{diff\.extra\.join/);
@@ -137,11 +138,12 @@ describe("Stripe webhook subscriptions proof harness", () => {
     assert.match(script, /Connect v2 event destination subscribes to wildcard events/);
   });
 
-  it("records both destination checks even when one provider check fails", () => {
+  it("records all three destination checks even when a provider check fails", () => {
     const script = source("scripts/stripe-webhook-subscriptions-proof.mjs");
 
     assert.match(script, /async function collectProviderCheck/);
     assert.match(script, /name: "legacy-snapshot-webhook-subscription"/);
+    assert.match(script, /name: "classic-connect-payout-webhook-subscription"/);
     assert.match(script, /name: "connect-v2-thin-event-destination"/);
     assert.match(script, /checks\.push\(\{ name, status: "failed" \}\)/);
     assert.match(script, /if \(issues\.length > 0\) status = "failed"/);
@@ -204,7 +206,7 @@ describe("Stripe webhook subscriptions proof harness", () => {
     assert.match(script, /Stripe does not return webhook signing secrets after creation/);
     assert.match(launch, /npm run audit:stripe-webhooks/);
     assert.match(launch, /separate signing-secret matching evidence/);
-    assert.match(runbook, /does not prove deployed `STRIPE_WEBHOOK_SECRET` or\s+`STRIPE_V2_WEBHOOK_SECRET` values/);
+    assert.match(runbook, /does not prove\s+deployed `STRIPE_WEBHOOK_SECRET`,\s+`STRIPE_CONNECT_WEBHOOK_SECRET`\s+or\s+`STRIPE_V2_WEBHOOK_SECRET` values/);
     assert.match(backlog, /`npm run audit:stripe-webhooks`/);
   });
 
@@ -215,6 +217,7 @@ describe("Stripe webhook subscriptions proof harness", () => {
       issues: [
         'STRIPE_SECRET_KEY="sk_live_secret"',
         "STRIPE_WEBHOOK_SECRET=whsec_secret",
+        "STRIPE_CONNECT_WEBHOOK_SECRET=whsec_connect_secret",
         "Authorization: Bearer secret-token-value",
         "https://user:secret@api.stripe.com/v1/webhook_endpoints",
       ],
@@ -228,6 +231,7 @@ describe("Stripe webhook subscriptions proof harness", () => {
     assert.match(serialized, /Bearer \[redacted-token\]/);
     assert.doesNotMatch(serialized, /sk_live_secret/);
     assert.doesNotMatch(serialized, /whsec_secret/);
+    assert.doesNotMatch(serialized, /whsec_connect_secret/);
     assert.doesNotMatch(serialized, /secret-token-value/);
     assert.doesNotMatch(serialized, /user:secret/);
   });

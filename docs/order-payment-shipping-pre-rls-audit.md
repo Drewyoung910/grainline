@@ -324,7 +324,7 @@ or migration yet.
 | Checkout stock lifecycle | `src/lib/checkoutStockRestore.ts`, `src/app/api/cart/checkout/resume/route.ts` | reserve, bind session, complete, restore, repair and terminal-prune transitions with one lock order |
 | Account deletion and PII expiry | `src/lib/accountDeletion.ts` | bounded account-owned reservation cleanup, Order PII purge, quote deletion and seller-history anonymization |
 | Admin reconciliation | `src/app/admin/actions.ts` | staff-authorized review, void/reconcile and append-note transitions with durable audit evidence |
-| Payout failure state | `src/app/api/stripe/webhook/route.ts` | webhook-bound monotonic payout-state upsert; seller receives only a bounded projection |
+| Payout failure state | `src/app/api/stripe/webhook/route.ts`, `src/app/api/stripe/webhook/connect/route.ts`, `src/lib/stripePayoutWebhook.ts` | separately signed platform/Connect compatibility routes share one webhook-bound monotonic payout-state upsert; seller receives only a bounded projection |
 | Seller deauthorization review flag | `src/app/api/stripe/webhook/route.ts` | exact affected-seller batch operation using the durable Order seller key, not live Listing ownership |
 
 ## Semantic read and aggregate conversion map
@@ -371,7 +371,9 @@ Staff projections and transitions:
 Service, safety and aggregate consumers:
 
 - signed provider ingestion and checkout creation:
-  `src/app/api/stripe/webhook/route.ts`;
+  `src/app/api/stripe/webhook/route.ts`,
+  `src/app/api/stripe/webhook/connect/route.ts` and
+  `src/lib/stripePayoutWebhook.ts`;
 - reservation resume/restore: `src/app/api/cart/checkout/resume/route.ts` and
   `src/lib/checkoutStockRestore.ts`;
 - participant state transitions:

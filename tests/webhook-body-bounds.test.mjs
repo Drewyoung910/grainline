@@ -7,11 +7,12 @@ function source(path) {
 }
 
 describe("signed webhook body bounds", () => {
-  it("bounds Stripe snapshot and v2 webhook raw bodies before signature verification", () => {
+  it("bounds Stripe platform, classic Connect, and v2 webhook raw bodies before signature verification", () => {
     const legacy = source("src/app/api/stripe/webhook/route.ts");
+    const connect = source("src/app/api/stripe/webhook/connect/route.ts");
     const v2 = source("src/app/api/stripe/webhook/v2/route.ts");
 
-    for (const route of [legacy, v2]) {
+    for (const route of [legacy, connect, v2]) {
       assert.match(route, /readBoundedText\(req, [A-Z0-9_]+_WEBHOOK_BODY_MAX_BYTES\)/);
       assert.match(route, /isRequestBodyTooLargeError/);
       assert.match(route, /Payload too large/);
@@ -20,6 +21,10 @@ describe("signed webhook body bounds", () => {
     assert.ok(
       legacy.indexOf("readBoundedText(req, STRIPE_WEBHOOK_BODY_MAX_BYTES)") <
         legacy.indexOf("stripe.webhooks.constructEvent(body, signature, secret)"),
+    );
+    assert.ok(
+      connect.indexOf("readBoundedText(req, STRIPE_CONNECT_WEBHOOK_BODY_MAX_BYTES)") <
+        connect.indexOf("stripe.webhooks.constructEvent(body, signature, secret)"),
     );
     assert.ok(
       v2.indexOf("readBoundedText(req, STRIPE_V2_WEBHOOK_BODY_MAX_BYTES)") <

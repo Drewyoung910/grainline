@@ -18,19 +18,17 @@ const EXPECTED_SNAPSHOT_EVENTS = [
   "checkout.session.async_payment_succeeded",
   "checkout.session.expired",
   "checkout.session.async_payment_failed",
-  "account.updated",
-  "account.application.deauthorized",
   "charge.refunded",
   "charge.dispute.created",
   "charge.dispute.updated",
   "charge.dispute.closed",
   "charge.dispute.funds_withdrawn",
   "charge.dispute.funds_reinstated",
-  "payout.failed",
 ];
+const EXPECTED_CONNECT_PAYOUT_EVENTS = ["payout.failed"];
 
 const STRIPE_WEBHOOK_PROOF_ENV_PATTERN =
-  /["']?\b(?:STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|STRIPE_V2_WEBHOOK_SECRET|STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_[A-Z0-9_]+)\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
+  /["']?\b(?:STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|STRIPE_CONNECT_WEBHOOK_SECRET|STRIPE_V2_WEBHOOK_SECRET|STRIPE_WEBHOOK_SUBSCRIPTIONS_PROOF_[A-Z0-9_]+)\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
 const STRIPE_SECRET_PATTERN = /\b(?:sk_(?:live|test)_[A-Za-z0-9_]+|whsec_[A-Za-z0-9_]+)\b/g;
 const URL_USERINFO_PATTERN = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
@@ -145,6 +143,19 @@ function assertExactSnapshotEvents(endpoint) {
   return diff.actual;
 }
 
+function assertExactConnectPayoutEvents(endpoint) {
+  const diff = diffSets(endpoint.enabled_events ?? [], EXPECTED_CONNECT_PAYOUT_EVENTS);
+  if (diff.actual.includes("*")) {
+    throw new Error("classic Connect payout webhook endpoint subscribes to wildcard events");
+  }
+  if (diff.missing.length > 0 || diff.extra.length > 0) {
+    throw new Error(
+      `classic Connect payout webhook events mismatch: missing=${diff.missing.join(",") || "none"} extra=${diff.extra.join(",") || "none"}`,
+    );
+  }
+  return diff.actual;
+}
+
 function isConnectV2AccountEvent(event) {
   return (
     event === CONNECT_V2_ACCOUNT_EVENT_PREFIX ||
@@ -200,6 +211,32 @@ async function checkSnapshotWebhook({ config, stripe }) {
     endpointId: endpoint.id,
     httpMethod: "POST",
     livemode: endpoint.livemode,
+    statusValue: endpoint.status,
+    url,
+  };
+}
+
+async function checkConnectPayoutWebhook({ config, stripe }) {
+  const url = expectedUrl(config, "/api/stripe/webhook/connect");
+  const endpoints = await listAll(stripe.webhookEndpoints.list({ limit: 100 }));
+  const matches = endpoints.filter((endpoint) => endpoint.url === url && endpoint.status === "enabled");
+  const endpoint = assertSingleMatch(matches, "enabled classic Connect payout webhook endpoint");
+  const enabledEvents = assertExactConnectPayoutEvents(endpoint);
+
+  if (endpoint.livemode !== (config.mode === "live")) {
+    throw new Error(
+      `classic Connect payout webhook livemode was ${endpoint.livemode}, expected ${config.mode === "live"}`,
+    );
+  }
+
+  return {
+    apiVersion: endpoint.api_version ?? null,
+    applicationPresent: Boolean(endpoint.application),
+    enabledEvents,
+    endpointId: endpoint.id,
+    httpMethod: "POST",
+    livemode: endpoint.livemode,
+    sourceScopeRequiresDashboardEvidence: true,
     statusValue: endpoint.status,
     url,
   };
@@ -262,15 +299,18 @@ export function buildEvidencePayload({ checks, config, issues, startedAt, comple
     target: {
       appOrigin: config?.appUrl?.origin ?? null,
       snapshotWebhookPath: "/api/stripe/webhook",
+      connectPayoutWebhookPath: "/api/stripe/webhook/connect",
       connectV2WebhookPath: "/api/stripe/webhook/v2",
     },
     expected: {
       snapshotEvents: EXPECTED_SNAPSHOT_EVENTS,
+      connectPayoutEvents: EXPECTED_CONNECT_PAYOUT_EVENTS,
       connectV2EventFamily: CONNECT_V2_ACCOUNT_EVENT_PREFIX,
     },
     checks,
     caveats: [
-      "Stripe does not return webhook signing secrets after creation; retain dashboard/Vercel evidence that STRIPE_WEBHOOK_SECRET and STRIPE_V2_WEBHOOK_SECRET match the separate provider endpoints.",
+      "Stripe does not return webhook signing secrets after creation; retain dashboard/Vercel evidence that STRIPE_WEBHOOK_SECRET, STRIPE_CONNECT_WEBHOOK_SECRET and STRIPE_V2_WEBHOOK_SECRET match the separate provider endpoints.",
+      "Stripe's classic Webhook Endpoint response does not expose whether an endpoint was created with connected-account source scope; retain Stripe Dashboard evidence that /api/stripe/webhook/connect is a Connect destination.",
     ],
     issues: issues.slice(0, EVIDENCE_MAX_ISSUES).map(redact),
   };
@@ -315,6 +355,12 @@ export async function runStripeWebhookSubscriptionsProof(env = process.env) {
       issues,
       name: "legacy-snapshot-webhook-subscription",
       run: () => checkSnapshotWebhook({ config, stripe }),
+    });
+    await collectProviderCheck({
+      checks,
+      issues,
+      name: "classic-connect-payout-webhook-subscription",
+      run: () => checkConnectPayoutWebhook({ config, stripe }),
     });
     await collectProviderCheck({
       checks,

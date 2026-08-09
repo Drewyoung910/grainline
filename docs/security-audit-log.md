@@ -709,6 +709,14 @@ Results:
 - Connect account creation, dashboard-link, login-link, and status routes derive the seller from the authenticated Clerk user and never accept a client-supplied Stripe account ID.
 - New accounts are created through Accounts v2 raw `/v2/core/accounts` with an idempotency key scoped to the seller profile. Existing account links preserve the destination-charge model and keep `stripeAccountVersion` diagnostics backward-compatible for legacy/null sellers.
 - Legacy snapshot webhooks remain on `/api/stripe/webhook` with `STRIPE_WEBHOOK_SECRET`; Accounts v2 thin events remain isolated on `/api/stripe/webhook/v2` with `STRIPE_V2_WEBHOOK_SECRET`, `stripe.parseEventNotification()`, the shared webhook-idempotency ledger, and `mirrorStripeChargesEnabled()`.
+- The reviewed provider topology now separates platform snapshots, classic
+  connected-account payout failures and v2 thin account events. The compatible
+  candidate keeps platform snapshots on `/api/stripe/webhook`, adds
+  `/api/stripe/webhook/connect` with `STRIPE_CONNECT_WEBHOOK_SECRET` for only
+  `payout.failed`, and leaves v2 thin events on `/api/stripe/webhook/v2`.
+  Both classic payout call sites share `src/lib/stripePayoutWebhook.ts` and the
+  same fixed generation-bound event lease; no provider or production state was
+  changed by the implementation checkpoint.
 - Stripe event processing rejects stale events, reclaims stale in-progress idempotency rows, and avoids logging raw webhook payloads or secrets in Sentry extras.
 - Account deletion still runs the local anonymization transaction with `{ timeout: 30000, maxWait: 10000 }`, disables local seller orderability inside the transaction when Stripe rejection succeeds, and leaves audit-log redaction/R2 cleanup outside the transaction as Sentry-captured best-effort work.
 

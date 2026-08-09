@@ -99,8 +99,8 @@ const expected = {
   ],
   SellerPayoutEvent: [
     "src/app/api/account/export/route.ts",
-    "src/app/api/stripe/webhook/route.ts",
     "src/app/dashboard/seller/page.tsx",
+    "src/lib/stripePayoutWebhook.ts",
   ],
   CheckoutStockReservation: [
     "src/app/api/account/export/route.ts",

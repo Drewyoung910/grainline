@@ -10,6 +10,7 @@ describe("Notification order, payment, and fulfillment authority", () => {
   const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
   const refund = source("src/app/api/orders/[id]/refund/route.ts");
   const webhook = source("src/app/api/stripe/webhook/route.ts");
+  const payoutWebhook = source("src/lib/stripePayoutWebhook.ts");
   const serviceAccess = source("src/lib/notificationServiceAccess.ts");
   const sql = source("docs/rls-drafts/notification-service-authority.sql");
 
@@ -47,9 +48,10 @@ describe("Notification order, payment, and fulfillment authority", () => {
     assert.match(webhook, /notificationPaymentSourceId: event\.id/);
     assert.match(webhook, /sourceId: notifySellerUserId\.notificationPaymentSourceId/);
     assert.match(webhook, /relatedUserId: notifySellerUserId\.buyerUserId \?\? undefined/);
-    assert.match(webhook, /const payoutEvent = await prisma\.sellerPayoutEvent\.upsert/);
-    assert.match(webhook, /sourceType: NOTIFICATION_SOURCE_TYPES\.STRIPE_PAYOUT_FAILURE/);
-    assert.match(webhook, /sourceId: payoutEvent\.id/);
+    assert.match(webhook, /processStripePayoutFailedEvent\(event\)/);
+    assert.match(payoutWebhook, /const payoutEvent = await prisma\.sellerPayoutEvent\.upsert/);
+    assert.match(payoutWebhook, /sourceType: NOTIFICATION_SOURCE_TYPES\.STRIPE_PAYOUT_FAILURE/);
+    assert.match(payoutWebhook, /sourceId: payoutEvent\.id/);
   });
 
   it("derives recipients, payloads, and event identity inside one narrow order wrapper", () => {
