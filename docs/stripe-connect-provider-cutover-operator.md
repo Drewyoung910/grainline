@@ -77,8 +77,13 @@ that are distinct for every forward, rollback, enable and disable direction.
 This prevents Stripe from replaying an earlier forward response for the
 opposite rollback request, while a fresh invocation can retry after a completed
 rollback. Creation of the disposable account, funding charge and failed payout
-uses stable release-bound keys instead, because those operations could create
-duplicates if a process ended after Stripe accepted a request.
+uses a mode-`0600` preparation-attempt UUID that is written before the first
+source mutation and reused across an interrupted attempt. The journal also
+retains the first event-search timestamp and, after Stripe returns it, the raw
+disposable account ID. Source idempotency keys bind that attempt UUID. A fully
+cleaned failed attempt removes the journal so its replacement receives fresh
+keys instead of replaying a deleted account; incomplete cleanup preserves the
+journal and resumes the exact account rather than creating another one.
 
 Any ordinary staging failure rolls back in reverse order:
 
@@ -106,12 +111,15 @@ token, creates a one-dollar payout, waits for the real failed payout and exact
 - a temporary mode-`0600` handoff containing the raw account, payout and event
   IDs needed for exact resend.
 
-The handoff stays under `/private/tmp` (or the system temporary directory), is
-never committed, and contains no API key or signing secret. If preparation
-fails, the script deletes the exact test account and removes any handoff. A
-successful preparation intentionally leaves only that disposable account until
-the signed proof completes. Provider object IDs are also redacted from terminal
-error messages; only the temporary handoff may retain their raw values.
+The handoff and preparation-attempt journal stay under `/private/tmp` (or the
+system temporary directory), are never committed, and contain no API key or
+signing secret. If preparation fails and exact account deletion succeeds, the
+script removes both local records. If deletion cannot be proved, it preserves
+the mode-`0600` attempt state for exact recovery. A successful preparation
+intentionally leaves only that disposable account and its bounded local
+recovery records until the signed proof completes. Provider object IDs are
+also redacted from terminal error messages; only those temporary records may
+retain their raw values.
 
 Account creation and deletion can generate v2 account notifications. Because
 the disposable account is deliberately absent from `SellerProfile`, those
@@ -173,6 +181,13 @@ fresh evidence/handoff paths. `STRIPE_SECRET_KEY` and `DATABASE_URL` must come
 from the protected local environment and must never be pasted into a command,
 artifact, PR, issue or chat.
 
+Generated evidence is intentionally written under `archive/` before a later
+record commit. The payout operator's git guard therefore permits only the
+exact configured untracked cutover, preparation and final evidence paths; any
+source edit, tracked-file change or differently named untracked artifact still
+fails closed. Each permitted file is then content-validated and bound to the
+same commit, CI run, deployment and temporary source before it is trusted.
+
 Run the read-only configuration preflight first:
 
 ```sh
@@ -203,6 +218,7 @@ STRIPE_CONNECT_PAYOUT_PROOF_CONFIRM=create-disposable-test-payout-failure
 
 STRIPE_CONNECT_PAYOUT_PROOF_MODE=prove
 STRIPE_CONNECT_PAYOUT_PROOF_CONFIRM=enable-and-prove-signed-test-payout-failure
+STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_EVIDENCE_PATH=<preparation-evidence>
 ```
 
 After success, rerun `audit:stripe-webhooks` and the authenticated aggregate

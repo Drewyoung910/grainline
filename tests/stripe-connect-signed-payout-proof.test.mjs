@@ -10,7 +10,9 @@ import {
   assertCanaryAccount,
   assertCutoverEvidence,
   assertFailedPayout,
+  assertOnlyReviewedEvidenceIsUntracked,
   assertPayoutEvent,
+  assertPreparationEvidence,
   buildCanaryAccountParams,
   parseStripeConnectPayoutProofConfig,
   runStripeConnectSignedPayoutProof,
@@ -26,6 +28,7 @@ const PAYOUT_ID = "po_disposable_test";
 const EVENT_ID = "evt_disposable_test";
 const CONNECT_ID = "we_disposable_test";
 const CONNECT_DIGEST = createHash("sha256").update(CONNECT_ID).digest("hex");
+const ATTEMPT_ID = "12345678-1234-4abc-8def-1234567890ab";
 const DATABASE_URL =
   "postgresql://grainline_app_runtime:fixture@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
 
@@ -43,6 +46,10 @@ function baseEnv(mode = "prepare", overrides = {}) {
       `archive/stripe-connect-provider-cutover-test-${COMMIT}.json`,
     STRIPE_CONNECT_PAYOUT_PROOF_EVIDENCE_PATH:
       `archive/stripe-connect-payout-${mode}-test-${COMMIT}.json`,
+    ...(mode === "prove" ? {
+      STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_EVIDENCE_PATH:
+        `archive/stripe-connect-payout-prepare-test-${COMMIT}.json`,
+    } : {}),
     STRIPE_CONNECT_PAYOUT_HANDOFF_PATH:
       `/private/tmp/grainline-stripe-connect-payout-${mode}-${COMMIT}.json`,
     STRIPE_SECRET_KEY: "sk_test_fixture_not_a_secret",
@@ -81,6 +88,45 @@ function cutoverEvidence(config) {
   };
 }
 
+function preparationEvidence(config) {
+  return {
+    phase: "stripe-connect-disposable-payout-preparation",
+    status: "passed",
+    mode: "test",
+    commit: config.expectedCommit,
+    ciRunId: config.ciRunId,
+    deploymentId: config.deploymentId,
+    stripe: {
+      accountIdSha256: createHash("sha256").update(ACCOUNT_ID).digest("hex"),
+      payoutIdSha256: createHash("sha256").update(PAYOUT_ID).digest("hex"),
+      eventIdSha256: createHash("sha256").update(EVENT_ID).digest("hex"),
+      preparationAttemptIdSha256:
+        createHash("sha256").update(ATTEMPT_ID).digest("hex"),
+      eventType: "payout.failed",
+      failureCode: "no_account",
+      livemode: false,
+      disposableAccountCleanupPending: true,
+    },
+    rawProviderIdsPersistedInEvidence: false,
+    secretsPersistedInEvidence: false,
+    connectEndpointEnabled: false,
+  };
+}
+
+function preparationAttempt(config, overrides = {}) {
+  return {
+    phase: "stripe-connect-disposable-payout-attempt",
+    status: "pending",
+    commit: config.expectedCommit,
+    ciRunId: config.ciRunId,
+    deploymentId: config.deploymentId,
+    attemptId: ATTEMPT_ID,
+    startedSeconds: Math.floor(Date.now() / 1000) - 5,
+    stripeAccountId: ACCOUNT_ID,
+    ...overrides,
+  };
+}
+
 function platform() {
   return {
     enabled_events: PLATFORM_REVIEWED_EVENTS,
@@ -106,6 +152,10 @@ function v2() {
 
 function baseDependencies(config, stage = 3) {
   let enabled = stage === 4;
+  let attempt = preparationAttempt(
+    config,
+    config.mode === "prepare" ? { stripeAccountId: undefined } : {},
+  );
   const calls = [];
   return {
     calls,
@@ -132,6 +182,14 @@ function baseDependencies(config, stage = 3) {
       }],
     }),
     readCutoverEvidence: async () => cutoverEvidence(config),
+    readPreparationEvidence: async () => preparationEvidence(config),
+    readPreparationAttempt: async () => attempt,
+    reserveOrResumePreparationAttempt: async () => attempt,
+    updatePreparationAttempt: async (_config, previous, patch) => {
+      attempt = { ...previous, ...patch };
+      return attempt;
+    },
+    removePreparationAttempt: async () => { attempt = null; },
     readHomepage: async () => ({
       body: `<script src="/app.js?dpl=${DEPLOYMENT_ID}"></script>`,
       status: 200,
@@ -190,6 +248,7 @@ function preparedHandoff(config, created = Math.floor(Date.now() / 1000)) {
     ciRunId: config.ciRunId,
     deploymentId: config.deploymentId,
     marker: marker(config),
+    preparationAttemptId: ATTEMPT_ID,
     stripeAccountId: ACCOUNT_ID,
     payoutId: PAYOUT_ID,
     eventId: EVENT_ID,
@@ -245,7 +304,7 @@ test("configuration is exact-main, test-mode and runtime-role bound", () => {
       STRIPE_CONNECT_PAYOUT_PROOF_EVIDENCE_PATH:
         `archive/stripe-connect-provider-cutover-test-${COMMIT}.json`,
     })),
-    /must not overwrite provider cutover evidence/,
+    /evidence paths must be distinct/,
   );
 });
 
@@ -258,6 +317,46 @@ test("cutover evidence remains bound to disabled canonical stage 3", () => {
       providerStage: 4,
     }, config),
     /disabled-canonical predecessor/,
+  );
+});
+
+test("only exact generated evidence may coexist with the reviewed commit", () => {
+  const prepare = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
+  assert.doesNotThrow(() => assertOnlyReviewedEvidenceIsUntracked(
+    `?? archive/stripe-connect-provider-cutover-test-${COMMIT}.json`,
+    prepare,
+  ));
+  assert.throws(
+    () => assertOnlyReviewedEvidenceIsUntracked(" M scripts/stripe-connect-signed-payout-proof.mjs", prepare),
+    /outside reviewed evidence files/,
+  );
+
+  const prove = parseStripeConnectPayoutProofConfig(baseEnv("prove"));
+  assert.doesNotThrow(() => assertOnlyReviewedEvidenceIsUntracked([
+    `?? archive/stripe-connect-provider-cutover-test-${COMMIT}.json`,
+    `?? archive/stripe-connect-payout-prepare-test-${COMMIT}.json`,
+  ].join("\n"), prove));
+  assert.throws(
+    () => assertOnlyReviewedEvidenceIsUntracked("?? archive/unbound-evidence.json", prove),
+    /outside reviewed evidence files/,
+  );
+});
+
+test("preparation evidence is source-bound and rejects a different handoff", () => {
+  const config = parseStripeConnectPayoutProofConfig(baseEnv("prove"));
+  const created = Math.floor(Date.now() / 1000);
+  const handoff = preparedHandoff(config, created);
+  assert.doesNotThrow(() => assertPreparationEvidence(
+    preparationEvidence(config),
+    config,
+    handoff,
+  ));
+  assert.throws(
+    () => assertPreparationEvidence(preparationEvidence(config), config, {
+      ...handoff,
+      eventId: "evt_other",
+    }),
+    /does not bind the temporary handoff/,
   );
 });
 
@@ -344,6 +443,75 @@ test("prepare creates one disposable source and writes only sanitized durable ev
   assert.doesNotMatch(serialized, /acct_disposable|po_disposable|evt_disposable|sk_test/);
   assert.equal(evidence.stripe.disposableAccountCleanupPending, true);
   assert.deepEqual(deps.calls, []);
+});
+
+test("prepare resumes the durable attempt instead of recreating a deleted-key source", async () => {
+  const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
+  const deps = baseDependencies(config, 3);
+  const created = Math.floor(Date.now() / 1000);
+  let createCount = 0;
+  let evidence;
+  const resumedAttempt = preparationAttempt(config, { startedSeconds: created - 5 });
+  await runStripeConnectSignedPayoutProof({
+    env: baseEnv("prepare"),
+    dependencies: {
+      ...deps,
+      reserveOrResumePreparationAttempt: async () => resumedAttempt,
+      createCanaryAccount: async () => {
+        createCount += 1;
+        throw new Error("resumed attempt must not create another account");
+      },
+      retrieveAccount: async () => ({
+        charges_enabled: true,
+        id: ACCOUNT_ID,
+        livemode: false,
+        metadata: { grainline_provider_canary: marker(config) },
+        payouts_enabled: true,
+      }),
+      createFundingCharge: async () => ({ livemode: false, paid: true, status: "succeeded" }),
+      retrieveBalance: async () => ({ available: [{ amount: 500, currency: "usd" }] }),
+      createPayout: async () => ({ id: PAYOUT_ID, livemode: false }),
+      retrievePayout: async () => failedPayout(),
+      listPayoutFailedEvents: async () => [payoutEvent(created)],
+      writeHandoff: async () => {},
+      finalizeEvidence: async (_path, payload) => { evidence = payload; },
+    },
+  });
+  assert.equal(createCount, 0);
+  assert.equal(evidence.status, "passed");
+});
+
+test("failed account cleanup preserves the durable attempt for exact recovery", async () => {
+  const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
+  const deps = baseDependencies(config, 3);
+  let attemptRemoved = false;
+  await assert.rejects(
+    runStripeConnectSignedPayoutProof({
+      env: baseEnv("prepare"),
+      dependencies: {
+        ...deps,
+        createCanaryAccount: async (params) => ({
+          charges_enabled: true,
+          id: ACCOUNT_ID,
+          livemode: false,
+          metadata: params.metadata,
+          payouts_enabled: true,
+        }),
+        retrieveAccount: async () => ({
+          charges_enabled: true,
+          id: ACCOUNT_ID,
+          livemode: false,
+          metadata: { grainline_provider_canary: marker(config) },
+          payouts_enabled: true,
+        }),
+        createFundingCharge: async () => { throw new Error("funding failed"); },
+        deleteAccount: async () => { throw new Error("cleanup failed"); },
+        removePreparationAttempt: async () => { attemptRemoved = true; },
+      },
+    }),
+    /funding failed; disposable account cleanup incomplete: cleanup failed/,
+  );
+  assert.equal(attemptRemoved, false);
 });
 
 test("prove enables, delivers, retries unchanged, deletes the canary and retains no raw IDs", async () => {
@@ -637,6 +805,13 @@ test("package and durable docs keep preparation, enable and cleanup separate", (
   assert.match(source, /randomUUID\(\)/);
   assert.match(source, /connect-disable/);
   assert.match(source, /connect-enable/);
+  assert.match(source, /preparationAttemptId/);
+  assert.match(source, /preparationAttemptIdSha256/);
+  assert.match(source, /payout source mutation requires a durable preparation attempt/);
   assert.doesNotMatch(source, /connect-enable-disable/);
+  assert.doesNotMatch(
+    source,
+    /config\.expectedCommit\}-\$\{config\.ciRunId\}-\$\{key\}/,
+  );
   assert.doesNotMatch(source, /cliEnvironment\s*=\s*\{\s*\.\.\.process\.env/);
 });

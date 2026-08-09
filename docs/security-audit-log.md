@@ -1022,6 +1022,24 @@ Follow-up fix from this pass:
   This is prepared code and documentation only: no endpoint was moved or
   enabled, no event set was changed, no test account was created, and no
   production, migration, RLS, grant, secret or live-mode state changed.
+- PR #175 exact head `51a07d801dda203056bd84416f2d23ba047669bb`
+  merged as exact `main` `56a787b1bb637b8a0f78d43ce27d6c67df65cb01`.
+  Exact-main CI `31337348971`, Conversation/Message FORCE `31337348977` and
+  Notification FORCE `31337348979` passed. The read-only provider preflight
+  then passed against compatible deployment
+  `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` at exact predecessor stage 0; it changed
+  no Stripe, Vercel, database, deployment or RLS state.
+- The pre-mutation execution review then found two restart blockers. Generated
+  cutover evidence under `archive/` made the worktree dirty even though the
+  next operator required that exact evidence and rejected every dirty path.
+  Separately, a cleaned failed preparation reused a release-global Stripe
+  idempotency key, which could replay the already deleted disposable account.
+  The isolated correction permits only content-validated configured evidence
+  files beside the exact commit and introduces a mode-`0600` attempt UUID,
+  timestamp and account binding. Successful cleanup removes that attempt so a
+  retry receives fresh keys; incomplete cleanup retains it for exact recovery.
+  No provider mutation may proceed until the corrected proof chain and exact
+  CI pass.
 
 ## Dependency security refresh (2026-07-25)
 
