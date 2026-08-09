@@ -20,7 +20,7 @@ const SIGNING_SECRET = "whsec_test_only_not_a_secret";
 function baseEnv(overrides = {}) {
   return {
     STRIPE_CONNECT_BOOTSTRAP_MODE: "bootstrap",
-    STRIPE_CONNECT_BOOTSTRAP_CONFIRM: "create-disabled-connect-bootstrap",
+    STRIPE_CONNECT_BOOTSTRAP_CONFIRM: "create-disabled-connect-bootstrap-live",
     STRIPE_CONNECT_BOOTSTRAP_EXPECTED_COMMIT: COMMIT,
     STRIPE_CONNECT_BOOTSTRAP_CI_RUN_ID: CI_RUN,
     STRIPE_CONNECT_BOOTSTRAP_PROVIDER_MODE: "live",
@@ -61,7 +61,7 @@ function normalizeWhitespace(value) {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function successfulDependencies({ calls = [], listVercelEnvironment } = {}) {
+function successfulDependencies({ calls = [], listVercelEnvironment, providerMode = "live" } = {}) {
   let evidence;
   return {
     calls,
@@ -99,17 +99,20 @@ function successfulDependencies({ calls = [], listVercelEnvironment } = {}) {
     },
     createStripeEndpoint: async () => {
       calls.push("stripe:create");
-      return { ...disabledEndpoint({ status: "enabled" }), secret: SIGNING_SECRET };
+      return {
+        ...disabledEndpoint({ livemode: providerMode === "live", status: "enabled" }),
+        secret: SIGNING_SECRET,
+      };
     },
     disableStripeEndpoint: async (id) => {
       assert.equal(id, ENDPOINT_ID);
       calls.push("stripe:disable");
-      return disabledEndpoint();
+      return disabledEndpoint({ livemode: providerMode === "live" });
     },
     retrieveStripeEndpoint: async (id) => {
       assert.equal(id, ENDPOINT_ID);
       calls.push("stripe:retrieve");
-      return disabledEndpoint();
+      return disabledEndpoint({ livemode: providerMode === "live" });
     },
     deleteStripeEndpoint: async (id) => {
       calls.push("stripe:delete");
@@ -137,21 +140,28 @@ test("parseConfig pins the exact absent and canonical routes", () => {
   assert.equal(config.mode, "bootstrap");
 });
 
-test("parseConfig refuses bad confirmations, commits and live mutations with test keys", () => {
+test("parseConfig refuses bad commits and mode-mismatched confirmations", () => {
   assert.throws(
     () => parseConfig(baseEnv({ STRIPE_CONNECT_BOOTSTRAP_CONFIRM: "yes" })),
-    /create-disabled-connect-bootstrap/,
+    /create-disabled-connect-bootstrap-live/,
   );
   assert.throws(
     () => parseConfig(baseEnv({ STRIPE_CONNECT_BOOTSTRAP_EXPECTED_COMMIT: "abc" })),
     /40-character SHA/,
   );
+  const testConfig = parseConfig(baseEnv({
+    STRIPE_CONNECT_BOOTSTRAP_CONFIRM: "create-disabled-connect-bootstrap-test",
+    STRIPE_CONNECT_BOOTSTRAP_PROVIDER_MODE: "test",
+    STRIPE_SECRET_KEY: "sk_test_test_only_not_a_secret",
+  }));
+  assert.equal(testConfig.providerMode, "test");
   assert.throws(
     () => parseConfig(baseEnv({
+      STRIPE_CONNECT_BOOTSTRAP_CONFIRM: "create-disabled-connect-bootstrap-live",
       STRIPE_CONNECT_BOOTSTRAP_PROVIDER_MODE: "test",
       STRIPE_SECRET_KEY: "sk_test_test_only_not_a_secret",
     })),
-    /requires a live Stripe key/,
+    /create-disabled-connect-bootstrap-test/,
   );
   assert.throws(
     () => parseConfig(baseEnv({
@@ -260,6 +270,24 @@ test("bootstrap disables before secret installation and writes secret-free evide
   assert.equal(dependencies.evidence.stripe.signingSecretPersistedInEvidence, false);
   assert.equal(dependencies.evidence.stripe.connectedAccountSourceRequestedAtCreation, true);
   assert.equal(dependencies.evidence.nextBoundary, "deploy compatible app while the Stripe endpoint remains disabled");
+});
+
+test("test-mode bootstrap stays mode-bound through endpoint proof and evidence", async () => {
+  const calls = [];
+  const dependencies = successfulDependencies({ calls, providerMode: "test" });
+  const result = await runStripeConnectBootstrap({
+    env: baseEnv({
+      STRIPE_CONNECT_BOOTSTRAP_CONFIRM: "create-disabled-connect-bootstrap-test",
+      STRIPE_CONNECT_BOOTSTRAP_PROVIDER_MODE: "test",
+      STRIPE_SECRET_KEY: "sk_test_test_only_not_a_secret",
+    }),
+    dependencies,
+  });
+  assert.equal(result.mode, "test");
+  assert.equal(result.stripe.livemode, false);
+  assert.equal(dependencies.evidence.mode, "test");
+  assert.equal(dependencies.evidence.stripe.livemode, false);
+  assert.equal(calls.includes("evidence:finalize"), true);
 });
 
 test("existing bootstrap or canonical endpoint stops before reservation", async () => {

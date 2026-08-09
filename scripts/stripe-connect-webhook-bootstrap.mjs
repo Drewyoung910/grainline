@@ -27,7 +27,10 @@ const VERCEL_PROJECT = Object.freeze({
 });
 const MODE_CONFIRMATIONS = Object.freeze({
   preflight: "inspect-disabled-connect-bootstrap",
-  bootstrap: "create-disabled-connect-bootstrap",
+  bootstrap: Object.freeze({
+    live: "create-disabled-connect-bootstrap-live",
+    test: "create-disabled-connect-bootstrap-test",
+  }),
 });
 const SHA_PATTERN = /^[a-f0-9]{40}$/;
 const RUN_ID_PATTERN = /^[1-9][0-9]*$/;
@@ -94,14 +97,6 @@ export function parseConfig(env = process.env) {
   if (!Object.hasOwn(MODE_CONFIRMATIONS, mode)) {
     throw new Error("STRIPE_CONNECT_BOOTSTRAP_MODE must be preflight or bootstrap");
   }
-  if (env.STRIPE_CONNECT_BOOTSTRAP_CONFIRM !== MODE_CONFIRMATIONS[mode]) {
-    throw new Error(`STRIPE_CONNECT_BOOTSTRAP_CONFIRM=${MODE_CONFIRMATIONS[mode]} is required`);
-  }
-
-  const expectedCommit = required(env, "STRIPE_CONNECT_BOOTSTRAP_EXPECTED_COMMIT");
-  const ciRunId = required(env, "STRIPE_CONNECT_BOOTSTRAP_CI_RUN_ID");
-  if (!SHA_PATTERN.test(expectedCommit)) throw new Error("expected commit must be a lowercase 40-character SHA");
-  if (!RUN_ID_PATTERN.test(ciRunId)) throw new Error("CI run ID must be a positive integer");
 
   const secretKey = required(env, "STRIPE_SECRET_KEY");
   const providerMode = stripeMode(secretKey);
@@ -109,9 +104,17 @@ export function parseConfig(env = process.env) {
   if (expectedProviderMode !== providerMode) {
     throw new Error(`Stripe key mode is ${providerMode}, not ${expectedProviderMode}`);
   }
-  if (mode === "bootstrap" && providerMode !== "live") {
-    throw new Error("bootstrap mode requires a live Stripe key");
+  const expectedConfirmation = mode === "preflight"
+    ? MODE_CONFIRMATIONS.preflight
+    : MODE_CONFIRMATIONS.bootstrap[providerMode];
+  if (env.STRIPE_CONNECT_BOOTSTRAP_CONFIRM !== expectedConfirmation) {
+    throw new Error(`STRIPE_CONNECT_BOOTSTRAP_CONFIRM=${expectedConfirmation} is required`);
   }
+
+  const expectedCommit = required(env, "STRIPE_CONNECT_BOOTSTRAP_EXPECTED_COMMIT");
+  const ciRunId = required(env, "STRIPE_CONNECT_BOOTSTRAP_CI_RUN_ID");
+  if (!SHA_PATTERN.test(expectedCommit)) throw new Error("expected commit must be a lowercase 40-character SHA");
+  if (!RUN_ID_PATTERN.test(ciRunId)) throw new Error("CI run ID must be a positive integer");
 
   const bootstrapUrl = parseUrl(
     env.STRIPE_CONNECT_BOOTSTRAP_URL
@@ -342,7 +345,7 @@ async function createDefaultStripeDependencies(config) {
         enabled_events: [REQUIRED_EVENT],
         url: config.bootstrapUrl,
       },
-      { idempotencyKey: `grainline-connect-bootstrap-${config.expectedCommit}-${config.ciRunId}` },
+      { idempotencyKey: `grainline-connect-bootstrap-${config.providerMode}-${config.expectedCommit}-${config.ciRunId}` },
     ),
     disableStripeEndpoint: (id) => stripe.webhookEndpoints.update(id, { disabled: true }),
     retrieveStripeEndpoint: (id) => stripe.webhookEndpoints.retrieve(id),
