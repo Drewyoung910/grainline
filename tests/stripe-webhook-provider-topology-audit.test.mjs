@@ -33,7 +33,7 @@ test("provider topology audit pins the aggregate legacy-account finding", () => 
 test("provider topology audit preserves RLS and mixed-deployment boundaries", () => {
   assert.match(audit, /Do not mutate Stripe until/);
   assert.match(audit, /without accepting either secret on the wrong URL/);
-  assert.match(audit, /provider-authenticated delivery plus exact retry/);
+  assert.match(normalized, /provider-authenticated delivery plus exact[- ]retry/);
   assert.match(audit, /needs no StripeWebhookEvent table grant, RLS policy or new\s+database function/);
   assert.match(audit, /later activation can still revoke direct table access/);
 });
