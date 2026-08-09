@@ -224,4 +224,7 @@ test("release record pins production preparation without claiming activation", (
   assert.match(release, /cron_run_already_claimed/);
   assert.match(release, /Connect v2 signed-delivery evidence/);
   assert.match(release, /No invalid-signature request was generated/);
+  assert.match(release, /stripe-webhook-subscriptions-compatible-production-20260808\.json/);
+  assert.match(release, /missing 11 handled event types/);
+  assert.match(release, /three\s+unused `v2\.core\.account_person\.\*` event types/);
 });

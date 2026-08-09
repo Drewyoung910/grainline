@@ -205,6 +205,17 @@ hour. Vercel also masks Sensitive values on readback; therefore the distinct
 `STRIPE_V2_WEBHOOK_SECRET` could not be used to synthesize a valid Connect v2
 delivery. No invalid-signature request was generated merely to make a test run.
 
-The next boundary is Connect v2 signed-delivery evidence, the next-hour
-expanded ops-health response, predecessor drain and a final pooled-runtime
-postflight. Activation remains a separate release.
+A subsequent read-only provider subscription proof retained at
+`archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
+failed closed for both registered test-mode destinations. The classic snapshot
+destination is missing 11 handled event types and contains four unused
+`charge.*`/`payment_intent.*` events. The otherwise enabled thin Connect v2
+destination is correctly scoped to connected accounts but also contains three
+unused `v2.core.account_person.*` event types outside the accepted
+`v2.core.account` family. This is provider-configuration drift, not an
+application or RLS failure; no Stripe setting was changed during inspection.
+
+The next boundary is an independently reviewed provider-subscription
+correction, then Connect v2 signed-delivery evidence, the next-hour expanded
+ops-health response, predecessor drain and a final pooled-runtime postflight.
+Activation remains a separate release.

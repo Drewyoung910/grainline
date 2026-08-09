@@ -169,3 +169,8 @@ No test, commit or CI result on this branch changes production state.
   and the next-hour expanded ops-health projection remain explicit gates
   because Vercel masks the distinct Sensitive signing secret on readback and
   the current hourly ops-health row belonged to the predecessor deployment.
+  The retained read-only provider proof also found exact subscription drift:
+  the classic destination is missing 11 handled events and has four extras,
+  while the thin v2 destination has three unused `account_person` events. No
+  provider setting was changed; correction and signed v2 delivery remain
+  separate gates.

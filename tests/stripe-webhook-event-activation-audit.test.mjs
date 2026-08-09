@@ -30,6 +30,9 @@ test("activation audit pins the accepted compatible stack and remaining boundary
   assert.match(audit, /classic signed delivery and\s+retry/);
   assert.match(audit, /Connect v2 signed delivery/);
   assert.match(audit, /expanded\s+split counts require the next UTC-hour run/);
+  assert.match(audit, /stripe-webhook-subscriptions-compatible-production-20260808\.json/);
+  assert.match(audit, /classic is missing 11 handled\s+events/);
+  assert.match(audit, /v2 has three unused/);
   assert.match(audit, /predecessor table posture/);
 });
 

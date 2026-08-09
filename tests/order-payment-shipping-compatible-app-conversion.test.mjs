@@ -33,6 +33,8 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     assert.match(record, /classic signed webhook and exact retry/);
     assert.match(record, /Connect v2 signed delivery/);
     assert.match(record, /next-hour expanded ops-health projection/);
+    assert.match(record, /classic destination is missing 11 handled events/);
+    assert.match(record, /thin v2 destination has three unused/);
     assert.match(record, /duplicate-`stripeSessionId` recovery branch/);
     assert.match(record, /negative claim generations/);
     assert.match(record, /No test, commit or CI result on this branch changes production state/);

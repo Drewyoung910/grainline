@@ -897,6 +897,14 @@ Follow-up fix from this pass:
   part of the deployment/smoke. Connect v2 signed delivery, the next-hour
   expanded ops-health response, predecessor drain and activation remain
   separate gates.
+- The follow-up read-only Stripe subscription proof failed closed and retained
+  sanitized evidence at
+  `archive/stripe-webhook-subscriptions-compatible-production-20260808.json`.
+  The enabled test-mode classic destination is missing 11 handled event types
+  and contains four unused events. The enabled thin connected-account v2
+  destination contains three unused `v2.core.account_person.*` event types
+  outside the reviewed `v2.core.account` family. This is provider subscription
+  drift; no endpoint, event set, secret or other provider state was changed.
 
 ## Dependency security refresh (2026-07-25)
 

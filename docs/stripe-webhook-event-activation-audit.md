@@ -275,4 +275,10 @@ stored result reported zero aggregate Stripe webhook issues, but the expanded
 split counts require the next UTC-hour run. Vercel's Sensitive-value readback
 mask prevented a synthetic valid Connect v2 signature; that route remains an
 explicit evidence gate rather than a claimed pass. Predecessor drain and final
-postflight still precede activation.
+postflight still precede activation. The read-only provider proof retained at
+`archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
+also failed the exact-subscription contract: classic is missing 11 handled
+events and has four unused events, while v2 has three unused
+`v2.core.account_person.*` events. Provider configuration was not changed.
+Correcting and re-proving those subscriptions precedes signed v2 exercise and
+activation.

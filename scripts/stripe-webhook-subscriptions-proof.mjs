@@ -287,6 +287,19 @@ function createStripeClient(config) {
   });
 }
 
+async function collectProviderCheck({ checks, issues, name, run }) {
+  try {
+    checks.push({
+      name,
+      status: "passed",
+      ...(await run()),
+    });
+  } catch (error) {
+    checks.push({ name, status: "failed" });
+    issues.push(`${name}: ${safeError(error)}`);
+  }
+}
+
 export async function runStripeWebhookSubscriptionsProof(env = process.env) {
   const startedAt = new Date().toISOString();
   let config;
@@ -297,16 +310,19 @@ export async function runStripeWebhookSubscriptionsProof(env = process.env) {
   try {
     config = parseConfig(env);
     const stripe = createStripeClient(config);
-    checks.push({
+    await collectProviderCheck({
+      checks,
+      issues,
       name: "legacy-snapshot-webhook-subscription",
-      status: "passed",
-      ...(await checkSnapshotWebhook({ config, stripe })),
+      run: () => checkSnapshotWebhook({ config, stripe }),
     });
-    checks.push({
+    await collectProviderCheck({
+      checks,
+      issues,
       name: "connect-v2-thin-event-destination",
-      status: "passed",
-      ...(await checkConnectV2EventDestination({ config, stripe })),
+      run: () => checkConnectV2EventDestination({ config, stripe }),
     });
+    if (issues.length > 0) status = "failed";
   } catch (error) {
     status = "failed";
     issues.push(safeError(error));
