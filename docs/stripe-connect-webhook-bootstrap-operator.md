@@ -128,6 +128,27 @@ secret-free and was written locally with mode `0600`. No application was
 deployed, the endpoint remains disabled, and no migration, RLS policy, grant or
 live-mode Stripe state changed.
 
+## Compatible production deployment record
+
+The next boundary completed from exact `main`
+`69c14c0618ea7ab9c74756422273d17d66db7efa`, bound to successful exact-main
+CI run `31329961638`. Manual Vercel production deployment
+`dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` reached `READY`, targeted Production and
+attached the canonical aliases. The canonical homepage and health route
+returned HTTP 200, and the homepage asset marker bound `thegrainline.com` to
+that deployment. The build-time database guard attested pooled runtime role
+`grainline_app_runtime`.
+
+The deployed Connect route rejected a missing signature, an intentionally
+wrong signature and a signature made with the platform route's distinct secret
+with HTTP 400. The harmless probe payload used an unsupported event type, so a
+hypothetical authentication defect still could not acquire a webhook lease.
+Final read-only provider inspection proved the test-mode endpoint digest
+unchanged, the bootstrap URL unchanged, status still disabled and the event set
+still exactly `payout.failed`; the Sensitive Vercel variable posture was also
+unchanged. Sanitized evidence is retained at
+`archive/stripe-connect-compatible-production-deployment-20260809.json`.
+
 ## Success evidence and next boundary
 
 Success evidence contains the exact commit and CI run, provider mode, public

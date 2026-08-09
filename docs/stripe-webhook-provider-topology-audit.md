@@ -160,6 +160,31 @@ disabled, then prove alias, health and secret isolation before any canonical
 URL move or enablement. The later live-money switch remains a separate
 endpoint, secret, deployment and signed-delivery release.
 
+## Compatible production deployment checkpoint
+
+Provider step 5 completed on 2026-08-09 from exact `main`
+`69c14c0618ea7ab9c74756422273d17d66db7efa` after exact-main CI run
+`31329961638` passed. Vercel production deployment
+`dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` is `READY`; the canonical homepage and
+health route returned HTTP 200, and the canonical asset marker identifies that
+deployment. The runtime database guard attested pooled
+`grainline_app_runtime`.
+
+Missing, intentionally wrong and platform-secret cross-route signature probes
+all failed closed with HTTP 400 on `/api/stripe/webhook/connect`. The probe
+event type was deliberately outside the accepted `payout.failed` path, keeping
+lease acquisition impossible even if signature isolation had regressed. A
+final read-only provider check proved the endpoint remained at the absent
+bootstrap URL, disabled, test-mode and subscribed only to `payout.failed`; the
+Sensitive Vercel secret classification remained exact. Evidence is retained at
+`archive/stripe-connect-compatible-production-deployment-20260809.json`.
+
+No migration, RLS policy, grant or live-mode Stripe state changed. The next
+separate boundary is provider step 6: move the still-disabled test endpoint to
+the canonical URL, reverify its retained `connect=true` creation attestation
+and exact event set, then enable it for a provider-authenticated delivery and
+exact retry.
+
 ## Required implementation and release proof
 
 Stripe returns a classic webhook endpoint's signing secret only in the create
