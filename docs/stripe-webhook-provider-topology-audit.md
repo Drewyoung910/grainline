@@ -1,8 +1,9 @@
 # Stripe webhook provider topology audit
 
-Status: read-only production/provider audit complete; design gate open. No
-Stripe endpoint, event subscription, signing secret, application deployment,
-database row, migration, RLS posture or grant was changed by this audit.
+Status: compatible three-surface application candidate implemented on an
+isolated branch; provider and release gates remain open. No Stripe endpoint,
+event subscription, signing secret, application deployment, database row,
+migration, RLS posture or grant was changed by this implementation pass.
 
 Audited: 2026-08-09
 
@@ -70,8 +71,8 @@ seller notification state in the classic handler.
 
 ## Recommended three-surface contract
 
-Do not mutate Stripe until this source split has an implementation, tests and
-separate review.
+Do not mutate Stripe until this source split has passed implementation tests,
+CI and separate release review.
 
 1. **Platform snapshot destination** — keep `/api/stripe/webhook` and its
    existing `STRIPE_WEBHOOK_SECRET`, explicitly scoped in Stripe to events on
@@ -100,6 +101,35 @@ destination silently. If legacy v1 linking remains supported, prove it and add
 only the necessary events to the separate Connect route; otherwise document
 their retirement while the v2 account path and reconciliation cron remain the
 account-state controls.
+
+## Compatible implementation checkpoint
+
+The isolated candidate adds `/api/stripe/webhook/connect` with only
+`STRIPE_CONNECT_WEBHOOK_SECRET`, a 512 KiB raw-body cap, classic Stripe HMAC
+verification, stale-event rejection and the existing generation-bound fixed
+lease functions. Valid signed events other than `payout.failed` are
+acknowledged before lease acquisition; the exact provider proof still rejects
+any subscription beyond `payout.failed`.
+
+`src/lib/stripePayoutWebhook.ts` is the single mutation implementation for the
+new Connect route and the predecessor platform-route compatibility branch. It
+derives the connected account and payout ID from the authenticated Stripe
+envelope, upserts by the durable payout ID, and binds the notification to the
+resulting payout row. A missing account ID or payout ID fails the owned lease
+instead of silently marking malformed provider evidence processed. No new
+table grant, policy, function or ledger was introduced.
+
+The provider proof now requires all three exact URLs and event sets, but it
+continues to state the two limits that Stripe's API cannot attest: endpoint
+signing-secret equality and the classic endpoint's connected-account source
+scope. Those require separate Stripe/Vercel dashboard evidence and a signed
+delivery after the compatible application is deployed.
+
+Adding the exact provider-authenticated path to the public, Terms, suspended
+account and geo middleware bypasses changes the repository's byte-pinned
+production middleware fingerprint. The SavedSearch-era artifact guard is
+repinned to this reviewed middleware source; its temporary context-gate route
+and exemption detection remain unchanged and fail closed.
 
 ## Required implementation and release proof
 

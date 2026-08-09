@@ -49,6 +49,7 @@ const isPublic = createRouteMatcher([
   "/account/deleted",     // terminal account deletion page after Clerk sign-out
   "/api/clerk/webhook",    // Clerk webhook — called by Clerk servers, no Clerk session
   "/api/stripe/webhook",   // Stripe webhook — called by Stripe servers, no Clerk session
+  "/api/stripe/webhook/connect", // Stripe classic Connect webhook — distinct signing secret
   "/api/stripe/webhook/v2", // Stripe Connect v2 thin webhook — separate destination/signing secret
   "/api/resend/webhook",   // Resend webhook — called by Resend servers, no Clerk session
   "/api/email/unsubscribe", // One-click email unsubscribe — called by mail providers, no Clerk session
@@ -99,6 +100,7 @@ const isTermsAcceptanceAllowed = createRouteMatcher([
   "/banned",
   "/api/clerk/webhook",
   "/api/stripe/webhook",
+  "/api/stripe/webhook/connect",
   "/api/stripe/webhook/v2",
   "/api/resend/webhook",
   "/api/email/unsubscribe",
@@ -126,6 +128,7 @@ const isSuspendedAccountAllowed = createRouteMatcher([
   "/monitoring",
   "/api/clerk/webhook",
   "/api/stripe/webhook",
+  "/api/stripe/webhook/connect",
   "/api/stripe/webhook/v2",
   "/api/resend/webhook",
   "/api/email/unsubscribe",
@@ -191,6 +194,7 @@ function isGeoAllowedApiPath(pathname: string): boolean {
     pathname.startsWith("/api/cron/") ||
     pathname === "/api/clerk/webhook" ||
     pathname === "/api/stripe/webhook" ||
+    pathname === "/api/stripe/webhook/connect" ||
     pathname === "/api/stripe/webhook/v2" ||
     pathname === "/api/resend/webhook" ||
     pathname === "/api/email/unsubscribe" ||

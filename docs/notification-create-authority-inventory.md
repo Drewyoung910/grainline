@@ -6,7 +6,7 @@ that activation.
 
 ## Count Contract
 
-The source has 52 direct `createNotification` calls across 29 files. Fifty-one pass
+The source has 52 direct `createNotification` calls across 30 files. Fifty-one pass
 object literals. The fulfillment route has the remaining direct call in a typed
 `notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct payload
 construction paths. One dedicated back-in-stock claim call derives its

@@ -61,6 +61,7 @@ import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
 import { localRefundEvidenceEventId, recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
+import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import {
   revalidateFeaturedMakerCaches,
   revalidateListingSearchCaches,
@@ -79,7 +80,6 @@ import {
   isStaleStripeEvent,
   latestSuccessfulRefund,
   normalizeShippoRateObjectId,
-  payoutFailureState,
   parseBoundedPositiveInt,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
@@ -2568,33 +2568,7 @@ export async function POST(req: Request) {
 
     if (event.type === "payout.failed") {
       return processIdempotentEvent(async () => {
-        const accountId = (event as { account?: string }).account;
-        const payout = event.data.object as Stripe.Payout;
-        if (accountId) {
-          const seller = await prisma.sellerProfile.findFirst({
-            where: { stripeAccountId: accountId },
-            select: { id: true, userId: true },
-          });
-          if (seller) {
-            const payoutFailure = payoutFailureState(payout, event.id);
-            const { stripePayoutId, ...payoutEventData } = payoutFailure.event;
-            const payoutEvent = await prisma.sellerPayoutEvent.upsert({
-              where: { stripePayoutId },
-              create: {
-                sellerProfileId: seller.id,
-                stripePayoutId,
-                ...payoutEventData,
-              },
-              update: payoutEventData,
-            });
-            await createNotification({
-              userId: seller.userId,
-              ...payoutFailure.notification,
-              sourceType: NOTIFICATION_SOURCE_TYPES.STRIPE_PAYOUT_FAILURE,
-              sourceId: payoutEvent.id,
-            });
-          }
-        }
+        await processStripePayoutFailedEvent(event);
         return NextResponse.json({ received: true });
       });
     }

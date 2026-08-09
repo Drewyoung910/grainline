@@ -65,9 +65,23 @@ disposable PostgreSQL. Compatible preparation is complete in production. PR
 guarded run `31290691183` applied only PR #162's additive
 `20260805040000_prepare_stripe_webhook_maintenance_authority` migration. The
 maintenance functions are live while RLS, FORCE, policies and predecessor
-table grants remain unchanged. Next deploy and exercise the converted app,
-drain the predecessor, record the final pooled-runtime postflight, and only
-then activate and prove pooled-runtime direct denial.
+table grants remain unchanged. Production deployment
+`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3` then promoted the exact compatible app and
+passed canonical health, classic signed delivery/retry, ops-health, retention
+and legacy stock-restoration smoke without migration, RLS, grant, cleanup or
+provider changes.
+
+The provider audit found the predecessor subscription contract mixed platform
+events with connected-account events. The pinned replacement has three
+source-bound surfaces: platform Checkout/refund/dispute snapshots on
+`/api/stripe/webhook`, classic connected-account `payout.failed` on the new
+separately signed `/api/stripe/webhook/connect`, and v2 thin account events on
+`/api/stripe/webhook/v2`. The compatible implementation must land and deploy
+before provider configuration changes. Provider correction, one signed payout
+delivery plus retry, exact three-surface proof, predecessor drain and the final
+pooled-runtime postflight remain distinct gates before StripeWebhookEvent RLS
+activation. Do not broaden the new Connect route with legacy account events
+unless current linked-account evidence establishes a real compatibility need.
 Human traffic being absent does not remove the old/new boundary because Stripe
 retries and cron/maintenance jobs remain active.
 

@@ -45,7 +45,7 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.equal(fulfillmentPayloadCount, 3);
     assert.equal(backInStockClaimCount, 1);
     assert.equal(objectLiteralCreateCount + fulfillmentPayloadCount + backInStockClaimCount, 55);
-    assert.equal(createCallers.length, 29);
+    assert.equal(createCallers.length, 30);
     assert.deepEqual(directAccess.sort(), []);
   });
 
@@ -120,7 +120,7 @@ describe("Bucket B Notification RLS inventory", () => {
     const familyCounts = [5, 10, 2, 3, 13, 4, 3, 3, 3, 9];
 
     assert.equal(familyCounts.reduce((sum, count) => sum + count, 0), 55);
-    assert.match(inventory, /52 direct `createNotification` calls across 29 files/);
+    assert.match(inventory, /52 direct `createNotification` calls across 30 files/);
     assert.match(inventory, /55\s+distinct emission paths/);
     assert.match(inventory, /55 authority-bound paths/);
     assert.match(inventory, /0 source-less paths/);
@@ -160,6 +160,7 @@ describe("Bucket B Notification RLS inventory", () => {
     const commissionExpire = fs.readFileSync("src/app/api/cron/commission-expire/route.ts", "utf8");
     const sellerBroadcast = fs.readFileSync("src/app/api/seller/broadcast/route.ts", "utf8");
     const stripeWebhook = fs.readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const stripePayoutWebhook = fs.readFileSync("src/lib/stripePayoutWebhook.ts", "utf8");
     const stockRoute = fs.readFileSync("src/app/api/listings/[id]/stock/route.ts", "utf8");
     const listingReview = fs.readFileSync("src/app/api/admin/listings/[id]/review/route.ts", "utf8");
     const userReport = fs.readFileSync("src/app/api/users/[id]/report/route.ts", "utf8");
@@ -242,6 +243,7 @@ describe("Bucket B Notification RLS inventory", () => {
       commissionExpire,
       sellerBroadcast,
       stripeWebhook,
+      stripePayoutWebhook,
       stockRoute,
       listingReview,
       userReport,
