@@ -978,6 +978,20 @@ Follow-up fix from this pass:
   Nothing was deployed; the endpoint remains disabled; no migration, grant,
   RLS or live-mode Stripe state changed. The next separate boundary is the
   compatible production deployment while the endpoint stays disabled.
+- Exact-main CI run `31329961638` passed for
+  `69c14c0618ea7ab9c74756422273d17d66db7efa`, followed by authorized manual
+  Vercel production deployment `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`. Vercel
+  reported `READY`, Production target and the canonical aliases; `/` and
+  `/api/health` returned HTTP 200, and the canonical asset marker bound the
+  domain to that deployment. The build-time database guard attested
+  `grainline_app_runtime`. The deployed Connect route rejected missing, wrong
+  and platform-secret cross-route signatures with HTTP 400. Final read-only
+  provider inspection proved the test-mode endpoint digest, absent bootstrap
+  URL, disabled status and exact `payout.failed` event set unchanged, with the
+  Production Vercel secret still Sensitive. Sanitized evidence is retained at
+  `archive/stripe-connect-compatible-production-deployment-20260809.json`.
+  No migration, RLS, grant, provider-variable or live-mode Stripe change was
+  part of this deployment.
 
 ## Dependency security refresh (2026-07-25)
 
