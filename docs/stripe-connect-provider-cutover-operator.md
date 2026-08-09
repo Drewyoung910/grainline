@@ -110,7 +110,8 @@ The handoff stays under `/private/tmp` (or the system temporary directory), is
 never committed, and contains no API key or signing secret. If preparation
 fails, the script deletes the exact test account and removes any handoff. A
 successful preparation intentionally leaves only that disposable account until
-the signed proof completes.
+the signed proof completes. Provider object IDs are also redacted from terminal
+error messages; only the temporary handoff may retain their raw values.
 
 Account creation and deletion can generate v2 account notifications. Because
 the disposable account is deliberately absent from `SellerProfile`, those

@@ -57,11 +57,14 @@ const RUN_ID_PATTERN = /^[1-9][0-9]*$/;
 const DEPLOYMENT_PATTERN = /^dpl_[A-Za-z0-9]+$/;
 const STRIPE_SECRET_PATTERN =
   /\b(?:sk_(?:live|test)_[A-Za-z0-9_]+|whsec_[A-Za-z0-9_]+)\b/g;
+const STRIPE_OBJECT_ID_PATTERN =
+  /\b(?:acct|ba|ch|ed|evt|pi|po|re|seti|tr|we)_[A-Za-z0-9_]+\b/g;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 
 function redact(value) {
   return String(value ?? "")
     .replace(STRIPE_SECRET_PATTERN, "[redacted-stripe-secret]")
+    .replace(STRIPE_OBJECT_ID_PATTERN, "[redacted-stripe-object]")
     .replace(BEARER_PATTERN, "Bearer [redacted-token]");
 }
 
