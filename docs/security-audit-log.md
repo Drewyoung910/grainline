@@ -952,6 +952,19 @@ Follow-up fix from this pass:
   variable, writes mode-`0600` secret-free evidence, and reconciles ambiguous
   Stripe/Vercel failures before rollback. This is preparation only: the
   endpoint was not created, Vercel was not changed, and nothing was deployed.
+- PR #171 merged the guarded operator as exact `main`
+  `b2a8d4c26c6739e19820f60b759e425dce1d97ce`; exact-main CI
+  `31325868408`, Conversation/Message FORCE `31325868399` and Notification
+  FORCE `31325868401` passed. The first exact-main operator preflight then
+  passed in Stripe test mode and read only GitHub CI, the linked Vercel project
+  and Stripe endpoint inventory: `STRIPE_CONNECT_WEBHOOK_SECRET` remains absent
+  from Production and neither reviewed Connect URL exists in test mode. The
+  preflight exposed one fail-closed sequencing mismatch before mutation: the
+  operator allowed live bootstrap only even though Grainline's pre-launch
+  provider proof is deliberately test-mode first. The isolated follow-up binds
+  test and live bootstrap to different confirmation strings and retains the
+  live-money switch as a separate endpoint/secret/deployment release. No
+  endpoint, variable, deployment, migration, grant or production state changed.
 
 ## Dependency security refresh (2026-07-25)
 

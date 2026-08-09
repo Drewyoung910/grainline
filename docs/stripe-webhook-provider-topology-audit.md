@@ -154,8 +154,9 @@ with a disabled bootstrap instead:
    modes and event sets, while retaining separate Dashboard evidence for the
    classic account-versus-Connect source scope;
 4. in a separately authorized provider boundary, create the classic endpoint
-   with `connect=true`, only `payout.failed`, and the deliberately absent
-   bootstrap URL
+   in the same explicit Stripe mode as the currently deployed payment
+   configuration, with `connect=true`, only `payout.failed`, and the
+   deliberately absent bootstrap URL
    `https://thegrainline.com/api/stripe/webhook/connect-bootstrap-disabled`;
    capture the creation-only signing secret without printing or persisting it,
    then immediately set the endpoint to disabled. If disabling cannot be
@@ -180,6 +181,13 @@ with a disabled bootstrap instead:
    route; and
 8. only then drain the predecessor and run the final StripeWebhookEvent
    predecessor postflight before policyless RLS activation.
+
+The current pre-launch correction is test-mode first, matching the retained
+provider inventory and required payment smoke program. Test and live endpoints
+are mode-separated Stripe objects with different signing secrets. Switching to
+live money therefore requires a later, separately reviewed live endpoint,
+production secret replacement, deployment and signed-delivery proof; test-mode
+success must never be reused as live-mode evidence.
 
 Never use a random placeholder as the production signing secret: replacing it
 would require another deployment and would create an avoidable interval where

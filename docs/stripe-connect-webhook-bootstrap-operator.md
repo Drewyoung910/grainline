@@ -45,7 +45,8 @@ The operator refuses to start unless all of these hold:
   environment;
 - no Stripe endpoint already occupies the bootstrap or canonical URL;
 - the key prefix matches the explicitly supplied provider mode; and
-- live `bootstrap` mode uses an `sk_live_` key.
+- the API key prefix, explicit provider mode and mode-specific bootstrap
+  confirmation all agree (`sk_test_`/`test` or `sk_live_`/`live`).
 
 The Vercel CLI is byte-version selected as `vercel@58.9.0`. It receives the
 one-time signing secret only on stdin and uses `--sensitive`; `--value` is
@@ -60,7 +61,7 @@ If endpoint disabling, retrieval, Vercel installation, Vercel classification or
 evidence finalization fails, the operator re-reads the Vercel environment,
 removes a possibly installed variable, deletes only the exact created endpoint,
 and removes its pending evidence reservation. An ambiguous Stripe create error
-is reconciled only when exactly one endpoint matches the absent URL, live mode
+is reconciled only when exactly one endpoint matches the absent URL, provider mode
 and single reviewed event. Multiple candidates are never guessed at. Any
 incomplete rollback is reported without printing a Stripe key or webhook
 secret.
@@ -75,7 +76,7 @@ STRIPE_CONNECT_BOOTSTRAP_MODE=preflight \
 STRIPE_CONNECT_BOOTSTRAP_CONFIRM=inspect-disabled-connect-bootstrap \
 STRIPE_CONNECT_BOOTSTRAP_EXPECTED_COMMIT=<exact-main-sha> \
 STRIPE_CONNECT_BOOTSTRAP_CI_RUN_ID=<successful-exact-main-ci-run> \
-STRIPE_CONNECT_BOOTSTRAP_PROVIDER_MODE=live \
+STRIPE_CONNECT_BOOTSTRAP_PROVIDER_MODE=<test-or-live> \
 STRIPE_CONNECT_BOOTSTRAP_VERCEL_PROJECT_DIRECTORY=/Users/drewyoung/grainline \
 npm run ops:stripe-connect-bootstrap
 ```
@@ -85,7 +86,7 @@ mode and linked directory plus:
 
 ```sh
 STRIPE_CONNECT_BOOTSTRAP_MODE=bootstrap
-STRIPE_CONNECT_BOOTSTRAP_CONFIRM=create-disabled-connect-bootstrap
+STRIPE_CONNECT_BOOTSTRAP_CONFIRM=create-disabled-connect-bootstrap-<test-or-live>
 STRIPE_CONNECT_BOOTSTRAP_EVIDENCE_PATH=archive/stripe-connect-disabled-bootstrap-<date>.json
 ```
 
@@ -93,6 +94,21 @@ STRIPE_CONNECT_BOOTSTRAP_EVIDENCE_PATH=archive/stripe-connect-disabled-bootstrap
 environment; it must not be pasted into the command line, output, evidence, PR,
 issue or chat. The final authorization must bind the exact main commit and CI
 run. Preparation of this operator is not authorization to execute it.
+
+The provider mode is part of the confirmation and idempotency identity. A test
+key requires `create-disabled-connect-bootstrap-test`; a live key requires
+`create-disabled-connect-bootstrap-live`. Neither confirmation can authorize
+the other mode. Grainline's current pre-launch provider topology is test mode,
+and exact-main read-only preflight `31325868408` passed on 2026-08-09 for merge
+`b2a8d4c26c6739e19820f60b759e425dce1d97ce`: the production Vercel variable is
+absent and neither reviewed Connect URL exists in Stripe test mode. That
+preflight changed no provider or production state.
+
+The later switch to live money is a separate release. It must create and prove
+the live-mode endpoint, replace the production signing secret in the same
+boundary as the live Stripe credentials, deploy the compatible configuration,
+and retire or disable obsolete test-mode delivery as explicitly planned. A
+successful test-mode bootstrap is not evidence of live-mode readiness.
 
 ## Success evidence and next boundary
 
