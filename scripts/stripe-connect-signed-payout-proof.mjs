@@ -553,6 +553,10 @@ async function preparePayoutCanary({ config, deps }) {
     const matches = events.filter((row) => row?.data?.object?.id === payout.id);
     if (matches.length !== 1) throw new Error("payout source produced multiple matching failed events");
     const event = assertPayoutEvent(matches[0], accountId, payout.id, startedSeconds);
+    const provider = await readProviderState(deps);
+    if (provider.stage !== 3) {
+      throw new Error("Connect endpoint did not remain disabled through payout preparation");
+    }
 
     const handoff = {
       phase: "stripe-connect-disposable-payout-handoff",

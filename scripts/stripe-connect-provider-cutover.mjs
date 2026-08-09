@@ -759,7 +759,7 @@ export async function runStripeConnectProviderCutover({
   const finish = dependencies.finalizeEvidence ?? finalizeEvidence;
   const pendingPath = reserve(config);
   try {
-    const finalState = await convergeForward(
+    await convergeForward(
       deps,
       config,
       pendingPath,
@@ -767,6 +767,10 @@ export async function runStripeConnectProviderCutover({
     );
     assertSensitiveProductionVariable(await deps.listVercelEnvironment());
     await assertPublicDeployment(deps, config);
+    const finalState = await readProviderState(deps);
+    if (finalState.stage !== 3) {
+      throw new Error("provider topology drifted before cutover evidence finalization");
+    }
     return finish(pendingPath, config, finalState);
   } catch (error) {
     const rollbackFailures = await rollbackToPredecessor(deps);
