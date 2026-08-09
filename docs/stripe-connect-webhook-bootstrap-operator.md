@@ -110,6 +110,24 @@ boundary as the live Stripe credentials, deploy the compatible configuration,
 and retire or disable obsolete test-mode delivery as explicitly planned. A
 successful test-mode bootstrap is not evidence of live-mode readiness.
 
+## Test-mode production bootstrap record
+
+PR #172 merged the provider-mode correction as exact `main`
+`eda20f6f18d08d194b0a44a7414510e3c3a9ef58`. Exact-main CI run
+`31328107308` passed. The operator's read-only preflight then passed against
+that exact commit and run before the separately authorized mutation executed.
+
+The guarded test-mode bootstrap passed on 2026-08-09. It created only the
+reviewed classic Connect endpoint at the absent bootstrap URL with
+`connect=true` and `payout.failed`, disabled and retrieved it before installing
+the signing secret, and proved `livemode=false`. Vercel now contains exactly
+one unbranched Production `STRIPE_CONNECT_WEBHOOK_SECRET` classified as
+Sensitive. The retained evidence is
+`archive/stripe-connect-disabled-bootstrap-test-20260809-eda20f6f.json`; it is
+secret-free and was written locally with mode `0600`. No application was
+deployed, the endpoint remains disabled, and no migration, RLS policy, grant or
+live-mode Stripe state changed.
+
 ## Success evidence and next boundary
 
 Success evidence contains the exact commit and CI run, provider mode, public

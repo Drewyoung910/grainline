@@ -138,6 +138,28 @@ production middleware fingerprint. The SavedSearch-era artifact guard is
 repinned to this reviewed middleware source; its temporary context-gate route
 and exemption detection remain unchanged and fail closed.
 
+## Disabled bootstrap execution checkpoint
+
+PR #172 merged the mode-bound operator correction as exact `main`
+`eda20f6f18d08d194b0a44a7414510e3c3a9ef58`; exact-main CI run
+`31328107308` passed. The exact-main read-only preflight and the separately
+authorized guarded bootstrap both passed in Stripe test mode on 2026-08-09.
+
+Provider step 4 is therefore complete for the pre-launch test-mode topology.
+The new classic Connect endpoint is still at
+`/api/stripe/webhook/connect-bootstrap-disabled`, is disabled, has
+`livemode=false`, and subscribes only to `payout.failed`; its creation request
+was `connect=true`. The one-time signing secret is installed only as the
+unbranched Sensitive Production Vercel variable
+`STRIPE_CONNECT_WEBHOOK_SECRET`. Secret-free evidence lives at
+`archive/stripe-connect-disabled-bootstrap-test-20260809-eda20f6f.json`.
+
+Nothing was deployed and no database state changed. The next boundary is step
+5: deploy the already-compatible application while the endpoint remains
+disabled, then prove alias, health and secret isolation before any canonical
+URL move or enablement. The later live-money switch remains a separate
+endpoint, secret, deployment and signed-delivery release.
+
 ## Required implementation and release proof
 
 Stripe returns a classic webhook endpoint's signing secret only in the create
