@@ -162,6 +162,8 @@ with a disabled bootstrap instead:
    verified, delete the new endpoint and stop. The absent URL makes any event
    delivered during the create-to-disable interval fail closed, while the
    predecessor compatibility handler remains available during the cutover;
+   the prepared, unexecuted operator and its rollback contract are documented
+   in `docs/stripe-connect-webhook-bootstrap-operator.md`;
 5. install the captured value as the Sensitive production-only
    `STRIPE_CONNECT_WEBHOOK_SECRET`, deploy exact reviewed `main`, verify the
    production alias and health, and prove that missing, wrong and cross-route
