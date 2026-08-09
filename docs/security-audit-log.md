@@ -941,6 +941,17 @@ Follow-up fix from this pass:
   secret-isolation proofs may the endpoint move to the canonical URL and be
   enabled for one signed payout delivery plus retry. No random placeholder
   secret or creation-response artifact is permitted.
+- PR #170 merged the corrected disabled-bootstrap sequence at exact head
+  `89d41f6a7fad593ccb9bf47fe40259cbfb839c30` as exact `main`
+  `7576484a5ef57d63eccc9365ab9f3311c22f2a4d`; exact-main CI
+  `31323020529` passed. The follow-up isolated branch prepares
+  `scripts/stripe-connect-webhook-bootstrap.mjs` and
+  `docs/stripe-connect-webhook-bootstrap-operator.md`. The operator binds a
+  future run to exact-main CI, keeps the creation-only secret in memory, proves
+  the endpoint disabled before installing a production-only Sensitive Vercel
+  variable, writes mode-`0600` secret-free evidence, and reconciles ambiguous
+  Stripe/Vercel failures before rollback. This is preparation only: the
+  endpoint was not created, Vercel was not changed, and nothing was deployed.
 
 ## Dependency security refresh (2026-07-25)
 
