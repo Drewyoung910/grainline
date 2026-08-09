@@ -1,0 +1,49 @@
+{
+  "status": "failed",
+  "generatedAt": "2026-08-09T04:03:59.778Z",
+  "startedAt": "2026-08-09T04:03:58.908Z",
+  "completedAt": "2026-08-09T04:03:59.778Z",
+  "commitSha": "423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1",
+  "ciRunId": null,
+  "mode": "test-dry-run",
+  "target": {
+    "appOrigin": "https://thegrainline.com",
+    "snapshotWebhookPath": "/api/stripe/webhook",
+    "connectV2WebhookPath": "/api/stripe/webhook/v2"
+  },
+  "expected": {
+    "snapshotEvents": [
+      "checkout.session.completed",
+      "checkout.session.async_payment_succeeded",
+      "checkout.session.expired",
+      "checkout.session.async_payment_failed",
+      "account.updated",
+      "account.application.deauthorized",
+      "charge.refunded",
+      "charge.dispute.created",
+      "charge.dispute.updated",
+      "charge.dispute.closed",
+      "charge.dispute.funds_withdrawn",
+      "charge.dispute.funds_reinstated",
+      "payout.failed"
+    ],
+    "connectV2EventFamily": "v2.core.account"
+  },
+  "checks": [
+    {
+      "name": "legacy-snapshot-webhook-subscription",
+      "status": "failed"
+    },
+    {
+      "name": "connect-v2-thin-event-destination",
+      "status": "failed"
+    }
+  ],
+  "caveats": [
+    "Stripe does not return webhook signing secrets after creation; retain dashboard/Vercel evidence that STRIPE_WEBHOOK_SECRET and STRIPE_V2_WEBHOOK_SECRET match the separate provider endpoints."
+  ],
+  "issues": [
+    "legacy-snapshot-webhook-subscription: snapshot webhook events mismatch: missing=account.application.deauthorized,account.updated,charge.dispute.closed,charge.dispute.created,charge.dispute.funds_reinstated,charge.dispute.funds_withdrawn,charge.dispute.updated,charge.refunded,checkout.session.async_payment_failed,checkout.session.async_payment_succeeded,payout.failed extra=charge.succeeded,charge.updated,payment_intent.created,payment_intent.succeeded",
+    "connect-v2-thin-event-destination: Connect v2 event destination has non-account events: v2.core.account_person.created,v2.core.account_person.deleted,v2.core.account_person.updated"
+  ]
+}

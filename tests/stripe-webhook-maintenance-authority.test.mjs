@@ -208,3 +208,27 @@ test("release record preserves the synchronized Extra-High proof boundary", () =
   assert.match(release, /impossible aggregate health-count combinations/);
   assert.match(release, /nothing deployed/);
 });
+
+test("release record pins production preparation without claiming activation", () => {
+  assert.match(release, /8abaa36fafd989604a06aa2fee9f1a215e5763b1/);
+  assert.match(release, /423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1/);
+  assert.match(release, /31284293394/);
+  assert.match(release, /31290691183/);
+  assert.match(
+    release,
+    /applied only\s+`20260805040000_prepare_stripe_webhook_maintenance_authority`/,
+  );
+  assert.match(normalizedRelease, /StripeWebhookEvent RLS and table-grant revocation remain off/);
+  assert.match(release, /dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3/);
+  assert.match(release, /fresh correctly signed classic snapshot event completed/);
+  assert.match(release, /cron_run_already_claimed/);
+  assert.match(release, /stripe-webhook-provider-topology-audit\.md/);
+  assert.match(release, /classic Connect payout destination/);
+  assert.match(release, /Signed delivery for every surface/);
+  assert.match(release, /No invalid-signature request was generated/);
+  assert.match(release, /stripe-webhook-subscriptions-compatible-production-20260808\.json/);
+  assert.match(release, /missing 11 handled event types/);
+  assert.match(release, /three\s+unused `v2\.core\.account_person\.\*` event types/);
+  assert.match(release, /stripe-webhook-ops-health-compatible-production-20260809\.json/);
+  assert.match(release, /all four Stripe aggregate counts/);
+});

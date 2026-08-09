@@ -1,9 +1,13 @@
 # StripeWebhookEvent activation audit
 
-Status: isolated audit and launch-proof conversion only on
-`agent/stripe-webhook-activation-audit-20260805`. No activation migration,
-merge, deployment, production query, grant change, provider change or RLS
-change is authorized by this record.
+Status: audit and launch-proof conversion merged; compatible maintenance
+functions and exact compatible application are live in production. No
+activation migration, grant revocation, provider change or StripeWebhookEvent
+RLS change has occurred. Classic signed delivery and retry, rollback-only
+retention, expanded ops health and legacy restoration are proved. The
+three-surface provider topology in
+`docs/stripe-webhook-provider-topology-audit.md`, signed delivery for each
+surface and provider-subscription correction remain gates.
 
 ## Exact reviewed stack
 
@@ -21,17 +25,28 @@ maintenance conversions remain isolated:
 2. PR #161, `agent/order-payment-shipping-app-conversion-20260805`, exact head
    `d2ef37b4c86a0ff174016be77113fa1b888131b4`, converts the signed Stripe
    route to the generation-bound begin/complete/fail functions and closes the
-   duplicate-delivery lease race. Exact-head CI `31278958695` passed.
+   duplicate-delivery lease race. Exact-head CI `31278958695` passed, and the
+   head merged as main `0e2e1cce29089ab1418ff006b461d74b5f9804ca`.
 3. PR #162, `agent/stripe-webhook-maintenance-authority-20260805`, exact head
-   `78fb92546362d3744db924b312c27a7e915b279c`, converts retention,
+   `8abaa36fafd989604a06aa2fee9f1a215e5763b1`, converts retention,
    aggregate health and the legacy stock-restore claim to three narrow fixed
-   functions. Exact-head CI `31279844745` passed the disposable PostgreSQL
-   proofs, 2,812-test suite, dependency audit and production build.
+   functions. It merged as main
+   `1fbf17845d72403d8ff28cd038119114583eba04`.
+4. PR #163 merged this audit-only head
+   `73d302b85698d6af1e0a4e17abf0e590a091ef7a`, producing exact main
+   `423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1`. Exact-main CI
+   `31284293394` passed. Guarded migration run `31290691183` then applied only
+   `20260805040000_prepare_stripe_webhook_maintenance_authority` and passed
+   migration status plus the global grant/RLS audit.
 
-PR #161 and PR #162 remain draft. Production retains the compatible
-predecessor for `StripeWebhookEvent`: RLS/FORCE off, zero policies and broad
-runtime CRUD. The stack order is a release dependency, not approval to merge,
-deploy or activate it.
+The compatible source and functions are merged and live. Exact release main
+`423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1` is production deployment
+`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`; Vercel reports `READY` and the canonical
+alias plus health endpoint return HTTP 200. Production deliberately retains
+the predecessor table posture for `StripeWebhookEvent`: RLS/FORCE off, zero
+policies and broad runtime CRUD. The remaining provider correction, v2
+exercise, drain, postflight and activation order is a release dependency, not
+authorization to skip a boundary.
 
 ## Authority decision
 
@@ -195,9 +210,13 @@ is:
    `20260805040000_prepare_stripe_webhook_maintenance_authority` migration from
    the resulting exact green main commit before deploying any PR #162 runtime
    call sites;
-3. verify migration status and the global grant/RLS audit, deploy the exact
-   compatible app, and exercise signed webhook, retry, ops-health, retention
-   and legacy restore paths while direct table grants still exist;
+3. **partially complete:** migration status and the global grant/RLS audit
+   passed; the exact compatible app is deployed; classic signed delivery and
+   retry, rollback-only retention, expanded aggregate health and legacy restore
+   passed. The provider review proved that platform snapshot events, Connect
+   v2 account events and classic Connect payout events require three distinct
+   source-bound surfaces. Their compatible implementation, exact subscription
+   correction and valid signed deliveries remain before this step is complete;
 4. let the prior app deployment drain and verify no production route or job
    still uses direct table access;
 5. run the historical compatibility postflight for the final predecessor
@@ -251,5 +270,26 @@ audit and production-build gates also passed. Vercel deployment
 database isolation guard (`DATABASE_URL_SHAPE`) before application build; it is
 not contrary application-build evidence and nothing deployed.
 PR #163 remains audit and proof work only; it contains no activation migration.
-Production remains on the compatible predecessor until PR #161 and PR #162 are
-merged, deployed, drained and exercised in the documented order.
+Production now runs the exact compatible application at deployment
+`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`. The classic signed webhook and exact retry,
+runtime fixed-function health, rollback-only retention, and both rollback-only
+and route-level legacy claim replays passed with zero Listing mutation. The
+current-hour ops-health request respected its predecessor cron lock and its
+stored result reported zero aggregate Stripe webhook issues, but the expanded
+split counts required the next UTC-hour run. That successor invocation passed
+HTTP 200 with `skipped=false`, all four Stripe counts at zero and a healthy
+SavedSearch canary; sanitized evidence is retained at
+`archive/stripe-webhook-ops-health-compatible-production-20260809.json`.
+Vercel's Sensitive-value readback mask prevented a synthetic valid Connect v2
+signature; that route remains an explicit evidence gate rather than a claimed
+pass. Predecessor drain and final postflight still precede activation. The
+read-only provider proof retained at
+`archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
+also failed the exact-subscription contract: classic is missing 11 handled
+events and has four unused events, while v2 has three unused
+`v2.core.account_person.*` events. Provider configuration was not changed. The
+old expected classic event set mixed platform-account and connected-account
+sources and therefore cannot be applied safely as written. The replacement
+three-surface contract and release order are retained in
+`docs/stripe-webhook-provider-topology-audit.md`. Implementing and re-proving
+that contract precedes signed provider exercises and activation.

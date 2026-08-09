@@ -137,6 +137,64 @@ describe("Stripe webhook subscriptions proof harness", () => {
     assert.match(script, /Connect v2 event destination subscribes to wildcard events/);
   });
 
+  it("records both destination checks even when one provider check fails", () => {
+    const script = source("scripts/stripe-webhook-subscriptions-proof.mjs");
+
+    assert.match(script, /async function collectProviderCheck/);
+    assert.match(script, /name: "legacy-snapshot-webhook-subscription"/);
+    assert.match(script, /name: "connect-v2-thin-event-destination"/);
+    assert.match(script, /checks\.push\(\{ name, status: "failed" \}\)/);
+    assert.match(script, /if \(issues\.length > 0\) status = "failed"/);
+  });
+
+  it("retains the exact failed compatible-production provider inventory", () => {
+    const evidence = JSON.parse(source(
+      "archive/stripe-webhook-subscriptions-compatible-production-20260808.json",
+    ));
+    const serialized = JSON.stringify(evidence);
+
+    assert.equal(evidence.status, "failed");
+    assert.equal(evidence.mode, "test-dry-run");
+    assert.equal(evidence.commitSha, "423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1");
+    assert.deepEqual(
+      evidence.checks.map(({ name, status }) => ({ name, status })),
+      [
+        { name: "legacy-snapshot-webhook-subscription", status: "failed" },
+        { name: "connect-v2-thin-event-destination", status: "failed" },
+      ],
+    );
+    assert.match(serialized, /missing=account\.application\.deauthorized/);
+    assert.match(serialized, /extra=charge\.succeeded/);
+    assert.match(serialized, /v2\.core\.account_person\.created/);
+    assert.doesNotMatch(serialized, /\b(?:sk_(?:live|test)|whsec)_/);
+  });
+
+  it("retains the successful fresh-bucket expanded ops-health result", () => {
+    const evidence = JSON.parse(source(
+      "archive/stripe-webhook-ops-health-compatible-production-20260809.json",
+    ));
+
+    assert.equal(evidence.status, "passed");
+    assert.equal(evidence.commitSha, "423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1");
+    assert.equal(evidence.deploymentId, "dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3");
+    assert.equal(evidence.response.httpStatus, 200);
+    assert.equal(evidence.response.ok, true);
+    assert.equal(evidence.response.skipped, false);
+    for (const key of [
+      "stripeWebhookFailureCount",
+      "stripeWebhookFailedLeaseCount",
+      "stripeWebhookReleasedLeaseCount",
+      "stripeWebhookStaleLeaseCount",
+    ]) assert.equal(evidence.response[key], 0);
+    assert.equal(evidence.response.savedSearchRlsCanaryStatus, "healthy");
+    assert.equal(evidence.boundaries.migrationsRun, false);
+    assert.equal(evidence.boundaries.rlsChanged, false);
+    assert.equal(evidence.boundaries.grantsChanged, false);
+    assert.equal(evidence.boundaries.providerStateChanged, false);
+    assert.equal(evidence.boundaries.cleanupRun, false);
+    assert.equal(evidence.boundaries.cronRunRecorded, true);
+  });
+
   it("keeps signing-secret matching as separate provider/deploy evidence", () => {
     const script = source("scripts/stripe-webhook-subscriptions-proof.mjs");
     const launch = source("docs/launch-checklist.md");
