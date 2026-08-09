@@ -15,6 +15,10 @@ test("provider topology audit separates platform, v2 account, and classic Connec
   assert.match(audit, /STRIPE_CONNECT_WEBHOOK_SECRET/);
   assert.match(audit, /subscribe only to `payout\.failed`/);
   assert.match(audit, /does not expose its creation-time\s+`connect` source flag/);
+  assert.match(audit, /e45a42b9a6b63acef675d0a86276c96a5da9e22f/);
+  assert.match(audit, /6126105b81c79948b6b77066461dd9ac0b8e5e73/);
+  assert.match(audit, /31321837327/);
+  assert.match(audit, /31321837383/);
 });
 
 test("provider topology audit pins the aggregate legacy-account finding", () => {
@@ -29,7 +33,19 @@ test("provider topology audit pins the aggregate legacy-account finding", () => 
 test("provider topology audit preserves RLS and mixed-deployment boundaries", () => {
   assert.match(audit, /Do not mutate Stripe until/);
   assert.match(audit, /without accepting either secret on the wrong URL/);
-  assert.match(audit, /provider-authenticated test delivery to each/);
+  assert.match(audit, /provider-authenticated delivery plus exact retry/);
   assert.match(audit, /needs no StripeWebhookEvent table grant, RLS policy or new\s+database function/);
   assert.match(audit, /later activation can still revoke direct table access/);
+});
+
+test("provider topology audit bootstraps the creation-only secret fail closed", () => {
+  assert.match(audit, /signing secret only in the create\s+response/i);
+  assert.match(audit, /connect=true/);
+  assert.match(audit, /connect-bootstrap-disabled/);
+  assert.match(audit, /immediately set the endpoint to disabled/i);
+  assert.match(audit, /If disabling cannot be\s+verified, delete the new endpoint and stop/i);
+  assert.match(audit, /Keep the Stripe endpoint disabled throughout/i);
+  assert.match(audit, /still-disabled endpoint to the canonical/i);
+  assert.match(audit, /Never use a random placeholder/i);
+  assert.match(audit, /Never\s+write the creation response, signing secret, Stripe API key or Vercel secret/i);
 });
