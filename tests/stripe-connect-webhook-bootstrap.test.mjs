@@ -56,6 +56,10 @@ function disabledEndpoint(overrides = {}) {
   };
 }
 
+function normalizeWhitespace(value) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 function successfulDependencies({ calls = [], listVercelEnvironment } = {}) {
   let evidence;
   return {
@@ -342,13 +346,19 @@ test("operator source pins Connect scope and never passes the signing secret as 
   assert.match(source, /mode: 0o600/);
   assert.match(source, /flag: "wx"/);
   assert.match(source, /vercel@\$\{VERCEL_CLI_VERSION\}/);
+  assert.match(source, /api\.github\.com\/repos\/\$\{REPOSITORY\}\/actions\/runs/);
+  assert.doesNotMatch(source, /\["run", "view"/);
 });
 
 test("package and durable provider records retain the operator boundary", () => {
   const pkg = JSON.parse(readFileSync("package.json", "utf8"));
-  const operator = readFileSync("docs/stripe-connect-webhook-bootstrap-operator.md", "utf8");
-  const topology = readFileSync("docs/stripe-webhook-provider-topology-audit.md", "utf8");
-  const securityLog = readFileSync("docs/security-audit-log.md", "utf8");
+  const operator = normalizeWhitespace(
+    readFileSync("docs/stripe-connect-webhook-bootstrap-operator.md", "utf8"),
+  );
+  const topology = normalizeWhitespace(
+    readFileSync("docs/stripe-webhook-provider-topology-audit.md", "utf8"),
+  );
+  const securityLog = normalizeWhitespace(readFileSync("docs/security-audit-log.md", "utf8"));
   assert.equal(
     pkg.scripts["ops:stripe-connect-bootstrap"],
     "node scripts/stripe-connect-webhook-bootstrap.mjs",
@@ -356,7 +366,8 @@ test("package and durable provider records retain the operator boundary", () => 
   assert.match(operator, /Status: prepared and tested; never executed/);
   assert.match(operator, /immediately disables the endpoint and retrieves it again/);
   assert.match(operator, /removes a possibly installed variable/);
+  assert.match(operator, /does not depend on the workstation's mutable `gh` authentication state/);
   assert.match(operator, /Preparation of this operator is not authorization to execute it/);
   assert.match(topology, /stripe-connect-webhook-bootstrap-operator\.md/);
-  assert.match(securityLog, /PR #170[\s\S]*31323020529[\s\S]*preparation only/);
+  assert.match(securityLog, /PR #170.*31323020529.*preparation only/);
 });

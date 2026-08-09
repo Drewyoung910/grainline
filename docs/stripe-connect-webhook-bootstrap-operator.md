@@ -51,6 +51,11 @@ The Vercel CLI is byte-version selected as `vercel@58.9.0`. It receives the
 one-time signing secret only on stdin and uses `--sensitive`; `--value` is
 forbidden by contract coverage.
 
+The exact CI proof is read from the narrow GitHub Actions run endpoint. Public
+repository reads need no CLI login; an optional `GITHUB_TOKEN` may be supplied
+for API-rate-limit headroom and is never written or printed. The operator does
+not depend on the workstation's mutable `gh` authentication state.
+
 If endpoint disabling, retrieval, Vercel installation, Vercel classification or
 evidence finalization fails, the operator re-reads the Vercel environment,
 removes a possibly installed variable, deletes only the exact created endpoint,

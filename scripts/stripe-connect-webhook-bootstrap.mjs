@@ -245,6 +245,36 @@ function defaultCommand(command, args, options = {}) {
   return result.stdout;
 }
 
+async function fetchExactCiRun(config) {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "grainline-stripe-connect-bootstrap",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+  const response = await fetch(`https://api.github.com/repos/${REPOSITORY}/actions/runs/${config.ciRunId}`, {
+    headers,
+    redirect: "error",
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub CI lookup failed with HTTP ${response.status}`);
+  }
+  const payload = await response.json();
+  if (Number(payload?.id) !== Number(config.ciRunId) || payload?.repository?.full_name !== REPOSITORY) {
+    throw new Error("GitHub CI lookup returned a different run or repository");
+  }
+  return {
+    conclusion: payload.conclusion,
+    event: payload.event,
+    headBranch: payload.head_branch,
+    headSha: payload.head_sha,
+    workflowName: payload.name,
+  };
+}
+
 function vercelArgs(...args) {
   return ["--yes", `vercel@${VERCEL_CLI_VERSION}`, ...args, "--no-color"];
 }
@@ -258,11 +288,7 @@ function createDefaultLocalDependencies(config) {
       }).trim();
     },
     ciRun() {
-      return JSON.parse(defaultCommand(
-        "gh",
-        ["run", "view", config.ciRunId, "--repo", REPOSITORY, "--json", "conclusion,headBranch,headSha,event,workflowName"],
-        { cwd: ROOT_DIR, label: "GitHub CI lookup" },
-      ));
+      return fetchExactCiRun(config);
     },
     readVercelProject() {
       return JSON.parse(readFileSync(path.join(config.vercelProjectDirectory, ".vercel", "project.json"), "utf8"));
