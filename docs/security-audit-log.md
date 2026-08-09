@@ -925,6 +925,22 @@ Follow-up fix from this pass:
   seller-version evidence, retirement decision boundary for legacy classic
   account events, implementation proofs and release order. No provider or
   production state changed during that audit.
+- PR #169 merged exact compatible Connect-route head
+  `e45a42b9a6b63acef675d0a86276c96a5da9e22f` as exact `main`
+  `6126105b81c79948b6b77066461dd9ac0b8e5e73`; exact-main CI
+  `31321837327` and Conversation/Message FORCE regression run `31321837383`
+  passed. Read-only Vercel inventory then confirmed that production does not
+  yet contain `STRIPE_CONNECT_WEBHOOK_SECRET`; no deployment or provider state
+  changed. The release review corrected an impossible ordering assumption:
+  Stripe returns the classic endpoint signing secret only at creation. The
+  provider boundary must create the Connect endpoint on the deliberately
+  absent bootstrap URL, capture the secret without logging it, immediately
+  disable and verify the endpoint, install the Sensitive production variable,
+  and deploy while the endpoint remains disabled. Failure to verify immediate
+  disable requires endpoint deletion and a stop. Only after alias, health and
+  secret-isolation proofs may the endpoint move to the canonical URL and be
+  enabled for one signed payout delivery plus retry. No random placeholder
+  secret or creation-response artifact is permitted.
 
 ## Dependency security refresh (2026-07-25)
 

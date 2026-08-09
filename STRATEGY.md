@@ -85,6 +85,18 @@ unless current linked-account evidence establishes a real compatibility need.
 Human traffic being absent does not remove the old/new boundary because Stripe
 retries and cron/maintenance jobs remain active.
 
+Stripe exposes a classic endpoint signing secret only at creation, so the
+provider cutover uses a disabled bootstrap rather than an impossible
+"secret-before-endpoint" order. Create the Connect endpoint on the deliberately
+absent `/api/stripe/webhook/connect-bootstrap-disabled` URL with only
+`payout.failed`, capture the secret without logging it, immediately disable and
+verify the endpoint, then install the Sensitive production variable and deploy
+the compatible route while the endpoint stays disabled. Only after alias,
+health and wrong/cross-secret denial proofs pass may the endpoint move to the
+canonical URL and be enabled for signed delivery plus retry. If immediate
+disable cannot be verified, delete the endpoint and stop. Do not use a random
+placeholder secret or expose the creation response in evidence.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

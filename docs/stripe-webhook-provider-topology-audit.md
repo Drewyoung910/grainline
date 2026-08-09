@@ -1,9 +1,9 @@
 # Stripe webhook provider topology audit
 
-Status: compatible three-surface application candidate implemented on an
-isolated branch; provider and release gates remain open. No Stripe endpoint,
-event subscription, signing secret, application deployment, database row,
-migration, RLS posture or grant was changed by this implementation pass.
+Status: compatible three-surface application merged on `main`; provider and
+release gates remain open. No Stripe endpoint, event subscription, signing
+secret, application deployment, database row, migration, RLS posture or grant
+was changed by the merge or this sequencing correction.
 
 Audited: 2026-08-09
 
@@ -104,7 +104,14 @@ account-state controls.
 
 ## Compatible implementation checkpoint
 
-The isolated candidate adds `/api/stripe/webhook/connect` with only
+PR #169 merged exact implementation head
+`e45a42b9a6b63acef675d0a86276c96a5da9e22f` as exact `main`
+`6126105b81c79948b6b77066461dd9ac0b8e5e73`. Exact-main CI
+`31321837327` and Conversation/Message FORCE regression run `31321837383`
+passed. The application has not been deployed and the production/provider
+state remains the compatible predecessor recorded above.
+
+The merged application adds `/api/stripe/webhook/connect` with only
 `STRIPE_CONNECT_WEBHOOK_SECRET`, a 512 KiB raw-body cap, classic Stripe HMAC
 verification, stale-event rejection and the existing generation-bound fixed
 lease functions. Valid signed events other than `payout.failed` are
@@ -133,7 +140,10 @@ and exemption detection remain unchanged and fail closed.
 
 ## Required implementation and release proof
 
-Before any provider mutation:
+Stripe returns a classic webhook endpoint's signing secret only in the create
+response. The compatible route therefore cannot literally be deployed with its
+real secret before any endpoint exists. Preserve the intended fail-closed order
+with a disabled bootstrap instead:
 
 1. implement the separately signed Connect route and share handler logic
    without accepting either secret on the wrong URL;
@@ -143,15 +153,37 @@ Before any provider mutation:
 3. update the read-only provider proof to require three exact URLs, payload
    modes and event sets, while retaining separate Dashboard evidence for the
    classic account-versus-Connect source scope;
-4. deploy the compatible route with the new secret present but no provider
-   destination yet, then verify health;
-5. create/update provider destinations in a separately authorized boundary,
-   send a provider-authenticated test delivery to each, and retain sanitized
-   delivery evidence;
-6. rerun the exact provider proof and the Stripe webhook aggregate health
+4. in a separately authorized provider boundary, create the classic endpoint
+   with `connect=true`, only `payout.failed`, and the deliberately absent
+   bootstrap URL
+   `https://thegrainline.com/api/stripe/webhook/connect-bootstrap-disabled`;
+   capture the creation-only signing secret without printing or persisting it,
+   then immediately set the endpoint to disabled. If disabling cannot be
+   verified, delete the new endpoint and stop. The absent URL makes any event
+   delivered during the create-to-disable interval fail closed, while the
+   predecessor compatibility handler remains available during the cutover;
+5. install the captured value as the Sensitive production-only
+   `STRIPE_CONNECT_WEBHOOK_SECRET`, deploy exact reviewed `main`, verify the
+   production alias and health, and prove that missing, wrong and cross-route
+   secrets are rejected. Keep the Stripe endpoint disabled throughout;
+6. update the still-disabled endpoint to the canonical
+   `https://thegrainline.com/api/stripe/webhook/connect` URL, reverify
+   `connect=true` from the retained creation request evidence and the exact
+   `payout.failed` subscription, then enable it. Send one
+   provider-authenticated delivery plus exact retry and retain only sanitized
+   delivery evidence. Correct the platform and v2 destination event sets in
+   this separately reviewed provider boundary without changing their source
+   scopes or signing secrets;
+7. rerun the exact provider proof and the Stripe webhook aggregate health
    route; and
-7. only then drain the predecessor and run the final StripeWebhookEvent
+8. only then drain the predecessor and run the final StripeWebhookEvent
    predecessor postflight before policyless RLS activation.
+
+Never use a random placeholder as the production signing secret: replacing it
+would require another deployment and would create an avoidable interval where
+the canonical route exists but cannot authenticate provider deliveries. Never
+write the creation response, signing secret, Stripe API key or Vercel secret
+input to a repository artifact, shell trace or CI log.
 
 The provider work needs no StripeWebhookEvent table grant, RLS policy or new
 database function. All three routes must use the already-reviewed fixed lease
