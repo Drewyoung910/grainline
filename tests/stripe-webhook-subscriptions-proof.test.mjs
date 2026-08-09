@@ -169,6 +169,32 @@ describe("Stripe webhook subscriptions proof harness", () => {
     assert.doesNotMatch(serialized, /\b(?:sk_(?:live|test)|whsec)_/);
   });
 
+  it("retains the successful fresh-bucket expanded ops-health result", () => {
+    const evidence = JSON.parse(source(
+      "archive/stripe-webhook-ops-health-compatible-production-20260809.json",
+    ));
+
+    assert.equal(evidence.status, "passed");
+    assert.equal(evidence.commitSha, "423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1");
+    assert.equal(evidence.deploymentId, "dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3");
+    assert.equal(evidence.response.httpStatus, 200);
+    assert.equal(evidence.response.ok, true);
+    assert.equal(evidence.response.skipped, false);
+    for (const key of [
+      "stripeWebhookFailureCount",
+      "stripeWebhookFailedLeaseCount",
+      "stripeWebhookReleasedLeaseCount",
+      "stripeWebhookStaleLeaseCount",
+    ]) assert.equal(evidence.response[key], 0);
+    assert.equal(evidence.response.savedSearchRlsCanaryStatus, "healthy");
+    assert.equal(evidence.boundaries.migrationsRun, false);
+    assert.equal(evidence.boundaries.rlsChanged, false);
+    assert.equal(evidence.boundaries.grantsChanged, false);
+    assert.equal(evidence.boundaries.providerStateChanged, false);
+    assert.equal(evidence.boundaries.cleanupRun, false);
+    assert.equal(evidence.boundaries.cronRunRecorded, true);
+  });
+
   it("keeps signing-secret matching as separate provider/deploy evidence", () => {
     const script = source("scripts/stripe-webhook-subscriptions-proof.mjs");
     const launch = source("docs/launch-checklist.md");

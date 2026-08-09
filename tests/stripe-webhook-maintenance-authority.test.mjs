@@ -227,4 +227,6 @@ test("release record pins production preparation without claiming activation", (
   assert.match(release, /stripe-webhook-subscriptions-compatible-production-20260808\.json/);
   assert.match(release, /missing 11 handled event types/);
   assert.match(release, /three\s+unused `v2\.core\.account_person\.\*` event types/);
+  assert.match(release, /stripe-webhook-ops-health-compatible-production-20260809\.json/);
+  assert.match(release, /all four Stripe aggregate counts/);
 });

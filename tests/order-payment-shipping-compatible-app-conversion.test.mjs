@@ -31,8 +31,8 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     assert.match(record, /31290691183/);
     assert.match(normalizedRecord, /does not represent RLS activation or revoked predecessor table authority/);
     assert.match(record, /classic signed webhook and exact retry/);
-    assert.match(record, /Connect v2 signed delivery/);
-    assert.match(record, /next-hour expanded ops-health projection/);
+    assert.match(normalizedRecord, /Connect v2 signed delivery/);
+    assert.match(record, /all four Stripe aggregate counts at zero/);
     assert.match(record, /classic destination is missing 11 handled events/);
     assert.match(record, /thin v2 destination has three unused/);
     assert.match(record, /duplicate-`stripeSessionId` recovery branch/);

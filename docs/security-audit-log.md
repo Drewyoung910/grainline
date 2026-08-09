@@ -894,9 +894,12 @@ Follow-up fix from this pass:
   returned HTTP 200. The classic signed webhook and exact retry, rollback-only
   retention, fixed aggregate health and legacy restore replay passed with zero
   Listing mutation. No migration, RLS/grant, cleanup or provider mutation was
-  part of the deployment/smoke. Connect v2 signed delivery, the next-hour
-  expanded ops-health response, predecessor drain and activation remain
-  separate gates.
+  part of the deployment/smoke. After the UTC-hour rollover, the expanded
+  ops-health route returned HTTP 200, `skipped=false`, all four Stripe counts at
+  zero and a healthy SavedSearch canary; sanitized evidence is retained at
+  `archive/stripe-webhook-ops-health-compatible-production-20260809.json`.
+  Connect v2 signed delivery, predecessor drain and activation remain separate
+  gates.
 - The follow-up read-only Stripe subscription proof failed closed and retained
   sanitized evidence at
   `archive/stripe-webhook-subscriptions-compatible-production-20260808.json`.

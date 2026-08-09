@@ -3,9 +3,9 @@
 Status: merged, applied as compatible database preparation and deployed as the
 compatible production application. The classic signed webhook, retry,
 retention, aggregate-health and legacy stock-restore paths have been exercised;
-the Connect v2 signed-delivery and next-hour expanded ops-health projections
-remain explicit predecessor gates. StripeWebhookEvent RLS and table-grant
-revocation remain off.
+the Connect v2 signed-delivery and provider-subscription correction remain
+explicit predecessor gates. StripeWebhookEvent RLS and table-grant revocation
+remain off.
 
 ## Exact release boundary
 
@@ -205,6 +205,13 @@ hour. Vercel also masks Sensitive values on readback; therefore the distinct
 `STRIPE_V2_WEBHOOK_SECRET` could not be used to synthesize a valid Connect v2
 delivery. No invalid-signature request was generated merely to make a test run.
 
+After the UTC hour rolled over, the new deployed route acquired its own bucket
+and returned HTTP 200 with `skipped=false`: all four Stripe aggregate counts—
+failure, failed-lease, released-lease and stale-lease—were zero; failed and
+stale cron-run counts were zero; and the SavedSearch canary was healthy.
+Sanitized evidence is retained at
+`archive/stripe-webhook-ops-health-compatible-production-20260809.json`.
+
 A subsequent read-only provider subscription proof retained at
 `archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
 failed closed for both registered test-mode destinations. The classic snapshot
@@ -216,6 +223,5 @@ unused `v2.core.account_person.*` event types outside the accepted
 application or RLS failure; no Stripe setting was changed during inspection.
 
 The next boundary is an independently reviewed provider-subscription
-correction, then Connect v2 signed-delivery evidence, the next-hour expanded
-ops-health response, predecessor drain and a final pooled-runtime postflight.
-Activation remains a separate release.
+correction, then Connect v2 signed-delivery evidence, predecessor drain and a
+final pooled-runtime postflight. Activation remains a separate release.

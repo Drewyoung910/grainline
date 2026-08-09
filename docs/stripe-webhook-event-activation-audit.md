@@ -4,8 +4,8 @@ Status: audit and launch-proof conversion merged; compatible maintenance
 functions and exact compatible application are live in production. No
 activation migration, grant revocation, provider change or StripeWebhookEvent
 RLS change has occurred. Classic signed delivery and retry, rollback-only
-retention, aggregate health and legacy restoration are proved; Connect v2
-signed delivery and the next-hour expanded ops-health response remain gates.
+retention, expanded ops health and legacy restoration are proved; Connect v2
+signed delivery and provider-subscription correction remain gates.
 
 ## Exact reviewed stack
 
@@ -42,9 +42,9 @@ The compatible source and functions are merged and live. Exact release main
 `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`; Vercel reports `READY` and the canonical
 alias plus health endpoint return HTTP 200. Production deliberately retains
 the predecessor table posture for `StripeWebhookEvent`: RLS/FORCE off, zero
-policies and broad runtime CRUD. The remaining v2 exercise, expanded
-ops-health observation, drain, postflight and activation order is a release
-dependency, not authorization to skip a boundary.
+policies and broad runtime CRUD. The remaining provider correction, v2
+exercise, drain, postflight and activation order is a release dependency, not
+authorization to skip a boundary.
 
 ## Authority decision
 
@@ -210,9 +210,9 @@ is:
    call sites;
 3. **partially complete:** migration status and the global grant/RLS audit
    passed; the exact compatible app is deployed; classic signed delivery and
-   retry, rollback-only retention, aggregate health and legacy restore passed.
-   A valid Connect v2 signed delivery and the next-hour expanded ops-health
-   response remain before this step is complete;
+   retry, rollback-only retention, expanded aggregate health and legacy restore
+   passed. Provider-subscription correction plus a valid Connect v2 signed
+   delivery remain before this step is complete;
 4. let the prior app deployment drain and verify no production route or job
    still uses direct table access;
 5. run the historical compatibility postflight for the final predecessor
@@ -272,10 +272,14 @@ runtime fixed-function health, rollback-only retention, and both rollback-only
 and route-level legacy claim replays passed with zero Listing mutation. The
 current-hour ops-health request respected its predecessor cron lock and its
 stored result reported zero aggregate Stripe webhook issues, but the expanded
-split counts require the next UTC-hour run. Vercel's Sensitive-value readback
-mask prevented a synthetic valid Connect v2 signature; that route remains an
-explicit evidence gate rather than a claimed pass. Predecessor drain and final
-postflight still precede activation. The read-only provider proof retained at
+split counts required the next UTC-hour run. That successor invocation passed
+HTTP 200 with `skipped=false`, all four Stripe counts at zero and a healthy
+SavedSearch canary; sanitized evidence is retained at
+`archive/stripe-webhook-ops-health-compatible-production-20260809.json`.
+Vercel's Sensitive-value readback mask prevented a synthetic valid Connect v2
+signature; that route remains an explicit evidence gate rather than a claimed
+pass. Predecessor drain and final postflight still precede activation. The
+read-only provider proof retained at
 `archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
 also failed the exact-subscription contract: classic is missing 11 handled
 events and has four unused events, while v2 has three unused

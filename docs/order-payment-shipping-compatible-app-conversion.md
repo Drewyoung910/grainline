@@ -165,10 +165,11 @@ No test, commit or CI result on this branch changes production state.
   was later promoted manually as production deployment
   `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`. The classic signed webhook and exact retry,
   rollback-only retention, fixed aggregate health, and legacy stock-restore
-  replay paths passed with zero Listing mutation. Connect v2 signed delivery
-  and the next-hour expanded ops-health projection remain explicit gates
-  because Vercel masks the distinct Sensitive signing secret on readback and
-  the current hourly ops-health row belonged to the predecessor deployment.
+  replay paths passed with zero Listing mutation. The first ops-health request
+  respected the predecessor hourly lock; after rollover the deployed route
+  returned HTTP 200 with all four Stripe aggregate counts at zero. Connect v2
+  signed delivery remains an explicit gate because Vercel masks the distinct
+  Sensitive signing secret on readback.
   The retained read-only provider proof also found exact subscription drift:
   the classic destination is missing 11 handled events and has four extras,
   while the thin v2 destination has three unused `account_person` events. No
