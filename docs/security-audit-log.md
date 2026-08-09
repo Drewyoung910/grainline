@@ -1040,6 +1040,24 @@ Follow-up fix from this pass:
   retry receives fresh keys; incomplete cleanup retains it for exact recovery.
   No provider mutation may proceed until the corrected proof chain and exact
   CI pass.
+- PR #176 merged the restart corrections as exact `main`
+  `abd49d703ec37349c84b0c70912ffb655faac5e3`; exact-main CI
+  `31339275512` passed. The authorized test-mode provider cutover completed at
+  disabled canonical stage 3 against deployment
+  `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`: the platform and v2 event sets converged
+  to the reviewed 10/12-event inventories and the classic Connect endpoint
+  moved to `/api/stripe/webhook/connect` while remaining disabled with only
+  `payout.failed`. Independent provider and public-deployment reads matched
+  the sanitized mode-`0600` evidence. No deployment, secret, Vercel variable,
+  migration, grant, RLS or live-mode state changed.
+- The first separately authorized disposable payout preparation stopped at
+  Stripe account creation before an account existed. Current Stripe rejects a
+  request containing both legacy `type=custom` and the explicit `controller`
+  contract. Cleanup completed with no preparation evidence, handoff or attempt
+  journal remaining, and Connect stayed disabled at stage 3. The isolated
+  correction removes only the redundant `type` field, retains the exact
+  Custom-equivalent controller contract, and requires the returned account to
+  re-attest that controller before any funding charge or payout can be created.
 
 ## Dependency security refresh (2026-07-25)
 

@@ -67,6 +67,15 @@ function marker(config) {
   ].join(":")).digest("hex");
 }
 
+function canaryController() {
+  return {
+    fees: { payer: "application" },
+    losses: { payments: "application" },
+    requirement_collection: "application",
+    stripe_dashboard: { type: "none" },
+  };
+}
+
 function cutoverEvidence(config) {
   return {
     phase: "stripe-connect-provider-cutover",
@@ -363,7 +372,8 @@ test("preparation evidence is source-bound and rejects a different handoff", () 
 test("canary source derives its marker and uses the documented failing bank", () => {
   const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
   const params = buildCanaryAccountParams(config, new Date("2026-08-09T00:00:00Z"));
-  assert.equal(params.type, "custom");
+  assert.equal(Object.hasOwn(params, "type"), false);
+  assert.deepEqual(params.controller, canaryController());
   assert.equal(params.external_account.routing_number, "110000000");
   assert.equal(params.external_account.account_number, "000111111116");
   assert.equal(params.settings.payouts.schedule.interval, "manual");
@@ -373,6 +383,7 @@ test("canary source derives its marker and uses the documented failing bank", ()
 test("source validators reject account, payout and event mismatches", () => {
   const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
   const account = {
+    controller: canaryController(),
     id: ACCOUNT_ID,
     livemode: false,
     metadata: { grainline_provider_canary: marker(config) },
@@ -383,7 +394,14 @@ test("source validators reject account, payout and event mismatches", () => {
   assert.equal(assertPayoutEvent(payoutEvent(created), ACCOUNT_ID, PAYOUT_ID, created).id, EVENT_ID);
   assert.throws(
     () => assertCanaryAccount({ ...account, livemode: true }, config),
-    /identity or metadata drifted/,
+    /identity, metadata or controller drifted/,
+  );
+  assert.throws(
+    () => assertCanaryAccount({
+      ...account,
+      controller: { ...canaryController(), requirement_collection: "stripe" },
+    }, config),
+    /identity, metadata or controller drifted/,
   );
   assert.throws(
     () => assertFailedPayout({ ...failedPayout(), failure_code: "account_closed" }, ACCOUNT_ID),
@@ -410,6 +428,7 @@ test("prepare creates one disposable source and writes only sanitized durable ev
       createCanaryAccount: async (params) => {
         account = {
           charges_enabled: true,
+          controller: canaryController(),
           id: ACCOUNT_ID,
           livemode: false,
           metadata: params.metadata,
@@ -463,6 +482,7 @@ test("prepare resumes the durable attempt instead of recreating a deleted-key so
       },
       retrieveAccount: async () => ({
         charges_enabled: true,
+        controller: canaryController(),
         id: ACCOUNT_ID,
         livemode: false,
         metadata: { grainline_provider_canary: marker(config) },
@@ -492,6 +512,7 @@ test("failed account cleanup preserves the durable attempt for exact recovery", 
         ...deps,
         createCanaryAccount: async (params) => ({
           charges_enabled: true,
+          controller: canaryController(),
           id: ACCOUNT_ID,
           livemode: false,
           metadata: params.metadata,
@@ -499,6 +520,7 @@ test("failed account cleanup preserves the durable attempt for exact recovery", 
         }),
         retrieveAccount: async () => ({
           charges_enabled: true,
+          controller: canaryController(),
           id: ACCOUNT_ID,
           livemode: false,
           metadata: { grainline_provider_canary: marker(config) },
@@ -530,6 +552,7 @@ test("prove enables, delivers, retries unchanged, deletes the canary and retains
       ...deps,
       readHandoff: async () => preparedHandoff(config, created),
       retrieveAccount: async () => ({
+        controller: canaryController(),
         id: ACCOUNT_ID,
         livemode: false,
         metadata: { grainline_provider_canary: marker(config) },
@@ -573,6 +596,7 @@ test("restart from enabled stage and processed row performs only the exact repla
       ...deps,
       readHandoff: async () => preparedHandoff(config, created),
       retrieveAccount: async () => ({
+        controller: canaryController(),
         id: ACCOUNT_ID,
         livemode: false,
         metadata: { grainline_provider_canary: marker(config) },
@@ -638,6 +662,7 @@ test("completed durable evidence resumes without touching Stripe source or datab
       ...firstDeps,
       readHandoff: async () => preparedHandoff(config, created),
       retrieveAccount: async () => ({
+        controller: canaryController(),
         id: ACCOUNT_ID,
         livemode: false,
         metadata: { grainline_provider_canary: marker(config) },
@@ -679,6 +704,7 @@ test("replay failure disables the endpoint and preserves the handoff for retry",
         ...deps,
         readHandoff: async () => preparedHandoff(config, created),
         retrieveAccount: async () => ({
+          controller: canaryController(),
           id: ACCOUNT_ID,
           livemode: false,
           metadata: { grainline_provider_canary: marker(config) },
@@ -726,6 +752,7 @@ test("ambiguous enable transport failure re-reads and disables the actual provid
         },
         readHandoff: async () => preparedHandoff(config, created),
         retrieveAccount: async () => ({
+          controller: canaryController(),
           id: ACCOUNT_ID,
           livemode: false,
           metadata: { grainline_provider_canary: marker(config) },
@@ -770,6 +797,7 @@ test("ambiguous disable response is accepted only after a fresh stage-3 provider
         },
         readHandoff: async () => preparedHandoff(config, created),
         retrieveAccount: async () => ({
+          controller: canaryController(),
           id: ACCOUNT_ID,
           livemode: false,
           metadata: { grainline_provider_canary: marker(config) },

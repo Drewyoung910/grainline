@@ -407,7 +407,6 @@ export function buildCanaryAccountParams(config, now = new Date()) {
       date: Math.floor(now.getTime() / 1000),
       ip: "127.0.0.1",
     },
-    type: "custom",
   };
 }
 
@@ -418,8 +417,12 @@ export function assertCanaryAccount(account, config) {
     || account.livemode !== false
     || account.deleted === true
     || account.metadata?.grainline_provider_canary !== markerFor(config)
+    || account.controller?.fees?.payer !== "application"
+    || account.controller?.losses?.payments !== "application"
+    || account.controller?.requirement_collection !== "application"
+    || account.controller?.stripe_dashboard?.type !== "none"
   ) {
-    throw new Error("disposable Stripe account identity or metadata drifted");
+    throw new Error("disposable Stripe account identity, metadata or controller drifted");
   }
   return account;
 }
