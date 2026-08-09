@@ -1,8 +1,11 @@
 # Stripe webhook maintenance-authority release
 
-Status: merged and applied as compatible database preparation; the compatible
-application source is merged but has not been deployed. StripeWebhookEvent RLS
-and table-grant revocation remain off.
+Status: merged, applied as compatible database preparation and deployed as the
+compatible production application. The classic signed webhook, retry,
+retention, aggregate-health and legacy stock-restore paths have been exercised;
+the Connect v2 signed-delivery and next-hour expanded ops-health projections
+remain explicit predecessor gates. StripeWebhookEvent RLS and table-grant
+revocation remain off.
 
 ## Exact release boundary
 
@@ -18,6 +21,7 @@ and table-grant revocation remain off.
 - exact release main commit: `423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1`
 - exact-main CI: `31284293394`
 - guarded production migration run: `31290691183`
+- compatible production deployment: `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`
 
 This is compatible preparation, not RLS activation. It creates exactly three
 fixed `SECURITY DEFINER` functions, revokes `PUBLIC`, grants their exact
@@ -165,6 +169,42 @@ The applied migration contains only the three reviewed additive fixed
 functions. Its verifier attested `rlsChanged=false`,
 `predecessorTableGrantsChanged=false` and `rowDataChanged=false`; no RLS,
 FORCE, policy, table-grant, cleanup, deployment or provider change was part of
-the run. The next boundary is the exact compatible application deployment and
-path exercise, followed by predecessor drain and a final pooled-runtime
+the run.
+
+Manual Vercel production deployment
+`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3` promoted the exact release main commit.
+Vercel reported `READY`, production target and canonical aliases
+`thegrainline.com` plus `www.thegrainline.com`; independent checks returned
+HTTP 200 for `/` and `/api/health`. The build-time runtime database guard
+attested the pooled `grainline_app_runtime` role. The deployment ran no
+migration and changed no provider variable.
+
+The bounded production exercise then proved, under the actual pooled
+NOBYPASSRLS runtime role:
+
+- one fresh correctly signed classic snapshot event completed, and an exact
+  retry returned the processed result without a second handler execution;
+- the fresh event row was terminally processed with no retained error;
+- the fixed health projection returned exactly one aggregate row;
+- `grainline_stripe_webhook_prune_batch(1)` selected zero current candidates
+  inside a transaction that was rolled back, so no production retention
+  deletion occurred;
+- `grainline_legacy_stock_restore_claim` returned first-claim then replay and
+  left zero residue after rollback; and
+- a signed `checkout.session.expired` replay against an existing permanent
+  legacy claim completed twice without changing the permanent claim count or
+  creating/updating the guaranteed-nonexistent smoke Listing.
+
+The authorized ops-health request returned HTTP 200 and the expected
+`cron_run_already_claimed` idempotency result because the current UTC-hour row
+had already been completed by the predecessor deployment. Its stored aggregate
+reported `stripeWebhookFailureCount=0`, but predates the new split
+failed/released/stale fields. Deleting or bypassing that durable cron lock was
+out of scope, so the new expanded response must be observed from the next UTC
+hour. Vercel also masks Sensitive values on readback; therefore the distinct
+`STRIPE_V2_WEBHOOK_SECRET` could not be used to synthesize a valid Connect v2
+delivery. No invalid-signature request was generated merely to make a test run.
+
+The next boundary is Connect v2 signed-delivery evidence, the next-hour
+expanded ops-health response, predecessor drain and a final pooled-runtime
 postflight. Activation remains a separate release.

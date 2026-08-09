@@ -94,7 +94,7 @@ completed alternative.
 | `EmailOutbox` | `ALTERNATIVE_REVIEW` | Email service ledgers | Recipient PII and rendered email content; producers, sender cron and operations | Dedicated producer and worker operations, least-privilege reads and retention proof |
 | `AccountDeletionSideEffect` | `ALTERNATIVE_REVIEW` | Account lifecycle service | Deletion payloads and retry state; account deletion, worker and operations | Service-only durable queue with target-user cleanup semantics and ordinary runtime denial |
 | `SupportRequest` | `BLOCKED_DESIGN` | Support | User or anonymous contact PII and case text; requester and staff | Authenticated-owner versus anonymous submission design, staff queue and retention rules |
-| `StripeWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Stripe idempotency and errors; webhook handler and operations | Six fixed service operations are merged and their additive maintenance preparation is live from run `31290691183`; RLS/FORCE remain off and predecessor table grants remain until the compatible app is deployed, exercised and drained |
+| `StripeWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Stripe idempotency and errors; webhook handler and operations | Six fixed service operations and exact compatible app deployment `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3` are live; classic delivery/retry and maintenance/legacy paths passed. RLS/FORCE remain off and predecessor grants remain until Connect v2 evidence, expanded ops-health, drain and final predecessor proof complete |
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
@@ -215,9 +215,11 @@ preclude a later reviewed policy or grant migration.
    Keep Case evidence enablement, cleanup scheduling and provider/token changes
    outside that database boundary.
 6. Continue the Order/payment/shipping program: the StripeWebhookEvent
-   compatible source is merged and maintenance preparation is live; complete
-   the compatible deploy, exercise, drain and final predecessor postflight
-   before the separate activation release.
+   compatible source, additive maintenance preparation and exact compatible
+   deployment are live. Complete Connect v2 signed-delivery evidence, observe
+   the expanded ops-health result after the predecessor hourly lock expires,
+   then drain and run the final predecessor postflight before the separate
+   activation release.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger

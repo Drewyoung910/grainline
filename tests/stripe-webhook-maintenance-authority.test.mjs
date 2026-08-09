@@ -218,6 +218,10 @@ test("release record pins production preparation without claiming activation", (
     release,
     /applied only\s+`20260805040000_prepare_stripe_webhook_maintenance_authority`/,
   );
-  assert.match(release, /StripeWebhookEvent RLS\s+and table-grant revocation remain off/);
-  assert.match(release, /compatible\s+application source is merged but has not been deployed/);
+  assert.match(normalizedRelease, /StripeWebhookEvent RLS and table-grant revocation remain off/);
+  assert.match(release, /dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3/);
+  assert.match(release, /fresh correctly signed classic snapshot event completed/);
+  assert.match(release, /cron_run_already_claimed/);
+  assert.match(release, /Connect v2 signed-delivery evidence/);
+  assert.match(release, /No invalid-signature request was generated/);
 });

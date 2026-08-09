@@ -11,12 +11,14 @@ function source(path) {
 }
 
 describe("Order, payment, and shipping compatible application conversion", () => {
-  it("records the accepted preparation and undeployed application boundary", () => {
+  it("records the accepted preparation and deployed compatible boundary", () => {
     const record = source("docs/order-payment-shipping-compatible-app-conversion.md");
+    const normalizedRecord = record.replace(/\s+/g, " ");
 
-    assert.match(record, /merged compatible application source/);
-    assert.match(record, /not deployed to production/);
+    assert.match(record, /merged and deployed as the compatible production application/);
     assert.match(record, /0e2e1cce29089ab1418ff006b461d74b5f9804ca/);
+    assert.match(record, /423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1/);
+    assert.match(record, /dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3/);
     assert.match(record, /6f1f4c1e99fb21726744ecd1652a37b6be35c294/);
     assert.match(record, /31276366947/);
     assert.match(record, /31277540714/);
@@ -27,7 +29,10 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     assert.match(record, /grainline_legacy_stock_restore_claim/);
     assert.match(record, /Operation 36 is\s+now merged/);
     assert.match(record, /31290691183/);
-    assert.match(record, /does not represent RLS activation or revoked\s+predecessor table authority/);
+    assert.match(normalizedRecord, /does not represent RLS activation or revoked predecessor table authority/);
+    assert.match(record, /classic signed webhook and exact retry/);
+    assert.match(record, /Connect v2 signed delivery/);
+    assert.match(record, /next-hour expanded ops-health projection/);
     assert.match(record, /duplicate-`stripeSessionId` recovery branch/);
     assert.match(record, /negative claim generations/);
     assert.match(record, /No test, commit or CI result on this branch changes production state/);

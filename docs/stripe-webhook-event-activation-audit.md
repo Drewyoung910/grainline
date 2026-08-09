@@ -1,9 +1,11 @@
 # StripeWebhookEvent activation audit
 
 Status: audit and launch-proof conversion merged; compatible maintenance
-functions are applied in production. No activation migration, compatible app
-deployment, grant revocation, provider change or StripeWebhookEvent RLS change
-has occurred.
+functions and exact compatible application are live in production. No
+activation migration, grant revocation, provider change or StripeWebhookEvent
+RLS change has occurred. Classic signed delivery and retry, rollback-only
+retention, aggregate health and legacy restoration are proved; Connect v2
+signed delivery and the next-hour expanded ops-health response remain gates.
 
 ## Exact reviewed stack
 
@@ -35,12 +37,14 @@ maintenance conversions remain isolated:
    `20260805040000_prepare_stripe_webhook_maintenance_authority` and passed
    migration status plus the global grant/RLS audit.
 
-The compatible source and functions are now merged, and the functions are live,
-but the compatible app has not been deployed. Production therefore retains the
-predecessor table posture for `StripeWebhookEvent`: RLS/FORCE off, zero
-policies and broad runtime CRUD. The remaining deploy, exercise, drain,
-postflight and activation order is a release dependency, not authorization to
-skip a boundary.
+The compatible source and functions are merged and live. Exact release main
+`423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1` is production deployment
+`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`; Vercel reports `READY` and the canonical
+alias plus health endpoint return HTTP 200. Production deliberately retains
+the predecessor table posture for `StripeWebhookEvent`: RLS/FORCE off, zero
+policies and broad runtime CRUD. The remaining v2 exercise, expanded
+ops-health observation, drain, postflight and activation order is a release
+dependency, not authorization to skip a boundary.
 
 ## Authority decision
 
@@ -204,9 +208,11 @@ is:
    `20260805040000_prepare_stripe_webhook_maintenance_authority` migration from
    the resulting exact green main commit before deploying any PR #162 runtime
    call sites;
-3. verify migration status and the global grant/RLS audit, deploy the exact
-   compatible app, and exercise signed webhook, retry, ops-health, retention
-   and legacy restore paths while direct table grants still exist;
+3. **partially complete:** migration status and the global grant/RLS audit
+   passed; the exact compatible app is deployed; classic signed delivery and
+   retry, rollback-only retention, aggregate health and legacy restore passed.
+   A valid Connect v2 signed delivery and the next-hour expanded ops-health
+   response remain before this step is complete;
 4. let the prior app deployment drain and verify no production route or job
    still uses direct table access;
 5. run the historical compatibility postflight for the final predecessor
@@ -260,7 +266,13 @@ audit and production-build gates also passed. Vercel deployment
 database isolation guard (`DATABASE_URL_SHAPE`) before application build; it is
 not contrary application-build evidence and nothing deployed.
 PR #163 remains audit and proof work only; it contains no activation migration.
-Production remains on the compatible predecessor application. The source is
-merged and the additive maintenance functions are live, but the exact
-compatible deployment, production path exercise, predecessor drain and final
+Production now runs the exact compatible application at deployment
+`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`. The classic signed webhook and exact retry,
+runtime fixed-function health, rollback-only retention, and both rollback-only
+and route-level legacy claim replays passed with zero Listing mutation. The
+current-hour ops-health request respected its predecessor cron lock and its
+stored result reported zero aggregate Stripe webhook issues, but the expanded
+split counts require the next UTC-hour run. Vercel's Sensitive-value readback
+mask prevented a synthetic valid Connect v2 signature; that route remains an
+explicit evidence gate rather than a claimed pass. Predecessor drain and final
 postflight still precede activation.

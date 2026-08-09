@@ -26,7 +26,10 @@ test("activation audit pins the accepted compatible stack and remaining boundary
   assert.match(audit, /423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1/);
   assert.match(audit, /31284293394/);
   assert.match(audit, /31290691183/);
-  assert.match(audit, /compatible app has not been deployed/);
+  assert.match(audit, /dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3/);
+  assert.match(audit, /classic signed delivery and\s+retry/);
+  assert.match(audit, /Connect v2 signed delivery/);
+  assert.match(audit, /expanded\s+split counts require the next UTC-hour run/);
   assert.match(audit, /predecessor table posture/);
 });
 

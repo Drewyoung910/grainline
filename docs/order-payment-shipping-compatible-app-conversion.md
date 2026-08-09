@@ -1,6 +1,7 @@
 # Order, Payment, and Shipping Compatible Application Conversion
 
-Status: merged compatible application source; not deployed to production.
+Status: merged and deployed as the compatible production application; RLS and
+predecessor table-grant posture remain unchanged.
 
 Prepared: 2026-08-05
 
@@ -22,9 +23,11 @@ PR `#161` merged exact reviewed head
 `d2ef37b4c86a0ff174016be77113fa1b888131b4` as main commit
 `0e2e1cce29089ab1418ff006b461d74b5f9804ca`. The source was synchronized
 with the accepted production-preparation main commit before the
-post-production authority review. It has not yet been deployed to production;
-the predecessor production application remains active until the separately
-reviewed compatible deployment boundary.
+post-production authority review. Exact release main
+`423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1` was manually deployed as Vercel
+production deployment `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3` after exact-main CI
+`31284293394` and guarded migration run `31290691183` passed. The canonical
+alias and health endpoint returned HTTP 200 after deployment.
 
 The database prerequisite is satisfied, but that does not itself authorize an
 application deployment. The preparation intentionally retains the predecessor
@@ -65,10 +68,10 @@ the legacy `checkout-stock-restore:<session>` dedup path to the dedicated
 `grainline_legacy_stock_restore_claim` operation inside its already-held
 checkout-session advisory lock and surrounding stock-restore transaction. The
 claim and stock update therefore commit or roll back together. Operation 36 is
-now merged, and its additive fixed function is live from guarded migration run
-`31290691183`. The compatible application call site still has not been
-deployed, and this preparation does not represent RLS activation or revoked
-predecessor table authority.
+now merged, its additive fixed function is live from guarded migration run
+`31290691183`, and the compatible application call site is deployed in
+`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`. This release does not represent RLS
+activation or revoked predecessor table authority.
 
 ## Durable seller-key dual write
 
@@ -158,3 +161,11 @@ No test, commit or CI result on this branch changes production state.
 - PR `#161` then merged that exact head as main commit
   `0e2e1cce29089ab1418ff006b461d74b5f9804ca`. This merge made the compatible
   source deployable but did not itself deploy it or change production state.
+- Exact release main `423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1`
+  was later promoted manually as production deployment
+  `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`. The classic signed webhook and exact retry,
+  rollback-only retention, fixed aggregate health, and legacy stock-restore
+  replay paths passed with zero Listing mutation. Connect v2 signed delivery
+  and the next-hour expanded ops-health projection remain explicit gates
+  because Vercel masks the distinct Sensitive signing secret on readback and
+  the current hourly ops-health row belonged to the predecessor deployment.

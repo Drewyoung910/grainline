@@ -888,8 +888,15 @@ Follow-up fix from this pass:
   `20260805040000_prepare_stripe_webhook_maintenance_authority`, reported all
   191 migrations current and passed the final global runtime grant/RLS audit.
   The release verifier attested no RLS, FORCE, table-grant or row-data change.
-  No application deployment or provider mutation occurred; predecessor app
-  drain and activation remain separate gates.
+  Manual production deployment `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3` then
+  promoted exact release main `423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1`;
+  Vercel reported `READY`, and the canonical homepage plus health endpoint
+  returned HTTP 200. The classic signed webhook and exact retry, rollback-only
+  retention, fixed aggregate health and legacy restore replay passed with zero
+  Listing mutation. No migration, RLS/grant, cleanup or provider mutation was
+  part of the deployment/smoke. Connect v2 signed delivery, the next-hour
+  expanded ops-health response, predecessor drain and activation remain
+  separate gates.
 
 ## Dependency security refresh (2026-07-25)
 
