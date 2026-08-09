@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-08-09T18:25:29.232Z",
+  "phase": "stripe-connect-disabled-bootstrap",
+  "status": "passed",
+  "mode": "test",
+  "commit": "eda20f6f18d08d194b0a44a7414510e3c3a9ef58",
+  "ciRunId": "31328107308",
+  "stripe": {
+    "endpointIdSha256": "ad8e20cc2af6c378350f4a181252df03eb34a2a15571ad162a21fb2d90063357",
+    "url": "https://thegrainline.com/api/stripe/webhook/connect-bootstrap-disabled",
+    "status": "disabled",
+    "livemode": false,
+    "enabledEvents": [
+      "payout.failed"
+    ],
+    "connectedAccountSourceRequestedAtCreation": true,
+    "signingSecretPersistedInEvidence": false
+  },
+  "vercel": {
+    "environment": "production",
+    "name": "STRIPE_CONNECT_WEBHOOK_SECRET",
+    "classification": "Sensitive",
+    "valuePersistedInEvidence": false
+  },
+  "nextBoundary": "deploy compatible app while the Stripe endpoint remains disabled"
+}

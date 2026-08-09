@@ -965,6 +965,19 @@ Follow-up fix from this pass:
   test and live bootstrap to different confirmation strings and retains the
   live-money switch as a separate endpoint/secret/deployment release. No
   endpoint, variable, deployment, migration, grant or production state changed.
+- PR #172 merged that provider-mode correction as exact `main`
+  `eda20f6f18d08d194b0a44a7414510e3c3a9ef58`; exact-main CI run
+  `31328107308` passed. The exact-main read-only preflight passed, followed by
+  the separately authorized guarded test-mode bootstrap. It created only the
+  reviewed classic Connect `payout.failed` endpoint at the deliberately absent
+  URL with `connect=true`, immediately disabled and re-read it, proved
+  `livemode=false`, and then installed exactly one unbranched Sensitive
+  Production Vercel `STRIPE_CONNECT_WEBHOOK_SECRET`. Secret-free evidence is
+  retained at
+  `archive/stripe-connect-disabled-bootstrap-test-20260809-eda20f6f.json`.
+  Nothing was deployed; the endpoint remains disabled; no migration, grant,
+  RLS or live-mode Stripe state changed. The next separate boundary is the
+  compatible production deployment while the endpoint stays disabled.
 
 ## Dependency security refresh (2026-07-25)
 
