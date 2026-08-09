@@ -219,11 +219,14 @@ with a disabled bootstrap instead:
 6. update the still-disabled endpoint to the canonical
    `https://thegrainline.com/api/stripe/webhook/connect` URL, reverify
    `connect=true` from the retained creation request evidence and the exact
-   `payout.failed` subscription, then enable it. Send one
-   provider-authenticated delivery plus exact retry and retain only sanitized
-   delivery evidence. Correct the platform and v2 destination event sets in
-   this separately reviewed provider boundary without changing their source
-   scopes or signing secrets;
+   `payout.failed` subscription. Correct the platform and v2 destination event
+   sets without changing source scope, payload mode or signing secrets, but
+   stop with Connect disabled at canonical stage 3. Create a fresh disposable
+   test connected account and real failed payout while delivery remains
+   disabled. Only then enable Connect inside the provider-authenticated
+   delivery plus exact-retry proof. Any proof failure must return Connect to
+   disabled canonical stage 3. Retain only sanitized durable evidence and
+   delete the disposable account after replay proof;
 7. rerun the exact provider proof and the Stripe webhook aggregate health
    route; and
 8. only then drain the predecessor and run the final StripeWebhookEvent
@@ -241,6 +244,20 @@ would require another deployment and would create an avoidable interval where
 the canonical route exists but cannot authenticate provider deliveries. Never
 write the creation response, signing secret, Stripe API key or Vercel secret
 input to a repository artifact, shell trace or CI log.
+
+The unexecuted restart-safe implementation of step 6 is documented in
+`docs/stripe-connect-provider-cutover-operator.md`. Its provider-state machine
+pins the exact observed predecessor: six platform events; twelve reviewed v2
+account events plus exactly three removable `account_person` extras; and the
+disabled, single-event Connect bootstrap. The configuration operator stops at
+disabled canonical stage 3. A separate signed-payout operator creates only a
+fresh test account, derives the release marker internally, proves the real
+`no_account` failure, enables only inside delivery proof, resends the exact
+event, proves the processed lease unchanged by replay, journals that verified
+lease before account cleanup, and disables on every pre-completion failure after
+a fresh provider read. This includes an enable response lost after Stripe
+accepted the mutation. A post-deletion restart performs no additional resend.
+Preparing those operators changes no provider or production state.
 
 The provider work needs no StripeWebhookEvent table grant, RLS policy or new
 database function. All three routes must use the already-reviewed fixed lease

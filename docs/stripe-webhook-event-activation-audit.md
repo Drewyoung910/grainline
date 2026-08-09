@@ -126,6 +126,13 @@ defect. Each remaining path is classified:
   rollback behavior. It proves missing-row inserts and stale reclaims roll
   back, processed/in-progress classification is preserved, type mismatch
   fails, and exact fixture residue returns to zero.
+- `scripts/stripe-connect-signed-payout-proof.mjs` is the protected,
+  exact-release-bound pre-activation Connect delivery proof. It uses the
+  reviewed pooled runtime credential inside an engine-enforced read-only
+  transaction to confirm one exact `payout.failed` lease and zero marketplace
+  projection for its disposable account. It exports only counts and ID hashes,
+  cannot mutate the database, and must be excluded from post-activation
+  CI/release phases after runtime table SELECT is revoked.
 - `tests/retention-and-ops-followups.test.mjs` contains only source assertions
   about the retired direct SQL and has no database access.
 - `scripts/buyer-deletion-stripe-replay-proof.mjs` is a staging/local launch

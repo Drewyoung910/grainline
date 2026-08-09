@@ -86,6 +86,7 @@ test("all remaining script-level direct access is explicitly classified", () => 
     "scripts/buyer-deletion-stripe-replay-postgres-proof.mjs",
     "scripts/order-payment-shipping-compatible-production-postflight.mjs",
     "scripts/order-payment-shipping-legacy-inspect.mjs",
+    "scripts/stripe-connect-signed-payout-proof.mjs",
     "scripts/stripe-webhook-lease-compatibility-postgres-proof.mjs",
     "scripts/stripe-webhook-maintenance-authority-postgres-proof.mjs",
   ]);

@@ -992,6 +992,36 @@ Follow-up fix from this pass:
   `archive/stripe-connect-compatible-production-deployment-20260809.json`.
   No migration, RLS, grant, provider-variable or live-mode Stripe change was
   part of this deployment.
+- The next isolated provider branch prepares the restart-safe step-6 operator
+  and signed payout proof. Read-only Stripe inventory pinned the exact current
+  test-mode predecessor: six platform events; the twelve reviewed
+  `v2.core.account` events plus exactly three unused `account_person` extras;
+  and the retained disabled Connect endpoint with only `payout.failed`.
+  Configuration convergence now stops at the canonical URL while Connect
+  remains disabled. The signed proof uses a fresh disposable test account and
+  Stripe's documented `no_account` payout bank, accepts no existing seller
+  account, passes the Stripe API key only through the child environment, and
+  disables Connect again on delivery or replay failure. Durable artifacts use
+  ID hashes; the raw event/account/payout handoff is mode `0600` under the
+  system temporary directory and is deleted with the test account after proof.
+  Extra-High review found and closed two restart boundaries before execution:
+  an accepted enable request followed by a lost response could previously evade
+  the local `enabled` flag, and a crash after account deletion could lose the
+  raw-ID proof context. Failure recovery now always re-reads provider state and
+  disables an observed stage-4 endpoint; the handoff advances to a validated
+  `delivery-verified` lease identity before deletion, so a post-deletion restart
+  performs cleanup without another resend. Final hashed evidence is committed
+  before the temporary handoff is removed, with exact completed-evidence resume
+  validation for an interrupted local cleanup.
+  The same review rejected a shared Stripe idempotency key for opposite
+  mutations: an enable response could otherwise be replayed for an emergency
+  disable, or a forward event-set response for rollback. Existing-endpoint
+  mutations now use invocation-scoped, direction-specific keys; stable keys are
+  retained only for creation of the disposable account, funding charge and
+  payout, where a process restart must not duplicate provider objects.
+  This is prepared code and documentation only: no endpoint was moved or
+  enabled, no event set was changed, no test account was created, and no
+  production, migration, RLS, grant, secret or live-mode state changed.
 
 ## Dependency security refresh (2026-07-25)
 
