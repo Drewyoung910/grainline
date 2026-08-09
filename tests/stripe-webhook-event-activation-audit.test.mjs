@@ -17,15 +17,17 @@ function filesUnder(root, suffix) {
   return result;
 }
 
-test("activation audit pins the exact draft stack and keeps production unchanged", () => {
+test("activation audit pins the accepted compatible stack and remaining boundary", () => {
   assert.match(audit, /PR #160 is merged[\s\S]*6f1f4c1e99fb21726744ecd1652a37b6be35c294/);
   assert.match(audit, /31277540714/);
   assert.match(audit, /PR #161[\s\S]*d2ef37b4c86a0ff174016be77113fa1b888131b4/);
   assert.match(audit, /31278958695/);
-  assert.match(audit, /PR #162[\s\S]*78fb92546362d3744db924b312c27a7e915b279c/);
-  assert.match(audit, /31279844745/);
-  assert.match(audit, /PR #161 and PR #162 remain draft/);
-  assert.match(audit, /Production retains the compatible\s+predecessor/);
+  assert.match(audit, /PR #162[\s\S]*8abaa36fafd989604a06aa2fee9f1a215e5763b1/);
+  assert.match(audit, /423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1/);
+  assert.match(audit, /31284293394/);
+  assert.match(audit, /31290691183/);
+  assert.match(audit, /compatible app has not been deployed/);
+  assert.match(audit, /predecessor table posture/);
 });
 
 test("activation target is policyless ENABLE with exactly six runtime functions", () => {

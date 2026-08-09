@@ -1,9 +1,9 @@
 # StripeWebhookEvent activation audit
 
-Status: isolated audit and launch-proof conversion only on
-`agent/stripe-webhook-activation-audit-20260805`. No activation migration,
-merge, deployment, production query, grant change, provider change or RLS
-change is authorized by this record.
+Status: audit and launch-proof conversion merged; compatible maintenance
+functions are applied in production. No activation migration, compatible app
+deployment, grant revocation, provider change or StripeWebhookEvent RLS change
+has occurred.
 
 ## Exact reviewed stack
 
@@ -21,17 +21,26 @@ maintenance conversions remain isolated:
 2. PR #161, `agent/order-payment-shipping-app-conversion-20260805`, exact head
    `d2ef37b4c86a0ff174016be77113fa1b888131b4`, converts the signed Stripe
    route to the generation-bound begin/complete/fail functions and closes the
-   duplicate-delivery lease race. Exact-head CI `31278958695` passed.
+   duplicate-delivery lease race. Exact-head CI `31278958695` passed, and the
+   head merged as main `0e2e1cce29089ab1418ff006b461d74b5f9804ca`.
 3. PR #162, `agent/stripe-webhook-maintenance-authority-20260805`, exact head
-   `78fb92546362d3744db924b312c27a7e915b279c`, converts retention,
+   `8abaa36fafd989604a06aa2fee9f1a215e5763b1`, converts retention,
    aggregate health and the legacy stock-restore claim to three narrow fixed
-   functions. Exact-head CI `31279844745` passed the disposable PostgreSQL
-   proofs, 2,812-test suite, dependency audit and production build.
+   functions. It merged as main
+   `1fbf17845d72403d8ff28cd038119114583eba04`.
+4. PR #163 merged this audit-only head
+   `73d302b85698d6af1e0a4e17abf0e590a091ef7a`, producing exact main
+   `423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1`. Exact-main CI
+   `31284293394` passed. Guarded migration run `31290691183` then applied only
+   `20260805040000_prepare_stripe_webhook_maintenance_authority` and passed
+   migration status plus the global grant/RLS audit.
 
-PR #161 and PR #162 remain draft. Production retains the compatible
-predecessor for `StripeWebhookEvent`: RLS/FORCE off, zero policies and broad
-runtime CRUD. The stack order is a release dependency, not approval to merge,
-deploy or activate it.
+The compatible source and functions are now merged, and the functions are live,
+but the compatible app has not been deployed. Production therefore retains the
+predecessor table posture for `StripeWebhookEvent`: RLS/FORCE off, zero
+policies and broad runtime CRUD. The remaining deploy, exercise, drain,
+postflight and activation order is a release dependency, not authorization to
+skip a boundary.
 
 ## Authority decision
 
@@ -251,5 +260,7 @@ audit and production-build gates also passed. Vercel deployment
 database isolation guard (`DATABASE_URL_SHAPE`) before application build; it is
 not contrary application-build evidence and nothing deployed.
 PR #163 remains audit and proof work only; it contains no activation migration.
-Production remains on the compatible predecessor until PR #161 and PR #162 are
-merged, deployed, drained and exercised in the documented order.
+Production remains on the compatible predecessor application. The source is
+merged and the additive maintenance functions are live, but the exact
+compatible deployment, production path exercise, predecessor drain and final
+postflight still precede activation.

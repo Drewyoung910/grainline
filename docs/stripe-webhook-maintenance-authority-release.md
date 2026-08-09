@@ -1,10 +1,8 @@
-# Stripe webhook maintenance-authority candidate
+# Stripe webhook maintenance-authority release
 
-Status: isolated stacked candidate only. This branch is not merged, deployed or
-applied to production. The exact Order/payment/shipping compatibility
-preparation is live; this candidate is synchronized with corrected, green
-compatible-application head
-`d2ef37b4c86a0ff174016be77113fa1b888131b4` in draft PR #161.
+Status: merged and applied as compatible database preparation; the compatible
+application source is merged but has not been deployed. StripeWebhookEvent RLS
+and table-grant revocation remain off.
 
 ## Exact release boundary
 
@@ -14,9 +12,12 @@ compatible-application head
 - migration-tree SHA-256:
   `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`
 - guarded phase: `stripe-webhook-maintenance-authority-reviewed`
-- draft PR: `#162`
-- reviewed branch head: `78fb92546362d3744db924b312c27a7e915b279c`
-- green exact-head CI: `31279844745`
+- pull request: `#162`
+- final reviewed branch head: `8abaa36fafd989604a06aa2fee9f1a215e5763b1`
+- main merge commit: `1fbf17845d72403d8ff28cd038119114583eba04`
+- exact release main commit: `423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1`
+- exact-main CI: `31284293394`
+- guarded production migration run: `31290691183`
 
 This is compatible preparation, not RLS activation. It creates exactly three
 fixed `SECURITY DEFINER` functions, revokes `PUBLIC`, grants their exact
@@ -62,6 +63,12 @@ grants, pruning boundaries, fixed health counts, canonical replay identity,
 invalid collision rejection, advisory-lock waiting and complete rollback with
 zero residue. CI runs the verifier, special-form regression test and disposable
 PostgreSQL proof.
+
+Earlier reviewed branch checkpoint
+`78fb92546362d3744db924b312c27a7e915b279c` passed exact-head CI
+`31279844745`. It is retained as proof history; the final merged head and
+production release are the later exact identifiers in the release boundary
+above.
 
 Initial exact-head CI run `30974931167` stopped before the new proof because the
 historical lease proof counted every function whose name began with
@@ -134,3 +141,30 @@ Production webhook destinations and legacy stock restoration must be proven,
 and old deployment overlap must drain. Order, OrderItem,
 CheckoutStockReservation, payment and shipping functions remain separate later
 authority groups; this candidate does not claim their completion.
+
+## Production acceptance (2026-08-08)
+
+PR `#161` merged exact compatible-app head
+`d2ef37b4c86a0ff174016be77113fa1b888131b4` as main
+`0e2e1cce29089ab1418ff006b461d74b5f9804ca`. PR `#162` then merged exact
+maintenance head `8abaa36fafd989604a06aa2fee9f1a215e5763b1` as main
+`1fbf17845d72403d8ff28cd038119114583eba04`. The audit-only PR `#163`
+merged exact head `73d302b85698d6af1e0a4e17abf0e590a091ef7a` to produce exact release
+main `423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1`; exact-main CI
+`31284293394` passed.
+
+Guarded Production Migrations run `31290691183` checked out that exact commit,
+passed the source, owner-role, phase-tree and byte-pinned release guards, and
+applied only
+`20260805040000_prepare_stripe_webhook_maintenance_authority`. Prisma then
+reported the 191-migration tree up to date. The final global grant/RLS audit
+passed for `grainline_app_runtime` across 64 tables, 22 enums, 138
+`grainline_*` functions, one extension and zero sequence references.
+
+The applied migration contains only the three reviewed additive fixed
+functions. Its verifier attested `rlsChanged=false`,
+`predecessorTableGrantsChanged=false` and `rowDataChanged=false`; no RLS,
+FORCE, policy, table-grant, cleanup, deployment or provider change was part of
+the run. The next boundary is the exact compatible application deployment and
+path exercise, followed by predecessor drain and a final pooled-runtime
+postflight. Activation remains a separate release.

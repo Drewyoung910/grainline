@@ -873,8 +873,23 @@ Follow-up fix from this pass:
   `0c34cc94f6a602e8f686487277b422f3ba4e89a1f2c50b9b3b673cb63d259df5`;
   the corrected maintenance phase-tree fingerprint is
   `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`.
-  The earlier PR #162 migration bytes are superseded before merge or production
-  application. Production was not changed.
+  The earlier PR #162 migration bytes were superseded before merge or
+  production application. Production was not changed at that correction
+  checkpoint.
+- **Production preparation accepted 2026-08-08:** PR #161 merged exact app
+  head `d2ef37b4c86a0ff174016be77113fa1b888131b4` as main
+  `0e2e1cce29089ab1418ff006b461d74b5f9804ca`; PR #162 merged exact
+  maintenance head `8abaa36fafd989604a06aa2fee9f1a215e5763b1` as main
+  `1fbf17845d72403d8ff28cd038119114583eba04`; and audit-only PR #163
+  produced exact release main
+  `423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1`. Exact-main CI
+  `31284293394` passed. Guarded Production Migrations run `31290691183`
+  applied only
+  `20260805040000_prepare_stripe_webhook_maintenance_authority`, reported all
+  191 migrations current and passed the final global runtime grant/RLS audit.
+  The release verifier attested no RLS, FORCE, table-grant or row-data change.
+  No application deployment or provider mutation occurred; predecessor app
+  drain and activation remain separate gates.
 
 ## Dependency security refresh (2026-07-25)
 

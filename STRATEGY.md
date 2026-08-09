@@ -59,11 +59,15 @@ accepts only `processed`. The proof must bind a dedicated restricted-runtime
 URL to an explicit non-production target before connection and then obtain
 engine-attested runtime role attributes; a confirmation string alone is not a
 database identity boundary. Its actual Prisma rollback behavior is covered in
-disposable PostgreSQL. Compatible preparation is complete in production;
-merge PR #161/#162 next, apply PR #162's additive maintenance-function
-migration before deploying its runtime call sites, then deploy and drain the
-converted app, record the final predecessor postflight, and activate and prove
-pooled-runtime direct denial.
+disposable PostgreSQL. Compatible preparation is complete in production. PR
+#161, PR #162 and the audit-only PR #163 are merged; exact main
+`423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1` passed CI `31284293394`, and
+guarded run `31290691183` applied only PR #162's additive
+`20260805040000_prepare_stripe_webhook_maintenance_authority` migration. The
+maintenance functions are live while RLS, FORCE, policies and predecessor
+table grants remain unchanged. Next deploy and exercise the converted app,
+drain the predecessor, record the final pooled-runtime postflight, and only
+then activate and prove pooled-runtime direct denial.
 Human traffic being absent does not remove the old/new boundary because Stripe
 retries and cron/maintenance jobs remain active.
 

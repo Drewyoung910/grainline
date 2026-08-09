@@ -1,7 +1,6 @@
 # Order, Payment, and Shipping Compatible Application Conversion
 
-Status: isolated application candidate synchronized with the accepted
-production preparation; not merged or deployed.
+Status: merged compatible application source; not deployed to production.
 
 Prepared: 2026-08-05
 
@@ -19,9 +18,13 @@ The separate actual pooled-runtime postflight passed read-only with all six
 integrity counts at zero and proved RLS off, FORCE off, zero policies and
 predecessor CRUD retained.
 
-The application candidate is published as draft PR `#161` and targets `main`.
-It was synchronized with the accepted production-preparation main commit
-before the post-production authority review.
+PR `#161` merged exact reviewed head
+`d2ef37b4c86a0ff174016be77113fa1b888131b4` as main commit
+`0e2e1cce29089ab1418ff006b461d74b5f9804ca`. The source was synchronized
+with the accepted production-preparation main commit before the
+post-production authority review. It has not yet been deployed to production;
+the predecessor production application remains active until the separately
+reviewed compatible deployment boundary.
 
 The database prerequisite is satisfied, but that does not itself authorize an
 application deployment. The preparation intentionally retains the predecessor
@@ -56,14 +59,16 @@ database functions protect row lifecycle, replay identity, type immutability
 and stale-worker finalization; they do not independently authenticate a Stripe
 payload.
 
-This branch is now the predecessor of the separate isolated
-StripeWebhookEvent maintenance-authority candidate. That later candidate moves
+This source is the predecessor of the separately reviewed StripeWebhookEvent
+maintenance-authority release. That successor moves
 the legacy `checkout-stock-restore:<session>` dedup path to the dedicated
 `grainline_legacy_stock_restore_claim` operation inside its already-held
 checkout-session advisory lock and surrounding stock-restore transaction. The
 claim and stock update therefore commit or roll back together. Operation 36 is
-implemented and proven only in that stacked candidate; it is not merged,
-deployed, applied or represented as live production authority here.
+now merged, and its additive fixed function is live from guarded migration run
+`31290691183`. The compatible application call site still has not been
+deployed, and this preparation does not represent RLS activation or revoked
+predecessor table authority.
 
 ## Durable seller-key dual write
 
@@ -150,3 +155,6 @@ No test, commit or CI result on this branch changes production state.
   TypeScript, lint, 2,799 tests (2,792 passed and 7 skipped), dependency audit
   and the production build succeeded. No deployment or production mutation
   occurred.
+- PR `#161` then merged that exact head as main commit
+  `0e2e1cce29089ab1418ff006b461d74b5f9804ca`. This merge made the compatible
+  source deployable but did not itself deploy it or change production state.

@@ -208,3 +208,16 @@ test("release record preserves the synchronized Extra-High proof boundary", () =
   assert.match(release, /impossible aggregate health-count combinations/);
   assert.match(release, /nothing deployed/);
 });
+
+test("release record pins production preparation without claiming activation", () => {
+  assert.match(release, /8abaa36fafd989604a06aa2fee9f1a215e5763b1/);
+  assert.match(release, /423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1/);
+  assert.match(release, /31284293394/);
+  assert.match(release, /31290691183/);
+  assert.match(
+    release,
+    /applied only\s+`20260805040000_prepare_stripe_webhook_maintenance_authority`/,
+  );
+  assert.match(release, /StripeWebhookEvent RLS\s+and table-grant revocation remain off/);
+  assert.match(release, /compatible\s+application source is merged but has not been deployed/);
+});
