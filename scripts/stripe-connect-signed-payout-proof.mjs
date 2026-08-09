@@ -150,20 +150,31 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
   if (!RUN_ID_PATTERN.test(ciRunId)) throw new Error("CI run ID is invalid");
   if (!DEPLOYMENT_PATTERN.test(deploymentId)) throw new Error("deployment ID is invalid");
 
+  const resolvedHandoffPath = handoffPath(env);
+  const cutoverEvidencePath = repoEvidencePath(
+    env,
+    "STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_EVIDENCE_PATH",
+  );
+  const finalEvidencePath = repoEvidencePath(
+    env,
+    "STRIPE_CONNECT_PAYOUT_PROOF_EVIDENCE_PATH",
+  );
+  const preparationEvidencePath = mode === "prepare"
+    ? finalEvidencePath
+    : repoEvidencePath(
+      env,
+      "STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_EVIDENCE_PATH",
+    );
   const config = {
     ciRunId,
-    cutoverEvidencePath: repoEvidencePath(
-      env,
-      "STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_EVIDENCE_PATH",
-    ),
+    cutoverEvidencePath,
     deploymentId,
-    evidencePath: repoEvidencePath(
-      env,
-      "STRIPE_CONNECT_PAYOUT_PROOF_EVIDENCE_PATH",
-    ),
+    evidencePath: finalEvidencePath,
     expectedCommit,
-    handoffPath: handoffPath(env),
+    handoffPath: resolvedHandoffPath,
     mode,
+    preparationAttemptPath: `${resolvedHandoffPath}.attempt`,
+    preparationEvidencePath,
     secretKey,
     stripeCliPath: path.resolve(
       env.STRIPE_CONNECT_PAYOUT_PROOF_STRIPE_CLI_PATH || "/opt/homebrew/bin/stripe",
@@ -172,12 +183,21 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
       required(env, "STRIPE_CONNECT_PAYOUT_PROOF_VERCEL_PROJECT_DIRECTORY"),
     ),
   };
-  if (config.evidencePath === config.cutoverEvidencePath) {
-    throw new Error("payout proof evidence must not overwrite provider cutover evidence");
+  if (
+    config.evidencePath === config.cutoverEvidencePath
+    || config.preparationEvidencePath === config.cutoverEvidencePath
+    || (mode === "prove" && config.evidencePath === config.preparationEvidencePath)
+  ) {
+    throw new Error("payout proof evidence paths must be distinct from their predecessors");
   }
 
   if (mode === "prepare") {
-    if (existsSync(config.handoffPath)) throw new Error("payout handoff already exists");
+    if (
+      existsSync(config.handoffPath)
+      && !existsSync(config.preparationAttemptPath)
+    ) {
+      throw new Error("payout handoff exists without its preparation attempt");
+    }
     if (existsSync(config.evidencePath)) throw new Error("payout preparation evidence already exists");
   } else {
     assertDeterministicPostgresEnvironment(env, "Stripe Connect signed payout proof");
@@ -212,10 +232,32 @@ function markerFor(config) {
   ].join(":"));
 }
 
+function evidenceStatusPath(target) {
+  return path.relative(ROOT_DIR, target).split(path.sep).join("/");
+}
+
+export function assertOnlyReviewedEvidenceIsUntracked(status, config) {
+  const allowed = new Set([
+    config.cutoverEvidencePath,
+    ...(config.mode === "prove"
+      ? [config.preparationEvidencePath, config.evidencePath]
+      : []),
+  ].map((target) => `?? ${evidenceStatusPath(target)}`));
+  const entries = String(status ?? "")
+    .split("\n")
+    .map((entry) => entry.trimEnd())
+    .filter(Boolean);
+  const unexpected = entries.filter((entry) => !allowed.has(entry));
+  if (unexpected.length > 0) {
+    throw new Error("signed payout proof worktree contains changes outside reviewed evidence files");
+  }
+}
+
 function assertExactGitAndCi(git, ci, config) {
-  if (git?.head !== config.expectedCommit || git?.status !== "") {
+  if (git?.head !== config.expectedCommit) {
     throw new Error("signed payout proof requires the exact clean reviewed commit");
   }
+  assertOnlyReviewedEvidenceIsUntracked(git?.status, config);
   if (
     ci?.conclusion !== "success"
     || ci?.event !== "push"
@@ -246,6 +288,54 @@ export function assertCutoverEvidence(payload, config) {
   ) {
     throw new Error("provider cutover evidence is not the exact disabled-canonical predecessor");
   }
+}
+
+export function assertPreparationEvidence(
+  payload,
+  config,
+  handoff = null,
+  preparationAttempt = null,
+) {
+  const hex = /^[a-f0-9]{64}$/;
+  if (
+    payload?.phase !== "stripe-connect-disposable-payout-preparation"
+    || payload?.status !== "passed"
+    || payload?.mode !== "test"
+    || payload?.commit !== config.expectedCommit
+    || String(payload?.ciRunId) !== String(config.ciRunId)
+    || payload?.deploymentId !== config.deploymentId
+    || payload?.stripe?.eventType !== "payout.failed"
+    || payload?.stripe?.failureCode !== REQUIRED_FAILURE_CODE
+    || payload?.stripe?.livemode !== false
+    || payload?.stripe?.disposableAccountCleanupPending !== true
+    || !hex.test(payload?.stripe?.accountIdSha256 ?? "")
+    || !hex.test(payload?.stripe?.payoutIdSha256 ?? "")
+    || !hex.test(payload?.stripe?.eventIdSha256 ?? "")
+    || !hex.test(payload?.stripe?.preparationAttemptIdSha256 ?? "")
+    || payload?.rawProviderIdsPersistedInEvidence !== false
+    || payload?.secretsPersistedInEvidence !== false
+    || payload?.connectEndpointEnabled !== false
+  ) {
+    throw new Error("payout preparation evidence is not the exact reviewed predecessor");
+  }
+  if (handoff && (
+    payload.stripe.accountIdSha256 !== sha256(handoff.stripeAccountId)
+    || payload.stripe.payoutIdSha256 !== sha256(handoff.payoutId)
+    || payload.stripe.eventIdSha256 !== sha256(handoff.eventId)
+    || payload.stripe.preparationAttemptIdSha256
+      !== sha256(handoff.preparationAttemptId)
+  )) {
+    throw new Error("payout preparation evidence does not bind the temporary handoff");
+  }
+  if (preparationAttempt && (
+    payload.stripe.preparationAttemptIdSha256
+      !== sha256(preparationAttempt.attemptId)
+    || payload.stripe.accountIdSha256
+      !== sha256(preparationAttempt.stripeAccountId)
+  )) {
+    throw new Error("payout preparation evidence does not bind the durable attempt");
+  }
+  return Object.freeze(payload);
 }
 
 function normalizeProject(project) {
@@ -402,6 +492,89 @@ function finalizeJson(target, payload) {
   renameSync(pending, target);
 }
 
+function writeOrVerifyPreparedHandoff(config, payload) {
+  if (!existsSync(config.handoffPath)) {
+    writeExclusiveJson(config.handoffPath, payload);
+    return payload;
+  }
+  const existing = readHandoff(config);
+  if (
+    existing.status !== "prepared"
+    || JSON.stringify(existing) !== JSON.stringify(payload)
+  ) {
+    throw new Error("existing payout handoff does not match the resumed preparation");
+  }
+  return existing;
+}
+
+function assertPreparationAttempt(payload, config) {
+  if (
+    payload?.phase !== "stripe-connect-disposable-payout-attempt"
+    || payload?.status !== "pending"
+    || payload?.commit !== config.expectedCommit
+    || String(payload?.ciRunId) !== String(config.ciRunId)
+    || payload?.deploymentId !== config.deploymentId
+    || !/^[a-f0-9-]{36}$/.test(payload?.attemptId ?? "")
+    || !Number.isSafeInteger(payload?.startedSeconds)
+    || payload.startedSeconds <= 0
+    || (
+      payload?.stripeAccountId !== undefined
+      && typeof payload.stripeAccountId !== "string"
+    )
+  ) {
+    throw new Error("payout preparation attempt belongs to another or incomplete release");
+  }
+  return Object.freeze(payload);
+}
+
+function reserveOrResumePreparationAttempt(config) {
+  if (existsSync(config.preparationAttemptPath)) {
+    if ((statSync(config.preparationAttemptPath).mode & 0o777) !== 0o600) {
+      throw new Error("payout preparation attempt is not mode 0600");
+    }
+    return assertPreparationAttempt(
+      JSON.parse(readFileSync(config.preparationAttemptPath, "utf8")),
+      config,
+    );
+  }
+  const payload = {
+    phase: "stripe-connect-disposable-payout-attempt",
+    status: "pending",
+    commit: config.expectedCommit,
+    ciRunId: config.ciRunId,
+    deploymentId: config.deploymentId,
+    attemptId: randomUUID(),
+    startedSeconds: Math.floor(Date.now() / 1000) - 5,
+  };
+  writeExclusiveJson(config.preparationAttemptPath, payload);
+  return assertPreparationAttempt(payload, config);
+}
+
+function readPreparationAttempt(config, { required: isRequired = true } = {}) {
+  if (!existsSync(config.preparationAttemptPath)) {
+    if (isRequired) throw new Error("payout preparation attempt does not exist");
+    return null;
+  }
+  if ((statSync(config.preparationAttemptPath).mode & 0o777) !== 0o600) {
+    throw new Error("payout preparation attempt is not mode 0600");
+  }
+  return assertPreparationAttempt(
+    JSON.parse(readFileSync(config.preparationAttemptPath, "utf8")),
+    config,
+  );
+}
+
+function updatePreparationAttempt(config, previous, patch) {
+  assertPreparationAttempt(previous, config);
+  const payload = assertPreparationAttempt({ ...previous, ...patch }, config);
+  finalizeJson(config.preparationAttemptPath, payload);
+  return payload;
+}
+
+function removePreparationAttempt(config) {
+  if (existsSync(config.preparationAttemptPath)) unlinkSync(config.preparationAttemptPath);
+}
+
 function readHandoff(config) {
   if (!existsSync(config.handoffPath)) throw new Error("payout handoff does not exist");
   if ((statSync(config.handoffPath).mode & 0o777) !== 0o600) {
@@ -420,6 +593,7 @@ function readHandoff(config) {
     || String(payload?.ciRunId) !== String(config.ciRunId)
     || payload?.deploymentId !== config.deploymentId
     || payload?.marker !== markerFor(config)
+    || !/^[a-f0-9-]{36}$/.test(payload?.preparationAttemptId ?? "")
     || typeof payload?.stripeAccountId !== "string"
     || typeof payload?.payoutId !== "string"
     || typeof payload?.eventId !== "string"
@@ -497,15 +671,22 @@ async function waitFor(getValue, accept, label, { attempts = 24, delayMs = 2500 
   throw new Error(`${label} did not reach the reviewed state`);
 }
 
-async function preparePayoutCanary({ config, deps }) {
-  const startedSeconds = Math.floor(Date.now() / 1000) - 5;
-  let accountId;
+async function preparePayoutCanary({ config, deps, preparationAttempt }) {
+  let attempt = assertPreparationAttempt(preparationAttempt, config);
+  const startedSeconds = attempt.startedSeconds;
+  let accountId = attempt.stripeAccountId;
   try {
-    const account = assertCanaryAccount(
-      await deps.createCanaryAccount(buildCanaryAccountParams(config)),
-      config,
-    );
+    const account = assertCanaryAccount(accountId
+      ? await deps.retrieveAccount(accountId)
+      : await deps.createCanaryAccount(buildCanaryAccountParams(config)), config);
     accountId = account.id;
+    if (!attempt.stripeAccountId) {
+      attempt = await (deps.updatePreparationAttempt ?? updatePreparationAttempt)(
+        config,
+        attempt,
+        { stripeAccountId: accountId },
+      );
+    }
     const readyAccount = await waitFor(
       () => deps.retrieveAccount(accountId),
       (value) => value?.charges_enabled === true && value?.payouts_enabled === true,
@@ -568,12 +749,13 @@ async function preparePayoutCanary({ config, deps }) {
       ciRunId: config.ciRunId,
       deploymentId: config.deploymentId,
       marker: markerFor(config),
+      preparationAttemptId: attempt.attemptId,
       stripeAccountId: accountId,
       payoutId: payout.id,
       eventId: event.id,
       eventCreated: event.created,
     };
-    await (deps.writeHandoff ?? writeExclusiveJson)(config.handoffPath, handoff);
+    await (deps.writeHandoff ?? writeOrVerifyPreparedHandoff)(config, handoff);
     const evidence = {
       generatedAt: new Date().toISOString(),
       phase: "stripe-connect-disposable-payout-preparation",
@@ -586,12 +768,14 @@ async function preparePayoutCanary({ config, deps }) {
         accountIdSha256: sha256(accountId),
         payoutIdSha256: sha256(payout.id),
         eventIdSha256: sha256(event.id),
+        preparationAttemptIdSha256: sha256(attempt.attemptId),
         eventType: event.type,
         failureCode: payout.failure_code,
         livemode: false,
         disposableAccountCleanupPending: true,
       },
       rawProviderIdsPersistedInEvidence: false,
+      secretsPersistedInEvidence: false,
       connectEndpointEnabled: false,
       nextBoundary: "enable the canonical endpoint only inside signed delivery and exact replay proof",
     };
@@ -609,8 +793,11 @@ async function preparePayoutCanary({ config, deps }) {
         cleanupFailures.push(safeError(cleanupError));
       }
     }
-    if (existsSync(config.handoffPath)) {
-      await (deps.removeHandoff ?? unlinkSync)(config.handoffPath);
+    if (cleanupFailures.length === 0) {
+      if (existsSync(config.handoffPath)) {
+        await (deps.removeHandoff ?? unlinkSync)(config.handoffPath);
+      }
+      await (deps.removePreparationAttempt ?? removePreparationAttempt)(config);
     }
     const suffix = cleanupFailures.length === 0
       ? "; disposable account cleanup completed"
@@ -726,10 +913,28 @@ function assertAfterDelivery(row) {
   return row;
 }
 
-async function proveSignedDelivery({ config, deps }) {
+async function proveSignedDelivery({
+  config,
+  deps,
+  preparationAttempt,
+  preparationEvidence,
+}) {
   let finalEvidenceWritten = false;
   try {
     const handoff = await (deps.readHandoff ?? readHandoff)(config);
+    assertPreparationEvidence(
+      preparationEvidence,
+      config,
+      handoff,
+      preparationAttempt,
+    );
+    const attempt = assertPreparationAttempt(preparationAttempt, config);
+    if (
+      attempt.stripeAccountId !== handoff.stripeAccountId
+      || attempt.attemptId !== handoff.preparationAttemptId
+    ) {
+      throw new Error("payout preparation attempt does not bind the temporary handoff");
+    }
     const ids = {
       accountId: handoff.stripeAccountId,
       eventId: handoff.eventId,
@@ -883,11 +1088,12 @@ async function proveSignedDelivery({ config, deps }) {
     await (deps.finalizeEvidence ?? finalizeJson)(config.evidencePath, evidence);
     finalEvidenceWritten = true;
     await (deps.removeHandoff ?? unlinkSync)(config.handoffPath);
+    await (deps.removePreparationAttempt ?? removePreparationAttempt)(config);
     return Object.freeze(evidence);
   } catch (error) {
     if (finalEvidenceWritten) {
       throw new Error(
-        `${safeError(error)}; signed proof evidence is complete and temporary handoff cleanup remains`,
+        `${safeError(error)}; signed proof evidence is complete and temporary recovery-record cleanup remains`,
       );
     }
     const failures = [];
@@ -1019,6 +1225,14 @@ function createLocalDependencies(config) {
       return { body: await response.json(), status: response.status };
     },
     inspectRuntime,
+    readPreparationEvidence: () => JSON.parse(readFileSync(
+      config.preparationEvidencePath,
+      "utf8",
+    )),
+    readPreparationAttempt,
+    removePreparationAttempt,
+    reserveOrResumePreparationAttempt,
+    updatePreparationAttempt,
   };
 }
 
@@ -1031,14 +1245,21 @@ async function listAll(listPromise) {
   return rows;
 }
 
-async function createStripeDependencies(config) {
+async function createStripeDependencies(config, preparationAttemptId = null) {
   const { default: Stripe } = await import("stripe");
   const stripe = new Stripe(config.secretKey, { apiVersion: STRIPE_API_VERSION });
   const invocationId = randomUUID();
-  const sourceOptions = (key, accountId) => ({
-    idempotencyKey: `grainline-connect-payout-${config.expectedCommit}-${config.ciRunId}-${key}`,
-    ...(accountId ? { stripeAccount: accountId } : {}),
-  });
+  const sourceOptions = (key, accountId) => {
+    if (!preparationAttemptId) {
+      throw new Error("payout source mutation requires a durable preparation attempt");
+    }
+    return {
+      idempotencyKey:
+        `grainline-connect-payout-${config.expectedCommit}-${config.ciRunId}`
+        + `-${preparationAttemptId}-${key}`,
+      ...(accountId ? { stripeAccount: accountId } : {}),
+    };
+  };
   const endpointOptions = (disabled) => ({
     idempotencyKey:
       `grainline-connect-payout-${config.expectedCommit}-${invocationId}`
@@ -1128,11 +1349,18 @@ export async function runStripeConnectSignedPayoutProof({
   normalizeProject(await local.readVercelProject());
   assertSensitiveProductionVariable(await local.listVercelEnvironment());
   assertCutoverEvidence(await local.readCutoverEvidence(), config);
+  const preparationEvidence = config.mode === "prove"
+    ? assertPreparationEvidence(await local.readPreparationEvidence(), config)
+    : null;
   await assertPublicDeployment(local, config);
+
+  const preparationAttempt = config.mode === "prepare"
+    ? await local.reserveOrResumePreparationAttempt(config)
+    : null;
 
   const stripeDefaults = dependencies.listClassicEndpoints
     ? {}
-    : await createStripeDependencies(config);
+    : await createStripeDependencies(config, preparationAttempt?.attemptId);
   const deps = { ...local, ...stripeDefaults, ...dependencies };
   const provider = await readProviderState(deps);
   const allowedStages = config.mode === "prepare" ? new Set([3]) : new Set([3, 4]);
@@ -1147,6 +1375,13 @@ export async function runStripeConnectSignedPayoutProof({
     )(config);
     if (completedPayload) {
       const completed = assertFinalProofEvidence(completedPayload, config);
+      if (
+        completed.stripe.accountIdSha256 !== preparationEvidence.stripe.accountIdSha256
+        || completed.stripe.payoutIdSha256 !== preparationEvidence.stripe.payoutIdSha256
+        || completed.stripe.eventIdSha256 !== preparationEvidence.stripe.eventIdSha256
+      ) {
+        throw new Error("completed signed proof evidence does not bind preparation evidence");
+      }
       if (provider.stage !== 4) {
         throw new Error("completed signed proof evidence requires enabled provider stage 4");
       }
@@ -1155,12 +1390,32 @@ export async function runStripeConnectSignedPayoutProof({
         assertFinalProofEvidence(completed, config, handoff);
         await (deps.removeHandoff ?? unlinkSync)(config.handoffPath);
       }
+      const remainingAttempt = await (
+        deps.readPreparationAttempt ?? readPreparationAttempt
+      )(config, { required: false });
+      if (remainingAttempt) {
+        if (
+          !remainingAttempt.stripeAccountId
+          || sha256(remainingAttempt.stripeAccountId)
+            !== completed.stripe.accountIdSha256
+        ) {
+          throw new Error("completed proof does not bind the remaining preparation attempt");
+        }
+        await (deps.removePreparationAttempt ?? removePreparationAttempt)(config);
+      }
       return completed;
     }
   }
   return config.mode === "prepare"
-    ? preparePayoutCanary({ config, deps })
-    : proveSignedDelivery({ config, deps });
+    ? preparePayoutCanary({ config, deps, preparationAttempt })
+    : proveSignedDelivery({
+      config,
+      deps,
+      preparationAttempt: await (
+        deps.readPreparationAttempt ?? readPreparationAttempt
+      )(config),
+      preparationEvidence,
+    });
 }
 
 async function main() {
