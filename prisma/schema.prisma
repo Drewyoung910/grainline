@@ -818,26 +818,32 @@ model CartItem {
 }
 
 model CheckoutStockReservation {
-  id              String    @id @default(cuid())
-  checkoutLockKey String    @db.VarChar(255)
-  checkoutGroupId String?   @db.VarChar(100)
-  payloadHash     String    @db.VarChar(64)
-  buyerId         String?   @db.VarChar(191)
-  sellerId        String?   @db.VarChar(191)
-  stripeSessionId String?   @unique @db.VarChar(255)
-  status          String    @default("RESERVED") @db.VarChar(32)
-  reservedItems   Json      @default("[]")
-  expiresAt       DateTime
-  restoredAt      DateTime?
-  restoreReason   String?   @db.VarChar(100)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  checkoutLockKey     String    @db.VarChar(255)
+  checkoutGroupId     String?   @db.VarChar(100)
+  payloadHash         String    @db.VarChar(64)
+  buyerId             String?   @db.VarChar(191)
+  sellerId            String?   @db.VarChar(191)
+  stripeSessionId     String?   @unique @db.VarChar(255)
+  status              String    @default("RESERVED") @db.VarChar(32)
+  reservedItems       Json      @default("[]")
+  expiresAt           DateTime
+  restoredAt          DateTime?
+  restoreReason       String?   @db.VarChar(100)
+  repairGeneration    BigInt    @default(0)
+  repairClaimedAt     DateTime?
+  repairClaimKind     String?   @db.VarChar(32)
+  lastRepairError     String?   @db.VarChar(100)
+  lastRepairAttemptAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([checkoutLockKey])
   @@index([buyerId, checkoutGroupId])
   @@index([status, expiresAt])
   @@index([buyerId, createdAt])
   @@index([sellerId, createdAt])
+  @@index([status, expiresAt, repairClaimedAt])
 }
 
 model ListingVariantGroup {
@@ -1470,6 +1476,7 @@ model SupportRequest {
 model StripeWebhookEvent {
   id                  String    @id @db.VarChar(255)
   type                String    @db.VarChar(100)
+  sourceObjectId      String?   @db.VarChar(255)
   claimGeneration     BigInt    @default(0)
   processingStartedAt DateTime?
   processedAt         DateTime?

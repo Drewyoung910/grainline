@@ -108,9 +108,10 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       .find((line) => line.startsWith("| `CheckoutStockReservation`"));
 
     assert.ok(row);
-    assert.match(row, /`BLOCKED_DESIGN`/);
+    assert.match(row, /`COMPATIBLE_CANDIDATE`/);
     assert.match(row, /checkout-stock-reservation-rls-audit\.md/);
     assert.doesNotMatch(row, /RLS_LIVE/);
+    assert.match(row, /production runner is unwired/);
     assert.match(strategy, /next isolated dependency is `CheckoutStockReservation`/);
     assert.match(strategy, /StripeWebhookEvent FORCE\s+remains a separate/);
   });

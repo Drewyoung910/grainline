@@ -105,6 +105,17 @@ batch per attempt and fails closed at scrub if active rows remain. Finish the so
 binding application tests, full regression suite and schema/migration
 packaging before any compatible production boundary.
 
+Compatible schema/migration packaging is now complete on the isolated branch:
+the byte-pinned candidate adds source binding, repair generations/invariants,
+the 15 fixed reservation operations and a temporary seventh Stripe webhook
+runtime overload without changing reservation RLS or predecessor table grants.
+CI deliberately isolates it until the existing StripeWebhookEvent FORCE proof
+passes. The migration has an engine-enforced predecessor gate, and the
+production workflow remains unwired. Before promotion, finish full CI and the
+Extra-High SQL review, complete the separate webhook FORCE production release,
+and rerun the aggregate reservation inspection because the accepted zero-row
+result is five days old and may no longer describe production.
+
 The same deep review found an application-level Redis ABA race: a stale worker
 could publish or remove a newer identical-payload checkout lock after TTL reuse.
 Preparing locks now carry unique acquisition owner tokens, ready publication and

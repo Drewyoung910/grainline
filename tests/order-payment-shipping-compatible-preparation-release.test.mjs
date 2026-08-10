@@ -78,18 +78,31 @@ test("release verifier pins promoted bytes and the complete current tree", () =>
 });
 
 test("CI and production migration workflows fail closed on the exact release", () => {
-  for (const workflow of [ci, production]) {
-    const treeGuard = workflow.indexOf(
-      "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed",
-    );
-    const proof = workflow.indexOf(
-      "npm run audit:rls-stripe-webhook-event-force-release",
-    );
-    const deploy = workflow.indexOf("npx prisma migrate deploy");
-    assert.ok(treeGuard >= 0);
-    assert.ok(proof > treeGuard);
-    if (deploy >= 0) assert.ok(deploy > proof);
-  }
+  const ciTreeGuard = ci.indexOf(
+    "SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed",
+  );
+  const reservationProof = ci.indexOf(
+    "npm run audit:rls-checkout-stock-reservation-authority-release",
+  );
+  const forceProof = ci.indexOf(
+    "npm run audit:rls-stripe-webhook-event-force-sealed-prefix",
+  );
+  const ciDeploy = ci.indexOf("npx prisma migrate deploy");
+  assert.ok(ciTreeGuard >= 0);
+  assert.ok(reservationProof > ciTreeGuard);
+  assert.ok(forceProof > reservationProof);
+  assert.ok(ciDeploy > forceProof);
+
+  const productionTreeGuard = production.indexOf(
+    "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed",
+  );
+  const productionProof = production.indexOf(
+    "npm run audit:rls-stripe-webhook-event-force-release",
+  );
+  const productionDeploy = production.indexOf("npx prisma migrate deploy");
+  assert.ok(productionTreeGuard >= 0);
+  assert.ok(productionProof > productionTreeGuard);
+  assert.ok(productionDeploy > productionProof);
 });
 
 test("release record preserves the non-activation boundary and proof history", () => {

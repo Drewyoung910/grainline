@@ -24,6 +24,9 @@ import {
 import {
   CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
 } from "./case-invariant-catalog.mjs";
+import {
+  CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES,
+} from "./checkout-stock-reservation-authority-catalog.mjs";
 
 const { Client } = pg;
 
@@ -193,6 +196,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_order_item_seller_key_complete",
   "grainline_order_seller_key_assert",
   "grainline_order_seller_key_complete",
+  ...CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES,
   ...DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES,
   ...CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
   ...NOTIFICATION_PRIVATE_RPC_FUNCTIONS,

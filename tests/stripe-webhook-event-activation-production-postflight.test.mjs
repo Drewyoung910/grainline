@@ -160,12 +160,58 @@ test("activation pins all six current migration function sources", () => {
   );
 });
 
+test("function-source catalog selects the exact overload identity", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "stripe-source-catalog-"));
+  const first = path.join(root, "prisma", "migrations", "001_original");
+  const second = path.join(root, "prisma", "migrations", "002_overload");
+  fs.mkdirSync(first, { recursive: true });
+  fs.mkdirSync(second, { recursive: true });
+  const definitions = STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map((entry) => {
+    const declarations = entry.identityArguments.length === 0
+      ? ""
+      : entry.identityArguments
+        .split(", ")
+        .map((type, index) => `p_${index} ${type}`)
+        .join(", ");
+    return `
+CREATE FUNCTION public.${entry.name}(${declarations})
+RETURNS text
+LANGUAGE sql
+AS $exact$ SELECT '${entry.name}-exact'::text $exact$;
+`;
+  }).join("\n");
+  fs.writeFileSync(path.join(first, "migration.sql"), definitions);
+  fs.writeFileSync(
+    path.join(second, "migration.sql"),
+    `
+CREATE FUNCTION public.grainline_stripe_webhook_begin(
+  p_event_id text,
+  p_event_type text,
+  p_source_object_id text
+)
+RETURNS text
+LANGUAGE sql
+AS $overload$ SELECT 'wrong-overload'::text $overload$;
+`,
+  );
+
+  const sources = stripeWebhookEventFunctionSources(root);
+  assert.match(sources.grainline_stripe_webhook_begin, /begin-exact/);
+  assert.doesNotMatch(sources.grainline_stripe_webhook_begin, /wrong-overload/);
+});
+
 test("postflight source is read-only, actual-role, and sanitized", () => {
   const script = fs.readFileSync(
     "scripts/stripe-webhook-event-activation-production-postflight.mjs",
     "utf8",
   );
   assert.match(script, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/);
+  assert.match(script, /FROM unnest\(\$1::text\[\], \$2::text\[\]\)/);
+  assert.match(
+    script,
+    /expected\.identity_arguments\s*=\s*pg_catalog\.oidvectortypes\(procedure\.proargtypes\)/,
+  );
+  assert.doesNotMatch(script, /procedure\.proname = ANY\(/);
   assert.match(script, /CURRENT_USER AS current_user_name/);
   assert.match(script, /SESSION_USER AS session_user_name/);
   assert.doesNotMatch(script, /SET\s+(?:LOCAL\s+)?ROLE/i);

@@ -1129,7 +1129,11 @@ WITH private_trigger(function_signature) AS (
     ('public."grainline_order_item_seller_key_bind"()'),
     ('public."grainline_order_seller_key_assert"(text)'),
     ('public."grainline_order_seller_key_complete"()'),
-    ('public."grainline_order_item_seller_key_complete"()')
+    ('public."grainline_order_item_seller_key_complete"()'),
+    ('public."grainline_stripe_webhook_bind_source"(text, text, bigint, text)'),
+    ('public."grainline_checkout_reservation_items_valid"(jsonb, text, text)'),
+    ('public."grainline_checkout_reservation_normalize_write"()'),
+    ('public."grainline_checkout_reservation_restore_items"(jsonb)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM private_trigger
@@ -1155,7 +1159,11 @@ WITH private_trigger(function_signature) AS (
     ('public."grainline_order_item_seller_key_bind"()'),
     ('public."grainline_order_seller_key_assert"(text)'),
     ('public."grainline_order_seller_key_complete"()'),
-    ('public."grainline_order_item_seller_key_complete"()')
+    ('public."grainline_order_item_seller_key_complete"()'),
+    ('public."grainline_stripe_webhook_bind_source"(text, text, bigint, text)'),
+    ('public."grainline_checkout_reservation_items_valid"(jsonb, text, text)'),
+    ('public."grainline_checkout_reservation_normalize_write"()'),
+    ('public."grainline_checkout_reservation_restore_items"(jsonb)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -1172,6 +1180,7 @@ SELECT format(
 WITH stripe_webhook_service(function_signature) AS (
   VALUES
     ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_begin"(text, text, text)'),
     ('public."grainline_stripe_webhook_complete"(text, bigint)'),
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
@@ -1186,6 +1195,7 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
 WITH stripe_webhook_service(function_signature) AS (
   VALUES
     ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_begin"(text, text, text)'),
     ('public."grainline_stripe_webhook_complete"(text, bigint)'),
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
@@ -1204,6 +1214,7 @@ SELECT format(
 WITH stripe_webhook_service(function_signature) AS (
   VALUES
     ('public."grainline_stripe_webhook_begin"(text, text)'),
+    ('public."grainline_stripe_webhook_begin"(text, text, text)'),
     ('public."grainline_stripe_webhook_complete"(text, bigint)'),
     ('public."grainline_stripe_webhook_fail"(text, bigint, text)'),
     ('public."grainline_stripe_webhook_prune_batch"(integer)'),
@@ -1216,6 +1227,87 @@ SELECT format(
   :'runtime_role'
 )
   FROM stripe_webhook_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- CheckoutStockReservation compatible preparation keeps predecessor table
+-- grants while adding only the fixed lifecycle surface. The functions may be
+-- absent before that migration, so every convergence statement is catalog-
+-- guarded. Private validation/trigger/source helpers are handled above.
+WITH checkout_reservation_service(function_signature) AS (
+  VALUES
+    ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)'),
+    ('public."grainline_checkout_reservation_create_single"(text, text, integer, text)'),
+    ('public."grainline_checkout_reservation_bind_session"(text, text, text, text)'),
+    ('public."grainline_checkout_reservation_complete"(text, bigint, text, text)'),
+    ('public."grainline_checkout_reservation_checkout_abort"(text, text, text)'),
+    ('public."grainline_checkout_reservation_webhook_restore"(text, bigint, text)'),
+    ('public."grainline_checkout_reservation_buyer_expired_restore"(text, text)'),
+    ('public."grainline_checkout_reservation_seller_expired_restore"(text, text)'),
+    ('public."grainline_checkout_reservation_repair_claim_batch"(integer)'),
+    ('public."grainline_checkout_reservation_account_claim_batch"(text, integer)'),
+    ('public."grainline_checkout_reservation_repair_finalize"(text, bigint, text)'),
+    ('public."grainline_checkout_reservation_prune_batch"(integer)'),
+    ('public."grainline_checkout_reservation_resume"(text, text)'),
+    ('public."grainline_checkout_reservation_export"(text)'),
+    ('public."grainline_checkout_reservation_account_scrub"(text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM checkout_reservation_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH checkout_reservation_service(function_signature) AS (
+  VALUES
+    ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)'),
+    ('public."grainline_checkout_reservation_create_single"(text, text, integer, text)'),
+    ('public."grainline_checkout_reservation_bind_session"(text, text, text, text)'),
+    ('public."grainline_checkout_reservation_complete"(text, bigint, text, text)'),
+    ('public."grainline_checkout_reservation_checkout_abort"(text, text, text)'),
+    ('public."grainline_checkout_reservation_webhook_restore"(text, bigint, text)'),
+    ('public."grainline_checkout_reservation_buyer_expired_restore"(text, text)'),
+    ('public."grainline_checkout_reservation_seller_expired_restore"(text, text)'),
+    ('public."grainline_checkout_reservation_repair_claim_batch"(integer)'),
+    ('public."grainline_checkout_reservation_account_claim_batch"(text, integer)'),
+    ('public."grainline_checkout_reservation_repair_finalize"(text, bigint, text)'),
+    ('public."grainline_checkout_reservation_prune_batch"(integer)'),
+    ('public."grainline_checkout_reservation_resume"(text, text)'),
+    ('public."grainline_checkout_reservation_export"(text)'),
+    ('public."grainline_checkout_reservation_account_scrub"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM checkout_reservation_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH checkout_reservation_service(function_signature) AS (
+  VALUES
+    ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)'),
+    ('public."grainline_checkout_reservation_create_single"(text, text, integer, text)'),
+    ('public."grainline_checkout_reservation_bind_session"(text, text, text, text)'),
+    ('public."grainline_checkout_reservation_complete"(text, bigint, text, text)'),
+    ('public."grainline_checkout_reservation_checkout_abort"(text, text, text)'),
+    ('public."grainline_checkout_reservation_webhook_restore"(text, bigint, text)'),
+    ('public."grainline_checkout_reservation_buyer_expired_restore"(text, text)'),
+    ('public."grainline_checkout_reservation_seller_expired_restore"(text, text)'),
+    ('public."grainline_checkout_reservation_repair_claim_batch"(integer)'),
+    ('public."grainline_checkout_reservation_account_claim_batch"(text, integer)'),
+    ('public."grainline_checkout_reservation_repair_finalize"(text, bigint, text)'),
+    ('public."grainline_checkout_reservation_prune_batch"(integer)'),
+    ('public."grainline_checkout_reservation_resume"(text, text)'),
+    ('public."grainline_checkout_reservation_export"(text)'),
+    ('public."grainline_checkout_reservation_account_scrub"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM checkout_reservation_service
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 

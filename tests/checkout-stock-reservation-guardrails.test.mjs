@@ -20,8 +20,8 @@ describe("durable checkout stock reservation guardrails", () => {
     const groupMigration = source("prisma/migrations/20260706003000_add_checkout_group_id_to_reservations/migration.sql");
 
     assert.match(schema, /model CheckoutStockReservation/);
-    assert.match(schema, /checkoutGroupId String\? +@db\.VarChar\(100\)/);
-    assert.match(schema, /stripeSessionId String\? +@unique/);
+    assert.match(schema, /checkoutGroupId\s+String\?\s+@db\.VarChar\(100\)/);
+    assert.match(schema, /stripeSessionId\s+String\?\s+@unique/);
     assert.match(schema, /@@index\(\[buyerId, checkoutGroupId\]\)/);
     assert.match(schema, /@@index\(\[status, expiresAt\]\)/);
     assert.match(migration, /CREATE TABLE "CheckoutStockReservation"/);
@@ -36,7 +36,18 @@ describe("durable checkout stock reservation guardrails", () => {
       assert.match(authoritySql, new RegExp(`ADD COLUMN "${column}"`));
     }
     assert.match(authoritySql, /CheckoutStockReservation_active_lock_key/);
-    assert.match(authoritySql, /CheckoutStockReservation_items_check/);
+    assert.match(
+      authoritySql,
+      /CREATE TRIGGER "CheckoutStockReservation_normalize_write"[\s\S]*grainline_checkout_reservation_normalize_write\(\)/,
+    );
+    assert.match(
+      authoritySql,
+      /grainline_checkout_reservation_normalize_write[\s\S]*grainline_checkout_reservation_items_valid/,
+    );
+    assert.doesNotMatch(
+      authoritySql,
+      /CHECK \(public\.grainline_checkout_reservation_items_valid/,
+    );
   });
 
   it("creates source-derived reservations before Stripe and aborts only unbound failures", () => {

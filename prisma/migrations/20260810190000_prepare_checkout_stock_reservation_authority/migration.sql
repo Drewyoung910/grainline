@@ -1,9 +1,11 @@
--- DRAFT ONLY: compatible CheckoutStockReservation fixed-operation authority.
--- This file is exercised only by disposable PostgreSQL proof. It is not a
--- production migration and does not enable RLS, revoke predecessor table
--- grants, deploy application code, clean data or change provider state.
+-- Coexistence-safe CheckoutStockReservation authority preparation.
+--
+-- This migration adds source-bound Stripe webhook leases and fixed reservation
+-- lifecycle operations while preserving predecessor table grants and RLS
+-- posture. It is additive compatibility work, not an RLS activation.
 
 BEGIN;
+
 
 -- This compatible release is intentionally sequenced after the separate
 -- StripeWebhookEvent FORCE rollout. Refuse to let a single migration dispatch
@@ -1738,5 +1740,6 @@ GRANT EXECUTE ON FUNCTION public.grainline_checkout_reservation_account_scrub(te
   TO grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION public.grainline_stripe_webhook_begin(text, text, text)
   TO grainline_app_runtime;
+
 
 COMMIT;

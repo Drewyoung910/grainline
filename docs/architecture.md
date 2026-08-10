@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-08
+Last updated: 2026-08-10
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -71,6 +71,14 @@ ordinary-runtime/PUBLIC table or column authority, and exactly six
 source-pinned fixed functions. Production activation evidence must include a
 separate actual pooled-runtime read-only postflight; do not add the runtime URL
 to the owner-only GitHub Production migration environment to automate it.
+
+`CheckoutStockReservation` is the next service-ledger boundary. Its compatible
+candidate keeps direct table grants temporarily for old deployments but moves
+the new application to 15 source-specific operations. Signed completion and
+restore bind an immutable Stripe source object plus claim generation; repair
+workers use monotonic claims; Redis checkout publication uses unique owner
+tokens. CI will not apply this candidate until the separate webhook FORCE
+release passes, and the production migration workflow is intentionally unwired.
 
 ## Core Lifecycles
 

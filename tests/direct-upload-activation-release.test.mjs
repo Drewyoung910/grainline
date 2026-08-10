@@ -144,9 +144,14 @@ describe("DirectUpload service-only activation release", () => {
       assert.ok(verifier >= 0, `${workflowPath} omits activation verifier`);
       assert.ok(deploy >= 0, `${workflowPath} omits Prisma deploy`);
       assert.ok(verifier < deploy, `${workflowPath} verifies activation too late`);
-      assert.match(workflow, /stripe-webhook-event-force-reviewed/);
     }
     const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+    const production = readFileSync(
+      ".github/workflows/production-migrations.yml",
+      "utf8",
+    );
+    assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
+    assert.match(production, /stripe-webhook-event-force-reviewed/);
     assert.match(
       ci,
       /Isolate the exact DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations to CI Postgres[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Prove DirectUpload legacy repair in ephemeral PostgreSQL[\s\S]*Restore the exact DirectUpload activation release[\s\S]*Apply migrations to CI Postgres/,

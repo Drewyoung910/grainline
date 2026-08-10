@@ -279,6 +279,24 @@ concurrent reclaim/finalization wait, after which its predicate is rechecked.
 Static proof pins this ordering in both functions. This lock must remain first
 when the later Order-creation fixed operation absorbs reservation completion.
 
+### CSR-A17: a private function in a CHECK constraint breaks old-runtime coexistence
+
+The first promoted candidate used the private item-validator both from the
+normalization trigger and directly from a CHECK constraint. A runtime-role
+INSERT after preparation failed with `permission denied for function` because
+PostgreSQL evaluates the CHECK expression under the caller while the revoked
+validator is intentionally not runtime-executable. Keeping table CRUD grants
+therefore did not actually preserve the old application.
+
+The corrected candidate retains the private validator behind the
+`SECURITY DEFINER` normalization trigger and removes only the redundant direct
+CHECK-function expression. Runtime cannot call the validator or trigger
+function directly, but every INSERT/UPDATE still passes through the trigger's
+same item-shape validation. Disposable PostgreSQL now proves predecessor
+runtime INSERT, diagnostic UPDATE normalization and DELETE after preparation,
+along with the exact 20-signature ACL/catalog partition. The failed candidate
+was never merged, migrated or deployed.
+
 ## Fixed-operation partition
 
 The reviewed signatures may narrow during disposable PostgreSQL proof, but may
@@ -381,8 +399,43 @@ state checks plus one static catalog contract). TypeScript, focused ESLint and
 the complete repository suite pass; the final full run was 2,938 passed, zero
 failed and seven intentionally skipped.
 
-This is a durable draft checkpoint, not a deployable release. No Prisma schema
-or production migration has been packaged, no grants or RLS state changed, and
-production has not been queried or mutated. Next work is the compatible
-migration/schema/catalog package, disposable exact-tree proof and reviewed
-coexistence release—not activation.
+## Compatible migration packaging checkpoint (2026-08-10)
+
+The reviewed draft is now promoted byte-for-byte as isolated migration
+`20260810190000_prepare_checkout_stock_reservation_authority`; Prisma records
+the source-binding and repair fields, the migration prefix is sealed, a
+signature-level 16-runtime/4-private catalog is shared by grant convergence and
+tests, and CI isolates the candidate until the prior StripeWebhookEvent FORCE
+proof passes. Exact hashes and remaining gates are retained in
+`docs/checkout-stock-reservation-authority-release.md`.
+
+The first promoted disposable proof exposed an invalid
+`pg_catalog.current_user` qualification. PostgreSQL rejected the transaction
+before schema mutation; the candidate now uses bare `current_user`, and the
+repository-wide PostgreSQL special-form guard already covers this class. The
+replacement proof passes, including a fail-closed test that proves a non-FORCE
+StripeWebhookEvent predecessor cannot acquire any new column.
+
+This remains a production-inert candidate. The production migration workflow
+is intentionally not wired, production has not been queried or mutated in this
+checkpoint, CheckoutStockReservation RLS remains off, and the separate
+StripeWebhookEvent FORCE production release plus a fresh aggregate reservation
+inspection remain prerequisites.
+
+Two compatibility defects were found and closed during promotion:
+
+- `CSR-A17`: a CHECK constraint called an owner-private validator, which made
+  predecessor direct runtime INSERT/UPDATE fail after EXECUTE was revoked. The
+  redundant constraint was removed; the normalization trigger still invokes
+  the validator with owner authority, and PostgreSQL now proves predecessor
+  runtime SELECT/INSERT/UPDATE/DELETE compatibility.
+- `CSR-A18`: the historical StripeWebhookEvent source catalog keyed functions
+  only by name, so the new three-argument `grainline_stripe_webhook_begin`
+  overload could replace the sealed two-argument source in byte-pin checks.
+  Source discovery and both production catalog readers now match exact
+  `name + oidvectortypes(proargtypes)` identities. A two-overload regression
+  fixture proves the sealed source cannot be shadowed by a later overload.
+- `CSR-A19`: the first exact-signature reader qualified PostgreSQL's multi-array
+  `unnest` special form. The repository-wide parser-form guard rejected both
+  readers before release; they now use bare `unnest` while retaining
+  schema-qualified catalog relations and type rendering.

@@ -63,7 +63,9 @@ function postflightEnvironment(directory) {
 
 test("FORCE release is one byte-pinned posture-only catalog change", () => {
   const candidate = buildStripeWebhookEventForceCandidate();
-  const release = verifyStripeWebhookEventForceRelease();
+  const release = verifyStripeWebhookEventForceRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
   assert.equal(release.phase, STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE);
   assert.equal(release.forceDraftSha256, STRIPE_WEBHOOK_EVENT_FORCE_DRAFT_SHA256);
   assert.equal(release.forceMigrationSha256, candidate.migrationSha256);
@@ -74,6 +76,11 @@ test("FORCE release is one byte-pinned posture-only catalog change", () => {
   assert.equal(release.policyCount, 0);
   assert.equal(release.runtimeTablePrivileges, 0);
   assert.equal(release.rowDataChanged, false);
+  assert.equal(release.guard.sealedPrefix, true);
+  assert.equal(
+    release.guard.successorPhase,
+    "checkout-stock-reservation-authority-reviewed",
+  );
   assert.equal(
     (migration.match(
       /^ALTER TABLE public\."StripeWebhookEvent" FORCE ROW LEVEL SECURITY;$/gm,
@@ -200,6 +207,10 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
     "node scripts/verify-stripe-webhook-event-force-release.mjs",
   );
   assert.equal(
+    pkg.scripts["audit:rls-stripe-webhook-event-force-sealed-prefix"],
+    "node scripts/verify-stripe-webhook-event-force-release.mjs --allow-reviewed-successor",
+  );
+  assert.equal(
     pkg.scripts["audit:rls-stripe-webhook-event-force-postgres"],
     "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-event-force-postgres-proof.mjs",
   );
@@ -229,7 +240,8 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.ok(sealedPhaseA >= 0 && sealedPhaseA < forceIsolate);
   assert.ok(forceIsolate >= 0 && forceIsolate < phaseARestore);
   assert.ok(forceRestore > phaseARestore && forceProof > forceRestore);
-  assert.match(ci, /stripe-webhook-event-force-reviewed/);
+  assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
+  assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
   assert.match(production, /stripe-webhook-event-force-reviewed/);
   assert.ok(
     production.indexOf("audit:rls-stripe-webhook-event-force-release")

@@ -89,7 +89,7 @@ test("Case activation release is policyless ENABLE and excludes later boundaries
 });
 
 test("CI retains the Case Phase-A proof before Case FORCE under the current gate", () => {
-  assert.match(ci, /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/);
+  assert.match(ci, /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /npm run audit:rls-case-force-release/);
   assert.match(
     ci,

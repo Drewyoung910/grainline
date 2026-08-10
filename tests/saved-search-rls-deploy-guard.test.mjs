@@ -25,6 +25,8 @@ import {
   STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION_TREE_SHA256,
   STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
   STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
+  CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+  CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
   CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
@@ -197,6 +199,8 @@ const REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION =
   "stripe-webhook-event-activation-reviewed";
 const REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE =
   "stripe-webhook-event-force-reviewed";
+const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY =
+  "checkout-stock-reservation-authority-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -307,6 +311,8 @@ function validate(
         STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION_TREE_SHA256,
       [REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE]:
         STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
+      [REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY]:
+        CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -341,6 +347,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION,
     STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
     STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
+    CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
     CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
     CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
     CONVERSATION_MESSAGE_LEGACY_CLEANUP_MIGRATION,
@@ -546,6 +553,10 @@ const REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS = [
   ...REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATIONS,
   STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS = [
+  ...REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
+  CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -626,6 +637,8 @@ function migrationsFor(phase) {
       REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATIONS,
     [REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE]:
       REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
+    [REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY]:
+      REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
   }[phase];
 }
 
@@ -1113,9 +1126,16 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /remain the latest migration/,
     );
+    assert.throws(
+      () => validate(REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE, currentMigrations),
+      /remain the latest migration/,
+    );
     assert.equal(
-      validate(REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE, currentMigrations).phase,
-      REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
+      validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+        currentMigrations,
+      ).phase,
+      REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
     );
   });
 
@@ -2458,6 +2478,36 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact compatible reservation authority after webhook FORCE", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+        hasStripeWebhookEventActivationMigration: true,
+        hasStripeWebhookEventForceMigration: true,
+        hasCheckoutStockReservationAuthorityMigration: true,
+      },
+    );
+    for (const migration of [
+      STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+      STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+          REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS.filter(
+            (name) => name !== migration,
+          ),
+        ),
+        /requires the completed StripeWebhookEvent policyless activation and FORCE boundaries plus the reviewed CheckoutStockReservation authority migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2500,6 +2550,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY,
     REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION,
     REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
+    REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -2593,7 +2644,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current StripeWebhookEvent FORCE guard before CI migrations", () => {
+  it("runs the current reservation-authority guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -2603,7 +2654,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify StripeWebhookEvent FORCE migration tree[\s\S]{0,280}SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify StripeWebhookEvent FORCE release[\s\S]{0,200}npm run audit:rls-stripe-webhook-event-force-release[\s\S]{0,220}Verify Case FORCE proof equivalence[\s\S]{0,180}npm run audit:rls-case-force-release[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*npm run audit:rls-direct-upload-activation-release[\s\S]*Prove runtime-role provisioning refusals exit nonzero[\s\S]*Isolate the exact StripeWebhookEvent FORCE release until Phase A passes[\s\S]*Apply compatible migrations to CI Postgres/,
+      /Verify CheckoutStockReservation authority migration tree[\s\S]{0,300}SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,300}Verify CheckoutStockReservation authority release[\s\S]{0,220}npm run audit:rls-checkout-stock-reservation-authority-release[\s\S]{0,260}Verify StripeWebhookEvent FORCE release[\s\S]{0,220}npm run audit:rls-stripe-webhook-event-force-sealed-prefix[\s\S]*Isolate CheckoutStockReservation authority until webhook FORCE passes[\s\S]*Apply compatible migrations to CI Postgres/,
     );
   });
 
@@ -2976,6 +3027,30 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /review or retire the temporary SavedSearch deploy guard/,
     );
+    const laterStripeWebhookForceMigration =
+      "20260810172001_unreviewed_after_stripe_webhook_force";
+    assert.throws(
+      () => validate(
+        REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
+        [
+          ...REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
+          laterStripeWebhookForceMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
+    const laterCheckoutStockReservationAuthorityMigration =
+      "20260810190001_unreviewed_after_checkout_stock_reservation_authority";
+    assert.throws(
+      () => validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+        [
+          ...REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
+          laterCheckoutStockReservationAuthorityMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
   });
 
   it("pins the exact reviewed migration inventory and SQL contents", () => {
@@ -3249,6 +3324,20 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATIONS,
       ),
       STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
+      ),
+      STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
+      ),
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

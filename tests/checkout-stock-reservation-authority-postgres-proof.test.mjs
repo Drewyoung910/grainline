@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { after, before, describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
+import {
+  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+} from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 
 const draft = fs.readFileSync("docs/rls-drafts/checkout-stock-reservation-authority.sql", "utf8");
 let db;
 
 const SOURCE_SCHEMA = String.raw`
   CREATE ROLE grainline_app_runtime NOLOGIN;
+  CREATE ROLE grainline_untrusted NOLOGIN;
   CREATE TYPE public."ListingStatus" AS ENUM ('DRAFT', 'ACTIVE', 'SOLD', 'SOLD_OUT', 'HIDDEN', 'PENDING_REVIEW', 'REJECTED');
   CREATE TYPE public."ListingType" AS ENUM ('MADE_TO_ORDER', 'IN_STOCK');
 
@@ -153,6 +157,18 @@ const SOURCE_SCHEMA = String.raw`
     RETURN QUERY SELECT 'process'::text, source_event."claimGeneration";
   END
   $grainline_stripe_webhook_begin$;
+
+  REVOKE ALL ON FUNCTION public.grainline_stripe_webhook_begin(text, text)
+    FROM PUBLIC, grainline_app_runtime;
+  GRANT EXECUTE ON FUNCTION public.grainline_stripe_webhook_begin(text, text)
+    TO grainline_app_runtime;
+  ALTER TABLE public."StripeWebhookEvent" ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE public."StripeWebhookEvent" FORCE ROW LEVEL SECURITY;
+  REVOKE ALL ON TABLE public."StripeWebhookEvent"
+    FROM PUBLIC, grainline_app_runtime;
+  GRANT SELECT, INSERT, UPDATE, DELETE
+    ON TABLE public."CheckoutStockReservation"
+    TO grainline_app_runtime;
 `;
 
 function rows(result) {
@@ -225,6 +241,105 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       can_begin_bound_event: true,
       can_private_bind_event: false,
     });
+  });
+
+  it("pins the complete function catalog and runtime/PUBLIC ACL partition", async () => {
+    const catalogRows = rows(await db.query(`
+      SELECT
+        procedure.proname AS name,
+        pg_catalog.oidvectortypes(procedure.proargtypes) AS "argumentTypes",
+        procedure.prosecdef AS "securityDefiner",
+        procedure.provolatile AS volatility,
+        procedure.proparallel AS "parallelSafety",
+        procedure.proconfig AS configuration,
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime', procedure.oid, 'EXECUTE'
+        ) AS "runtimeExecute",
+        pg_catalog.has_function_privilege(
+          'grainline_untrusted', procedure.oid, 'EXECUTE'
+        ) AS "publicExecute"
+        FROM pg_catalog.pg_proc AS procedure
+        JOIN pg_catalog.pg_namespace AS namespace
+          ON namespace.oid = procedure.pronamespace
+       WHERE namespace.nspname = 'public'
+         AND procedure.proname = ANY($1::text[])
+    `, [[...new Set(
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
+    )]]));
+    const expectedKeys = new Set(
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map(
+        (entry) => `${entry.name}(${entry.argumentTypes})`,
+      ),
+    );
+    const reviewedRows = catalogRows.filter((entry) => (
+      expectedKeys.has(`${entry.name}(${entry.argumentTypes})`)
+    ));
+
+    assert.deepEqual(
+      reviewedRows
+        .map((entry) => ({
+          ...entry,
+          configuration: [...(entry.configuration ?? [])],
+        }))
+        .sort((left, right) => (
+          `${left.name}(${left.argumentTypes})`
+            .localeCompare(`${right.name}(${right.argumentTypes})`)
+        )),
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+        .map((entry) => ({
+          name: entry.name,
+          argumentTypes: entry.argumentTypes,
+          securityDefiner: true,
+          volatility: entry.volatility,
+          parallelSafety: entry.parallelSafety,
+          configuration: ["search_path=pg_catalog"],
+          runtimeExecute: entry.runtimeExecute,
+          publicExecute: false,
+        }))
+        .sort((left, right) => (
+          `${left.name}(${left.argumentTypes})`
+            .localeCompare(`${right.name}(${right.argumentTypes})`)
+        )),
+    );
+  });
+
+  it("preserves predecessor direct CRUD through private trigger and check helpers", async () => {
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        SET LOCAL ROLE grainline_app_runtime;
+        INSERT INTO public."CheckoutStockReservation" (
+          id, "checkoutLockKey", "payloadHash", "buyerId", "sellerId", status,
+          "reservedItems", "expiresAt", "createdAt", "updatedAt"
+        ) VALUES (
+          'predecessor-direct-crud', 'checkout:predecessor:direct-crud',
+          'ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ', 'buyer-a', 'seller-a', 'RESERVED',
+          '[{"listingId":"listing-a","sellerId":"seller-a","quantity":1}]',
+          CURRENT_TIMESTAMP + interval '31 minutes', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        );
+        UPDATE public."CheckoutStockReservation"
+           SET "restoreReason" = 'session_retrieve_failed'
+         WHERE id = 'predecessor-direct-crud';
+      `);
+      const normalized = rows(await db.query(`
+        SELECT "restoreReason", "restoredAt", "lastRepairError",
+               "lastRepairAttemptAt" IS NOT NULL AS attempted
+          FROM public."CheckoutStockReservation"
+         WHERE id = 'predecessor-direct-crud'
+      `))[0];
+      assert.deepEqual(normalized, {
+        restoreReason: null,
+        restoredAt: null,
+        lastRepairError: "session_retrieve_failed",
+        attempted: true,
+      });
+      await db.exec(`
+        DELETE FROM public."CheckoutStockReservation"
+         WHERE id = 'predecessor-direct-crud'
+      `);
+    } finally {
+      await db.exec("ROLLBACK");
+    }
   });
 
   it("acquires and source-binds a webhook lease in one fixed operation", async () => {
@@ -597,6 +712,57 @@ describe("CheckoutStockReservation authority draft static contract", () => {
       const end = draft.indexOf("CREATE FUNCTION public.", start + 20);
       const block = draft.slice(start, end === -1 ? draft.length : end);
       assert.match(block, /FROM public\."StripeWebhookEvent" AS event[\s\S]*FOR UPDATE/);
+    }
+  });
+
+  it("pins the complete signature-level runtime/private partition", () => {
+    const runtime = CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+      .filter((entry) => entry.runtimeExecute);
+    const privateHelpers = CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+      .filter((entry) => !entry.runtimeExecute);
+    assert.equal(runtime.length, 16);
+    assert.equal(privateHelpers.length, 4);
+    assert.equal(
+      runtime.filter((entry) => entry.name.startsWith("grainline_checkout_reservation_")).length,
+      15,
+    );
+    assert.deepEqual(
+      privateHelpers.map((entry) => entry.name).sort(),
+      [
+        "grainline_checkout_reservation_items_valid",
+        "grainline_checkout_reservation_normalize_write",
+        "grainline_checkout_reservation_restore_items",
+        "grainline_stripe_webhook_bind_source",
+      ],
+    );
+  });
+
+  it("refuses to collapse the separate StripeWebhookEvent FORCE boundary", async () => {
+    const predecessor = new PGlite();
+    try {
+      const notForced = SOURCE_SCHEMA
+        .replace('  ALTER TABLE public."StripeWebhookEvent" ENABLE ROW LEVEL SECURITY;\n', "")
+        .replace('  ALTER TABLE public."StripeWebhookEvent" FORCE ROW LEVEL SECURITY;\n', "")
+        .replace(
+          '  REVOKE ALL ON TABLE public."StripeWebhookEvent"\n    FROM PUBLIC, grainline_app_runtime;\n',
+          '  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public."StripeWebhookEvent" TO grainline_app_runtime;\n',
+        );
+      await predecessor.exec(notForced);
+      await assert.rejects(
+        predecessor.exec(draft),
+        /requires the exact FORCE-hardened StripeWebhookEvent predecessor/,
+      );
+      await predecessor.exec("ROLLBACK");
+      const column = await predecessor.query(`
+        SELECT 1
+          FROM pg_catalog.pg_attribute
+         WHERE attrelid = 'public."StripeWebhookEvent"'::pg_catalog.regclass
+           AND attname = 'sourceObjectId'
+           AND NOT attisdropped
+      `);
+      assert.equal(column.rows.length, 0);
+    } finally {
+      await predecessor.close();
     }
   });
 });
