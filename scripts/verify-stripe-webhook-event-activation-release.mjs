@@ -16,6 +16,8 @@ import {
 
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE =
   "stripe-webhook-event-activation-reviewed";
+const STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE =
+  "stripe-webhook-event-force-reviewed";
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_ROLLBACK_SHA256 =
   "2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722";
 
@@ -25,6 +27,7 @@ function sha256(source) {
 
 export function verifyStripeWebhookEventActivationRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedSuccessor = false } = {},
 ) {
   const candidate = buildStripeWebhookEventActivationCandidate(rootDirectory);
   const migrationPath = path.join(
@@ -46,7 +49,8 @@ export function verifyStripeWebhookEventActivationRelease(
     { withFileTypes: true },
   )
     .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+    .map((entry) => entry.name)
+    .filter((name) => name <= STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION);
   const migrationTreeSha256 = computeMigrationTreeSha256(
     path.join(rootDirectory, "prisma/migrations"),
     migrationNames,
@@ -73,10 +77,23 @@ export function verifyStripeWebhookEventActivationRelease(
     );
   }
 
-  const guard = validateCurrentSavedSearchRlsDeployShape({
-    phase: STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE,
-    rootDirectory,
-  });
+  let guard;
+  if (allowReviewedSuccessor) {
+    const successorGuard = validateCurrentSavedSearchRlsDeployShape({
+      phase: STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE,
+      rootDirectory,
+    });
+    guard = Object.freeze({
+      phase: STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE,
+      sealedPrefix: true,
+      successorPhase: successorGuard.phase,
+    });
+  } else {
+    guard = validateCurrentSavedSearchRlsDeployShape({
+      phase: STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE,
+      rootDirectory,
+    });
+  }
   return Object.freeze({
     phase: STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE,
     migration: STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,

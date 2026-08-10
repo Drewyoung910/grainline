@@ -23,6 +23,8 @@ import {
   STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_TREE_SHA256,
   STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
   STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION_TREE_SHA256,
+  STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
+  STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
   CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
@@ -193,6 +195,8 @@ const REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY =
   "stripe-webhook-maintenance-authority-reviewed";
 const REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION =
   "stripe-webhook-event-activation-reviewed";
+const REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE =
+  "stripe-webhook-event-force-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -301,6 +305,8 @@ function validate(
         STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_TREE_SHA256,
       [REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION]:
         STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION_TREE_SHA256,
+      [REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE]:
+        STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -334,6 +340,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION,
     STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION,
     STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+    STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
     CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
     CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
     CONVERSATION_MESSAGE_LEGACY_CLEANUP_MIGRATION,
@@ -535,6 +542,10 @@ const REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATIONS = [
   ...REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATIONS,
   STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS = [
+  ...REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATIONS,
+  STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -613,6 +624,8 @@ function migrationsFor(phase) {
       REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATIONS,
     [REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION]:
       REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATIONS,
+    [REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE]:
+      REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
   }[phase];
 }
 
@@ -1093,12 +1106,16 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /remain the latest migration/,
     );
-    assert.equal(
-      validate(
+    assert.throws(
+      () => validate(
         REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION,
         currentMigrations,
-      ).phase,
-      REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION,
+      ),
+      /remain the latest migration/,
+    );
+    assert.equal(
+      validate(REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE, currentMigrations).phase,
+      REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
     );
   });
 
@@ -2410,6 +2427,37 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact posture-only StripeWebhookEvent FORCE after Phase A", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
+        REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
+        hasCaseForceMigration: true,
+        hasOrderPaymentShippingCompatibilityMigration: true,
+        hasStripeWebhookMaintenanceAuthorityMigration: true,
+        hasStripeWebhookEventActivationMigration: true,
+        hasStripeWebhookEventForceMigration: true,
+      },
+    );
+    for (const migration of [
+      STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+      STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
+          REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS.filter(
+            (name) => name !== migration,
+          ),
+        ),
+        /requires the completed StripeWebhookEvent policyless activation and the reviewed posture-only FORCE migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2451,6 +2499,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY,
     REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY,
     REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION,
+    REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -2544,7 +2593,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current StripeWebhookEvent activation guard before CI migrations", () => {
+  it("runs the current StripeWebhookEvent FORCE guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -2554,7 +2603,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify StripeWebhookEvent activation migration tree[\s\S]{0,280}SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify StripeWebhookEvent activation release[\s\S]{0,200}npm run audit:rls-stripe-webhook-event-activation-release[\s\S]{0,220}Verify Case FORCE proof equivalence[\s\S]{0,180}npm run audit:rls-case-force-release[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*npm run audit:rls-direct-upload-activation-release[\s\S]*Prove runtime-role provisioning refusals exit nonzero[\s\S]*Isolate the exact Case activation until authority proofs pass[\s\S]*Isolate the exact Case FORCE release until Phase A passes[\s\S]*Apply compatible migrations to CI Postgres/,
+      /Verify StripeWebhookEvent FORCE migration tree[\s\S]{0,280}SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,260}Verify StripeWebhookEvent FORCE release[\s\S]{0,200}npm run audit:rls-stripe-webhook-event-force-release[\s\S]{0,220}Verify Case FORCE proof equivalence[\s\S]{0,180}npm run audit:rls-case-force-release[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*npm run audit:rls-direct-upload-activation-release[\s\S]*Prove runtime-role provisioning refusals exit nonzero[\s\S]*Isolate the exact StripeWebhookEvent FORCE release until Phase A passes[\s\S]*Apply compatible migrations to CI Postgres/,
     );
   });
 

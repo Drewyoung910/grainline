@@ -162,7 +162,7 @@ test("engine proof is loopback-only, rollback-only and covers lock races", () =>
   assert.doesNotMatch(proof, /verifyStripeWebhookMaintenanceAuthority\(\)/);
 });
 
-test("historical maintenance proof remains while workflows advance to activation", () => {
+test("historical maintenance and Phase-A proofs remain after workflows advance to FORCE", () => {
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
   assert.equal(
     pkg.scripts["audit:rls-stripe-webhook-maintenance-authority"],
@@ -172,12 +172,12 @@ test("historical maintenance proof remains while workflows advance to activation
     pkg.scripts["audit:rls-stripe-webhook-maintenance-postgres"],
     "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-maintenance-authority-postgres-proof.mjs",
   );
-  assert.match(ci, /stripe-webhook-event-activation-reviewed/);
+  assert.match(ci, /stripe-webhook-event-force-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-activation-release/);
   assert.match(ci, /audit:rls-stripe-webhook-maintenance-postgres/);
   assert.match(ci, /STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL/);
-  assert.match(production, /stripe-webhook-event-activation-reviewed/);
-  assert.match(production, /audit:rls-stripe-webhook-event-activation-release/);
+  assert.match(production, /stripe-webhook-event-force-reviewed/);
+  assert.match(production, /audit:rls-stripe-webhook-event-force-release/);
 });
 
 test("release applies additive authority before deploying its call sites", () => {

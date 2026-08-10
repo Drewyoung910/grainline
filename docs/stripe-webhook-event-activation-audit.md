@@ -194,6 +194,19 @@ defect. Each remaining path is classified:
   loopback-only database-first rollback rehearsal. It temporarily restores
   predecessor CRUD in disposable PostgreSQL, proves old-runtime compatibility,
   and restores activation in a fail-closed cleanup path.
+- `scripts/stripe-webhook-event-force-postgres-proof.mjs` is the loopback-only
+  proof of the separately reviewed policyless FORCE posture. It reuses the
+  exact Phase-A catalog and runtime-operation proof with FORCE required and
+  rolls back every function fixture.
+- `scripts/stripe-webhook-event-force-production-postflight.mjs` is the
+  actual pooled-production-runtime, repeatable-read/read-only FORCE postflight.
+  It repeats the exact six-function, direct-denial and write-fence checks with
+  FORCE required, rejects privileged or aliased URLs, and writes only fresh
+  sanitized mode-0600 evidence.
+- `scripts/stripe-webhook-event-force-rollback-proof.mjs` is the loopback-only
+  posture rollback rehearsal. It proves exact FORCE to NO FORCE rollback and
+  the unchanged Phase-A authority boundary, then restores FORCE in a
+  fail-closed cleanup path before closing its owner connection.
 - `scripts/order-payment-shipping-compatible-production-postflight.mjs` is a
   historical compatibility-posture proof that directly reads the table under
   the pooled runtime role while predecessor CRUD remains present. It must run

@@ -123,6 +123,9 @@ test("all remaining script-level direct access is explicitly classified", () => 
     "scripts/stripe-webhook-event-activation-postgres-proof.mjs",
     "scripts/stripe-webhook-event-activation-production-postflight.mjs",
     "scripts/stripe-webhook-event-activation-rollback-proof.mjs",
+    "scripts/stripe-webhook-event-force-postgres-proof.mjs",
+    "scripts/stripe-webhook-event-force-production-postflight.mjs",
+    "scripts/stripe-webhook-event-force-rollback-proof.mjs",
     "scripts/stripe-webhook-lease-compatibility-postgres-proof.mjs",
     "scripts/stripe-webhook-maintenance-authority-postgres-proof.mjs",
   ]);
