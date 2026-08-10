@@ -83,7 +83,11 @@ predecessor drain and hardened final pooled-runtime proof subsequently passed,
 and StripeWebhookEvent policyless Phase A is now live: exact main
 `f987645784a447604fcab2399dc8e7fd7bef9d7c`, CI `31408797498`, migration run
 `31410550315`, global grant/RLS audit and the actual pooled-runtime postflight
-are accepted. FORCE remains a separate posture-only release. Connect v2 signed delivery remains a
+are accepted. The posture-only FORCE preparation is merged from PR #188 exact
+head `b8a9f41b9f5ca966f02901fb322ba9775210fd80` at main
+`6d448bce38bed2aa54bf4ce7ae8e5f8a4ba73186`; exact-head CI `31417322388` and
+exact-main CI `31419148169` passed. It remains unapplied and does not change the
+accepted Phase-A production posture. Connect v2 signed delivery remains a
 mandatory launch/provider gate, but does not block this database-authority
 release because all three routes use the same fixed lease functions and have
 zero direct table access. Do not broaden the new Connect route with legacy account events

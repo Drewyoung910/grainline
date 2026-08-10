@@ -1387,3 +1387,12 @@ Open work:
   aggregate health, exact function/source/ACL identity and the write-function
   read-only fence; it reported `productionChangedByPostflight=false`. No app
   deployment, FORCE change or Stripe/Vercel provider change occurred.
+- PR #188 merged the separately reviewed posture-only FORCE preparation from
+  exact head `b8a9f41b9f5ca966f02901fb322ba9775210fd80` as exact main
+  `6d448bce38bed2aa54bf4ce7ae8e5f8a4ba73186`. Exact-head CI `31417322388`
+  and exact-main CI `31419148169` passed the ordered Phase-A/FORCE PostgreSQL
+  authority, rollback/restoration, migration, grant, application and build
+  gates. The merge staged migration
+  `20260810172000_force_stripe_webhook_event_rls` on main but did not run it;
+  production remains policyless ENABLE/NO-FORCE Phase A. No migration,
+  deployment, provider change or production FORCE occurred at this boundary.
