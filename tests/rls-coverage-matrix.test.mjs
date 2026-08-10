@@ -67,6 +67,7 @@ describe("site-wide RLS coverage matrix", () => {
       "SavedSearch",
       "DirectUpload",
       "DirectUploadReference",
+      "StripeWebhookEvent",
       "Notification",
     ]);
     assert.deepEqual(
@@ -80,10 +81,11 @@ describe("site-wide RLS coverage matrix", () => {
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
+        ["StripeWebhookEvent", "RLS_LIVE_PHASE_A"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
-    assert.match(matrix, /nine tables in this snapshot with production RLS/);
+    assert.match(matrix, /ten tables in this snapshot with production RLS/);
     assert.match(
       matrix,
       /Pooled-runtime and cleanup-role acceptance passed read-only/,

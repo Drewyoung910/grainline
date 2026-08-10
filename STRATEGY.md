@@ -78,9 +78,12 @@ source-bound surfaces: platform Checkout/refund/dispute snapshots on
 separately signed `/api/stripe/webhook/connect`, and v2 thin account events on
 `/api/stripe/webhook/v2`. The compatible implementation must land and deploy
 before provider configuration changes. Provider correction, one signed payout
-delivery plus retry and the exact three-surface proof are complete. Predecessor
-drain and the hardened final pooled-runtime postflight remain distinct gates
-before StripeWebhookEvent RLS activation. Connect v2 signed delivery remains a
+delivery plus retry and the exact three-surface proof are complete. The
+predecessor drain and hardened final pooled-runtime proof subsequently passed,
+and StripeWebhookEvent policyless Phase A is now live: exact main
+`f987645784a447604fcab2399dc8e7fd7bef9d7c`, CI `31408797498`, migration run
+`31410550315`, global grant/RLS audit and the actual pooled-runtime postflight
+are accepted. FORCE remains a separate posture-only release. Connect v2 signed delivery remains a
 mandatory launch/provider gate, but does not block this database-authority
 release because all three routes use the same fixed lease functions and have
 zero direct table access. Do not broaden the new Connect route with legacy account events

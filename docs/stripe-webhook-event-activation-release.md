@@ -1,9 +1,12 @@
-# StripeWebhookEvent policyless activation candidate
+# StripeWebhookEvent policyless activation production release
 
-Status: isolated draft candidate only. It is not merged, deployed or applied to
-production. Production remains on the compatible predecessor: RLS and FORCE
-off, zero policies, and ordinary runtime CRUD retained for mixed-deployment
-compatibility.
+Status: Phase A is live in production. Exact main
+`f987645784a447604fcab2399dc8e7fd7bef9d7c`, CI `31408797498`, guarded
+migration run `31410550315`, migration status, global grant/RLS audit and the
+separate actual pooled-runtime read-only postflight are accepted. Production
+has policyless ENABLE with FORCE off, zero policies, zero direct runtime/PUBLIC
+table or column authority, and exactly six fixed functions. No app deployment
+or Stripe/Vercel provider change accompanied activation.
 
 ## Exact release boundary
 
@@ -174,18 +177,13 @@ evidence only; it did not merge, deploy or change production.
 
 ## Remaining gates
 
-1. Merge only the exact reviewed activation head, rerun exact-main CI, and
-   verify that `20260805060000_enable_stripe_webhook_event_rls` is the only
-   pending production migration.
-2. Dispatch the guarded production migration as a separate exact-main release.
-   It may only establish policyless ENABLE/NO-FORCE and revoke direct runtime
-   table authority; it must not deploy or change Stripe/Vercel provider state.
-3. Run the separate actual pooled-runtime postflight described above and keep
-   the compatibility rollback ready until the fixed-operation smoke is green.
-4. Keep valid Connect v2 signed delivery mandatory on the launch checklist;
+1. Keep the database-first compatibility rollback ready through the Phase-A
+   observation boundary; investigate and roll back database posture first if
+   fixed-operation health regresses.
+2. Keep valid Connect v2 signed delivery mandatory on the launch checklist;
    it is not a database-authority prerequisite because every signed route uses
    the same fixed lease wrappers and has zero direct table access.
-5. Prepare FORCE as its own later posture-only release after stable activation
+3. Prepare FORCE as its own later posture-only release after stable activation
    evidence.
 
 No production state or provider variable changes are authorized by this

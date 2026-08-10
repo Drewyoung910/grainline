@@ -1,11 +1,11 @@
 # StripeWebhookEvent activation audit
 
-Status: audit and launch-proof conversion merged; compatible maintenance
-functions and exact compatible application are live in production. Reviewed
+Status: policyless Phase A is live in production with FORCE deliberately off.
+Compatible maintenance functions and the exact application remain live. Reviewed
 test-mode provider correction plus signed classic Connect delivery/retry now
 pass alongside exact platform/v2 topology checks, rollback-only retention,
-expanded ops health and legacy restoration. No activation migration, table
-grant revocation or StripeWebhookEvent RLS change has occurred. Connect v2
+expanded ops health and legacy restoration. The activation revoked direct
+runtime table/column authority while retaining exactly six functions. Connect v2
 signed delivery remains a mandatory launch/provider proof, but is not a
 StripeWebhookEvent database-authority gate: all three signed routes use the
 same fixed begin/complete/fail functions and have zero direct table access.
@@ -81,6 +81,31 @@ The postflight bound CI `31372665563` and maintenance migration run
 `31290691183`, returned `productionChangedByPostflight=false`, and wrote only
 sanitized mode-0600 local evidence. It ran no migration and changed no
 database, deployment or provider state.
+
+## Accepted Phase-A production evidence (2026-08-10)
+
+PR #186 merged exact reviewed head
+`654a730b575ddbcf954f6a6287f5aa6fa34c592a` as exact main
+`f987645784a447604fcab2399dc8e7fd7bef9d7c`. Exact-main CI
+`31408797498` passed the byte-pinned migration audit, disposable PostgreSQL
+activation and rollback, direct runtime-login proof, grant/RLS audit, full
+suite, TypeScript, lint, dependency audit and production build.
+
+Guarded Production Migrations run `31410550315` then applied only
+`20260805060000_enable_stripe_webhook_event_rls`. Migration status and the
+global grant/RLS audit passed. The resulting production posture is policyless
+ENABLE with NO FORCE, zero policies, zero direct runtime/PUBLIC table or column
+authority, and runtime EXECUTE on exactly the six source-pinned functions.
+There was no application deployment or Stripe/Vercel provider change.
+
+The separate actual pooled-runtime postflight ran from the exact clean main
+commit, bound to CI `31408797498` and migration run `31410550315`. PostgreSQL
+attested the restricted `grainline_app_runtime` identity and a repeatable-read
+read-only transaction. The proof confirmed the exact table/function/source/ACL
+catalog, direct table-read denial, successful aggregate health, and SQLSTATE
+`25006` when the write-capable begin function reached the engine's read-only
+fence. It wrote sanitized mode-0600 evidence and returned
+`productionChangedByPostflight=false`.
 
 ## Authority decision
 
@@ -419,6 +444,7 @@ activation audit, TypeScript, lint, 2,846 tests with seven intentional skips,
 dependency audits and production build. It remains isolated candidate evidence
 only.
 
-This refresh must now re-prove that candidate against current main and the
-accepted provider evidence before a separate production release review.
-Production StripeWebhookEvent posture remains unchanged.
+That current-main refresh, production Phase-A release, and actual pooled-runtime
+postflight are now accepted. Preserve the database-first rollback through the
+observation boundary. FORCE remains a separate posture-only release, while
+Connect v2 signed delivery and live-mode provider evidence remain launch gates.
