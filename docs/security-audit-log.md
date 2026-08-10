@@ -1362,3 +1362,15 @@ Open work:
   function's individual volatility and parallel mode, and the unit contract
   enumerates the exceptional read-only function explicitly. No production or
   provider state changed.
+- Corrected candidate `d9b637c6a76196579317de3b189046746ca19916`
+  subsequently passed exact-head CI `31372665563`, including the real
+  disposable-PostgreSQL runtime-login proof and production build. The current
+  canonical Vercel deployment remained `READY` at source `69c14c06`, and the
+  canonical health endpoint returned HTTP 200. The hardened predecessor
+  postflight then passed from that exact clean candidate through the actual
+  pooled production runtime in an engine-attested repeatable-read read-only
+  transaction: exact predecessor CRUD, no PUBLIC/column/grant-option drift,
+  exact four-private plus six-runtime function catalog, six zero integrity
+  counts, and direct private-function denial. It recorded sanitized mode-0600
+  evidence and reported `productionChangedByPostflight=false`; no production
+  or provider state changed.

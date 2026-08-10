@@ -48,10 +48,13 @@ test("activation audit pins the accepted compatible stack and remaining boundary
   assert.match(audit, /stripe-webhook-subscriptions-test-20260810-b9444e34\.json/);
   assert.match(audit, /stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34\.json/);
   assert.match(normalizedAudit, /Connect v2 signed delivery remains mandatory before launch/);
-  assert.match(normalizedAudit, /Predecessor drain and the hardened final compatibility postflight remain before activation/);
+  assert.match(audit, /d9b637c6a76196579317de3b189046746ca19916/);
+  assert.match(audit, /31372665563/);
+  assert.match(audit, /dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP/);
+  assert.match(normalizedAudit, /predecessor drain and hardened final compatibility postflight have since passed/);
   assert.match(audit, /fb0facf146e58123ddd2f4a727fda1b966669d5d/);
   assert.match(audit, /31272188477/);
-  assert.match(audit, /predecessor table posture/);
+  assert.match(normalizedAudit, /predecessor table posture/);
 });
 
 test("activation target is policyless ENABLE with exactly six runtime functions", () => {

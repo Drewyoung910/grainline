@@ -153,29 +153,39 @@ the activation, and passed TypeScript, lint, 2,846 tests with seven intentional
 skips, both dependency audits and the production build. This is candidate
 evidence only; it did not merge, deploy or change production.
 
+## Accepted pre-merge gates
+
+- Exact candidate `d9b637c6a76196579317de3b189046746ca19916` passed
+  exact-head CI `31372665563`, including disposable PostgreSQL activation,
+  direct runtime-login proof, rollback/restoration, global grant audit, full
+  tests, TypeScript, lint, dependency audits and production build.
+- Vercel reports current canonical production deployment
+  `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` is `READY`, with source
+  `69c14c0618ea7ab9c74756422273d17d66db7efa`; the canonical health endpoint
+  returned HTTP 200.
+- The hardened historical compatibility postflight passed from the exact
+  clean candidate through the actual pooled production runtime role. In an
+  engine-attested repeatable-read read-only transaction it confirmed exact
+  predecessor CRUD, zero PUBLIC/column/grant-option drift, exact four-private
+  plus six-runtime function identity and source, six zero integrity counts,
+  direct private-function denial and no production mutation. Sanitized local
+  evidence is mode 0600 and is bound to CI `31372665563` plus maintenance
+  migration run `31290691183`.
+
 ## Remaining gates
 
-1. Finish this current-main refresh and obtain fresh exact-head CI for the
-   byte-pinned migration, real PostgreSQL activation/rollback proofs, global
-   grant audit, full tests, TypeScript, lint and production build.
-2. Confirm the compatible production deployment is still canonical and the
-   predecessor deployment has drained. Then run the hardened historical
-   compatibility postflight from the exact clean candidate commit using the
-   actual pooled runtime credential. It must attest exact direct CRUD, zero
-   PUBLIC/column/grant-option drift, all six source-pinned functions and zero
-   integrity issues in one repeatable-read read-only transaction.
-3. Merge only the exact reviewed activation head, rerun exact-main CI, and
+1. Merge only the exact reviewed activation head, rerun exact-main CI, and
    verify that `20260805060000_enable_stripe_webhook_event_rls` is the only
    pending production migration.
-4. Dispatch the guarded production migration as a separate exact-main release.
+2. Dispatch the guarded production migration as a separate exact-main release.
    It may only establish policyless ENABLE/NO-FORCE and revoke direct runtime
    table authority; it must not deploy or change Stripe/Vercel provider state.
-5. Run the separate actual pooled-runtime postflight described above and keep
+3. Run the separate actual pooled-runtime postflight described above and keep
    the compatibility rollback ready until the fixed-operation smoke is green.
-6. Keep valid Connect v2 signed delivery mandatory on the launch checklist;
+4. Keep valid Connect v2 signed delivery mandatory on the launch checklist;
    it is not a database-authority prerequisite because every signed route uses
    the same fixed lease wrappers and has zero direct table access.
-7. Prepare FORCE as its own later posture-only release after stable activation
+5. Prepare FORCE as its own later posture-only release after stable activation
    evidence.
 
 No production state or provider variable changes are authorized by this

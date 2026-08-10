@@ -9,13 +9,14 @@ grant revocation or StripeWebhookEvent RLS change has occurred. Connect v2
 signed delivery remains a mandatory launch/provider proof, but is not a
 StripeWebhookEvent database-authority gate: all three signed routes use the
 same fixed begin/complete/fail functions and have zero direct table access.
-Predecessor drain and the hardened final compatibility postflight remain the
-activation gates; live-mode provider proof remains a separate launch release.
+The predecessor deployment/drain check and hardened final compatibility
+postflight now pass; live-mode provider proof remains a separate launch
+release.
 
 ## Exact reviewed stack
 
-The compatible database preparation is complete, while the application and
-maintenance conversions remain isolated:
+The compatible database preparation, application conversion and maintenance
+conversion are complete. Their accepted release sequence was:
 
 1. PR #160 is merged. Exact main
    `6f1f4c1e99fb21726744ecd1652a37b6be35c294` passed CI `31276366947`;
@@ -42,14 +43,44 @@ maintenance conversions remain isolated:
    `20260805040000_prepare_stripe_webhook_maintenance_authority` and passed
    migration status plus the global grant/RLS audit.
 
-The compatible source and functions are merged and live. Exact release main
-`423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1` is production deployment
-`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`; Vercel reports `READY` and the canonical
-alias plus health endpoint return HTTP 200. Production deliberately retains
-the predecessor table posture for `StripeWebhookEvent`: RLS/FORCE off, zero
-policies and broad runtime CRUD. The remaining drain, postflight and activation
-order is a release dependency, not
+The compatible source and functions are merged and live. The current canonical
+production deployment is `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`, whose official
+Vercel metadata reports source `69c14c0618ea7ab9c74756422273d17d66db7efa`,
+`READY`, and all reviewed canonical aliases; the canonical health endpoint
+returned HTTP 200. That source is later than and contains the compatible
+application release. Production deliberately retains the predecessor table
+posture for `StripeWebhookEvent`: RLS/FORCE off, zero policies and broad
+runtime CRUD. The remaining activation order is a release dependency, not
 authorization to skip a boundary.
+
+## Accepted predecessor release evidence (2026-08-10)
+
+Draft PR #186 candidate `d9b637c6a76196579317de3b189046746ca19916`
+passed exact-head CI run `31372665563`. The run applied the policyless
+activation in disposable PostgreSQL, converged and audited grants, opened a
+new connection authenticated directly as the restricted runtime role, proved
+direct table denial plus all six fixed operations, rehearsed database-first
+rollback/restoration, and passed the full test, type, lint, dependency-audit
+and production-build gates.
+
+From that exact clean candidate checkout, the historical compatible-state
+postflight then connected through the actual pooled production
+`grainline_app_runtime` credential in an engine-attested repeatable-read,
+read-only transaction. It confirmed:
+
+- `StripeWebhookEvent` still has RLS/FORCE off, zero policies and exact direct
+  runtime SELECT/INSERT/UPDATE/DELETE with no grant option;
+- PUBLIC and runtime column authority are absent;
+- all four private integrity functions and all six runtime functions have the
+  exact reviewed owner, signature, mode, pinned search path, ACL and source;
+- all six aggregate relationship/claim-generation integrity counts are zero;
+  and
+- private helper execution is denied directly to the runtime role.
+
+The postflight bound CI `31372665563` and maintenance migration run
+`31290691183`, returned `productionChangedByPostflight=false`, and wrote only
+sanitized mode-0600 local evidence. It ran no migration and changed no
+database, deployment or provider state.
 
 ## Authority decision
 
@@ -322,8 +353,9 @@ SavedSearch canary; sanitized evidence is retained at
 `archive/stripe-webhook-ops-health-compatible-production-20260809.json`.
 Vercel's Sensitive-value readback mask prevented a synthetic valid Connect v2
 signature; that route remains an explicit evidence gate rather than a claimed
-pass. Predecessor drain and final postflight still precede activation. The
-earlier read-only provider proof retained at
+pass. At that checkpoint the predecessor drain and final postflight still
+preceded activation; both are now accepted in the dedicated evidence section
+above. The earlier read-only provider proof retained at
 `archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
 failed the exact-subscription contract: classic was missing 11 handled
 events and has four unused events, while v2 has three unused
@@ -349,8 +381,9 @@ operational issue counts at zero and is retained at
 `archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
 Connect v2 signed delivery remains mandatory before launch, but the reviewed
 shared fixed-function call graph means it does not add evidence about the
-direct-table authority being removed by this activation. Predecessor drain and
-the hardened final compatibility postflight remain before activation.
+direct-table authority being removed by this activation. The predecessor drain
+and hardened final compatibility postflight have since passed as recorded
+above.
 
 The isolated activation candidate now exists with byte-pinned activation and
 rollback SQL, conditional role-provisioning convergence, global grant-audit
