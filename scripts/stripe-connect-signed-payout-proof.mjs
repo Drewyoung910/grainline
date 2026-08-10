@@ -43,6 +43,8 @@ const VERCEL_CLI_VERSION = "58.9.0";
 const STRIPE_CLI_VERSION = "1.39.0";
 const CONNECT_URL = "https://thegrainline.com/api/stripe/webhook/connect";
 const HEALTH_URL = "https://thegrainline.com/api/health";
+const ONBOARDING_REFRESH_URL = "https://thegrainline.com/?stripe_connect_canary=refresh";
+const ONBOARDING_RETURN_URL = "https://thegrainline.com/?stripe_connect_canary=return";
 const REQUIRED_FAILURE_CODE = "no_account";
 const CANARY_AMOUNT_CENTS = 100;
 const FUNDING_CHARGE_CENTS = 500;
@@ -57,6 +59,8 @@ const RUN_ID_PATTERN = /^[1-9][0-9]*$/;
 const DEPLOYMENT_PATTERN = /^dpl_[A-Za-z0-9]+$/;
 const STRIPE_SECRET_PATTERN =
   /\b(?:sk_(?:live|test)_[A-Za-z0-9_]+|whsec_[A-Za-z0-9_]+)\b/g;
+const STRIPE_ACCOUNT_LINK_PATTERN =
+  /https:\/\/connect\.stripe\.com\/setup\/[^\s"'<>]+/g;
 const STRIPE_OBJECT_ID_PATTERN =
   /\b(?:acct|ba|ch|ed|evt|pi|po|re|seti|tr|we)_[A-Za-z0-9_]+\b/g;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
@@ -64,6 +68,7 @@ const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 function redact(value) {
   return String(value ?? "")
     .replace(STRIPE_SECRET_PATTERN, "[redacted-stripe-secret]")
+    .replace(STRIPE_ACCOUNT_LINK_PATTERN, "[redacted-stripe-account-link]")
     .replace(STRIPE_OBJECT_ID_PATTERN, "[redacted-stripe-object]")
     .replace(BEARER_PATTERN, "Bearer [redacted-token]");
 }
@@ -179,6 +184,7 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
     expectedCommit,
     handoffPath: resolvedHandoffPath,
     mode,
+    onboardingPath: `${resolvedHandoffPath}.onboarding`,
     preparationAttemptPath: `${resolvedHandoffPath}.attempt`,
     preparationEvidencePath,
     secretKey,
@@ -199,13 +205,19 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
 
   if (mode === "prepare") {
     if (
-      existsSync(config.handoffPath)
+      (existsSync(config.handoffPath) || existsSync(config.onboardingPath))
       && !existsSync(config.preparationAttemptPath)
     ) {
-      throw new Error("payout handoff exists without its preparation attempt");
+      throw new Error("payout handoff or onboarding record exists without its preparation attempt");
+    }
+    if (existsSync(config.handoffPath) && existsSync(config.onboardingPath)) {
+      throw new Error("prepared payout handoff and onboarding record cannot coexist");
     }
     if (existsSync(config.evidencePath)) throw new Error("payout preparation evidence already exists");
   } else {
+    if (existsSync(config.onboardingPath)) {
+      throw new Error("signed delivery proof cannot start while hosted onboarding is incomplete");
+    }
     assertDeterministicPostgresEnvironment(env, "Stripe Connect signed payout proof");
     const privileged = privilegedDatabaseEnvironmentKeys(env);
     if (privileged.length > 0) {
@@ -397,6 +409,19 @@ export function buildCanaryAccountParams(config, now = new Date()) {
   };
 }
 
+export function buildCanaryAccountLinkParams(accountId) {
+  if (typeof accountId !== "string" || accountId.length === 0) {
+    throw new Error("disposable account ID is required for hosted onboarding");
+  }
+  return {
+    account: accountId,
+    collection_options: { fields: "eventually_due" },
+    refresh_url: ONBOARDING_REFRESH_URL,
+    return_url: ONBOARDING_RETURN_URL,
+    type: "account_onboarding",
+  };
+}
+
 export function assertCanaryAccount(account, config) {
   const livemodePresent = Object.hasOwn(account ?? {}, "livemode");
   const diagnostics = {
@@ -512,6 +537,78 @@ function writeOrVerifyPreparedHandoff(config, payload) {
     throw new Error("existing payout handoff does not match the resumed preparation");
   }
   return existing;
+}
+
+function assertOnboardingLink(link, { requireFresh = true } = {}) {
+  let parsed;
+  try {
+    parsed = new URL(link?.url);
+  } catch {
+    throw new Error("Stripe hosted-onboarding link is invalid");
+  }
+  if (
+    link?.object !== "account_link"
+    || parsed.protocol !== "https:"
+    || parsed.hostname !== "connect.stripe.com"
+    || !parsed.pathname.startsWith("/setup/")
+    || !Number.isSafeInteger(link?.expires_at)
+    || link.expires_at <= 0
+    || (requireFresh && link.expires_at <= Math.floor(Date.now() / 1000))
+  ) {
+    throw new Error("Stripe hosted-onboarding link is outside the reviewed boundary");
+  }
+  return link;
+}
+
+function assertOnboardingRecord(payload, config, attempt = null) {
+  const link = assertOnboardingLink({
+    expires_at: payload?.accountLinkExpiresAt,
+    object: "account_link",
+    url: payload?.accountLinkUrl,
+  }, { requireFresh: false });
+  if (
+    payload?.phase !== "stripe-connect-disposable-payout-onboarding-handoff"
+    || payload?.status !== "onboarding-required"
+    || payload?.commit !== config.expectedCommit
+    || String(payload?.ciRunId) !== String(config.ciRunId)
+    || payload?.deploymentId !== config.deploymentId
+    || payload?.marker !== markerFor(config)
+    || !/^[a-f0-9-]{36}$/.test(payload?.preparationAttemptId ?? "")
+    || typeof payload?.stripeAccountId !== "string"
+  ) {
+    throw new Error("hosted-onboarding record belongs to another or incomplete release");
+  }
+  if (attempt && (
+    payload.preparationAttemptId !== attempt.attemptId
+    || payload.stripeAccountId !== attempt.stripeAccountId
+  )) {
+    throw new Error("hosted-onboarding record does not bind the preparation attempt");
+  }
+  return Object.freeze({ ...payload, accountLinkExpiresAt: link.expires_at });
+}
+
+function readOnboardingRecord(config, { required: isRequired = true } = {}) {
+  if (!existsSync(config.onboardingPath)) {
+    if (isRequired) throw new Error("hosted-onboarding record does not exist");
+    return null;
+  }
+  if ((statSync(config.onboardingPath).mode & 0o777) !== 0o600) {
+    throw new Error("hosted-onboarding record is not mode 0600");
+  }
+  return assertOnboardingRecord(
+    JSON.parse(readFileSync(config.onboardingPath, "utf8")),
+    config,
+  );
+}
+
+function writeOnboardingRecord(config, payload) {
+  if (existsSync(config.onboardingPath)) readOnboardingRecord(config);
+  finalizeJson(config.onboardingPath, payload);
+  return assertOnboardingRecord(payload, config);
+}
+
+function removeOnboardingRecord(config) {
+  if (existsSync(config.onboardingPath)) unlinkSync(config.onboardingPath);
 }
 
 function assertPreparationAttempt(payload, config) {
@@ -694,12 +791,49 @@ async function preparePayoutCanary({ config, deps, preparationAttempt }) {
         { stripeAccountId: accountId },
       );
     }
-    const readyAccount = await waitFor(
-      () => deps.retrieveAccount(accountId),
-      (value) => value?.charges_enabled === true && value?.payouts_enabled === true,
-      "disposable account capabilities",
+    const currentAccount = assertCanaryAccount(
+      await deps.retrieveAccount(accountId),
+      config,
     );
+    if (currentAccount.charges_enabled !== true || currentAccount.payouts_enabled !== true) {
+      const accountLink = assertOnboardingLink(
+        await deps.createOnboardingAccountLink(
+          buildCanaryAccountLinkParams(accountId),
+        ),
+      );
+      const onboarding = assertOnboardingRecord({
+        phase: "stripe-connect-disposable-payout-onboarding-handoff",
+        status: "onboarding-required",
+        commit: config.expectedCommit,
+        ciRunId: config.ciRunId,
+        deploymentId: config.deploymentId,
+        marker: markerFor(config),
+        preparationAttemptId: attempt.attemptId,
+        stripeAccountId: accountId,
+        accountLinkUrl: accountLink.url,
+        accountLinkExpiresAt: accountLink.expires_at,
+      }, config, attempt);
+      await (deps.writeOnboardingRecord ?? writeOnboardingRecord)(config, onboarding);
+      return Object.freeze({
+        phase: "stripe-connect-disposable-payout-onboarding",
+        status: "onboarding-required",
+        commit: config.expectedCommit,
+        ciRunId: config.ciRunId,
+        deploymentId: config.deploymentId,
+        connectEndpointEnabled: false,
+        rawProviderIdsPersistedInOutput: false,
+        secretsPersistedInOutput: false,
+      });
+    }
+    const readyAccount = currentAccount;
     assertCanaryAccount(readyAccount, config);
+    const onboarding = await (
+      deps.readOnboardingRecord ?? readOnboardingRecord
+    )(config, { required: false });
+    if (onboarding) {
+      assertOnboardingRecord(onboarding, config, attempt);
+      await (deps.removeOnboardingRecord ?? removeOnboardingRecord)(config);
+    }
 
     const charge = await deps.createFundingCharge(accountId, {
       amount: FUNDING_CHARGE_CENTS,
@@ -804,6 +938,7 @@ async function preparePayoutCanary({ config, deps, preparationAttempt }) {
       if (existsSync(config.handoffPath)) {
         await (deps.removeHandoff ?? unlinkSync)(config.handoffPath);
       }
+      await (deps.removeOnboardingRecord ?? removeOnboardingRecord)(config);
       await (deps.removePreparationAttempt ?? removePreparationAttempt)(config);
     }
     const suffix = cleanupFailures.length === 0
@@ -1237,6 +1372,8 @@ function createLocalDependencies(config) {
       "utf8",
     )),
     readPreparationAttempt,
+    readOnboardingRecord,
+    removeOnboardingRecord,
     removePreparationAttempt,
     reserveOrResumePreparationAttempt,
     updatePreparationAttempt,
@@ -1286,6 +1423,14 @@ async function createStripeDependencies(config, preparationAttemptId = null) {
     createCanaryAccount: (params) => stripe.accounts.create(
       params,
       sourceOptions("account-create"),
+    ),
+    createOnboardingAccountLink: (params) => stripe.accountLinks.create(
+      params,
+      {
+        idempotencyKey:
+          `grainline-connect-payout-${config.expectedCommit}-${config.ciRunId}`
+          + `-${preparationAttemptId}-hosted-onboarding-${invocationId}`,
+      },
     ),
     retrieveAccount: (id) => stripe.accounts.retrieve(id),
     deleteAccount: (id) => stripe.accounts.del(id),

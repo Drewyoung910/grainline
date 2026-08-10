@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   PLATFORM_REVIEWED_EVENTS,
@@ -15,6 +24,7 @@ import {
   assertPayoutEvent,
   assertPreparationEvidence,
   buildCanaryAccountParams,
+  buildCanaryAccountLinkParams,
   parseStripeConnectPayoutProofConfig,
   runStripeConnectSignedPayoutProof,
 } from "../scripts/stripe-connect-signed-payout-proof.mjs";
@@ -331,6 +341,22 @@ test("configuration is exact-main, test-mode and runtime-role bound", () => {
   );
 });
 
+test("proof mode rejects an unfinished hosted-onboarding record", () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "grainline-payout-proof-config-"));
+  const handoffPath = path.join(directory, "grainline-stripe-connect-payout-proof.json");
+  try {
+    writeFileSync(`${handoffPath}.onboarding`, "{}\n", { encoding: "utf8", mode: 0o600 });
+    assert.throws(
+      () => parseStripeConnectPayoutProofConfig(baseEnv("prove", {
+        STRIPE_CONNECT_PAYOUT_HANDOFF_PATH: handoffPath,
+      })),
+      /cannot start while hosted onboarding is incomplete/,
+    );
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
 test("cutover evidence remains bound to disabled canonical stage 3", () => {
   const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
   assert.notEqual(config.cutoverCommit, config.expectedCommit);
@@ -405,6 +431,20 @@ test("canary source derives its marker and uses the documented failing bank", ()
   assert.equal(params.external_account.account_number, "000111111116");
   assert.equal(params.settings.payouts.schedule.interval, "manual");
   assert.equal(params.metadata.grainline_provider_canary, marker(config));
+});
+
+test("hosted onboarding link is production-shaped and collects all due fields", () => {
+  assert.deepEqual(buildCanaryAccountLinkParams(ACCOUNT_ID), {
+    account: ACCOUNT_ID,
+    collection_options: { fields: "eventually_due" },
+    refresh_url: "https://thegrainline.com/?stripe_connect_canary=refresh",
+    return_url: "https://thegrainline.com/?stripe_connect_canary=return",
+    type: "account_onboarding",
+  });
+  assert.throws(
+    () => buildCanaryAccountLinkParams(""),
+    /account ID is required/,
+  );
 });
 
 test("source validators reject account, payout and event mismatches", () => {
@@ -501,6 +541,206 @@ test("prepare creates one disposable source and writes only sanitized durable ev
   assert.doesNotMatch(serialized, /acct_disposable|po_disposable|evt_disposable|sk_test/);
   assert.equal(evidence.stripe.disposableAccountCleanupPending, true);
   assert.deepEqual(deps.calls, []);
+});
+
+test("prepare pauses at a mode-0600 hosted-onboarding handoff without funding", async () => {
+  const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
+  const deps = baseDependencies(config, 3);
+  let account;
+  let onboarding;
+  let fundingCalls = 0;
+  let payoutCalls = 0;
+  let deleted = false;
+  const result = await runStripeConnectSignedPayoutProof({
+    env: baseEnv("prepare"),
+    dependencies: {
+      ...deps,
+      createCanaryAccount: async (params) => {
+        account = {
+          charges_enabled: false,
+          controller: canaryController(),
+          id: ACCOUNT_ID,
+          metadata: params.metadata,
+          payouts_enabled: false,
+        };
+        return account;
+      },
+      retrieveAccount: async () => account,
+      createOnboardingAccountLink: async (params) => {
+        assert.deepEqual(params, buildCanaryAccountLinkParams(ACCOUNT_ID));
+        return {
+          expires_at: Math.floor(Date.now() / 1000) + 300,
+          object: "account_link",
+          url: "https://connect.stripe.com/setup/c/test_canary/one_time_token",
+        };
+      },
+      writeOnboardingRecord: async (_config, payload) => { onboarding = payload; },
+      createFundingCharge: async () => { fundingCalls += 1; },
+      createPayout: async () => { payoutCalls += 1; },
+      deleteAccount: async () => { deleted = true; },
+    },
+  });
+  assert.equal(result.status, "onboarding-required");
+  assert.equal(result.connectEndpointEnabled, false);
+  assert.equal(fundingCalls, 0);
+  assert.equal(payoutCalls, 0);
+  assert.equal(deleted, false);
+  assert.equal(onboarding.stripeAccountId, ACCOUNT_ID);
+  assert.equal(onboarding.preparationAttemptId, ATTEMPT_ID);
+  assert.match(onboarding.accountLinkUrl, /^https:\/\/connect\.stripe\.com\/setup\//);
+  const serialized = JSON.stringify(result);
+  assert.doesNotMatch(serialized, /acct_disposable|connect\.stripe\.com|sk_test/);
+  assert.deepEqual(deps.calls, []);
+});
+
+test("hosted-onboarding handoff is mode 0600 and an expired link can be replaced", async () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "grainline-payout-onboarding-test-"));
+  const handoffPath = path.join(directory, "grainline-stripe-connect-payout-hosted.json");
+  const env = baseEnv("prepare", { STRIPE_CONNECT_PAYOUT_HANDOFF_PATH: handoffPath });
+  const config = parseStripeConnectPayoutProofConfig(env);
+  const deps = baseDependencies(config, 3);
+  let account;
+  let linkNumber = 0;
+  try {
+    const dependencies = {
+      ...deps,
+      createCanaryAccount: async (params) => {
+        account = {
+          charges_enabled: false,
+          controller: canaryController(),
+          id: ACCOUNT_ID,
+          metadata: params.metadata,
+          payouts_enabled: false,
+        };
+        return account;
+      },
+      retrieveAccount: async () => account,
+      createOnboardingAccountLink: async () => {
+        linkNumber += 1;
+        return {
+          expires_at: Math.floor(Date.now() / 1000) + 300,
+          object: "account_link",
+          url: `https://connect.stripe.com/setup/c/test_canary/link_${linkNumber}`,
+        };
+      },
+    };
+    const first = await runStripeConnectSignedPayoutProof({ env, dependencies });
+    assert.equal(first.status, "onboarding-required");
+    const onboardingPath = `${handoffPath}.onboarding`;
+    assert.equal(statSync(onboardingPath).mode & 0o777, 0o600);
+    const firstRecord = JSON.parse(readFileSync(onboardingPath, "utf8"));
+    assert.match(firstRecord.accountLinkUrl, /link_1$/);
+    writeFileSync(
+      `${handoffPath}.attempt`,
+      `${JSON.stringify(preparationAttempt(config), null, 2)}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    );
+    chmodSync(`${handoffPath}.attempt`, 0o600);
+
+    const expired = {
+      ...firstRecord,
+      accountLinkExpiresAt: Math.floor(Date.now() / 1000) - 1,
+    };
+    writeFileSync(onboardingPath, `${JSON.stringify(expired, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    chmodSync(onboardingPath, 0o600);
+    const second = await runStripeConnectSignedPayoutProof({ env, dependencies });
+    assert.equal(second.status, "onboarding-required");
+    const secondRecord = JSON.parse(readFileSync(onboardingPath, "utf8"));
+    assert.match(secondRecord.accountLinkUrl, /link_2$/);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("hosted-onboarding URL is redacted if a local persistence error echoes it", async () => {
+  const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
+  const deps = baseDependencies(config, 3);
+  let account;
+  await assert.rejects(
+    runStripeConnectSignedPayoutProof({
+      env: baseEnv("prepare"),
+      dependencies: {
+        ...deps,
+        createCanaryAccount: async (params) => {
+          account = {
+            charges_enabled: false,
+            controller: canaryController(),
+            id: ACCOUNT_ID,
+            metadata: params.metadata,
+            payouts_enabled: false,
+          };
+          return account;
+        },
+        retrieveAccount: async () => account,
+        createOnboardingAccountLink: async () => ({
+          expires_at: Math.floor(Date.now() / 1000) + 300,
+          object: "account_link",
+          url: "https://connect.stripe.com/setup/c/test_canary/one_time_token",
+        }),
+        writeOnboardingRecord: async () => {
+          throw new Error(
+            "write failed https://connect.stripe.com/setup/c/test_canary/one_time_token",
+          );
+        },
+        deleteAccount: async () => ({ deleted: true, id: ACCOUNT_ID }),
+      },
+    }),
+    (error) => {
+      assert.match(error.message, /\[redacted-stripe-account-link\]/);
+      assert.doesNotMatch(error.message, /one_time_token/);
+      assert.match(error.message, /disposable account cleanup completed/);
+      return true;
+    },
+  );
+});
+
+test("prepare resumes the same account after hosted onboarding and removes only its link", async () => {
+  const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
+  const deps = baseDependencies(config, 3);
+  const created = Math.floor(Date.now() / 1000);
+  let onboardingRemoved = false;
+  let evidence;
+  const resumedAttempt = preparationAttempt(config, { startedSeconds: created - 5 });
+  await runStripeConnectSignedPayoutProof({
+    env: baseEnv("prepare"),
+    dependencies: {
+      ...deps,
+      reserveOrResumePreparationAttempt: async () => resumedAttempt,
+      createCanaryAccount: async () => { throw new Error("must resume the existing account"); },
+      retrieveAccount: async () => ({
+        charges_enabled: true,
+        controller: canaryController(),
+        id: ACCOUNT_ID,
+        metadata: { grainline_provider_canary: marker(config) },
+        payouts_enabled: true,
+      }),
+      readOnboardingRecord: async () => ({
+        phase: "stripe-connect-disposable-payout-onboarding-handoff",
+        status: "onboarding-required",
+        commit: config.expectedCommit,
+        ciRunId: config.ciRunId,
+        deploymentId: config.deploymentId,
+        marker: marker(config),
+        preparationAttemptId: ATTEMPT_ID,
+        stripeAccountId: ACCOUNT_ID,
+        accountLinkUrl: "https://connect.stripe.com/setup/c/test_canary/one_time_token",
+        accountLinkExpiresAt: Math.floor(Date.now() / 1000) + 300,
+      }),
+      removeOnboardingRecord: async () => { onboardingRemoved = true; },
+      createFundingCharge: async () => ({ livemode: false, paid: true, status: "succeeded" }),
+      retrieveBalance: async () => ({ available: [{ amount: 500, currency: "usd" }] }),
+      createPayout: async () => ({ id: PAYOUT_ID, livemode: false }),
+      retrievePayout: async () => failedPayout(),
+      listPayoutFailedEvents: async () => [payoutEvent(created)],
+      writeHandoff: async () => {},
+      finalizeEvidence: async (_path, payload) => { evidence = payload; },
+    },
+  });
+  assert.equal(onboardingRemoved, true);
+  assert.equal(evidence.status, "passed");
 });
 
 test("prepare resumes the durable attempt instead of recreating a deleted-key source", async () => {
