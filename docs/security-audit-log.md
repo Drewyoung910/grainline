@@ -1144,6 +1144,34 @@ Follow-up fix from this pass:
   suffix, and separates the immutable preparation commit/CI binding from the
   fresh corrected proof commit/CI binding. No deployment, migration, RLS,
   grant, secret, Vercel-variable or live-mode Stripe change is part of the fix.
+- PR #184 merged the CLI-output correction as exact `main`
+  `b9444e3488db9276c0d9f895043fe1fc32c850d1`; exact-main CI
+  `31366490630` passed. The authorized corrected test-mode proof enabled the
+  canonical Connect endpoint, delivered the prepared `payout.failed` event and
+  sent exactly one retry. Pooled `grainline_app_runtime` evidence proved one
+  processed generation-1 webhook lease, no seller or payout projection for the
+  unlinked account, and no lease change on retry. Cleanup deleted the
+  disposable account plus all raw-ID temporary records. Sanitized mode-`0600`
+  evidence is retained at
+  `archive/stripe-connect-signed-payout-proof-test-20260810-b9444e34.json`;
+  no raw provider ID or secret is present.
+- The immediate read-only provider audit passed the exact enabled test-mode
+  10/1/12 event topology for platform snapshot, classic Connect payout and
+  thin v2 account destinations. Sanitized mode-`0600` evidence is retained at
+  `archive/stripe-webhook-subscriptions-test-20260810-b9444e34.json`. Connect
+  is now enabled at reviewed test-mode provider stage 4. No deployment,
+  migration, database grant/RLS change, Vercel variable or secret change, or
+  Stripe live-mode operation occurred. Aggregate ops health, valid Connect v2
+  signed delivery, predecessor drain and final compatibility postflight remain
+  before StripeWebhookEvent activation; live-mode topology and signed delivery
+  remain a separate launch gate.
+- The authenticated aggregate ops-health request then acquired a fresh UTC-hour
+  bucket and returned HTTP 200 with `skipped=false`, all four Stripe
+  failure/lease counts at zero, a healthy SavedSearch canary and every other
+  operational issue count at zero. Sanitized evidence is retained at
+  `archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
+  This normal health invocation recorded only its bounded CronRun row and made
+  no provider, deployment, migration, grant, RLS, secret or live-mode change.
 
 ## Dependency security refresh (2026-07-25)
 

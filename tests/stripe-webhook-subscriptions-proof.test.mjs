@@ -171,6 +171,33 @@ describe("Stripe webhook subscriptions proof harness", () => {
     assert.doesNotMatch(serialized, /\b(?:sk_(?:live|test)|whsec)_/);
   });
 
+  it("retains the corrected exact three-surface test-mode provider inventory", () => {
+    const evidenceSource = source(
+      "archive/stripe-webhook-subscriptions-test-20260810-b9444e34.json",
+    );
+    const evidence = JSON.parse(evidenceSource);
+
+    assert.equal(evidence.status, "passed");
+    assert.equal(evidence.mode, "test-dry-run");
+    assert.equal(evidence.commitSha, "b9444e3488db9276c0d9f895043fe1fc32c850d1");
+    assert.equal(evidence.ciRunId, "31366490630");
+    assert.deepEqual(
+      evidence.checks.map(({ name, status }) => ({ name, status })),
+      [
+        { name: "legacy-snapshot-webhook-subscription", status: "passed" },
+        { name: "classic-connect-payout-webhook-subscription", status: "passed" },
+        { name: "connect-v2-thin-event-destination", status: "passed" },
+      ],
+    );
+    assert.equal(evidence.checks[0].enabledEvents.length, 10);
+    assert.deepEqual(evidence.checks[1].enabledEvents, ["payout.failed"]);
+    assert.equal(evidence.checks[2].enabledEvents.length, 12);
+    assert.equal(evidence.checks[2].eventPayload, "thin");
+    assert.deepEqual(evidence.checks[2].eventsFrom, ["other_accounts"]);
+    assert.deepEqual(evidence.issues, []);
+    assert.doesNotMatch(evidenceSource, /\b(?:sk_(?:live|test)|rk_(?:live|test)|whsec)_/);
+  });
+
   it("retains the successful fresh-bucket expanded ops-health result", () => {
     const evidence = JSON.parse(source(
       "archive/stripe-webhook-ops-health-compatible-production-20260809.json",
@@ -190,6 +217,31 @@ describe("Stripe webhook subscriptions proof harness", () => {
     ]) assert.equal(evidence.response[key], 0);
     assert.equal(evidence.response.savedSearchRlsCanaryStatus, "healthy");
     assert.equal(evidence.boundaries.migrationsRun, false);
+    assert.equal(evidence.boundaries.rlsChanged, false);
+    assert.equal(evidence.boundaries.grantsChanged, false);
+    assert.equal(evidence.boundaries.providerStateChanged, false);
+    assert.equal(evidence.boundaries.cleanupRun, false);
+    assert.equal(evidence.boundaries.cronRunRecorded, true);
+  });
+
+  it("retains the post-Connect fresh aggregate health acceptance", () => {
+    const evidence = JSON.parse(source(
+      "archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json",
+    ));
+
+    assert.equal(evidence.status, "passed");
+    assert.equal(evidence.commitSha, "b9444e3488db9276c0d9f895043fe1fc32c850d1");
+    assert.equal(evidence.ciRunId, "31366490630");
+    assert.equal(evidence.deploymentId, "dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP");
+    assert.equal(evidence.response.httpStatus, 200);
+    assert.equal(evidence.response.ok, true);
+    assert.equal(evidence.response.skipped, false);
+    assert.equal(evidence.response.savedSearchRlsCanaryStatus, "healthy");
+    for (const [key, value] of Object.entries(evidence.response)) {
+      if (key.endsWith("Count")) assert.equal(value, 0, key);
+    }
+    assert.equal(evidence.boundaries.migrationsRun, false);
+    assert.equal(evidence.boundaries.deploymentRun, false);
     assert.equal(evidence.boundaries.rlsChanged, false);
     assert.equal(evidence.boundaries.grantsChanged, false);
     assert.equal(evidence.boundaries.providerStateChanged, false);

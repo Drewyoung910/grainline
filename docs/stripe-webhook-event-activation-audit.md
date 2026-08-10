@@ -1,13 +1,13 @@
 # StripeWebhookEvent activation audit
 
 Status: audit and launch-proof conversion merged; compatible maintenance
-functions and exact compatible application are live in production. No
-activation migration, grant revocation, provider change or StripeWebhookEvent
-RLS change has occurred. Classic signed delivery and retry, rollback-only
-retention, expanded ops health and legacy restoration are proved. The
-three-surface provider topology in
-`docs/stripe-webhook-provider-topology-audit.md`, signed delivery for each
-surface and provider-subscription correction remain gates.
+functions and exact compatible application are live in production. Reviewed
+test-mode provider correction plus signed classic Connect delivery/retry now
+pass alongside exact platform/v2 topology checks, rollback-only retention,
+expanded ops health and legacy restoration. No activation migration, table
+grant revocation or StripeWebhookEvent RLS change has occurred. Connect v2
+signed delivery, predecessor drain and final compatibility postflight remain
+gates; live-mode provider proof remains a separate launch release.
 
 ## Exact reviewed stack
 
@@ -217,13 +217,15 @@ is:
    `20260805040000_prepare_stripe_webhook_maintenance_authority` migration from
    the resulting exact green main commit before deploying any PR #162 runtime
    call sites;
-3. **partially complete:** migration status and the global grant/RLS audit
-   passed; the exact compatible app is deployed; classic signed delivery and
-   retry, rollback-only retention, expanded aggregate health and legacy restore
-   passed. The provider review proved that platform snapshot events, Connect
-   v2 account events and classic Connect payout events require three distinct
-   source-bound surfaces. Their compatible implementation, exact subscription
-   correction and valid signed deliveries remain before this step is complete;
+3. **test-mode complete:** migration status and the global grant/RLS audit
+   passed; the exact compatible app is deployed; classic delivery/retry,
+   rollback-only retention, expanded aggregate health and legacy restore
+   passed. The three source-bound provider surfaces now have exact test-mode
+   subscription evidence, and the separately signed classic Connect
+   `payout.failed` delivery plus exact retry produced one unchanged
+   generation-1 lease. Valid Connect v2 signed delivery remains open. Live-mode
+   topology and signed deliveries remain separate launch evidence rather than
+   a prerequisite for the test-led RLS preparation;
 4. let the prior app deployment drain and verify no production route or job
    still uses direct table access;
 5. run the historical compatibility postflight for the final predecessor
@@ -290,13 +292,29 @@ SavedSearch canary; sanitized evidence is retained at
 Vercel's Sensitive-value readback mask prevented a synthetic valid Connect v2
 signature; that route remains an explicit evidence gate rather than a claimed
 pass. Predecessor drain and final postflight still precede activation. The
-read-only provider proof retained at
+earlier read-only provider proof retained at
 `archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
-also failed the exact-subscription contract: classic is missing 11 handled
+failed the exact-subscription contract: classic was missing 11 handled
 events and has four unused events, while v2 has three unused
 `v2.core.account_person.*` events. Provider configuration was not changed. The
 old expected classic event set mixed platform-account and connected-account
 sources and therefore cannot be applied safely as written. The replacement
 three-surface contract and release order are retained in
-`docs/stripe-webhook-provider-topology-audit.md`. Implementing and re-proving
-that contract precedes signed provider exercises and activation.
+`docs/stripe-webhook-provider-topology-audit.md`.
+
+That test-mode topology has since been corrected and re-proved. Exact proof
+release `b9444e3488db9276c0d9f895043fe1fc32c850d1`, CI `31366490630`,
+preparation release `0b718171e71700990bf8f9106ee880b116707bd3` / CI
+`31357207924` and compatible deployment
+`dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` produced one processed generation-1
+`payout.failed` lease under pooled runtime authority; the exact retry left the
+lease unchanged. The disposable account and raw recovery records were deleted.
+Sanitized signed evidence is retained at
+`archive/stripe-connect-signed-payout-proof-test-20260810-b9444e34.json`, and
+the subsequent exact 10/1/12 subscription proof is retained at
+`archive/stripe-webhook-subscriptions-test-20260810-b9444e34.json`. The fresh
+authenticated aggregate-health result also passed with all Stripe and other
+operational issue counts at zero and is retained at
+`archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
+Connect v2 signed delivery, predecessor drain and final compatibility
+postflight remain before activation.

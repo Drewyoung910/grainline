@@ -1,9 +1,11 @@
 # Stripe webhook provider topology audit
 
-Status: compatible three-surface application merged on `main`; provider and
-release gates remain open. No Stripe endpoint, event subscription, signing
-secret, application deployment, database row, migration, RLS posture or grant
-was changed by the merge or this sequencing correction.
+Status: compatible three-surface application and reviewed test-mode provider
+topology are live. Exact subscription proof passed for the platform snapshot,
+classic Connect payout and thin Connect v2 account surfaces; separate signed
+classic snapshot and classic Connect payout delivery/retry proofs passed.
+Connect v2 signed-delivery evidence, StripeWebhookEvent RLS, table-grant
+revocation and all Stripe live-mode work remain separate gates.
 
 Audited: 2026-08-09
 
@@ -185,6 +187,45 @@ the canonical URL, reverify its retained `connect=true` creation attestation
 and exact event set, then enable it for a provider-authenticated delivery and
 exact retry.
 
+## Test-mode provider acceptance (2026-08-10)
+
+Provider steps 6 and 7 now pass for test mode. The corrected proof release is
+exact `main` `b9444e3488db9276c0d9f895043fe1fc32c850d1`, exact-main CI
+`31366490630`, preparation release
+`0b718171e71700990bf8f9106ee880b116707bd3` / CI `31357207924`, and compatible
+production deployment `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`.
+
+The signed classic Connect proof delivered one prepared test-mode
+`payout.failed` event and exactly retried it. The pooled runtime database saw
+one processed generation-1 lease and no seller or payout projection for the
+unlinked disposable account; the retry did not change the lease. Cleanup
+deleted the disposable account and every raw-ID local recovery record. The
+hashed, secret-free proof is retained at
+`archive/stripe-connect-signed-payout-proof-test-20260810-b9444e34.json`.
+
+The immediate read-only provider audit passed all exact test-mode topology
+checks and is retained at
+`archive/stripe-webhook-subscriptions-test-20260810-b9444e34.json`:
+
+- the platform snapshot endpoint is enabled with exactly ten reviewed events;
+- the classic Connect endpoint is enabled with only `payout.failed`; and
+- the thin v2 destination is enabled for `other_accounts` with exactly the
+  twelve reviewed `v2.core.account` events.
+
+The subsequent authenticated aggregate-health request acquired a fresh
+UTC-hour bucket and returned HTTP 200 with `skipped=false`, all four Stripe
+failure/lease counts at zero, a healthy SavedSearch canary and every other
+operational issue count at zero. Sanitized evidence is retained at
+`archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
+
+None of these artifacts proves Stripe live-mode configuration or live-money
+signed delivery. Those require separately scoped endpoints, secrets,
+deployment and provider evidence before launch. The read-only topology artifact
+also does not replace a valid Connect v2 signed-delivery proof. The remaining
+immediate RLS predecessor steps are Connect v2 signed delivery or a separately
+reviewed decision that it is launch-only, drain and the final compatibility
+postflight.
+
 ## Required implementation and release proof
 
 Stripe returns a classic webhook endpoint's signing secret only in the create
@@ -245,19 +286,19 @@ the canonical route exists but cannot authenticate provider deliveries. Never
 write the creation response, signing secret, Stripe API key or Vercel secret
 input to a repository artifact, shell trace or CI log.
 
-The unexecuted restart-safe implementation of step 6 is documented in
+The restart-safe implementation and accepted test-mode execution of step 6 are documented in
 `docs/stripe-connect-provider-cutover-operator.md`. Its provider-state machine
 pins the exact observed predecessor: six platform events; twelve reviewed v2
 account events plus exactly three removable `account_person` extras; and the
-disabled, single-event Connect bootstrap. The configuration operator stops at
-disabled canonical stage 3. A separate signed-payout operator creates only a
-fresh test account, derives the release marker internally, proves the real
-`no_account` failure, enables only inside delivery proof, resends the exact
-event, proves the processed lease unchanged by replay, journals that verified
-lease before account cleanup, and disables on every pre-completion failure after
-a fresh provider read. This includes an enable response lost after Stripe
-accepted the mutation. A post-deletion restart performs no additional resend.
-Preparing those operators changes no provider or production state.
+disabled, single-event Connect bootstrap. The configuration operator stopped
+at disabled canonical stage 3. The separate signed-payout operator created
+only a fresh test account, derived the release marker internally, proved the
+real `no_account` failure, enabled only inside delivery proof, resent the exact
+event, proved the processed lease unchanged by replay, journaled that verified
+lease before account cleanup and deleted the disposable account. Its guarded
+failure path still disables on every pre-completion failure after a fresh
+provider read, including an enable response lost after Stripe accepted the
+mutation. A post-deletion restart performs no additional resend.
 
 The provider work needs no StripeWebhookEvent table grant, RLS policy or new
 database function. All three routes must use the already-reviewed fixed lease

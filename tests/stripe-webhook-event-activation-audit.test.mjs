@@ -18,6 +18,7 @@ function filesUnder(root, suffix) {
 }
 
 test("activation audit pins the accepted compatible stack and remaining boundary", () => {
+  const normalizedAudit = audit.replace(/\s+/g, " ");
   assert.match(audit, /PR #160 is merged[\s\S]*6f1f4c1e99fb21726744ecd1652a37b6be35c294/);
   assert.match(audit, /31277540714/);
   assert.match(audit, /PR #161[\s\S]*d2ef37b4c86a0ff174016be77113fa1b888131b4/);
@@ -27,15 +28,17 @@ test("activation audit pins the accepted compatible stack and remaining boundary
   assert.match(audit, /31284293394/);
   assert.match(audit, /31290691183/);
   assert.match(audit, /dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3/);
-  assert.match(audit, /classic signed delivery and\s+retry/);
+  assert.match(normalizedAudit, /signed classic Connect delivery\/retry/);
   assert.match(audit, /stripe-webhook-provider-topology-audit\.md/);
-  assert.match(audit, /platform snapshot events, Connect\s+v2 account events and classic Connect payout events/);
-  assert.match(audit, /valid signed deliveries/);
+  assert.match(normalizedAudit, /three source-bound provider surfaces now have exact test-mode subscription evidence/);
+  assert.match(normalizedAudit, /Connect v2 signed delivery remains open/);
   assert.match(audit, /stripe-webhook-ops-health-compatible-production-20260809\.json/);
   assert.match(audit, /all four Stripe counts at zero/);
   assert.match(audit, /stripe-webhook-subscriptions-compatible-production-20260808\.json/);
-  assert.match(audit, /classic is missing 11 handled\s+events/);
-  assert.match(audit, /v2 has three unused/);
+  assert.match(audit, /stripe-connect-signed-payout-proof-test-20260810-b9444e34\.json/);
+  assert.match(audit, /stripe-webhook-subscriptions-test-20260810-b9444e34\.json/);
+  assert.match(audit, /stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34\.json/);
+  assert.match(normalizedAudit, /Connect v2 signed delivery, predecessor drain and final compatibility postflight remain before activation/);
   assert.match(audit, /predecessor table posture/);
 });
 

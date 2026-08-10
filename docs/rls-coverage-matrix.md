@@ -94,7 +94,7 @@ completed alternative.
 | `EmailOutbox` | `ALTERNATIVE_REVIEW` | Email service ledgers | Recipient PII and rendered email content; producers, sender cron and operations | Dedicated producer and worker operations, least-privilege reads and retention proof |
 | `AccountDeletionSideEffect` | `ALTERNATIVE_REVIEW` | Account lifecycle service | Deletion payloads and retry state; account deletion, worker and operations | Service-only durable queue with target-user cleanup semantics and ordinary runtime denial |
 | `SupportRequest` | `BLOCKED_DESIGN` | Support | User or anonymous contact PII and case text; requester and staff | Authenticated-owner versus anonymous submission design, staff queue and retention rules |
-| `StripeWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Stripe idempotency and errors; webhook handler and operations | Six fixed service operations and exact compatible app deployment `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3` are live; classic delivery/retry, maintenance/legacy paths and expanded ops-health passed. The read-only provider audit found event-set drift and corrected the design contract to three source-bound surfaces: platform snapshot, Connect v2 account and classic Connect payout. RLS/FORCE remain off and predecessor grants remain until compatible topology implementation, provider correction, signed-delivery evidence, drain and final predecessor proof complete |
+| `StripeWebhookEvent` | `ALTERNATIVE_REVIEW` | Provider event ledgers | Stripe idempotency and errors; webhook handler and operations | Six fixed service operations and compatible deployment `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` are live. Exact test-mode topology passes for platform snapshot, Connect v2 account and classic Connect payout; separately signed `payout.failed` delivery plus exact retry produced one unchanged generation-1 runtime lease, and fresh aggregate health passed with every issue count at zero. RLS/FORCE remain off and predecessor grants remain until Connect v2 delivery, drain and final predecessor proof complete; live-mode provider evidence remains a separate launch gate |
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
@@ -216,12 +216,12 @@ preclude a later reviewed policy or grant migration.
    outside that database boundary.
 6. Continue the Order/payment/shipping program: the StripeWebhookEvent
    compatible source, additive maintenance preparation and exact compatible
-   deployment are live. Implement the three source-bound webhook surfaces in
-   `docs/stripe-webhook-provider-topology-audit.md` before correcting the
-   read-only-proven provider drift in its own boundary. Complete signed
-   delivery evidence for every surface, then drain and run the final
-   predecessor postflight before the separate activation release. The expanded
-   ops-health result is already green.
+   deployment are live. The three source-bound webhook surfaces now pass exact
+   test-mode topology checks, and classic Connect signed delivery plus retry is
+   proved, and the fresh aggregate-health check is green. Complete Connect v2
+   delivery, then drain and run the final predecessor postflight before the separate
+   activation release. Keep live-mode provider topology and signed delivery as
+   a distinct launch gate.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger
