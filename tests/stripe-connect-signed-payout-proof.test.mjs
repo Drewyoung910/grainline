@@ -23,6 +23,7 @@ import {
   assertOnlyReviewedEvidenceIsUntracked,
   assertPayoutEvent,
   assertPreparationEvidence,
+  assertStripeCliVersionOutput,
   buildCanaryAccountParams,
   buildCanaryAccountLinkParams,
   parseStripeConnectPayoutProofConfig,
@@ -31,6 +32,8 @@ import {
 
 const COMMIT = "b".repeat(40);
 const CI_RUN = "31340000001";
+const PREPARATION_COMMIT = "c".repeat(40);
+const PREPARATION_CI_RUN = "31357207924";
 const CUTOVER_COMMIT = "a".repeat(40);
 const CUTOVER_CI_RUN = "31339275512";
 const DEPLOYMENT_ID = "dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP";
@@ -62,6 +65,8 @@ function baseEnv(mode = "prepare", overrides = {}) {
     STRIPE_CONNECT_PAYOUT_PROOF_EVIDENCE_PATH:
       `archive/stripe-connect-payout-${mode}-test-${COMMIT}.json`,
     ...(mode === "prove" ? {
+      STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_COMMIT: PREPARATION_COMMIT,
+      STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_CI_RUN_ID: PREPARATION_CI_RUN,
       STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_EVIDENCE_PATH:
         `archive/stripe-connect-payout-prepare-test-${COMMIT}.json`,
     } : {}),
@@ -76,8 +81,8 @@ function baseEnv(mode = "prepare", overrides = {}) {
 function marker(config) {
   return createHash("sha256").update([
     "grainline-stripe-connect-payout-canary-v1",
-    config.expectedCommit,
-    config.ciRunId,
+    config.preparationCommit,
+    config.preparationCiRunId,
     config.deploymentId,
   ].join(":")).digest("hex");
 }
@@ -126,8 +131,8 @@ function preparationEvidence(config) {
     phase: "stripe-connect-disposable-payout-preparation",
     status: "passed",
     mode: "test",
-    commit: config.expectedCommit,
-    ciRunId: config.ciRunId,
+    commit: config.preparationCommit,
+    ciRunId: config.preparationCiRunId,
     deploymentId: config.deploymentId,
     stripe: {
       accountIdSha256: createHash("sha256").update(ACCOUNT_ID).digest("hex"),
@@ -150,8 +155,8 @@ function preparationAttempt(config, overrides = {}) {
   return {
     phase: "stripe-connect-disposable-payout-attempt",
     status: "pending",
-    commit: config.expectedCommit,
-    ciRunId: config.ciRunId,
+    commit: config.preparationCommit,
+    ciRunId: config.preparationCiRunId,
     deploymentId: config.deploymentId,
     attemptId: ATTEMPT_ID,
     startedSeconds: Math.floor(Date.now() / 1000) - 5,
@@ -277,8 +282,8 @@ function preparedHandoff(config, created = Math.floor(Date.now() / 1000)) {
   return {
     phase: "stripe-connect-disposable-payout-handoff",
     status: "prepared",
-    commit: config.expectedCommit,
-    ciRunId: config.ciRunId,
+    commit: config.preparationCommit,
+    ciRunId: config.preparationCiRunId,
     deploymentId: config.deploymentId,
     marker: marker(config),
     preparationAttemptId: ATTEMPT_ID,
@@ -320,6 +325,8 @@ test("configuration is exact-main, test-mode and runtime-role bound", () => {
   assert.equal(prepare.mode, "prepare");
   const prove = parseStripeConnectPayoutProofConfig(baseEnv("prove"));
   assert.equal(prove.runtimeGuard.runtimeRole, "grainline_app_runtime");
+  assert.notEqual(prove.preparationCommit, prove.expectedCommit);
+  assert.notEqual(prove.preparationCiRunId, prove.ciRunId);
   assert.throws(
     () => parseStripeConnectPayoutProofConfig(baseEnv("prepare", {
       STRIPE_SECRET_KEY: "sk_live_no",
@@ -338,6 +345,31 @@ test("configuration is exact-main, test-mode and runtime-role bound", () => {
         `archive/stripe-connect-provider-cutover-test-${COMMIT}.json`,
     })),
     /evidence paths must be distinct/,
+  );
+  const missingPreparationRelease = baseEnv("prove");
+  delete missingPreparationRelease.STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_COMMIT;
+  assert.throws(
+    () => parseStripeConnectPayoutProofConfig(missingPreparationRelease),
+    /PREPARATION_COMMIT is required/,
+  );
+});
+
+test("Stripe CLI version parsing accepts only the exact pin and known update notice", () => {
+  assert.equal(assertStripeCliVersionOutput("stripe version 1.39.0\n"), "1.39.0");
+  assert.equal(assertStripeCliVersionOutput([
+    "stripe version 1.39.0",
+    "Checking for new versions...",
+    "",
+    "A newer version of the Stripe CLI is available, please update to: v1.45.1",
+    "",
+  ].join("\n")), "1.39.0");
+  assert.throws(
+    () => assertStripeCliVersionOutput("stripe version 1.45.1\n"),
+    /version drifted from 1\.39\.0/,
+  );
+  assert.throws(
+    () => assertStripeCliVersionOutput("stripe version 1.39.0\nunexpected output\n"),
+    /unexpected suffix/,
   );
 });
 
@@ -409,6 +441,14 @@ test("preparation evidence is source-bound and rejects a different handoff", () 
     config,
     handoff,
   ));
+  assert.throws(
+    () => assertPreparationEvidence({
+      ...preparationEvidence(config),
+      commit: config.expectedCommit,
+      ciRunId: config.ciRunId,
+    }, config, handoff),
+    /not the exact reviewed predecessor/,
+  );
   assert.throws(
     () => assertPreparationEvidence(preparationEvidence(config), config, {
       ...handoff,
@@ -720,8 +760,8 @@ test("prepare resumes the same account after hosted onboarding and removes only 
       readOnboardingRecord: async () => ({
         phase: "stripe-connect-disposable-payout-onboarding-handoff",
         status: "onboarding-required",
-        commit: config.expectedCommit,
-        ciRunId: config.ciRunId,
+        commit: config.preparationCommit,
+        ciRunId: config.preparationCiRunId,
         deploymentId: config.deploymentId,
         marker: marker(config),
         preparationAttemptId: ATTEMPT_ID,
@@ -861,6 +901,10 @@ test("prove enables, delivers, retries unchanged, deletes the canary and retains
   });
   assert.deepEqual(deps.calls, ["connect:enable"]);
   assert.doesNotMatch(JSON.stringify(evidence), /acct_disposable|po_disposable|evt_disposable|sk_test/);
+  assert.deepEqual(evidence.preparation, {
+    commit: PREPARATION_COMMIT,
+    ciRunId: PREPARATION_CI_RUN,
+  });
   assert.equal(evidence.database.exactRetryLeftLeaseUnchanged, true);
 });
 
@@ -1108,6 +1152,8 @@ test("package and durable docs keep preparation, enable and cleanup separate", (
   assert.match(normalizedDocs, /fresh disposable test connected account/);
   assert.match(docs, /exact retry/);
   assert.match(docs, /disabled canonical stage 3/);
+  assert.match(docs, /STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_COMMIT/);
+  assert.match(docs, /exact first version line/);
   const source = readFileSync("scripts/stripe-connect-signed-payout-proof.mjs", "utf8");
   assert.match(source, /randomUUID\(\)/);
   assert.match(source, /connect-disable/);
@@ -1115,6 +1161,8 @@ test("package and durable docs keep preparation, enable and cleanup separate", (
   assert.match(source, /preparationAttemptId/);
   assert.match(source, /preparationAttemptIdSha256/);
   assert.match(source, /payout source mutation requires a durable preparation attempt/);
+  assert.match(source, /assertStripeCliVersionOutput/);
+  assert.match(source, /config\.preparationCommit/);
   assert.doesNotMatch(source, /connect-enable-disable/);
   assert.doesNotMatch(
     source,
@@ -1125,11 +1173,13 @@ test("package and durable docs keep preparation, enable and cleanup separate", (
 
 test("retained payout preparation evidence remains exact and secret-free", () => {
   const retainedConfig = {
-    ciRunId: "31357207924",
+    ciRunId: "31362408576",
     cutoverCiRunId: "31339275512",
     cutoverCommit: "abd49d703ec37349c84b0c70912ffb655faac5e3",
     deploymentId: DEPLOYMENT_ID,
-    expectedCommit: "0b718171e71700990bf8f9106ee880b116707bd3",
+    expectedCommit: "7d8b169bd0f76e0f9930780fec8db116374c9f18",
+    preparationCiRunId: "31357207924",
+    preparationCommit: "0b718171e71700990bf8f9106ee880b116707bd3",
   };
   const cutoverPath =
     "archive/stripe-connect-provider-cutover-test-20260809-abd49d70.json";

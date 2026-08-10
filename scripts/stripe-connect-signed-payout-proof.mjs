@@ -77,6 +77,32 @@ function safeError(error) {
   return redact(error instanceof Error ? error.message || error.name : error);
 }
 
+export function assertStripeCliVersionOutput(
+  output,
+  expectedVersion = STRIPE_CLI_VERSION,
+) {
+  const lines = String(output ?? "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.shift() !== `stripe version ${expectedVersion}`) {
+    throw new Error(`Stripe CLI version drifted from ${expectedVersion}`);
+  }
+  if (lines.length === 0) return expectedVersion;
+  if (lines.shift() !== "Checking for new versions...") {
+    throw new Error("Stripe CLI version output contained an unexpected suffix");
+  }
+  if (lines.length === 0) return expectedVersion;
+  if (
+    lines.length !== 1
+    || !/^A newer version of the Stripe CLI is available, please update to: v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(lines[0])
+  ) {
+    throw new Error("Stripe CLI version output contained an unexpected suffix");
+  }
+  return expectedVersion;
+}
+
 function childProcessEnvironment(extra = {}) {
   const environment = {};
   for (const key of [
@@ -150,11 +176,23 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
   }
   const expectedCommit = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_EXPECTED_COMMIT");
   const ciRunId = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_CI_RUN_ID");
+  const preparationCommit = mode === "prepare"
+    ? expectedCommit
+    : required(env, "STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_COMMIT");
+  const preparationCiRunId = mode === "prepare"
+    ? ciRunId
+    : required(env, "STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_CI_RUN_ID");
   const cutoverCommit = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_COMMIT");
   const cutoverCiRunId = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_CI_RUN_ID");
   const deploymentId = required(env, "STRIPE_CONNECT_PAYOUT_PROOF_DEPLOYMENT_ID");
   if (!COMMIT_PATTERN.test(expectedCommit)) throw new Error("expected commit is invalid");
   if (!RUN_ID_PATTERN.test(ciRunId)) throw new Error("CI run ID is invalid");
+  if (!COMMIT_PATTERN.test(preparationCommit)) {
+    throw new Error("preparation commit is invalid");
+  }
+  if (!RUN_ID_PATTERN.test(preparationCiRunId)) {
+    throw new Error("preparation CI run ID is invalid");
+  }
   if (!COMMIT_PATTERN.test(cutoverCommit)) throw new Error("cutover commit is invalid");
   if (!RUN_ID_PATTERN.test(cutoverCiRunId)) throw new Error("cutover CI run ID is invalid");
   if (!DEPLOYMENT_PATTERN.test(deploymentId)) throw new Error("deployment ID is invalid");
@@ -186,6 +224,8 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
     mode,
     onboardingPath: `${resolvedHandoffPath}.onboarding`,
     preparationAttemptPath: `${resolvedHandoffPath}.attempt`,
+    preparationCiRunId,
+    preparationCommit,
     preparationEvidencePath,
     secretKey,
     stripeCliPath: path.resolve(
@@ -244,8 +284,8 @@ export function parseStripeConnectPayoutProofConfig(env = process.env) {
 function markerFor(config) {
   return sha256([
     "grainline-stripe-connect-payout-canary-v1",
-    config.expectedCommit,
-    config.ciRunId,
+    config.preparationCommit,
+    config.preparationCiRunId,
     config.deploymentId,
   ].join(":"));
 }
@@ -319,8 +359,8 @@ export function assertPreparationEvidence(
     payload?.phase !== "stripe-connect-disposable-payout-preparation"
     || payload?.status !== "passed"
     || payload?.mode !== "test"
-    || payload?.commit !== config.expectedCommit
-    || String(payload?.ciRunId) !== String(config.ciRunId)
+    || payload?.commit !== config.preparationCommit
+    || String(payload?.ciRunId) !== String(config.preparationCiRunId)
     || payload?.deploymentId !== config.deploymentId
     || payload?.stripe?.eventType !== "payout.failed"
     || payload?.stripe?.failureCode !== REQUIRED_FAILURE_CODE
@@ -569,8 +609,8 @@ function assertOnboardingRecord(payload, config, attempt = null) {
   if (
     payload?.phase !== "stripe-connect-disposable-payout-onboarding-handoff"
     || payload?.status !== "onboarding-required"
-    || payload?.commit !== config.expectedCommit
-    || String(payload?.ciRunId) !== String(config.ciRunId)
+    || payload?.commit !== config.preparationCommit
+    || String(payload?.ciRunId) !== String(config.preparationCiRunId)
     || payload?.deploymentId !== config.deploymentId
     || payload?.marker !== markerFor(config)
     || !/^[a-f0-9-]{36}$/.test(payload?.preparationAttemptId ?? "")
@@ -615,8 +655,8 @@ function assertPreparationAttempt(payload, config) {
   if (
     payload?.phase !== "stripe-connect-disposable-payout-attempt"
     || payload?.status !== "pending"
-    || payload?.commit !== config.expectedCommit
-    || String(payload?.ciRunId) !== String(config.ciRunId)
+    || payload?.commit !== config.preparationCommit
+    || String(payload?.ciRunId) !== String(config.preparationCiRunId)
     || payload?.deploymentId !== config.deploymentId
     || !/^[a-f0-9-]{36}$/.test(payload?.attemptId ?? "")
     || !Number.isSafeInteger(payload?.startedSeconds)
@@ -644,8 +684,8 @@ function reserveOrResumePreparationAttempt(config) {
   const payload = {
     phase: "stripe-connect-disposable-payout-attempt",
     status: "pending",
-    commit: config.expectedCommit,
-    ciRunId: config.ciRunId,
+    commit: config.preparationCommit,
+    ciRunId: config.preparationCiRunId,
     deploymentId: config.deploymentId,
     attemptId: randomUUID(),
     startedSeconds: Math.floor(Date.now() / 1000) - 5,
@@ -693,8 +733,8 @@ function readHandoff(config) {
   if (
     payload?.phase !== "stripe-connect-disposable-payout-handoff"
     || (!prepared && !deliveryVerified)
-    || payload?.commit !== config.expectedCommit
-    || String(payload?.ciRunId) !== String(config.ciRunId)
+    || payload?.commit !== config.preparationCommit
+    || String(payload?.ciRunId) !== String(config.preparationCiRunId)
     || payload?.deploymentId !== config.deploymentId
     || payload?.marker !== markerFor(config)
     || !/^[a-f0-9-]{36}$/.test(payload?.preparationAttemptId ?? "")
@@ -718,6 +758,8 @@ function assertFinalProofEvidence(payload, config, handoff = null) {
     || String(payload?.ciRunId) !== String(config.ciRunId)
     || payload?.deploymentId !== config.deploymentId
     || payload?.providerStage !== 4
+    || payload?.preparation?.commit !== config.preparationCommit
+    || String(payload?.preparation?.ciRunId) !== String(config.preparationCiRunId)
     || payload?.stripe?.eventType !== "payout.failed"
     || payload?.stripe?.failureCode !== REQUIRED_FAILURE_CODE
     || payload?.stripe?.connectUrl !== CONNECT_URL
@@ -804,8 +846,8 @@ async function preparePayoutCanary({ config, deps, preparationAttempt }) {
       const onboarding = assertOnboardingRecord({
         phase: "stripe-connect-disposable-payout-onboarding-handoff",
         status: "onboarding-required",
-        commit: config.expectedCommit,
-        ciRunId: config.ciRunId,
+        commit: config.preparationCommit,
+        ciRunId: config.preparationCiRunId,
         deploymentId: config.deploymentId,
         marker: markerFor(config),
         preparationAttemptId: attempt.attemptId,
@@ -817,8 +859,8 @@ async function preparePayoutCanary({ config, deps, preparationAttempt }) {
       return Object.freeze({
         phase: "stripe-connect-disposable-payout-onboarding",
         status: "onboarding-required",
-        commit: config.expectedCommit,
-        ciRunId: config.ciRunId,
+        commit: config.preparationCommit,
+        ciRunId: config.preparationCiRunId,
         deploymentId: config.deploymentId,
         connectEndpointEnabled: false,
         rawProviderIdsPersistedInOutput: false,
@@ -886,8 +928,8 @@ async function preparePayoutCanary({ config, deps, preparationAttempt }) {
     const handoff = {
       phase: "stripe-connect-disposable-payout-handoff",
       status: "prepared",
-      commit: config.expectedCommit,
-      ciRunId: config.ciRunId,
+      commit: config.preparationCommit,
+      ciRunId: config.preparationCiRunId,
       deploymentId: config.deploymentId,
       marker: markerFor(config),
       preparationAttemptId: attempt.attemptId,
@@ -902,8 +944,8 @@ async function preparePayoutCanary({ config, deps, preparationAttempt }) {
       phase: "stripe-connect-disposable-payout-preparation",
       status: "passed",
       mode: "test",
-      commit: config.expectedCommit,
-      ciRunId: config.ciRunId,
+      commit: config.preparationCommit,
+      ciRunId: config.preparationCiRunId,
       deploymentId: config.deploymentId,
       stripe: {
         accountIdSha256: sha256(accountId),
@@ -1202,6 +1244,10 @@ async function proveSignedDelivery({
       ciRunId: config.ciRunId,
       deploymentId: config.deploymentId,
       providerStage: provider.stage,
+      preparation: {
+        commit: config.preparationCommit,
+        ciRunId: config.preparationCiRunId,
+      },
       stripe: {
         accountIdSha256: sha256(ids.accountId),
         payoutIdSha256: sha256(ids.payoutId),
@@ -1399,7 +1445,7 @@ async function createStripeDependencies(config, preparationAttemptId = null) {
     }
     return {
       idempotencyKey:
-        `grainline-connect-payout-${config.expectedCommit}-${config.ciRunId}`
+        `grainline-connect-payout-${config.preparationCommit}-${config.preparationCiRunId}`
         + `-${preparationAttemptId}-${key}`,
       ...(accountId ? { stripeAccount: accountId } : {}),
     };
@@ -1428,7 +1474,7 @@ async function createStripeDependencies(config, preparationAttemptId = null) {
       params,
       {
         idempotencyKey:
-          `grainline-connect-payout-${config.expectedCommit}-${config.ciRunId}`
+          `grainline-connect-payout-${config.preparationCommit}-${config.preparationCiRunId}`
           + `-${preparationAttemptId}-hosted-onboarding-${invocationId}`,
       },
     ),
@@ -1462,13 +1508,11 @@ async function createStripeDependencies(config, preparationAttemptId = null) {
           STRIPE_API_KEY: secretKey,
           XDG_CONFIG_HOME: cliConfigRoot,
         });
-        const cliVersion = command(stripeCliPath, ["version"], {
+        const cliVersionOutput = command(stripeCliPath, ["version", "--color", "off"], {
           env: cliEnvironment,
           label: "Stripe CLI version check",
-        }).trim();
-        if (cliVersion !== `stripe version ${STRIPE_CLI_VERSION}`) {
-          throw new Error(`Stripe CLI version drifted from ${STRIPE_CLI_VERSION}`);
-        }
+        });
+        assertStripeCliVersionOutput(cliVersionOutput);
         command(stripeCliPath, [
           "events",
           "resend",
