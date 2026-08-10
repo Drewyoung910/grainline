@@ -15,16 +15,19 @@ import {
   getCheckoutLock,
   markCheckoutLockReady,
   releaseCheckoutLock,
+  releasePreparingCheckoutLock,
   singleCheckoutLockKey,
 } from "@/lib/checkoutSessionLock";
 import {
-  CheckoutStockReservationStockError,
   checkoutStockReservationMetadata,
-  createCheckoutStockReservation,
-  markCheckoutStockReservationSession,
-  restoreCheckoutStockReservationOnce,
-  restoreUnorderedCheckoutStockOnce,
+  restoreBuyerExpiredCheckoutStockOnce,
 } from "@/lib/checkoutStockRestore";
+import {
+  abortCheckoutStockReservation,
+  bindCheckoutStockReservationSession,
+  createSingleCheckoutStockReservation,
+  isCheckoutStockUnavailableDatabaseError,
+} from "@/lib/checkoutStockReservationAuthority";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
@@ -86,8 +89,12 @@ export async function POST(req: Request) {
   let checkoutReservationItemCount = 0;
   let checkoutLockKeyValue: string | null = null;
   let checkoutLockAcquired = false;
+  let checkoutLockOwnerToken: string | null = null;
   let createdCheckoutSessionId: string | null = null;
   let createdCheckoutSessionExpired = false;
+  let checkoutBuyerId: string | null = null;
+  let checkoutPayloadHashValue: string | null = null;
+  let checkoutReservationSessionBound = false;
 
   try {
     const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
@@ -102,6 +109,7 @@ export async function POST(req: Request) {
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many checkout attempts."));
 
     const me = await ensureUserByClerkId(userId);
+    checkoutBuyerId = me.id;
 
     let body;
     try {
@@ -357,7 +365,10 @@ export async function POST(req: Request) {
       );
     }
 
-    checkoutLockAcquired = await acquireCheckoutLock(checkoutLockKeyValue, payloadHash);
+    checkoutPayloadHashValue = payloadHash;
+    const checkoutLockOwnerTokenValue = await acquireCheckoutLock(checkoutLockKeyValue, payloadHash);
+    checkoutLockOwnerToken = checkoutLockOwnerTokenValue;
+    checkoutLockAcquired = checkoutLockOwnerTokenValue !== null;
     if (!checkoutLockAcquired) {
       const racedCheckoutLock = await getCheckoutLock(checkoutLockKeyValue);
       if (
@@ -377,6 +388,9 @@ export async function POST(req: Request) {
         { status: HTTP_STATUS.CONFLICT },
       );
     }
+    if (!checkoutLockOwnerTokenValue) {
+      throw new Error("Checkout lock acquisition returned no ownership token");
+    }
 
     const reservableItems = listing.listingType === "IN_STOCK"
       ? [{
@@ -388,17 +402,16 @@ export async function POST(req: Request) {
       : [];
     checkoutReservationItemCount = reservableItems.length;
     try {
-      const reservation = await createCheckoutStockReservation({
-        checkoutLockKey: checkoutLockKeyValue,
+      const reservation = await createSingleCheckoutStockReservation({
+        listingId: listing.id,
+        quantity: body.quantity,
         payloadHash,
         buyerId: me.id,
-        sellerId: listing.sellerId,
-        items: reservableItems,
       });
       checkoutReservationId = reservation?.id ?? null;
     } catch (reservationError) {
-      await releaseCheckoutLock(checkoutLockKeyValue);
-      if (reservationError instanceof CheckoutStockReservationStockError) {
+      await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      if (isCheckoutStockUnavailableDatabaseError(reservationError)) {
         return privateJson(
           { error: "Not enough stock available for this item." },
           { status: HTTP_STATUS.BAD_REQUEST },
@@ -552,8 +565,9 @@ export async function POST(req: Request) {
     createdCheckoutSessionId = session.id;
 
     if (checkoutReservationId) {
-      const reservationSessionRecorded = await markCheckoutStockReservationSession({
+      const reservationSessionRecorded = await bindCheckoutStockReservationSession({
         reservationId: checkoutReservationId,
+        buyerId: me.id,
         payloadHash,
         sessionId: session.id,
       });
@@ -571,25 +585,31 @@ export async function POST(req: Request) {
           Sentry.captureException(error, { tags: { source: "checkout_stock_reservation_expire_stale" } });
         });
         if (staleSessionExpired) {
-          await restoreCheckoutStockReservationOnce({
+          const abortResult = await abortCheckoutStockReservation({
             reservationId: checkoutReservationId,
-            sessionId: session.id,
-            reason: "session_record_failed",
+            buyerId: me.id,
+            payloadHash,
           }).catch((error) => {
             Sentry.captureException(error, { tags: { source: "checkout_stock_reservation_restore_stale" } });
+            return null;
           });
+          if (abortResult && abortResult.result !== "retained") {
+            await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+          }
         }
         return privateJson(
           { error: "Checkout state changed. Please try again." },
           { status: HTTP_STATUS.CONFLICT },
         );
       }
+      checkoutReservationSessionBound = true;
     }
 
     try {
       const lockMarkedReady = await markCheckoutLockReady(
         checkoutLockKeyValue,
         payloadHash,
+        checkoutLockOwnerTokenValue,
         session.id,
         session.client_secret,
       );
@@ -610,12 +630,15 @@ export async function POST(req: Request) {
           Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
         });
         if (staleSessionExpired) {
-          await restoreUnorderedCheckoutStockOnce({
-            sessionId: session.id,
-            metadata: checkoutMetadata,
-          }).catch((error) => {
-            Sentry.captureException(error, { tags: { source: "checkout_lock_restore_stale" } });
-          });
+          if (checkoutReservationId) {
+            await restoreBuyerExpiredCheckoutStockOnce({
+              buyerId: me.id,
+              sessionId: session.id,
+              metadata: checkoutMetadata,
+            });
+          }
+          await releaseCheckoutLock(checkoutLockKeyValue, session.id);
+          await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
         }
         return privateJson(
           { error: "Checkout state changed. Please try again." },
@@ -638,16 +661,15 @@ export async function POST(req: Request) {
         Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
       });
       if (staleSessionExpired) {
-        await restoreUnorderedCheckoutStockOnce({
-          sessionId: session.id,
-          metadata: checkoutMetadata,
-        }).catch((error) => {
-          Sentry.captureException(error, { tags: { source: "checkout_lock_restore_stale" } });
-        });
-        const sessionBoundLockReleased = await releaseCheckoutLock(checkoutLockKeyValue, session.id);
-        if (!sessionBoundLockReleased) {
-          await releaseCheckoutLock(checkoutLockKeyValue);
+        if (checkoutReservationId) {
+          await restoreBuyerExpiredCheckoutStockOnce({
+            buyerId: me.id,
+            sessionId: session.id,
+            metadata: checkoutMetadata,
+          });
         }
+        await releaseCheckoutLock(checkoutLockKeyValue, session.id);
+        await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
       }
       return privateJson(
         { error: "Checkout state changed. Please try again." },
@@ -683,19 +705,45 @@ export async function POST(req: Request) {
     }
 
     const reservationCanBeRestored = !createdCheckoutSessionId || createdCheckoutSessionExpired;
-    if (checkoutReservationId && reservationCanBeRestored) {
-      await restoreCheckoutStockReservationOnce({
-        reservationId: checkoutReservationId,
+    let databaseReservationReleased = !checkoutReservationId;
+    if (
+      checkoutReservationId &&
+      reservationCanBeRestored &&
+      checkoutReservationSessionBound &&
+      createdCheckoutSessionId &&
+      checkoutBuyerId
+    ) {
+      databaseReservationReleased = await restoreBuyerExpiredCheckoutStockOnce({
+        buyerId: checkoutBuyerId,
         sessionId: createdCheckoutSessionId,
-        reason: "checkout_create_error",
-        releaseLock: false,
+        metadata: { checkoutReservationId },
+      }).then(() => true).catch((restoreError) => {
+        Sentry.captureException(restoreError, {
+          level: "warning",
+          tags: { source: "checkout_stock_restore_failed", route: "cart_checkout_single" },
+          extra: { checkoutReservationId, reason: "confirmed_session_expired" },
+        });
+        return false;
+      });
+    } else if (
+      checkoutReservationId &&
+      reservationCanBeRestored &&
+      checkoutBuyerId &&
+      checkoutPayloadHashValue
+    ) {
+      const abortResult = await abortCheckoutStockReservation({
+        reservationId: checkoutReservationId,
+        buyerId: checkoutBuyerId,
+        payloadHash: checkoutPayloadHashValue,
       }).catch((restoreError) => {
         Sentry.captureException(restoreError, {
           level: "warning",
           tags: { source: "checkout_stock_restore_failed", route: "cart_checkout_single" },
           extra: { checkoutReservationId, reason: "checkout_create_error" },
         });
+        return null;
       });
+      databaseReservationReleased = Boolean(abortResult && abortResult.result !== "retained");
     } else if (checkoutReservationId) {
       Sentry.captureMessage("Checkout reservation retained because Stripe session expiry was not confirmed", {
         level: "warning",
@@ -704,8 +752,13 @@ export async function POST(req: Request) {
       });
     }
 
-    if (checkoutLockAcquired && reservationCanBeRestored) {
-      await releaseCheckoutLock(checkoutLockKeyValue);
+    if (checkoutLockAcquired && reservationCanBeRestored && databaseReservationReleased) {
+      if (createdCheckoutSessionId) {
+        await releaseCheckoutLock(checkoutLockKeyValue, createdCheckoutSessionId);
+      }
+      if (checkoutLockOwnerToken) {
+        await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerToken);
+      }
     }
 
     return privateJson({ error: "Server error creating checkout session" }, { status: HTTP_STATUS.INTERNAL_SERVER_ERROR });

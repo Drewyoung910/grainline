@@ -87,6 +87,42 @@ and aligns the inspector to the deployed hash plus deletion sentinel; compatible
 schema/functions and production remain unchanged. StripeWebhookEvent FORCE
 remains a separate earlier production boundary.
 
+The isolated reservation conversion now removes all direct reservation-table
+delegates under `src` and replaces them with 15 fixed operations covering
+source-derived cart/single creation, exact bind/completion, unbound abort,
+signed webhook restore, distinct buyer/seller confirmed-expiry restore,
+generation-fenced cron/account repair, prune, resume, export and terminal
+account scrub. Disposable PostgreSQL currently passes 13 checks (12 engine-
+executed authority/state checks plus one static catalog contract), but this
+remains draft-only and is not deployable yet. The deeper
+review found that webhook ID/type/generation alone did not bind the signed
+Stripe object: compatible preparation must first add immutable bounded
+`StripeWebhookEvent.sourceObjectId` authority and compare it to the exact
+Checkout Session. Creation now also locks buyer/seller User lifecycle rows in
+stable order and revalidates seller orderability so account deletion cannot
+race in a new reservation. Account deletion remains intentionally one bounded
+batch per attempt and fails closed at scrub if active rows remain. Finish the source-
+binding application tests, full regression suite and schema/migration
+packaging before any compatible production boundary.
+
+The same deep review found an application-level Redis ABA race: a stale worker
+could publish or remove a newer identical-payload checkout lock after TTL reuse.
+Preparing locks now carry unique acquisition owner tokens, ready publication and
+pre-session cleanup require that token, and post-ready cleanup requires the exact
+Stripe session. Legacy tokenless preparing locks fail closed until TTL expiry.
+Signed reservation completion/restoration also lock the exact active webhook
+lease row before session/reservation work; merely reading a matching generation
+was insufficient because reclaim or finalization could race after validation.
+Lease acquisition and immutable source binding now occur in one three-argument
+database call; the lower-level binder is runtime-private, avoiding both a
+partial-claim gap and unnecessary generic runtime authority. The existing
+two-argument begin remains only for deployment coexistence until the later
+drain/revocation boundary.
+That coexistence temporarily changes the live StripeWebhookEvent runtime
+catalog from six functions to seven, so migration packaging must repin the
+global grant/catalog proofs; the private binder must never appear as an eighth
+runtime capability. Drain removes the predecessor two-argument begin again.
+
 The provider audit found the predecessor subscription contract mixed platform
 events with connected-account events. The pinned replacement has three
 source-bound surfaces: platform Checkout/refund/dispute snapshots on

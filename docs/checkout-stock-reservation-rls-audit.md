@@ -1,8 +1,9 @@
 # CheckoutStockReservation RLS authority audit
 
-Status: audited fixed-operation design; implementation and production posture
-are unchanged. This document does not authorize a migration, deployment, grant
-change, cleanup, RLS activation or provider mutation.
+Status: isolated compatible authority draft and application conversion in
+progress; production posture is unchanged. This document does not authorize a
+migration, deployment, grant change, cleanup, RLS activation or provider
+mutation.
 
 Date: 2026-08-10
 
@@ -29,6 +30,8 @@ table or column grants, and a fixed operation for every legitimate path.
 
 ## Exact direct-access inventory
 
+The four rows below are the predecessor baseline captured at audit start:
+
 | Source | Current access | Required destination |
 |---|---|---|
 | `src/lib/checkoutStockRestore.ts` | create, bind, complete, restore, defer, stale scan and terminal prune | source-derived create functions, exact bind/complete, generation-fenced repair claim/finalize and database-selected prune |
@@ -36,10 +39,13 @@ table or column grants, and a fixed operation for every legitimate path.
 | `src/app/api/cart/checkout/resume/route.ts` | recent completed buyer rows | buyer-bound bounded resume projection |
 | `src/app/api/account/export/route.ts` | buyer/seller rows and role-specific redaction | actor-bound export projection with seller profile derived in PostgreSQL |
 
-Checkout and webhook routes call the shared helper rather than the Prisma
-delegate directly. The scanner must continue to inventory both those semantic
-call sites and the four direct-access source files until conversion reaches
-zero ordinary-runtime base-table access.
+The isolated conversion currently has zero direct
+`prisma.checkoutStockReservation`/`tx.checkoutStockReservation` delegates
+under `src`. That is not a production claim: main and the deployed application
+remain on the predecessor until compatible functions are packaged, promoted
+and proven. Semantic-call inventory now pins the checkout, webhook, buyer
+rollback, seller/admin expiry, cron, account deletion, resume and export paths
+so zero direct delegates cannot hide an omitted capability.
 
 ## Findings
 
@@ -158,6 +164,121 @@ status, null buyer/seller columns, a `deleted:<reservation-id>` lock key and no
 item seller IDs. This preserves minimal listing/quantity audit evidence without
 retaining deleted-account linkage.
 
+### CSR-A10: unpaid completion currently restores still-payable stock
+
+The completion branch retrieves the current Checkout Session and previously
+called the unordered restoration path whenever `payment_status` was not
+`paid`. That is not valid restoration evidence: a completed session can be in
+an intermediate payment state, and the same session may later settle. Even
+though the current checkout routes request only cards, reopening the listing
+before a signed failure/expiry or provider repair can oversell it.
+
+The isolated compatible checkpoint now retains the reservation on an unpaid
+completion and records a bounded warning. Only a signed
+`checkout.session.async_payment_failed`/`checkout.session.expired` event or the
+generation-fenced repair path may restore it. A separately signed
+`checkout.session.async_payment_succeeded` may complete it.
+
+### CSR-A11: the first semantic inventory omitted provider-expiry callers
+
+The initial four-file direct-delegate scan did not enumerate the authenticated
+buyer rollback route or the seller/admin/ban/vacation session-expiry helper.
+Those callers reach reservation restoration indirectly and cannot safely use
+either a signed-webhook function or a generic restore-by-ID function.
+
+The partition therefore has separate buyer-expired and seller-expired
+operations. Each verifies the caller-resolved actor relationship against the
+stored reservation and exact session, takes the shared session lock, refuses
+to restore if an Order exists and derives a fixed terminal reason. PostgreSQL
+cannot verify Stripe's external session state, so the signed-in route/provider
+retrieve/expire checks remain load-bearing and are documented rather than
+misrepresented as database attestation.
+
+### CSR-A12: a webhook lease was not bound to its Stripe object
+
+`StripeWebhookEvent` retained event ID, type and claim generation, but not the
+signed event's source object ID. The first draft therefore allowed one valid
+active expiry claim to be paired with a different Checkout Session ID. Event
+generation fencing prevents stale workers; it does not prevent source-target
+substitution.
+
+Compatible preparation now requires nullable bounded
+`StripeWebhookEvent.sourceObjectId` plus
+an overloaded three-argument `grainline_stripe_webhook_begin(...)`. That single
+database statement acquires/reclaims the lease and invokes the private
+`grainline_stripe_webhook_bind_source(...)` helper before it can commit, so a
+failed binding cannot leave a partially claimed event. The binding is immutable,
+and checkout completion/restoration requires the stored object ID to equal the
+exact session. The binder is not runtime-callable. Legacy two-argument lease
+acquisition remains available only for old-deployment coexistence and is a
+later drain/revocation item once all event callers use the bound overload.
+Production currently pins exactly six StripeWebhookEvent runtime functions, so
+compatible migration packaging must deliberately update the global function
+catalog and grant/postflight proofs for the temporary seventh overload while
+keeping the binder private. After the predecessor app drain, the old two-
+argument begin can be revoked/dropped so the durable surface returns to one
+begin capability rather than accumulating both.
+
+### CSR-A13: account cleanup is intentionally retry-bounded
+
+Account deletion claims at most 50 active reservation rows per attempt. The
+terminal scrub refuses to run while any account-owned active row remains, so a
+high-volume seller with more than one batch fails closed and can be retried;
+it does not partially anonymize active state. Do not describe this as an
+unbounded one-pass cleanup. Before production promotion, prove the retry path
+and decide whether an explicit multi-batch operator is warranted by retained
+production counts.
+
+### CSR-A14: reservation creation must serialize with account deletion
+
+The first fixed creation draft checked buyer state but did not lock either the
+buyer or seller account lifecycle row. Account deletion takes the User row
+`FOR UPDATE`, repairs active reservations before its anonymization transaction,
+then scrubs reservation identifiers inside that transaction. A reservation
+created between those two stages would correctly make scrub fail closed, but
+would force an avoidable deletion retry; weaker scrubbing could have missed it.
+
+Both creation functions now resolve the seller account, lock buyer and seller
+User rows in sorted ID order `FOR KEY SHARE`, then revalidate buyer state,
+seller state, Stripe orderability, vacation/acceptance state and self-purchase
+before locking Cart/Listing sources. Creation therefore commits before account
+deletion's scrub or waits for deletion and observes terminal account/listing
+state. The disposable PostgreSQL proof pins the sorted locks plus banned,
+vacation and self-purchase denial.
+
+### CSR-A15: a payload hash is not a Redis lock ownership token
+
+The predecessor preparing lock stored only the checkout payload hash. If a
+worker outlived the 32-minute Redis TTL, a newer identical request could acquire
+the same key with the same hash; the stale worker could then publish its old
+Stripe session into the new lock or unconditionally delete the new worker's
+lock during error cleanup. This is an ABA ownership collision even though the
+payloads are equal.
+
+Every new preparing lock now carries a cryptographically random acquisition
+owner token. The atomic ready transition requires state, payload hash and exact
+owner token. Pre-session cleanup deletes only a preparing lock with that token;
+post-transition cleanup deletes only a ready lock with the exact Stripe session
+ID. Error recovery attempts both exact comparisons only after provider expiry
+and database restoration are confirmed. Legacy preparing locks without an
+owner token fail closed and expire by TTL. Regression tests pin mismatched,
+legacy and stale-owner denial and forbid unconditional route cleanup.
+
+### CSR-A16: validating a webhook generation without locking it is racy
+
+The first source-bound completion/restore draft checked event ID, type, source
+object, generation and active state but did not lock that webhook lease row. A
+lease could be failed, completed or reclaimed after the check while the stale
+reservation operation continued under its earlier statement snapshot.
+
+Both signed completion and signed restoration now lock the exact active
+`StripeWebhookEvent` row `FOR UPDATE` before taking the checkout-session
+advisory lock or touching a reservation. The lock holds the generation and
+source binding stable for the entire statement/transaction and makes a
+concurrent reclaim/finalization wait, after which its predicate is rechecked.
+Static proof pins this ordering in both functions. This lock must remain first
+when the later Order-creation fixed operation absorbs reservation completion.
+
 ## Fixed-operation partition
 
 The reviewed signatures may narrow during disposable PostgreSQL proof, but may
@@ -174,20 +295,27 @@ not broaden beyond these capabilities:
 5. `grainline_checkout_reservation_checkout_abort(...)` restores only an exact
    buyer/replay-bound reservation with no bound Stripe session or Order.
 6. `grainline_checkout_reservation_webhook_restore(...)` requires an active
-   exact signed-expiry webhook generation and matching stored session.
-7. `grainline_checkout_reservation_repair_claim_batch(...)` claims only
+   exact signed-expiry webhook generation whose immutable source object matches
+   the stored session.
+7. `grainline_checkout_reservation_buyer_expired_restore(...)` restores only a
+   session owned by the exact Clerk-resolved buyer after the route confirms
+   provider expiry.
+8. `grainline_checkout_reservation_seller_expired_restore(...)` restores only a
+   session belonging to the exact seller profile after the reviewed seller,
+   staff, ban or vacation path confirms provider expiry.
+9. `grainline_checkout_reservation_repair_claim_batch(...)` claims only
    database-selected overdue rows in stable order with a hard cap.
-8. `grainline_checkout_reservation_account_claim_batch(...)` claims only active
+10. `grainline_checkout_reservation_account_claim_batch(...)` claims only active
    rows belonging to the exact deleting account or its derived seller profile.
-9. `grainline_checkout_reservation_repair_finalize(...)` compares the exact
+11. `grainline_checkout_reservation_repair_finalize(...)` compares the exact
    repair generation and permits only reviewed provider outcomes.
-10. `grainline_checkout_reservation_prune_batch(...)` deletes only terminal
+12. `grainline_checkout_reservation_prune_batch(...)` deletes only terminal
     rows older than the fixed retention window, in stable order, with a cap.
-11. `grainline_checkout_reservation_resume(...)` returns only recent COMPLETED
+13. `grainline_checkout_reservation_resume(...)` returns only recent COMPLETED
     session/group facts for the exact buyer.
-12. `grainline_checkout_reservation_export(...)` derives the seller profile and
+14. `grainline_checkout_reservation_export(...)` derives the seller profile and
     returns the existing buyer/seller-redacted export shape for the exact actor.
-13. `grainline_checkout_reservation_account_scrub(...)` derives account-owned
+15. `grainline_checkout_reservation_account_scrub(...)` derives account-owned
     rows, preserves only canonical listing/quantity evidence and clears actor
     identifiers after active reservations have been handled.
 
@@ -198,26 +326,35 @@ operations after disposable PostgreSQL authority/concurrency proof.
 
 ## Lock order and race contract
 
-The global order for contended reservation work is:
+The global orders for contended reservation work are:
 
-1. advisory checkout-session keys in sorted order when a session exists;
-2. reservation row `FOR UPDATE`;
-3. Cart/CartItem source rows for cart creation or Listing rows in sorted ID
-   order;
-4. exact Order existence/authority row; and
-5. stock updates in sorted Listing ID order.
+1. Creation: buyer/seller User rows in sorted ID order, owned Cart then
+   CartItem/Listing rows in sorted ID order, reservation insert and stock
+   updates in sorted Listing ID order.
+2. Signed session transitions/restoration: exact active StripeWebhookEvent row
+   `FOR UPDATE`, advisory checkout-session key, reservation row `FOR UPDATE`,
+   exact Order existence/authority row, then stock updates in sorted Listing ID
+   order. Provider-confirmed buyer/seller and repair transitions omit only the
+   webhook-event step and otherwise keep the same session order.
+3. Unbound abort: reservation advisory key, reservation row `FOR UPDATE`, then
+   stock updates in sorted Listing ID order.
 
-Creation has no session and begins with its source rows before inserting the
-reservation; all paths that can race with paid checkout completion must take
-the same session advisory key before checking Order or restoring stock. Proofs
-must cover payment-vs-restore, two restore workers, stale generation finalizers,
-bind-vs-abort and prune-vs-finalize.
+All paths that can race with paid checkout completion take the same session
+advisory key before checking Order or restoring stock. Proofs must cover
+account-deletion-vs-creation, payment-vs-restore, two restore workers, stale
+generation finalizers, bind-vs-abort and prune-vs-finalize.
+
+The Redis lock is a separate application-level duplicate-session guard, not
+database authority. Its preparing phase is acquisition-owner-token bound and
+its ready phase is Stripe-session bound; payload equality alone never conveys
+ownership.
 
 ## Release sequence
 
 1. Save this audit and an exact source/capability inventory.
-2. Build additive schema/functions and prove them in disposable PostgreSQL;
-   keep broad predecessor grants and RLS off.
+2. Build additive schema/functions, including immutable Stripe event source-
+   object binding, and prove them in disposable PostgreSQL; keep broad
+   predecessor grants and RLS off.
 3. Promote only the byte-pinned compatible preparation migration and run an
    actual pooled-runtime read-only postflight.
 4. Deploy a dual-compatible application using the fixed functions; prove
@@ -232,3 +369,20 @@ bind-vs-abort and prune-vs-finalize.
 No step here authorizes production mutation. StripeWebhookEvent FORCE remains
 its own earlier production boundary; preparing this isolated reservation work
 does not reorder or implicitly execute it.
+
+## Isolated implementation checkpoint (2026-08-10)
+
+The isolated branch now has zero direct `CheckoutStockReservation` Prisma
+delegates under `src`, a 15-operation fixed authority draft, atomic source-bound
+Stripe lease acquisition with a runtime-private binder, generation/event locks,
+database-derived reservation payloads and owner-token-bound Redis publication.
+The disposable PostgreSQL proof passes 13 checks (12 engine-executed authority/
+state checks plus one static catalog contract). TypeScript, focused ESLint and
+the complete repository suite pass; the final full run was 2,938 passed, zero
+failed and seven intentionally skipped.
+
+This is a durable draft checkpoint, not a deployable release. No Prisma schema
+or production migration has been packaged, no grants or RLS state changed, and
+production has not been queried or mutated. Next work is the compatible
+migration/schema/catalog package, disposable exact-tree proof and reviewed
+coexistence release—not activation.

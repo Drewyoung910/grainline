@@ -42,7 +42,10 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     const route = source("src/app/api/stripe/webhook/v2/route.ts");
     const mirror = source("src/lib/stripeWebhookMirror.ts");
 
-    assert.match(route, /beginStripeWebhookEvent\(stripeEventId, stripeEventType\)/);
+    assert.match(
+      route,
+      /beginStripeWebhookEvent\(\s*stripeEventId,\s*stripeEventType,\s*sourceObjectId,\s*\)/,
+    );
     assert.match(route, /reservation\.action === "processed"/);
     assert.match(route, /reservation\.action === "in_progress"/);
     assert.match(route, /const claimGeneration = reservation\.claimGeneration/);
@@ -52,19 +55,17 @@ describe("Stripe Connect v2 thin webhook route guardrails", () => {
     assert.match(route, /markStripeWebhookEventFailed\(stripeEventId, claimGeneration, handlerErr\)/);
     assert.match(route, /isStripeConnectV2AccountEvent\(stripeEventType\)/);
     assert.match(route, /stripeConnectV2AccountIdFromNotification\(notification\)/);
-    assert.match(route, /if \(!accountId\) \{/);
+    assert.match(route, /if \(!sourceObjectId\) \{/);
     assert.match(route, /Stripe v2 account notification missing account id/);
     assert.match(route, /tags: \{ source: "stripe_v2_webhook_account_id" \}/);
-    assert.match(route, /throw new Error\("Stripe v2 account notification missing account id\."\)/);
     assert.ok(
-      route.indexOf('throw new Error("Stripe v2 account notification missing account id.")') <
-        route.indexOf("const account = await stripe.accounts.retrieve(accountId)"),
-      "v2 account notifications without an account id should fail before retrieval and avoid being marked processed",
+      route.indexOf("if (!sourceObjectId)") < route.indexOf("beginStripeWebhookEvent("),
+      "v2 account notifications without an account id should fail before lease acquisition",
     );
-    assert.match(route, /stripe\.accounts\.retrieve\(accountId\)/);
+    assert.match(route, /stripe\.accounts\.retrieve\(sourceObjectId\)/);
     assert.match(
       route,
-      /mirrorStripeChargesEnabled\(\{\s*accountId,\s*chargesEnabled: Boolean\(account\.charges_enabled\),\s*route: "\/api\/stripe\/webhook\/v2",\s*actorType: "webhook",\s*actorId: stripeEventId,\s*\}\)/s,
+      /mirrorStripeChargesEnabled\(\{\s*accountId: sourceObjectId,\s*chargesEnabled: Boolean\(account\.charges_enabled\),\s*route: "\/api\/stripe\/webhook\/v2",\s*actorType: "webhook",\s*actorId: stripeEventId,\s*\}\)/s,
     );
 
     assert.match(mirror, /export async function mirrorStripeChargesEnabled/);

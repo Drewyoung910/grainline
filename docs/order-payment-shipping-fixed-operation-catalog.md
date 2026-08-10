@@ -31,7 +31,11 @@ No function may be named or shaped as generic `get_order`, `update_order`,
    `{action, claimGeneration}` where action is `process`, `processed` or
    `in_progress`. The database clock decides staleness. First insert sets
    generation 1; a stale reclaim increments it under a row lock. Existing type
-   mismatch fails. Processed rows never reopen.
+   mismatch fails. Processed rows never reopen. Before a lease becomes
+   cross-table authority, the three-argument overload takes the signed event
+   object's bounded ID and atomically stores it under the exact active
+   generation. The lower-level `grainline_stripe_webhook_bind_source(...)`
+   helper is runtime-private, and the source binding is immutable.
 2. `grainline_stripe_webhook_complete(p_event_id text,
    p_claim_generation bigint)` updates only an unprocessed row holding that
    generation and returns `completed`, `already_processed` or `superseded`.
@@ -55,11 +59,18 @@ ID-only finalization is forbidden.
    buyer and application-derived replay fingerprint; a Stripe session cannot
    move between reservations.
 6. `grainline_checkout_reservation_complete(...)` requires the active exact
-   webhook lease generation and matching seller-scoped Order/session.
+   webhook lease generation, its matching stored source object and the
+   seller-scoped Order/session. It locks that active event lease before the
+   checkout-session/reservation/Order chain so the generation cannot change
+   after validation.
 7. `grainline_checkout_reservation_checkout_abort(...)` restores only an exact
    buyer/replay-bound reservation with no bound Stripe session or Order, while
    `grainline_checkout_reservation_webhook_restore(...)` requires the active
-   exact signed-expiry webhook generation and matching stored session.
+   exact signed-expiry webhook generation and matching stored source/session,
+   holding the event row lock through restoration.
+   Distinct buyer-expired and seller-expired functions cover authenticated
+   rollback and seller/admin/ban/vacation provider-expiry paths; neither is a
+   generic restore target.
 8. `grainline_checkout_reservation_repair_claim_batch(...)`, the distinct
    account-deletion claim operation and
    `grainline_checkout_reservation_repair_finalize(...)` select only
@@ -77,6 +88,10 @@ are not caller-selected. Clerk-resolved actor IDs and the replay fingerprint are
 application-origin facts; the database validates their shape and derives all
 row relationships without claiming to authenticate Clerk. Account deletion
 gets distinct account-owned claim and scrub operations, not the prune function.
+The adjacent Redis duplicate-session guard uses a unique acquisition owner token
+for preparing-to-ready publication and preparing cleanup, then the exact Stripe
+session ID for ready cleanup; a replay fingerprint is never treated as lock
+ownership.
 
 ### Payment, dispute and payout evidence
 

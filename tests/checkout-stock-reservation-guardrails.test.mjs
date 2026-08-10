@@ -10,8 +10,11 @@ function source(path) {
   return fs.readFileSync(path, "utf8");
 }
 
+const authoritySql = source("docs/rls-drafts/checkout-stock-reservation-authority.sql");
+const authorityClient = source("src/lib/checkoutStockReservationAuthority.ts");
+
 describe("durable checkout stock reservation guardrails", () => {
-  it("persists checkout stock reservations with restore indexes and status checks", () => {
+  it("preserves the predecessor schema and adds draft-only repair invariants", () => {
     const schema = source("prisma/schema.prisma");
     const migration = source("prisma/migrations/20260529190000_add_checkout_stock_reservation/migration.sql");
     const groupMigration = source("prisma/migrations/20260706003000_add_checkout_group_id_to_reservations/migration.sql");
@@ -22,23 +25,45 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(schema, /@@index\(\[buyerId, checkoutGroupId\]\)/);
     assert.match(schema, /@@index\(\[status, expiresAt\]\)/);
     assert.match(migration, /CREATE TABLE "CheckoutStockReservation"/);
-    assert.match(migration, /CHECK \("status" IN \('RESERVED', 'SESSION_CREATED', 'COMPLETED', 'RESTORED'\)\)/);
-    assert.match(migration, /CHECK \(jsonb_typeof\("reservedItems"\) = 'array'\)/);
     assert.match(groupMigration, /ADD COLUMN "checkoutGroupId" VARCHAR\(100\)/);
-    assert.match(groupMigration, /"buyerId", "checkoutGroupId"/);
+    for (const column of [
+      "repairGeneration",
+      "repairClaimedAt",
+      "repairClaimKind",
+      "lastRepairError",
+      "lastRepairAttemptAt",
+    ]) {
+      assert.match(authoritySql, new RegExp(`ADD COLUMN "${column}"`));
+    }
+    assert.match(authoritySql, /CheckoutStockReservation_active_lock_key/);
+    assert.match(authoritySql, /CheckoutStockReservation_items_check/);
   });
 
-  it("creates durable reservations before Stripe session creation and restores them on create failures", () => {
-    const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
-    const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
+  it("creates source-derived reservations before Stripe and aborts only unbound failures", () => {
+    const routes = [
+      {
+        path: "src/app/api/cart/checkout/single/route.ts",
+        create: /createSingleCheckoutStockReservation\(\{/,
+      },
+      {
+        path: "src/app/api/cart/checkout-seller/route.ts",
+        create: /createCartCheckoutStockReservation\(\{/,
+      },
+    ];
 
-    for (const route of [singleCheckout, sellerCheckout]) {
-      assert.match(route, /createCheckoutStockReservation\(\{/);
+    for (const { path, create } of routes) {
+      const route = source(path);
+      assert.match(route, create);
       assert.match(route, /checkoutStockReservationMetadata\(checkoutReservationId/);
-      assert.match(route, /markCheckoutStockReservationSession\(\{/);
-      assert.match(route, /restoreCheckoutStockReservationOnce\(\{[\s\S]*reason: "checkout_create_error"/);
+      assert.match(route, /bindCheckoutStockReservationSession\(\{/);
+      assert.match(route, /abortCheckoutStockReservation\(\{[\s\S]*buyerId:[\s\S]*payloadHash:/);
+      assert.doesNotMatch(route, /(?:prisma|tx)\.checkoutStockReservation\./);
       assert.doesNotMatch(route, /SET "stockQuantity" = "stockQuantity" \+ \$\{reserved/);
     }
+
+    assert.match(authoritySql, /grainline_checkout_reservation_create_cart[\s\S]*FROM public\."CartItem"[\s\S]*JOIN public\."Listing"/);
+    assert.match(authoritySql, /grainline_checkout_reservation_create_single[\s\S]*FROM public\."Listing"/);
+    assert.match(authoritySql, /grainline_checkout_reservation_checkout_abort[\s\S]*source_reservation\."stripeSessionId" IS NOT NULL[\s\S]*'retained'/);
   });
 
   it("never restores or releases a checkout lock while a created Stripe session may remain payable", () => {
@@ -50,79 +75,100 @@ describe("durable checkout stock reservation guardrails", () => {
       const outerCatch = route.slice(route.lastIndexOf("} catch (err: unknown)"));
       const expireIndex = outerCatch.indexOf("stripe.checkout.sessions.expire(createdCheckoutSessionId)");
       const safetyDecisionIndex = outerCatch.indexOf("const reservationCanBeRestored");
-      const restoreIndex = outerCatch.indexOf("restoreCheckoutStockReservationOnce({");
+      const buyerRestoreIndex = outerCatch.indexOf("restoreBuyerExpiredCheckoutStockOnce({");
 
       assert.match(route, /createdCheckoutSessionId = session\.id/);
-      assert.match(route, /createdCheckoutSessionExpired = true/);
+      assert.match(route, /checkoutReservationSessionBound = true/);
       assert.notEqual(expireIndex, -1, `${routePath} must expire a created session in the outer catch`);
-      assert.ok(expireIndex < safetyDecisionIndex, `${routePath} must attempt expiry before deciding restoration safety`);
-      assert.ok(safetyDecisionIndex < restoreIndex, `${routePath} must decide restoration safety before restoring`);
+      assert.ok(expireIndex < safetyDecisionIndex, `${routePath} must attempt expiry before restoration`);
+      assert.ok(safetyDecisionIndex < buyerRestoreIndex, `${routePath} must decide safety before bound restore`);
       assert.match(
         outerCatch,
-        /if \(checkoutReservationId && reservationCanBeRestored\) \{[\s\S]*restoreCheckoutStockReservationOnce\(\{[\s\S]*sessionId: createdCheckoutSessionId/,
+        /reservationCanBeRestored &&\s*checkoutReservationSessionBound &&\s*createdCheckoutSessionId &&\s*checkoutBuyerId[\s\S]*restoreBuyerExpiredCheckoutStockOnce/,
       );
       assert.match(
         outerCatch,
-        /else if \(checkoutReservationId\) \{[\s\S]*reservation retained because Stripe session expiry was not confirmed/i,
+        /else if \([\s\S]*reservationCanBeRestored[\s\S]*abortCheckoutStockReservation/,
       );
       assert.match(
         outerCatch,
-        /if \(checkoutLockAcquired && reservationCanBeRestored\) \{\s*await releaseCheckoutLock/,
+        /if \(checkoutLockAcquired && reservationCanBeRestored && databaseReservationReleased\)/,
       );
-      assert.doesNotMatch(outerCatch, /if \(checkoutLockAcquired\) \{\s*await releaseCheckoutLock/);
+      assert.doesNotMatch(route, /releaseCheckoutLock\(checkoutLockKeyValue\s*\)/);
+      assert.match(
+        outerCatch,
+        /releaseCheckoutLock\(checkoutLockKeyValue, createdCheckoutSessionId\)/,
+      );
+      assert.match(
+        outerCatch,
+        /releasePreparingCheckoutLock\(checkoutLockKeyValue, checkoutLockOwnerToken\)/,
+      );
     }
   });
 
-  it("threads cart checkout group ids through seller checkout metadata and reservations", () => {
+  it("threads cart checkout group ids through metadata and database-derived creation", () => {
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
-    const restore = source("src/lib/checkoutStockRestore.ts");
 
     assert.match(sellerCheckout, /checkoutGroupId: z\.string\(\)\.uuid\(\)/);
     assert.match(sellerCheckout, /checkoutGroupId: body\.checkoutGroupId/);
     assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId, body\.checkoutGroupId\)/);
-    assert.match(restore, /checkoutGroupId\?: string \| null/);
-    assert.match(restore, /allowEmptyReservation\?: boolean/);
-    assert.match(restore, /reservedItems\.length === 0 && !input\.allowEmptyReservation/);
-    assert.match(restore, /checkoutGroupId: input\.checkoutGroupId \?\? null/);
-    assert.match(restore, /\.\.\.\(checkoutGroupId \? \{ checkoutGroupId \} : \{\}\)/);
-    assert.match(sellerCheckout, /allowEmptyReservation: true/);
-  });
-
-  it("marks paid reservations complete and prefers reservation-backed stock restores", () => {
-    const webhook = source("src/app/api/stripe/webhook/route.ts");
-    const restore = source("src/lib/checkoutStockRestore.ts");
-
-    assert.match(webhook, /markCheckoutStockReservationCompleted\(tx, \{[\s\S]*reservationId: sessionMeta\.checkoutReservationId/);
-    assert.match(restore, /restoreCheckoutStockReservationOnce\(\{[\s\S]*reservationId: input\.metadata\.checkoutReservationId/);
-    assert.match(restore, /if \(reservationRestore\.handled\) return/);
-  });
-
-  it("serializes reservation-backed restores against paid checkout completion", () => {
-    const restore = source("src/lib/checkoutStockRestore.ts");
-    const restoreStart = restore.indexOf("export async function restoreCheckoutStockReservationOnce");
-    const restoreEnd = restore.indexOf("async function deferCheckoutStockReservationRepair", restoreStart);
-    const restoreBlock = restore.slice(restoreStart, restoreEnd);
-    const sessionIdsIndex = restoreBlock.indexOf("const sessionIds =");
-    const lockIndex = restoreBlock.indexOf("await lockCheckoutSessionMutation(tx, sessionId)", sessionIdsIndex);
-    const orderExistsIndex = restoreBlock.indexOf("tx.order.findFirst", sessionIdsIndex);
-    const restoredIndex = restoreBlock.indexOf('status: "RESTORED"', sessionIdsIndex);
-
-    assert.notEqual(restoreStart, -1, "reservation restore helper must exist");
-    assert.notEqual(restoreEnd, -1, "reservation restore helper block must be bounded for this guardrail");
-    assert.notEqual(sessionIdsIndex, -1, "reservation restore must derive known Stripe session ids");
-    assert.notEqual(lockIndex, -1, "reservation restore must take the checkout-session mutation lock");
-    assert.notEqual(orderExistsIndex, -1, "reservation restore must check for an existing order");
-    assert.notEqual(restoredIndex, -1, "reservation restore must claim RESTORED before restocking");
-    assert.ok(lockIndex > sessionIdsIndex, "session lock should use the derived session ids");
-    assert.ok(lockIndex < orderExistsIndex, "session lock must happen before checking for an order");
-    assert.ok(lockIndex < restoredIndex, "session lock must happen before claiming RESTORED");
-    assert.match(
-      restoreBlock,
-      /for \(const sessionId of \[\.\.\.sessionIds\]\.sort\(\)\) \{\s*await lockCheckoutSessionMutation\(tx, sessionId\);\s*\}/,
+    assert.match(authoritySql, /grainline_checkout_reservation_create_cart\([\s\S]*p_checkout_group_id text/);
+    assert.match(authoritySql, /"checkoutGroupId"[\s\S]*p_checkout_group_id/);
+    const cartCreate = authoritySql.slice(
+      authoritySql.indexOf("CREATE FUNCTION public.grainline_checkout_reservation_create_cart("),
+      authoritySql.indexOf("CREATE FUNCTION public.grainline_checkout_reservation_create_single("),
     );
+    const singleCreate = authoritySql.slice(
+      authoritySql.indexOf("CREATE FUNCTION public.grainline_checkout_reservation_create_single("),
+      authoritySql.indexOf("CREATE FUNCTION public.grainline_checkout_reservation_bind_session("),
+    );
+    assert.doesNotMatch(cartCreate, /p_reserved_items|p_checkout_lock_key/);
+    assert.doesNotMatch(singleCreate, /p_reserved_items|p_checkout_lock_key|p_seller_id/);
   });
 
-  it("registers a bounded cron to repair no-session reservations", () => {
+  it("binds Stripe source objects before source-bound completion or restoration", () => {
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const connectWebhook = source("src/app/api/stripe/webhook/connect/route.ts");
+    const stripeEvents = source("src/lib/stripeWebhookEvents.ts");
+    const restore = source("src/lib/checkoutStockRestore.ts");
+
+    assert.match(webhook, /beginStripeWebhookEvent\([\s\S]*event\.id,[\s\S]*event\.type,[\s\S]*sourceObjectId/);
+    for (const route of [webhook, connectWebhook]) {
+      assert.match(route, /if \(typeof sourceObjectId !== "string" \|\| sourceObjectId\.length === 0\)/);
+      assert.match(route, /beginStripeWebhookEvent\([\s\S]*sourceObjectId/);
+    }
+    assert.match(stripeEvents, /grainline_stripe_webhook_begin\(\$\{id\}, \$\{type\}, \$\{sourceObjectId\}\)/);
+    assert.doesNotMatch(stripeEvents, /grainline_stripe_webhook_bind_source/);
+    assert.match(authoritySql, /grainline_stripe_webhook_begin\([\s\S]*p_source_object_id text[\s\S]*grainline_stripe_webhook_bind_source/);
+    assert.match(authoritySql, /source_event\."sourceObjectId" IS DISTINCT FROM p_source_object_id/);
+    assert.match(authoritySql, /event\."sourceObjectId" = p_session_id/g);
+    assert.match(webhook, /markCheckoutStockReservationCompleted\(tx, \{[\s\S]*eventId: event\.id[\s\S]*claimGeneration/);
+    assert.match(restore, /restoreCheckoutStockReservationFromWebhook\(\{[\s\S]*eventId: input\.eventId[\s\S]*claimGeneration: input\.claimGeneration/);
+  });
+
+  it("serializes every session-bound restore against paid completion", () => {
+    for (const functionName of [
+      "grainline_checkout_reservation_webhook_restore",
+      "grainline_checkout_reservation_buyer_expired_restore",
+      "grainline_checkout_reservation_seller_expired_restore",
+    ]) {
+      const start = authoritySql.indexOf(`CREATE FUNCTION public.${functionName}(`);
+      const end = authoritySql.indexOf("CREATE FUNCTION public.", start + 20);
+      const block = authoritySql.slice(start, end === -1 ? authoritySql.length : end);
+      const lockIndex = block.indexOf("pg_advisory_xact_lock(913337");
+      const reservationIndex = block.indexOf('FROM public."CheckoutStockReservation"');
+      const orderIndex = block.indexOf('FROM public."Order"');
+      const restoreIndex = block.indexOf("grainline_checkout_reservation_restore_items");
+
+      assert.notEqual(start, -1, functionName);
+      assert.notEqual(lockIndex, -1, `${functionName} must take the session advisory lock`);
+      assert.ok(lockIndex < reservationIndex, `${functionName} must lock before reading the reservation`);
+      assert.ok(lockIndex < orderIndex, `${functionName} must lock before checking Order`);
+      assert.ok(orderIndex < restoreIndex, `${functionName} must check Order before restoring stock`);
+    }
+  });
+
+  it("registers bounded generation-fenced repair and database-selected pruning", () => {
     const vercel = source("vercel.json");
     const cronRoute = source("src/app/api/cron/checkout-stock-reservations/route.ts");
     const restore = source("src/lib/checkoutStockRestore.ts");
@@ -130,30 +176,17 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(vercel, /"path": "\/api\/cron\/checkout-stock-reservations"/);
     assert.match(vercel, /"schedule": "\*\/15 \* \* \* \*"/);
     assert.match(cronRoute, /verifyCronRequest/);
-    assert.match(cronRoute, /beginCronRun\("checkout-stock-reservations", quarterHourBucket\(\)\)/);
     assert.match(cronRoute, /restoreStaleCheckoutStockReservations/);
-    assert.match(restore, /CHECKOUT_STOCK_RESERVATION_STALE_BATCH_SIZE = 50/);
-    assert.match(restore, /status: "RESERVED", stripeSessionId: null/);
-    assert.match(restore, /let reason = "stale_no_session"/);
+    assert.match(cronRoute, /pruneTerminalCheckoutStockReservations/);
+    assert.match(restore, /claimStaleCheckoutStockReservations\(take\)/);
+    assert.match(restore, /finalizeCheckoutStockReservationRepair\(\{/);
+    assert.match(restore, /pruneCheckoutStockReservationBatch\(take\)/);
+    assert.doesNotMatch(restore, /(?:prisma|tx)\.checkoutStockReservation\./);
+    assert.match(authoritySql, /grainline_checkout_reservation_repair_claim_batch[\s\S]*LEAST\(p_limit, 50\)[\s\S]*FOR UPDATE SKIP LOCKED/);
+    assert.match(authoritySql, /grainline_checkout_reservation_prune_batch[\s\S]*LEAST\(p_limit, 100\)[\s\S]*FOR UPDATE SKIP LOCKED/);
   });
 
-  it("prunes terminal checkout stock reservations after the replay/debug window", () => {
-    const cronRoute = source("src/app/api/cron/checkout-stock-reservations/route.ts");
-    const restore = source("src/lib/checkoutStockRestore.ts");
-
-    assert.match(restore, /CHECKOUT_STOCK_RESERVATION_TERMINAL_RETENTION_DAYS = 30/);
-    assert.match(restore, /retentionDays \* 24 \* 60 \* 60 \* 1000/);
-    assert.match(restore, /CHECKOUT_STOCK_RESERVATION_TERMINAL_PRUNE_BATCH_SIZE = 100/);
-    assert.match(restore, /CHECKOUT_STOCK_RESERVATION_TERMINAL_STATUSES = \["COMPLETED", "RESTORED"\]/);
-    assert.match(restore, /status: \{ in: \[\.\.\.CHECKOUT_STOCK_RESERVATION_TERMINAL_STATUSES\] \}/);
-    assert.match(restore, /updatedAt: \{ lt: cutoff \}/);
-    assert.match(restore, /orderBy: \{ updatedAt: "asc" \}/);
-    assert.match(restore, /await prisma\.checkoutStockReservation\.deleteMany\(\{/);
-    assert.match(cronRoute, /pruneTerminalCheckoutStockReservations\(\{/);
-    assert.match(cronRoute, /const result = \{ \.\.\.repair, terminalPrune \}/);
-  });
-
-  it("repairs stale Stripe-session reservations only when the session is unpaid and restorable", () => {
+  it("repairs only reviewed provider states and stores transient failures outside terminal evidence", () => {
     const restore = source("src/lib/checkoutStockRestore.ts");
 
     assert.equal(checkoutStockReservationRepairAction({ status: "expired", payment_status: "unpaid" }), "restore");
@@ -162,32 +195,53 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.equal(checkoutStockReservationRepairAction({ status: "expired", payment_status: "paid" }), "skip_paid_or_complete");
     assert.equal(checkoutStockReservationRepairAction({ status: "unknown", payment_status: "unpaid" }), "skip_unrecognized");
 
-    assert.match(restore, /status: "SESSION_CREATED", stripeSessionId: \{ not: null \}/);
-    assert.match(restore, /stripe\.checkout\.sessions\.retrieve\(reservation\.stripeSessionId\)/);
-    assert.match(restore, /stripe\.checkout\.sessions\.expire\(reservation\.stripeSessionId\)/);
-    assert.match(restore, /source: "checkout_stock_reservation_paid_missing_order"/);
-    assert.match(restore, /reason = "stale_stripe_session_unpaid"/);
-    assert.match(restore, /where: \{ stripeSessionId: reservation\.stripeSessionId \}/);
+    for (const outcome of [
+      "RETRIEVE_FAILED",
+      "PAID_OR_COMPLETE",
+      "UNRECOGNIZED",
+      "EXPIRE_FAILED",
+      "SESSION_EXPIRED_RESTORE",
+    ]) {
+      assert.match(restore, new RegExp(`"${outcome}"`));
+    }
+    assert.match(authoritySql, /"lastRepairError" = CASE p_outcome/);
+    assert.match(authoritySql, /"lastRepairAttemptAt" = source_now/);
+    assert.match(authoritySql, /NEW\."restoreReason" := NULL/);
+    assert.doesNotMatch(restore, /restoreReason:\s*(?:reason|"session_)/);
   });
 
-  it("backs off unrecoverable stale reservation rows so newer repairs are not starved", () => {
-    const restore = source("src/lib/checkoutStockRestore.ts");
-    const deferStart = restore.indexOf("async function deferCheckoutStockReservationRepair");
-    const deferBlock = restore.slice(deferStart, restore.indexOf("export async function restoreStaleCheckoutStockReservations", deferStart));
+  it("retains stock when a completion event is not yet paid", () => {
+    const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const branchStart = webhook.indexOf('if (s.payment_status !== "paid")');
+    const branchEnd = webhook.indexOf("// Stripe snapshots", branchStart);
+    const unpaidBranch = webhook.slice(branchStart, branchEnd);
 
-    assert.notEqual(deferStart, -1, "stale reservation repair must have a bounded defer helper");
-    assert.match(deferBlock, /status: \{ in: \[\.\.\.CHECKOUT_STOCK_RESERVATION_RESTORABLE_STATUSES\] \}/);
-    assert.match(deferBlock, /expiresAt: now/);
-    assert.match(deferBlock, /restoreReason: reason/);
-    assert.match(deferBlock, /source: "checkout_stock_reservation_repair_defer"/);
-    for (const reason of [
-      "session_retrieve_failed",
-      "paid_missing_local_order",
-      "unrecognized_session_state",
-      "session_expire_failed",
-      "stale_restore_failed",
+    assert.notEqual(branchStart, -1);
+    assert.notEqual(branchEnd, -1);
+    assert.match(unpaidBranch, /stripe_checkout_completion_unpaid/);
+    assert.doesNotMatch(unpaidBranch, /restoreUnorderedCheckoutStockOnce/);
+  });
+
+  it("exposes only fixed reservation operations through the application authority module", () => {
+    for (const operation of [
+      "createCartCheckoutStockReservation",
+      "createSingleCheckoutStockReservation",
+      "bindCheckoutStockReservationSession",
+      "completeCheckoutStockReservation",
+      "abortCheckoutStockReservation",
+      "restoreCheckoutStockReservationFromWebhook",
+      "restoreBuyerExpiredCheckoutStockReservation",
+      "restoreSellerExpiredCheckoutStockReservation",
+      "claimStaleCheckoutStockReservations",
+      "claimAccountCheckoutStockReservations",
+      "finalizeCheckoutStockReservationRepair",
+      "pruneCheckoutStockReservationBatch",
+      "resumeCheckoutStockReservations",
+      "exportCheckoutStockReservations",
+      "scrubCheckoutStockReservationsForAccount",
     ]) {
-      assert.match(restore, new RegExp(`deferCheckoutStockReservationRepair\\(reservation\\.id, "${reason}", now\\)`));
+      assert.match(authorityClient, new RegExp(`export async function ${operation}\\(`));
     }
+    assert.doesNotMatch(authorityClient, /reservedItems:\s*input|checkoutLockKey:\s*input/);
   });
 });

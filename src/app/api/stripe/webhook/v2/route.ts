@@ -120,9 +120,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Stale Stripe event" }, { status: HTTP_STATUS.BAD_REQUEST });
   }
 
+  if (!isStripeConnectV2AccountEvent(stripeEventType)) {
+    return NextResponse.json({ received: true, ignored: true });
+  }
+  const sourceObjectId = stripeConnectV2AccountIdFromNotification(notification);
+  if (!sourceObjectId) {
+    Sentry.captureMessage("Stripe v2 account notification missing account id", {
+      level: "warning",
+      tags: { source: "stripe_v2_webhook_account_id" },
+      extra: { stripeEventId, stripeEventType },
+    });
+    await recordWebhookFailureSpike({
+      webhook: "stripe_v2",
+      kind: "payload",
+      status: HTTP_STATUS.BAD_REQUEST,
+      extra: { stripeEventId, stripeEventType },
+    });
+    return NextResponse.json({ error: "Invalid Stripe notification" }, { status: HTTP_STATUS.BAD_REQUEST });
+  }
+
   let reservation: Awaited<ReturnType<typeof beginStripeWebhookEvent>>;
   try {
-    reservation = await beginStripeWebhookEvent(stripeEventId, stripeEventType);
+    reservation = await beginStripeWebhookEvent(
+      stripeEventId,
+      stripeEventType,
+      sourceObjectId,
+    );
   } catch (err) {
     Sentry.captureException(err, {
       tags: { source: "stripe_v2_webhook_reservation" },
@@ -172,23 +195,9 @@ export async function POST(req: Request) {
 
   try {
     return await processIdempotentEvent(async () => {
-      if (!isStripeConnectV2AccountEvent(stripeEventType)) {
-        return NextResponse.json({ received: true, ignored: true });
-      }
-
-      const accountId = stripeConnectV2AccountIdFromNotification(notification);
-      if (!accountId) {
-        Sentry.captureMessage("Stripe v2 account notification missing account id", {
-          level: "warning",
-          tags: { source: "stripe_v2_webhook_account_id" },
-          extra: { stripeEventId, stripeEventType },
-        });
-        throw new Error("Stripe v2 account notification missing account id.");
-      }
-
-      const account = await stripe.accounts.retrieve(accountId);
+      const account = await stripe.accounts.retrieve(sourceObjectId);
       await mirrorStripeChargesEnabled({
-        accountId,
+        accountId: sourceObjectId,
         chargesEnabled: Boolean(account.charges_enabled),
         route: "/api/stripe/webhook/v2",
         actorType: "webhook",

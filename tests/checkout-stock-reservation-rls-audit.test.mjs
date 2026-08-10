@@ -24,12 +24,22 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       .map((file) => file.split(path.sep).join("/"))
       .sort();
 
-    assert.deepEqual(directAccessSources, [
-      "src/app/api/account/export/route.ts",
-      "src/app/api/cart/checkout/resume/route.ts",
-      "src/lib/accountDeletion.ts",
-      "src/lib/checkoutStockRestore.ts",
-    ]);
+    assert.deepEqual(directAccessSources, []);
+
+    const semanticSources = {
+      "src/app/api/cart/checkout/single/route.ts": /createSingleCheckoutStockReservation/,
+      "src/app/api/cart/checkout-seller/route.ts": /createCartCheckoutStockReservation/,
+      "src/app/api/cart/checkout/rollback/route.ts": /restoreBuyerExpiredCheckoutStockOnce/,
+      "src/app/api/stripe/webhook/route.ts": /markCheckoutStockReservationCompleted[\s\S]*restoreUnorderedCheckoutStockOnce/,
+      "src/lib/checkoutSessionExpiry.ts": /restoreSellerExpiredCheckoutStockOnce/,
+      "src/lib/checkoutStockRestore.ts": /claimStaleCheckoutStockReservations[\s\S]*pruneCheckoutStockReservationBatch/,
+      "src/lib/accountDeletion.ts": /claimAccountCheckoutStockReservations[\s\S]*scrubCheckoutStockReservationsForAccount/,
+      "src/app/api/cart/checkout/resume/route.ts": /resumeCheckoutStockReservations/,
+      "src/app/api/account/export/route.ts": /exportCheckoutStockReservations/,
+    };
+    for (const [file, pattern] of Object.entries(semanticSources)) {
+      assert.match(source(file), pattern, file);
+    }
   });
 
   it("partitions every mutation, projection and cleanup capability", () => {
@@ -41,6 +51,8 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       "grainline_checkout_reservation_complete",
       "grainline_checkout_reservation_checkout_abort",
       "grainline_checkout_reservation_webhook_restore",
+      "grainline_checkout_reservation_buyer_expired_restore",
+      "grainline_checkout_reservation_seller_expired_restore",
       "grainline_checkout_reservation_repair_claim_batch",
       "grainline_checkout_reservation_account_claim_batch",
       "grainline_checkout_reservation_repair_finalize",
@@ -56,7 +68,7 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(audit, /No public\/runtime function accepts a free-form restore reason/);
     assert.match(audit, /database-selected stale-repair claim\/finalize protocol/);
     assert.match(audit, /monotonic repair generation and claim clock/);
-    assert.match(audit, /does not authorize a migration, deployment, grant/);
+    assert.match(audit, /does not authorize\s+a\s+migration, deployment, grant/);
   });
 
   it("records the payable-session race and exact replay-fingerprint mismatch", () => {
@@ -78,6 +90,14 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(preAudit, /OPS-A19: reservation replay fingerprints have three conflicting contracts/);
     assert.match(audit, /CSR-A09: account-scrub item shape differs/);
     assert.match(preAudit, /OPS-A20: reservation account-scrub shape/);
+    assert.match(audit, /CSR-A10: unpaid completion currently restores/);
+    assert.match(preAudit, /OPS-A21: an unpaid completion event is not restoration evidence/);
+    assert.match(audit, /CSR-A11: the first semantic inventory omitted provider-expiry callers/);
+    assert.match(preAudit, /OPS-A22: indirect buyer and seller expiry paths were missing from inventory/);
+    assert.match(audit, /CSR-A12: a webhook lease was not bound to its Stripe object/);
+    assert.match(preAudit, /OPS-A23: webhook claim generation did not bind the provider object/);
+    assert.match(audit, /CSR-A13: account cleanup is intentionally retry-bounded/);
+    assert.match(preAudit, /OPS-A24: reservation cleanup is one-batch-per-deletion-attempt/);
   });
 
   it("keeps current production posture honest in the coverage ledger", () => {

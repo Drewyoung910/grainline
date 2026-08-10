@@ -16,14 +16,12 @@ export type { StripeWebhookEventReservation } from "@/lib/stripeWebhookEventStat
 export async function beginStripeWebhookEvent(
   id: string,
   type: string,
+  sourceObjectId: string,
   client: StripeWebhookEventClient = prisma,
 ): Promise<StripeWebhookEventReservation> {
-  const rows = await client.$queryRaw<Array<{
-    action: unknown;
-    claim_generation: unknown;
-  }>>`
+  const rows = await client.$queryRaw<Array<{ action: unknown; claim_generation: unknown }>>`
     SELECT action, claim_generation
-      FROM public.grainline_stripe_webhook_begin(${id}, ${type})
+      FROM public.grainline_stripe_webhook_begin(${id}, ${type}, ${sourceObjectId})
   `;
   return stripeWebhookEventReservationFromRows(rows);
 }

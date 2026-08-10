@@ -137,7 +137,15 @@ export async function POST(req: Request) {
 
   let reservation: Awaited<ReturnType<typeof beginStripeWebhookEvent>>;
   try {
-    reservation = await beginStripeWebhookEvent(event.id, event.type);
+    const sourceObjectId = (event.data.object as { id?: unknown }).id;
+    if (typeof sourceObjectId !== "string" || sourceObjectId.length === 0) {
+      throw new Error("Stripe Connect webhook event object is missing its source id");
+    }
+    reservation = await beginStripeWebhookEvent(
+      event.id,
+      event.type,
+      sourceObjectId,
+    );
   } catch (error) {
     Sentry.captureException(error, {
       tags: { source: "stripe_connect_webhook_reservation" },

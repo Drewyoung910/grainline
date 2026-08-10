@@ -39,7 +39,7 @@ describe("Stripe classic Connect payout webhook authority", () => {
 
   it("acknowledges unexpected signed events before durable lease acquisition", () => {
     const ignored = route.indexOf('if (event.type !== "payout.failed")');
-    const lease = route.indexOf("beginStripeWebhookEvent(event.id, event.type)");
+    const lease = route.indexOf("beginStripeWebhookEvent(");
     assert.ok(ignored >= 0 && lease > ignored);
     assert.match(
       route.slice(ignored, lease),
@@ -49,7 +49,10 @@ describe("Stripe classic Connect payout webhook authority", () => {
 
   it("fails stale events and uses generation-bound begin, complete, and fail operations", () => {
     assert.match(route, /isStaleStripeEvent\(eventCreatedSeconds\)/);
-    assert.match(route, /beginStripeWebhookEvent\(event\.id, event\.type\)/);
+    assert.match(
+      route,
+      /beginStripeWebhookEvent\(\s*event\.id,\s*event\.type,\s*sourceObjectId,\s*\)/,
+    );
     assert.match(route, /reservation\.action === "processed"/);
     assert.match(route, /reservation\.action === "in_progress"/);
     assert.match(route, /const claimGeneration = reservation\.claimGeneration/);

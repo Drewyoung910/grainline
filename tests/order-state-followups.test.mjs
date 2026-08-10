@@ -123,18 +123,22 @@ describe("order-state audit follow-up guardrails", () => {
   it("keeps checkout stock reservation tied to live active listing ownership", () => {
     const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
-    const stockRestore = source("src/lib/checkoutStockRestore.ts");
+    const authority = source("docs/rls-drafts/checkout-stock-reservation-authority.sql")
+      .replace(/\s+/g, " ");
 
-    assert.match(singleCheckout, /createCheckoutStockReservation\(\{/);
-    assert.match(singleCheckout, /sellerId: listing\.sellerId/);
+    assert.match(singleCheckout, /createSingleCheckoutStockReservation\(\{/);
+    assert.match(singleCheckout, /createSingleCheckoutStockReservation\(\{\s*listingId: listing\.id,\s*quantity: body\.quantity,\s*payloadHash,\s*buyerId: me\.id,\s*\}\)/);
     assert.match(singleCheckout, /checkoutStockReservationMetadata\(checkoutReservationId/);
 
-    assert.match(sellerCheckout, /createCheckoutStockReservation\(\{/);
-    assert.match(sellerCheckout, /sellerId: it\.listing\.sellerId/);
+    assert.match(sellerCheckout, /createCartCheckoutStockReservation\(\{/);
+    assert.match(sellerCheckout, /createCartCheckoutStockReservation\(\{\s*cartId: cart\.id,\s*sellerProfileId: sellerId,\s*checkoutGroupId: body\.checkoutGroupId,\s*payloadHash,\s*buyerId: me\.id,\s*\}\)/);
     assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId/);
 
-    assert.match(stockRestore, /WHERE id = \$\{item\.listingId\}\s+AND "sellerId" = \$\{item\.sellerId\}\s+AND status = 'ACTIVE'\s+AND "listingType" = 'IN_STOCK'\s+AND "stockQuantity" >= \$\{item\.quantity\}/);
-    assert.match(stockRestore, /WHERE id = \$\{item\.listingId\}\s+AND "listingType" = 'IN_STOCK'/);
+    assert.match(authority, /CREATE FUNCTION public\.grainline_checkout_reservation_create_single/);
+    assert.match(authority, /source_listing\."sellerId"/);
+    assert.match(authority, /source_listing\.status <> 'ACTIVE'/);
+    assert.match(authority, /source_listing\."isPrivate" AND source_listing\."reservedForUserId" IS DISTINCT FROM p_buyer_id/);
+    assert.match(authority, /listing\."sellerId" = p_seller_profile_id AND listing\.status = 'ACTIVE' AND listing\."listingType" = 'IN_STOCK' AND listing\."stockQuantity" >= source_item\.quantity/);
   });
 
   it("keeps staff case resolution atomic and persists computed full-refund amounts", () => {

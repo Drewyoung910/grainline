@@ -816,15 +816,19 @@ describe("payment and fulfillment side-effect observability", () => {
       sellerCheckout,
       /source: "checkout_stock_restore_failed", route: "cart_checkout_seller"/,
     );
-    assert.match(sellerCheckout, /CheckoutStockReservationStockError/);
-    assert.match(sellerCheckout, /createCheckoutStockReservation/);
+    assert.match(sellerCheckout, /isCheckoutStockUnavailableDatabaseError\(reservationError\)/);
+    assert.match(sellerCheckout, /createCartCheckoutStockReservation/);
+    assert.match(sellerCheckout, /abortCheckoutStockReservation/);
+    assert.match(sellerCheckout, /restoreBuyerExpiredCheckoutStockOnce/);
     assert.match(sellerCheckout, /reason: "checkout_create_error"/);
     assert.match(
       singleCheckout,
       /source: "checkout_stock_restore_failed", route: "cart_checkout_single"/,
     );
-    assert.match(singleCheckout, /CheckoutStockReservationStockError/);
-    assert.match(singleCheckout, /createCheckoutStockReservation/);
+    assert.match(singleCheckout, /isCheckoutStockUnavailableDatabaseError\(reservationError\)/);
+    assert.match(singleCheckout, /createSingleCheckoutStockReservation/);
+    assert.match(singleCheckout, /abortCheckoutStockReservation/);
+    assert.match(singleCheckout, /restoreBuyerExpiredCheckoutStockOnce/);
     assert.match(singleCheckout, /reason: "checkout_create_error"/);
     assert.doesNotMatch(sellerCheckout, /\.catch\(\(\) => \{\}\)/);
     assert.doesNotMatch(singleCheckout, /\.catch\(\(\) => \{\}\)/);

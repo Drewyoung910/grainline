@@ -261,7 +261,8 @@ describe("cron and public route hardening", () => {
     assert.match(rollback, /source: "cart_checkout_rollback_retrieve"/);
     assert.match(rollback, /reason: "retrieve_failed"/);
     assert.match(rollback, /stripe\.checkout\.sessions\.expire\(sessionId\)/);
-    assert.match(rollback, /restoreUnorderedCheckoutStockOnce/);
+    assert.match(rollback, /restoreBuyerExpiredCheckoutStockOnce/);
+    assert.match(rollback, /buyerId: me\.id/);
     assert.match(rollback, /source: "cart_checkout_rollback_expire"/);
     assert.match(rollback, /source: "cart_checkout_rollback_restore"/);
   });

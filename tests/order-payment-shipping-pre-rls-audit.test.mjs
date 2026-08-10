@@ -102,12 +102,12 @@ const expected = {
     "src/app/dashboard/seller/page.tsx",
     "src/lib/stripePayoutWebhook.ts",
   ],
-  CheckoutStockReservation: [
-    "src/app/api/account/export/route.ts",
-    "src/app/api/cart/checkout/resume/route.ts",
-    "src/lib/accountDeletion.ts",
-    "src/lib/checkoutStockRestore.ts",
-  ],
+  CheckoutStockReservation: [],
+};
+
+const baselineCounts = {
+  ...Object.fromEntries(Object.entries(expected).map(([model, files]) => [model, files.length])),
+  CheckoutStockReservation: 4,
 };
 
 const delegateByModel = {
@@ -127,10 +127,10 @@ describe("order/payment/shipping pre-RLS audit", () => {
   });
 
   it("records the exact baseline counts and isolated scope", () => {
-    for (const [model, files] of Object.entries(expected)) {
+    for (const [model, count] of Object.entries(baselineCounts)) {
       assert.match(
         audit,
-        new RegExp("\\\\| `" + model + "` \\\\| " + files.length + " \\\\|"),
+        new RegExp("\\\\| `" + model + "` \\\\| " + count + " \\\\|"),
       );
     }
     assert.match(audit, /StripeWebhookEvent` is a required service-ledger prerequisite/);

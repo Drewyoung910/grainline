@@ -51,6 +51,12 @@ conversion floor, not a claim that only 66 semantic operations exist. The
 next inventory pass must classify nested reads, fixed Case/Notification
 functions, cron and provider side effects as well.
 
+The isolated CheckoutStockReservation conversion now has zero direct
+reservation delegates under `src`; the table above intentionally retains the
+four-file production/predecessor baseline. Its semantic inventory remains
+larger than four and is pinned separately so indirection cannot disappear from
+the review merely because base-table CRUD has been removed.
+
 Current operation families include:
 
 - buyer order lists, detail, checkout success, export and deletion;
@@ -345,6 +351,45 @@ buyer and seller columns and strips item seller IDs while retaining only
 listing/quantity evidence. The baseline inspector incorrectly required seller
 IDs on those deleted terminal items. Inspection and preparation must recognize
 the exact scrubbed shape without relaxing normal reservation item validation.
+
+### OPS-A21: an unpaid completion event is not restoration evidence
+
+The predecessor completion branch restored stock whenever the retrieved
+Checkout Session was not yet paid. The compatible checkpoint retains that
+reservation; only signed failure/expiry or generation-fenced provider repair
+may restore it, while a later signed success may complete it.
+
+### OPS-A22: indirect buyer and seller expiry paths were missing from inventory
+
+The direct-delegate baseline did not reveal the authenticated buyer rollback
+route or the seller/admin/ban/vacation session-expiry helper. They are distinct
+authority families: the database validates the exact buyer or seller-to-
+reservation relationship and session lock, while the application remains
+responsible for proving external Stripe expiry. They now have separate fixed
+operations and are included in the semantic completeness gate.
+
+### OPS-A23: webhook claim generation did not bind the provider object
+
+`StripeWebhookEvent` generation fencing prevented stale finalizers but did not
+store the signed event object's ID. A valid active expiry event could therefore
+be paired with another Checkout Session by the first reservation draft.
+Compatible preparation must add an immutable bounded source-object binding;
+checkout completion and restoration compare that stored value to the exact
+session before touching reservation or stock state.
+
+The reviewed implementation uses one three-argument webhook-begin statement to
+acquire/reclaim and bind that source atomically. The lower-level binder remains
+runtime-private. A two-statement begin-then-bind sequence is not acceptable
+because a transient second-statement failure would strand an unbound active
+lease until reclamation.
+
+### OPS-A24: reservation cleanup is one-batch-per-deletion-attempt
+
+Account cleanup claims at most 50 active reservations. The database scrub is
+fail-closed while any active row remains, so accounts above that bound require
+a retry rather than partial active-state anonymization. This safe bounded
+behavior must be tested and documented; an explicit multi-batch operator is a
+later evidence-led decision, not an assumed property.
 
 ## Semantic write conversion map
 
