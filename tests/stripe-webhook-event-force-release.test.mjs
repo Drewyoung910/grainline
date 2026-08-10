@@ -235,7 +235,24 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
     production.indexOf("audit:rls-stripe-webhook-event-force-release")
       < production.indexOf("npx prisma migrate deploy"),
   );
-  assert.match(releaseDocument, /Status: isolated candidate only/);
+  assert.match(
+    releaseDocument,
+    /Status: the reviewed FORCE preparation is merged but not applied/,
+  );
+  assert.doesNotMatch(releaseDocument, /Status: isolated candidate only/);
+  assert.match(
+    releaseDocument,
+    /b8a9f41b9f5ca966f02901fb322ba9775210fd80/,
+  );
+  assert.match(
+    releaseDocument,
+    /6d448bce38bed2aa54bf4ce7ae8e5f8a4ba73186/,
+  );
+  assert.match(releaseDocument, /exact-main CI `31419148169` passed/);
+  assert.match(
+    releaseDocument,
+    /merge and exact-main CI do not authorize or imply production FORCE/,
+  );
   assert.match(releaseDocument, /exact main\s+`f987645784a447604fcab2399dc8e7fd7bef9d7c`/);
   assert.match(releaseDocument, /Migrations run `31410550315`/);
   assert.match(releaseDocument, /durable ownership-drift invariant/);

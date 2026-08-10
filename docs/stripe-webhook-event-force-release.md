@@ -1,9 +1,12 @@
 # StripeWebhookEvent FORCE RLS release
 
-Status: isolated candidate only. It is not merged or applied. Production is
-the accepted policyless Phase-A predecessor: ENABLE with FORCE off, zero
-policies, zero direct runtime/PUBLIC table or column authority, and exactly six
-fixed source-pinned SECURITY DEFINER functions.
+Status: the reviewed FORCE preparation is merged but not applied. PR #188
+merged exact head `b8a9f41b9f5ca966f02901fb322ba9775210fd80` as exact main
+`6d448bce38bed2aa54bf4ce7ae8e5f8a4ba73186`; PR exact-head CI
+`31417322388` and exact-main CI `31419148169` passed. Production remains the
+accepted policyless Phase-A predecessor: ENABLE with FORCE off, zero policies,
+zero direct runtime/PUBLIC table or column authority, and exactly six fixed
+source-pinned SECURITY DEFINER functions.
 
 ## Exact release unit
 
@@ -89,10 +92,13 @@ corrected workflow verifies Phase A while both exact migrations remain present,
 requires the exact reviewed FORCE successor guard, and only then isolates the
 two releases for ordered engine proof.
 
-## Production acceptance after promotion
+## Next production acceptance boundary
 
-After an exact-main CI pass and a separately approved guarded migration run,
-run `npm run ops:stripe-webhook-event-force-postflight` from that exact clean
+The merge and exact-main CI do not authorize or imply production FORCE. A
+separately reviewed guarded migration run must apply only
+`20260810172000_force_stripe_webhook_event_rls` from an exact green main commit.
+After that run, execute
+`npm run ops:stripe-webhook-event-force-postflight` from the same exact clean
 main commit with the actual pooled production `grainline_app_runtime` URL. The
 postflight is engine-attested repeatable-read/read-only, rejects owner or
 aliased URLs, requires a fresh mode-0600 evidence path, proves FORCE plus the
