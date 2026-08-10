@@ -71,6 +71,22 @@ passed canonical health, classic signed delivery/retry, ops-health, retention
 and legacy stock-restoration smoke without migration, RLS, grant, cleanup or
 provider changes.
 
+The next isolated dependency is `CheckoutStockReservation`. Its exact access,
+race and retention review is pinned in
+`docs/checkout-stock-reservation-rls-audit.md`. The table is a service lifecycle
+ledger, not owner CRUD: cart/single creation must derive its items and lock key
+from Cart/Listing sources; signed completion must bind the exact webhook
+generation and Order; stale/provider work needs a database-selected monotonic
+repair claim; and checkout abort, signed expiry, cron repair and account
+deletion must not share a generic restore-by-ID function. The audit also found
+that an unexpected post-Stripe checkout error can restore stock while a session
+remains payable, and that the deployed 32-character base64url replay hash,
+64-character column and legacy hex inspector disagreed. The isolated checkpoint
+now makes unexpected-error restoration contingent on confirmed Stripe expiry
+and aligns the inspector to the deployed hash plus deletion sentinel; compatible
+schema/functions and production remain unchanged. StripeWebhookEvent FORCE
+remains a separate earlier production boundary.
+
 The provider audit found the predecessor subscription contract mixed platform
 events with connected-account events. The pinned replacement has three
 source-bound surfaces: platform Checkout/refund/dispute snapshots on

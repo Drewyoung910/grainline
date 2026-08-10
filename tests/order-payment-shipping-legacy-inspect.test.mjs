@@ -177,6 +177,26 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     ]) {
       assert.match(ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL, new RegExp(`\\b${field}\\b`));
     }
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"payloadHash" <> 'deleted'[\s\S]*"payloadHash" !~ '\^\[A-Za-z0-9_-\]\{32\}\$'/,
+    );
+    assert.doesNotMatch(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"payloadHash" !~ '\^\[0-9a-f\]\{64\}\$'/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /reservation\."payloadHash" <> 'deleted'[\s\S]*item\.value->'sellerId'/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /reservation\."payloadHash" = 'deleted'[\s\S]*item\.value \? 'sellerId'/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"payloadHash" = 'deleted'[\s\S]*"checkoutLockKey" <> 'deleted:' \|\| id[\s\S]*status NOT IN \('COMPLETED', 'RESTORED'\)/,
+    );
   });
 
   it("compares application timestamps only to their causal predecessor", () => {

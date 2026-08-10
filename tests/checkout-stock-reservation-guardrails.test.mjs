@@ -41,6 +41,38 @@ describe("durable checkout stock reservation guardrails", () => {
     }
   });
 
+  it("never restores or releases a checkout lock while a created Stripe session may remain payable", () => {
+    for (const routePath of [
+      "src/app/api/cart/checkout/single/route.ts",
+      "src/app/api/cart/checkout-seller/route.ts",
+    ]) {
+      const route = source(routePath);
+      const outerCatch = route.slice(route.lastIndexOf("} catch (err: unknown)"));
+      const expireIndex = outerCatch.indexOf("stripe.checkout.sessions.expire(createdCheckoutSessionId)");
+      const safetyDecisionIndex = outerCatch.indexOf("const reservationCanBeRestored");
+      const restoreIndex = outerCatch.indexOf("restoreCheckoutStockReservationOnce({");
+
+      assert.match(route, /createdCheckoutSessionId = session\.id/);
+      assert.match(route, /createdCheckoutSessionExpired = true/);
+      assert.notEqual(expireIndex, -1, `${routePath} must expire a created session in the outer catch`);
+      assert.ok(expireIndex < safetyDecisionIndex, `${routePath} must attempt expiry before deciding restoration safety`);
+      assert.ok(safetyDecisionIndex < restoreIndex, `${routePath} must decide restoration safety before restoring`);
+      assert.match(
+        outerCatch,
+        /if \(checkoutReservationId && reservationCanBeRestored\) \{[\s\S]*restoreCheckoutStockReservationOnce\(\{[\s\S]*sessionId: createdCheckoutSessionId/,
+      );
+      assert.match(
+        outerCatch,
+        /else if \(checkoutReservationId\) \{[\s\S]*reservation retained because Stripe session expiry was not confirmed/i,
+      );
+      assert.match(
+        outerCatch,
+        /if \(checkoutLockAcquired && reservationCanBeRestored\) \{\s*await releaseCheckoutLock/,
+      );
+      assert.doesNotMatch(outerCatch, /if \(checkoutLockAcquired\) \{\s*await releaseCheckoutLock/);
+    }
+  });
+
   it("threads cart checkout group ids through seller checkout metadata and reservations", () => {
     const sellerCheckout = source("src/app/api/cart/checkout-seller/route.ts");
     const restore = source("src/lib/checkoutStockRestore.ts");

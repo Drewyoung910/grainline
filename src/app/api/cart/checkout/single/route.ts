@@ -86,6 +86,8 @@ export async function POST(req: Request) {
   let checkoutReservationItemCount = 0;
   let checkoutLockKeyValue: string | null = null;
   let checkoutLockAcquired = false;
+  let createdCheckoutSessionId: string | null = null;
+  let createdCheckoutSessionExpired = false;
 
   try {
     const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
@@ -547,6 +549,7 @@ export async function POST(req: Request) {
       },
       metadata: checkoutMetadata,
     });
+    createdCheckoutSessionId = session.id;
 
     if (checkoutReservationId) {
       const reservationSessionRecorded = await markCheckoutStockReservationSession({
@@ -563,6 +566,7 @@ export async function POST(req: Request) {
         let staleSessionExpired = false;
         await stripe.checkout.sessions.expire(session.id).then(() => {
           staleSessionExpired = true;
+          createdCheckoutSessionExpired = true;
         }).catch((error) => {
           Sentry.captureException(error, { tags: { source: "checkout_stock_reservation_expire_stale" } });
         });
@@ -601,6 +605,7 @@ export async function POST(req: Request) {
         let staleSessionExpired = false;
         await stripe.checkout.sessions.expire(session.id).then(() => {
           staleSessionExpired = true;
+          createdCheckoutSessionExpired = true;
         }).catch((error) => {
           Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
         });
@@ -628,6 +633,7 @@ export async function POST(req: Request) {
       let staleSessionExpired = false;
       await stripe.checkout.sessions.expire(session.id).then(() => {
         staleSessionExpired = true;
+        createdCheckoutSessionExpired = true;
       }).catch((error) => {
         Sentry.captureException(error, { tags: { source: "checkout_lock_expire_stale" } });
       });
@@ -664,9 +670,23 @@ export async function POST(req: Request) {
       },
     });
 
-    if (checkoutReservationId) {
+    if (createdCheckoutSessionId && !createdCheckoutSessionExpired) {
+      await stripe.checkout.sessions.expire(createdCheckoutSessionId).then(() => {
+        createdCheckoutSessionExpired = true;
+      }).catch((expireError) => {
+        Sentry.captureException(expireError, {
+          level: "warning",
+          tags: { source: "checkout_outer_error_session_expire", route: "cart_checkout_single" },
+          extra: { checkoutReservationId, stripeSessionId: createdCheckoutSessionId },
+        });
+      });
+    }
+
+    const reservationCanBeRestored = !createdCheckoutSessionId || createdCheckoutSessionExpired;
+    if (checkoutReservationId && reservationCanBeRestored) {
       await restoreCheckoutStockReservationOnce({
         reservationId: checkoutReservationId,
+        sessionId: createdCheckoutSessionId,
         reason: "checkout_create_error",
         releaseLock: false,
       }).catch((restoreError) => {
@@ -676,9 +696,15 @@ export async function POST(req: Request) {
           extra: { checkoutReservationId, reason: "checkout_create_error" },
         });
       });
+    } else if (checkoutReservationId) {
+      Sentry.captureMessage("Checkout reservation retained because Stripe session expiry was not confirmed", {
+        level: "warning",
+        tags: { source: "checkout_outer_error_reservation_retained", route: "cart_checkout_single" },
+        extra: { checkoutReservationId, stripeSessionId: createdCheckoutSessionId },
+      });
     }
 
-    if (checkoutLockAcquired) {
+    if (checkoutLockAcquired && reservationCanBeRestored) {
       await releaseCheckoutLock(checkoutLockKeyValue);
     }
 

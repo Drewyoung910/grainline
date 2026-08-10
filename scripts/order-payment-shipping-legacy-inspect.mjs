@@ -677,7 +677,8 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     (
       SELECT pg_catalog.count(*)
       FROM public."CheckoutStockReservation"
-      WHERE "payloadHash" !~ '^[0-9a-f]{64}$'
+      WHERE "payloadHash" <> 'deleted'
+        AND "payloadHash" !~ '^[A-Za-z0-9_-]{32}$'
     ) AS reservation_invalid_payload_hash_count,
     (
       SELECT pg_catalog.count(*)
@@ -693,9 +694,16 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
           FROM pg_catalog.jsonb_array_elements(reservation."reservedItems") AS item(value)
           WHERE pg_catalog.jsonb_typeof(item.value) <> 'object'
             OR pg_catalog.jsonb_typeof(item.value->'listingId') <> 'string'
-            OR pg_catalog.jsonb_typeof(item.value->'sellerId') <> 'string'
             OR pg_catalog.jsonb_typeof(item.value->'quantity') <> 'number'
             OR NOT (item.value->>'quantity' ~ '^[1-9][0-9]*$')
+            OR (
+              reservation."payloadHash" <> 'deleted'
+              AND pg_catalog.jsonb_typeof(item.value->'sellerId') <> 'string'
+            )
+            OR (
+              reservation."payloadHash" = 'deleted'
+              AND item.value ? 'sellerId'
+            )
         )
     ) AS reservation_invalid_item_member_count,
     (
@@ -721,6 +729,15 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
         OR (status IN ('SESSION_CREATED', 'COMPLETED') AND "stripeSessionId" IS NULL)
         OR (status = 'RESTORED' AND ("restoredAt" IS NULL OR "restoreReason" IS NULL))
         OR (status <> 'RESTORED' AND ("restoredAt" IS NOT NULL OR "restoreReason" IS NOT NULL))
+        OR (
+          "payloadHash" = 'deleted'
+          AND (
+            "checkoutLockKey" <> 'deleted:' || id
+            OR "buyerId" IS NOT NULL
+            OR "sellerId" IS NOT NULL
+            OR status NOT IN ('COMPLETED', 'RESTORED')
+          )
+        )
     ) AS reservation_state_coherence_count,
     (
       SELECT pg_catalog.count(*)

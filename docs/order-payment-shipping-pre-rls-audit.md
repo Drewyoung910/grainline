@@ -306,6 +306,46 @@ in-progress or type-mismatched evidence fails without durable mutation. The
 proof no longer claims a direct `lastError IS NULL` read. This closes the
 activation compatibility gap without adding a seventh runtime function.
 
+### OPS-A17: reservation restore authority must be source-partitioned
+
+The current `restoreCheckoutStockReservationOnce()` accepts a reservation ID,
+optional Stripe session and free-form reason. That is too broad once ordinary
+table authority is revoked: it can make another buyer's reserved inventory
+available again. Checkout abort, signed expiry delivery, stale cron repair and
+account deletion need distinct fixed entry points. External-provider repair
+uses a database-selected, generation-fenced claim/finalize protocol; terminal
+pruning selects its own retained rows and never accepts row IDs or a cutoff.
+The complete table-specific contract is
+`docs/checkout-stock-reservation-rls-audit.md`.
+
+### OPS-A18: unexpected checkout failures can reopen payable stock
+
+Both checkout routes currently restore by reservation ID in the outer catch.
+If an unexpected failure happens after a Stripe session is created or bound,
+the database can return stock while that external session remains payable. The
+compatible app must retain the created session ID, confirm expiry before any
+bound-session restore and otherwise leave the row for fenced stale repair. The
+database checkout-abort operation is deliberately limited to unbound rows.
+
+### OPS-A19: reservation replay fingerprints have three conflicting contracts
+
+At audit start the deployed application generated a 32-character base64url
+SHA-256 prefix, the Prisma column permitted 64 characters and the aggregate
+inspector tested for 64 lowercase hexadecimal characters. Do not change the
+Redis fingerprint algorithm inside the RLS release. The isolated audit
+checkpoint aligns inspection and regression proofs to the deployed
+32-character base64url form plus the documented account-deletion sentinel;
+treat any full-length-hash migration as a separate old/new deployment
+coexistence change.
+
+### OPS-A20: reservation account-scrub shape is a distinct terminal contract
+
+Account deletion intentionally rewrites the replay fingerprint/lock key, clears
+buyer and seller columns and strips item seller IDs while retaining only
+listing/quantity evidence. The baseline inspector incorrectly required seller
+IDs on those deleted terminal items. Inspection and preparation must recognize
+the exact scrubbed shape without relaxing normal reservation item validation.
+
 ## Semantic write conversion map
 
 This is the first exact write-authority map. Read projections and aggregate
