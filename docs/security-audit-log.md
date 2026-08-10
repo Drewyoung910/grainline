@@ -1353,3 +1353,12 @@ Open work:
   `fbbaeaf57b32ebd382138685ea972487ed0c52f92fe01ca88421bf2021b9b2c5`.
   These are isolated candidate bytes. Production RLS, grants, migrations,
   deployment and provider state were unchanged by this review.
+- Draft PR #186 exact-head CI run `31372159544` failed closed in the compatible
+  production-postflight PostgreSQL proof before the activation release was
+  restored. The newly expanded function audit incorrectly applied the runtime
+  wrappers' `VOLATILE` / `PARALLEL UNSAFE` contract to all four private order
+  integrity functions. `grainline_order_seller_key_assert(text)` is
+  intentionally read-only `STABLE` / `PARALLEL SAFE`; the proof now pins each
+  function's individual volatility and parallel mode, and the unit contract
+  enumerates the exceptional read-only function explicitly. No production or
+  provider state changed.

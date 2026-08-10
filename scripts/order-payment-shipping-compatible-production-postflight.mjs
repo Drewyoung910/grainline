@@ -33,15 +33,17 @@ const { Client } = pg;
 export const ORDER_PAYMENT_SHIPPING_COMPATIBLE_POSTFLIGHT_CONFIRMATION =
   "verify-production-order-payment-shipping-compatible-read-only";
 export const ORDER_PAYMENT_SHIPPING_PRIVATE_FUNCTIONS = Object.freeze([
-  ["grainline_order_item_seller_key_bind", ""],
-  ["grainline_order_item_seller_key_complete", ""],
-  ["grainline_order_seller_key_assert", "text"],
-  ["grainline_order_seller_key_complete", ""],
+  ["grainline_order_item_seller_key_bind", "", "v", "u"],
+  ["grainline_order_item_seller_key_complete", "", "v", "u"],
+  ["grainline_order_seller_key_assert", "text", "s", "s"],
+  ["grainline_order_seller_key_complete", "", "v", "u"],
 ]);
 export const ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS = Object.freeze(
   STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map((entry) => Object.freeze([
     entry.name,
     entry.identityArguments,
+    "v",
+    "u",
   ])),
 );
 
@@ -467,13 +469,23 @@ export async function verifyTriggerCatalog(client) {
 
 export async function verifyFunctionCatalog(client, migrationRole) {
   const expected = new Map([
-    ...ORDER_PAYMENT_SHIPPING_PRIVATE_FUNCTIONS.map(([name, args]) => [
+    ...ORDER_PAYMENT_SHIPPING_PRIVATE_FUNCTIONS.map(([
       name,
-      { args, runtimeExecute: false },
+      args,
+      volatility,
+      parallelMode,
+    ]) => [
+      name,
+      { args, parallelMode, runtimeExecute: false, volatility },
     ]),
-    ...ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS.map(([name, args]) => [
+    ...ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS.map(([
       name,
-      { args, runtimeExecute: true },
+      args,
+      volatility,
+      parallelMode,
+    ]) => [
+      name,
+      { args, parallelMode, runtimeExecute: true, volatility },
     ]),
   ]);
   const result = await client.query(`
@@ -561,8 +573,8 @@ export async function verifyFunctionCatalog(client, migrationRole) {
     assert.equal(row.function_kind, "f", row.function_name);
     assert.equal(row.security_definer, true, row.function_name);
     assert.equal(row.leakproof, false, row.function_name);
-    assert.equal(row.volatility, "v", row.function_name);
-    assert.equal(row.parallel_mode, "u", row.function_name);
+    assert.equal(row.volatility, contract.volatility, row.function_name);
+    assert.equal(row.parallel_mode, contract.parallelMode, row.function_name);
     assert.deepEqual(
       row.function_config,
       ["search_path=pg_catalog"],
