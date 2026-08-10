@@ -6,8 +6,11 @@ test-mode provider correction plus signed classic Connect delivery/retry now
 pass alongside exact platform/v2 topology checks, rollback-only retention,
 expanded ops health and legacy restoration. No activation migration, table
 grant revocation or StripeWebhookEvent RLS change has occurred. Connect v2
-signed delivery, predecessor drain and final compatibility postflight remain
-gates; live-mode provider proof remains a separate launch release.
+signed delivery remains a mandatory launch/provider proof, but is not a
+StripeWebhookEvent database-authority gate: all three signed routes use the
+same fixed begin/complete/fail functions and have zero direct table access.
+Predecessor drain and the hardened final compatibility postflight remain the
+activation gates; live-mode provider proof remains a separate launch release.
 
 ## Exact reviewed stack
 
@@ -44,8 +47,8 @@ The compatible source and functions are merged and live. Exact release main
 `dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`; Vercel reports `READY` and the canonical
 alias plus health endpoint return HTTP 200. Production deliberately retains
 the predecessor table posture for `StripeWebhookEvent`: RLS/FORCE off, zero
-policies and broad runtime CRUD. The remaining provider correction, v2
-exercise, drain, postflight and activation order is a release dependency, not
+policies and broad runtime CRUD. The remaining drain, postflight and activation
+order is a release dependency, not
 authorization to skip a boundary.
 
 ## Authority decision
@@ -243,9 +246,11 @@ is:
    passed. The three source-bound provider surfaces now have exact test-mode
    subscription evidence, and the separately signed classic Connect
    `payout.failed` delivery plus exact retry produced one unchanged
-   generation-1 lease. Valid Connect v2 signed delivery remains open. Live-mode
-   topology and signed deliveries remain separate launch evidence rather than
-   a prerequisite for the test-led RLS preparation;
+   generation-1 lease. Valid Connect v2 signed delivery remains open as a
+   launch/provider gate. It is not a database-authority activation prerequisite
+   because the platform, classic Connect and v2 routes all use the same fixed
+   lease wrappers and the source gate proves zero direct table access. Live-mode
+   topology and signed deliveries likewise remain separate launch evidence;
 4. let the prior app deployment drain and verify no production route or job
    still uses direct table access;
 5. run the historical compatibility postflight for the final predecessor
@@ -342,8 +347,10 @@ the subsequent exact 10/1/12 subscription proof is retained at
 authenticated aggregate-health result also passed with all Stripe and other
 operational issue counts at zero and is retained at
 `archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
-Connect v2 signed delivery, predecessor drain and final compatibility
-postflight remain before activation.
+Connect v2 signed delivery remains mandatory before launch, but the reviewed
+shared fixed-function call graph means it does not add evidence about the
+direct-table authority being removed by this activation. Predecessor drain and
+the hardened final compatibility postflight remain before activation.
 
 The isolated activation candidate now exists with byte-pinned activation and
 rollback SQL, conditional role-provisioning convergence, global grant-audit

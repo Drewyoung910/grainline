@@ -1317,3 +1317,39 @@ Open work:
   audit, before any deployment containing those call sites. The code and
   migration boundary were unchanged; this prevents a new deployment from
   calling not-yet-created functions.
+
+## Stripe webhook activation current-main refresh (2026-08-10)
+
+- The activation candidate was rebuilt on the accepted current-main provider
+  evidence rather than merging the stale cumulative PR #164. The provider
+  proof is test-mode only: classic Connect `payout.failed` signed delivery and
+  exact retry produced one unchanged generation-1 lease, exact 10/1/12
+  topology passed, aggregate ops health was clean, and the disposable account
+  plus raw recovery records were deleted.
+- The Extra-High refresh found that the final predecessor postflight still
+  proved only the original three lease functions and reduced combined runtime
+  CRUD to one boolean. That was insufficient after the maintenance conversion.
+  The postflight now requires exact direct SELECT/INSERT/UPDATE/DELETE with no
+  grant option, no PUBLIC or column authority, and exact owner/mode/search-path,
+  ACL and SHA-256 source identity for all six runtime functions. It remains an
+  engine-attested repeatable-read read-only production proof.
+- The activation SQL now separately counts all runtime-executable overloads of
+  the six trusted function names. A shadow overload therefore aborts before
+  RLS or grants change even when every canonical signature and source body is
+  still present.
+- Connect v2 signed delivery remains a mandatory launch/provider gate, but was
+  removed as a `StripeWebhookEvent` database-authority prerequisite. Static
+  coverage now proves the platform, classic Connect and v2 routes all call the
+  same fixed begin/complete/fail wrappers and have zero direct table access.
+  This reclassification does not weaken the launch checklist or claim that the
+  v2 signing secret/provider delivery has been proved.
+- Refreshed candidate hashes are: draft
+  `af47ed86b90276b0285618b7751c27a15fc52bd0a1a7bcc279c959e05c37e88b`,
+  promoted migration
+  `6e9175b503d77cf899c8d4b9abb882788776e7d104a39bad5f7c4a5de122e033`,
+  rollback
+  `2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722`,
+  and migration tree
+  `fbbaeaf57b32ebd382138685ea972487ed0c52f92fe01ca88421bf2021b9b2c5`.
+  These are isolated candidate bytes. Production RLS, grants, migrations,
+  deployment and provider state were unchanged by this review.

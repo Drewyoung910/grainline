@@ -94,7 +94,7 @@ completed alternative.
 | `EmailOutbox` | `ALTERNATIVE_REVIEW` | Email service ledgers | Recipient PII and rendered email content; producers, sender cron and operations | Dedicated producer and worker operations, least-privilege reads and retention proof |
 | `AccountDeletionSideEffect` | `ALTERNATIVE_REVIEW` | Account lifecycle service | Deletion payloads and retry state; account deletion, worker and operations | Service-only durable queue with target-user cleanup semantics and ordinary runtime denial |
 | `SupportRequest` | `BLOCKED_DESIGN` | Support | User or anonymous contact PII and case text; requester and staff | Authenticated-owner versus anonymous submission design, staff queue and retention rules |
-| `StripeWebhookEvent` | `ACTIVATION_CANDIDATE` | Provider event ledgers | Six source-pinned fixed lease/maintenance functions; direct ordinary source removed | Compatible deployment `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`, exact test-mode 10/1/12 topology, separately signed `payout.failed` delivery/retry and fresh zero-issue aggregate health are accepted. Policyless ENABLE candidate and PUBLIC-safe rollback are prepared; Connect v2 delivery classification, predecessor drain, final compatibility proof, refreshed exact-head PostgreSQL proof and separate production activation remain. Actual pooled-runtime postflight, FORCE and live-mode provider evidence are later releases |
+| `StripeWebhookEvent` | `PLANNED_RLS` | Provider event ledgers | Six source-pinned fixed lease/maintenance functions; direct ordinary source removed | Compatible deployment `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`, exact test-mode 10/1/12 topology, separately signed `payout.failed` delivery/retry and fresh zero-issue aggregate health are accepted. Policyless ENABLE candidate and PUBLIC-safe rollback are prepared; predecessor drain, hardened final compatibility proof, refreshed exact-head PostgreSQL proof and separate production activation remain. Connect v2 signed delivery is still mandatory before launch but shares the fixed lease boundary and is not an RLS activation prerequisite. Actual pooled-runtime postflight, FORCE and live-mode provider evidence are later releases |
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
@@ -218,10 +218,11 @@ preclude a later reviewed policy or grant migration.
    compatible source, additive maintenance preparation and exact compatible
    deployment are live. The three source-bound webhook surfaces now pass exact
    test-mode topology checks, and classic Connect signed delivery plus retry is
-   proved, and the fresh aggregate-health check is green. Complete Connect v2
-   delivery, then drain and run the final predecessor postflight before the separate
-   activation release. Keep live-mode provider topology and signed delivery as
-   a distinct launch gate.
+   proved, and the fresh aggregate-health check is green. Drain and run the
+   hardened final predecessor postflight before the separate activation
+   release. Keep Connect v2 plus live-mode provider topology and signed
+   delivery as distinct mandatory launch gates; the v2 route shares the fixed
+   lease functions and does not block this database-authority release.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger

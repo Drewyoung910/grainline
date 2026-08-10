@@ -372,7 +372,9 @@ operational issue count at zero. Sanitized evidence is retained at
 
 This acceptance is test-mode evidence only. It did not deploy, run a
 migration, change database grants or RLS, change a Vercel variable or secret,
-or touch Stripe live mode. The remaining immediate predecessor gates are valid
-Connect v2 signed delivery, drain and final compatibility postflight. A
-live-money destination, secret, deployment and signed-delivery release remain
-separate launch work.
+or touch Stripe live mode. The remaining immediate predecessor gates are drain
+and the hardened final compatibility postflight. Connect v2 signed delivery
+and a live-money destination, secret, deployment and signed-delivery release
+remain separate mandatory launch/provider work; the v2 delivery is not a
+`StripeWebhookEvent` database-authority prerequisite because it uses the same
+fixed lease functions and no direct table access.

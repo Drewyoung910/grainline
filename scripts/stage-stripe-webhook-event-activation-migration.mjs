@@ -13,7 +13,7 @@ export const STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION =
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_DRAFT =
   "docs/rls-drafts/stripe-webhook-event-activation.sql";
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_DRAFT_SHA256 =
-  "fd92c05ca2581eeeec19fd81e41a0dd672300381ad2d55396234a8f2fb0907d3";
+  "af47ed86b90276b0285618b7751c27a15fc52bd0a1a7bcc279c959e05c37e88b";
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_STAGING_ACK =
   "I_ACKNOWLEDGE_LOOPBACK_STRIPE_WEBHOOK_EVENT_ACTIVATION_STAGING";
 
@@ -85,6 +85,7 @@ export function buildStripeWebhookEventActivationCandidate(
       /^REVOKE ALL ON TABLE public\."StripeWebhookEvent"$/gm,
     ) !== 1
     || count(migration, /IF function_count <> 6/g) !== 1
+    || count(migration, /IF named_runtime_function_count <> 6/g) !== 1
     || count(migration, /IF table_function_count <> 6/g) !== 1
     || count(migration, /IF accepted_table_count <> 1/g) !== 1
     || count(

@@ -29,6 +29,7 @@ DECLARE
   required_index_count integer;
   invalid_row_count bigint;
   function_count integer;
+  named_runtime_function_count integer;
   table_function_count integer;
 BEGIN
   SELECT class.relowner, class.relrowsecurity, class.relforcerowsecurity
@@ -366,6 +367,29 @@ BEGIN
     RAISE EXCEPTION
       'StripeWebhookEvent fixed-function catalog drifted: %',
       function_count;
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO named_runtime_function_count
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND procedure.proname IN (
+       'grainline_stripe_webhook_begin',
+       'grainline_stripe_webhook_complete',
+       'grainline_stripe_webhook_fail',
+       'grainline_stripe_webhook_prune_batch',
+       'grainline_stripe_webhook_health_summary',
+       'grainline_legacy_stock_restore_claim'
+     )
+     AND pg_catalog.has_function_privilege(
+       'grainline_app_runtime', procedure.oid, 'EXECUTE'
+     );
+  IF named_runtime_function_count <> 6 THEN
+    RAISE EXCEPTION
+      'StripeWebhookEvent trusted-name overload surface drifted: %',
+      named_runtime_function_count;
   END IF;
 
   SELECT pg_catalog.count(*)::integer

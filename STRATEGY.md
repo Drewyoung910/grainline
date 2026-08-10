@@ -78,9 +78,12 @@ source-bound surfaces: platform Checkout/refund/dispute snapshots on
 separately signed `/api/stripe/webhook/connect`, and v2 thin account events on
 `/api/stripe/webhook/v2`. The compatible implementation must land and deploy
 before provider configuration changes. Provider correction, one signed payout
-delivery plus retry, exact three-surface proof, predecessor drain and the final
-pooled-runtime postflight remain distinct gates before StripeWebhookEvent RLS
-activation. Do not broaden the new Connect route with legacy account events
+delivery plus retry and the exact three-surface proof are complete. Predecessor
+drain and the hardened final pooled-runtime postflight remain distinct gates
+before StripeWebhookEvent RLS activation. Connect v2 signed delivery remains a
+mandatory launch/provider gate, but does not block this database-authority
+release because all three routes use the same fixed lease functions and have
+zero direct table access. Do not broaden the new Connect route with legacy account events
 unless current linked-account evidence establishes a real compatibility need.
 Human traffic being absent does not remove the old/new boundary because Stripe
 retries and cron/maintenance jobs remain active.

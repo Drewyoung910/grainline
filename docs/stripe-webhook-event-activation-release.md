@@ -9,11 +9,11 @@ compatibility.
 
 - migration: `20260805060000_enable_stripe_webhook_event_rls`
 - draft SHA-256:
-  `fd92c05ca2581eeeec19fd81e41a0dd672300381ad2d55396234a8f2fb0907d3`
+  `af47ed86b90276b0285618b7751c27a15fc52bd0a1a7bcc279c959e05c37e88b`
 - promoted migration SHA-256:
-  `c500e2c5135488d81929025a184f384fd53eed37f38d8dbf7e7e9bb8445e1299`
+  `6e9175b503d77cf899c8d4b9abb882788776e7d104a39bad5f7c4a5de122e033`
 - migration-tree SHA-256:
-  `d525a4d8e7982f49dbfd280b9d9cc46e0dac39da0507b66881b7828786cd4bdc`
+  `fbbaeaf57b32ebd382138685ea972487ed0c52f92fe01ca88421bf2021b9b2c5`
 - database-first rollback SHA-256:
   `2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722`
 - guarded phase: `stripe-webhook-event-activation-reviewed`
@@ -50,6 +50,9 @@ edge. It recursively rejects other membership. It also pins the predecessor
 grant/policy state, claim-generation invariant, required indexes, row
 coherence, exact function identities through `oidvectortypes(proargtypes)`,
 owners, search paths, volatility, ACLs and absence of dynamic SQL.
+It also counts every runtime-executable overload of the six trusted names, so
+a shadow signature cannot survive merely because the canonical signature is
+still present.
 Every function body is pinned to the MD5 of the exact current `prosrc` derived
 from its reviewed preparation migration; signature-compatible body drift aborts
 activation before table posture changes. The operator postflight independently
@@ -62,8 +65,10 @@ reviewed functions but may never delegate them.
 
 This migration must not run until the stacked compatible application changes
 have merged, deployed and drained. A pre-activation compatibility postflight
-still reads the table directly under the pooled runtime role, so CI isolates
-this migration until all predecessor proofs complete. CI then restores and
+still reads the table directly under the pooled runtime role and now requires
+exact per-operation CRUD, zero PUBLIC/column/grant-option drift and exact
+source/ACL identity for all six fixed functions, so CI isolates this migration
+until all predecessor proofs complete. CI then restores and
 applies only this activation, converges the runtime role, audits the complete
 grant/RLS catalog, and runs the activated proofs.
 
@@ -150,25 +155,27 @@ evidence only; it did not merge, deploy or change production.
 
 ## Remaining gates
 
-1. Merge PR #161, PR #162 and PR #163 in their reviewed stack order. PR #160's
-   first compatible preparation migration is already live and its actual
-   pooled-runtime postflight passed.
-2. From the resulting exact green main commit, run the guarded Production
-   Migrations workflow and apply only PR #162's additive
-   `20260805040000_prepare_stripe_webhook_maintenance_authority` migration.
-   Verify migration status and the global grant/RLS audit before deploying any
-   PR #162 runtime call sites.
-3. Deploy the exact compatible app without the activation migration, exercise
-   signed webhook, retry, ops-health, retention and legacy stock-restore paths,
-   drain the prior deployment, and rerun the predecessor postflight.
-4. Recut or merge this activation-only candidate from that exact compatible
-   main state and obtain fresh exact-head CI again if the merge/rebase changes
-   its exact commit or migration-tree bytes. The current isolated candidate's
-   source-drift and PUBLIC-authority PostgreSQL proofs are green at
-   `7a57316bcd16daeef5ac9d595180284d1953e316` / `31282060518`.
-5. Only then review an exact-main production activation dispatch and run the
-   separate actual pooled-runtime postflight described above.
-6. Prepare FORCE as its own later posture-only release after stable activation
+1. Finish this current-main refresh and obtain fresh exact-head CI for the
+   byte-pinned migration, real PostgreSQL activation/rollback proofs, global
+   grant audit, full tests, TypeScript, lint and production build.
+2. Confirm the compatible production deployment is still canonical and the
+   predecessor deployment has drained. Then run the hardened historical
+   compatibility postflight from the exact clean candidate commit using the
+   actual pooled runtime credential. It must attest exact direct CRUD, zero
+   PUBLIC/column/grant-option drift, all six source-pinned functions and zero
+   integrity issues in one repeatable-read read-only transaction.
+3. Merge only the exact reviewed activation head, rerun exact-main CI, and
+   verify that `20260805060000_enable_stripe_webhook_event_rls` is the only
+   pending production migration.
+4. Dispatch the guarded production migration as a separate exact-main release.
+   It may only establish policyless ENABLE/NO-FORCE and revoke direct runtime
+   table authority; it must not deploy or change Stripe/Vercel provider state.
+5. Run the separate actual pooled-runtime postflight described above and keep
+   the compatibility rollback ready until the fixed-operation smoke is green.
+6. Keep valid Connect v2 signed delivery mandatory on the launch checklist;
+   it is not a database-authority prerequisite because every signed route uses
+   the same fixed lease wrappers and has zero direct table access.
+7. Prepare FORCE as its own later posture-only release after stable activation
    evidence.
 
 No production state or provider variable changes are authorized by this

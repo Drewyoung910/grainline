@@ -222,9 +222,11 @@ None of these artifacts proves Stripe live-mode configuration or live-money
 signed delivery. Those require separately scoped endpoints, secrets,
 deployment and provider evidence before launch. The read-only topology artifact
 also does not replace a valid Connect v2 signed-delivery proof. The remaining
-immediate RLS predecessor steps are Connect v2 signed delivery or a separately
-reviewed decision that it is launch-only, drain and the final compatibility
-postflight.
+immediate RLS predecessor steps are drain and the final compatibility
+postflight. Connect v2 signed delivery remains a mandatory launch/provider
+proof, but not a `StripeWebhookEvent` authority gate: the v2 route uses the
+same source-pinned begin/complete/fail functions as the already exercised
+classic route and has zero direct table access.
 
 ## Required implementation and release proof
 

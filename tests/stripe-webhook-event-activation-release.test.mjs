@@ -85,6 +85,7 @@ test("activation preflight pins owner, role graph, table invariants and six func
   );
   assert.match(migration, /OR acl\.is_grantable/);
   assert.match(migration, /IF function_count <> 6/);
+  assert.match(migration, /IF named_runtime_function_count <> 6/);
   assert.match(migration, /IF table_function_count <> 6/);
   assert.doesNotMatch(migration, /pg_catalog\.(?:coalesce|nullif|greatest|least)\b/i);
 });
