@@ -1078,6 +1078,16 @@ Follow-up fix from this pass:
   fields, and keeps exact returned-controller attestation before any funding or
   payout call. No profile acknowledgment was accepted, no disposable account
   or proof residue remains, and Connect remains disabled at stage 3.
+- The first production-aligned retry was accepted by Stripe far enough to
+  create the disposable test account, but the returned account did not satisfy
+  the exact controller attestation. The coarse validator did not identify which
+  returned enum differed. It stopped before a funding charge or payout, deleted
+  the account, removed the attempt journal, and wrote no preparation evidence or
+  handoff. A separate read-only provider check confirmed test-mode stage 3 with
+  Connect disabled and the exact 10/12/1 event topology. The follow-up adds a
+  sanitized mismatch diagnostic containing only presence booleans and the four
+  non-secret controller enums; it cannot emit the account ID, release marker,
+  identity fields, bank details or credentials.
 
 ## Dependency security refresh (2026-07-25)
 

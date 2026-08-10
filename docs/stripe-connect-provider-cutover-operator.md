@@ -122,6 +122,13 @@ top-level `type`: Stripe rejects requests that send `type` and `controller`
 together. The returned account must re-attest the exact controller properties
 before funding or payout creation proceeds.
 
+If returned-account attestation fails, the operator reports only whether an ID
+and release marker were present plus the non-secret controller enum values. It
+never includes the account ID, marker value, identity fields, bank details or
+credentials. That diagnostic is emitted before the same exact account-deletion
+cleanup path runs, so provider normalization can be classified without leaving
+an untracked disposable source.
+
 The handoff and preparation-attempt journal stay under `/private/tmp` (or the
 system temporary directory), are never committed, and contain no API key or
 signing secret. If preparation fails and exact account deletion succeeds, the
