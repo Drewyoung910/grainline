@@ -362,6 +362,7 @@ async function assertPublicDeployment(deps, config) {
 }
 
 export function buildCanaryAccountParams(config, now = new Date()) {
+  void now;
   return {
     business_profile: {
       mcc: "5712",
@@ -369,7 +370,6 @@ export function buildCanaryAccountParams(config, now = new Date()) {
       product_description: "Disposable Stripe test-mode webhook delivery proof",
       url: "https://thegrainline.com",
     },
-    business_type: "individual",
     capabilities: {
       card_payments: { requested: true },
       transfers: { requested: true },
@@ -377,8 +377,8 @@ export function buildCanaryAccountParams(config, now = new Date()) {
     controller: {
       fees: { payer: "application" },
       losses: { payments: "application" },
-      requirement_collection: "application",
-      stripe_dashboard: { type: "none" },
+      requirement_collection: "stripe",
+      stripe_dashboard: { type: "express" },
     },
     country: "US",
     default_currency: "usd",
@@ -392,27 +392,8 @@ export function buildCanaryAccountParams(config, now = new Date()) {
       object: "bank_account",
       routing_number: "110000000",
     },
-    individual: {
-      address: {
-        city: "Chicago",
-        country: "US",
-        line1: "address_full_match",
-        postal_code: "60601",
-        state: "IL",
-      },
-      dob: { day: 1, month: 1, year: 1901 },
-      email: "provider-canary@thegrainline.com",
-      first_name: "Grainline",
-      last_name: "Canary",
-      phone: "0000000000",
-      ssn_last_4: "0000",
-    },
     metadata: { grainline_provider_canary: markerFor(config) },
     settings: { payouts: { schedule: { interval: "manual" } } },
-    tos_acceptance: {
-      date: Math.floor(now.getTime() / 1000),
-      ip: "127.0.0.1",
-    },
   };
 }
 
@@ -425,8 +406,8 @@ export function assertCanaryAccount(account, config) {
     || account.metadata?.grainline_provider_canary !== markerFor(config)
     || account.controller?.fees?.payer !== "application"
     || account.controller?.losses?.payments !== "application"
-    || account.controller?.requirement_collection !== "application"
-    || account.controller?.stripe_dashboard?.type !== "none"
+    || account.controller?.requirement_collection !== "stripe"
+    || account.controller?.stripe_dashboard?.type !== "express"
   ) {
     throw new Error("disposable Stripe account identity, metadata or controller drifted");
   }

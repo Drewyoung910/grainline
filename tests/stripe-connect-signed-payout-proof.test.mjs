@@ -6,6 +6,7 @@ import {
   PLATFORM_REVIEWED_EVENTS,
   V2_REVIEWED_EVENTS,
 } from "../scripts/stripe-connect-provider-cutover.mjs";
+import { STRIPE_CONNECT_CONTROLLER_SUMMARY } from "../src/lib/stripeConnectV2State.ts";
 import {
   assertCanaryAccount,
   assertCutoverEvidence,
@@ -75,9 +76,18 @@ function canaryController() {
   return {
     fees: { payer: "application" },
     losses: { payments: "application" },
-    requirement_collection: "application",
-    stripe_dashboard: { type: "none" },
+    requirement_collection: "stripe",
+    stripe_dashboard: { type: "express" },
   };
+}
+
+function controllerSummary(controller) {
+  return [
+    `dashboard:${controller.stripe_dashboard.type}`,
+    `fees:${controller.fees.payer}`,
+    `losses:${controller.losses.payments}`,
+    `requirements:${controller.requirement_collection}`,
+  ].join("|");
 }
 
 function cutoverEvidence(config) {
@@ -386,7 +396,11 @@ test("canary source derives its marker and uses the documented failing bank", ()
   const config = parseStripeConnectPayoutProofConfig(baseEnv("prepare"));
   const params = buildCanaryAccountParams(config, new Date("2026-08-09T00:00:00Z"));
   assert.equal(Object.hasOwn(params, "type"), false);
+  assert.equal(Object.hasOwn(params, "business_type"), false);
+  assert.equal(Object.hasOwn(params, "individual"), false);
+  assert.equal(Object.hasOwn(params, "tos_acceptance"), false);
   assert.deepEqual(params.controller, canaryController());
+  assert.equal(controllerSummary(params.controller), STRIPE_CONNECT_CONTROLLER_SUMMARY);
   assert.equal(params.external_account.routing_number, "110000000");
   assert.equal(params.external_account.account_number, "000111111116");
   assert.equal(params.settings.payouts.schedule.interval, "manual");
@@ -412,7 +426,7 @@ test("source validators reject account, payout and event mismatches", () => {
   assert.throws(
     () => assertCanaryAccount({
       ...account,
-      controller: { ...canaryController(), requirement_collection: "stripe" },
+      controller: { ...canaryController(), requirement_collection: "application" },
     }, config),
     /identity, metadata or controller drifted/,
   );
