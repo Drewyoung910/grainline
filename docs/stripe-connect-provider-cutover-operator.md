@@ -245,11 +245,14 @@ STRIPE_CONNECT_CUTOVER_MODE=cutover
 STRIPE_CONNECT_CUTOVER_CONFIRM=execute-test-connect-provider-cutover
 ```
 
-The payout preparation and signed proof use the same exact release bindings,
-the independently pinned stage-3 cutover commit and CI run, the cutover
-evidence path, separate fresh durable evidence paths, and one shared temporary
-handoff path. A later operator-only fix does not rewrite or re-run the earlier
-provider cutover; the proof validates both exact releases instead. Their
+Payout preparation binds its source objects, attempt, handoff and sanitized
+evidence to the exact preparation commit and CI run. Signed proof binds its
+executable code to a fresh exact-main proof commit and CI run while separately
+requiring the immutable preparation commit and CI run. Both modes also require
+the independently pinned stage-3 cutover release, the cutover evidence path,
+separate durable evidence paths and one shared temporary handoff path. A later
+operator-only fix therefore does not rewrite or re-run either historical
+provider mutation; the proof validates all three exact releases instead. Their
 confirmations are:
 
 ```text
@@ -260,6 +263,8 @@ STRIPE_CONNECT_PAYOUT_PROOF_CUTOVER_CI_RUN_ID=<successful-cutover-main-ci-run>
 
 STRIPE_CONNECT_PAYOUT_PROOF_MODE=prove
 STRIPE_CONNECT_PAYOUT_PROOF_CONFIRM=enable-and-prove-signed-test-payout-failure
+STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_COMMIT=<exact-preparation-main-sha>
+STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_CI_RUN_ID=<successful-preparation-main-ci-run>
 STRIPE_CONNECT_PAYOUT_PROOF_PREPARATION_EVIDENCE_PATH=<preparation-evidence>
 ```
 
@@ -303,3 +308,25 @@ Connect remains disabled at canonical provider stage 3; this pass performed no
 event delivery or resend, endpoint enablement, deployment, migration, database
 write, grant/RLS change, Vercel-variable change or live-mode Stripe operation.
 The signed-delivery/exact-retry proof is a separate mutation boundary.
+
+## First signed-delivery attempt and fail-closed correction (2026-08-10)
+
+The first explicitly authorized signed-delivery attempt was still bound to
+preparation release `0b718171e71700990bf8f9106ee880b116707bd3`, CI
+`31357207924` and compatible deployment
+`dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`. The installed Stripe CLI binary remained
+exactly the reviewed `1.39.0`, but its `version` command appended a current
+update-check notice to standard output. The operator compared the complete
+output to one exact line, so it stopped before the Stripe CLI resent the
+prepared event. Its recovery path re-read and returned the Connect endpoint to
+disabled canonical stage 3.
+
+No event delivery or exact retry occurred, no webhook lease or payout
+projection was created, the disposable account was not deleted, and final
+proof evidence was not written. The exact raw handoff and attempt remain mode
+`0600` for restart-safe recovery. The correction keeps the `1.39.0` pin exact,
+accepts only its exact first version line plus Stripe CLI's narrowly recognized
+update-check suffix, and rejects every other suffix. Because the prepared
+objects remain bound to the earlier release, proof mode now requires separate
+immutable preparation commit and CI bindings while the corrected executable is
+bound to its own fresh exact-main commit and CI run.

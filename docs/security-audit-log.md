@@ -1130,6 +1130,20 @@ Follow-up fix from this pass:
   grant, RLS, Vercel-variable, secret or Stripe live-mode state changed. The
   next boundary is the separately reviewed signed-delivery and exact-retry
   proof; preparation success does not authorize that mutation.
+- The first explicitly authorized signed-delivery attempt revalidated the
+  exact preparation, deployment, runtime identity and disabled stage-3
+  provider state, then enabled the exact Connect endpoint. Before any event
+  resend, the pinned Stripe CLI `1.39.0` printed its exact version followed by
+  a newly applicable update notice on standard output. The operator's
+  whole-output comparison failed, and its recovery path independently returned
+  Connect to disabled canonical stage 3. No event was delivered or retried, no
+  webhook lease or payout projection was written, the disposable account was
+  retained, final evidence remained absent, and the exact handoff plus attempt
+  remain mode `0600`. The isolated correction preserves the exact CLI version
+  pin, recognizes only Stripe's narrow update-check suffix, rejects any other
+  suffix, and separates the immutable preparation commit/CI binding from the
+  fresh corrected proof commit/CI binding. No deployment, migration, RLS,
+  grant, secret, Vercel-variable or live-mode Stripe change is part of the fix.
 
 ## Dependency security refresh (2026-07-25)
 
