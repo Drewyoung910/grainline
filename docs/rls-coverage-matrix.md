@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-08
+Last updated: 2026-08-10
 
 ## Purpose And Scope
 
@@ -8,9 +8,10 @@ This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Snapshot scope: 64 Prisma models.
 
 `SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`,
-`DirectUploadReference`, `Case`, `CaseMessage`, and `CaseMessageAttachment` are
-the nine tables in this snapshot with production RLS. Every other row is **not active
-RLS** and remains work to design, prove, and promote.
+`DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`, and
+`StripeWebhookEvent` are the ten tables in this snapshot with production RLS.
+Every other row is **not active RLS** and remains work to design, prove, and
+promote.
 The target column is a planning disposition, not a claim that the control is
 implemented. Re-read the production catalog before making any current-state
 claim because this document is a dated source snapshot.
@@ -94,7 +95,7 @@ completed alternative.
 | `EmailOutbox` | `ALTERNATIVE_REVIEW` | Email service ledgers | Recipient PII and rendered email content; producers, sender cron and operations | Dedicated producer and worker operations, least-privilege reads and retention proof |
 | `AccountDeletionSideEffect` | `ALTERNATIVE_REVIEW` | Account lifecycle service | Deletion payloads and retry state; account deletion, worker and operations | Service-only durable queue with target-user cleanup semantics and ordinary runtime denial |
 | `SupportRequest` | `BLOCKED_DESIGN` | Support | User or anonymous contact PII and case text; requester and staff | Authenticated-owner versus anonymous submission design, staff queue and retention rules |
-| `StripeWebhookEvent` | `PLANNED_RLS` | Provider event ledgers | Six source-pinned fixed lease/maintenance functions; direct ordinary source removed | Compatible deployment `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`, exact test-mode 10/1/12 topology, separately signed `payout.failed` delivery/retry and fresh zero-issue aggregate health are accepted. Policyless ENABLE candidate and PUBLIC-safe rollback are prepared; predecessor drain, hardened final compatibility proof, refreshed exact-head PostgreSQL proof and separate production activation remain. Connect v2 signed delivery is still mandatory before launch but shares the fixed lease boundary and is not an RLS activation prerequisite. Actual pooled-runtime postflight, FORCE and live-mode provider evidence are later releases |
+| `StripeWebhookEvent` | `RLS_LIVE_PHASE_A` | Provider event ledgers | Six source-pinned fixed lease/maintenance functions; direct ordinary source removed | Policyless ENABLE/NO-FORCE, zero policies, zero runtime/PUBLIC table or column authority, and exactly six fixed functions are live. Exact main `f987645784a447604fcab2399dc8e7fd7bef9d7c`, CI `31408797498`, migration run `31410550315`, global grant/RLS audit and the separate actual pooled-runtime read-only postflight are accepted. FORCE remains a separate posture-only release. Connect v2 signed delivery and live-mode provider proof remain mandatory launch gates, not Phase-A database-authority gaps |
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
@@ -214,15 +215,14 @@ preclude a later reviewed policy or grant migration.
 5. Case-family FORCE and the exact pooled-runtime postflight are complete.
    Keep Case evidence enablement, cleanup scheduling and provider/token changes
    outside that database boundary.
-6. Continue the Order/payment/shipping program: the StripeWebhookEvent
-   compatible source, additive maintenance preparation and exact compatible
-   deployment are live. The three source-bound webhook surfaces now pass exact
-   test-mode topology checks, and classic Connect signed delivery plus retry is
-   proved, and the fresh aggregate-health check is green. Drain and run the
-   hardened final predecessor postflight before the separate activation
-   release. Keep Connect v2 plus live-mode provider topology and signed
-   delivery as distinct mandatory launch gates; the v2 route shares the fixed
-   lease functions and does not block this database-authority release.
+6. Continue the Order/payment/shipping program: StripeWebhookEvent policyless
+   Phase A and its actual pooled-runtime postflight are complete. Preserve the
+   database-first rollback through the observation boundary, prepare FORCE as
+   a separate posture-only release, then continue the remaining Order,
+   OrderItem, quote, payment, payout and reservation tables as separately
+   reviewed activations. Keep Connect v2 plus live-mode provider topology and
+   signed delivery as distinct mandatory launch gates; the v2 route shares the
+   fixed lease functions and does not reopen the Phase-A database boundary.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger

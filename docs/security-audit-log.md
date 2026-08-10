@@ -1374,3 +1374,16 @@ Open work:
   counts, and direct private-function denial. It recorded sanitized mode-0600
   evidence and reported `productionChangedByPostflight=false`; no production
   or provider state changed.
+- PR #186 merged exact head
+  `654a730b575ddbcf954f6a6287f5aa6fa34c592a` as exact main
+  `f987645784a447604fcab2399dc8e7fd7bef9d7c`; exact-main CI
+  `31408797498` passed. Guarded Production Migrations run `31410550315`
+  applied only `20260805060000_enable_stripe_webhook_event_rls`, then passed
+  migration status and the global grant/RLS audit. Production now has
+  policyless ENABLE/NO-FORCE, zero policies, zero direct runtime/PUBLIC table
+  or column authority, and exactly six source-pinned runtime functions. The
+  separate actual pooled-runtime postflight passed from exact clean main in an
+  engine-attested repeatable-read read-only transaction, proving direct denial,
+  aggregate health, exact function/source/ACL identity and the write-function
+  read-only fence; it reported `productionChangedByPostflight=false`. No app
+  deployment, FORCE change or Stripe/Vercel provider change occurred.
