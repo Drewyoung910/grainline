@@ -152,10 +152,11 @@ export function readStripeWebhookEventActivationPostflightGitState(
 export function assertStripeWebhookEventActivationPostflightGitState(
   state,
   releaseCommit,
+  operation = "activation",
 ) {
   if (state?.head !== releaseCommit || state.status !== "") {
     throw new Error(
-      "StripeWebhookEvent activation postflight requires the exact clean release commit",
+      `StripeWebhookEvent ${operation} postflight requires the exact clean release commit`,
     );
   }
   return Object.freeze({ clean: true, head: state.head });
@@ -217,6 +218,7 @@ export async function verifyStripeWebhookEventActivationRuntimeIdentity(
 export async function verifyStripeWebhookEventActivatedCatalog(
   client,
   migrationRole = MIGRATION_ROLE,
+  expectedForced = false,
 ) {
   const table = await client.query(`
     SELECT
@@ -265,7 +267,7 @@ export async function verifyStripeWebhookEventActivatedCatalog(
   `);
   assert.deepEqual(table.rows, [{
     rls_enabled: true,
-    rls_forced: false,
+    rls_forced: expectedForced,
     owner_name: migrationRole,
     policy_count: 0,
     runtime_table_authority: false,

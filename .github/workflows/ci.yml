@@ -82,12 +82,12 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify StripeWebhookEvent activation migration tree
+      - name: Verify StripeWebhookEvent FORCE migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed
         run: npm run verify:rls-release-artifact
-      - name: Verify StripeWebhookEvent activation release
-        run: npm run audit:rls-stripe-webhook-event-activation-release
+      - name: Verify StripeWebhookEvent FORCE release
+        run: npm run audit:rls-stripe-webhook-event-force-release
       - name: Verify Case FORCE proof equivalence
         run: npm run audit:rls-case-force-release
       - name: Verify Case read-mode release bytes
@@ -106,6 +106,8 @@ jobs:
         run: npm run audit:rls-direct-upload-retirement-release
       - name: Verify DirectUpload activation proof equivalence
         run: npm run audit:rls-direct-upload-activation-release
+      - name: Verify the sealed StripeWebhookEvent Phase-A predecessor
+        run: npm run audit:rls-stripe-webhook-event-activation-sealed-prefix
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Prove runtime-role provisioning refusals exit nonzero
@@ -134,6 +136,11 @@ jobs:
           mv
           prisma/migrations/20260805060000_enable_stripe_webhook_event_rls
           "$RUNNER_TEMP/stripe-webhook-event-activation-release"
+      - name: Isolate the exact StripeWebhookEvent FORCE release until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260810172000_force_stripe_webhook_event_rls
+          "$RUNNER_TEMP/stripe-webhook-event-force-release"
       - name: Apply compatible migrations to CI Postgres
         run: npx prisma migrate deploy
       - name: Converge pre-activation production-style runtime grants
@@ -314,6 +321,27 @@ jobs:
         env:
           STRIPE_WEBHOOK_EVENT_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Re-audit restored StripeWebhookEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore the exact StripeWebhookEvent FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/stripe-webhook-event-force-release"
+          prisma/migrations/20260810172000_force_stripe_webhook_event_rls
+      - name: Apply the exact StripeWebhookEvent FORCE release
+        run: npx prisma migrate deploy
+      - name: Verify StripeWebhookEvent FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened StripeWebhookEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened StripeWebhookEvent authority
+        run: npm run audit:rls-stripe-webhook-event-force-postgres
+        env:
+          STRIPE_WEBHOOK_EVENT_FORCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove StripeWebhookEvent FORCE rollback and restoration
+        run: npm run audit:rls-stripe-webhook-event-force-rollback
+        env:
+          STRIPE_WEBHOOK_EVENT_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-audit restored StripeWebhookEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback

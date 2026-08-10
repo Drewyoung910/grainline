@@ -45,12 +45,12 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify exact StripeWebhookEvent activation migration tree
+      - name: Verify exact StripeWebhookEvent FORCE migration tree
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed
-      - name: Verify exact StripeWebhookEvent activation release
-        run: npm run audit:rls-stripe-webhook-event-activation-release
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed
+      - name: Verify exact StripeWebhookEvent FORCE release
+        run: npm run audit:rls-stripe-webhook-event-force-release
       - name: Verify exact Case FORCE proof equivalence
         run: npm run audit:rls-case-force-release
       - name: Verify exact Case read-mode release bytes

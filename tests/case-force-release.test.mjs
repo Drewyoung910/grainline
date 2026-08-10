@@ -136,10 +136,10 @@ test("Case FORCE PostgreSQL proof reuses denial checks with FORCE required", () 
   );
 });
 
-test("CI proves Phase A before restoring and proving Case FORCE", () => {
+test("CI retains the Case Phase-A-before-FORCE proof under the current release gate", () => {
   assert.match(
     ci,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/,
   );
   assert.match(ci, /npm run audit:rls-case-force-release/);
   assert.match(
@@ -172,7 +172,7 @@ test("runtime grant convergence accepts only uniform Case ENABLE or FORCE", () =
 
 test("production workflow permits only the reviewed Case FORCE tree", () => {
   const guard = production.indexOf(
-    "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed",
+    "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed",
   );
   const verifier = production.indexOf(
     "npm run audit:rls-case-force-release",

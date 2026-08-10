@@ -463,6 +463,26 @@ StripeWebhookEvent RLS activation postflight:
   It rolls back and writes sanitized mode-0600 evidence; it must not change
   production.
 
+StripeWebhookEvent FORCE postflight:
+
+- Run only after the separate byte-pinned FORCE migration succeeds from an
+  exact main commit whose full CI is green. Do not reuse Phase-A evidence.
+- Use only the local pooled production `DATABASE_URL` for
+  `grainline_app_runtime`; reject owner, direct and aliased PostgreSQL URLs.
+- Bind the exact release and workflow evidence with
+  `STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT`,
+  `STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID`, and
+  `STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID`.
+- Use the fresh ignored path
+  `stripe-webhook-event-force-production-postflight-<40-char-main>.json` and
+  confirmation `verify-production-stripe-webhook-event-force-runtime-read-only`.
+- Command:
+  `STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_CONFIRM=verify-production-stripe-webhook-event-force-runtime-read-only STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT=<40-char-main> STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-ci> STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID=<successful-production-migration> STRIPE_WEBHOOK_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH="stripe-webhook-event-force-production-postflight-<40-char-main>.json" npm run ops:stripe-webhook-event-force-postflight`.
+- The proof runs in an engine-attested repeatable-read/read-only transaction,
+  requires policyless ENABLE plus FORCE, reruns the exact six-function catalog,
+  direct denial, health access and SQLSTATE `25006` write fence, rolls back and
+  writes sanitized mode-0600 evidence without changing production.
+
 Clerk:
 
 1. Confirm the production endpoint is `/api/clerk/webhook`.

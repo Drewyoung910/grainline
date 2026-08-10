@@ -47,8 +47,15 @@ const production = fs.readFileSync(
 
 test("release pins one policyless ENABLE activation with no row mutation", () => {
   const candidate = buildStripeWebhookEventActivationCandidate();
-  const release = verifyStripeWebhookEventActivationRelease();
+  const release = verifyStripeWebhookEventActivationRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
   assert.equal(release.phase, STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE);
+  assert.equal(release.guard.sealedPrefix, true);
+  assert.equal(
+    release.guard.successorPhase,
+    "stripe-webhook-event-force-reviewed",
+  );
   assert.equal(release.draftSha256, STRIPE_WEBHOOK_EVENT_ACTIVATION_DRAFT_SHA256);
   assert.equal(release.migrationSha256, candidate.migrationSha256);
   assert.equal(release.protectedTables, 1);
@@ -177,6 +184,10 @@ test("CI stages compatibility first and proves activation before production can 
     "node scripts/verify-stripe-webhook-event-activation-release.mjs",
   );
   assert.equal(
+    pkg.scripts["audit:rls-stripe-webhook-event-activation-sealed-prefix"],
+    "node scripts/verify-stripe-webhook-event-activation-release.mjs --allow-reviewed-successor",
+  );
+  assert.equal(
     pkg.scripts["audit:rls-stripe-webhook-event-activation-postgres"],
     "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-event-activation-postgres-proof.mjs",
   );
@@ -208,10 +219,10 @@ test("CI stages compatibility first and proves activation before production can 
     ci,
     /STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql:\/\/grainline_app_runtime:/,
   );
-  assert.match(ci, /stripe-webhook-event-activation-reviewed/);
-  assert.match(production, /stripe-webhook-event-activation-reviewed/);
+  assert.match(ci, /stripe-webhook-event-force-reviewed/);
+  assert.match(production, /stripe-webhook-event-force-reviewed/);
   assert.ok(
-    production.indexOf("audit:rls-stripe-webhook-event-activation-release")
+    production.indexOf("audit:rls-stripe-webhook-event-force-release")
       < production.indexOf("npx prisma migrate deploy"),
   );
 });

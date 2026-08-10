@@ -1340,6 +1340,7 @@ describe("database grant inventory guardrails", () => {
         "Message",
         "Notification",
         "SavedSearch",
+        "StripeWebhookEvent",
       ],
     );
   });

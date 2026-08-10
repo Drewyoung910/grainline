@@ -88,8 +88,8 @@ test("Case activation release is policyless ENABLE and excludes later boundaries
   assert.match(release, /Order\/payment\/shipping RLS group/);
 });
 
-test("CI retains the Phase A proof before the later Case FORCE release", () => {
-  assert.match(ci, /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed/);
+test("CI retains the Case Phase-A proof before Case FORCE under the current gate", () => {
+  assert.match(ci, /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/);
   assert.match(ci, /npm run audit:rls-case-force-release/);
   assert.match(
     ci,
@@ -108,7 +108,7 @@ test("production workflow has advanced to the separate exact Case FORCE gate", (
   assert.ok(deploy > verifier);
   assert.match(
     production,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-activation-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/,
   );
   assert.doesNotMatch(production, /vercel|CASE_EVIDENCE_ATTACHMENTS_ENABLED/i);
 });

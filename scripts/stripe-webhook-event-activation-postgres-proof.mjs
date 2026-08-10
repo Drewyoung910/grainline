@@ -60,7 +60,10 @@ async function expectSqlState(client, label, sql, values = []) {
   assert.equal(caught.code, "42501", `${label} returned the wrong SQLSTATE`);
 }
 
-async function proveCatalog(owner) {
+export async function proveStripeWebhookEventCatalog(
+  owner,
+  { expectedForced = false } = {},
+) {
   const table = await owner.query(`
     SELECT
       class.relrowsecurity AS rls_enabled,
@@ -107,7 +110,7 @@ async function proveCatalog(owner) {
   `, [RUNTIME_ROLE]);
   assert.deepEqual(table.rows, [{
     rls_enabled: true,
-    rls_forced: false,
+    rls_forced: expectedForced,
     policy_count: 0,
     runtime_table_authority: false,
     runtime_column_authority: false,
@@ -194,42 +197,48 @@ async function proveCatalog(owner) {
   }
 }
 
-async function proveRuntimeBoundary(owner) {
+export async function proveStripeWebhookEventRuntimeBoundary(
+  owner,
+  {
+    prefix = PREFIX,
+    legacyClaimSessionId = LEGACY_CLAIM_SESSION_ID,
+  } = {},
+) {
   await owner.query("BEGIN");
   try {
     await owner.query(`SET LOCAL ROLE ${RUNTIME_ROLE}`);
-    for (const [label, sql] of [
+    for (const [label, sql, values = []] of [
       ["direct_select", `SELECT id FROM public."StripeWebhookEvent" LIMIT 1`],
-      ["direct_insert", `INSERT INTO public."StripeWebhookEvent" (id, type) VALUES ('${PREFIX}-forged', 'proof.forged')`],
-      ["direct_update", `UPDATE public."StripeWebhookEvent" SET type = 'proof.forged' WHERE id = '${PREFIX}-forged'`],
-      ["direct_delete", `DELETE FROM public."StripeWebhookEvent" WHERE id = '${PREFIX}-forged'`],
+      ["direct_insert", `INSERT INTO public."StripeWebhookEvent" (id, type) VALUES ($1, 'proof.forged')`, [`${prefix}-forged`]],
+      ["direct_update", `UPDATE public."StripeWebhookEvent" SET type = 'proof.forged' WHERE id = $1`, [`${prefix}-forged`]],
+      ["direct_delete", `DELETE FROM public."StripeWebhookEvent" WHERE id = $1`, [`${prefix}-forged`]],
     ]) {
-      await expectSqlState(owner, label, sql);
+      await expectSqlState(owner, label, sql, values);
     }
 
     const begin = await owner.query(
       "SELECT action, claim_generation::text FROM public.grainline_stripe_webhook_begin($1, $2)",
-      [`${PREFIX}-lease`, "checkout.session.completed"],
+      [`${prefix}-lease`, "checkout.session.completed"],
     );
     assert.deepEqual(begin.rows, [{ action: "process", claim_generation: "1" }]);
     const failed = await owner.query(
       "SELECT public.grainline_stripe_webhook_fail($1, 1, 'sanitized proof') AS result",
-      [`${PREFIX}-lease`],
+      [`${prefix}-lease`],
     );
     assert.deepEqual(failed.rows, [{ result: "failed" }]);
     const reclaimed = await owner.query(
       "SELECT action, claim_generation::text FROM public.grainline_stripe_webhook_begin($1, $2)",
-      [`${PREFIX}-lease`, "checkout.session.completed"],
+      [`${prefix}-lease`, "checkout.session.completed"],
     );
     assert.deepEqual(reclaimed.rows, [{ action: "process", claim_generation: "2" }]);
     const completed = await owner.query(
       "SELECT public.grainline_stripe_webhook_complete($1, 2) AS result",
-      [`${PREFIX}-lease`],
+      [`${prefix}-lease`],
     );
     assert.deepEqual(completed.rows, [{ result: "completed" }]);
     const claimed = await owner.query(
       "SELECT public.grainline_legacy_stock_restore_claim($1) AS claimed",
-      [LEGACY_CLAIM_SESSION_ID],
+      [legacyClaimSessionId],
     );
     assert.deepEqual(claimed.rows, [{ claimed: true }]);
     const health = await owner.query(
@@ -253,8 +262,8 @@ export async function runStripeWebhookEventActivationProof(env = process.env) {
   const owner = new Client({ connectionString: databaseUrl });
   await owner.connect();
   try {
-    await proveCatalog(owner);
-    await proveRuntimeBoundary(owner);
+    await proveStripeWebhookEventCatalog(owner);
+    await proveStripeWebhookEventRuntimeBoundary(owner);
     const residue = await owner.query(`
       SELECT pg_catalog.count(*)::integer AS residue_count
         FROM public."StripeWebhookEvent"
