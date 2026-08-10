@@ -122,8 +122,15 @@ top-level `type`: Stripe rejects requests that send `type` and `controller`
 together. The returned account must re-attest the exact controller properties
 before funding or payout creation proceeds.
 
+Stripe's Account object does not expose a `livemode` property. The operator
+therefore permits that property to be absent, rejects any explicit value other
+than `false`, and binds test mode independently through the required
+`sk_test_` credential. The funding charge, payout and event must each later
+re-attest `livemode=false` before preparation evidence can be written.
+
 If returned-account attestation fails, the operator reports only whether an ID
-and release marker were present plus the non-secret controller enum values. It
+and release marker were present, whether `livemode` was present, plus the
+non-secret controller enum values. It
 never includes the account ID, marker value, identity fields, bank details or
 credentials. That diagnostic is emitted before the same exact account-deletion
 cleanup path runs, so provider normalization can be classified without leaving

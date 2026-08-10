@@ -1088,6 +1088,16 @@ Follow-up fix from this pass:
   sanitized mismatch diagnostic containing only presence booleans and the four
   non-secret controller enums; it cannot emit the account ID, release marker,
   identity fields, bank details or credentials.
+- The diagnostic retry from exact main `2cea1ee9` and green CI `31345457588`
+  proved that the account ID, marker and all four production-aligned controller
+  fields matched. The sole mismatch was an absent `livemode` property, which is
+  not part of Stripe's Account object response. The proof stopped before the
+  funding charge or payout, deleted the disposable account, removed its attempt
+  journal, and left no preparation evidence or handoff. The corrected validator
+  permits only omission or an explicit `false`; the `sk_test_` key remains a
+  hard prerequisite and the later charge, payout and event must each prove
+  `livemode=false`. A separate read-only provider read returned predecessor
+  stage 3, so the Connect endpoint remains disabled.
 
 ## Dependency security refresh (2026-07-25)
 
