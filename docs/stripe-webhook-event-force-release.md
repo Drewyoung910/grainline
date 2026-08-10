@@ -63,8 +63,9 @@ silently bypass the policyless service boundary merely by owning the table.
 
 ## Proof ordering
 
-CI must first byte-verify the complete FORCE release, then remove both the
-Phase-A and FORCE migrations before its compatible deploy. It restores and
+CI must first byte-verify the complete FORCE release and the sealed Phase-A
+prefix while both migrations are still present, then remove both migrations
+before its compatible deploy. It restores and
 proves Phase A alone, including the actual runtime-login postflight and
 database-first Phase-A rollback. Only then may it restore and apply FORCE,
 verify migration status, rerun the global grant/RLS audit, exercise all six
@@ -76,6 +77,17 @@ The guarded Production Migrations workflow accepts only
 `prisma migrate deploy`, then verifies migration status and the global
 grant/RLS audit. It does not deploy application code or change Stripe/Vercel
 provider state.
+
+## Failed candidate evidence
+
+Draft-head CI run `31415661672` at `01f6e53cac51e48e5a4b8d15d5fe470807989d98`
+failed before any Prisma deploy or PostgreSQL proof because the workflow moved
+the Phase-A migration directory aside before invoking its sealed-prefix
+verifier. The failure changed no persistent or production state; the CI
+PostgreSQL service was disposable and no migration command had run. The
+corrected workflow verifies Phase A while both exact migrations remain present,
+requires the exact reviewed FORCE successor guard, and only then isolates the
+two releases for ordered engine proof.
 
 ## Production acceptance after promotion
 

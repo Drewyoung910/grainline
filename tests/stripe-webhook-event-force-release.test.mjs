@@ -214,6 +214,9 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   const forceIsolate = ci.indexOf(
     "Isolate the exact StripeWebhookEvent FORCE release",
   );
+  const sealedPhaseA = ci.indexOf(
+    "audit:rls-stripe-webhook-event-activation-sealed-prefix",
+  );
   const phaseARestore = ci.indexOf(
     "Restore the exact StripeWebhookEvent activation release",
   );
@@ -223,6 +226,7 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   const forceProof = ci.indexOf(
     "Prove FORCE-hardened StripeWebhookEvent authority",
   );
+  assert.ok(sealedPhaseA >= 0 && sealedPhaseA < forceIsolate);
   assert.ok(forceIsolate >= 0 && forceIsolate < phaseARestore);
   assert.ok(forceRestore > phaseARestore && forceProof > forceRestore);
   assert.match(ci, /stripe-webhook-event-force-reviewed/);
@@ -236,6 +240,9 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.match(releaseDocument, /Migrations run `31410550315`/);
   assert.match(releaseDocument, /durable ownership-drift invariant/);
   assert.match(releaseDocument, /Connect v2 signed delivery/);
+  assert.match(releaseDocument, /31415661672/);
+  assert.match(releaseDocument, /before any Prisma deploy or PostgreSQL proof/);
+  assert.match(releaseDocument, /exact reviewed FORCE successor guard/);
   assert.match(runbook, /StripeWebhookEvent FORCE postflight:/);
   assert.match(launchChecklist, /ops:stripe-webhook-event-force-postflight/);
 });

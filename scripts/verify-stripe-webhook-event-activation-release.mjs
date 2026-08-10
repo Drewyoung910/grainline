@@ -112,8 +112,17 @@ export function verifyStripeWebhookEventActivationRelease(
 }
 
 function main() {
+  const mode = process.argv[2];
+  if (mode !== undefined && mode !== "--allow-reviewed-successor") {
+    throw new Error(
+      "usage: verify-stripe-webhook-event-activation-release.mjs "
+      + "[--allow-reviewed-successor]",
+    );
+  }
   process.stdout.write(
-    `${JSON.stringify(verifyStripeWebhookEventActivationRelease(), null, 2)}\n`,
+    `${JSON.stringify(verifyStripeWebhookEventActivationRelease(undefined, {
+      allowReviewedSuccessor: mode === "--allow-reviewed-successor",
+    }), null, 2)}\n`,
   );
 }
 

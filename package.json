@@ -67,6 +67,7 @@
     "audit:rls-stripe-webhook-maintenance-authority": "node scripts/verify-stripe-webhook-maintenance-authority.mjs",
     "audit:rls-stripe-webhook-maintenance-postgres": "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-maintenance-authority-postgres-proof.mjs",
     "audit:rls-stripe-webhook-event-activation-release": "node scripts/verify-stripe-webhook-event-activation-release.mjs",
+    "audit:rls-stripe-webhook-event-activation-sealed-prefix": "node scripts/verify-stripe-webhook-event-activation-release.mjs --allow-reviewed-successor",
     "audit:rls-stripe-webhook-event-activation-postgres": "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-event-activation-postgres-proof.mjs",
     "audit:rls-stripe-webhook-event-activation-postflight-postgres": "node scripts/stripe-webhook-event-activation-postflight-postgres-proof.mjs",
     "audit:rls-stripe-webhook-event-activation-rollback": "node scripts/stripe-webhook-event-activation-rollback-proof.mjs",

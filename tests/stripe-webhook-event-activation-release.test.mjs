@@ -184,6 +184,10 @@ test("CI stages compatibility first and proves activation before production can 
     "node scripts/verify-stripe-webhook-event-activation-release.mjs",
   );
   assert.equal(
+    pkg.scripts["audit:rls-stripe-webhook-event-activation-sealed-prefix"],
+    "node scripts/verify-stripe-webhook-event-activation-release.mjs --allow-reviewed-successor",
+  );
+  assert.equal(
     pkg.scripts["audit:rls-stripe-webhook-event-activation-postgres"],
     "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-event-activation-postgres-proof.mjs",
   );

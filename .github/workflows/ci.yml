@@ -106,6 +106,8 @@ jobs:
         run: npm run audit:rls-direct-upload-retirement-release
       - name: Verify DirectUpload activation proof equivalence
         run: npm run audit:rls-direct-upload-activation-release
+      - name: Verify the sealed StripeWebhookEvent Phase-A predecessor
+        run: npm run audit:rls-stripe-webhook-event-activation-sealed-prefix
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Prove runtime-role provisioning refusals exit nonzero
@@ -139,8 +141,6 @@ jobs:
           mv
           prisma/migrations/20260810172000_force_stripe_webhook_event_rls
           "$RUNNER_TEMP/stripe-webhook-event-force-release"
-      - name: Verify the sealed StripeWebhookEvent Phase-A predecessor
-        run: npm run audit:rls-stripe-webhook-event-activation-release
       - name: Apply compatible migrations to CI Postgres
         run: npx prisma migrate deploy
       - name: Converge pre-activation production-style runtime grants
