@@ -100,21 +100,25 @@ an illegal cross-stage combination fail closed.
 
 Stripe's CLI cannot synthesize `payout.failed`; Stripe documents manual resend
 of an existing event and special test bank accounts that cause real test-mode
-payout failures. The proof therefore creates a fresh Custom test connected
-account with a deterministic release marker, manual payout schedule, and the
-documented US test bank account ending `1116`, which fails with
-`no_account`. It funds that account with Stripe's `tok_bypassPending` test
-token, creates a one-dollar payout, waits for the real failed payout and exact
-`payout.failed` event, and writes:
+payout failures. The proof therefore creates a fresh Express-equivalent test
+connected account with a deterministic release marker, manual payout schedule,
+and the documented US test bank account ending `1116`, which fails with
+`no_account`. Its controller matches Grainline's seller-account responsibility
+contract: application-paid fees and losses, Stripe-collected requirements, and
+the Express dashboard. The proof never submits individual identity data or
+accepts Stripe's service agreement on behalf of the disposable account. It
+funds that account with Stripe's `tok_bypassPending` test token, creates a
+one-dollar payout, waits for the real failed payout and exact `payout.failed`
+event, and writes:
 
 - sanitized durable evidence containing SHA-256 ID digests; and
 - a temporary mode-`0600` handoff containing the raw account, payout and event
   IDs needed for exact resend.
 
-The disposable account uses the current controller contract
-(`requirement_collection=application`, application-paid fees and losses, and
-no Stripe dashboard). It deliberately omits the legacy top-level
-`type=custom`: Stripe rejects requests that send `type` and `controller`
+The disposable account uses the same responsibility shape as Grainline's
+Accounts v2 seller contract (`requirement_collection=stripe`, application-paid
+fees and losses, and the Express dashboard). It deliberately omits a legacy
+top-level `type`: Stripe rejects requests that send `type` and `controller`
 together. The returned account must re-attest the exact controller properties
 before funding or payout creation proceeds.
 

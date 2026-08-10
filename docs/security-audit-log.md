@@ -1067,6 +1067,17 @@ Follow-up fix from this pass:
   commit/CI inside the immutable stage-3 evidence and the current proof
   commit/CI used for source code and GitHub gates. This is proof-chain code and
   documentation only; Stripe remains disabled at stage 3.
+- The next separately authorized preparation retry also stopped before an
+  account existed. Stripe required the platform profile acknowledgment because
+  the proof's Custom-equivalent controller made Grainline responsible for
+  collecting identity requirements. That did not match production seller
+  onboarding, which uses an Express dashboard and Stripe-collected requirements
+  while retaining application-paid fees and losses. The isolated correction
+  aligns the disposable controller with the production responsibility shape,
+  removes application-collected individual identity and service-agreement
+  fields, and keeps exact returned-controller attestation before any funding or
+  payout call. No profile acknowledgment was accepted, no disposable account
+  or proof residue remains, and Connect remains disabled at stage 3.
 
 ## Dependency security refresh (2026-07-25)
 
