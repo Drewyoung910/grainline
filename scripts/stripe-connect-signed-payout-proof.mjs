@@ -398,18 +398,33 @@ export function buildCanaryAccountParams(config, now = new Date()) {
 }
 
 export function assertCanaryAccount(account, config) {
+  const diagnostics = {
+    controller: {
+      dashboardType: account?.controller?.stripe_dashboard?.type ?? null,
+      feesPayer: account?.controller?.fees?.payer ?? null,
+      lossesPayments: account?.controller?.losses?.payments ?? null,
+      requirementsCollector: account?.controller?.requirement_collection ?? null,
+    },
+    deleted: account?.deleted === true,
+    idPresent: typeof account?.id === "string",
+    livemode: account?.livemode ?? null,
+    markerMatches:
+      account?.metadata?.grainline_provider_canary === markerFor(config),
+  };
   if (
-    !account
-    || typeof account.id !== "string"
-    || account.livemode !== false
-    || account.deleted === true
-    || account.metadata?.grainline_provider_canary !== markerFor(config)
-    || account.controller?.fees?.payer !== "application"
-    || account.controller?.losses?.payments !== "application"
-    || account.controller?.requirement_collection !== "stripe"
-    || account.controller?.stripe_dashboard?.type !== "express"
+    !diagnostics.idPresent
+    || diagnostics.livemode !== false
+    || diagnostics.deleted
+    || !diagnostics.markerMatches
+    || diagnostics.controller.feesPayer !== "application"
+    || diagnostics.controller.lossesPayments !== "application"
+    || diagnostics.controller.requirementsCollector !== "stripe"
+    || diagnostics.controller.dashboardType !== "express"
   ) {
-    throw new Error("disposable Stripe account identity, metadata or controller drifted");
+    throw new Error(
+      "disposable Stripe account identity, metadata or controller drifted: "
+      + JSON.stringify(diagnostics),
+    );
   }
   return account;
 }

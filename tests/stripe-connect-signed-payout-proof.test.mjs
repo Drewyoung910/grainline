@@ -423,13 +423,20 @@ test("source validators reject account, payout and event mismatches", () => {
     () => assertCanaryAccount({ ...account, livemode: true }, config),
     /identity, metadata or controller drifted/,
   );
-  assert.throws(
-    () => assertCanaryAccount({
+  let controllerError;
+  try {
+    assertCanaryAccount({
       ...account,
       controller: { ...canaryController(), requirement_collection: "application" },
-    }, config),
-    /identity, metadata or controller drifted/,
-  );
+    }, config);
+  } catch (error) {
+    controllerError = error;
+  }
+  assert.ok(controllerError instanceof Error);
+  assert.match(controllerError.message, /"requirementsCollector":"application"/);
+  assert.match(controllerError.message, /"markerMatches":true/);
+  assert.doesNotMatch(controllerError.message, /acct_disposable_test/);
+  assert.doesNotMatch(controllerError.message, /grainline_provider_canary/);
   assert.throws(
     () => assertFailedPayout({ ...failedPayout(), failure_code: "account_closed" }, ACCOUNT_ID),
     /exact failed state/,
