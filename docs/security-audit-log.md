@@ -1110,6 +1110,26 @@ Follow-up fix from this pass:
   funding or payout creation. Connect remains disabled at provider stage 3;
   this change itself creates no account, Account Link, charge, payout, webhook
   delivery, deployment, migration, secret or live-mode mutation.
+- PR #182 merged the hosted-onboarding boundary as exact `main`
+  `0b718171e71700990bf8f9106ee880b116707bd3`; exact-main CI `31357207924`
+  passed. The separately authorized test-mode preparation resumed one
+  disposable Express account through Stripe-hosted onboarding. The operator
+  stopped until Stripe independently reported both charges and payouts
+  enabled, then created one test funding charge and one USD 1.00 payout using
+  Stripe's reviewed failing test bank. The payout produced exactly one fresh
+  `payout.failed` event with failure code `no_account`. Sanitized durable
+  evidence at
+  `archive/stripe-connect-disposable-payout-preparation-test-20260810-0b718171.json`
+  contains only provider-ID hashes and is bound to exact main, CI, compatible
+  deployment `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` and the immutable stage-3
+  cutover evidence. The raw account, payout and event handoff plus its attempt
+  journal remain mode `0600` under `/private/tmp` for restart-safe signed-proof
+  cleanup; the single-use onboarding record was removed. The canonical Connect
+  endpoint remains disabled at provider stage 3. No event was delivered or
+  resent, no endpoint was enabled, and no deployment, migration, database,
+  grant, RLS, Vercel-variable, secret or Stripe live-mode state changed. The
+  next boundary is the separately reviewed signed-delivery and exact-retry
+  proof; preparation success does not authorize that mutation.
 
 ## Dependency security refresh (2026-07-25)
 

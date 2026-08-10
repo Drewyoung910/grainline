@@ -1122,3 +1122,34 @@ test("package and durable docs keep preparation, enable and cleanup separate", (
   );
   assert.doesNotMatch(source, /cliEnvironment\s*=\s*\{\s*\.\.\.process\.env/);
 });
+
+test("retained payout preparation evidence remains exact and secret-free", () => {
+  const retainedConfig = {
+    ciRunId: "31357207924",
+    cutoverCiRunId: "31339275512",
+    cutoverCommit: "abd49d703ec37349c84b0c70912ffb655faac5e3",
+    deploymentId: DEPLOYMENT_ID,
+    expectedCommit: "0b718171e71700990bf8f9106ee880b116707bd3",
+  };
+  const cutoverPath =
+    "archive/stripe-connect-provider-cutover-test-20260809-abd49d70.json";
+  const preparationPath =
+    "archive/stripe-connect-disposable-payout-preparation-test-20260810-0b718171.json";
+  const cutoverSource = readFileSync(cutoverPath, "utf8");
+  const preparationSource = readFileSync(preparationPath, "utf8");
+
+  assert.equal(
+    createHash("sha256").update(cutoverSource).digest("hex"),
+    "3e0fd8a53d2f9870e270c5751dc53edbd9868fac956268781ce6c3ef829b41a8",
+  );
+  assert.equal(
+    createHash("sha256").update(preparationSource).digest("hex"),
+    "d0b05d3f131eb64ca5b55eee9a283d8089a310ecb8c05cc92e60964cd83f0077",
+  );
+  assertCutoverEvidence(JSON.parse(cutoverSource), retainedConfig);
+  assertPreparationEvidence(JSON.parse(preparationSource), retainedConfig);
+  assert.doesNotMatch(
+    `${cutoverSource}\n${preparationSource}`,
+    /(?:sk_(?:test|live)_|whsec_|acct_|po_|evt_|https:\/\/connect\.stripe\.com\/setup\/)/,
+  );
+});

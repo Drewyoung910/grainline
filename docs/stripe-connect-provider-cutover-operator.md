@@ -268,3 +268,38 @@ Stripe webhook health proof. Only after those pass may the StripeWebhookEvent
 predecessor drain and policyless RLS activation resume. Live money remains a
 separate endpoint, secret, deployment and signed-delivery release; test-mode
 evidence cannot authorize it.
+
+## Test payout preparation record (2026-08-10)
+
+PR #182 merged the hosted-onboarding correction as exact `main`
+`0b718171e71700990bf8f9106ee880b116707bd3`; exact-main CI `31357207924`
+passed. The preparation operator remained bound to compatible deployment
+`dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` and immutable stage-3 cutover commit
+`abd49d703ec37349c84b0c70912ffb655faac5e3` / CI `31339275512`.
+
+The first hosted submission left `individual.id_number` past due. A refreshed
+single-use link collected Stripe's successful test identity number, after
+which Stripe reported `charges_enabled=true`, `payouts_enabled=true`, no
+current or past-due requirements and no verification errors. Only then did the
+restart-safe operator create the reviewed test funding charge and USD 1.00
+payout. The payout failed with `no_account` and yielded exactly one fresh
+`payout.failed` event, as required.
+
+Sanitized preparation evidence is retained at
+`archive/stripe-connect-disposable-payout-preparation-test-20260810-0b718171.json`
+with SHA-256
+`d0b05d3f131eb64ca5b55eee9a283d8089a310ecb8c05cc92e60964cd83f0077`.
+The immutable cutover predecessor is retained at
+`archive/stripe-connect-provider-cutover-test-20260809-abd49d70.json` with
+SHA-256
+`3e0fd8a53d2f9870e270c5751dc53edbd9868fac956268781ce6c3ef829b41a8`.
+Neither artifact contains raw Stripe object IDs, credentials, Account Link
+URLs or personal identity values.
+
+The raw handoff and attempt journal remain mode `0600` in `/private/tmp` so the
+later signed-delivery proof can resume and delete the disposable account
+without creating or replaying money movement. The onboarding record is gone.
+Connect remains disabled at canonical provider stage 3; this pass performed no
+event delivery or resend, endpoint enablement, deployment, migration, database
+write, grant/RLS change, Vercel-variable change or live-mode Stripe operation.
+The signed-delivery/exact-retry proof is a separate mutation boundary.
