@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   closeSync,
@@ -22,22 +23,29 @@ import {
   assertDeterministicPostgresEnvironment,
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
+import {
+  STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS,
+  stripeWebhookEventFunctionSourceSha256,
+} from "./stripe-webhook-event-function-source-catalog.mjs";
 
 const { Client } = pg;
 
 export const ORDER_PAYMENT_SHIPPING_COMPATIBLE_POSTFLIGHT_CONFIRMATION =
   "verify-production-order-payment-shipping-compatible-read-only";
 export const ORDER_PAYMENT_SHIPPING_PRIVATE_FUNCTIONS = Object.freeze([
-  ["grainline_order_item_seller_key_bind", ""],
-  ["grainline_order_item_seller_key_complete", ""],
-  ["grainline_order_seller_key_assert", "text"],
-  ["grainline_order_seller_key_complete", ""],
+  ["grainline_order_item_seller_key_bind", "", "v", "u"],
+  ["grainline_order_item_seller_key_complete", "", "v", "u"],
+  ["grainline_order_seller_key_assert", "text", "s", "s"],
+  ["grainline_order_seller_key_complete", "", "v", "u"],
 ]);
-export const ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS = Object.freeze([
-  ["grainline_stripe_webhook_begin", "text, text"],
-  ["grainline_stripe_webhook_complete", "text, bigint"],
-  ["grainline_stripe_webhook_fail", "text, bigint, text"],
-]);
+export const ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS = Object.freeze(
+  STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map((entry) => Object.freeze([
+    entry.name,
+    entry.identityArguments,
+    "v",
+    "u",
+  ])),
+);
 
 const REVIEWED_MIGRATION_ROLE = "neondb_owner";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
@@ -238,9 +246,67 @@ export async function verifyTablePosture(client, migrationRole) {
       (SELECT pg_catalog.count(*)::integer
          FROM pg_catalog.pg_policy AS policy
         WHERE policy.polrelid = relation.oid) AS policy_count,
-      pg_catalog.has_table_privilege(
-        CURRENT_USER, relation.oid, 'SELECT,INSERT,UPDATE,DELETE'
-      ) AS runtime_crud
+      ARRAY(
+        SELECT DISTINCT pg_catalog.upper(acl.privilege_type)
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              relation.relacl,
+              pg_catalog.acldefault('r', relation.relowner)
+            )
+          ) AS acl
+         WHERE acl.grantee = (
+           SELECT role.oid
+             FROM pg_catalog.pg_roles AS role
+            WHERE role.rolname = CURRENT_USER
+         )
+         ORDER BY 1
+      ) AS runtime_privileges,
+      ARRAY(
+        SELECT DISTINCT pg_catalog.upper(acl.privilege_type)
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              relation.relacl,
+              pg_catalog.acldefault('r', relation.relowner)
+            )
+          ) AS acl
+         WHERE acl.grantee = (
+           SELECT role.oid
+             FROM pg_catalog.pg_roles AS role
+            WHERE role.rolname = CURRENT_USER
+         )
+           AND acl.is_grantable
+         ORDER BY 1
+      ) AS runtime_grant_options,
+      ARRAY(
+        SELECT DISTINCT pg_catalog.upper(acl.privilege_type)
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              relation.relacl,
+              pg_catalog.acldefault('r', relation.relowner)
+            )
+          ) AS acl
+         WHERE acl.grantee = 0
+         ORDER BY 1
+      ) AS public_privileges,
+      ARRAY(
+        SELECT DISTINCT pg_catalog.format(
+          '%I:%s',
+          attribute.attname,
+          pg_catalog.upper(acl.privilege_type)
+        )
+          FROM pg_catalog.pg_attribute AS attribute
+          CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+         WHERE attribute.attrelid = relation.oid
+           AND attribute.attnum > 0
+           AND NOT attribute.attisdropped
+           AND acl.grantee IN (
+             0,
+             (SELECT role.oid
+                FROM pg_catalog.pg_roles AS role
+               WHERE role.rolname = CURRENT_USER)
+           )
+         ORDER BY 1
+      ) AS direct_column_privileges
     FROM pg_catalog.pg_class AS relation
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = relation.relnamespace
@@ -255,7 +321,14 @@ export async function verifyTablePosture(client, migrationRole) {
     assert.equal(row.rls_enabled, false, row.table_name);
     assert.equal(row.rls_forced, false, row.table_name);
     assert.equal(row.policy_count, 0, row.table_name);
-    assert.equal(row.runtime_crud, true, row.table_name);
+    assert.deepEqual(
+      row.runtime_privileges,
+      ["DELETE", "INSERT", "SELECT", "UPDATE"],
+      row.table_name,
+    );
+    assert.deepEqual(row.runtime_grant_options, [], row.table_name);
+    assert.deepEqual(row.public_privileges, [], row.table_name);
+    assert.deepEqual(row.direct_column_privileges, [], row.table_name);
   }
 }
 
@@ -396,13 +469,23 @@ export async function verifyTriggerCatalog(client) {
 
 export async function verifyFunctionCatalog(client, migrationRole) {
   const expected = new Map([
-    ...ORDER_PAYMENT_SHIPPING_PRIVATE_FUNCTIONS.map(([name, args]) => [
+    ...ORDER_PAYMENT_SHIPPING_PRIVATE_FUNCTIONS.map(([
       name,
-      { args, runtimeExecute: false },
+      args,
+      volatility,
+      parallelMode,
+    ]) => [
+      name,
+      { args, parallelMode, runtimeExecute: false, volatility },
     ]),
-    ...ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS.map(([name, args]) => [
+    ...ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS.map(([
       name,
-      { args, runtimeExecute: true },
+      args,
+      volatility,
+      parallelMode,
+    ]) => [
+      name,
+      { args, parallelMode, runtimeExecute: true, volatility },
     ]),
   ]);
   const result = await client.query(`
@@ -411,7 +494,12 @@ export async function verifyFunctionCatalog(client, migrationRole) {
       pg_catalog.oidvectortypes(procedure.proargtypes) AS argument_types,
       pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
       procedure.prosecdef AS security_definer,
+      procedure.proleakproof AS leakproof,
+      procedure.provolatile AS volatility,
+      procedure.proparallel AS parallel_mode,
+      procedure.prokind AS function_kind,
       procedure.proconfig AS function_config,
+      procedure.prosrc AS function_source,
       pg_catalog.has_function_privilege(
         CURRENT_USER, procedure.oid, 'EXECUTE'
       ) AS runtime_execute,
@@ -423,9 +511,51 @@ export async function verifyFunctionCatalog(client, migrationRole) {
               pg_catalog.acldefault('f', procedure.proowner)
             )
           ) AS acl
+         WHERE acl.grantee = (
+           SELECT role.oid
+             FROM pg_catalog.pg_roles AS role
+            WHERE role.rolname = CURRENT_USER
+         )
+           AND acl.privilege_type = 'EXECUTE'
+      ) AS runtime_direct_execute,
+      EXISTS (
+        SELECT 1
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
          WHERE acl.grantee = 0
            AND acl.privilege_type = 'EXECUTE'
-      ) AS public_execute
+      ) AS public_execute,
+      (SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.aclexplode(
+            COALESCE(
+              procedure.proacl,
+              pg_catalog.acldefault('f', procedure.proowner)
+            )
+          ) AS acl
+         WHERE acl.privilege_type = 'EXECUTE'
+           AND (
+             acl.grantee NOT IN (
+               procedure.proowner,
+               (SELECT role.oid
+                  FROM pg_catalog.pg_roles AS role
+                 WHERE role.rolname = CURRENT_USER)
+             )
+             OR (
+               acl.grantee = (
+                 SELECT role.oid
+                   FROM pg_catalog.pg_roles AS role
+                  WHERE role.rolname = CURRENT_USER
+               )
+               AND (
+                 acl.grantor <> procedure.proowner
+                 OR acl.is_grantable
+               )
+             )
+           )) AS invalid_acl_count
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
@@ -434,12 +564,17 @@ export async function verifyFunctionCatalog(client, migrationRole) {
     ORDER BY procedure.proname
   `, [[...expected.keys()]]);
   assert.equal(result.rows.length, expected.size);
+  const sourceHashes = stripeWebhookEventFunctionSourceSha256();
   for (const row of result.rows) {
     const contract = expected.get(row.function_name);
     assert.ok(contract, row.function_name);
     assert.equal(row.argument_types, contract.args, row.function_name);
     assert.equal(row.owner_name, migrationRole, row.function_name);
+    assert.equal(row.function_kind, "f", row.function_name);
     assert.equal(row.security_definer, true, row.function_name);
+    assert.equal(row.leakproof, false, row.function_name);
+    assert.equal(row.volatility, contract.volatility, row.function_name);
+    assert.equal(row.parallel_mode, contract.parallelMode, row.function_name);
     assert.deepEqual(
       row.function_config,
       ["search_path=pg_catalog"],
@@ -450,7 +585,22 @@ export async function verifyFunctionCatalog(client, migrationRole) {
       contract.runtimeExecute,
       row.function_name,
     );
+    assert.equal(
+      row.runtime_direct_execute,
+      contract.runtimeExecute,
+      row.function_name,
+    );
     assert.equal(row.public_execute, false, row.function_name);
+    assert.equal(row.invalid_acl_count, 0, row.function_name);
+    if (contract.runtimeExecute) {
+      assert.equal(
+        createHash("sha256")
+          .update(row.function_source, "utf8")
+          .digest("hex"),
+        sourceHashes[row.function_name],
+        `${row.function_name} source drifted`,
+      );
+    }
   }
 }
 
@@ -568,7 +718,7 @@ export async function runOrderPaymentShippingCompatiblePostflight(config) {
         "durable_seller_and_claim_generation_columns",
         "validated_composite_keys_foreign_keys_and_indexes",
         "seller_key_trigger_catalog",
-        "exact_private_and_runtime_function_acl_catalog",
+        "exact_private_and_six_runtime_function_source_acl_catalog",
         "aggregate_backfill_and_relationship_integrity",
         "private_helper_direct_execute_denial",
       ],

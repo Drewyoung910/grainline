@@ -330,3 +330,51 @@ update-check suffix, and rejects every other suffix. Because the prepared
 objects remain bound to the earlier release, proof mode now requires separate
 immutable preparation commit and CI bindings while the corrected executable is
 bound to its own fresh exact-main commit and CI run.
+
+## Corrected signed-delivery acceptance (2026-08-10)
+
+PR #184 merged the narrow Stripe CLI output correction as exact `main`
+`b9444e3488db9276c0d9f895043fe1fc32c850d1`; exact-main CI
+`31366490630` passed. The corrected proof remained bound to immutable
+preparation release `0b718171e71700990bf8f9106ee880b116707bd3` / CI
+`31357207924` and compatible deployment
+`dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`.
+
+The authorized test-mode operator enabled the exact canonical classic Connect
+endpoint, delivered the prepared `payout.failed` event and sent exactly one
+retry. Under the actual pooled `grainline_app_runtime` role, the first delivery
+created one processed webhook lease at claim generation 1 and no seller or
+payout projection for the intentionally unlinked account. The retry left the
+lease generation and update identity unchanged. The operator then deleted the
+disposable connected account and removed all raw-ID handoff, attempt and
+onboarding records. The classic Connect endpoint remains enabled at reviewed
+test-mode provider stage 4 with only `payout.failed`.
+
+Sanitized mode-`0600` evidence is retained at
+`archive/stripe-connect-signed-payout-proof-test-20260810-b9444e34.json` with
+SHA-256
+`8d3de7b78d4899eafa8bd9270f1303c49fb31bd832163d050619b37dd3a287c9`.
+It contains only hashes for provider object identities and explicitly records
+that no raw provider ID or secret was persisted. The subsequent read-only
+three-surface provider audit also passed at
+`archive/stripe-webhook-subscriptions-test-20260810-b9444e34.json` with
+SHA-256
+`0e5c9dc646beb2b6eef4a9c9755094d0ca3010242180fcd121ce36c957a64b2f`:
+the platform snapshot uses its exact ten-event set, classic Connect uses only
+`payout.failed`, and the thin v2 destination uses the exact twelve-event
+`v2.core.account` family from `other_accounts`.
+
+The subsequent authenticated aggregate webhook-health request acquired a fresh
+UTC-hour bucket and returned HTTP 200 with `skipped=false`, all four Stripe
+failure/lease counts at zero, a healthy SavedSearch canary and every other
+operational issue count at zero. Sanitized evidence is retained at
+`archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
+
+This acceptance is test-mode evidence only. It did not deploy, run a
+migration, change database grants or RLS, change a Vercel variable or secret,
+or touch Stripe live mode. The remaining immediate predecessor gates are drain
+and the hardened final compatibility postflight. Connect v2 signed delivery
+and a live-money destination, secret, deployment and signed-delivery release
+remain separate mandatory launch/provider work; the v2 delivery is not a
+`StripeWebhookEvent` database-authority prerequisite because it uses the same
+fixed lease functions and no direct table access.

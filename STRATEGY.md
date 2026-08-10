@@ -78,9 +78,12 @@ source-bound surfaces: platform Checkout/refund/dispute snapshots on
 separately signed `/api/stripe/webhook/connect`, and v2 thin account events on
 `/api/stripe/webhook/v2`. The compatible implementation must land and deploy
 before provider configuration changes. Provider correction, one signed payout
-delivery plus retry, exact three-surface proof, predecessor drain and the final
-pooled-runtime postflight remain distinct gates before StripeWebhookEvent RLS
-activation. Do not broaden the new Connect route with legacy account events
+delivery plus retry and the exact three-surface proof are complete. Predecessor
+drain and the hardened final pooled-runtime postflight remain distinct gates
+before StripeWebhookEvent RLS activation. Connect v2 signed delivery remains a
+mandatory launch/provider gate, but does not block this database-authority
+release because all three routes use the same fixed lease functions and have
+zero direct table access. Do not broaden the new Connect route with legacy account events
 unless current linked-account evidence establishes a real compatibility need.
 Human traffic being absent does not remove the old/new boundary because Stripe
 retries and cron/maintenance jobs remain active.
@@ -96,6 +99,15 @@ health and wrong/cross-secret denial proofs pass may the endpoint move to the
 canonical URL and be enabled for signed delivery plus retry. If immediate
 disable cannot be verified, delete the endpoint and stop. Do not use a random
 placeholder secret or expose the creation response in evidence.
+
+The activation migration must also pin the exact PostgreSQL source body of all
+six functions, not merely signatures and function attributes, and its
+database-first rollback must reject direct PUBLIC table and column grants both
+before and after restoration. After activation, run a separate engine-attested
+repeatable-read/read-only postflight using the actual pooled production runtime
+credential. Keep that credential out of the owner-only GitHub Production
+migration environment; local operator execution with sanitized mode-0600
+evidence is the deliberate separation boundary.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

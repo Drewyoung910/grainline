@@ -1,18 +1,22 @@
 # StripeWebhookEvent activation audit
 
 Status: audit and launch-proof conversion merged; compatible maintenance
-functions and exact compatible application are live in production. No
-activation migration, grant revocation, provider change or StripeWebhookEvent
-RLS change has occurred. Classic signed delivery and retry, rollback-only
-retention, expanded ops health and legacy restoration are proved. The
-three-surface provider topology in
-`docs/stripe-webhook-provider-topology-audit.md`, signed delivery for each
-surface and provider-subscription correction remain gates.
+functions and exact compatible application are live in production. Reviewed
+test-mode provider correction plus signed classic Connect delivery/retry now
+pass alongside exact platform/v2 topology checks, rollback-only retention,
+expanded ops health and legacy restoration. No activation migration, table
+grant revocation or StripeWebhookEvent RLS change has occurred. Connect v2
+signed delivery remains a mandatory launch/provider proof, but is not a
+StripeWebhookEvent database-authority gate: all three signed routes use the
+same fixed begin/complete/fail functions and have zero direct table access.
+The predecessor deployment/drain check and hardened final compatibility
+postflight now pass; live-mode provider proof remains a separate launch
+release.
 
 ## Exact reviewed stack
 
-The compatible database preparation is complete, while the application and
-maintenance conversions remain isolated:
+The compatible database preparation, application conversion and maintenance
+conversion are complete. Their accepted release sequence was:
 
 1. PR #160 is merged. Exact main
    `6f1f4c1e99fb21726744ecd1652a37b6be35c294` passed CI `31276366947`;
@@ -39,14 +43,44 @@ maintenance conversions remain isolated:
    `20260805040000_prepare_stripe_webhook_maintenance_authority` and passed
    migration status plus the global grant/RLS audit.
 
-The compatible source and functions are merged and live. Exact release main
-`423d3c1f670a2a4e84dc275eb2c6a4c20234a1f1` is production deployment
-`dpl_67W8RkxzdQwbNTy3rmsEL6WK42D3`; Vercel reports `READY` and the canonical
-alias plus health endpoint return HTTP 200. Production deliberately retains
-the predecessor table posture for `StripeWebhookEvent`: RLS/FORCE off, zero
-policies and broad runtime CRUD. The remaining provider correction, v2
-exercise, drain, postflight and activation order is a release dependency, not
+The compatible source and functions are merged and live. The current canonical
+production deployment is `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP`, whose official
+Vercel metadata reports source `69c14c0618ea7ab9c74756422273d17d66db7efa`,
+`READY`, and all reviewed canonical aliases; the canonical health endpoint
+returned HTTP 200. That source is later than and contains the compatible
+application release. Production deliberately retains the predecessor table
+posture for `StripeWebhookEvent`: RLS/FORCE off, zero policies and broad
+runtime CRUD. The remaining activation order is a release dependency, not
 authorization to skip a boundary.
+
+## Accepted predecessor release evidence (2026-08-10)
+
+Draft PR #186 candidate `d9b637c6a76196579317de3b189046746ca19916`
+passed exact-head CI run `31372665563`. The run applied the policyless
+activation in disposable PostgreSQL, converged and audited grants, opened a
+new connection authenticated directly as the restricted runtime role, proved
+direct table denial plus all six fixed operations, rehearsed database-first
+rollback/restoration, and passed the full test, type, lint, dependency-audit
+and production-build gates.
+
+From that exact clean candidate checkout, the historical compatible-state
+postflight then connected through the actual pooled production
+`grainline_app_runtime` credential in an engine-attested repeatable-read,
+read-only transaction. It confirmed:
+
+- `StripeWebhookEvent` still has RLS/FORCE off, zero policies and exact direct
+  runtime SELECT/INSERT/UPDATE/DELETE with no grant option;
+- PUBLIC and runtime column authority are absent;
+- all four private integrity functions and all six runtime functions have the
+  exact reviewed owner, signature, mode, pinned search path, ACL and source;
+- all six aggregate relationship/claim-generation integrity counts are zero;
+  and
+- private helper execution is denied directly to the runtime role.
+
+The postflight bound CI `31372665563` and maintenance migration run
+`31290691183`, returned `productionChangedByPostflight=false`, and wrote only
+sanitized mode-0600 local evidence. It ran no migration and changed no
+database, deployment or provider state.
 
 ## Authority decision
 
@@ -116,6 +150,25 @@ defect. Each remaining path is classified:
   owner-authenticated, aggregate-only production predecessor inspector. It
   runs in an engine-attested repeatable-read read-only transaction and exports
   no rows or provider identifiers. It is not an ordinary runtime path.
+- `scripts/stripe-webhook-event-activation-postgres-proof.mjs` is the
+  loopback-only activated-boundary proof. It uses owner catalog reads and
+  deliberately attempts direct operations after `SET LOCAL ROLE` to prove
+  SQLSTATE `42501`, then rolls back every function fixture.
+- `scripts/stripe-webhook-event-activation-production-postflight.mjs` is the
+  actual pooled-production-runtime, repeatable-read/read-only postflight. It
+  rejects owner and aliased URLs, verifies exact source and ACL catalog state,
+  proves direct read denial and the write-function read-only fence, rolls back,
+  and retains only sanitized mode-0600 evidence. It never uses owner
+  `SET ROLE` and is not a migration path.
+- `scripts/stripe-webhook-event-activation-postflight-postgres-proof.mjs` is
+  the loopback-only PostgreSQL proof of that postflight's catalog and denial
+  path. CI gives the ephemeral restricted role a disposable password and the
+  proof opens a new connection as that role; it never uses owner `SET ROLE` and
+  touches no persistent database.
+- `scripts/stripe-webhook-event-activation-rollback-proof.mjs` is the
+  loopback-only database-first rollback rehearsal. It temporarily restores
+  predecessor CRUD in disposable PostgreSQL, proves old-runtime compatibility,
+  and restores activation in a fail-closed cleanup path.
 - `scripts/order-payment-shipping-compatible-production-postflight.mjs` is a
   historical compatibility-posture proof that directly reads the table under
   the pooled runtime role while predecessor CRUD remains present. It must run
@@ -199,8 +252,9 @@ add a speculative write-amplifying index at this boundary.
 
 The begin function locks only the exact event row after a conflict. Complete
 and fail compare the exact claim generation. Maintenance pruning uses bounded
-stable batches and the legacy claim takes the canonical checkout mutation
-lock. Disposable PostgreSQL proof must retain stale-worker, block/wait,
+stable batches while permanently excluding the finite legacy stock-restore
+dedup class; the legacy claim takes the canonical checkout mutation lock.
+Disposable PostgreSQL proof must retain stale-worker, block/wait,
 concurrent prune/claim and rollback-zero-residue coverage.
 
 ## Mixed-deployment and activation sequence
@@ -217,13 +271,17 @@ is:
    `20260805040000_prepare_stripe_webhook_maintenance_authority` migration from
    the resulting exact green main commit before deploying any PR #162 runtime
    call sites;
-3. **partially complete:** migration status and the global grant/RLS audit
-   passed; the exact compatible app is deployed; classic signed delivery and
-   retry, rollback-only retention, expanded aggregate health and legacy restore
-   passed. The provider review proved that platform snapshot events, Connect
-   v2 account events and classic Connect payout events require three distinct
-   source-bound surfaces. Their compatible implementation, exact subscription
-   correction and valid signed deliveries remain before this step is complete;
+3. **test-mode complete:** migration status and the global grant/RLS audit
+   passed; the exact compatible app is deployed; classic delivery/retry,
+   rollback-only retention, expanded aggregate health and legacy restore
+   passed. The three source-bound provider surfaces now have exact test-mode
+   subscription evidence, and the separately signed classic Connect
+   `payout.failed` delivery plus exact retry produced one unchanged
+   generation-1 lease. Valid Connect v2 signed delivery remains open as a
+   launch/provider gate. It is not a database-authority activation prerequisite
+   because the platform, classic Connect and v2 routes all use the same fixed
+   lease wrappers and the source gate proves zero direct table access. Live-mode
+   topology and signed deliveries likewise remain separate launch evidence;
 4. let the prior app deployment drain and verify no production route or job
    still uses direct table access;
 5. run the historical compatibility postflight for the final predecessor
@@ -253,6 +311,12 @@ The later activation candidate must fail closed unless it proves:
 - policyless ENABLE, NO FORCE, zero direct PUBLIC/runtime authority after the
   mutation; and
 - exact migration-tree and byte pins in CI and the guarded production runner.
+
+The Extra-High exact-head review found and closed one ACL-proof gap before
+activation: the functions already granted ordinary runtime `EXECUTE`, but the
+catalog predicate did not explicitly reject runtime `EXECUTE WITH GRANT
+OPTION`. The activation preflight now rejects that drift, and the global grant
+audit applies the same no-delegation rule to every `grainline_*` function.
 
 The disposable PostgreSQL activation proof must demonstrate runtime denial of
 direct SELECT, INSERT, UPDATE and DELETE; successful behavior of every fixed
@@ -289,14 +353,72 @@ SavedSearch canary; sanitized evidence is retained at
 `archive/stripe-webhook-ops-health-compatible-production-20260809.json`.
 Vercel's Sensitive-value readback mask prevented a synthetic valid Connect v2
 signature; that route remains an explicit evidence gate rather than a claimed
-pass. Predecessor drain and final postflight still precede activation. The
-read-only provider proof retained at
+pass. At that checkpoint the predecessor drain and final postflight still
+preceded activation; both are now accepted in the dedicated evidence section
+above. The earlier read-only provider proof retained at
 `archive/stripe-webhook-subscriptions-compatible-production-20260808.json`
-also failed the exact-subscription contract: classic is missing 11 handled
+failed the exact-subscription contract: classic was missing 11 handled
 events and has four unused events, while v2 has three unused
 `v2.core.account_person.*` events. Provider configuration was not changed. The
 old expected classic event set mixed platform-account and connected-account
 sources and therefore cannot be applied safely as written. The replacement
 three-surface contract and release order are retained in
-`docs/stripe-webhook-provider-topology-audit.md`. Implementing and re-proving
-that contract precedes signed provider exercises and activation.
+`docs/stripe-webhook-provider-topology-audit.md`.
+
+That test-mode topology has since been corrected and re-proved. Exact proof
+release `b9444e3488db9276c0d9f895043fe1fc32c850d1`, CI `31366490630`,
+preparation release `0b718171e71700990bf8f9106ee880b116707bd3` / CI
+`31357207924` and compatible deployment
+`dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` produced one processed generation-1
+`payout.failed` lease under pooled runtime authority; the exact retry left the
+lease unchanged. The disposable account and raw recovery records were deleted.
+Sanitized signed evidence is retained at
+`archive/stripe-connect-signed-payout-proof-test-20260810-b9444e34.json`, and
+the subsequent exact 10/1/12 subscription proof is retained at
+`archive/stripe-webhook-subscriptions-test-20260810-b9444e34.json`. The fresh
+authenticated aggregate-health result also passed with all Stripe and other
+operational issue counts at zero and is retained at
+`archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
+Connect v2 signed delivery remains mandatory before launch, but the reviewed
+shared fixed-function call graph means it does not add evidence about the
+direct-table authority being removed by this activation. The predecessor drain
+and hardened final compatibility postflight have since passed as recorded
+above.
+
+The isolated activation candidate now exists with byte-pinned activation and
+rollback SQL, conditional role-provisioning convergence, global grant-audit
+classification, direct-denial and rollback engine proofs, and guarded CI plus
+production-release wiring. Its exact boundary and remaining gates live in
+`docs/stripe-webhook-event-activation-release.md`.
+
+This remains a candidate, not an activation claim. The historical activation
+checkpoint
+`fb0facf146e58123ddd2f4a727fda1b966669d5d` passed exact-head CI run
+`31272188477`, including disposable PostgreSQL, the full suite, clean dependency
+audits and the production build, and its Extra-High authority review completed.
+
+The proof now also fails closed on database target and engine role identity and
+has actual disposable-PostgreSQL coverage for the Prisma rollback mechanism.
+Exact audit checkpoint `9d2d9d3a82252b991d5fa3f832bd9f629eb1ade9`
+passed CI `31280779769`: the new PostgreSQL 16 step proved missing insert and
+stale reclaim rollback through the real Prisma transaction with exact zero
+residue; all migration, authority, grant/RLS, TypeScript, lint, 2,827-test,
+dependency-audit and production-build gates also passed. Vercel deployment
+`dpl_2u3r9ip2soVEirdbLgQWbfZH8X41` failed at the intentional Preview runtime
+database isolation guard (`DATABASE_URL_SHAPE`) before application build; it is
+not contrary application-build evidence and nothing deployed.
+
+This is not an activation claim. PR #163 exact documentation head
+`2c084d470df7805f9c5616044a2c58b7586b2650` passed exact-head CI run
+`31281007479`; it remains audit and proof work only and contains no activation
+migration. The synchronized PR #164 authority-hardening checkpoint
+`7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
+`31282060518`, including actual disposable direct-runtime-login proof, pinned
+six-function source bodies, PUBLIC table/column rollback drift cases, restored
+activation audit, TypeScript, lint, 2,846 tests with seven intentional skips,
+dependency audits and production build. It remains isolated candidate evidence
+only.
+
+This refresh must now re-prove that candidate against current main and the
+accepted provider evidence before a separate production release review.
+Production StripeWebhookEvent posture remains unchanged.

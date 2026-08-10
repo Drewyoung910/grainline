@@ -1203,3 +1203,43 @@ test("retained payout preparation evidence remains exact and secret-free", () =>
     /(?:sk_(?:test|live)_|whsec_|acct_|po_|evt_|https:\/\/connect\.stripe\.com\/setup\/)/,
   );
 });
+
+test("retained signed payout acceptance evidence is exact and secret-free", () => {
+  const evidencePath =
+    "archive/stripe-connect-signed-payout-proof-test-20260810-b9444e34.json";
+  const evidenceSource = readFileSync(evidencePath, "utf8");
+  const evidence = JSON.parse(evidenceSource);
+
+  assert.equal(
+    createHash("sha256").update(evidenceSource).digest("hex"),
+    "8d3de7b78d4899eafa8bd9270f1303c49fb31bd832163d050619b37dd3a287c9",
+  );
+  assert.equal(evidence.status, "passed");
+  assert.equal(evidence.mode, "test");
+  assert.equal(evidence.commit, "b9444e3488db9276c0d9f895043fe1fc32c850d1");
+  assert.equal(evidence.ciRunId, "31366490630");
+  assert.equal(evidence.deploymentId, DEPLOYMENT_ID);
+  assert.equal(evidence.providerStage, 4);
+  assert.deepEqual(evidence.preparation, {
+    commit: "0b718171e71700990bf8f9106ee880b116707bd3",
+    ciRunId: "31357207924",
+  });
+  assert.equal(evidence.stripe.eventType, "payout.failed");
+  assert.equal(evidence.stripe.failureCode, "no_account");
+  assert.equal(evidence.stripe.connectStatus, "enabled");
+  assert.equal(evidence.stripe.exactRetrySent, true);
+  assert.equal(evidence.stripe.disposableAccountDeleted, true);
+  assert.equal(evidence.database.runtimeRole, "grainline_app_runtime");
+  assert.equal(evidence.database.sellerMatchCount, 0);
+  assert.equal(evidence.database.payoutProjectionCount, 0);
+  assert.equal(evidence.database.webhookLeaseCount, 1);
+  assert.equal(evidence.database.claimGeneration, 1);
+  assert.equal(evidence.database.processed, true);
+  assert.equal(evidence.database.exactRetryLeftLeaseUnchanged, true);
+  assert.equal(evidence.rawProviderIdsPersistedInEvidence, false);
+  assert.equal(evidence.secretsPersistedInEvidence, false);
+  assert.doesNotMatch(
+    evidenceSource,
+    /(?:sk_(?:test|live)_|rk_(?:test|live)_|whsec_|acct_|po_|evt_|we_)/,
+  );
+});

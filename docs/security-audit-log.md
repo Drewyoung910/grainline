@@ -1144,6 +1144,34 @@ Follow-up fix from this pass:
   suffix, and separates the immutable preparation commit/CI binding from the
   fresh corrected proof commit/CI binding. No deployment, migration, RLS,
   grant, secret, Vercel-variable or live-mode Stripe change is part of the fix.
+- PR #184 merged the CLI-output correction as exact `main`
+  `b9444e3488db9276c0d9f895043fe1fc32c850d1`; exact-main CI
+  `31366490630` passed. The authorized corrected test-mode proof enabled the
+  canonical Connect endpoint, delivered the prepared `payout.failed` event and
+  sent exactly one retry. Pooled `grainline_app_runtime` evidence proved one
+  processed generation-1 webhook lease, no seller or payout projection for the
+  unlinked account, and no lease change on retry. Cleanup deleted the
+  disposable account plus all raw-ID temporary records. Sanitized mode-`0600`
+  evidence is retained at
+  `archive/stripe-connect-signed-payout-proof-test-20260810-b9444e34.json`;
+  no raw provider ID or secret is present.
+- The immediate read-only provider audit passed the exact enabled test-mode
+  10/1/12 event topology for platform snapshot, classic Connect payout and
+  thin v2 account destinations. Sanitized mode-`0600` evidence is retained at
+  `archive/stripe-webhook-subscriptions-test-20260810-b9444e34.json`. Connect
+  is now enabled at reviewed test-mode provider stage 4. No deployment,
+  migration, database grant/RLS change, Vercel variable or secret change, or
+  Stripe live-mode operation occurred. Aggregate ops health, valid Connect v2
+  signed delivery, predecessor drain and final compatibility postflight remain
+  before StripeWebhookEvent activation; live-mode topology and signed delivery
+  remain a separate launch gate.
+- The authenticated aggregate ops-health request then acquired a fresh UTC-hour
+  bucket and returned HTTP 200 with `skipped=false`, all four Stripe
+  failure/lease counts at zero, a healthy SavedSearch canary and every other
+  operational issue count at zero. Sanitized evidence is retained at
+  `archive/stripe-webhook-ops-health-connect-acceptance-20260810-b9444e34.json`.
+  This normal health invocation recorded only its bounded CronRun row and made
+  no provider, deployment, migration, grant, RLS, secret or live-mode change.
 
 ## Dependency security refresh (2026-07-25)
 
@@ -1176,6 +1204,48 @@ Open work:
 
 - Continue with abuse/volume economics and any new Claude-proposed findings added to `audit_open_findings.md`; treat those entries as suspected until locally reproduced.
 
+## Stripe webhook RLS activation authority review (2026-08-08)
+
+- The Extra-High pre-activation review found that the activation preflight and
+  disposable PostgreSQL proof required runtime `EXECUTE` on the six fixed
+  Stripe webhook functions, but did not reject `EXECUTE WITH GRANT OPTION`.
+  The activation migration itself granted plain `EXECUTE`, so no reviewed
+  production state had the broader authority; the defect was in proving the
+  exact intended ACL. The activation SQL and PostgreSQL proof now reject a
+  runtime function ACL whose grantor is not the owner or whose grant is
+  grantable. The global grant audit independently applies the same class-wide
+  check to every Grainline function. Unit coverage exercises both plain and
+  grantable runtime ACLs.
+- The same review found that the bounded 90-day Stripe webhook maintenance
+  prune included legacy `checkout.session.stock_restored` claim rows. Those
+  rows are permanent replay barriers: deleting one could allow an old expired
+  Checkout Session to pass the authenticated stock-rollback path again and
+  restore inventory twice. The maintenance migration now excludes that event
+  type from the general prune. Its disposable PostgreSQL proof creates an old
+  permanent claim and proves it survives, while ordinary terminal events still
+  prune in bounded batches.
+- The corrected maintenance migration SHA-256 is
+  `0c34cc94f6a602e8f686487277b422f3ba4e89a1f2c50b9b3b673cb63d259df5`;
+  the corrected maintenance phase-tree fingerprint is
+  `551be631510a20c58eae7b1e84f84d23890d5c2e82b0d1332c7f9f266744f22d`.
+  The corrected activation draft SHA-256 is
+  `29dcf34d4438999469313b22415f221f917c372fb6e880c57276c0e9ee177c2b`,
+  the promoted activation migration SHA-256 is
+  `f33fc6c9b65444b437d62856c22116cac56c6a4d8c7b05340117120a06aab66b`,
+  and the resulting full migration-tree fingerprint is
+  `72b5648c4cdc98245dd3b2887a0aab89b264ed860f6141d5a215c2fe34569a13`.
+- These changes remain isolated on the cumulative activation branch. Production
+  was not changed. The corrected maintenance bytes must replace the earlier
+  bytes on PR #162 before that migration can merge or run; otherwise a later
+  edit would create a Prisma migration-checksum mismatch. The cumulative PR
+  #164 must not be merged as one release batch.
+- Exact reviewed checkpoint `fb0facf146e58123ddd2f4a727fda1b966669d5d`
+  passed CI run `31272188477`: disposable PostgreSQL activation and rollback,
+  four direct runtime denial probes, restored-posture grant/RLS audit, 2,824
+  tests with seven intentional skips, TypeScript, lint, both dependency audits,
+  and the production build. This is candidate evidence only, not production
+  activation authority.
+
 ## Dependency security refresh (2026-08-08)
 
 - StripeWebhookEvent activation PR #164 exact-head CI run `31268968442`
@@ -1194,3 +1264,113 @@ Open work:
   refresh cannot silently restore the vulnerable versions. Both the production
   and complete audit must be clean; no exception, forced audit rewrite, direct
   dependency or npm override is introduced.
+
+## Stripe webhook activation source and postflight hardening (2026-08-08)
+
+- A second Extra-High review found that the policyless activation pinned all
+  six function signatures, owners, modes, search paths and ACLs but not their
+  exact PostgreSQL source bodies. A signature-compatible `CREATE OR REPLACE`
+  drift could therefore have passed the migration preflight. The candidate now
+  derives the latest reviewed function sources from the committed preparation
+  migrations, pins each `md5(prosrc)` in activation SQL, and compares SHA-256
+  under the actual runtime postflight. The source catalog fails closed unless
+  all six expected functions are found exactly.
+- The database-first rollback previously proved the restricted runtime role's
+  direct authority but did not explicitly reject direct PUBLIC table or column
+  ACL drift. Both rollback preflight and postflight now reject those classes.
+  Disposable PostgreSQL injects a PUBLIC table grant and a PUBLIC column grant
+  separately and proves each aborts before posture mutation.
+- A dedicated production postflight now uses only the pooled
+  `grainline_app_runtime` credential, rejects owner and aliased URLs, attests
+  the exact production endpoint/database/role plus repeatable-read/read-only
+  transaction state, and records sanitized mode-0600 evidence. It is an
+  operator tool rather than a GitHub Production workflow because that protected
+  environment intentionally contains only the owner migration credential.
+  CI separately gives its ephemeral runtime role a disposable password and
+  opens a new connection as that role to exercise the same catalog, denial,
+  health and read-only-fence path without owner `SET ROLE`.
+- Corrected candidate hashes are: draft
+  `fd92c05ca2581eeeec19fd81e41a0dd672300381ad2d55396234a8f2fb0907d3`,
+  promoted migration
+  `c500e2c5135488d81929025a184f384fd53eed37f38d8dbf7e7e9bb8445e1299`,
+  rollback
+  `2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722`,
+  and migration tree
+  `d525a4d8e7982f49dbfd280b9d9cc46e0dac39da0507b66881b7828786cd4bdc`.
+  These bytes remain isolated on PR #164. No production migration, grant, RLS,
+  deployment or provider state changed in this review.
+- Exact authority-hardening checkpoint
+  `7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
+  `31282060518`. The run exercised the actual direct disposable runtime login,
+  exact six-function source catalog, policyless activation, direct denial,
+  read-only write fence, lease and maintenance behavior, PUBLIC table/column
+  rollback drift rejection, restoration and final catalog audit, followed by
+  TypeScript, lint, 2,846 tests with seven intentional skips, both dependency
+  audits and the production build. This is isolated candidate evidence only;
+  production was not changed.
+- A later release-order review found an operator-documentation gap: PR #162's
+  application calls three functions introduced by its own additive migration,
+  while the written stack sequence moved directly from merge to deployment.
+  The release contract now requires applying only
+  `20260805040000_prepare_stripe_webhook_maintenance_authority` from the exact
+  green main commit, then verifying migration status and the global grant/RLS
+  audit, before any deployment containing those call sites. The code and
+  migration boundary were unchanged; this prevents a new deployment from
+  calling not-yet-created functions.
+
+## Stripe webhook activation current-main refresh (2026-08-10)
+
+- The activation candidate was rebuilt on the accepted current-main provider
+  evidence rather than merging the stale cumulative PR #164. The provider
+  proof is test-mode only: classic Connect `payout.failed` signed delivery and
+  exact retry produced one unchanged generation-1 lease, exact 10/1/12
+  topology passed, aggregate ops health was clean, and the disposable account
+  plus raw recovery records were deleted.
+- The Extra-High refresh found that the final predecessor postflight still
+  proved only the original three lease functions and reduced combined runtime
+  CRUD to one boolean. That was insufficient after the maintenance conversion.
+  The postflight now requires exact direct SELECT/INSERT/UPDATE/DELETE with no
+  grant option, no PUBLIC or column authority, and exact owner/mode/search-path,
+  ACL and SHA-256 source identity for all six runtime functions. It remains an
+  engine-attested repeatable-read read-only production proof.
+- The activation SQL now separately counts all runtime-executable overloads of
+  the six trusted function names. A shadow overload therefore aborts before
+  RLS or grants change even when every canonical signature and source body is
+  still present.
+- Connect v2 signed delivery remains a mandatory launch/provider gate, but was
+  removed as a `StripeWebhookEvent` database-authority prerequisite. Static
+  coverage now proves the platform, classic Connect and v2 routes all call the
+  same fixed begin/complete/fail wrappers and have zero direct table access.
+  This reclassification does not weaken the launch checklist or claim that the
+  v2 signing secret/provider delivery has been proved.
+- Refreshed candidate hashes are: draft
+  `af47ed86b90276b0285618b7751c27a15fc52bd0a1a7bcc279c959e05c37e88b`,
+  promoted migration
+  `6e9175b503d77cf899c8d4b9abb882788776e7d104a39bad5f7c4a5de122e033`,
+  rollback
+  `2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722`,
+  and migration tree
+  `fbbaeaf57b32ebd382138685ea972487ed0c52f92fe01ca88421bf2021b9b2c5`.
+  These are isolated candidate bytes. Production RLS, grants, migrations,
+  deployment and provider state were unchanged by this review.
+- Draft PR #186 exact-head CI run `31372159544` failed closed in the compatible
+  production-postflight PostgreSQL proof before the activation release was
+  restored. The newly expanded function audit incorrectly applied the runtime
+  wrappers' `VOLATILE` / `PARALLEL UNSAFE` contract to all four private order
+  integrity functions. `grainline_order_seller_key_assert(text)` is
+  intentionally read-only `STABLE` / `PARALLEL SAFE`; the proof now pins each
+  function's individual volatility and parallel mode, and the unit contract
+  enumerates the exceptional read-only function explicitly. No production or
+  provider state changed.
+- Corrected candidate `d9b637c6a76196579317de3b189046746ca19916`
+  subsequently passed exact-head CI `31372665563`, including the real
+  disposable-PostgreSQL runtime-login proof and production build. The current
+  canonical Vercel deployment remained `READY` at source `69c14c06`, and the
+  canonical health endpoint returned HTTP 200. The hardened predecessor
+  postflight then passed from that exact clean candidate through the actual
+  pooled production runtime in an engine-attested repeatable-read read-only
+  transaction: exact predecessor CRUD, no PUBLIC/column/grant-option drift,
+  exact four-private plus six-runtime function catalog, six zero integrity
+  counts, and direct private-function denial. It recorded sanitized mode-0600
+  evidence and reported `productionChangedByPostflight=false`; no production
+  or provider state changed.

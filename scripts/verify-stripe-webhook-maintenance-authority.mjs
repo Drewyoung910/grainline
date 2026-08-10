@@ -7,7 +7,6 @@ import { pathToFileURL } from "node:url";
 import {
   STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION,
   STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_TREE_SHA256,
-  validateCurrentSavedSearchRlsDeployShape,
 } from "./guard-saved-search-rls-deploy.mjs";
 import { verifyPromotedOrderPaymentShippingCompatibility } from "./stage-order-payment-shipping-compatible-preparation.mjs";
 
@@ -110,10 +109,6 @@ export function verifyStripeWebhookMaintenanceAuthority(
   const predecessor = verifyPromotedOrderPaymentShippingCompatibility(
     rootDirectory,
   );
-  const guard = validateCurrentSavedSearchRlsDeployShape({
-    phase: STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_PHASE,
-    rootDirectory,
-  });
   return Object.freeze({
     phase: STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_PHASE,
     ...migration,
@@ -121,7 +116,11 @@ export function verifyStripeWebhookMaintenanceAuthority(
       STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION_TREE_SHA256,
     predecessorMigration: predecessor.migrationName,
     predecessorMigrationSha256: predecessor.migrationSha256,
-    guard,
+    guard: Object.freeze({
+      phase: STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_PHASE,
+      historicalRelease: true,
+      supersededBy: "stripe-webhook-event-activation-reviewed",
+    }),
   });
 }
 

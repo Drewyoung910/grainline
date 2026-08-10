@@ -134,8 +134,22 @@ describe("Order/payment/shipping compatible production postflight", () => {
       source,
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE)\s+(?:INTO|FROM|public\.)/i,
     );
-    assert.equal(ORDER_PAYMENT_SHIPPING_PRIVATE_FUNCTIONS.length, 4);
-    assert.equal(ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS.length, 3);
+    assert.deepEqual(ORDER_PAYMENT_SHIPPING_PRIVATE_FUNCTIONS, [
+      ["grainline_order_item_seller_key_bind", "", "v", "u"],
+      ["grainline_order_item_seller_key_complete", "", "v", "u"],
+      ["grainline_order_seller_key_assert", "text", "s", "s"],
+      ["grainline_order_seller_key_complete", "", "v", "u"],
+    ]);
+    assert.equal(ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS.length, 6);
+    for (const [, , volatility, parallelMode]
+      of ORDER_PAYMENT_SHIPPING_RUNTIME_FUNCTIONS) {
+      assert.equal(volatility, "v");
+      assert.equal(parallelMode, "u");
+    }
+    assert.match(source, /stripeWebhookEventFunctionSourceSha256/);
+    assert.match(source, /runtime_grant_options/);
+    assert.match(source, /public_privileges/);
+    assert.match(source, /direct_column_privileges/);
     const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
     assert.equal(
       packageJson.scripts?.[
