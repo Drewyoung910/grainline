@@ -106,7 +106,16 @@ and the documented US test bank account ending `1116`, which fails with
 `no_account`. Its controller matches Grainline's seller-account responsibility
 contract: application-paid fees and losses, Stripe-collected requirements, and
 the Express dashboard. The proof never submits individual identity data or
-accepts Stripe's service agreement on behalf of the disposable account. It
+accepts Stripe's service agreement through the API on behalf of the disposable
+account. A newly created Stripe-collected Express account is not payout-capable
+until its owner passes through Stripe-hosted test onboarding. Preparation
+therefore pauses before funding, writes a separate mode-`0600` onboarding
+record containing the raw account ID and one-time Account Link URL, and returns
+only a sanitized `onboarding-required` result. The one-time URL is opened only
+in the operator-controlled local browser; it is never printed, committed,
+uploaded, emailed or copied into evidence. A rerun retrieves the same account
+from the durable attempt journal and proceeds only after Stripe reports both
+charges and payouts enabled. It then deletes the onboarding record before it
 funds that account with Stripe's `tok_bypassPending` test token, creates a
 one-dollar payout, waits for the real failed payout and exact `payout.failed`
 event, and writes:
@@ -136,10 +145,13 @@ credentials. That diagnostic is emitted before the same exact account-deletion
 cleanup path runs, so provider normalization can be classified without leaving
 an untracked disposable source.
 
-The handoff and preparation-attempt journal stay under `/private/tmp` (or the
+The proof handoff, hosted-onboarding record and preparation-attempt journal stay under `/private/tmp` (or the
 system temporary directory), are never committed, and contain no API key or
-signing secret. If preparation fails and exact account deletion succeeds, the
-script removes both local records. If deletion cannot be proved, it preserves
+signing secret. The onboarding record does contain Stripe's one-time Account
+Link URL and is therefore treated as a credential: it is mode `0600`, excluded
+from terminal output and removed as soon as the account is ready. If
+preparation fails and exact account deletion succeeds, the script removes all
+local records. If deletion cannot be proved, it preserves
 the mode-`0600` attempt state for exact recovery. A successful preparation
 intentionally leaves only that disposable account and its bounded local
 recovery records until the signed proof completes. Provider object IDs are

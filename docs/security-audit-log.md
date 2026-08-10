@@ -1098,6 +1098,18 @@ Follow-up fix from this pass:
   hard prerequisite and the later charge, payout and event must each prove
   `livemode=false`. A separate read-only provider read returned predecessor
   stage 3, so the Connect endpoint remains disabled.
+- The next production-aligned retry from exact main `71cfd99e` and green CI
+  `31346513991` created and re-attested the expected test account, then stopped
+  before funding because Stripe-collected Express capabilities did not become
+  active without hosted onboarding. Exact deletion completed and no account,
+  preparation attempt, handoff or evidence remained. The isolated correction
+  adds a restart-safe Stripe-hosted test-onboarding boundary: the raw account
+  ID and single-use Account Link URL exist only in a mode-`0600` temporary
+  record, the terminal result and durable evidence contain neither, and the
+  same attempt/account must re-attest both charges and payouts enabled before
+  funding or payout creation. Connect remains disabled at provider stage 3;
+  this change itself creates no account, Account Link, charge, payout, webhook
+  delivery, deployment, migration, secret or live-mode mutation.
 
 ## Dependency security refresh (2026-07-25)
 
