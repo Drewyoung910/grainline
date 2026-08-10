@@ -398,6 +398,7 @@ export function buildCanaryAccountParams(config, now = new Date()) {
 }
 
 export function assertCanaryAccount(account, config) {
+  const livemodePresent = Object.hasOwn(account ?? {}, "livemode");
   const diagnostics = {
     controller: {
       dashboardType: account?.controller?.stripe_dashboard?.type ?? null,
@@ -407,13 +408,14 @@ export function assertCanaryAccount(account, config) {
     },
     deleted: account?.deleted === true,
     idPresent: typeof account?.id === "string",
-    livemode: account?.livemode ?? null,
+    livemode: livemodePresent ? account.livemode : null,
+    livemodePresent,
     markerMatches:
       account?.metadata?.grainline_provider_canary === markerFor(config),
   };
   if (
     !diagnostics.idPresent
-    || diagnostics.livemode !== false
+    || (diagnostics.livemodePresent && diagnostics.livemode !== false)
     || diagnostics.deleted
     || !diagnostics.markerMatches
     || diagnostics.controller.feesPayer !== "application"

@@ -412,15 +412,19 @@ test("source validators reject account, payout and event mismatches", () => {
   const account = {
     controller: canaryController(),
     id: ACCOUNT_ID,
-    livemode: false,
     metadata: { grainline_provider_canary: marker(config) },
   };
   assert.equal(assertCanaryAccount(account, config).id, ACCOUNT_ID);
+  assert.equal(assertCanaryAccount({ ...account, livemode: false }, config).id, ACCOUNT_ID);
   assert.equal(assertFailedPayout(failedPayout(), ACCOUNT_ID).id, PAYOUT_ID);
   const created = Math.floor(Date.now() / 1000);
   assert.equal(assertPayoutEvent(payoutEvent(created), ACCOUNT_ID, PAYOUT_ID, created).id, EVENT_ID);
   assert.throws(
     () => assertCanaryAccount({ ...account, livemode: true }, config),
+    /identity, metadata or controller drifted/,
+  );
+  assert.throws(
+    () => assertCanaryAccount({ ...account, livemode: null }, config),
     /identity, metadata or controller drifted/,
   );
   let controllerError;
@@ -434,6 +438,7 @@ test("source validators reject account, payout and event mismatches", () => {
   }
   assert.ok(controllerError instanceof Error);
   assert.match(controllerError.message, /"requirementsCollector":"application"/);
+  assert.match(controllerError.message, /"livemodePresent":false/);
   assert.match(controllerError.message, /"markerMatches":true/);
   assert.doesNotMatch(controllerError.message, /acct_disposable_test/);
   assert.doesNotMatch(controllerError.message, /grainline_provider_canary/);
