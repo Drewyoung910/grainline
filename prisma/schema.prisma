@@ -843,7 +843,7 @@ model CheckoutStockReservation {
   @@index([status, expiresAt])
   @@index([buyerId, createdAt])
   @@index([sellerId, createdAt])
-  @@index([status, expiresAt, repairClaimedAt])
+  @@index([status, expiresAt, repairClaimedAt, id], map: "CheckoutStockReservation_repair_claim_idx")
 }
 
 model ListingVariantGroup {

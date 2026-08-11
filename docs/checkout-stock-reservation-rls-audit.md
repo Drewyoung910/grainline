@@ -321,6 +321,21 @@ missing required CRUD grant, a PUBLIC column grant, and source-only drift in
 the sealed two-argument webhook function. These supplement the
 byte-level/static release assertions with engine-executed fail-closed evidence.
 
+### CSR-A21: the Prisma repair index did not match the promoted catalog
+
+The compatible migration creates the bounded repair-worker index as
+`CheckoutStockReservation_repair_claim_idx(status, expiresAt,
+repairClaimedAt, id)`, using `id` as the deterministic final ordering key.
+The first packaged Prisma schema instead declared an implicit three-column
+index with a generated name. Migration execution and `prisma validate` do not
+compare a live catalog to the declarative schema, so both CI checks passed
+while a future generated migration could have added a redundant index.
+
+The schema now declares the exact four columns and maps the exact database
+name. A release test pins that mapping. No database change is required because
+the promoted migration already creates the intended index; this is a
+declarative-schema correction caught before merge or production.
+
 ## Fixed-operation partition
 
 The reviewed signatures may narrow during disposable PostgreSQL proof, but may

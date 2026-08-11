@@ -84,6 +84,10 @@ test("Prisma schema records every compatible column", () => {
   ]) {
     assert.match(schema, new RegExp(`\\b${field}\\b`));
   }
+  assert.match(
+    schema,
+    /@@index\(\[status, expiresAt, repairClaimedAt, id\], map: "CheckoutStockReservation_repair_claim_idx"\)/,
+  );
 });
 
 test("CI isolates preparation until StripeWebhookEvent FORCE passes", () => {
