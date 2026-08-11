@@ -110,8 +110,10 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.ok(row);
     assert.match(row, /`COMPATIBLE_CANDIDATE`/);
     assert.match(row, /checkout-stock-reservation-rls-audit\.md/);
+    assert.match(row, /checkout-stock-reservation-activation-plan\.md/);
     assert.doesNotMatch(row, /RLS_LIVE/);
-    assert.match(row, /production runner is unwired/);
+    assert.match(row, /production runners remain unwired/);
+    assert.match(row, /candidate builder that cannot create a Prisma migration/);
     assert.match(strategy, /next isolated dependency is `CheckoutStockReservation`/);
     assert.match(strategy, /StripeWebhookEvent FORCE\s+remains a separate/);
   });

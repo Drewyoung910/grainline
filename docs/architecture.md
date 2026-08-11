@@ -79,6 +79,14 @@ restore bind an immutable Stripe source object plus claim generation; repair
 workers use monotonic claims; Redis checkout publication uses unique owner
 tokens. CI will not apply this candidate until the separate webhook FORCE
 release passes, and the production migration workflow is intentionally unwired.
+The stacked activation design is policyless ENABLE first and FORCE later, with
+zero ordinary-runtime table/column authority and only the reviewed fixed
+functions. Its global grant-audit disposition, database-first rollback and
+actual pooled-runtime read-only postflight are prepared but remain
+production-inert until the compatible migration, app deployment and predecessor
+drain complete. The byte-pinned activation candidate builder is deliberately
+read-only: it reports deterministic proposed migration bytes and hashes but
+cannot create a Prisma migration directory or execute a database change.
 
 ## Core Lifecycles
 
