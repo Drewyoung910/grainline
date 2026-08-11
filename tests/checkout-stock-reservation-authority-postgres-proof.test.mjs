@@ -1,16 +1,24 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import {
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
+import {
+  stripeWebhookEventFunctionSources,
+} from "../scripts/stripe-webhook-event-function-source-catalog.mjs";
 
 const draft = fs.readFileSync("docs/rls-drafts/checkout-stock-reservation-authority.sql", "utf8");
+const predecessorWebhookBeginSource =
+  stripeWebhookEventFunctionSources().grainline_stripe_webhook_begin;
 let db;
+let dataDirectory;
 
 const SOURCE_SCHEMA = String.raw`
-  CREATE ROLE grainline_app_runtime NOLOGIN;
+  CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
   CREATE ROLE grainline_untrusted NOLOGIN;
   CREATE TYPE public."ListingStatus" AS ENUM ('DRAFT', 'ACTIVE', 'SOLD', 'SOLD_OUT', 'HIDDEN', 'PENDING_REVIEW', 'REJECTED');
   CREATE TYPE public."ListingType" AS ENUM ('MADE_TO_ORDER', 'IN_STOCK');
@@ -158,6 +166,20 @@ const SOURCE_SCHEMA = String.raw`
   END
   $grainline_stripe_webhook_begin$;
 
+  -- Replace the readable fixture body with the exact sealed predecessor bytes
+  -- so the compatible migration proves its production source pin.
+  CREATE OR REPLACE FUNCTION public.grainline_stripe_webhook_begin(
+    p_event_id text,
+    p_event_type text
+  )
+  RETURNS TABLE(action text, claim_generation bigint)
+  LANGUAGE plpgsql
+  VOLATILE
+  PARALLEL UNSAFE
+  SECURITY DEFINER
+  SET search_path = pg_catalog
+  AS $grainline_exact_predecessor$${predecessorWebhookBeginSource}$grainline_exact_predecessor$;
+
   REVOKE ALL ON FUNCTION public.grainline_stripe_webhook_begin(text, text)
     FROM PUBLIC, grainline_app_runtime;
   GRANT EXECUTE ON FUNCTION public.grainline_stripe_webhook_begin(text, text)
@@ -175,9 +197,57 @@ function rows(result) {
   return result.rows;
 }
 
+async function provePreflightRejection(tamperSql, expectedError) {
+  const proofDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "grainline-reservation-preflight-reject-"),
+  );
+  const bootstrap = new PGlite({ dataDir: proofDirectory });
+  try {
+    await bootstrap.exec("CREATE ROLE ci SUPERUSER LOGIN");
+    await bootstrap.exec("CREATE DATABASE grainline_ci OWNER ci");
+  } finally {
+    await bootstrap.close();
+  }
+
+  const predecessor = new PGlite({
+    dataDir: proofDirectory,
+    username: "ci",
+    database: "grainline_ci",
+  });
+  try {
+    await predecessor.exec(SOURCE_SCHEMA);
+    await predecessor.exec(tamperSql);
+    await assert.rejects(predecessor.exec(draft), expectedError);
+    await predecessor.exec("ROLLBACK");
+
+    const sourceColumn = await predecessor.query(`
+      SELECT 1
+        FROM pg_catalog.pg_attribute
+       WHERE attrelid = 'public."StripeWebhookEvent"'::pg_catalog.regclass
+         AND attname = 'sourceObjectId'
+         AND NOT attisdropped
+    `);
+    assert.equal(sourceColumn.rows.length, 0);
+  } finally {
+    await predecessor.close();
+    fs.rmSync(proofDirectory, { recursive: true, force: true });
+  }
+}
+
 describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", () => {
   before(async () => {
-    db = new PGlite();
+    dataDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "grainline-reservation-proof-"),
+    );
+    const bootstrap = new PGlite({ dataDir: dataDirectory });
+    await bootstrap.exec("CREATE ROLE ci SUPERUSER LOGIN");
+    await bootstrap.exec("CREATE DATABASE grainline_ci OWNER ci");
+    await bootstrap.close();
+    db = new PGlite({
+      dataDir: dataDirectory,
+      username: "ci",
+      database: "grainline_ci",
+    });
     await db.exec(SOURCE_SCHEMA);
     await db.exec(draft);
     await db.exec(`
@@ -203,6 +273,9 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
 
   after(async () => {
     await db?.close();
+    if (dataDirectory) {
+      fs.rmSync(dataDirectory, { recursive: true, force: true });
+    }
   });
 
   it("keeps private helpers inaccessible and grants only fixed runtime operations", async () => {
@@ -764,5 +837,55 @@ describe("CheckoutStockReservation authority draft static contract", () => {
     } finally {
       await predecessor.close();
     }
+  });
+
+  it("fails closed on unsafe runtime posture and unreviewed membership", async (context) => {
+    await context.test("rejects runtime INHERIT", async () => {
+      await provePreflightRejection(
+        "ALTER ROLE grainline_app_runtime INHERIT",
+        /runtime role posture is not reservation-authority safe/,
+      );
+    });
+    await context.test("rejects an unreviewed role membership edge", async () => {
+      await provePreflightRejection(`
+        CREATE ROLE grainline_shadow NOLOGIN;
+        GRANT grainline_app_runtime TO grainline_shadow;
+      `, /runtime role retains unreviewed membership/);
+    });
+    await context.test("rejects one missing required CRUD privilege", async () => {
+      await provePreflightRejection(`
+        REVOKE DELETE
+          ON TABLE public."CheckoutStockReservation"
+          FROM grainline_app_runtime;
+      `, /predecessor CRUD grants drifted/);
+    });
+  });
+
+  it("fails closed on residual PUBLIC/column authority and predecessor source drift", async (context) => {
+    await context.test("rejects PUBLIC column authority", async () => {
+      await provePreflightRejection(`
+        GRANT SELECT ("buyerId")
+          ON TABLE public."CheckoutStockReservation"
+          TO PUBLIC;
+      `, /predecessor retains unreviewed PUBLIC or column authority/);
+    });
+    await context.test("rejects source-only drift in the predecessor webhook function", async () => {
+      await provePreflightRejection(`
+        CREATE OR REPLACE FUNCTION public.grainline_stripe_webhook_begin(
+          p_event_id text,
+          p_event_type text
+        )
+        RETURNS TABLE(action text, claim_generation bigint)
+        LANGUAGE plpgsql
+        VOLATILE
+        PARALLEL UNSAFE
+        SECURITY DEFINER
+        SET search_path = pg_catalog
+        AS $grainline_drifted_predecessor$
+${predecessorWebhookBeginSource}
+        -- Deliberate source-only drift: behavior and catalog attributes stay unchanged.
+        $grainline_drifted_predecessor$;
+      `, /predecessor webhook begin function drifted/);
+    });
   });
 });

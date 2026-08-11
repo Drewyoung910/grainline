@@ -12,11 +12,11 @@ application release uses the fixed functions.
 
 - migration: `20260810190000_prepare_checkout_stock_reservation_authority`
 - migration SHA-256:
-  `4d4f8d3835e8bb6b75dc42fb6a917cf45c79651417fcafcda126e16c21e95740`
+  `89a0772a7ac03e768dbb60d771973eb2511c68851beb860a7067aabe2485efc8`
 - reviewed draft SHA-256:
-  `b4f1f64a92ba914b39c050e70c148d00dc870eebedd1a4da966d874c0de263c6`
+  `08c3bd9c5861041b4194f46134e72c8a509fdd2bf28356ccc5c5f1c20dc7b9f3`
 - migration-prefix SHA-256:
-  `36608293c20b8833e4a115f538737b20f2bbe112f194039cb11fecd2a66e39eb`
+  `f6acf39fedac8e7b5b30d6fa38f73a0cafc43dffa6aed892f4c270325076debb`
 - guarded phase: `checkout-stock-reservation-authority-reviewed`
 - fixed runtime surface: 15 reservation operations plus the source-bound
   three-argument Stripe webhook begin overload
@@ -36,7 +36,11 @@ change Stripe, Vercel, Neon, Redis, or other provider state.
 The migration itself refuses to run until the separate StripeWebhookEvent FORCE
 release is already present: the event ledger must have ENABLE plus FORCE, zero
 policies, no ordinary-runtime table authority, the reviewed owner, and a
-NOBYPASSRLS runtime role. CheckoutStockReservation must still be the clean
+LOGIN/NOINHERIT/NOBYPASSRLS runtime role with only the reviewed non-effective
+Neon bootstrap membership. It also pins the predecessor two-argument webhook
+begin function body and ACL, rejects PUBLIC/column authority, drains other
+owner sessions, and takes bounded advisory/table locks. CheckoutStockReservation
+must still be the clean
 predecessor with RLS/FORCE off, zero policies, broad runtime CRUD, none of the
 new fields, and no three-argument webhook-begin overload. This prevents one
 dispatch from silently collapsing two independently reviewed production

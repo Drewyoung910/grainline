@@ -297,6 +297,30 @@ runtime INSERT, diagnostic UPDATE normalization and DELETE after preparation,
 along with the exact 20-signature ACL/catalog partition. The failed candidate
 was never merged, migrated or deployed.
 
+### CSR-A20: the first promoted preflight trusted stale role and predecessor proofs
+
+The initial compatible preflight rechecked only that the runtime role was not
+superuser/BYPASSRLS, that the event table had FORCE, and that reservation CRUD
+still existed. That was insufficient at a later production boundary: role
+membership, column/PUBLIC ACLs, or the two-argument webhook-begin function
+could drift after the earlier StripeWebhookEvent acceptance while still
+passing those coarse checks.
+
+The replacement preflight re-attests the full LOGIN/NOINHERIT/non-privileged
+runtime posture, permits only Neon's proven non-effective owner-to-runtime
+bootstrap membership, rejects every other recursive membership, rejects
+PUBLIC and column authority, pins the exact predecessor webhook function body
+and ACL, requires the reviewed owner identity and drained owner sessions, and
+takes bounded advisory plus table locks before DDL. Production remains
+untouched; this was caught during the isolated Extra-High review.
+
+Disposable PostgreSQL tamper proofs now change each load-bearing predecessor
+dimension independently and require the migration to abort before adding
+`sourceObjectId`: runtime `INHERIT`, an unreviewed role-membership edge, a
+missing required CRUD grant, a PUBLIC column grant, and source-only drift in
+the sealed two-argument webhook function. These supplement the
+byte-level/static release assertions with engine-executed fail-closed evidence.
+
 ## Fixed-operation partition
 
 The reviewed signatures may narrow during disposable PostgreSQL proof, but may

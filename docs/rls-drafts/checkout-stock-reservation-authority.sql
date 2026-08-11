@@ -5,6 +5,19 @@
 
 BEGIN;
 
+SET LOCAL lock_timeout = '10s';
+SET LOCAL statement_timeout = '120s';
+
+SELECT pg_catalog.pg_advisory_xact_lock(
+  pg_catalog.hashtextextended(
+    'grainline.checkout-stock-reservation.authority.preparation',
+    0
+  )
+);
+
+LOCK TABLE public."StripeWebhookEvent", public."CheckoutStockReservation"
+  IN ACCESS EXCLUSIVE MODE;
+
 -- This compatible release is intentionally sequenced after the separate
 -- StripeWebhookEvent FORCE rollout. Refuse to let a single migration dispatch
 -- collapse those two reviewed production boundaries.
@@ -18,8 +31,11 @@ DECLARE
   reservation_force boolean;
   reservation_policy_count integer;
   reservation_owner text;
-  runtime_super boolean;
-  runtime_bypass boolean;
+  runtime_role record;
+  runtime_role_oid oid;
+  owner_role record;
+  owner_session_count integer;
+  webhook_begin_count integer;
 BEGIN
   SELECT
     class.relrowsecurity,
@@ -60,14 +76,117 @@ BEGIN
     RAISE EXCEPTION 'Checkout reservation preparation predecessor posture drifted';
   END IF;
 
-  SELECT role.rolsuper, role.rolbypassrls
-    INTO STRICT runtime_super, runtime_bypass
+  SELECT
+    role.oid,
+    role.rolsuper,
+    role.rolinherit,
+    role.rolcanlogin,
+    role.rolcreatedb,
+    role.rolcreaterole,
+    role.rolreplication,
+    role.rolbypassrls
+    INTO runtime_role
     FROM pg_catalog.pg_roles AS role
    WHERE role.rolname = 'grainline_app_runtime';
-  IF runtime_super OR runtime_bypass
+  IF NOT FOUND
+     OR runtime_role.rolsuper
+     OR runtime_role.rolinherit
+     OR NOT runtime_role.rolcanlogin
+     OR runtime_role.rolcreatedb
+     OR runtime_role.rolcreaterole
+     OR runtime_role.rolreplication
+     OR runtime_role.rolbypassrls
      OR event_owner = 'grainline_app_runtime'
      OR reservation_owner = 'grainline_app_runtime' THEN
     RAISE EXCEPTION 'grainline_app_runtime role posture is not reservation-authority safe';
+  END IF;
+  runtime_role_oid := runtime_role.oid;
+
+  -- Retain only Neon's non-effective bootstrap edge: neondb_owner may be a
+  -- member of the restricted runtime role when cloud_admin grants ADMIN but
+  -- neither INHERIT nor SET. The runtime role must never inherit another role.
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_auth_members AS membership
+      JOIN pg_catalog.pg_roles AS member
+        ON member.oid = membership.member
+      JOIN pg_catalog.pg_roles AS granted_role
+        ON granted_role.oid = membership.roleid
+      JOIN pg_catalog.pg_roles AS grantor
+        ON grantor.oid = membership.grantor
+     WHERE (
+       member.rolname = 'grainline_app_runtime'
+       OR granted_role.rolname = 'grainline_app_runtime'
+     )
+       AND NOT (
+         granted_role.rolname = 'grainline_app_runtime'
+         AND member.rolname = 'neondb_owner'
+         AND grantor.rolname = 'cloud_admin'
+         AND membership.admin_option
+         AND NOT membership.inherit_option
+         AND NOT membership.set_option
+       )
+  ) OR EXISTS (
+    WITH RECURSIVE restricted_members AS (
+      SELECT child.oid, child.rolname
+        FROM pg_catalog.pg_auth_members AS membership
+        JOIN pg_catalog.pg_roles AS parent
+          ON parent.oid = membership.roleid
+        JOIN pg_catalog.pg_roles AS child
+          ON child.oid = membership.member
+       WHERE parent.rolname = 'grainline_app_runtime'
+      UNION
+      SELECT child.oid, child.rolname
+        FROM restricted_members AS parent
+        JOIN pg_catalog.pg_auth_members AS membership
+          ON membership.roleid = parent.oid
+        JOIN pg_catalog.pg_roles AS child
+          ON child.oid = membership.member
+    )
+    SELECT 1
+      FROM restricted_members
+     WHERE rolname <> 'neondb_owner'
+  ) THEN
+    RAISE EXCEPTION 'Checkout reservation runtime role retains unreviewed membership';
+  END IF;
+
+  SELECT
+    role.oid,
+    role.rolsuper,
+    role.rolcanlogin,
+    role.rolbypassrls
+    INTO owner_role
+    FROM pg_catalog.pg_roles AS role
+   WHERE role.rolname = current_user;
+  IF NOT FOUND
+     OR NOT owner_role.rolcanlogin
+     OR owner_role.oid = runtime_role_oid THEN
+    RAISE EXCEPTION 'Checkout reservation migration owner identity drifted';
+  END IF;
+  IF current_user = 'neondb_owner' THEN
+    IF owner_role.rolsuper OR NOT owner_role.rolbypassrls THEN
+      RAISE EXCEPTION 'neondb_owner posture is not reservation-authority safe';
+    END IF;
+  ELSIF current_user = 'ci'
+        AND pg_catalog.current_database() = 'grainline_ci' THEN
+    IF NOT owner_role.rolsuper THEN
+      RAISE EXCEPTION 'disposable CI migration owner posture drifted';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'Checkout reservation preparation requires a reviewed migration owner';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO owner_session_count
+    FROM pg_catalog.pg_stat_activity AS activity
+   WHERE activity.datname = pg_catalog.current_database()
+     AND activity.usename = current_user
+     AND activity.backend_type = 'client backend'
+     AND activity.pid <> pg_catalog.pg_backend_pid();
+  IF owner_session_count <> 0 THEN
+    RAISE EXCEPTION
+      'Checkout reservation owner-session drain is incomplete: % other owner sessions remain',
+      owner_session_count;
   END IF;
 
   IF pg_catalog.has_table_privilege(
@@ -81,6 +200,10 @@ BEGIN
      )
      OR pg_catalog.has_table_privilege(
        'grainline_app_runtime', 'public."StripeWebhookEvent"', 'DELETE'
+     )
+     OR pg_catalog.has_any_column_privilege(
+       'grainline_app_runtime', 'public."StripeWebhookEvent"',
+       'SELECT,INSERT,UPDATE,REFERENCES'
      ) THEN
     RAISE EXCEPTION 'StripeWebhookEvent runtime table authority must already be revoked';
   END IF;
@@ -96,8 +219,84 @@ BEGIN
      )
      OR NOT pg_catalog.has_table_privilege(
        'grainline_app_runtime', 'public."CheckoutStockReservation"', 'DELETE'
+     )
+     OR pg_catalog.has_table_privilege(
+       'grainline_app_runtime', 'public."CheckoutStockReservation"',
+       'TRUNCATE,REFERENCES,TRIGGER'
      ) THEN
     RAISE EXCEPTION 'CheckoutStockReservation predecessor CRUD grants drifted';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+      CROSS JOIN LATERAL pg_catalog.aclexplode(
+        COALESCE(class.relacl, pg_catalog.acldefault('r', class.relowner))
+      ) AS acl
+     WHERE namespace.nspname = 'public'
+       AND class.relname IN ('StripeWebhookEvent', 'CheckoutStockReservation')
+       AND class.relkind IN ('r', 'p')
+       AND acl.grantee = 0
+       AND acl.privilege_type IN (
+         'SELECT', 'INSERT', 'UPDATE', 'DELETE',
+         'TRUNCATE', 'REFERENCES', 'TRIGGER'
+       )
+  ) OR EXISTS (
+    SELECT 1
+      FROM pg_catalog.pg_attribute AS attribute
+      CROSS JOIN LATERAL pg_catalog.aclexplode(attribute.attacl) AS acl
+     WHERE attribute.attrelid IN (
+       'public."StripeWebhookEvent"'::pg_catalog.regclass,
+       'public."CheckoutStockReservation"'::pg_catalog.regclass
+     )
+       AND attribute.attnum > 0
+       AND NOT attribute.attisdropped
+       AND acl.grantee IN (0, runtime_role_oid)
+       AND acl.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES')
+  ) THEN
+    RAISE EXCEPTION 'Checkout reservation predecessor retains unreviewed PUBLIC or column authority';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO webhook_begin_count
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND procedure.proname = 'grainline_stripe_webhook_begin'
+     AND pg_catalog.oidvectortypes(procedure.proargtypes) = 'text, text'
+     AND procedure.proowner = owner_role.oid
+     AND procedure.prokind = 'f'
+     AND procedure.prosecdef
+     AND NOT procedure.proleakproof
+     AND procedure.provolatile = 'v'
+     AND procedure.proparallel = 'u'
+     AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+     AND pg_catalog.md5(procedure.prosrc) = '76421b45f39a6d8f8888566c7fd0667f'
+     AND pg_catalog.has_function_privilege(
+       'grainline_app_runtime', procedure.oid, 'EXECUTE'
+     )
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             procedure.proacl,
+             pg_catalog.acldefault('f', procedure.proowner)
+           )
+         ) AS acl
+        WHERE acl.privilege_type = 'EXECUTE'
+          AND (
+            acl.grantee NOT IN (procedure.proowner, runtime_role_oid)
+            OR (
+              acl.grantee = runtime_role_oid
+              AND (acl.grantor <> procedure.proowner OR acl.is_grantable)
+            )
+          )
+     );
+  IF webhook_begin_count <> 1 THEN
+    RAISE EXCEPTION 'Checkout reservation predecessor webhook begin function drifted';
   END IF;
 
   IF EXISTS (
