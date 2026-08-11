@@ -87,6 +87,9 @@ production-inert until the compatible migration, app deployment and predecessor
 drain complete. The byte-pinned activation candidate builder is deliberately
 read-only: it reports deterministic proposed migration bytes and hashes but
 cannot create a Prisma migration directory or execute a database change.
+The separately stacked FORCE design is also posture-only and read-only
+packaged. It exists as an ownership-drift invariant; it does not claim that the
+current BYPASS migration owner becomes subject to policyless RLS.
 
 ## Core Lifecycles
 

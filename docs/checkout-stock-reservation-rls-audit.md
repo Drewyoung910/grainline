@@ -433,6 +433,20 @@ proposed migration in memory, rejects expanded authority or row mutation, and
 reports the deterministic hash without creating a migration directory. Actual
 promotion remains a separate exact-head release after the predecessor gates.
 
+### CSR-A29: FORCE is an ownership-drift invariant, not current-owner isolation
+
+The reviewed production migration owner has `BYPASSRLS`, so FORCE does not make
+that current owner subject to row policies. Describing FORCE as direct
+protection from the present owner would overstate PostgreSQL's semantics.
+
+The separate posture release is retained because it prevents a future
+non-BYPASS table owner from silently receiving the ordinary owner exemption.
+Its draft re-attests exact policyless Phase A, role membership, zero table/
+column authority and all 20 function sources before changing only the FORCE
+bit. Its database-first rollback restores ENABLE plus NO FORCE without
+restoring broad table grants. Exact rationale, hashes and proof gates live in
+`docs/checkout-stock-reservation-force-plan.md`.
+
 ## Fixed-operation partition
 
 The reviewed signatures may narrow during disposable PostgreSQL proof, but may

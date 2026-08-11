@@ -111,9 +111,11 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(row, /`COMPATIBLE_CANDIDATE`/);
     assert.match(row, /checkout-stock-reservation-rls-audit\.md/);
     assert.match(row, /checkout-stock-reservation-activation-plan\.md/);
+    assert.match(row, /checkout-stock-reservation-force-plan\.md/);
     assert.doesNotMatch(row, /RLS_LIVE/);
     assert.match(row, /production runners remain unwired/);
-    assert.match(row, /candidate builder that cannot create a Prisma migration/);
+    assert.match(row, /candidate builders that cannot create Prisma migrations/);
+    assert.match(source("docs/checkout-stock-reservation-rls-audit.md"), /CSR-A29: FORCE is an ownership-drift invariant/);
     assert.match(strategy, /next isolated dependency is `CheckoutStockReservation`/);
     assert.match(strategy, /StripeWebhookEvent FORCE\s+remains a separate/);
   });
