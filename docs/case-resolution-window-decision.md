@@ -55,3 +55,28 @@ authority migrations out of its workspace before `prisma migrate deploy`, then
 uses an engine-enforced read-only catalog proof to confirm the exact Case
 migration checksum, live function body and grants, preserved Case FORCE posture,
 and absence of those two queued migration rows.
+
+## CI proof-isolation history
+
+The candidate exposed an important distinction between migration-tree proofs
+and live grant audits. Sealed historical proofs need the complete reviewed
+successor tree, while the grant audit must see only migrations already applied
+to its current disposable database state. The workflow therefore restores
+queued successor directories only around their sealed proofs and re-isolates
+them before every grant audit or earlier `migrate deploy` boundary.
+
+The following failed CI runs are retained as evidence rather than erased from
+the record:
+
+- `31539632706`: the Case successor was still isolated when the Stripe sealed
+  prefix verifier needed it;
+- `31540047001`: a historical Stripe proof still required an exact old tree
+  instead of explicitly accepting the reviewed successor tree;
+- `31540557968`: the proof accepted successors, but their directories were not
+  present for the full-tree verification;
+- `31540984229`: the queued FORCE and checkout directories remained visible to
+  a grant audit whose disposable database had not applied them.
+
+None of these runs changed production. The final invariant is fail-closed in
+both directions: complete reviewed tree during sealed proofs, and an applied-
+state-matching tree during grant audits and migration execution.

@@ -355,8 +355,6 @@ jobs:
         run: npm run audit:rls-stripe-webhook-event-activation-rollback
         env:
           STRIPE_WEBHOOK_EVENT_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Re-audit restored StripeWebhookEvent activation posture
-        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Re-isolate reviewed successors before the StripeWebhookEvent FORCE migration
         run: |
           mv \
@@ -365,6 +363,8 @@ jobs:
           mv \
             prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority \
             "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
+      - name: Re-audit restored StripeWebhookEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Restore the exact StripeWebhookEvent FORCE release
         run: >-
           mv
@@ -389,8 +389,18 @@ jobs:
         run: npm run audit:rls-stripe-webhook-event-force-rollback
         env:
           STRIPE_WEBHOOK_EVENT_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-isolate CheckoutStockReservation before the FORCE grant audit
+        run: >-
+          mv
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
       - name: Re-audit restored StripeWebhookEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore CheckoutStockReservation authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
       - name: Apply CheckoutStockReservation compatible authority
         run: npx prisma migrate deploy
       - name: Converge compatible reservation function grants
