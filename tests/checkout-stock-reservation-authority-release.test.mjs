@@ -93,16 +93,20 @@ test("Prisma schema records every compatible column", () => {
   );
 });
 
-test("CI isolates preparation until StripeWebhookEvent FORCE passes", () => {
+test("CI isolates preparation until StripeWebhookEvent FORCE is applied and proof-bound", () => {
   const isolate = ci.indexOf("Isolate CheckoutStockReservation authority until webhook FORCE passes");
+  const forceApply = ci.indexOf("Apply the exact StripeWebhookEvent FORCE release");
   const forceProof = ci.indexOf("Prove FORCE-hardened StripeWebhookEvent authority");
-  const restore = ci.indexOf("Restore CheckoutStockReservation authority release");
+  const restore = ci.indexOf(
+    "Restore CheckoutStockReservation authority for sealed FORCE proofs",
+  );
   const apply = ci.indexOf("Apply CheckoutStockReservation compatible authority");
   const audit = ci.indexOf("Audit compatible reservation grants and RLS catalog");
   assert.ok(isolate >= 0);
-  assert.ok(forceProof > isolate);
-  assert.ok(restore > forceProof);
-  assert.ok(apply > restore);
+  assert.ok(forceApply > isolate);
+  assert.ok(restore > forceApply);
+  assert.ok(forceProof > restore);
+  assert.ok(apply > forceProof);
   assert.ok(audit > apply);
 });
 

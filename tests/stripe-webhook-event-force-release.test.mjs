@@ -256,6 +256,10 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.ok(sealedPhaseA >= 0 && sealedPhaseA < forceIsolate);
   assert.ok(forceIsolate >= 0 && forceIsolate < phaseARestore);
   assert.ok(forceRestore > phaseARestore && forceProof > forceRestore);
+  assert.match(
+    ci,
+    /Audit FORCE-hardened StripeWebhookEvent grants and RLS catalog[\s\S]*Restore CheckoutStockReservation authority for sealed FORCE proofs[\s\S]*20260810190000_prepare_checkout_stock_reservation_authority[\s\S]*Prove FORCE-hardened StripeWebhookEvent authority[\s\S]*Re-audit restored StripeWebhookEvent FORCE posture[\s\S]*Apply CheckoutStockReservation compatible authority/,
+  );
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
   assert.match(production, /case-resolution-window-reviewed/);

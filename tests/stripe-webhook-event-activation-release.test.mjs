@@ -229,6 +229,10 @@ test("CI stages compatibility first and proves activation before production can 
   );
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
+  assert.match(
+    ci,
+    /Audit activated StripeWebhookEvent grants and RLS catalog[\s\S]*Restore reviewed successor directories for sealed StripeWebhookEvent activation proofs[\s\S]*20260810172000_force_stripe_webhook_event_rls[\s\S]*20260810190000_prepare_checkout_stock_reservation_authority[\s\S]*Prove policyless StripeWebhookEvent activation[\s\S]*Re-audit restored StripeWebhookEvent activation posture[\s\S]*Re-isolate reviewed successors before the StripeWebhookEvent FORCE migration[\s\S]*Restore the exact StripeWebhookEvent FORCE release/,
+  );
   assert.match(production, /case-resolution-window-reviewed/);
   assert.ok(
     production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")

@@ -322,6 +322,14 @@ jobs:
         run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
       - name: Audit activated StripeWebhookEvent grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore reviewed successor directories for sealed StripeWebhookEvent activation proofs
+        run: |
+          mv \
+            "$RUNNER_TEMP/stripe-webhook-event-force-release" \
+            prisma/migrations/20260810172000_force_stripe_webhook_event_rls
+          mv \
+            "$RUNNER_TEMP/checkout-stock-reservation-authority-release" \
+            prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
       - name: Prove policyless StripeWebhookEvent activation
         run: npm run audit:rls-stripe-webhook-event-activation-postgres
         env:
@@ -349,6 +357,14 @@ jobs:
           STRIPE_WEBHOOK_EVENT_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Re-audit restored StripeWebhookEvent activation posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Re-isolate reviewed successors before the StripeWebhookEvent FORCE migration
+        run: |
+          mv \
+            prisma/migrations/20260810172000_force_stripe_webhook_event_rls \
+            "$RUNNER_TEMP/stripe-webhook-event-force-release"
+          mv \
+            prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority \
+            "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
       - name: Restore the exact StripeWebhookEvent FORCE release
         run: >-
           mv
@@ -360,6 +376,11 @@ jobs:
         run: npx prisma migrate status
       - name: Audit FORCE-hardened StripeWebhookEvent grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore CheckoutStockReservation authority for sealed FORCE proofs
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
       - name: Prove FORCE-hardened StripeWebhookEvent authority
         run: npm run audit:rls-stripe-webhook-event-force-postgres
         env:
@@ -370,11 +391,6 @@ jobs:
           STRIPE_WEBHOOK_EVENT_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Re-audit restored StripeWebhookEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Restore CheckoutStockReservation authority release
-        run: >-
-          mv
-          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
-          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
       - name: Apply CheckoutStockReservation compatible authority
         run: npx prisma migrate deploy
       - name: Converge compatible reservation function grants
