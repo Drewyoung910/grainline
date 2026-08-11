@@ -415,7 +415,14 @@ export async function verifyCheckoutStockReservationActivatedCatalog(
   }
 }
 
-export async function runCheckoutStockReservationActivationPostflight(config) {
+export async function runCheckoutStockReservationActivationPostflight(
+  config,
+  {
+    evidenceOperation =
+      "checkout-stock-reservation-activation-production-postflight",
+    expectedForced = false,
+  } = {},
+) {
   const git = assertCheckoutStockReservationActivationPostflightGitState(
     readCheckoutStockReservationActivationPostflightGitState(),
     config.releaseCommit,
@@ -446,7 +453,11 @@ export async function runCheckoutStockReservationActivationPostflight(config) {
       client,
       config.runtimeIdentity,
     );
-    await verifyCheckoutStockReservationActivatedCatalog(client);
+    await verifyCheckoutStockReservationActivatedCatalog(
+      client,
+      MIGRATION_ROLE,
+      expectedForced,
+    );
     await expectSqlState(
       client,
       () => client.query(
@@ -483,7 +494,7 @@ export async function runCheckoutStockReservationActivationPostflight(config) {
 
     const evidence = Object.freeze({
       schemaVersion: 1,
-      operation: "checkout-stock-reservation-activation-production-postflight",
+      operation: evidenceOperation,
       source: Object.freeze({ clean: git.clean, commit: git.head }),
       target: Object.freeze({
         databaseName: config.runtimeIdentity.databaseName,
@@ -502,12 +513,14 @@ export async function runCheckoutStockReservationActivationPostflight(config) {
         postflightReadOnly: true,
         publicAuthority: false,
         rlsEnabled: true,
-        rlsForced: false,
+        rlsForced: expectedForced,
         runtimeTableOrColumnAuthority: false,
         checks: Object.freeze([
           "engine_attested_repeatable_read_read_only_transaction",
           "actual_pooled_runtime_role_identity",
-          "policyless_enable_no_force_table_posture",
+          expectedForced
+            ? "policyless_enable_force_table_posture"
+            : "policyless_enable_no_force_table_posture",
           "zero_public_and_runtime_table_or_column_authority",
           "exact_twenty_function_source_mode_owner_and_acl_catalog",
           "direct_table_read_denied",

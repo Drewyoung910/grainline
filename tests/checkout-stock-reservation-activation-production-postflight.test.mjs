@@ -121,6 +121,7 @@ test("reservation postflight is read-only, actual-role, exact-catalog and saniti
     "utf8",
   );
   assert.match(script, /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/);
+  assert.match(script, /expectedForced = false/);
   assert.match(script, /FROM unnest\(\$1::text\[\], \$2::text\[\]\)/);
   assert.match(
     script,

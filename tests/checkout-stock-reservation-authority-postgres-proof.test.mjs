@@ -23,6 +23,14 @@ const activationRollback = fs.readFileSync(
   "docs/rls-drafts/checkout-stock-reservation-activation-rollback.sql",
   "utf8",
 );
+const force = fs.readFileSync(
+  "docs/rls-drafts/checkout-stock-reservation-force.sql",
+  "utf8",
+);
+const forceRollback = fs.readFileSync(
+  "docs/rls-drafts/checkout-stock-reservation-force-rollback.sql",
+  "utf8",
+);
 const predecessorWebhookBeginSource =
   stripeWebhookEventFunctionSources().grainline_stripe_webhook_begin;
 let db;
@@ -316,6 +324,97 @@ async function proveActivationPreflightRejection(tamperSql, expectedError) {
       can_update: true,
       can_delete: true,
     });
+  } finally {
+    await predecessor.close();
+    fs.rmSync(proofDirectory, { recursive: true, force: true });
+  }
+}
+
+async function proveForcePreflightRejection(tamperSql, expectedError) {
+  const proofDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "grainline-reservation-force-reject-"),
+  );
+  const bootstrap = new PGlite({ dataDir: proofDirectory });
+  try {
+    await bootstrap.exec("CREATE ROLE ci SUPERUSER LOGIN");
+    await bootstrap.exec("CREATE DATABASE grainline_ci OWNER ci");
+  } finally {
+    await bootstrap.close();
+  }
+
+  const predecessor = new PGlite({
+    dataDir: proofDirectory,
+    username: "ci",
+    database: "grainline_ci",
+  });
+  try {
+    await predecessor.exec(SOURCE_SCHEMA);
+    await predecessor.exec(PREDECESSOR_INDEXES);
+    await predecessor.exec(draft);
+    await predecessor.exec(activation);
+    await predecessor.exec(tamperSql);
+    await assert.rejects(predecessor.exec(force), expectedError);
+    await predecessor.exec("ROLLBACK");
+
+    const unchanged = rows(await predecessor.query(`
+      SELECT
+        class.relrowsecurity AS enabled,
+        class.relforcerowsecurity AS forced,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid,
+          'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+        ) AS runtime_table_authority
+        FROM pg_catalog.pg_class AS class
+       WHERE class.oid =
+             'public."CheckoutStockReservation"'::pg_catalog.regclass
+    `))[0];
+    assert.deepEqual(unchanged, {
+      enabled: true,
+      forced: false,
+      runtime_table_authority: false,
+    });
+  } finally {
+    await predecessor.close();
+    fs.rmSync(proofDirectory, { recursive: true, force: true });
+  }
+}
+
+async function proveForceRollbackPreflightRejection(tamperSql, expectedError) {
+  const proofDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "grainline-reservation-force-rollback-reject-"),
+  );
+  const bootstrap = new PGlite({ dataDir: proofDirectory });
+  try {
+    await bootstrap.exec("CREATE ROLE ci SUPERUSER LOGIN");
+    await bootstrap.exec("CREATE DATABASE grainline_ci OWNER ci");
+  } finally {
+    await bootstrap.close();
+  }
+
+  const predecessor = new PGlite({
+    dataDir: proofDirectory,
+    username: "ci",
+    database: "grainline_ci",
+  });
+  try {
+    await predecessor.exec(SOURCE_SCHEMA);
+    await predecessor.exec(PREDECESSOR_INDEXES);
+    await predecessor.exec(draft);
+    await predecessor.exec(activation);
+    await predecessor.exec(force);
+    await predecessor.exec(tamperSql);
+    await assert.rejects(predecessor.exec(forceRollback), expectedError);
+    await predecessor.exec("ROLLBACK");
+
+    const unchanged = rows(await predecessor.query(`
+      SELECT
+        class.relrowsecurity AS enabled,
+        class.relforcerowsecurity AS forced
+        FROM pg_catalog.pg_class AS class
+       WHERE class.oid =
+             'public."CheckoutStockReservation"'::pg_catalog.regclass
+    `))[0];
+    assert.deepEqual(unchanged, { enabled: true, forced: true });
   } finally {
     await predecessor.close();
     fs.rmSync(proofDirectory, { recursive: true, force: true });
@@ -902,6 +1001,33 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       await db.exec("ROLLBACK");
     }
 
+    await db.exec(force);
+    await db.exec("BEGIN");
+    try {
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await verifyCheckoutStockReservationActivatedCatalog(db, "ci", true);
+      const fixedRead = rows(await db.query(`
+        SELECT pg_catalog.count(*)::integer AS count
+          FROM public.grainline_checkout_reservation_export('buyer-a')
+      `))[0];
+      assert.equal(fixedRead.count, 0);
+      await assert.rejects(
+        db.query('SELECT id FROM public."CheckoutStockReservation" LIMIT 1'),
+        /permission denied for table CheckoutStockReservation/,
+      );
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+
+    await db.exec(forceRollback);
+    await db.exec("BEGIN");
+    try {
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await verifyCheckoutStockReservationActivatedCatalog(db, "ci", false);
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+
     await db.exec(activationRollback);
     const restored = rows(await db.query(`
       SELECT
@@ -1145,5 +1271,50 @@ describe("CheckoutStockReservation activation preflight in disposable PostgreSQL
           TO grainline_app_runtime;
       `, /activation function catalog drifted: actual 20, accepted 19/);
     });
+  });
+});
+
+describe("CheckoutStockReservation FORCE preflight in disposable PostgreSQL", () => {
+  it("fails closed without changing Phase A on predecessor drift", async (context) => {
+    await context.test("rejects a leaked runtime column ACL", async () => {
+      await proveForcePreflightRejection(`
+        GRANT SELECT ("buyerId")
+          ON TABLE public."CheckoutStockReservation"
+          TO grainline_app_runtime;
+      `, /FORCE predecessor drifted/);
+    });
+
+    await context.test("rejects an unexpected policy", async () => {
+      await proveForcePreflightRejection(`
+        CREATE POLICY "CheckoutStockReservation_unreviewed"
+          ON public."CheckoutStockReservation"
+          FOR SELECT
+          TO grainline_app_runtime
+          USING (true);
+      `, /FORCE predecessor drifted/);
+    });
+
+    await context.test("rejects an unreviewed role membership", async () => {
+      await proveForcePreflightRejection(`
+        CREATE ROLE grainline_force_shadow NOLOGIN;
+        GRANT grainline_app_runtime TO grainline_force_shadow;
+      `, /runtime role retains unreviewed membership/);
+    });
+
+    await context.test("rejects leaked private-helper execution", async () => {
+      await proveForcePreflightRejection(`
+        GRANT EXECUTE ON FUNCTION
+          public.grainline_checkout_reservation_restore_items(jsonb)
+          TO grainline_app_runtime;
+      `, /FORCE function catalog drifted/);
+    });
+  });
+
+  it("refuses rollback when the forced state has unrelated authority drift", async () => {
+    await proveForceRollbackPreflightRejection(`
+      GRANT SELECT
+        ON TABLE public."CheckoutStockReservation"
+        TO PUBLIC;
+    `, /FORCE rollback predecessor drifted/);
   });
 });
