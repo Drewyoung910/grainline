@@ -148,7 +148,9 @@ async function proveOldRuntimeCrud(databaseUrl) {
 
 export async function runStripeWebhookEventRollbackProof(env = process.env) {
   const { databaseUrl } = parseStripeWebhookEventRollbackProofConfig(env);
-  verifyStripeWebhookEventActivationRelease();
+  verifyStripeWebhookEventActivationRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
   const owner = new Client({ connectionString: databaseUrl });
   await owner.connect();
   let restoreRequired = false;

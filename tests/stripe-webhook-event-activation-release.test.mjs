@@ -205,6 +205,14 @@ test("CI stages compatibility first and proves activation before production can 
     pkg.scripts["ops:stripe-webhook-event-activation-postflight"],
     "node scripts/stripe-webhook-event-activation-production-postflight.mjs",
   );
+  assert.match(
+    proof,
+    /verifyStripeWebhookEventActivationRelease\(undefined, \{\s*allowReviewedSuccessor: true/,
+  );
+  assert.match(
+    rollbackProof,
+    /verifyStripeWebhookEventActivationRelease\(undefined, \{\s*allowReviewedSuccessor: true/,
+  );
   const isolate = ci.indexOf("Isolate the exact StripeWebhookEvent activation");
   const compatibility = ci.indexOf("Apply compatible migrations to CI Postgres");
   const restore = ci.indexOf("Restore the exact StripeWebhookEvent activation");

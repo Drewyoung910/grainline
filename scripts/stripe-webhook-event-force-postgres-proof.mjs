@@ -44,7 +44,9 @@ export function parseStripeWebhookEventForceProofConfig(env = process.env) {
 
 export async function runStripeWebhookEventForceProof(env = process.env) {
   const { databaseUrl } = parseStripeWebhookEventForceProofConfig(env);
-  verifyStripeWebhookEventForceRelease();
+  verifyStripeWebhookEventForceRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
   const owner = new Client({ connectionString: databaseUrl });
   await owner.connect();
   try {

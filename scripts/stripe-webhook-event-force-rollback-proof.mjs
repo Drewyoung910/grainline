@@ -67,7 +67,9 @@ export async function runStripeWebhookEventForceRollbackProof(
   env = process.env,
 ) {
   const { databaseUrl } = parseStripeWebhookEventForceRollbackProofConfig(env);
-  verifyStripeWebhookEventForceRelease();
+  verifyStripeWebhookEventForceRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
   const rollback = fs.readFileSync(
     "docs/rls-drafts/stripe-webhook-event-force-rollback.sql",
     "utf8",

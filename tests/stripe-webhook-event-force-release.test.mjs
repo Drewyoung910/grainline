@@ -40,6 +40,14 @@ const releaseDocument = fs.readFileSync(
   "docs/stripe-webhook-event-force-release.md",
   "utf8",
 );
+const postgresProof = fs.readFileSync(
+  "scripts/stripe-webhook-event-force-postgres-proof.mjs",
+  "utf8",
+);
+const rollbackProof = fs.readFileSync(
+  "scripts/stripe-webhook-event-force-rollback-proof.mjs",
+  "utf8",
+);
 const runbook = fs.readFileSync("docs/runbook.md", "utf8");
 const launchChecklist = fs.readFileSync("docs/launch-checklist.md", "utf8");
 const RELEASE_COMMIT = "a".repeat(40);
@@ -221,6 +229,14 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.equal(
     pkg.scripts["ops:stripe-webhook-event-force-postflight"],
     "node scripts/stripe-webhook-event-force-production-postflight.mjs",
+  );
+  assert.match(
+    postgresProof,
+    /verifyStripeWebhookEventForceRelease\(undefined, \{\s*allowReviewedSuccessor: true/,
+  );
+  assert.match(
+    rollbackProof,
+    /verifyStripeWebhookEventForceRelease\(undefined, \{\s*allowReviewedSuccessor: true/,
   );
   const forceIsolate = ci.indexOf(
     "Isolate the exact StripeWebhookEvent FORCE release",
