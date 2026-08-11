@@ -35,6 +35,7 @@ DECLARE
   runtime_role_oid oid;
   owner_role record;
   owner_session_count integer;
+  predecessor_constraint_count integer;
   webhook_begin_count integer;
 BEGIN
   SELECT
@@ -74,6 +75,23 @@ BEGIN
   IF reservation_rls OR reservation_force OR reservation_policy_count <> 0
      OR reservation_owner IS DISTINCT FROM current_user THEN
     RAISE EXCEPTION 'Checkout reservation preparation predecessor posture drifted';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO predecessor_constraint_count
+    FROM pg_catalog.pg_constraint AS constraint_row
+   WHERE constraint_row.conrelid =
+         'public."CheckoutStockReservation"'::pg_catalog.regclass
+     AND constraint_row.conname IN (
+       'CheckoutStockReservation_status_chk',
+       'CheckoutStockReservation_reservedItems_array_chk'
+     )
+     AND constraint_row.contype = 'c'
+     AND constraint_row.convalidated;
+  IF predecessor_constraint_count <> 2 THEN
+    RAISE EXCEPTION
+      'Checkout reservation validated predecessor constraints drifted: %',
+      predecessor_constraint_count;
   END IF;
 
   SELECT
@@ -588,8 +606,6 @@ ALTER TABLE public."CheckoutStockReservation"
   CHECK ("repairGeneration" >= 0) NOT VALID,
   ADD CONSTRAINT "CheckoutStockReservation_payloadHash_check"
   CHECK ("payloadHash" = 'deleted' OR "payloadHash" ~ '^[A-Za-z0-9_-]{32}$') NOT VALID,
-  ADD CONSTRAINT "CheckoutStockReservation_status_check"
-  CHECK (status IN ('RESERVED', 'SESSION_CREATED', 'COMPLETED', 'RESTORED')) NOT VALID,
   ADD CONSTRAINT "CheckoutStockReservation_repairClaim_check"
   CHECK (
     ("repairClaimedAt" IS NULL) = ("repairClaimKind" IS NULL)
@@ -600,8 +616,6 @@ ALTER TABLE public."CheckoutStockReservation"
   VALIDATE CONSTRAINT "CheckoutStockReservation_repairGeneration_check";
 ALTER TABLE public."CheckoutStockReservation"
   VALIDATE CONSTRAINT "CheckoutStockReservation_payloadHash_check";
-ALTER TABLE public."CheckoutStockReservation"
-  VALIDATE CONSTRAINT "CheckoutStockReservation_status_check";
 ALTER TABLE public."CheckoutStockReservation"
   VALIDATE CONSTRAINT "CheckoutStockReservation_repairClaim_check";
 

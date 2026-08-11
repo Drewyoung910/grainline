@@ -10,7 +10,7 @@ export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION =
 export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_DRAFT =
   "docs/rls-drafts/checkout-stock-reservation-authority.sql";
 export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_DRAFT_SHA256 =
-  "08c3bd9c5861041b4194f46134e72c8a509fdd2bf28356ccc5c5f1c20dc7b9f3";
+  "66a3d711de1cab2eccb4407a3cdd0925f3ce13bdb6ce4a4fd647e74ab3bfa2ec";
 
 function sha256(source) {
   return createHash("sha256").update(source).digest("hex");

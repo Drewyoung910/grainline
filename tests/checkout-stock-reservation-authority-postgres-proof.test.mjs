@@ -88,6 +88,11 @@ const SOURCE_SCHEMA = String.raw`
     "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  ALTER TABLE public."CheckoutStockReservation"
+    ADD CONSTRAINT "CheckoutStockReservation_status_chk"
+    CHECK (status IN ('RESERVED', 'SESSION_CREATED', 'COMPLETED', 'RESTORED')),
+    ADD CONSTRAINT "CheckoutStockReservation_reservedItems_array_chk"
+    CHECK (pg_catalog.jsonb_typeof("reservedItems") = 'array');
 
   -- Exact predecessor lease primitive consumed by the compatible bound-begin
   -- overload in the authority draft.
@@ -858,6 +863,12 @@ describe("CheckoutStockReservation authority draft static contract", () => {
           ON TABLE public."CheckoutStockReservation"
           FROM grainline_app_runtime;
       `, /predecessor CRUD grants drifted/);
+    });
+    await context.test("rejects a missing validated predecessor constraint", async () => {
+      await provePreflightRejection(`
+        ALTER TABLE public."CheckoutStockReservation"
+          DROP CONSTRAINT "CheckoutStockReservation_reservedItems_array_chk";
+      `, /validated predecessor constraints drifted/);
     });
   });
 

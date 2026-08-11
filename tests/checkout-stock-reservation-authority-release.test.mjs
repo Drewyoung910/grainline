@@ -47,6 +47,9 @@ test("candidate is byte-pinned and preserves the compatible boundary", () => {
   assert.match(candidate.migration, /owner-session drain is incomplete/);
   assert.match(candidate.migration, /has_any_column_privilege/);
   assert.match(candidate.migration, /predecessor retains unreviewed PUBLIC or column authority/);
+  assert.match(candidate.migration, /CheckoutStockReservation_status_chk/);
+  assert.match(candidate.migration, /CheckoutStockReservation_reservedItems_array_chk/);
+  assert.doesNotMatch(candidate.migration, /CheckoutStockReservation_status_check/);
   assert.match(candidate.migration, /oidvectortypes\(procedure\.proargtypes\) = 'text, text'/);
   assert.match(candidate.migration, /76421b45f39a6d8f8888566c7fd0667f/);
   assert.match(candidate.migration, /ADD COLUMN "sourceObjectId" varchar\(255\)/);

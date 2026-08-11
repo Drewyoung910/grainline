@@ -336,6 +336,21 @@ name. A release test pins that mapping. No database change is required because
 the promoted migration already creates the intended index; this is a
 declarative-schema correction caught before merge or production.
 
+### CSR-A22: preparation duplicated the existing status constraint
+
+The original reservation migration already installs and validates
+`CheckoutStockReservation_status_chk` for the four lifecycle states. The
+first authority candidate added an equivalent
+`CheckoutStockReservation_status_check`, which would have duplicated
+write-time constraint evaluation and made later catalog reasoning needlessly
+ambiguous.
+
+The authority preflight now requires both original validated checks
+(`status_chk` and `reservedItems_array_chk`) and executable tamper proof removes
+one to prove the migration fails closed. The redundant new status constraint
+has been removed; the three genuinely additive checks remain. This was caught
+before merge or production.
+
 ## Fixed-operation partition
 
 The reviewed signatures may narrow during disposable PostgreSQL proof, but may
