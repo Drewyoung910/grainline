@@ -1,5 +1,12 @@
 # Case, CaseMessage, and CaseMessageAttachment Pre-RLS Audit
 
+> Historical checkpoint: this document preserves the pre-RLS audit and the
+> evidence used to design the Case release. Its opening posture below is not the
+> current production posture. Case-family FORCE is complete; use
+> `docs/case-force-production-release.md`, `docs/rls-coverage-matrix.md`, and
+> `docs/system-readiness-review-20260811.md` for current status and remaining
+> product/launch work.
+
 Opened 2026-07-26. Status: audit and compatible conversion complete; the
 invariant-only migration and pooled-runtime postflight completed in production
 on 2026-07-30. Case, CaseMessage and CaseMessageAttachment RLS remains off,

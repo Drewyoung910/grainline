@@ -1,5 +1,9 @@
 # Deferred Launch Backlog
 
+Last current-state refresh: 2026-08-11. Use
+`docs/system-readiness-review-20260811.md` for the product-plus-RLS review that
+produced this refresh.
+
 This tracker turns the audit ledger's deferred count into executable launch
 work. As of audit_closed Entry 517, the ledger has 87 deferred
 product/design/ops/legal findings and 0 unvetted raw allegations. The 87 count
@@ -46,11 +50,14 @@ leaving it in this file.
 
 | Section | Status | What is deferred | Closure criteria |
 | --- | --- | --- | --- |
-| RLS staging and first table policy | Conditional blocker | Live Neon-like pooling/context gate, route-level prototype tests, wrapper coverage guard, and first `Notification`/`SavedSearch` policy migrations. | Staging gate evidence passes with a retained sanitized JSON artifact from `RLS_CONTEXT_GATE_EVIDENCE_PATH`; first policy migration includes route tests, rollback notes, wrapper coverage, and CI; production RLS remains disabled until those pass. |
+| Order/payment/shipping RLS continuation | Conditional blocker | SavedSearch, Notification, Conversation/Message, DirectUpload and Case-family production boundaries are complete. StripeWebhookEvent is policyless Phase A with FORCE prepared but unapplied. CheckoutStockReservation compatible authority is merged but production-inert; the remaining Order-family tables still use predecessor direct authority. | Apply and postflight only the reviewed StripeWebhookEvent FORCE release; rerun the aggregate reservation inspection; then complete compatible preparation, app/drain proof, ENABLE and FORCE as separate reservation releases. Convert the remaining Order/OrderItem/quote/payment/payout projections and mutations to immutable checkout facts and fixed operations before their activations. |
+| Private Case evidence release | Launch blocker | The private CaseMessageAttachment/DirectUpload model and Case RLS boundary exist, but `CASE_EVIDENCE_ATTACHMENTS_ENABLED` remains absent or false. Terms say staff review photos. | Pass the private-R2 authenticated upload/read/foreign-denial smoke, schedule and prove the restricted DirectUpload cleanup worker, retire temporary cleanup credentials/tokens, promote the exact feature flag, and retain launch evidence. PDFs remain disabled until malware scanning/quarantine is reviewed. |
+| Case resolution-window contract | Decision required | Any participant may mark a Case `PENDING_CLOSE`; current cron auto-dismisses every such Case after seven days, including seller-only marks, while UI says both parties must confirm and a route comment says 48 hours. | Choose one disclosed rule and align fixed database transition, cron proof, Terms, UI, notification copy and tests. Recommended: a seller-only mark cannot silently dismiss the buyer's Case; leave it open or escalate it after the window. |
+| DirectUpload cleanup operations | Launch blocker | DirectUpload FORCE and cleanup-role proofs are accepted, but the dedicated cleanup schedule, first successful run, failure alerting and final token/credential retirement remain separate operations. | Enable only the reviewed restricted worker, prove a scheduled pass and alert path, confirm no cleanup DB URL exists in Vercel, rotate/retire temporary cleanup credentials, and retain sanitized evidence. |
 | Stripe refund runtime reconciliation | Launch blocker | Runtime/backfill proof beyond first-party orphan ledgers and local transfer-reversal evidence. | Test-mode refund scenarios produce matching Stripe refund, transfer reversal, `OrderPaymentEvent`, admin detail, and Sentry/audit evidence; any drift has a backfill or written reconciliation plan. |
 | Stripe partial-refund reconciliation | Launch blocker | Live proof that partial connected-seller refunds reverse seller transfers correctly under the manual `transfer_data.amount` checkout model. | Stripe test-mode partial refund artifacts confirm buyer refund amount, transfer reversal amount/id, platform-funded remainder when relevant, and local ledger metadata. |
 | Shipping label clawback reconciliation | Launch blocker | Runtime proof/dashboard reconciliation for Shippo label purchase plus Stripe transfer reversal retry/manual-review paths. | Test-mode label purchase covers successful reversal, missing transfer, reversal failure/retry, exhausted retry/manual review, and admin flagged-order visibility. |
-| Stripe webhook subscriptions | Launch blocker | Provider evidence for the platform snapshot, Connect v2 account and separately signed classic Connect payout surfaces, exact event subscriptions, source scope and secret matching. The 2026-08-08 test-mode read-only artifact failed: classic is missing 11 handled events and has four extras; v2 has three unused `account_person` events. The original classic expectation also mixed platform-account and connected-account sources. | Implement and prove the three-surface contract in `docs/stripe-webhook-provider-topology-audit.md`; correct the provider event sets in a separate reviewed boundary; require `npm run audit:stripe-webhooks` to pass for all exact URLs, modes and event families; and retain sanitized provider/deploy evidence for distinct `STRIPE_WEBHOOK_SECRET`, `STRIPE_V2_WEBHOOK_SECRET` and `STRIPE_CONNECT_WEBHOOK_SECRET` bindings because Stripe does not return endpoint secrets after creation. |
+| Stripe webhook launch topology | Launch blocker | The corrected three-surface test-mode topology is live and the classic Connect `payout.failed` signed-delivery plus exact-retry proof passed. Connect v2 signed delivery and the separately controlled live-mode topology/secrets remain unproved launch boundaries. | Retain a passing read-only `npm run audit:stripe-webhooks` topology artifact, valid Connect v2 signed delivery, exact live-mode source/event sets, separate signing-secret matching evidence for all three destinations, and a reviewed live-money cutover/rollback record. Do not reopen the accepted StripeWebhookEvent database boundary to satisfy provider evidence. |
 | Stripe Connect v2 loss-liability | Decision required | Ops/legal/accounting posture for Accounts v2 responsibility allocation and marketplace loss liability. | Counsel/accounting decision recorded in the legal risk register or launch records; any required product copy or operational control is implemented. |
 | Stale remote branches | Post-launch hardening | Explicit review/prune of stale remote branches, especially old feature branches that should not be merged as-is. | Branch list reviewed; stale branches deleted or documented; any reusable diff is rebased/cherry-picked onto current `main` and re-audited. |
 | Round 10 cache/state-machine designs | Decision required | Product designs that require behavior choices rather than more source guardrails. | Each remaining design is accepted, rejected, or converted into a concrete implementation issue with tests. |
@@ -69,17 +76,21 @@ leaving it in this file.
 | Vercel Analytics and Speed Insights | Decision required | Product/privacy decision before introducing Vercel telemetry. | Keep absent, or update privacy/product docs and tests before adding packages/components. |
 | Homepage browser a11y/runtime proof | Launch blocker | Browser proof beyond static source guardrails. | Playwright or manual browser evidence covers desktop/mobile first viewport, reduced motion, keyboard nav, skip link, and no incoherent overlap. |
 | Deployed security headers | Launch blocker | Runtime proof beyond `next.config.ts` and static tests. | `npm run audit:deployed-headers` passes against `https://thegrainline.com` with a retained sanitized artifact, and securityheaders.com, SSL Labs, and hstspreload.org evidence are retained separately. |
+| Node runtime major alignment | Conditional blocker | `package.json` permits `>=22`, so Vercel can build with Node 24 while GitHub CI uses Node 22. Security tests are broad, but automatic major drift makes production/CI parity non-deterministic. | Pin one supported Node major, run complete CI and production build on it, align Vercel and GitHub settings, and document the upgrade policy before launch. |
 
 ## Recommended Closure Order
 
-1. Launch evidence and provider controls: Stripe webhooks, Clerk staff controls,
-   Sentry cron alerts, R2 posture/smoke, deployed headers, homepage browser
-   proof.
-2. Money-movement runtime proof: refunds, partial refunds, label clawbacks,
+1. Correct the Case resolution-window contract, then finish private Case
+   evidence and DirectUpload cleanup operations.
+2. Launch evidence and provider controls: Stripe webhooks, Clerk staff controls,
+   Sentry cron alerts, R2 posture/smoke, deployed headers, Node runtime parity,
+   and homepage browser proof.
+3. Money-movement runtime proof: refunds, partial refunds, label clawbacks,
    Connect v2 loss-liability, buyer-deletion Stripe replay.
-3. Legal/product decisions: provider privacy erasure, HSTS preload, checkout
+4. Legal/product decisions: provider privacy erasure, HSTS preload, checkout
    grouping, cross-seller AI, Vercel telemetry.
-4. Data/performance hardening: EXPLAIN plans, BigInt/counter modeling,
+5. Data/performance hardening: EXPLAIN plans, BigInt/counter modeling,
    historical shipping-rate currency scan, stale branch pruning.
-5. RLS execution path: run the staging context gate, then migrate one table at a
-   time with route tests and rollback evidence.
+6. RLS execution path: complete StripeWebhookEvent FORCE, then continue
+   CheckoutStockReservation and the remaining Order/payment/shipping tables one
+   reviewed boundary at a time with exact proofs and rollback evidence.
