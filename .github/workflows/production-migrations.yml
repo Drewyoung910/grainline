@@ -56,13 +56,13 @@ jobs:
         run: npm run verify:rls-release-artifact
       - name: Verify exact CheckoutStockReservation authority release
         run: npm run audit:rls-checkout-stock-reservation-authority-release
-      - name: Verify sealed StripeWebhookEvent FORCE release
-        run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
       - name: Restore the exact Case resolution-window release
         run: >-
           mv
           "$RUNNER_TEMP/case-resolution-window-release"
           prisma/migrations/20260811170000_align_case_resolution_window
+      - name: Verify sealed StripeWebhookEvent FORCE release
+        run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
       - name: Verify exact Case resolution-window migration tree
         run: npm run verify:rls-release-artifact
         env:

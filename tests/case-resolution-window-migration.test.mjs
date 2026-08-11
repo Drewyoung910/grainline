@@ -133,7 +133,7 @@ describe("Case resolution-window correction", () => {
   it("isolates the successor while sealed prefixes run and then verifies this exact phase", () => {
     assert.match(
       ci,
-      /Isolate Case resolution-window release while sealed predecessors are verified[\s\S]*20260811170000_align_case_resolution_window[\s\S]*Verify CheckoutStockReservation authority migration tree[\s\S]*Verify StripeWebhookEvent FORCE release[\s\S]*Restore the exact Case resolution-window release[\s\S]*Verify the Case resolution-window release[\s\S]*SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed/,
+      /Isolate Case resolution-window release while sealed predecessors are verified[\s\S]*20260811170000_align_case_resolution_window[\s\S]*Verify CheckoutStockReservation authority migration tree[\s\S]*Restore the exact Case resolution-window release[\s\S]*Verify StripeWebhookEvent FORCE release[\s\S]*Verify the Case resolution-window release[\s\S]*SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed/,
     );
   });
 
