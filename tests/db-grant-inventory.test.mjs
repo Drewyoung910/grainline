@@ -39,6 +39,7 @@ const {
   RUNTIME_PRIVATE_TABLES,
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
+  CHECKOUT_STOCK_RESERVATION_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
@@ -52,6 +53,8 @@ const {
   collectTablePrivilegeAllowlistIssues,
   caseRlsActivationExpected,
   caseRlsForceExpected,
+  checkoutStockReservationRlsActivationExpected,
+  checkoutStockReservationRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -903,6 +906,94 @@ describe("database grant inventory guardrails", () => {
     assert.equal(
       stripeWebhookEventRlsForceExpected(stripeForcedInventory),
       true,
+    );
+
+    const reservationActivatedInventory = {
+      ...stripeForcedInventory,
+      tables: [
+        ...stripeForcedInventory.tables,
+        CHECKOUT_STOCK_RESERVATION_TABLE,
+      ],
+      rlsEnableTables: [
+        ...stripeForcedInventory.rlsEnableTables,
+        CHECKOUT_STOCK_RESERVATION_TABLE,
+      ],
+    };
+    assert.equal(
+      checkoutStockReservationRlsActivationExpected(
+        reservationActivatedInventory,
+      ),
+      true,
+    );
+    assert.equal(
+      checkoutStockReservationRlsForceExpected(reservationActivatedInventory),
+      false,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        CHECKOUT_STOCK_RESERVATION_TABLE,
+        reservationActivatedInventory,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      policylessServiceRlsTableNames(reservationActivatedInventory).slice(-2),
+      [STRIPE_WEBHOOK_EVENT_TABLE, CHECKOUT_STOCK_RESERVATION_TABLE],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: "DirectUpload",
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          ...caseRows.map((row) => ({ ...row, rls_forced: true })),
+          {
+            table_name: STRIPE_WEBHOOK_EVENT_TABLE,
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          {
+            table_name: CHECKOUT_STOCK_RESERVATION_TABLE,
+            rls_enabled: true,
+            rls_forced: false,
+            policy_count: 0,
+          },
+        ],
+        reservationActivatedInventory,
+      ),
+      [],
+    );
+    const reservationForcedInventory = {
+      tables: [CHECKOUT_STOCK_RESERVATION_TABLE],
+      rlsEnableTables: [CHECKOUT_STOCK_RESERVATION_TABLE],
+      rlsForceTables: [CHECKOUT_STOCK_RESERVATION_TABLE],
+      rlsPolicyTables: [],
+    };
+    assert.equal(
+      checkoutStockReservationRlsForceExpected(reservationForcedInventory),
+      true,
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: CHECKOUT_STOCK_RESERVATION_TABLE,
+            rls_enabled: true,
+            rls_forced: false,
+            policy_count: 0,
+          },
+        ],
+        reservationForcedInventory,
+      ),
+      [
+        "service-only table CheckoutStockReservation must have FORCE ROW LEVEL SECURITY enabled",
+      ],
     );
   });
 

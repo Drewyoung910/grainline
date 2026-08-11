@@ -43,6 +43,7 @@ export const CASE_ACTIVATION_TABLES = Object.freeze([
   "CaseMessageAttachment",
 ]);
 export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
+export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -246,6 +247,20 @@ export function stripeWebhookEventRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(STRIPE_WEBHOOK_EVENT_TABLE);
 }
 
+export function checkoutStockReservationRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(CHECKOUT_STOCK_RESERVATION_TABLE)
+    && !policies.has(CHECKOUT_STOCK_RESERVATION_TABLE);
+}
+
+export function checkoutStockReservationRlsForceExpected(inventory) {
+  return checkoutStockReservationRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(
+      CHECKOUT_STOCK_RESERVATION_TABLE,
+    );
+}
+
 export function runtimePrivateFunctionNames(inventory) {
   if (!directUploadRlsActivationExpected(inventory)) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
@@ -265,6 +280,9 @@ export function policylessServiceRlsTableNames(inventory) {
     ...(caseRlsActivationExpected(inventory) ? CASE_ACTIVATION_TABLES : []),
     ...(stripeWebhookEventRlsActivationExpected(inventory)
       ? [STRIPE_WEBHOOK_EVENT_TABLE]
+      : []),
+    ...(checkoutStockReservationRlsActivationExpected(inventory)
+      ? [CHECKOUT_STOCK_RESERVATION_TABLE]
       : []),
   ];
 }
@@ -1079,6 +1097,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === STRIPE_WEBHOOK_EVENT_TABLE
       && stripeWebhookEventRlsActivationExpected(inventory)
     )
+    || (
+      tableName === CHECKOUT_STOCK_RESERVATION_TABLE
+      && checkoutStockReservationRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -1116,6 +1138,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
       ? caseRlsForceExpected(inventory)
       : tableName === STRIPE_WEBHOOK_EVENT_TABLE
         ? stripeWebhookEventRlsForceExpected(inventory)
+        : tableName === CHECKOUT_STOCK_RESERVATION_TABLE
+          ? checkoutStockReservationRlsForceExpected(inventory)
         : true;
     if (!row) {
       issues.push(
@@ -1727,6 +1751,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       || (
         row.table_name === STRIPE_WEBHOOK_EVENT_TABLE
         && stripeWebhookEventRlsActivationExpected(inventory)
+      )
+      || (
+        row.table_name === CHECKOUT_STOCK_RESERVATION_TABLE
+        && checkoutStockReservationRlsActivationExpected(inventory)
       );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(

@@ -392,6 +392,47 @@ active-lock predicate. Disposable PostgreSQL tamper tests add an extra trigger
 and replace an index and constraint with same-named lookalikes; every variant
 aborts atomically.
 
+### CSR-A26: the global grant audit needed an explicit reservation activation disposition
+
+The first isolated activation proof changed the table to an intentionally
+policyless service ledger, but the site-wide live grant audit still derived
+compatible predecessor CRUD and classified any enabled zero-policy reservation
+table as unexpected. Leaving that consumer unchanged would make the reviewed
+activation succeed and the mandatory global audit fail immediately afterward.
+
+The audit now derives the reservation state from the migration inventory. It
+expects zero ordinary-runtime table privileges and policyless ENABLE after the
+Phase-A migration is present, expects FORCE only after the later FORCE
+migration is present, and still rejects every other zero-policy table. Unit
+coverage proves the compatible, ENABLE and FORCE dispositions separately.
+
+### CSR-A27: owner-session SET ROLE is not actual pooled-runtime identity proof
+
+Disposable PostgreSQL can execute catalog and authority checks after
+`SET LOCAL ROLE grainline_app_runtime`, but `SESSION_USER` remains the owner
+that opened the connection. Treating that session as production-runtime proof
+would repeat the owner-simulation error avoided elsewhere in the RLS program.
+
+The reusable activated-catalog verifier runs under the disposable runtime role,
+while the production postflight separately requires a real pooled runtime
+login and asserts `CURRENT_USER = SESSION_USER = grainline_app_runtime`, the
+complete restricted-role posture and no owner membership. It also runs inside
+an engine-attested repeatable-read read-only transaction and writes only
+sanitized mode-0600 evidence.
+
+### CSR-A28: activation packaging must not create a deploy-discoverable migration early
+
+The compatible preparation still has deployment, drain and inspection gates.
+Creating the activation directory under `prisma/migrations` now would let a
+generic migration deploy discover a security-reviewed but operationally
+premature release.
+
+The activation candidate builder therefore has only a read-only `--verify`
+mode. It pins activation, rollback and function-source bytes, constructs the
+proposed migration in memory, rejects expanded authority or row mutation, and
+reports the deterministic hash without creating a migration directory. Actual
+promotion remains a separate exact-head release after the predecessor gates.
+
 ## Fixed-operation partition
 
 The reviewed signatures may narrow during disposable PostgreSQL proof, but may

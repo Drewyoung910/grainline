@@ -80,6 +80,25 @@ table grant again inside the provisioning transaction.
 No activation step is wired to the production migration workflow at this
 checkpoint.
 
+The draft is packaged by the read-only candidate builder
+`scripts/build-checkout-stock-reservation-activation-candidate.mjs`. The
+builder pins the activation draft, rollback draft and all promoted function
+sources; produces the exact proposed migration bytes only in memory; and
+rejects policies, FORCE, row mutations, function changes or grant expansion.
+It exposes only `--verify`, cannot create a Prisma migration directory, and is
+not wired to CI or the production migration workflow. Current pins are:
+
+- activation draft SHA-256:
+  `5cb684828519b86244c9abb7eff86d47ac9b9dc969843fafb57f243d110ceea7`;
+- rollback draft SHA-256:
+  `48234ae984845e5bce6aef3463d6b2b30a4ebd763721806b8f40cf58b4acf0cd`;
+- deterministic proposed migration SHA-256:
+  `5d82078eaccc8face126587de7610834d4d578ddf27d78d9f4a3fa31b07127c0`.
+
+No directory named
+`prisma/migrations/20260810220000_enable_checkout_stock_reservation_rls`
+exists at this checkpoint. Promotion remains a separate reviewed release.
+
 ## Isolated proof checkpoint
 
 Disposable PostgreSQL now executes the complete boundary from the exact
@@ -95,3 +114,15 @@ That proof exposed and closed three pre-release defects recorded as CSR-A23
 through CSR-A25: table authority being misread as a column ACL, invalid PUBLIC
 role-name privilege inquiry, and name-only trigger/index/constraint catalog
 checks. The activation remains draft-only and production-inert.
+
+The production postflight is also scaffolded as
+`scripts/checkout-stock-reservation-activation-production-postflight.mjs` and
+`npm run ops:checkout-stock-reservation-activation-postflight`. It accepts only
+the reviewed pooled production runtime identity, rejects owner or aliased
+database URLs, binds exact main-CI/migration run IDs and a clean release commit,
+and runs in an engine-attested repeatable-read read-only transaction. It checks
+the exact policyless table posture and 20-function source/owner/mode/ACL
+catalog, proves direct table and private-helper denial, proves fixed export
+execution and reaches the read-only fence through a fixed write function. Its
+secret-free evidence is fresh-create mode 0600. This scaffold is not wired to
+any production workflow and has not connected to production.
