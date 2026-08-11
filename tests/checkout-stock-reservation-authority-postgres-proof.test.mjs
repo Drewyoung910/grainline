@@ -21,6 +21,9 @@ import {
   cartCheckoutReservationSourceWitness,
   singleCheckoutReservationSourceWitness,
 } from "../src/lib/checkoutReservationSourceState.ts";
+import {
+  verifyCheckoutStockReservationActivatedCatalog,
+} from "../scripts/checkout-stock-reservation-activation-production-postflight.mjs";
 
 const draft = fs.readFileSync("docs/rls-drafts/checkout-stock-reservation-authority.sql", "utf8");
 const sourceConsistencyMigration = fs.readFileSync(
@@ -1319,6 +1322,7 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
     await db.exec("BEGIN");
     try {
       await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await verifyCheckoutStockReservationActivatedCatalog(db, "ci");
       const fixedRead = rows(await db.query(`
         SELECT pg_catalog.count(*)::integer AS count
           FROM public.grainline_checkout_reservation_export('buyer-a')
