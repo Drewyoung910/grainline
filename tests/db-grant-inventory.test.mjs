@@ -2098,7 +2098,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 13);
+    assert.equal(guardResultCount, 14);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -2143,6 +2143,14 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :stripe_webhook_event_rls_active[\s\S]*REVOKE ALL ON TABLE public\."StripeWebhookEvent"/,
+    );
+    assert.match(
+      provision,
+      /CheckoutStockReservation RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :checkout_stock_reservation_rls_active[\s\S]*REVOKE ALL ON TABLE public\."CheckoutStockReservation"/,
     );
     assert.match(
       provision,
