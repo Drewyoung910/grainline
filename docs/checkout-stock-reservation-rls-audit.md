@@ -351,6 +351,47 @@ one to prove the migration fails closed. The redundant new status constraint
 has been removed; the three genuinely additive checks remain. This was caught
 before merge or production.
 
+### CSR-A23: the first activation column-ACL check rejected required table CRUD
+
+The first Phase-A draft used `has_any_column_privilege` to reject explicit
+runtime column grants while also requiring the compatible predecessor's direct
+table CRUD. PostgreSQL includes table-level authority when evaluating that
+helper, so the required table grant made the preflight report forbidden column
+authority and abort every valid activation.
+
+The activation and database-first rollback now inspect `pg_attribute.attacl`
+directly for PUBLIC/runtime column ACL entries. Disposable PostgreSQL proves a
+clean predecessor activates and rolls back, while a real explicit column grant
+still aborts without partially changing RLS or grants.
+
+### CSR-A24: PUBLIC is not a role name for privilege inquiry functions
+
+The first activation function audit called
+`has_function_privilege('PUBLIC', oid, 'EXECUTE')`. `PUBLIC` is a pseudo-role
+accepted by GRANT and REVOKE, not a catalog role resolvable by that inquiry
+overload, so PostgreSQL raised `42704 role "PUBLIC" does not exist` before
+activation.
+
+The redundant call is removed. The exact function ACL audit already uses
+`aclexplode` and rejects grantee OID zero, which is PostgreSQL's canonical
+PUBLIC representation. A static class guard prevents the invalid inquiry from
+returning.
+
+### CSR-A25: name-only trigger, constraint and index checks were insufficient
+
+The initial activation draft counted the expected trigger and catalog object
+names, but did not reject an extra trigger or prove that a same-named CHECK or
+index retained its reviewed definition. That could admit a write-intercepting
+trigger, a weakened uniqueness predicate, or an operationally breaking extra
+constraint.
+
+The preflight now requires exactly one non-internal trigger, five exact
+validated CHECK definitions, and nine exact index shapes including ordered key
+columns, uniqueness/primary flags, no expressions/includes, and the reviewed
+active-lock predicate. Disposable PostgreSQL tamper tests add an extra trigger
+and replace an index and constraint with same-named lookalikes; every variant
+aborts atomically.
+
 ## Fixed-operation partition
 
 The reviewed signatures may narrow during disposable PostgreSQL proof, but may
