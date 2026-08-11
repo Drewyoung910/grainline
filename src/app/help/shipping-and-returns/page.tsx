@@ -70,6 +70,12 @@ export default function ShippingAndReturnsHelpPage() {
           full refund, partial refund, or a replacement. If you can&apos;t reach agreement, you can
           escalate the case to Grainline staff for a final decision.
         </p>
+        <p>
+          Either side can mark a case resolved. Both confirmations close it immediately. A
+          seller-only mark cannot close the buyer&apos;s case; the buyer can confirm or keep discussing
+          the issue. If the buyer marks it resolved and the seller does not confirm or reply within
+          seven days, the case closes as resolved.
+        </p>
 
         <h2>Refunds</h2>
         <p>

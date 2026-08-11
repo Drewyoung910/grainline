@@ -82,6 +82,11 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Isolate Case resolution-window release while sealed predecessors are verified
+        run: >-
+          mv
+          prisma/migrations/20260811170000_align_case_resolution_window
+          "$RUNNER_TEMP/case-resolution-window-release"
       - name: Verify CheckoutStockReservation authority migration tree
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed
@@ -90,6 +95,15 @@ jobs:
         run: npm run audit:rls-checkout-stock-reservation-authority-release
       - name: Verify StripeWebhookEvent FORCE release
         run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
+      - name: Restore the exact Case resolution-window release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-resolution-window-release"
+          prisma/migrations/20260811170000_align_case_resolution_window
+      - name: Verify the Case resolution-window release
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed
+        run: npm run verify:rls-release-artifact
       - name: Verify Case FORCE proof equivalence
         run: npm run audit:rls-case-force-release
       - name: Verify Case read-mode release bytes
@@ -291,6 +305,12 @@ jobs:
         run: npm run audit:rls-case-force-postgres
         env:
           CASE_FORCE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Case resolution-window production catalog read-only
+        run: >-
+          psql
+          "$DIRECT_URL"
+          -v ON_ERROR_STOP=1
+          -f scripts/verify-case-resolution-window-production.sql
       - name: Restore the exact StripeWebhookEvent activation release
         run: >-
           mv

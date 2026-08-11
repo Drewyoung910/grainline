@@ -106,15 +106,16 @@ test("CI isolates preparation until StripeWebhookEvent FORCE passes", () => {
   assert.ok(audit > apply);
 });
 
-test("production runner remains intentionally unwired at this checkpoint", () => {
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
-  assert.doesNotMatch(
-    production,
-    /checkout-stock-reservation-authority-reviewed/,
-  );
-  assert.doesNotMatch(
+test("production runner verifies but isolates reservation authority from the Case-only release", () => {
+  assert.match(production, /case-resolution-window-reviewed/);
+  assert.match(production, /checkout-stock-reservation-authority-reviewed/);
+  assert.match(
     production,
     /audit:rls-checkout-stock-reservation-authority-release/,
+  );
+  assert.match(
+    production,
+    /Isolate queued CheckoutStockReservation authority from this Case-only release[\s\S]*20260810190000_prepare_checkout_stock_reservation_authority[\s\S]*Apply production migrations/,
   );
 });
 

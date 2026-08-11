@@ -45,12 +45,28 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify exact StripeWebhookEvent FORCE migration tree
+      - name: Isolate the Case resolution-window release while sealed predecessors are verified
+        run: >-
+          mv
+          prisma/migrations/20260811170000_align_case_resolution_window
+          "$RUNNER_TEMP/case-resolution-window-release"
+      - name: Verify exact CheckoutStockReservation authority migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify exact CheckoutStockReservation authority release
+        run: npm run audit:rls-checkout-stock-reservation-authority-release
+      - name: Verify sealed StripeWebhookEvent FORCE release
+        run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
+      - name: Restore the exact Case resolution-window release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-resolution-window-release"
+          prisma/migrations/20260811170000_align_case_resolution_window
+      - name: Verify exact Case resolution-window migration tree
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed
-      - name: Verify exact StripeWebhookEvent FORCE release
-        run: npm run audit:rls-stripe-webhook-event-force-release
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed
       - name: Verify exact Case FORCE proof equivalence
         run: npm run audit:rls-case-force-release
       - name: Verify exact Case read-mode release bytes
@@ -71,6 +87,16 @@ jobs:
         run: npm run audit:rls-direct-upload-activation-release
       - name: Generate Prisma client
         run: npx prisma generate
+      - name: Isolate queued StripeWebhookEvent FORCE from this Case-only release
+        run: >-
+          mv
+          prisma/migrations/20260810172000_force_stripe_webhook_event_rls
+          "$RUNNER_TEMP/stripe-webhook-event-force-release"
+      - name: Isolate queued CheckoutStockReservation authority from this Case-only release
+        run: >-
+          mv
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
       - name: Apply production migrations
         run: npx prisma migrate deploy
         env:
@@ -81,5 +107,13 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Audit final runtime grants and RLS catalog
         run: npm run audit:db-grants -- --require-direct-url
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Prove exact Case resolution-window production catalog read-only
+        run: >-
+          psql
+          "$DIRECT_URL"
+          -v ON_ERROR_STOP=1
+          -f scripts/verify-case-resolution-window-production.sql
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

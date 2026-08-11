@@ -22,6 +22,7 @@ const ids = Object.freeze({
   staffEscalation: `${PREFIX}-case-staff-escalation`,
   leaseEscalation: `${PREFIX}-case-lease-escalation`,
   pendingCron: `${PREFIX}-case-pending-cron`,
+  sellerPendingCron: `${PREFIX}-case-seller-pending-cron`,
   openCron: `${PREFIX}-case-open-cron`,
   staleCron: `${PREFIX}-case-stale-cron`,
   futureCron: `${PREFIX}-case-future-cron`,
@@ -38,15 +39,16 @@ const fixtureCases = Object.freeze([
   [ids.earlyEscalation, "IN_DISCUSSION", "future"],
   [ids.staffEscalation, "OPEN", "future"],
   [ids.leaseEscalation, "IN_DISCUSSION", "past"],
-  [ids.pendingCron, "PENDING_CLOSE", "past"],
+  [ids.pendingCron, "PENDING_CLOSE", "past", "buyer"],
+  [ids.sellerPendingCron, "PENDING_CLOSE", "past", "seller"],
   [ids.openCron, "OPEN", "past"],
   [ids.staleCron, "IN_DISCUSSION", "stale"],
   [ids.futureCron, "IN_DISCUSSION", "future"],
-  [ids.lockedCron, "PENDING_CLOSE", "future"],
+  [ids.lockedCron, "PENDING_CLOSE", "future", "buyer"],
   [ids.concurrentA, "OPEN", "future"],
   [ids.concurrentB, "OPEN", "future"],
-  [ids.replyWins, "PENDING_CLOSE", "future"],
-  [ids.cronWins, "PENDING_CLOSE", "future"],
+  [ids.replyWins, "PENDING_CLOSE", "future", "buyer"],
+  [ids.cronWins, "PENDING_CLOSE", "future", "buyer"],
   [ids.rollback, "IN_DISCUSSION", "past"],
 ]);
 
@@ -213,7 +215,12 @@ async function seedFixturesBody(client) {
     )
   `, [ids.listing, ids.sellerProfile]);
 
-  for (const [position, [caseId, status, due]] of fixtureCases.entries()) {
+  for (
+    const [
+      position,
+      [caseId, status, due, resolutionInitiator],
+    ] of fixtureCases.entries()
+  ) {
     const targetOrderId = orderId(caseId);
     await client.query(`
       INSERT INTO public."Order" (
@@ -259,6 +266,7 @@ async function seedFixturesBody(client) {
         id, "orderId", "buyerId", "sellerId", reason, description,
         status, "sellerRespondBy", "discussionStartedAt",
         "escalateUnlocksAt", "buyerMarkedResolved",
+        "sellerMarkedResolved",
         "createdAt", "updatedAt"
       )
       VALUES (
@@ -267,7 +275,7 @@ async function seedFixturesBody(client) {
         $5::public."CaseStatus", ${sellerRespondBy},
         ${discussion ? "CURRENT_TIMESTAMP - INTERVAL '2 days'" : "NULL"},
         ${discussion ? escalateUnlocksAt : "NULL"},
-        $6,
+        $6, $7,
         CURRENT_TIMESTAMP - INTERVAL '40 days',
         ${updatedAt}
       )
@@ -277,7 +285,8 @@ async function seedFixturesBody(client) {
       ids.buyer,
       ids.seller,
       status,
-      status === "PENDING_CLOSE",
+      resolutionInitiator === "buyer",
+      resolutionInitiator === "seller",
     ]);
     await client.query(`
       INSERT INTO public."CaseMessage" (
@@ -680,6 +689,38 @@ async function proveCronFamiliesAndNotifications(observer, runtime) {
     `, [row.auditLogId]);
     assert.equal(afterReplay.rows[0]?.count, 2);
   }
+
+  const sellerOnlyPending = await observer.query(`
+    SELECT
+      status::text,
+      "buyerMarkedResolved",
+      "sellerMarkedResolved",
+      "updatedAt" < CURRENT_TIMESTAMP - INTERVAL '7 days' AS expired,
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."SystemAuditLog"
+         WHERE "targetId" = $1
+      ) AS "auditCount",
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."Notification"
+         WHERE "sourceId" IN (
+           SELECT id
+             FROM public."SystemAuditLog"
+            WHERE "targetId" = $1
+         )
+      ) AS "notificationCount"
+      FROM public."Case"
+     WHERE id = $1
+  `, [ids.sellerPendingCron]);
+  assert.deepEqual(sellerOnlyPending.rows[0], {
+    status: "PENDING_CLOSE",
+    buyerMarkedResolved: false,
+    sellerMarkedResolved: true,
+    expired: true,
+    auditCount: 0,
+    notificationCount: 0,
+  });
 
   const untouched = await observer.query(`
     SELECT status::text, "updatedAt" > CURRENT_TIMESTAMP - INTERVAL '1 day'

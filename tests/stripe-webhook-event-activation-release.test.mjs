@@ -54,7 +54,7 @@ test("release pins one policyless ENABLE activation with no row mutation", () =>
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.successorPhase,
-    "checkout-stock-reservation-authority-reviewed",
+    "case-resolution-window-reviewed",
   );
   assert.equal(release.draftSha256, STRIPE_WEBHOOK_EVENT_ACTIVATION_DRAFT_SHA256);
   assert.equal(release.migrationSha256, candidate.migrationSha256);
@@ -221,9 +221,13 @@ test("CI stages compatibility first and proves activation before production can 
   );
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
+  assert.match(production, /case-resolution-window-reviewed/);
   assert.ok(
-    production.indexOf("audit:rls-stripe-webhook-event-force-release")
+    production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
       < production.indexOf("npx prisma migrate deploy"),
+  );
+  assert.match(
+    production,
+    /Isolate queued StripeWebhookEvent FORCE from this Case-only release[\s\S]*20260810172000_force_stripe_webhook_event_rls[\s\S]*Apply production migrations/,
   );
 });

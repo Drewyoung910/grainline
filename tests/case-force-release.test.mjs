@@ -170,9 +170,9 @@ test("runtime grant convergence accepts only uniform Case ENABLE or FORCE", () =
   assert.match(caseBoundary, /WHERE NOT active AND NOT clean_predecessor/);
 });
 
-test("production workflow permits only the reviewed Case FORCE tree", () => {
+test("production workflow retains Case FORCE proof in the reviewed successor tree", () => {
   const guard = production.indexOf(
-    "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed",
+    "SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed",
   );
   const verifier = production.indexOf(
     "npm run audit:rls-case-force-release",

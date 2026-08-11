@@ -99,7 +99,7 @@ test("CI retains the Case Phase-A proof before Case FORCE under the current gate
   assert.doesNotMatch(ci, /prisma migrate resolve/);
 });
 
-test("production workflow has advanced to the separate exact Case FORCE gate", () => {
+test("production workflow retains Case FORCE proof in the exact resolution-window gate", () => {
   const verifier = production.indexOf(
     "npm run audit:rls-case-force-release",
   );
@@ -108,7 +108,7 @@ test("production workflow has advanced to the separate exact Case FORCE gate", (
   assert.ok(deploy > verifier);
   assert.match(
     production,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed/,
   );
   assert.doesNotMatch(production, /vercel|CASE_EVIDENCE_ATTACHMENTS_ENABLED/i);
 });

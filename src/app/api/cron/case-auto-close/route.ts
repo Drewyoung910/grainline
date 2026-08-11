@@ -134,6 +134,7 @@ export async function GET(req: Request) {
 
       try {
         let closed = 0;
+        let transitioned = 0;
         let stalePendingClose = 0;
         let stalePendingClosed = 0;
         let abandonedOpen = 0;
@@ -161,6 +162,7 @@ export async function GET(req: Request) {
           stalePendingClose += rows.length;
           stalePendingClosed += rows.length;
           closed += rows.length;
+          transitioned += rows.length;
           await mapWithConcurrency(
             rows,
             CASE_AUTO_CLOSE_REPLAY_CONCURRENCY,
@@ -185,7 +187,7 @@ export async function GET(req: Request) {
           abandonedOpenBatches++;
           abandonedOpen += rows.length;
           abandonedEscalated += rows.length;
-          closed += rows.length;
+          transitioned += rows.length;
           await mapWithConcurrency(
             rows,
             CASE_AUTO_CLOSE_REPLAY_CONCURRENCY,
@@ -210,7 +212,7 @@ export async function GET(req: Request) {
           staleDiscussionBatches++;
           staleDiscussion += rows.length;
           staleDiscussionEscalated += rows.length;
-          closed += rows.length;
+          transitioned += rows.length;
           await mapWithConcurrency(
             rows,
             CASE_AUTO_CLOSE_REPLAY_CONCURRENCY,
@@ -224,6 +226,7 @@ export async function GET(req: Request) {
 
         const response = {
           closed,
+          transitioned,
           stalePendingClose,
           stalePendingClosed,
           abandonedOpen,

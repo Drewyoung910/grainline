@@ -2,7 +2,9 @@
 // Buyer or seller can call this to mark their side as resolved.
 // When both parties have marked resolved → RESOLVED (DISMISSED).
 // When only one party → PENDING_CLOSE.
-// Note: a cron job should auto-close PENDING_CLOSE cases with no new messages after 48h.
+// A buyer-initiated PENDING_CLOSE auto-closes after seven days without a
+// seller confirmation or reply. A seller-only mark never closes the buyer's
+// Case through silence.
 import { auth } from "@clerk/nextjs/server";
 import * as Sentry from "@sentry/nextjs";
 import { ensureUserByClerkId } from "@/lib/ensureUser";

@@ -34,7 +34,7 @@ test("Case seller-refund packaging remains included through Case FORCE", () => {
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed/,
   );
 });
 

@@ -514,6 +514,24 @@ export default async function BuyerOrderDetailPage({
             </div>
           </div>
 
+          {activeCase.status === "PENDING_CLOSE" && (
+            <div className="border-b border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">
+              {activeCase.buyerMarkedResolved ? (
+                <>
+                  You marked this case resolved. The seller has seven days to
+                  confirm or continue the discussion; otherwise the case will
+                  close as resolved.
+                </>
+              ) : (
+                <>
+                  The seller marked this case resolved. Confirm resolution or
+                  continue the discussion. The case will not close without
+                  your confirmation.
+                </>
+              )}
+            </div>
+          )}
+
           {caseMessageHistory.messages.length === 0 ? (
             <div className="bg-white px-4 py-3">
               {caseMessageHistory.isHistoricalPage ? (
@@ -574,7 +592,7 @@ export default async function BuyerOrderDetailPage({
             <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
               {activeCase.buyerMarkedResolved && !activeCase.sellerMarkedResolved ? (
                 <p className="text-sm text-neutral-500">
-                  Waiting for seller to confirm resolution.
+                  Waiting for the seller to confirm or reply within seven days.
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-2">

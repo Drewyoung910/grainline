@@ -318,7 +318,11 @@ export default async function SellerOrderDetailPage({
       {activeCase?.status === "PENDING_CLOSE" && (
         <div className="rounded-md border border-teal-300 bg-teal-50 px-4 py-3 text-sm text-teal-900">
           <div className="font-semibold">Resolution pending confirmation</div>
-          <div>Both parties must confirm to close the case.</div>
+          <div>
+            {activeCase.buyerMarkedResolved
+              ? "The buyer marked this case resolved. Confirm or continue the discussion within seven days; otherwise the case will close as resolved."
+              : "You marked this case resolved. The case will remain open until the buyer confirms or continues the discussion."}
+          </div>
         </div>
       )}
 
@@ -448,7 +452,7 @@ export default async function SellerOrderDetailPage({
               <div className="border-t border-neutral-100 bg-neutral-50 px-4 py-3 space-y-2">
                 {waitingForBuyer ? (
                   <p className="text-sm text-neutral-500">
-                    Waiting for buyer to confirm resolution.
+                    Waiting for the buyer to confirm or continue the discussion.
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-2">

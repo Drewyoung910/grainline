@@ -79,7 +79,7 @@ test("FORCE release is one byte-pinned posture-only catalog change", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.successorPhase,
-    "checkout-stock-reservation-authority-reviewed",
+    "case-resolution-window-reviewed",
   );
   assert.equal(
     (migration.match(
@@ -242,10 +242,14 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.ok(forceRestore > phaseARestore && forceProof > forceRestore);
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
+  assert.match(production, /case-resolution-window-reviewed/);
   assert.ok(
-    production.indexOf("audit:rls-stripe-webhook-event-force-release")
+    production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
       < production.indexOf("npx prisma migrate deploy"),
+  );
+  assert.match(
+    production,
+    /Isolate queued StripeWebhookEvent FORCE from this Case-only release[\s\S]*20260810172000_force_stripe_webhook_event_rls[\s\S]*Apply production migrations/,
   );
   assert.match(
     releaseDocument,

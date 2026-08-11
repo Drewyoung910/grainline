@@ -27,6 +27,8 @@ import {
   STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
+  CASE_RESOLUTION_WINDOW_MIGRATION,
+  CASE_RESOLUTION_WINDOW_MIGRATION_TREE_SHA256,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
   CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
@@ -201,6 +203,8 @@ const REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE =
   "stripe-webhook-event-force-reviewed";
 const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY =
   "checkout-stock-reservation-authority-reviewed";
+const REVIEWED_CASE_RESOLUTION_WINDOW =
+  "case-resolution-window-reviewed";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
   `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
@@ -313,6 +317,8 @@ function validate(
         STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
       [REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY]:
         CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CASE_RESOLUTION_WINDOW]:
+        CASE_RESOLUTION_WINDOW_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -348,6 +354,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
     STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
     CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+    CASE_RESOLUTION_WINDOW_MIGRATION,
     CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
     CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
     CONVERSATION_MESSAGE_LEGACY_CLEANUP_MIGRATION,
@@ -557,6 +564,10 @@ const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS = [
   ...REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CASE_RESOLUTION_WINDOW_MIGRATIONS = [
+  ...REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
+  CASE_RESOLUTION_WINDOW_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -639,6 +650,8 @@ function migrationsFor(phase) {
       REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
     [REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY]:
       REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CASE_RESOLUTION_WINDOW]:
+      REVIEWED_CASE_RESOLUTION_WINDOW_MIGRATIONS,
   }[phase];
 }
 
@@ -1130,12 +1143,16 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE, currentMigrations),
       /remain the latest migration/,
     );
-    assert.equal(
-      validate(
+    assert.throws(
+      () => validate(
         REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
         currentMigrations,
-      ).phase,
-      REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+      ),
+      /remain the latest migration/,
+    );
+    assert.equal(
+      validate(REVIEWED_CASE_RESOLUTION_WINDOW, currentMigrations).phase,
+      REVIEWED_CASE_RESOLUTION_WINDOW,
     );
   });
 
@@ -2508,6 +2525,40 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact Case resolution-window correction after the reviewed tree", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CASE_RESOLUTION_WINDOW,
+        REVIEWED_CASE_RESOLUTION_WINDOW_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CASE_RESOLUTION_WINDOW,
+        hasCaseForceMigration: true,
+        hasStripeWebhookEventActivationMigration: true,
+        hasStripeWebhookEventForceMigration: true,
+        hasCheckoutStockReservationAuthorityMigration: true,
+        hasCaseResolutionWindowMigration: true,
+      },
+    );
+    for (const migration of [
+      CASE_FORCE_MIGRATION,
+      STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
+      STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+      CASE_RESOLUTION_WINDOW_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_CASE_RESOLUTION_WINDOW,
+          REVIEWED_CASE_RESOLUTION_WINDOW_MIGRATIONS.filter(
+            (name) => name !== migration,
+          ),
+        ),
+        /requires the completed Case FORCE boundary, the reviewed StripeWebhookEvent and reservation candidates, and the exact Case resolution-window migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2551,6 +2602,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION,
     REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
     REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+    REVIEWED_CASE_RESOLUTION_WINDOW,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -3051,6 +3103,18 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /review or retire the temporary SavedSearch deploy guard/,
     );
+    const laterCaseResolutionWindowMigration =
+      "20260811170001_unreviewed_after_case_resolution_window";
+    assert.throws(
+      () => validate(
+        REVIEWED_CASE_RESOLUTION_WINDOW,
+        [
+          ...REVIEWED_CASE_RESOLUTION_WINDOW_MIGRATIONS,
+          laterCaseResolutionWindowMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
   });
 
   it("pins the exact reviewed migration inventory and SQL contents", () => {
@@ -3338,6 +3402,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
       ),
       CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CASE_RESOLUTION_WINDOW_MIGRATIONS,
+      ),
+      CASE_RESOLUTION_WINDOW_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

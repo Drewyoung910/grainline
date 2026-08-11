@@ -56,6 +56,9 @@ describe("Case escalation and cron-transition PostgreSQL proof", () => {
     assert.match(source, /publicExecute: false/);
     assert.match(source, /randomUUID\(\)/);
     assert.match(source, /grainline_notification_create_case_event/);
+    assert.match(source, /sellerPendingCron/);
+    assert.match(source, /buyerMarkedResolved: false/);
+    assert.match(source, /sellerMarkedResolved: true/);
     assert.match(source, /Promise\.all\(\[/);
     assert.match(source, /FOR UPDATE/);
     assert.match(source, /Case is closed/);
