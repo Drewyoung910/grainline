@@ -51,6 +51,12 @@ conversion floor, not a claim that only 66 semantic operations exist. The
 next inventory pass must classify nested reads, fixed Case/Notification
 functions, cron and provider side effects as well.
 
+The isolated CheckoutStockReservation conversion now has zero direct
+reservation delegates under `src`; the table above intentionally retains the
+four-file production/predecessor baseline. Its semantic inventory remains
+larger than four and is pinned separately so indirection cannot disappear from
+the review merely because base-table CRUD has been removed.
+
 Current operation families include:
 
 - buyer order lists, detail, checkout success, export and deletion;
@@ -305,6 +311,85 @@ an always-rollback transaction. Only `processed` passes; missing, stale,
 in-progress or type-mismatched evidence fails without durable mutation. The
 proof no longer claims a direct `lastError IS NULL` read. This closes the
 activation compatibility gap without adding a seventh runtime function.
+
+### OPS-A17: reservation restore authority must be source-partitioned
+
+The current `restoreCheckoutStockReservationOnce()` accepts a reservation ID,
+optional Stripe session and free-form reason. That is too broad once ordinary
+table authority is revoked: it can make another buyer's reserved inventory
+available again. Checkout abort, signed expiry delivery, stale cron repair and
+account deletion need distinct fixed entry points. External-provider repair
+uses a database-selected, generation-fenced claim/finalize protocol; terminal
+pruning selects its own retained rows and never accepts row IDs or a cutoff.
+The complete table-specific contract is
+`docs/checkout-stock-reservation-rls-audit.md`.
+
+### OPS-A18: unexpected checkout failures can reopen payable stock
+
+Both checkout routes currently restore by reservation ID in the outer catch.
+If an unexpected failure happens after a Stripe session is created or bound,
+the database can return stock while that external session remains payable. The
+compatible app must retain the created session ID, confirm expiry before any
+bound-session restore and otherwise leave the row for fenced stale repair. The
+database checkout-abort operation is deliberately limited to unbound rows.
+
+### OPS-A19: reservation replay fingerprints have three conflicting contracts
+
+At audit start the deployed application generated a 32-character base64url
+SHA-256 prefix, the Prisma column permitted 64 characters and the aggregate
+inspector tested for 64 lowercase hexadecimal characters. Do not change the
+Redis fingerprint algorithm inside the RLS release. The isolated audit
+checkpoint aligns inspection and regression proofs to the deployed
+32-character base64url form plus the documented account-deletion sentinel;
+treat any full-length-hash migration as a separate old/new deployment
+coexistence change.
+
+### OPS-A20: reservation account-scrub shape is a distinct terminal contract
+
+Account deletion intentionally rewrites the replay fingerprint/lock key, clears
+buyer and seller columns and strips item seller IDs while retaining only
+listing/quantity evidence. The baseline inspector incorrectly required seller
+IDs on those deleted terminal items. Inspection and preparation must recognize
+the exact scrubbed shape without relaxing normal reservation item validation.
+
+### OPS-A21: an unpaid completion event is not restoration evidence
+
+The predecessor completion branch restored stock whenever the retrieved
+Checkout Session was not yet paid. The compatible checkpoint retains that
+reservation; only signed failure/expiry or generation-fenced provider repair
+may restore it, while a later signed success may complete it.
+
+### OPS-A22: indirect buyer and seller expiry paths were missing from inventory
+
+The direct-delegate baseline did not reveal the authenticated buyer rollback
+route or the seller/admin/ban/vacation session-expiry helper. They are distinct
+authority families: the database validates the exact buyer or seller-to-
+reservation relationship and session lock, while the application remains
+responsible for proving external Stripe expiry. They now have separate fixed
+operations and are included in the semantic completeness gate.
+
+### OPS-A23: webhook claim generation did not bind the provider object
+
+`StripeWebhookEvent` generation fencing prevented stale finalizers but did not
+store the signed event object's ID. A valid active expiry event could therefore
+be paired with another Checkout Session by the first reservation draft.
+Compatible preparation must add an immutable bounded source-object binding;
+checkout completion and restoration compare that stored value to the exact
+session before touching reservation or stock state.
+
+The reviewed implementation uses one three-argument webhook-begin statement to
+acquire/reclaim and bind that source atomically. The lower-level binder remains
+runtime-private. A two-statement begin-then-bind sequence is not acceptable
+because a transient second-statement failure would strand an unbound active
+lease until reclamation.
+
+### OPS-A24: reservation cleanup is one-batch-per-deletion-attempt
+
+Account cleanup claims at most 50 active reservations. The database scrub is
+fail-closed while any active row remains, so accounts above that bound require
+a retry rather than partial active-state anonymization. This safe bounded
+behavior must be tested and documented; an explicit multi-batch operator is a
+later evidence-led decision, not an assumed property.
 
 ## Semantic write conversion map
 

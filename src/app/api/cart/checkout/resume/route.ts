@@ -1,5 +1,4 @@
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { cartCheckoutLockKey, getCheckoutLock } from "@/lib/checkoutSessionLock";
 import { stripe } from "@/lib/stripe";
@@ -8,9 +7,9 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerCartForCheckoutResume } from "@/lib/cartOwnerAccess";
+import { resumeCheckoutStockReservations } from "@/lib/checkoutStockReservationAuthority";
 
 export const runtime = "nodejs";
-const CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS = 2 * 60 * 60 * 1000;
 
 type ResumedShippingAddress = {
   name: string;
@@ -112,25 +111,13 @@ export async function GET() {
       });
     }
 
-    const recentCompletedReservationRows = await prisma.checkoutStockReservation.findMany({
-      where: {
-        buyerId: me.id,
-        status: "COMPLETED",
-        stripeSessionId: { not: null },
-        checkoutGroupId: activeCheckoutGroupId ? activeCheckoutGroupId : { not: null },
-        createdAt: { gte: new Date(Date.now() - CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS) },
-      },
-      orderBy: { createdAt: activeCheckoutGroupId ? "asc" : "desc" },
-      take: 20,
-      select: { stripeSessionId: true, checkoutGroupId: true, createdAt: true },
+    const recentCompletedReservationRows = await resumeCheckoutStockReservations({
+      buyerId: me.id,
+      checkoutGroupId: activeCheckoutGroupId,
     });
     const completedCheckoutGroupId =
       activeCheckoutGroupId ?? recentCompletedReservationRows[0]?.checkoutGroupId ?? null;
-    const recentCompletedReservations = completedCheckoutGroupId
-      ? recentCompletedReservationRows
-          .filter((reservation) => reservation.checkoutGroupId === completedCheckoutGroupId)
-          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-      : [];
+    const recentCompletedReservations = completedCheckoutGroupId ? recentCompletedReservationRows : [];
 
     for (const reservation of recentCompletedReservations) {
       if (!reservation.stripeSessionId || completedSessionIdSet.has(reservation.stripeSessionId)) continue;

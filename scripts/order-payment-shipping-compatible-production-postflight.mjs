@@ -489,6 +489,10 @@ export async function verifyFunctionCatalog(client, migrationRole) {
     ]),
   ]);
   const result = await client.query(`
+    WITH expected(function_name, identity_arguments) AS (
+      SELECT *
+        FROM unnest($1::text[], $2::text[])
+    )
     SELECT
       procedure.proname AS function_name,
       pg_catalog.oidvectortypes(procedure.proargtypes) AS argument_types,
@@ -559,10 +563,16 @@ export async function verifyFunctionCatalog(client, migrationRole) {
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
+    JOIN expected AS expected_function
+      ON expected_function.function_name = procedure.proname
+     AND expected_function.identity_arguments =
+       pg_catalog.oidvectortypes(procedure.proargtypes)
     WHERE namespace.nspname = 'public'
-      AND procedure.proname = ANY($1::text[])
     ORDER BY procedure.proname
-  `, [[...expected.keys()]]);
+  `, [
+    [...expected.keys()],
+    [...expected.values()].map((contract) => contract.args),
+  ]);
   assert.equal(result.rows.length, expected.size);
   const sourceHashes = stripeWebhookEventFunctionSourceSha256();
   for (const row of result.rows) {

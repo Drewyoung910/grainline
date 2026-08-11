@@ -161,7 +161,7 @@ describe("request origin guard", () => {
       "safeRateLimit(",
       "readBoundedJson(req",
       "prisma.listing.findUnique",
-      "createCheckoutStockReservation({",
+      "createSingleCheckoutStockReservation({",
       "stripe.checkout.sessions.create",
     ]);
     assertGuardBefore("src/app/api/cart/checkout-seller/route.ts", [
@@ -169,7 +169,7 @@ describe("request origin guard", () => {
       "safeRateLimit(",
       "readBoundedJson(req",
       "ownerCartForCheckoutSeller(me.id)",
-      "createCheckoutStockReservation({",
+      "createCartCheckoutStockReservation({",
       "stripe.checkout.sessions.create",
     ]);
     assertGuardBefore("src/app/api/cart/checkout/rollback/route.ts", [
@@ -178,7 +178,7 @@ describe("request origin guard", () => {
       "readBoundedJson(req",
       "stripe.checkout.sessions.retrieve",
       "stripe.checkout.sessions.expire",
-      "restoreUnorderedCheckoutStockOnce({",
+      "restoreBuyerExpiredCheckoutStockOnce({",
     ]);
     assertGuardBefore("src/app/api/shipping/quote/route.ts", [
       "await auth()",

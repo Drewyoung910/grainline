@@ -54,7 +54,7 @@ test("release pins one policyless ENABLE activation with no row mutation", () =>
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.successorPhase,
-    "stripe-webhook-event-force-reviewed",
+    "checkout-stock-reservation-authority-reviewed",
   );
   assert.equal(release.draftSha256, STRIPE_WEBHOOK_EVENT_ACTIVATION_DRAFT_SHA256);
   assert.equal(release.migrationSha256, candidate.migrationSha256);
@@ -219,7 +219,8 @@ test("CI stages compatibility first and proves activation before production can 
     ci,
     /STRIPE_WEBHOOK_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql:\/\/grainline_app_runtime:/,
   );
-  assert.match(ci, /stripe-webhook-event-force-reviewed/);
+  assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
+  assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
   assert.match(production, /stripe-webhook-event-force-reviewed/);
   assert.ok(
     production.indexOf("audit:rls-stripe-webhook-event-force-release")

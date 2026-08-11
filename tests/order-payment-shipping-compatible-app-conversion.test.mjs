@@ -66,7 +66,7 @@ describe("Order, payment, and shipping compatible application conversion", () =>
     const legacy = source("src/app/api/stripe/webhook/route.ts");
     const v2 = source("src/app/api/stripe/webhook/v2/route.ts");
 
-    assert.match(events, /grainline_stripe_webhook_begin\(\$\{id\}, \$\{type\}\)/);
+    assert.match(events, /grainline_stripe_webhook_begin\(\$\{id\}, \$\{type\}, \$\{sourceObjectId\}\)/);
     assert.match(events, /grainline_stripe_webhook_complete\([\s\S]*\$\{claimGeneration\}/);
     assert.match(events, /grainline_stripe_webhook_fail\([\s\S]*\$\{claimGeneration\}/);
     assert.match(events, /stripeWebhookEventReservationFromRows\(rows\)/);

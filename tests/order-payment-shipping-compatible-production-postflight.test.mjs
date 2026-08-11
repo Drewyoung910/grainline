@@ -129,6 +129,18 @@ describe("Order/payment/shipping compatible production postflight", () => {
     assert.match(source, /transaction_isolation/);
     assert.match(source, /pg_has_role\(CURRENT_USER, \$1, 'MEMBER'\)/);
     assert.match(source, /oidvectortypes\(procedure\.proargtypes\)/);
+    const catalogSource = source.match(
+      /export async function verifyFunctionCatalog[\s\S]*?(?=export async function|async function main)/,
+    )?.[0] ?? "";
+    assert.match(
+      catalogSource,
+      /FROM unnest\(\$1::text\[\], \$2::text\[\]\)/,
+    );
+    assert.match(
+      catalogSource,
+      /expected_function\.identity_arguments\s*=\s*pg_catalog\.oidvectortypes\(procedure\.proargtypes\)/,
+    );
+    assert.doesNotMatch(catalogSource, /procedure\.proname = ANY\(/);
     assert.match(source, /"42501"/);
     assert.doesNotMatch(
       source,

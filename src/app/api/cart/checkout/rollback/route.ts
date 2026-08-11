@@ -10,7 +10,7 @@ import {
 } from "@/lib/ratelimit";
 import { stripe } from "@/lib/stripe";
 import {
-  restoreUnorderedCheckoutStockOnce,
+  restoreBuyerExpiredCheckoutStockOnce,
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
 import {
@@ -151,7 +151,8 @@ export async function POST(req: Request) {
               line_items?: { data?: CheckoutStockRestoreLineItem[] };
             }
           ).line_items?.data ?? [];
-        await restoreUnorderedCheckoutStockOnce({
+        await restoreBuyerExpiredCheckoutStockOnce({
+          buyerId: me.id,
           sessionId,
           metadata,
           lineItems,

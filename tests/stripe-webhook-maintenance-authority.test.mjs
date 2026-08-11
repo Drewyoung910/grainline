@@ -172,7 +172,7 @@ test("historical maintenance and Phase-A proofs remain after workflows advance t
     pkg.scripts["audit:rls-stripe-webhook-maintenance-postgres"],
     "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-maintenance-authority-postgres-proof.mjs",
   );
-  assert.match(ci, /stripe-webhook-event-force-reviewed/);
+  assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-activation-sealed-prefix/);
   assert.match(ci, /audit:rls-stripe-webhook-maintenance-postgres/);
   assert.match(ci, /STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL/);

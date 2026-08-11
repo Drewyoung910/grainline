@@ -277,7 +277,14 @@ export async function verifyStripeWebhookEventActivatedCatalog(
   }]);
 
   const names = STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map((entry) => entry.name);
+  const identityArguments = STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map(
+    (entry) => entry.identityArguments,
+  );
   const functions = await client.query(`
+    WITH expected(function_name, identity_arguments) AS (
+      SELECT *
+        FROM unnest($1::text[], $2::text[])
+    )
     SELECT
       procedure.proname AS function_name,
       pg_catalog.oidvectortypes(procedure.proargtypes) AS identity_arguments,
@@ -328,10 +335,13 @@ export async function verifyStripeWebhookEventActivatedCatalog(
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
+    JOIN expected
+      ON expected.function_name = procedure.proname
+     AND expected.identity_arguments =
+       pg_catalog.oidvectortypes(procedure.proargtypes)
    WHERE namespace.nspname = 'public'
-     AND procedure.proname = ANY($1::text[])
    ORDER BY procedure.proname
-  `, [names]);
+  `, [names, identityArguments]);
   assert.equal(functions.rows.length, STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.length);
   const expectedByName = new Map(
     STRIPE_WEBHOOK_EVENT_RUNTIME_FUNCTIONS.map((entry) => [entry.name, entry]),

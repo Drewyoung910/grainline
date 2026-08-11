@@ -205,7 +205,7 @@ describe("Stripe Connect v2 migration guardrails", () => {
     assert.match(v2Webhook, /stripe\.parseEventNotification\(body, signature, secret\)/);
     assert.match(v2Webhook, /isStripeConnectV2AccountEvent\(stripeEventType\)/);
     assert.match(v2Webhook, /stripeConnectV2AccountIdFromNotification\(notification\)/);
-    assert.match(v2Webhook, /stripe\.accounts\.retrieve\(accountId\)/);
+    assert.match(v2Webhook, /stripe\.accounts\.retrieve\(sourceObjectId\)/);
     assert.match(v2Webhook, /mirrorStripeChargesEnabled/);
     assert.match(v2Webhook, /chargesEnabled: Boolean\(account\.charges_enabled\)/);
     assert.match(v2Webhook, /route: "\/api\/stripe\/webhook\/v2"/);

@@ -88,6 +88,8 @@ describe("account deletion timeout and terminal UX guardrails", () => {
 
   it("expires, restores, and scrubs account checkout stock reservations during deletion", () => {
     const accountDeletion = source("src/lib/accountDeletion.ts");
+    const authority = source("docs/rls-drafts/checkout-stock-reservation-authority.sql")
+      .replace(/\s+/g, " ");
     const cleanupStart = accountDeletion.indexOf("async function cleanupAccountCheckoutStockReservationsForDeletion");
     const scrubStart = accountDeletion.indexOf("async function scrubCheckoutStockReservationsForDeletedAccount");
     const anonymizeStart = accountDeletion.indexOf("export async function anonymizeUserAccount");
@@ -110,19 +112,27 @@ describe("account deletion timeout and terminal UX guardrails", () => {
       "reservation identifier scrubbing should run inside the local anonymization transaction",
     );
     assert.match(accountDeletion, /ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE = 50/);
-    assert.match(accountDeletion, /status: \{ in: \["RESERVED", "SESSION_CREATED"\] \}/);
-    assert.match(accountDeletion, /restoreCheckoutStockReservationOnce\(\{[\s\S]*reason: "account_deletion_no_session"/);
+    assert.match(accountDeletion, /claimAccountCheckoutStockReservations\(\s*prisma,\s*input\.userId,\s*ACCOUNT_DELETION_CHECKOUT_RESERVATION_CLEANUP_BATCH_SIZE/);
+    assert.match(accountDeletion, /outcome:[\s\S]*"NO_SESSION_RESTORE"/);
     assert.match(accountDeletion, /stripe\.checkout\.sessions\.retrieve\(sessionId\)/);
     assert.match(accountDeletion, /checkoutStockReservationRepairAction\(session\)/);
-    assert.match(accountDeletion, /action === "skip_paid_or_complete" \|\| action === "skip_unrecognized"/);
+    assert.match(accountDeletion, /action === "skip_paid_or_complete"/);
+    assert.match(accountDeletion, /outcome = "PAID_OR_COMPLETE"/);
+    assert.match(accountDeletion, /action === "skip_unrecognized"/);
+    assert.match(accountDeletion, /outcome = "UNRECOGNIZED"/);
     assert.match(accountDeletion, /stripe\.checkout\.sessions\.expire\(sessionId\)/);
-    assert.match(accountDeletion, /reason: "account_deletion_stripe_session_unpaid"/);
+    assert.match(accountDeletion, /outcome = "SESSION_EXPIRED_RESTORE"/);
+    assert.match(accountDeletion, /finalizeCheckoutStockReservationRepair\(\{/);
+    assert.match(accountDeletion, /repairGeneration: reservation\.repairGeneration/);
     assert.match(accountDeletion, /source: "account_delete_checkout_reservation_cleanup"/);
-    assert.match(accountDeletion, /checkoutLockKey: `deleted:\$\{reservation\.id\}`/);
-    assert.match(accountDeletion, /payloadHash: "deleted"/);
-    assert.match(accountDeletion, /reservedItems: parseCheckoutStockReservationItems\(reservation\.reservedItems\) as Prisma\.InputJsonValue/);
-    assert.match(accountDeletion, /where: \{ buyerId: userId \},\s*data: \{ buyerId: null \}/);
-    assert.match(accountDeletion, /where: \{ sellerId: sellerProfileId \},\s*data: \{ sellerId: null \}/);
+    assert.match(accountDeletion, /scrubCheckoutStockReservationsForAccount\(tx, userId\)/);
+    assert.doesNotMatch(accountDeletion, /(?:prisma|tx)\.checkoutStockReservation\./);
+    assert.match(authority, /safe_limit := LEAST\(p_limit, 50\)/);
+    assert.match(authority, /Active checkout reservations must be repaired before account scrub/);
+    assert.match(authority, /"checkoutLockKey" = 'deleted:' \|\| reservation\.id/);
+    assert.match(authority, /"payloadHash" = 'deleted'/);
+    assert.match(authority, /"buyerId" = NULL/);
+    assert.match(authority, /"sellerId" = NULL/);
   });
 
   it("writes a user-requested account deletion audit row before anonymization", () => {

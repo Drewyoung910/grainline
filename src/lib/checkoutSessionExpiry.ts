@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { restoreUnorderedCheckoutStockOnce } from "@/lib/checkoutStockRestore";
+import { restoreSellerExpiredCheckoutStockOnce } from "@/lib/checkoutStockRestore";
 import { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
 export { checkoutSessionMetadataReferencesListing } from "@/lib/checkoutSessionExpiryState";
 
@@ -46,10 +46,12 @@ async function checkoutSessionBelongsToListing(session: Stripe.Checkout.Session,
 
 async function restoreExpiredCheckoutSessionStock(
   session: Stripe.Checkout.Session,
+  sellerProfileId: string,
   source: string,
   extra: Record<string, string | null | undefined>,
 ) {
-  await restoreUnorderedCheckoutStockOnce({
+  await restoreSellerExpiredCheckoutStockOnce({
+    sellerProfileId,
     sessionId: session.id,
     metadata: session.metadata ?? {},
   }).catch((error) => {
@@ -98,7 +100,7 @@ export async function expireOpenCheckoutSessionsForSeller({
       result.checked += 1;
       try {
         await stripe.checkout.sessions.expire(session.id);
-        await restoreExpiredCheckoutSessionStock(session, source, { sellerId, stripeAccountId });
+        await restoreExpiredCheckoutSessionStock(session, sellerId, source, { sellerId, stripeAccountId });
         result.expired += 1;
       } catch (error) {
         result.failed += 1;
@@ -123,7 +125,7 @@ export async function expireOpenCheckoutSessionsForListing({
   lookbackSeconds = 2 * 60 * 60,
 }: {
   listingId: string;
-  sellerId?: string | null;
+  sellerId: string;
   source: string;
   lookbackSeconds?: number;
 }): Promise<ExpireOpenCheckoutSessionsResult> {
@@ -150,12 +152,12 @@ export async function expireOpenCheckoutSessionsForListing({
     }
 
     for (const session of sessions.data) {
-      if (sellerId && session.metadata?.sellerId && session.metadata.sellerId !== sellerId) continue;
+      if (session.metadata?.sellerId && session.metadata.sellerId !== sellerId) continue;
       if (!(await checkoutSessionBelongsToListing(session, listingId))) continue;
       result.checked += 1;
       try {
         await stripe.checkout.sessions.expire(session.id);
-        await restoreExpiredCheckoutSessionStock(session, source, { listingId, sellerId });
+        await restoreExpiredCheckoutSessionStock(session, sellerId, source, { listingId, sellerId });
         result.expired += 1;
       } catch (error) {
         result.failed += 1;

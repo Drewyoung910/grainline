@@ -16,6 +16,9 @@ import {
   CASE_INVARIANT_FUNCTIONS,
   CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/case-invariant-catalog.mjs";
+import {
+  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+} from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const {
@@ -1211,6 +1214,9 @@ describe("database grant inventory guardrails", () => {
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
+      ...CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map(
+        (entry) => entry.name,
+      ).filter((name) => name !== "grainline_stripe_webhook_begin"),
       ...(conversationMessageAuthorityPrepared
         ? CONVERSATION_MESSAGE_AUTHORITY_FUNCTIONS.map((entry) => entry.name)
         : []),
@@ -1224,7 +1230,8 @@ describe("database grant inventory guardrails", () => {
       157
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
-        + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0),
+        + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
+        + CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -1287,6 +1294,17 @@ describe("database grant inventory guardrails", () => {
         )),
         true,
         `${functionName} must revoke PUBLIC and both service roles during activation`,
+      );
+    }
+    for (const {
+      name: functionName,
+    } of CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS) {
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the authority migration`,
       );
     }
     if (conversationMessageAuthorityPrepared) {

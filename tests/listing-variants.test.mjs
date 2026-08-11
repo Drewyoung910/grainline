@@ -157,7 +157,7 @@ describe("listing variant selection", () => {
       checkoutSingle.indexOf("const unitPriceError = validateVariantUnitPriceCents(unitPriceCents)") > checkoutSingle.indexOf("const unitPriceCents = listing.priceCents + variantResolution.variantAdjustCents"),
     );
     assert.ok(
-      checkoutSingle.indexOf("const unitPriceError = validateVariantUnitPriceCents(unitPriceCents)") < checkoutSingle.indexOf("const reservation = await createCheckoutStockReservation"),
+      checkoutSingle.indexOf("const unitPriceError = validateVariantUnitPriceCents(unitPriceCents)") < checkoutSingle.indexOf("const reservation = await createSingleCheckoutStockReservation"),
     );
     assert.ok(
       checkoutSingle.indexOf("const unitPriceError = validateVariantUnitPriceCents(unitPriceCents)") < checkoutSingle.indexOf("stripe.checkout.sessions.create"),

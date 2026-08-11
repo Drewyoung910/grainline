@@ -2,27 +2,59 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const { checkoutLockCanMarkReady, checkoutLockCanRelease } = await import("../src/lib/checkoutLockState.ts");
+const {
+  checkoutLockCanMarkReady,
+  checkoutLockCanRelease,
+  checkoutLockCanReleasePreparing,
+} = await import("../src/lib/checkoutLockState.ts");
 
 function source(path) {
   return readFileSync(path, "utf8");
 }
 
 describe("checkout lock state guards", () => {
-  it("only marks preparing locks with the same payload hash as ready", () => {
+  it("only marks preparing locks owned by the same acquisition as ready", () => {
     assert.equal(
-      checkoutLockCanMarkReady({ state: "preparing", payloadHash: "hash-a", createdAt: 1 }, "hash-a"),
+      checkoutLockCanMarkReady(
+        { state: "preparing", payloadHash: "hash-a", ownerToken: "owner-a", createdAt: 1 },
+        "hash-a",
+        "owner-a",
+      ),
       true,
     );
     assert.equal(
-      checkoutLockCanMarkReady({ state: "preparing", payloadHash: "hash-a", createdAt: 1 }, "hash-b"),
+      checkoutLockCanMarkReady(
+        { state: "preparing", payloadHash: "hash-a", ownerToken: "owner-a", createdAt: 1 },
+        "hash-b",
+        "owner-a",
+      ),
       false,
     );
     assert.equal(
-      checkoutLockCanMarkReady({ state: "ready", payloadHash: "hash-a", createdAt: 1, sessionId: "cs_1" }, "hash-a"),
+      checkoutLockCanMarkReady(
+        { state: "preparing", payloadHash: "hash-a", ownerToken: "owner-a", createdAt: 1 },
+        "hash-a",
+        "owner-b",
+      ),
       false,
     );
-    assert.equal(checkoutLockCanMarkReady(null, "hash-a"), false);
+    assert.equal(
+      checkoutLockCanMarkReady(
+        { state: "preparing", payloadHash: "hash-a", createdAt: 1 },
+        "hash-a",
+        "owner-a",
+      ),
+      false,
+    );
+    assert.equal(
+      checkoutLockCanMarkReady(
+        { state: "ready", payloadHash: "hash-a", ownerToken: "owner-a", createdAt: 1, sessionId: "cs_1" },
+        "hash-a",
+        "owner-a",
+      ),
+      false,
+    );
+    assert.equal(checkoutLockCanMarkReady(null, "hash-a", "owner-a"), false);
   });
 
   it("only releases session-bound locks for the matching Stripe session", () => {
@@ -39,9 +71,27 @@ describe("checkout lock state guards", () => {
     assert.equal(checkoutLockCanRelease({ state: "preparing", payloadHash: "hash-b", createdAt: 1 }, "cs_expected"), false);
   });
 
-  it("keeps manual releases available for pre-session failure cleanup", () => {
-    assert.equal(checkoutLockCanRelease(null), true);
-    assert.equal(checkoutLockCanRelease({ state: "preparing", payloadHash: "hash-a", createdAt: 1 }), true);
+  it("releases preparing locks only for the exact acquisition owner", () => {
+    const preparingLock = {
+      state: "preparing",
+      payloadHash: "hash-a",
+      ownerToken: "owner-a",
+      createdAt: 1,
+    };
+    assert.equal(checkoutLockCanReleasePreparing(preparingLock, "owner-a"), true);
+    assert.equal(checkoutLockCanReleasePreparing(preparingLock, "owner-b"), false);
+    assert.equal(
+      checkoutLockCanReleasePreparing({ state: "preparing", payloadHash: "hash-a", createdAt: 1 }, "owner-a"),
+      false,
+    );
+    assert.equal(
+      checkoutLockCanReleasePreparing(
+        { ...preparingLock, state: "ready", sessionId: "cs_expected" },
+        "owner-a",
+      ),
+      false,
+    );
+    assert.equal(checkoutLockCanReleasePreparing(null, "owner-a"), false);
   });
 
   it("hashes checkout lock keys before Sentry telemetry", () => {
@@ -50,6 +100,8 @@ describe("checkout lock state guards", () => {
       "src/app/api/cart/checkout-seller/route.ts",
     ]) {
       const route = source(path);
+      assert.match(route, /releasePreparingCheckoutLock/);
+      assert.doesNotMatch(route, /releaseCheckoutLock\(checkoutLockKeyValue\s*\)/);
       const captureStart = route.indexOf('Sentry.captureMessage("Checkout lock ready transition rejected"');
       assert.notEqual(captureStart, -1);
       const captureBlock = route.slice(
@@ -70,6 +122,7 @@ describe("checkout lock state guards", () => {
   });
 
   it("does not return live Stripe sessions after ready-transition errors", () => {
+    const stockRestore = source("src/lib/checkoutStockRestore.ts");
     for (const path of [
       "src/app/api/cart/checkout/single/route.ts",
       "src/app/api/cart/checkout-seller/route.ts",
@@ -82,11 +135,16 @@ describe("checkout lock state guards", () => {
       const catchBlock = route.slice(catchStart, catchEnd);
 
       assert.match(catchBlock, /stripe\.checkout\.sessions\.expire\(session\.id\)/);
-      assert.match(catchBlock, /restoreUnorderedCheckoutStockOnce\(\{/);
-      assert.match(catchBlock, /const sessionBoundLockReleased = await releaseCheckoutLock\(checkoutLockKeyValue, session\.id\)/);
-      assert.match(catchBlock, /if \(!sessionBoundLockReleased\) \{\s*await releaseCheckoutLock\(checkoutLockKeyValue\);/s);
+      assert.match(catchBlock, /restoreBuyerExpiredCheckoutStockOnce\(\{/);
+      assert.match(catchBlock, /buyerId: me\.id/);
+      assert.match(catchBlock, /await releaseCheckoutLock\(checkoutLockKeyValue, session\.id\);/);
+      assert.match(
+        catchBlock,
+        /await releasePreparingCheckoutLock\(checkoutLockKeyValue, checkoutLockOwnerTokenValue\);/,
+      );
       assert.match(catchBlock, /status: HTTP_STATUS\.CONFLICT/);
       assert.doesNotMatch(catchBlock, /return privateJson\(\{ clientSecret: session\.client_secret, sessionId: session\.id \}\)/);
     }
+    assert.match(stockRestore, /if \(transition\.checkoutLockKey\) \{\s*await releaseCheckoutLock\(transition\.checkoutLockKey, sessionId\);/s);
   });
 });

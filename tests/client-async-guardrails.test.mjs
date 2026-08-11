@@ -163,6 +163,8 @@ describe("client async guardrails", () => {
   it("resumes open cart checkout sessions from the server without persisted secrets", () => {
     const cartPage = source("src/app/cart/page.tsx");
     const resumeRoute = source("src/app/api/cart/checkout/resume/route.ts");
+    const authority = source("docs/rls-drafts/checkout-stock-reservation-authority.sql")
+      .replace(/\s+/g, " ");
 
     assert.match(cartPage, /fetch\("\/api\/cart\/checkout\/resume", \{ cache: "no-store", signal \}\)/);
     assert.match(cartPage, /urlStep === "payment"[\s\S]*?resumeOpenCartCheckout\(controller\.signal\)/);
@@ -186,12 +188,15 @@ describe("client async guardrails", () => {
     assert.match(resumeRoute, /metadata\.sellerId !== sellerId/);
     assert.match(resumeRoute, /session\.payment_status === "paid" \|\| session\.status === "complete"/);
     assert.match(resumeRoute, /completedSessionIds\.push\(session\.id\)/);
-    assert.match(resumeRoute, /prisma\.checkoutStockReservation\.findMany\(\{/);
-    assert.match(resumeRoute, /status: "COMPLETED"/);
-    assert.match(resumeRoute, /checkoutGroupId: activeCheckoutGroupId \? activeCheckoutGroupId : \{ not: null \}/);
+    assert.match(resumeRoute, /resumeCheckoutStockReservations\(\{/);
+    assert.match(resumeRoute, /buyerId: me\.id/);
+    assert.match(resumeRoute, /checkoutGroupId: activeCheckoutGroupId/);
+    assert.doesNotMatch(resumeRoute, /prisma\.checkoutStockReservation\./);
     assert.match(resumeRoute, /const completedCheckoutGroupId =/);
-    assert.match(resumeRoute, /\.filter\(\(reservation\) => reservation\.checkoutGroupId === completedCheckoutGroupId\)/);
-    assert.match(resumeRoute, /createdAt: \{ gte: new Date\(Date\.now\(\) - CHECKOUT_RESUME_COMPLETED_LOOKBACK_MS\) \}/);
+    assert.match(authority, /reservation\."buyerId" = p_buyer_id AND reservation\.status = 'COMPLETED'/);
+    assert.match(authority, /reservation\."checkoutGroupId" = source_group_id/);
+    assert.match(authority, /source_cutoff[\s\S]*interval '2 hours'/);
+    assert.match(authority, /LIMIT 20/);
     assert.match(resumeRoute, /metadata\.buyerId !== me\.id/);
     assert.match(resumeRoute, /cartId && metadata\.cartId !== cartId/);
     assert.match(resumeRoute, /metadata\.checkoutGroupId !== completedCheckoutGroupId/);

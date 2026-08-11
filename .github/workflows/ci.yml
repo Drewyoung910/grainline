@@ -82,12 +82,14 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify StripeWebhookEvent FORCE migration tree
+      - name: Verify CheckoutStockReservation authority migration tree
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed
         run: npm run verify:rls-release-artifact
+      - name: Verify CheckoutStockReservation authority release
+        run: npm run audit:rls-checkout-stock-reservation-authority-release
       - name: Verify StripeWebhookEvent FORCE release
-        run: npm run audit:rls-stripe-webhook-event-force-release
+        run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
       - name: Verify Case FORCE proof equivalence
         run: npm run audit:rls-case-force-release
       - name: Verify Case read-mode release bytes
@@ -141,6 +143,11 @@ jobs:
           mv
           prisma/migrations/20260810172000_force_stripe_webhook_event_rls
           "$RUNNER_TEMP/stripe-webhook-event-force-release"
+      - name: Isolate CheckoutStockReservation authority until webhook FORCE passes
+        run: >-
+          mv
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
       - name: Apply compatible migrations to CI Postgres
         run: npx prisma migrate deploy
       - name: Converge pre-activation production-style runtime grants
@@ -343,6 +350,21 @@ jobs:
           STRIPE_WEBHOOK_EVENT_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Re-audit restored StripeWebhookEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore CheckoutStockReservation authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
+      - name: Apply CheckoutStockReservation compatible authority
+        run: npx prisma migrate deploy
+      - name: Converge compatible reservation function grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify CheckoutStockReservation authority migration status
+        run: npx prisma migrate status
+      - name: Audit compatible reservation grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove CheckoutStockReservation compatible authority
+        run: npm run audit:rls-checkout-stock-reservation-authority-postgres
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

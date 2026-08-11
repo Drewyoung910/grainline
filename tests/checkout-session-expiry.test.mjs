@@ -54,7 +54,8 @@ describe("checkout session expiry hardening", () => {
     assert.match(webhookState, /Seller entered vacation mode before payment completion/);
     assert.match(webhookState, /Seller stopped accepting new orders before payment completion/);
     assert.match(webhookState, /Listing was no longer active before payment completion/);
-    assert.match(expiry, /restoreUnorderedCheckoutStockOnce/);
+    assert.match(expiry, /restoreSellerExpiredCheckoutStockOnce/);
+    assert.match(expiry, /sellerProfileId/);
     assert.match(expiry, /checkout_session_restore/);
   });
 });

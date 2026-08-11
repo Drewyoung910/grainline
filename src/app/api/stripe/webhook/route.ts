@@ -416,7 +416,15 @@ export async function POST(req: Request) {
 
   let reservation: Awaited<ReturnType<typeof beginStripeWebhookEvent>>;
   try {
-    reservation = await beginStripeWebhookEvent(event.id, event.type);
+    const sourceObjectId = (event.data.object as { id?: unknown }).id;
+    if (typeof sourceObjectId !== "string" || sourceObjectId.length === 0) {
+      throw new Error("Stripe webhook event object is missing its source id");
+    }
+    reservation = await beginStripeWebhookEvent(
+      event.id,
+      event.type,
+      sourceObjectId,
+    );
   } catch (err) {
     Sentry.captureException(err, {
       tags: { source: "stripe_webhook_reservation" },
@@ -983,9 +991,16 @@ export async function POST(req: Request) {
       checkoutLockKey = sessionMeta.checkoutLockKey ?? checkoutLockKey;
       const checkoutLineItems: CheckoutLineItem[] = await listAllCheckoutSessionLineItems(sessionId);
 
-      // Only process paid sessions — skip async/pending payments
+      // A completed event whose current session is not yet paid must not release
+      // reserved stock. A later signed async-failure/expiry event or the fenced
+      // repair worker owns restoration; reopening stock here can oversell while
+      // the same Checkout Session is still capable of settling.
       if (s.payment_status !== "paid") {
-        await restoreUnorderedCheckoutStockOnce({ sessionId, metadata: sessionMeta, lineItems: checkoutLineItems });
+        Sentry.captureMessage("Checkout completion retained stock for an unpaid session", {
+          level: "warning",
+          tags: { source: "stripe_checkout_completion_unpaid" },
+          extra: { stripeEventId: event.id, stripeEventType: event.type, stripeSessionId: sessionId },
+        });
         return NextResponse.json({ ok: true });
       }
 
@@ -1862,6 +1877,8 @@ export async function POST(req: Request) {
           }
 
           await markCheckoutStockReservationCompleted(tx, {
+            eventId: event.id,
+            claimGeneration,
             reservationId: sessionMeta.checkoutReservationId,
             sessionId,
           });
@@ -2196,6 +2213,8 @@ export async function POST(req: Request) {
           }
 
           await markCheckoutStockReservationCompleted(tx, {
+            eventId: event.id,
+            claimGeneration,
             reservationId: sessionMeta.checkoutReservationId,
             sessionId,
           });
@@ -2664,6 +2683,8 @@ export async function POST(req: Request) {
       }
 
       await restoreUnorderedCheckoutStockOnce({
+        eventId: event.id,
+        claimGeneration,
         sessionId: expiredSession.id,
         metadata: expiredMeta,
         lineItems: expiredLineItems,

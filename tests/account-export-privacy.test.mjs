@@ -107,7 +107,6 @@ describe("account export privacy coverage", () => {
       "emailOutbox",
       "emailFailureCount",
       "stockNotification",
-      "checkoutStockReservation",
       "makerVerification",
       "sellerFaq",
       "newsletterSubscriber",
@@ -117,6 +116,11 @@ describe("account export privacy coverage", () => {
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
     }
+    assert.match(
+      route,
+      /exportCheckoutStockReservations\(user\.id\)/,
+      "account export must query checkout reservations through its sanitized fixed operation",
+    );
     assert.match(
       route,
       /exportOwnedDirectUploads\(user\.id\)/,
@@ -149,41 +153,21 @@ describe("account export privacy coverage", () => {
   it("exports checkout stock reservations without counterparty identifiers", () => {
     const route = source("src/app/api/account/export/route.ts");
     const payload = source("src/lib/accountExportPayload.ts");
-    const reservationStart = route.indexOf("prisma.checkoutStockReservation.findMany({");
-    const reservationEnd = route.indexOf("sellerProfile\n      ? prisma.makerVerification", reservationStart);
-    const reservationQuery = route.slice(reservationStart, reservationEnd);
-    const mapStart = route.indexOf("const checkoutStockReservations = checkoutStockReservationRows.map");
-    const mapEnd = route.indexOf("return buildAccountExportPayload", mapStart);
-    const reservationMap = route.slice(mapStart, mapEnd);
+    const appAuthority = source("src/lib/checkoutStockReservationAuthority.ts");
+    const sqlAuthority = source("docs/rls-drafts/checkout-stock-reservation-authority.sql")
+      .replace(/\s+/g, " ");
 
-    assert.ok(reservationStart >= 0, "account export must query checkout stock reservations");
-    assert.ok(reservationEnd > reservationStart, "reservation export query must stay bounded");
-    assert.match(reservationQuery, /OR: \[\s*\{ buyerId: user\.id \}/);
-    assert.match(reservationQuery, /\{ sellerId: sellerProfile\.id \}/);
-    for (const field of [
-      "id",
-      "buyerId",
-      "sellerId",
-      "stripeSessionId",
-      "status",
-      "reservedItems",
-      "expiresAt",
-      "restoredAt",
-      "restoreReason",
-      "createdAt",
-      "updatedAt",
-    ]) {
-      assert.match(reservationQuery, new RegExp(`${field}: true`), `reservation export must select ${field}`);
-    }
-
-    assert.match(reservationMap, /exportedAsBuyer = reservation\.buyerId === user\.id/);
-    assert.match(reservationMap, /exportedAsSeller = Boolean\(sellerProfile && reservation\.sellerId === sellerProfile\.id\)/);
-    assert.match(reservationMap, /buyerId: exportedAsBuyer \? reservation\.buyerId : null/);
-    assert.match(reservationMap, /sellerId: exportedAsSeller \? reservation\.sellerId : null/);
-    assert.match(reservationMap, /stripeSessionId: exportedAsBuyer \? reservation\.stripeSessionId : null/);
-    assert.match(route, /import \{ parseCheckoutStockReservationItems \} from "@\/lib\/checkoutStockRestore"/);
-    assert.match(reservationMap, /reservedItems: parseCheckoutStockReservationItems\(reservation\.reservedItems\)/);
-    assert.doesNotMatch(reservationMap, /reservedItems: reservation\.reservedItems/);
+    assert.match(route, /import \{ exportCheckoutStockReservations \} from "@\/lib\/checkoutStockReservationAuthority"/);
+    assert.match(route, /exportCheckoutStockReservations\(user\.id\)/);
+    assert.match(route, /const checkoutStockReservations = checkoutStockReservationRows/);
+    assert.doesNotMatch(route, /prisma\.checkoutStockReservation\./);
+    assert.match(appAuthority, /grainline_checkout_reservation_export\(\$\{userId\}\)/);
+    assert.match(sqlAuthority, /reservation\."buyerId" = p_user_id OR \(source_seller_id IS NOT NULL AND reservation\."sellerId" = source_seller_id\)/);
+    assert.match(sqlAuthority, /CASE WHEN reservation\."buyerId" = p_user_id THEN reservation\."buyerId"::text END/);
+    assert.match(sqlAuthority, /CASE WHEN source_seller_id IS NOT NULL AND reservation\."sellerId" = source_seller_id THEN reservation\."sellerId"::text END/);
+    assert.match(sqlAuthority, /CASE WHEN reservation\."buyerId" = p_user_id THEN reservation\."stripeSessionId"::text END/);
+    assert.match(sqlAuthority, /'listingId', item\.value->>'listingId', 'quantity', \(item\.value->>'quantity'\)::integer/);
+    assert.doesNotMatch(sqlAuthority, /'sellerId', item\.value->>'sellerId'/);
     assert.match(payload, /checkoutStockReservations: unknown\[\]/);
     assert.match(payload, /checkoutStockReservations: data\.checkoutStockReservations/);
   });

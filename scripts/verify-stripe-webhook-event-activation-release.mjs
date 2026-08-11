@@ -16,8 +16,8 @@ import {
 
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE =
   "stripe-webhook-event-activation-reviewed";
-const STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE =
-  "stripe-webhook-event-force-reviewed";
+const CHECKOUT_STOCK_RESERVATION_AUTHORITY_PHASE =
+  "checkout-stock-reservation-authority-reviewed";
 export const STRIPE_WEBHOOK_EVENT_ACTIVATION_ROLLBACK_SHA256 =
   "2174c06aba53726523921ef0938cc92744aed187ea5dfdff3a8ea1e3499b3722";
 
@@ -80,7 +80,7 @@ export function verifyStripeWebhookEventActivationRelease(
   let guard;
   if (allowReviewedSuccessor) {
     const successorGuard = validateCurrentSavedSearchRlsDeployShape({
-      phase: STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE,
+      phase: CHECKOUT_STOCK_RESERVATION_AUTHORITY_PHASE,
       rootDirectory,
     });
     guard = Object.freeze({

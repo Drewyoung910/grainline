@@ -21,6 +21,8 @@ import {
 
 export const STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE =
   "stripe-webhook-event-force-reviewed";
+const CHECKOUT_STOCK_RESERVATION_AUTHORITY_PHASE =
+  "checkout-stock-reservation-authority-reviewed";
 export const STRIPE_WEBHOOK_EVENT_FORCE_ROLLBACK_SHA256 =
   "16766a26bcab922f522c29c5e98eebfb09eead213ad9228c9b0b75d05228fd6a";
 
@@ -30,6 +32,7 @@ function sha256(source) {
 
 export function verifyStripeWebhookEventForceRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedSuccessor = false } = {},
 ) {
   const activation = buildStripeWebhookEventActivationCandidate(rootDirectory);
   const activationMigration = fs.readFileSync(
@@ -94,10 +97,23 @@ export function verifyStripeWebhookEventForceRelease(
     throw new Error("reviewed StripeWebhookEvent FORCE rollback drifted");
   }
 
-  const guard = validateCurrentSavedSearchRlsDeployShape({
-    phase: STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE,
-    rootDirectory,
-  });
+  let guard;
+  if (allowReviewedSuccessor) {
+    const successorGuard = validateCurrentSavedSearchRlsDeployShape({
+      phase: CHECKOUT_STOCK_RESERVATION_AUTHORITY_PHASE,
+      rootDirectory,
+    });
+    guard = Object.freeze({
+      phase: STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE,
+      sealedPrefix: true,
+      successorPhase: successorGuard.phase,
+    });
+  } else {
+    guard = validateCurrentSavedSearchRlsDeployShape({
+      phase: STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE,
+      rootDirectory,
+    });
+  }
   return Object.freeze({
     phase: STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE,
     activationMigration: STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
@@ -120,8 +136,17 @@ export function verifyStripeWebhookEventForceRelease(
 }
 
 function main() {
+  const mode = process.argv[2];
+  if (mode !== undefined && mode !== "--allow-reviewed-successor") {
+    throw new Error(
+      "usage: verify-stripe-webhook-event-force-release.mjs "
+      + "[--allow-reviewed-successor]",
+    );
+  }
   process.stdout.write(
-    `${JSON.stringify(verifyStripeWebhookEventForceRelease(), null, 2)}\n`,
+    `${JSON.stringify(verifyStripeWebhookEventForceRelease(undefined, {
+      allowReviewedSuccessor: mode === "--allow-reviewed-successor",
+    }), null, 2)}\n`,
   );
 }
 

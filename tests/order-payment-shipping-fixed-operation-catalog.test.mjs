@@ -36,8 +36,8 @@ test("webhook lifecycle is generation-bound and type-immutable", () => {
 
 test("every mutable provider family has claim/finalize semantics", () => {
   for (const marker of [
-    "checkout_reservation_restore_claim",
-    "checkout_reservation_restore_finalize",
+    "checkout_reservation_repair_claim_batch",
+    "checkout_reservation_repair_finalize",
     "seller_refund_claim",
     "seller_refund_provider_record",
     "seller_refund_finalize",

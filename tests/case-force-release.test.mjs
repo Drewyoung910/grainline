@@ -139,7 +139,7 @@ test("Case FORCE PostgreSQL proof reuses denial checks with FORCE required", () 
 test("CI retains the Case Phase-A-before-FORCE proof under the current release gate", () => {
   assert.match(
     ci,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed/,
   );
   assert.match(ci, /npm run audit:rls-case-force-release/);
   assert.match(

@@ -3,6 +3,7 @@ export const CHECKOUT_LOCK_TTL_SECONDS = 32 * 60;
 export type CheckoutLock = {
   state: "preparing" | "ready";
   payloadHash: string;
+  ownerToken?: string;
   createdAt: number;
   sessionId?: string;
   clientSecret?: string | null;
@@ -19,19 +20,17 @@ if not ok then
   return 0
 end
 
-if current["state"] ~= "preparing" or current["payloadHash"] ~= ARGV[1] then
+if current["state"] ~= "preparing"
+   or current["payloadHash"] ~= ARGV[1]
+   or current["ownerToken"] ~= ARGV[2] then
   return 0
 end
 
-redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
+redis.call("SET", KEYS[1], ARGV[3], "EX", ARGV[4])
 return 1
 `;
 
 export const RELEASE_CHECKOUT_LOCK_SCRIPT = `
-if ARGV[1] == "" then
-  return redis.call("DEL", KEYS[1])
-end
-
 local raw = redis.call("GET", KEYS[1])
 if not raw then
   return 0
@@ -49,11 +48,38 @@ end
 return 0
 `;
 
-export function checkoutLockCanMarkReady(lock: CheckoutLock | null, payloadHash: string) {
-  return lock?.state === "preparing" && lock.payloadHash === payloadHash;
+export const RELEASE_PREPARING_CHECKOUT_LOCK_SCRIPT = `
+local raw = redis.call("GET", KEYS[1])
+if not raw then
+  return 0
+end
+
+local ok, current = pcall(cjson.decode, raw)
+if not ok then
+  return 0
+end
+
+if current["state"] == "preparing" and current["ownerToken"] == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
+end
+
+return 0
+`;
+
+export function checkoutLockCanMarkReady(
+  lock: CheckoutLock | null,
+  payloadHash: string,
+  ownerToken: string,
+) {
+  return lock?.state === "preparing"
+    && lock.payloadHash === payloadHash
+    && lock.ownerToken === ownerToken;
 }
 
-export function checkoutLockCanRelease(lock: CheckoutLock | null, expectedSessionId?: string | null) {
-  if (!expectedSessionId) return true;
+export function checkoutLockCanRelease(lock: CheckoutLock | null, expectedSessionId: string) {
   return lock?.sessionId === expectedSessionId;
+}
+
+export function checkoutLockCanReleasePreparing(lock: CheckoutLock | null, ownerToken: string) {
+  return lock?.state === "preparing" && lock.ownerToken === ownerToken;
 }
