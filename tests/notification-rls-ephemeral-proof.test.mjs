@@ -178,6 +178,21 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     );
     assert.match(proof, /notification-proof-block-second/);
     assert.match(proof, /notification-proof-create-second/);
+    assert.match(
+      proof,
+      /checkoutReservationPayloadHash: "[A-Za-z0-9_-]{32}"/,
+      "the cross-surface checkout fixture must use the canonical 32-character base64url replay identity",
+    );
+    assert.match(
+      proof,
+      /\$2::text, \$3::text, \$4::text, 'cs_notification_proof'/,
+      "reused fixture parameters must have one explicit PostgreSQL type",
+    );
+    assert.match(
+      proof,
+      /pg_catalog\.jsonb_build_object\(\s*'listingId', \$5::text,\s*'sellerId', \$4::text,\s*'quantity', 1\s*\)/,
+      "the cross-surface checkout fixture must retain canonical listing, seller and quantity authority",
+    );
     assert.match(proof, /wait_event_type === "Lock"/);
     assert.match(proof, /if \(family\.setup\)/);
     assert.match(proof, /if \(family\.resetSourceNotification\)/);

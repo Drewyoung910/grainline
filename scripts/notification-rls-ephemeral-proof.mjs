@@ -39,6 +39,7 @@ const fixture = Object.freeze({
   customLinkMessageId: "notification-proof-custom-link-message",
   manualLowStockAuditId: "notification-proof-manual-low-stock-audit",
   checkoutReservationId: "notification-proof-checkout-reservation",
+  checkoutReservationPayloadHash: "notificationProofReservationHash",
   makerVerificationId: "notification-proof-maker-verification",
   guildAdminAuditId: "notification-proof-guild-admin-audit",
   guildSystemUserId: "notification-proof-guild-system-user",
@@ -416,13 +417,17 @@ async function seedFixturesInTransaction(owner) {
        "stripeSessionId", status, "reservedItems", "expiresAt", "updatedAt"
      ) VALUES (
        $1, 'notification-proof-checkout-lock',
-       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-       $2, $3, 'cs_notification_proof', 'COMPLETED',
-       pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('listingId', $4::text)),
+       $2::text, $3::text, $4::text, 'cs_notification_proof', 'COMPLETED',
+       pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object(
+         'listingId', $5::text,
+         'sellerId', $4::text,
+         'quantity', 1
+       )),
        pg_catalog.clock_timestamp() + interval '1 hour', pg_catalog.clock_timestamp()
      )`,
     [
       fixture.checkoutReservationId,
+      fixture.checkoutReservationPayloadHash,
       fixture.actorUserId,
       fixture.sellerUserId,
       fixture.listingId,

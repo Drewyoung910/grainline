@@ -493,3 +493,25 @@ Two compatibility defects were found and closed during promotion:
   `unnest` special form. The repository-wide parser-form guard rejected both
   readers before release; they now use bare `unnest` while retaining
   schema-qualified catalog relations and type rendering.
+
+## Cross-proof fixture compatibility finding (2026-08-10)
+
+- `CSR-A20`: after the compatible authority merge, main CI run `31453362682`
+  passed all 100 steps, including the reservation authority PostgreSQL proof,
+  TypeScript, lint, the complete test suite and production build. The separate
+  Notification FORCE proof run `31453362761` correctly failed closed because
+  its synthetic `CheckoutStockReservation` row still used the retired
+  64-character hex replay fingerprint and omitted the canonical item `sellerId`
+  and positive `quantity`. No production database operation was involved.
+
+  The Notification fixture now uses a 32-character base64url replay identity
+  and the exact listing/seller/quantity item shape accepted by reservation
+  authority. A focused source contract keeps this older cross-surface proof
+  aligned with the canonical reservation row so later authority tightening
+  cannot silently leave the independent Notification workflow stale again.
+
+  The first replacement workflow run `31454124077` then failed before fixture
+  insertion with PostgreSQL `42P08`: the seller parameter was inferred as both
+  `varchar` by the target column and `text` by the canonical JSON object. The
+  repaired fixture casts every reused identity parameter to `text` at its SQL
+  boundary, matching the repository's fail-closed parameter-typing rule.
