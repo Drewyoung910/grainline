@@ -50,13 +50,21 @@ const notificationMigration = fs.readFileSync(
 );
 
 describe("Case resolution-window correction", () => {
-  it("replaces only the fixed cron operation and preserves least privilege", () => {
+  it("replaces only the two fixed Case lifecycle operations and preserves least privilege", () => {
     assert.match(migration, /^BEGIN;/m);
     assert.match(migration, /^COMMIT;/m);
     assert.equal(
       (
         migration.match(
           /CREATE OR REPLACE FUNCTION public\.grainline_case_cron_transition_batch/g,
+        ) ?? []
+      ).length,
+      1,
+    );
+    assert.equal(
+      (
+        migration.match(
+          /CREATE OR REPLACE FUNCTION public\.grainline_case_mark_resolved/g,
         ) ?? []
       ).length,
       1,
@@ -73,10 +81,40 @@ describe("Case resolution-window correction", () => {
       migration,
       /GRANT EXECUTE ON FUNCTION\s+public\.grainline_case_cron_transition_batch\(text, integer\)\s+TO grainline_app_runtime/,
     );
+    assert.match(
+      migration,
+      /REVOKE ALL ON FUNCTION\s+public\.grainline_case_mark_resolved\(text, text\)\s+FROM PUBLIC, grainline_app_runtime/,
+    );
+    assert.match(
+      migration,
+      /GRANT EXECUTE ON FUNCTION\s+public\.grainline_case_mark_resolved\(text, text\)\s+TO grainline_app_runtime/,
+    );
     assert.doesNotMatch(
       migration,
       /ENABLE ROW LEVEL SECURITY|DISABLE ROW LEVEL SECURITY|NO FORCE ROW LEVEL SECURITY|CREATE POLICY|EXECUTE format|dynamic SQL/i,
     );
+  });
+
+  it("derives a fresh database-only audit identity for each resolution cycle", () => {
+    assert.match(
+      migration,
+      /audit_id_prefix :=\s+'case_resolution_mark_'\s+\|\| pg_catalog\.md5\(locked_case\.id \|\| ':' \|\| locked_actor\.id\)/,
+    );
+    assert.match(
+      migration,
+      /audit_id := audit_id_prefix \|\| ':' \|\| pg_catalog\.to_char\([\s\S]*pg_catalog\.gen_random_uuid\(\)::text[\s\S]*12\s*\)/,
+    );
+    assert.match(
+      migration,
+      /ORDER BY audit\."createdAt" DESC, audit\.id DESC\s+LIMIT 1\s+FOR SHARE/,
+    );
+    assert.match(migration, /audit_id := existing_audit\.id/);
+    assert.match(migration, /result_action := 'replay'/);
+    assert.match(
+      migration,
+      /audit\.id = audit_id_prefix\s+OR locked_case\.status = 'RESOLVED'::public\."CaseStatus"\s+OR audit\.metadata->>'at' = pg_catalog\.to_char\(\s*locked_case\."updatedAt"/,
+    );
+    assert.doesNotMatch(migration, /p_audit|p_dedup|p_source_id/i);
   });
 
   it("selects and rechecks only buyer-initiated expired resolution windows", () => {
@@ -163,7 +201,7 @@ describe("Case resolution-window correction", () => {
     );
     assert.match(
       productionPostflight,
-      /20260811170000_align_case_resolution_window[\s\S]*e83c5d11ef71573e4a75e43c4351d62d1fa0b40f75b716540380a25e527210e8/,
+      /20260811170000_align_case_resolution_window[\s\S]*1297332140016e0ae9dfba6509d1d3d34d6fd8400e9bf12901ab42ec90b10d40/,
     );
     assert.match(
       productionPostflight,
@@ -174,6 +212,10 @@ describe("Case resolution-window correction", () => {
       productionPostflight,
       /buyerMarkedResolved[\s\S]*sellerMarkedResolved[\s\S]*Buyer resolution window expired/,
     );
+    assert.match(productionPostflight, /grainline_case_mark_resolved/);
+    assert.match(productionPostflight, /audit_id_prefix/);
+    assert.match(productionPostflight, /gen_random_uuid/);
+    assert.match(productionPostflight, /audit_id := existing_audit/);
     assert.match(
       productionPostflight,
       /class\.relrowsecurity[\s\S]*class\.relforcerowsecurity[\s\S]*forced_table_count <> 3/,

@@ -21,6 +21,7 @@ const ids = Object.freeze({
   staffClaimOrder: `${PREFIX}-order-staff-claim`,
   nullableBuyerOrder: `${PREFIX}-order-nullable-buyer`,
   invalidReplayOrder: `${PREFIX}-order-invalid-replay`,
+  repeatedCycleOrder: `${PREFIX}-order-repeated-cycle`,
   concurrencyOrder: `${PREFIX}-order-concurrency`,
   rollbackOrder: `${PREFIX}-order-rollback`,
   sequentialCase: `${PREFIX}-case-sequential`,
@@ -28,6 +29,7 @@ const ids = Object.freeze({
   staffClaimCase: `${PREFIX}-case-staff-claim`,
   nullableBuyerCase: `${PREFIX}-case-nullable-buyer`,
   invalidReplayCase: `${PREFIX}-case-invalid-replay`,
+  repeatedCycleCase: `${PREFIX}-case-repeated-cycle`,
   concurrencyCase: `${PREFIX}-case-concurrency`,
   rollbackCase: `${PREFIX}-case-rollback`,
 });
@@ -144,6 +146,7 @@ async function seedFixturesBody(client) {
     [ids.staffClaimOrder, ids.staffClaimCase],
     [ids.nullableBuyerOrder, ids.nullableBuyerCase],
     [ids.invalidReplayOrder, ids.invalidReplayCase],
+    [ids.repeatedCycleOrder, ids.repeatedCycleCase],
     [ids.concurrencyOrder, ids.concurrencyCase],
     [ids.rollbackOrder, ids.rollbackCase],
   ];
@@ -487,6 +490,77 @@ async function proveMalformedReplayAuditRejected(observer, runtime) {
   );
 }
 
+async function proveRepeatedResolutionCycle(observer, runtime) {
+  const firstMark = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.repeatedCycleCase,
+  );
+  assert.equal(firstMark.status, "PENDING_CLOSE");
+  assert.equal(firstMark.action, "updated");
+
+  const firstReplay = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.repeatedCycleCase,
+  );
+  assert.equal(firstReplay.action, "replay");
+  assert.equal(firstReplay.auditLogId, firstMark.auditLogId);
+
+  const reply = await runtimeQuery(
+    runtime,
+    `
+      SELECT public.grainline_case_reply(
+        $1,
+        $2,
+        'The discussion continues before another resolution attempt.',
+        ARRAY[]::text[]
+      ) AS result
+    `,
+    [ids.seller, ids.repeatedCycleCase],
+  );
+  assert.equal(reply.rows[0]?.result?.status, "IN_DISCUSSION");
+
+  const secondMark = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.repeatedCycleCase,
+  );
+  assert.equal(secondMark.status, "PENDING_CLOSE");
+  assert.equal(secondMark.action, "updated");
+  assert.notEqual(secondMark.auditLogId, firstMark.auditLogId);
+
+  const secondReplay = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.repeatedCycleCase,
+  );
+  assert.equal(secondReplay.action, "replay");
+  assert.equal(secondReplay.auditLogId, secondMark.auditLogId);
+
+  const state = await observer.query(`
+    SELECT
+      case_row.status::text,
+      case_row."buyerMarkedResolved",
+      case_row."sellerMarkedResolved",
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."AdminAuditLog" AS audit
+         WHERE audit.action = 'MARK_CASE_RESOLVED'
+           AND audit."targetId" = case_row.id
+           AND audit."adminId" = $2
+      ) AS "auditCount"
+      FROM public."Case" AS case_row
+     WHERE case_row.id = $1
+  `, [ids.repeatedCycleCase, ids.buyer]);
+  assert.deepEqual(state.rows[0], {
+    status: "PENDING_CLOSE",
+    buyerMarkedResolved: true,
+    sellerMarkedResolved: false,
+    auditCount: 2,
+  });
+}
+
 async function proveConcurrentMarks(
   observer,
   first,
@@ -598,6 +672,7 @@ export async function runParticipantResolutionPostgresProof(
     await proveLeaseFences(observer, runtime);
     await proveNullableLegacyParticipant(observer, runtime);
     await proveMalformedReplayAuditRejected(observer, runtime);
+    await proveRepeatedResolutionCycle(observer, runtime);
     await proveConcurrentMarks(observer, first, second);
     await proveRollback(observer, runtime);
     await cleanupFixtures(observer);
@@ -620,7 +695,7 @@ export async function runParticipantResolutionPostgresProof(
       audit_count: 0,
     });
     return Object.freeze({
-      checks: 12,
+      checks: 13,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

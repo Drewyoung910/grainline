@@ -15,6 +15,7 @@ Participant resolution marks are asymmetric because the buyer owns the dispute:
 | Buyer marks resolved; seller does not confirm or reply | Remain `PENDING_CLOSE` for seven calendar days, then resolve as `DISMISSED`. |
 | Seller marks resolved; buyer does not confirm or reply | Remain `PENDING_CLOSE` until the buyer confirms or either party sends a Case message. Seller silence never dismisses the buyer's Case. |
 | Either participant sends a message while pending | Return to `IN_DISCUSSION` and clear both resolution marks. |
+| The same participant marks resolved again after that reply | Start a new resolution cycle with a new database-derived audit and Notification source; retries within one active cycle reuse its source. |
 
 Seller-only pending rows remain visible in the existing staff queue. Automatic
 staff escalation can be considered later with its own notification and SLA
@@ -32,13 +33,24 @@ The buyer-initiated timeout is safe because the buyer who owns the Case has
 affirmatively said the issue is resolved. The seller-initiated timeout cannot
 carry the same authority.
 
+The Extra-High branch review also found that the original participant authority
+treated a resolution mark as a permanent one-per-actor event. Its deterministic
+`(Case, actor)` audit ID was correct for retries but collided after a Case reply
+cleared both marks and the same participant later started a legitimate new
+resolution cycle. The correction keeps legacy audit IDs replayable, generates
+each new cycle suffix inside PostgreSQL, binds active-cycle replay to the Case's
+current transition timestamp, and rejects an ambiguous older source rather than
+minting authority. No audit or dedup identity is accepted from the caller.
+
 ## Required atomic release surface
 
-- replace only `grainline_case_cron_transition_batch(text, integer)` in a new
-  migration;
+- replace only `grainline_case_cron_transition_batch(text, integer)` and
+  `grainline_case_mark_resolved(text, text)` in a new migration;
 - select and re-check buyer-only resolution marks after acquiring the existing
   User, Order, and Case locks;
 - retain exact audit and Notification source binding;
+- prove mark, same-cycle retry, reply/reopen, second mark with a distinct source,
+  and second-cycle retry through the pooled runtime role;
 - verify the database-derived participant notification remains accurate, and
   align buyer and seller UI, Help pages, Terms, cron metrics, static tests, and
   disposable PostgreSQL proof;

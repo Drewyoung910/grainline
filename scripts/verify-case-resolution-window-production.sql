@@ -6,7 +6,8 @@ DO $grainline_case_resolution_window_production_postflight$
 DECLARE
   reviewed_migration_count integer;
   queued_migration_count integer;
-  function_count integer;
+  cron_function_count integer;
+  participant_function_count integer;
   forced_table_count integer;
 BEGIN
   IF pg_catalog.current_setting('transaction_isolation')
@@ -30,7 +31,7 @@ BEGIN
    WHERE migration.migration_name =
          '20260811170000_align_case_resolution_window'
      AND migration.checksum =
-         'e83c5d11ef71573e4a75e43c4351d62d1fa0b40f75b716540380a25e527210e8'
+         '1297332140016e0ae9dfba6509d1d3d34d6fd8400e9bf12901ab42ec90b10d40'
      AND migration.finished_at IS NOT NULL
      AND migration.rolled_back_at IS NULL
      AND migration.applied_steps_count = 1;
@@ -56,7 +57,7 @@ BEGIN
   END IF;
 
   SELECT pg_catalog.count(*)::integer
-    INTO function_count
+    INTO cron_function_count
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
@@ -94,10 +95,57 @@ BEGIN
          'audit_reason := ''Buyer resolution window expired'''
      AND pg_catalog.pg_get_functiondef(procedure.oid) !~
          'locked_case\."sellerMarkedResolved" IS DISTINCT FROM true';
-  IF function_count <> 1 THEN
+  IF cron_function_count <> 1 THEN
     RAISE EXCEPTION
       'Case resolution-window function catalog drifted: %',
-      function_count;
+      cron_function_count;
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO participant_function_count
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND procedure.proname = 'grainline_case_mark_resolved'
+     AND pg_catalog.oidvectortypes(procedure.proargtypes) = 'text, text'
+     AND procedure.prokind = 'f'
+     AND procedure.prosecdef
+     AND procedure.provolatile = 'v'
+     AND procedure.proparallel = 'u'
+     AND procedure.proconfig IS NOT DISTINCT FROM
+         ARRAY['search_path=pg_catalog']::text[]
+     AND procedure.proowner = pg_catalog.to_regrole(CURRENT_USER)
+     AND pg_catalog.has_function_privilege(
+       'grainline_app_runtime',
+       procedure.oid,
+       'EXECUTE'
+     )
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             procedure.proacl,
+             pg_catalog.acldefault('f', procedure.proowner)
+           )
+         ) AS acl
+        WHERE acl.grantee = 0
+          AND acl.privilege_type = 'EXECUTE'
+     )
+     AND pg_catalog.pg_get_functiondef(procedure.oid) ~
+         'audit_id_prefix :=[[:space:]]+''case_resolution_mark_'''
+     AND pg_catalog.pg_get_functiondef(procedure.oid) ~
+         'pg_catalog\.gen_random_uuid\(\)::text'
+     AND pg_catalog.pg_get_functiondef(procedure.oid) ~
+         'audit_id := existing_audit\.id'
+     AND pg_catalog.pg_get_functiondef(procedure.oid) ~
+         'locked_case\."updatedAt"'
+     AND pg_catalog.pg_get_functiondef(procedure.oid) !~
+         'p_audit|p_dedup|p_source_id';
+  IF participant_function_count <> 1 THEN
+    RAISE EXCEPTION
+      'Case participant-resolution function catalog drifted: %',
+      participant_function_count;
   END IF;
 
   SELECT pg_catalog.count(*)::integer
