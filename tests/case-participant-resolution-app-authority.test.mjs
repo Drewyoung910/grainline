@@ -24,6 +24,10 @@ function auditId(caseId, actorUserId) {
   }`;
 }
 
+function cycleAuditId(caseId, actorUserId, suffix = "a".repeat(32)) {
+  return `${auditId(caseId, actorUserId)}:${suffix}`;
+}
+
 function validResult(overrides = {}) {
   const row = {
     caseId: "case-1",
@@ -122,6 +126,33 @@ describe("Case participant-resolution application authority", () => {
     );
     assert.equal(result.status, "PENDING_CLOSE");
     assert.equal(result.action, "updated");
+  });
+
+  it("accepts only a database-derived cycle suffix bound to the actor and Case", () => {
+    const input = { actorUserId: "buyer-1", caseId: "case-1" };
+    const result = validateParticipantResolutionResult(
+      validResult({
+        auditLogId: cycleAuditId("case-1", "buyer-1"),
+      }),
+      input,
+    );
+    assert.equal(result.action, "updated");
+
+    for (const auditLogId of [
+      cycleAuditId("case-2", "buyer-1"),
+      cycleAuditId("case-1", "seller-1"),
+      `${auditId("case-1", "buyer-1")}:short`,
+      `${auditId("case-1", "buyer-1")}:${"G".repeat(32)}`,
+      `${auditId("case-1", "buyer-1")}:${"a".repeat(33)}`,
+    ]) {
+      assert.throws(
+        () => validateParticipantResolutionResult(
+          validResult({ auditLogId }),
+          input,
+        ),
+        /identity drifted/,
+      );
+    }
   });
 
   it("permits an older stable replay source after the Case later resolves", () => {

@@ -91,11 +91,22 @@ function requireOneOf<const T extends readonly string[]>(
   return value as T[number];
 }
 
-function expectedAuditLogId(caseId: string, actorUserId: string) {
+function expectedAuditLogIdPrefix(caseId: string, actorUserId: string) {
   const digest = createHash("md5")
     .update(`${caseId}:${actorUserId}`, "utf8")
     .digest("hex");
   return `case_resolution_mark_${digest}`;
+}
+
+function isExpectedAuditLogId(
+  value: string,
+  caseId: string,
+  actorUserId: string,
+) {
+  const prefix = expectedAuditLogIdPrefix(caseId, actorUserId);
+  if (value === prefix) return true;
+  if (!value.startsWith(`${prefix}:`)) return false;
+  return /^[0-9a-f]{32}$/.test(value.slice(prefix.length + 1));
 }
 
 export function validateParticipantResolutionResult(
@@ -154,8 +165,11 @@ export function validateParticipantResolutionResult(
     result.caseId !== expected.caseId
     || result.actorUserId !== expected.actorUserId
     || actorIsBuyer === actorIsSeller
-    || result.auditLogId
-      !== expectedAuditLogId(result.caseId, result.actorUserId)
+    || !isExpectedAuditLogId(
+      result.auditLogId,
+      result.caseId,
+      result.actorUserId,
+    )
   ) {
     throw new TypeError(
       "Case participant-resolution authority identity drifted",
