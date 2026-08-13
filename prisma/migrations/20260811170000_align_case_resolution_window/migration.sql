@@ -156,8 +156,8 @@ BEGIN
              pg_catalog.char_length(audit_id_prefix) + 1
            ) = audit_id_prefix || ':'
            AND pg_catalog.substring(
-             audit.id
-             FROM pg_catalog.char_length(audit_id_prefix) + 2
+             audit.id,
+             pg_catalog.char_length(audit_id_prefix) + 2
            ) ~ '^[0-9a-f]{32}$'
          )
        )

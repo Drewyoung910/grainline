@@ -112,6 +112,11 @@ describe("Case resolution-window correction", () => {
     assert.match(migration, /result_action := 'replay'/);
     assert.match(
       migration,
+      /pg_catalog\.substring\(\s*audit\.id,\s*pg_catalog\.char_length\(audit_id_prefix\) \+ 2\s*\)/,
+    );
+    assert.doesNotMatch(migration, /pg_catalog\.substring\([^)]*\bFROM\b/i);
+    assert.match(
+      migration,
       /audit\.id = audit_id_prefix\s+OR locked_case\.status = 'RESOLVED'::public\."CaseStatus"\s+OR audit\.metadata->>'at' = pg_catalog\.to_char\(\s*locked_case\."updatedAt"/,
     );
     assert.doesNotMatch(migration, /p_audit|p_dedup|p_source_id/i);
@@ -130,7 +135,10 @@ describe("Case resolution-window correction", () => {
     assert.match(migration, /FOR UPDATE SKIP LOCKED/);
     assert.match(migration, /target_status := 'RESOLVED'/);
     assert.match(migration, /target_resolution := 'DISMISSED'/);
-    assert.match(migration, /audit_reason := 'Buyer resolution window expired'/);
+    assert.match(
+      migration,
+      /audit_reason := 'Buyer resolution window expired'/,
+    );
     assert.match(migration, /'resolutionInitiator',[\s\S]*THEN 'buyer'/);
     assert.match(migration, /grainline_notification_create_case_event/);
   });
@@ -140,22 +148,28 @@ describe("Case resolution-window correction", () => {
       markRoute,
       /A seller-only mark never closes the buyer's\s+\/\/ Case through silence/,
     );
-    assert.match(
-      markRoute,
-      /Confirm resolution or continue the discussion/,
-    );
+    assert.match(markRoute, /Confirm resolution or continue the discussion/);
     assert.match(
       notificationMigration,
       /The other party marked this case resolved\. Confirm resolution or continue the discussion\./,
     );
     assert.match(buyerPage, /seller has seven days to/);
     assert.match(buyerPage, /will not close without\s+your confirmation/);
-    assert.match(sellerPage, /within seven days; otherwise the case will close/);
+    assert.match(
+      sellerPage,
+      /within seven days; otherwise the case will close/,
+    );
     assert.match(sellerPage, /remain open until the buyer confirms/);
     assert.match(terms, /within <strong>7 calendar days<\/strong>/);
     assert.match(terms, /Maker&apos;s resolution mark alone does not close/);
-    assert.match(buyerHelp, /maker&apos;s proposal never closes a\s+buyer&apos;s case through silence/);
-    assert.match(shippingHelp, /seller-only mark cannot close the buyer&apos;s case/);
+    assert.match(
+      buyerHelp,
+      /maker&apos;s proposal never closes a\s+buyer&apos;s case through silence/,
+    );
+    assert.match(
+      shippingHelp,
+      /seller-only mark cannot close the buyer&apos;s case/,
+    );
     assert.match(decision, /Seller silence never dismisses the buyer's Case/);
   });
 
@@ -195,19 +209,19 @@ describe("Case resolution-window correction", () => {
       productionPostflight,
       /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/,
     );
+    assert.match(productionPostflight, /transaction_read_only'\) <> 'on'/);
     assert.match(
       productionPostflight,
-      /transaction_read_only'\) <> 'on'/,
-    );
-    assert.match(
-      productionPostflight,
-      /20260811170000_align_case_resolution_window[\s\S]*1297332140016e0ae9dfba6509d1d3d34d6fd8400e9bf12901ab42ec90b10d40/,
+      /20260811170000_align_case_resolution_window[\s\S]*446b99fd7541efd5f1f6f768bb522cfa6254a0cb9222872bd5d76d4938dbcd03/,
     );
     assert.match(
       productionPostflight,
       /20260810172000_force_stripe_webhook_event_rls[\s\S]*20260810190000_prepare_checkout_stock_reservation_authority[\s\S]*queued_migration_count <> 0/,
     );
-    assert.match(productionPostflight, /oidvectortypes\(procedure\.proargtypes\)/);
+    assert.match(
+      productionPostflight,
+      /oidvectortypes\(procedure\.proargtypes\)/,
+    );
     assert.match(
       productionPostflight,
       /buyerMarkedResolved[\s\S]*sellerMarkedResolved[\s\S]*Buyer resolution window expired/,

@@ -105,10 +105,8 @@ export const DIRECT_UPLOAD_RETIREMENT_MIGRATION =
   "20260801175000_retire_direct_upload_compatibility_key";
 export const DIRECT_UPLOAD_ACTIVATION_MIGRATION =
   "20260801194000_enable_direct_upload_rls";
-export const CASE_ACTIVATION_MIGRATION =
-  "20260804160000_enable_case_rls";
-export const CASE_FORCE_MIGRATION =
-  "20260804191000_force_case_rls";
+export const CASE_ACTIVATION_MIGRATION = "20260804160000_enable_case_rls";
+export const CASE_FORCE_MIGRATION = "20260804191000_force_case_rls";
 export const ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION =
   "20260805012000_prepare_order_payment_shipping_compatibility";
 export const STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY_MIGRATION =
@@ -206,7 +204,7 @@ export const STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256 =
 export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256 =
   "71e05c53f9f5d888eeccdcbd6da1b7da9fe657d4404ac63800c5591d13a23897";
 export const CASE_RESOLUTION_WINDOW_MIGRATION_TREE_SHA256 =
-  "d0ce0ae7be153b372f1e06cc69cf15ae15920ab45137efb63fb86360a2d3629c";
+  "9c897f4b2041c72542b7c8c8d60ccd450f8fa5ad542a5b12295e5b515b0107dd";
 export const PRISMA_CONFIG_PATH = "prisma.config.ts";
 export const REVIEWED_PRISMA_CONFIG_SHA256 =
   "946211cec942f725ae24ac239cd648b56f4809cf30cb8fda530346d0f593526e";
@@ -214,10 +212,8 @@ export const REVIEWED_PRODUCTION_MIDDLEWARE_SHA256 =
   "63e7696cf15dde2f666801bd58a991b47c1c220e5e33b1e9b562ecb58ac38d0b";
 export const RLS_CONTEXT_GATE_ROUTE_DIRECTORY =
   "src/app/api/internal/rls-context-gate";
-export const RLS_CONTEXT_GATE_ROUTE_PATH =
-  `${RLS_CONTEXT_GATE_ROUTE_DIRECTORY}/route.ts`;
-export const RLS_CONTEXT_GATE_PUBLIC_PATH =
-  "/api/internal/rls-context-gate";
+export const RLS_CONTEXT_GATE_ROUTE_PATH = `${RLS_CONTEXT_GATE_ROUTE_DIRECTORY}/route.ts`;
+export const RLS_CONTEXT_GATE_PUBLIC_PATH = "/api/internal/rls-context-gate";
 export const RLS_CONTEXT_GATE_RUNNER_TEST_PATH =
   "tests/rls-context-runner-route.test.mjs";
 export const RLS_CONTEXT_GATE_RUNNER_TEST_MARKER =
@@ -245,8 +241,7 @@ const REVIEWED_CONVERSATION_MESSAGE_FORCE =
   "conversation-message-force-reviewed";
 const REVIEWED_CASE_MESSAGE_COMPATIBILITY =
   "case-message-compatibility-reviewed";
-const REVIEWED_DIRECT_UPLOAD_PREPARATION =
-  "direct-upload-preparation-reviewed";
+const REVIEWED_DIRECT_UPLOAD_PREPARATION = "direct-upload-preparation-reviewed";
 const REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR =
   "direct-upload-legacy-repair-reviewed";
 const REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION =
@@ -259,10 +254,8 @@ const REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY =
   "case-staff-resolution-authority-reviewed";
 const REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY =
   "case-participant-resolution-authority-reviewed";
-const REVIEWED_CASE_OPEN_AUTHORITY =
-  "case-open-authority-reviewed";
-const REVIEWED_CASE_REPLY_AUTHORITY =
-  "case-reply-authority-reviewed";
+const REVIEWED_CASE_OPEN_AUTHORITY = "case-open-authority-reviewed";
+const REVIEWED_CASE_REPLY_AUTHORITY = "case-reply-authority-reviewed";
 const REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY =
   "case-message-preflight-authority-reviewed";
 const REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY =
@@ -283,10 +276,8 @@ const REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY =
   "case-account-deletion-authority-reviewed";
 const REVIEWED_CASE_INVARIANT = "case-invariant-reviewed";
 const REVIEWED_CASE_READ_MODE = "case-read-mode-reviewed";
-const REVIEWED_DIRECT_UPLOAD_RETIREMENT =
-  "direct-upload-retirement-reviewed";
-const REVIEWED_DIRECT_UPLOAD_ACTIVATION =
-  "direct-upload-activation-reviewed";
+const REVIEWED_DIRECT_UPLOAD_RETIREMENT = "direct-upload-retirement-reviewed";
+const REVIEWED_DIRECT_UPLOAD_ACTIVATION = "direct-upload-activation-reviewed";
 const REVIEWED_CASE_ACTIVATION = "case-activation-reviewed";
 const REVIEWED_CASE_FORCE = "case-force-reviewed";
 const REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY =
@@ -299,8 +290,7 @@ const REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE =
   "stripe-webhook-event-force-reviewed";
 const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY =
   "checkout-stock-reservation-authority-reviewed";
-const REVIEWED_CASE_RESOLUTION_WINDOW =
-  "case-resolution-window-reviewed";
+const REVIEWED_CASE_RESOLUTION_WINDOW = "case-resolution-window-reviewed";
 const APP_SOURCE_ROOTS = ["src/app", "app", "src/pages", "pages"];
 const TEST_SOURCE_ROOTS = ["tests"];
 const TEST_SOURCE_EXTENSIONS = new Set([
@@ -336,17 +326,17 @@ export function computeFileSha256(filePath) {
 function constantStringValue(node, bindings, seen = new Set()) {
   if (ts.isStringLiteralLike(node)) return node.text;
   if (
-    ts.isParenthesizedExpression(node)
-    || ts.isAsExpression(node)
-    || ts.isNonNullExpression(node)
-    || ts.isTypeAssertionExpression(node)
-    || ts.isSatisfiesExpression(node)
+    ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) ||
+    ts.isNonNullExpression(node) ||
+    ts.isTypeAssertionExpression(node) ||
+    ts.isSatisfiesExpression(node)
   ) {
     return constantStringValue(node.expression, bindings, seen);
   }
   if (
-    ts.isBinaryExpression(node)
-    && node.operatorToken.kind === ts.SyntaxKind.PlusToken
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === ts.SyntaxKind.PlusToken
   ) {
     const left = constantStringValue(node.left, bindings, seen);
     const right = constantStringValue(node.right, bindings, seen);
@@ -385,15 +375,17 @@ export function middlewareContainsContextGateExemption(middlewareSource) {
     ts.ScriptKind.TS,
   );
   if (sourceFile.parseDiagnostics.length > 0) {
-    throw new Error("could not parse middleware while checking the temporary RLS context-gate exemption");
+    throw new Error(
+      "could not parse middleware while checking the temporary RLS context-gate exemption",
+    );
   }
 
   const bindings = new Map();
   const collectBindings = (node) => {
     if (
-      ts.isVariableDeclaration(node)
-      && ts.isIdentifier(node.name)
-      && node.initializer
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
     ) {
       bindings.set(node.name.text, node.initializer);
     }
@@ -406,8 +398,8 @@ export function middlewareContainsContextGateExemption(middlewareSource) {
     if (found) return;
     const value = constantStringValue(node, bindings);
     if (
-      typeof value === "string"
-      && value.includes(RLS_CONTEXT_GATE_PUBLIC_PATH)
+      typeof value === "string" &&
+      value.includes(RLS_CONTEXT_GATE_PUBLIC_PATH)
     ) {
       found = true;
       return;
@@ -473,7 +465,9 @@ export function contextGateRouteArtifactExists(rootDirectory = process.cwd()) {
   return findContextGateAppArtifacts(rootDirectory).length > 0;
 }
 
-export function findContextGateRunnerTestArtifacts(rootDirectory = process.cwd()) {
+export function findContextGateRunnerTestArtifacts(
+  rootDirectory = process.cwd(),
+) {
   const artifacts = new Set();
 
   const inspectEntry = (physicalPath, logicalPath) => {
@@ -506,11 +500,11 @@ export function findContextGateRunnerTestArtifacts(rootDirectory = process.cwd()
 
     const source = readFileSync(physicalPath, "utf8");
     const containsRunnerRoute =
-      source.includes(RLS_CONTEXT_GATE_ROUTE_PATH)
-      || source.includes(RLS_CONTEXT_GATE_PUBLIC_PATH);
+      source.includes(RLS_CONTEXT_GATE_ROUTE_PATH) ||
+      source.includes(RLS_CONTEXT_GATE_PUBLIC_PATH);
     if (
-      containsRunnerRoute
-      && source.includes(RLS_CONTEXT_GATE_RUNNER_TEST_MARKER)
+      containsRunnerRoute &&
+      source.includes(RLS_CONTEXT_GATE_RUNNER_TEST_MARKER)
     ) {
       artifacts.add(logicalPath);
     }
@@ -535,9 +529,15 @@ export function computeMigrationTreeSha256(migrationDirectory, migrationNames) {
   }
   const hash = createHash("sha256");
   for (const migrationName of [...migrationNames].sort()) {
-    const migrationPath = path.join(migrationDirectory, migrationName, "migration.sql");
+    const migrationPath = path.join(
+      migrationDirectory,
+      migrationName,
+      "migration.sql",
+    );
     if (!existsSync(migrationPath)) {
-      throw new Error(`reviewed migration ${migrationName} is missing migration.sql`);
+      throw new Error(
+        `reviewed migration ${migrationName} is missing migration.sql`,
+      );
     }
     hash.update(migrationName, "utf8");
     hash.update("\0", "utf8");
@@ -556,8 +556,7 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
       NOTIFICATION_PREPARATION_MIGRATION_TREE_SHA256,
     [REVIEWED_NOTIFICATION_ACTIVATION]:
       NOTIFICATION_ACTIVATION_MIGRATION_TREE_SHA256,
-    [REVIEWED_NOTIFICATION_FORCE]:
-      NOTIFICATION_FORCE_MIGRATION_TREE_SHA256,
+    [REVIEWED_NOTIFICATION_FORCE]: NOTIFICATION_FORCE_MIGRATION_TREE_SHA256,
     [REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY]:
       CONVERSATION_MESSAGE_COMPATIBILITY_MIGRATION_TREE_SHA256,
     [REVIEWED_CONVERSATION_MESSAGE_INVARIANTS]:
@@ -586,10 +585,8 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
       CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
     [REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY]:
       CASE_PARTICIPANT_RESOLUTION_AUTHORITY_MIGRATION_TREE_SHA256,
-    [REVIEWED_CASE_OPEN_AUTHORITY]:
-      CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
-    [REVIEWED_CASE_REPLY_AUTHORITY]:
-      CASE_REPLY_AUTHORITY_MIGRATION_TREE_SHA256,
+    [REVIEWED_CASE_OPEN_AUTHORITY]: CASE_OPEN_AUTHORITY_MIGRATION_TREE_SHA256,
+    [REVIEWED_CASE_REPLY_AUTHORITY]: CASE_REPLY_AUTHORITY_MIGRATION_TREE_SHA256,
     [REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY]:
       CASE_MESSAGE_PREFLIGHT_AUTHORITY_MIGRATION_TREE_SHA256,
     [REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY]:
@@ -608,18 +605,14 @@ function assertReviewedMigrationTree(phase, migrationTreeSha256) {
       CASE_ESCALATION_CRON_AUTHORITY_MIGRATION_TREE_SHA256,
     [REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY]:
       CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION_TREE_SHA256,
-    [REVIEWED_CASE_INVARIANT]:
-      CASE_INVARIANT_MIGRATION_TREE_SHA256,
-    [REVIEWED_CASE_READ_MODE]:
-      CASE_READ_MODE_MIGRATION_TREE_SHA256,
+    [REVIEWED_CASE_INVARIANT]: CASE_INVARIANT_MIGRATION_TREE_SHA256,
+    [REVIEWED_CASE_READ_MODE]: CASE_READ_MODE_MIGRATION_TREE_SHA256,
     [REVIEWED_DIRECT_UPLOAD_RETIREMENT]:
       DIRECT_UPLOAD_RETIREMENT_MIGRATION_TREE_SHA256,
     [REVIEWED_DIRECT_UPLOAD_ACTIVATION]:
       DIRECT_UPLOAD_ACTIVATION_MIGRATION_TREE_SHA256,
-    [REVIEWED_CASE_ACTIVATION]:
-      CASE_ACTIVATION_MIGRATION_TREE_SHA256,
-    [REVIEWED_CASE_FORCE]:
-      CASE_FORCE_MIGRATION_TREE_SHA256,
+    [REVIEWED_CASE_ACTIVATION]: CASE_ACTIVATION_MIGRATION_TREE_SHA256,
+    [REVIEWED_CASE_FORCE]: CASE_FORCE_MIGRATION_TREE_SHA256,
     [REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY]:
       ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION_TREE_SHA256,
     [REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY]:
@@ -649,8 +642,14 @@ function assertReviewedPrismaMigrationConfig(prismaConfigSha256) {
 }
 
 export function parseGuardedNeonDatabaseIdentity(value, label) {
-  if (typeof value !== "string" || value.length === 0 || value !== value.trim()) {
-    throw new Error(`${label} must be a non-empty PostgreSQL URL without surrounding whitespace`);
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value !== value.trim()
+  ) {
+    throw new Error(
+      `${label} must be a non-empty PostgreSQL URL without surrounding whitespace`,
+    );
   }
 
   let parsed;
@@ -666,9 +665,11 @@ export function parseGuardedNeonDatabaseIdentity(value, label) {
   assertReviewedPostgresConnectionParameters(parsed, label);
   const databaseName = parseCanonicalPostgresDatabaseName(parsed, label);
 
-  const match = parsed.hostname.toLowerCase().match(
-    /^(ep-[a-z0-9-]+?)(-pooler)?\.([a-z0-9-]+)\.([a-z0-9-]+)\.neon\.tech$/,
-  );
+  const match = parsed.hostname
+    .toLowerCase()
+    .match(
+      /^(ep-[a-z0-9-]+?)(-pooler)?\.([a-z0-9-]+)\.([a-z0-9-]+)\.neon\.tech$/,
+    );
   if (!match) {
     throw new Error(`${label} must identify one reviewed Neon endpoint`);
   }
@@ -701,14 +702,17 @@ export function assertGuardedDeployEnvironment(env) {
       `guarded production migration requires ${missing.join(", ")} before any migration runs`,
     );
   }
-  if (runtimeRole !== runtimeRole.trim() || migrationRole !== migrationRole.trim()) {
+  if (
+    runtimeRole !== runtimeRole.trim() ||
+    migrationRole !== migrationRole.trim()
+  ) {
     throw new Error(
       "RUNTIME_DB_ROLE and MIGRATION_DB_ROLE must not contain surrounding whitespace before any migration runs",
     );
   }
   if (
-    runtimeRole !== REVIEWED_RUNTIME_DB_ROLE
-    || migrationRole !== REVIEWED_MIGRATION_DB_ROLE
+    runtimeRole !== REVIEWED_RUNTIME_DB_ROLE ||
+    migrationRole !== REVIEWED_MIGRATION_DB_ROLE
   ) {
     throw new Error(
       `guarded rollout requires the reviewed roles ${REVIEWED_RUNTIME_DB_ROLE} and ${REVIEWED_MIGRATION_DB_ROLE} before any migration runs`,
@@ -734,22 +738,30 @@ export function assertGuardedDeployEnvironment(env) {
     "DIRECT_URL",
   );
   if (!runtimeIdentity.isPooler) {
-    throw new Error("DATABASE_URL must use the pooled Neon endpoint before any migration runs");
+    throw new Error(
+      "DATABASE_URL must use the pooled Neon endpoint before any migration runs",
+    );
   }
   if (migrationIdentity.isPooler) {
-    throw new Error("DIRECT_URL must use the direct Neon endpoint before any migration runs");
+    throw new Error(
+      "DIRECT_URL must use the direct Neon endpoint before any migration runs",
+    );
   }
   if (runtimeIdentity.username !== runtimeRole) {
-    throw new Error("DATABASE_URL username must match RUNTIME_DB_ROLE before any migration runs");
+    throw new Error(
+      "DATABASE_URL username must match RUNTIME_DB_ROLE before any migration runs",
+    );
   }
   if (migrationIdentity.username !== migrationRole) {
-    throw new Error("DIRECT_URL username must match MIGRATION_DB_ROLE before any migration runs");
+    throw new Error(
+      "DIRECT_URL username must match MIGRATION_DB_ROLE before any migration runs",
+    );
   }
   if (
-    runtimeIdentity.endpointId !== migrationIdentity.endpointId
-    || runtimeIdentity.region !== migrationIdentity.region
-    || runtimeIdentity.port !== migrationIdentity.port
-    || runtimeIdentity.databaseName !== migrationIdentity.databaseName
+    runtimeIdentity.endpointId !== migrationIdentity.endpointId ||
+    runtimeIdentity.region !== migrationIdentity.region ||
+    runtimeIdentity.port !== migrationIdentity.port ||
+    runtimeIdentity.databaseName !== migrationIdentity.databaseName
   ) {
     throw new Error(
       "DATABASE_URL and DIRECT_URL must target the same Neon endpoint, region, port, and database before any migration runs",
@@ -776,8 +788,8 @@ function assertProductionArtifactExcludesContextGate({
   const hasMiddlewareExemption =
     middlewareContainsContextGateExemption(middlewareSource);
   const middlewareFingerprintChanged =
-    computeTextSha256(middlewareSource)
-      !== REVIEWED_PRODUCTION_MIDDLEWARE_SHA256;
+    computeTextSha256(middlewareSource) !==
+    REVIEWED_PRODUCTION_MIDDLEWARE_SHA256;
   const violations = [];
 
   if (contextGateRouteExists) {
@@ -786,14 +798,10 @@ function assertProductionArtifactExcludesContextGate({
     );
   }
   if (runnerTestExists) {
-    violations.push(
-      `runner-only test ${RLS_CONTEXT_GATE_RUNNER_TEST_PATH}`,
-    );
+    violations.push(`runner-only test ${RLS_CONTEXT_GATE_RUNNER_TEST_PATH}`);
   }
   if (hasMiddlewareExemption) {
-    violations.push(
-      `middleware exemption for ${RLS_CONTEXT_GATE_PUBLIC_PATH}`,
-    );
+    violations.push(`middleware exemption for ${RLS_CONTEXT_GATE_PUBLIC_PATH}`);
   }
   if (middlewareFingerprintChanged) {
     violations.push("reviewed production middleware fingerprint changed");
@@ -806,7 +814,11 @@ function assertProductionArtifactExcludesContextGate({
   }
 }
 
-function assertNoLaterMigration(migrationNames, reviewedLatestMigration, phase) {
+function assertNoLaterMigration(
+  migrationNames,
+  reviewedLatestMigration,
+  phase,
+) {
   const laterMigrations = migrationNames
     .filter((name) => name.localeCompare(reviewedLatestMigration) > 0)
     .sort((a, b) => a.localeCompare(b));
@@ -942,24 +954,16 @@ export function validateSavedSearchRlsDeployShape({
   const hasCaseAccountDeletionAuthorityMigration = migrations.has(
     CASE_ACCOUNT_DELETION_AUTHORITY_MIGRATION,
   );
-  const hasCaseInvariantMigration = migrations.has(
-    CASE_INVARIANT_MIGRATION,
-  );
-  const hasCaseReadModeMigration = migrations.has(
-    CASE_READ_MODE_MIGRATION,
-  );
+  const hasCaseInvariantMigration = migrations.has(CASE_INVARIANT_MIGRATION);
+  const hasCaseReadModeMigration = migrations.has(CASE_READ_MODE_MIGRATION);
   const hasDirectUploadRetirementMigration = migrations.has(
     DIRECT_UPLOAD_RETIREMENT_MIGRATION,
   );
   const hasDirectUploadActivationMigration = migrations.has(
     DIRECT_UPLOAD_ACTIVATION_MIGRATION,
   );
-  const hasCaseActivationMigration = migrations.has(
-    CASE_ACTIVATION_MIGRATION,
-  );
-  const hasCaseForceMigration = migrations.has(
-    CASE_FORCE_MIGRATION,
-  );
+  const hasCaseActivationMigration = migrations.has(CASE_ACTIVATION_MIGRATION);
+  const hasCaseForceMigration = migrations.has(CASE_FORCE_MIGRATION);
   const hasOrderPaymentShippingCompatibilityMigration = migrations.has(
     ORDER_PAYMENT_SHIPPING_COMPATIBILITY_MIGRATION,
   );
@@ -1009,8 +1013,12 @@ export function validateSavedSearchRlsDeployShape({
   }
 
   if (phase === REVIEWED_PHASE_A) {
-    if (!hasRpcMigration || !hasRpcHardeningMigration || !hasRlsMigration
-        || hasForceRlsMigration) {
+    if (
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      hasForceRlsMigration
+    ) {
       throw new Error(
         `${REVIEWED_PHASE_A} requires exactly the first three SavedSearch rollout migrations`,
       );
@@ -1035,8 +1043,12 @@ export function validateSavedSearchRlsDeployShape({
   }
 
   if (phase === REVIEWED_PHASE_B) {
-    if (!hasRpcMigration || !hasRpcHardeningMigration || !hasRlsMigration
-        || !hasForceRlsMigration) {
+    if (
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration
+    ) {
       throw new Error(
         `${REVIEWED_PHASE_B} requires all four SavedSearch rollout migrations to exist`,
       );
@@ -1067,11 +1079,11 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_NOTIFICATION_PREPARATION) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration
     ) {
       throw new Error(
         `${REVIEWED_NOTIFICATION_PREPARATION} requires SavedSearch Phase B plus the exact Notification preparation migration`,
@@ -1104,12 +1116,12 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_NOTIFICATION_ACTIVATION) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration
     ) {
       throw new Error(
         `${REVIEWED_NOTIFICATION_ACTIVATION} requires SavedSearch Phase B plus the exact Notification preparation and activation migrations`,
@@ -1143,24 +1155,20 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_NOTIFICATION_FORCE) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
-      || !hasNotificationForceMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration ||
+      !hasNotificationForceMigration
     ) {
       throw new Error(
         `${REVIEWED_NOTIFICATION_FORCE} requires SavedSearch Phase B plus the exact Notification preparation, activation, and FORCE migrations`,
       );
     }
 
-    assertNoLaterMigration(
-      migrationNames,
-      NOTIFICATION_FORCE_MIGRATION,
-      phase,
-    );
+    assertNoLaterMigration(migrationNames, NOTIFICATION_FORCE_MIGRATION, phase);
     assertReviewedMigrationTree(phase, migrationTreeSha256);
     assertReviewedPrismaMigrationConfig(prismaConfigSha256);
     assertProductionArtifactExcludesContextGate({
@@ -1184,15 +1192,15 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
-      || !hasNotificationForceMigration
-      || !hasConversationMessageContextMigration
-      || !hasConversationMessageScaleIndexesMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration ||
+      !hasNotificationForceMigration ||
+      !hasConversationMessageContextMigration ||
+      !hasConversationMessageScaleIndexesMigration
     ) {
       throw new Error(
         `${REVIEWED_CONVERSATION_MESSAGE_COMPATIBILITY} requires completed SavedSearch and Notification RLS plus the exact Conversation/Message context and scale-index migrations`,
@@ -1229,17 +1237,17 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CONVERSATION_MESSAGE_INVARIANTS) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
-      || !hasNotificationForceMigration
-      || !hasConversationMessageContextMigration
-      || !hasConversationMessageScaleIndexesMigration
-      || !hasConversationMessageInvariantsMigration
-      || !hasConversationMessageBodySearchIndexMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration ||
+      !hasNotificationForceMigration ||
+      !hasConversationMessageContextMigration ||
+      !hasConversationMessageScaleIndexesMigration ||
+      !hasConversationMessageInvariantsMigration ||
+      !hasConversationMessageBodySearchIndexMigration
     ) {
       throw new Error(
         `${REVIEWED_CONVERSATION_MESSAGE_INVARIANTS} requires completed SavedSearch and Notification RLS plus the exact Conversation/Message compatibility, invariant, and body-search-index migrations`,
@@ -1278,18 +1286,18 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
-      || !hasNotificationForceMigration
-      || !hasConversationMessageContextMigration
-      || !hasConversationMessageScaleIndexesMigration
-      || !hasConversationMessageInvariantsMigration
-      || !hasConversationMessageBodySearchIndexMigration
-      || !hasConversationMessageLegacyCleanupMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration ||
+      !hasNotificationForceMigration ||
+      !hasConversationMessageContextMigration ||
+      !hasConversationMessageScaleIndexesMigration ||
+      !hasConversationMessageInvariantsMigration ||
+      !hasConversationMessageBodySearchIndexMigration ||
+      !hasConversationMessageLegacyCleanupMigration
     ) {
       throw new Error(
         `${REVIEWED_CONVERSATION_MESSAGE_LEGACY_CLEANUP} requires completed SavedSearch and Notification RLS plus the exact Conversation/Message compatibility, invariant, body-search-index, and legacy-cleanup migrations`,
@@ -1329,19 +1337,19 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
-      || !hasNotificationForceMigration
-      || !hasConversationMessageContextMigration
-      || !hasConversationMessageScaleIndexesMigration
-      || !hasConversationMessageInvariantsMigration
-      || !hasConversationMessageBodySearchIndexMigration
-      || !hasConversationMessageLegacyCleanupMigration
-      || !hasConversationMessageAuthorityPreparationMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration ||
+      !hasNotificationForceMigration ||
+      !hasConversationMessageContextMigration ||
+      !hasConversationMessageScaleIndexesMigration ||
+      !hasConversationMessageInvariantsMigration ||
+      !hasConversationMessageBodySearchIndexMigration ||
+      !hasConversationMessageLegacyCleanupMigration ||
+      !hasConversationMessageAuthorityPreparationMigration
     ) {
       throw new Error(
         `${REVIEWED_CONVERSATION_MESSAGE_AUTHORITY_PREPARATION} requires completed SavedSearch and Notification RLS plus the exact Conversation/Message compatibility, invariant, body-search-index, legacy-cleanup, and functions-only authority-preparation migrations`,
@@ -1382,20 +1390,20 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CONVERSATION_MESSAGE_ACTIVATION) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
-      || !hasNotificationForceMigration
-      || !hasConversationMessageContextMigration
-      || !hasConversationMessageScaleIndexesMigration
-      || !hasConversationMessageInvariantsMigration
-      || !hasConversationMessageBodySearchIndexMigration
-      || !hasConversationMessageLegacyCleanupMigration
-      || !hasConversationMessageAuthorityPreparationMigration
-      || !hasConversationMessageActivationMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration ||
+      !hasNotificationForceMigration ||
+      !hasConversationMessageContextMigration ||
+      !hasConversationMessageScaleIndexesMigration ||
+      !hasConversationMessageInvariantsMigration ||
+      !hasConversationMessageBodySearchIndexMigration ||
+      !hasConversationMessageLegacyCleanupMigration ||
+      !hasConversationMessageAuthorityPreparationMigration ||
+      !hasConversationMessageActivationMigration
     ) {
       throw new Error(
         `${REVIEWED_CONVERSATION_MESSAGE_ACTIVATION} requires completed SavedSearch and Notification RLS plus the exact Conversation/Message compatibility, invariants, body-search-index, legacy-cleanup, authority-preparation, and initial activation migrations`,
@@ -1437,21 +1445,21 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CONVERSATION_MESSAGE_FORCE) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
-      || !hasNotificationForceMigration
-      || !hasConversationMessageContextMigration
-      || !hasConversationMessageScaleIndexesMigration
-      || !hasConversationMessageInvariantsMigration
-      || !hasConversationMessageBodySearchIndexMigration
-      || !hasConversationMessageLegacyCleanupMigration
-      || !hasConversationMessageAuthorityPreparationMigration
-      || !hasConversationMessageActivationMigration
-      || !hasConversationMessageForceMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration ||
+      !hasNotificationForceMigration ||
+      !hasConversationMessageContextMigration ||
+      !hasConversationMessageScaleIndexesMigration ||
+      !hasConversationMessageInvariantsMigration ||
+      !hasConversationMessageBodySearchIndexMigration ||
+      !hasConversationMessageLegacyCleanupMigration ||
+      !hasConversationMessageAuthorityPreparationMigration ||
+      !hasConversationMessageActivationMigration ||
+      !hasConversationMessageForceMigration
     ) {
       throw new Error(
         `${REVIEWED_CONVERSATION_MESSAGE_FORCE} requires completed SavedSearch and Notification RLS plus the exact Conversation/Message compatibility, invariants, body-search-index, legacy-cleanup, authority-preparation, initial activation, and FORCE migrations`,
@@ -1494,25 +1502,25 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_MESSAGE_COMPATIBILITY) {
     if (
-      !hasRpcMigration
-      || !hasRpcHardeningMigration
-      || !hasRlsMigration
-      || !hasForceRlsMigration
-      || !hasNotificationPreparationMigration
-      || !hasNotificationActivationMigration
-      || !hasNotificationForceMigration
-      || !hasConversationMessageContextMigration
-      || !hasConversationMessageScaleIndexesMigration
-      || !hasConversationMessageInvariantsMigration
-      || !hasConversationMessageBodySearchIndexMigration
-      || !hasConversationMessageLegacyCleanupMigration
-      || !hasConversationMessageAuthorityPreparationMigration
-      || !hasConversationMessageActivationMigration
-      || !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
+      !hasRpcMigration ||
+      !hasRpcHardeningMigration ||
+      !hasRlsMigration ||
+      !hasForceRlsMigration ||
+      !hasNotificationPreparationMigration ||
+      !hasNotificationActivationMigration ||
+      !hasNotificationForceMigration ||
+      !hasConversationMessageContextMigration ||
+      !hasConversationMessageScaleIndexesMigration ||
+      !hasConversationMessageInvariantsMigration ||
+      !hasConversationMessageBodySearchIndexMigration ||
+      !hasConversationMessageLegacyCleanupMigration ||
+      !hasConversationMessageAuthorityPreparationMigration ||
+      !hasConversationMessageActivationMigration ||
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_MESSAGE_COMPATIBILITY} requires completed Conversation/Message FORCE plus the exact CaseMessage author-kind, history-index, legacy-index-cleanup and private-attachment migrations`,
@@ -1545,14 +1553,14 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_DIRECT_UPLOAD_PREPARATION) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration
     ) {
       throw new Error(
         `${REVIEWED_DIRECT_UPLOAD_PREPARATION} requires the exact CaseMessage compatibility boundary plus the DirectUpload reference-ledger, fixed-authority and public-reference migrations`,
@@ -1584,15 +1592,15 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration
     ) {
       throw new Error(
         `${REVIEWED_DIRECT_UPLOAD_LEGACY_REPAIR} requires the exact DirectUpload compatible-preparation boundary plus the narrowly reviewed legacy-reference repair migration`,
@@ -1625,16 +1633,16 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_RESOLUTION_CLAIM_PREPARATION} requires the exact DirectUpload legacy-repair boundary plus the coexistence-safe Case resolution-claim preparation migration`,
@@ -1664,17 +1672,17 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_STRIPE_DISPUTE_AUTHORITY} requires the exact Case resolution-claim preparation plus the compatible fixed Stripe-dispute authority migration`,
@@ -1704,18 +1712,18 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_SELLER_REFUND_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_SELLER_REFUND_AUTHORITY} requires the exact fixed Stripe-dispute authority boundary plus the compatible fixed seller-refund authority migration`,
@@ -1746,19 +1754,19 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_STAFF_RESOLUTION_AUTHORITY} requires the exact seller-refund boundary plus the compatible four-operation staff-resolution authority migration`,
@@ -1790,20 +1798,20 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_PARTICIPANT_RESOLUTION_AUTHORITY} requires the exact staff-resolution boundary plus the compatible participant mark-resolved authority migration`,
@@ -1836,21 +1844,21 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_OPEN_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_OPEN_AUTHORITY} requires the exact participant-resolution boundary plus the compatible buyer Case-open authority migration`,
@@ -1884,22 +1892,22 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_REPLY_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_REPLY_AUTHORITY} requires the exact buyer Case-open boundary plus the compatible Case-reply authority migration`,
@@ -1934,23 +1942,23 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_MESSAGE_PREFLIGHT_AUTHORITY} requires the exact Case-reply boundary plus the compatible Case-message preflight authority migration`,
@@ -1986,24 +1994,24 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_MESSAGE_PAGE_AUTHORITY} requires the exact Case-message preflight boundary plus the compatible bounded Case-message page authority migration`,
@@ -2040,25 +2048,25 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_RECIPIENT_READ_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_RECIPIENT_READ_AUTHORITY} requires the exact Case-message page boundary plus the compatible Case recipient-read authority migration`,
@@ -2096,26 +2104,26 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_STAFF_QUEUE_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_STAFF_QUEUE_AUTHORITY} requires the exact Case recipient-read boundary plus the compatible Case staff-queue authority migration`,
@@ -2154,27 +2162,27 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
-      || !hasCaseOrderActiveAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration ||
+      !hasCaseOrderActiveAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_ORDER_ACTIVE_AUTHORITY} requires the exact Case staff-queue boundary plus the compatible Case-aware Order authority migration`,
@@ -2214,28 +2222,28 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
-      || !hasCaseOrderActiveAuthorityMigration
-      || !hasCaseSellerAggregateAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration ||
+      !hasCaseOrderActiveAuthorityMigration ||
+      !hasCaseSellerAggregateAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_SELLER_AGGREGATE_AUTHORITY} requires the exact Case-aware Order boundary plus the compatible seller aggregate authority migration`,
@@ -2276,29 +2284,29 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
-      || !hasCaseOrderActiveAuthorityMigration
-      || !hasCaseSellerAggregateAuthorityMigration
-      || !hasCaseAccountExportAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration ||
+      !hasCaseOrderActiveAuthorityMigration ||
+      !hasCaseSellerAggregateAuthorityMigration ||
+      !hasCaseAccountExportAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_ACCOUNT_EXPORT_AUTHORITY} requires the exact seller aggregate boundary plus the compatible participant account-export authority migration`,
@@ -2340,30 +2348,30 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_ESCALATION_CRON_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
-      || !hasCaseOrderActiveAuthorityMigration
-      || !hasCaseSellerAggregateAuthorityMigration
-      || !hasCaseAccountExportAuthorityMigration
-      || !hasCaseEscalationCronAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration ||
+      !hasCaseOrderActiveAuthorityMigration ||
+      !hasCaseSellerAggregateAuthorityMigration ||
+      !hasCaseAccountExportAuthorityMigration ||
+      !hasCaseEscalationCronAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_ESCALATION_CRON_AUTHORITY} requires the exact account-export boundary plus the compatible escalation and cron-transition authority migration`,
@@ -2406,31 +2414,31 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
-      || !hasCaseOrderActiveAuthorityMigration
-      || !hasCaseSellerAggregateAuthorityMigration
-      || !hasCaseAccountExportAuthorityMigration
-      || !hasCaseEscalationCronAuthorityMigration
-      || !hasCaseAccountDeletionAuthorityMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration ||
+      !hasCaseOrderActiveAuthorityMigration ||
+      !hasCaseSellerAggregateAuthorityMigration ||
+      !hasCaseAccountExportAuthorityMigration ||
+      !hasCaseEscalationCronAuthorityMigration ||
+      !hasCaseAccountDeletionAuthorityMigration
     ) {
       throw new Error(
         `${REVIEWED_CASE_ACCOUNT_DELETION_AUTHORITY} requires the exact escalation/cron boundary plus the compatible account-deletion authority migration`,
@@ -2474,44 +2482,40 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_INVARIANT) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
-      || !hasCaseOrderActiveAuthorityMigration
-      || !hasCaseSellerAggregateAuthorityMigration
-      || !hasCaseAccountExportAuthorityMigration
-      || !hasCaseEscalationCronAuthorityMigration
-      || !hasCaseAccountDeletionAuthorityMigration
-      || !hasCaseInvariantMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration ||
+      !hasCaseOrderActiveAuthorityMigration ||
+      !hasCaseSellerAggregateAuthorityMigration ||
+      !hasCaseAccountExportAuthorityMigration ||
+      !hasCaseEscalationCronAuthorityMigration ||
+      !hasCaseAccountDeletionAuthorityMigration ||
+      !hasCaseInvariantMigration
     ) {
       throw new Error(
-        `${REVIEWED_CASE_INVARIANT} requires the exact compatible Case `
-        + "authority boundary plus the reviewed invariant migration",
+        `${REVIEWED_CASE_INVARIANT} requires the exact compatible Case ` +
+          "authority boundary plus the reviewed invariant migration",
       );
     }
 
-    assertNoLaterMigration(
-      migrationNames,
-      CASE_INVARIANT_MIGRATION,
-      phase,
-    );
+    assertNoLaterMigration(migrationNames, CASE_INVARIANT_MIGRATION, phase);
     assertReviewedMigrationTree(phase, migrationTreeSha256);
     assertReviewedPrismaMigrationConfig(prismaConfigSha256);
     assertProductionArtifactExcludesContextGate({
@@ -2530,45 +2534,41 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_READ_MODE) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
-      || !hasCaseOrderActiveAuthorityMigration
-      || !hasCaseSellerAggregateAuthorityMigration
-      || !hasCaseAccountExportAuthorityMigration
-      || !hasCaseEscalationCronAuthorityMigration
-      || !hasCaseAccountDeletionAuthorityMigration
-      || !hasCaseInvariantMigration
-      || !hasCaseReadModeMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration ||
+      !hasCaseOrderActiveAuthorityMigration ||
+      !hasCaseSellerAggregateAuthorityMigration ||
+      !hasCaseAccountExportAuthorityMigration ||
+      !hasCaseEscalationCronAuthorityMigration ||
+      !hasCaseAccountDeletionAuthorityMigration ||
+      !hasCaseInvariantMigration ||
+      !hasCaseReadModeMigration
     ) {
       throw new Error(
-        `${REVIEWED_CASE_READ_MODE} requires the accepted Case invariant `
-        + "boundary plus the compatible four-function read-mode migration",
+        `${REVIEWED_CASE_READ_MODE} requires the accepted Case invariant ` +
+          "boundary plus the compatible four-function read-mode migration",
       );
     }
 
-    assertNoLaterMigration(
-      migrationNames,
-      CASE_READ_MODE_MIGRATION,
-      phase,
-    );
+    assertNoLaterMigration(migrationNames, CASE_READ_MODE_MIGRATION, phase);
     assertReviewedMigrationTree(phase, migrationTreeSha256);
     assertReviewedPrismaMigrationConfig(prismaConfigSha256);
     assertProductionArtifactExcludesContextGate({
@@ -2587,38 +2587,38 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_DIRECT_UPLOAD_RETIREMENT) {
     if (
-      !hasConversationMessageForceMigration
-      || !hasCaseMessageAuthorKindMigration
-      || !hasCaseMessageHistoryIndexMigration
-      || !hasCaseMessageHistoryIndexCleanupMigration
-      || !hasCaseMessagePrivateAttachmentsMigration
-      || !hasDirectUploadReferenceLedgerMigration
-      || !hasDirectUploadAuthorityMigration
-      || !hasDirectUploadPublicReferencesMigration
-      || !hasDirectUploadLegacyRepairMigration
-      || !hasCaseResolutionClaimPreparationMigration
-      || !hasCaseStripeDisputeAuthorityMigration
-      || !hasCaseSellerRefundAuthorityMigration
-      || !hasCaseStaffResolutionAuthorityMigration
-      || !hasCaseParticipantResolutionAuthorityMigration
-      || !hasCaseOpenAuthorityMigration
-      || !hasCaseReplyAuthorityMigration
-      || !hasCaseMessagePreflightAuthorityMigration
-      || !hasCaseMessagePageAuthorityMigration
-      || !hasCaseRecipientReadAuthorityMigration
-      || !hasCaseStaffQueueAuthorityMigration
-      || !hasCaseOrderActiveAuthorityMigration
-      || !hasCaseSellerAggregateAuthorityMigration
-      || !hasCaseAccountExportAuthorityMigration
-      || !hasCaseEscalationCronAuthorityMigration
-      || !hasCaseAccountDeletionAuthorityMigration
-      || !hasCaseInvariantMigration
-      || !hasCaseReadModeMigration
-      || !hasDirectUploadRetirementMigration
+      !hasConversationMessageForceMigration ||
+      !hasCaseMessageAuthorKindMigration ||
+      !hasCaseMessageHistoryIndexMigration ||
+      !hasCaseMessageHistoryIndexCleanupMigration ||
+      !hasCaseMessagePrivateAttachmentsMigration ||
+      !hasDirectUploadReferenceLedgerMigration ||
+      !hasDirectUploadAuthorityMigration ||
+      !hasDirectUploadPublicReferencesMigration ||
+      !hasDirectUploadLegacyRepairMigration ||
+      !hasCaseResolutionClaimPreparationMigration ||
+      !hasCaseStripeDisputeAuthorityMigration ||
+      !hasCaseSellerRefundAuthorityMigration ||
+      !hasCaseStaffResolutionAuthorityMigration ||
+      !hasCaseParticipantResolutionAuthorityMigration ||
+      !hasCaseOpenAuthorityMigration ||
+      !hasCaseReplyAuthorityMigration ||
+      !hasCaseMessagePreflightAuthorityMigration ||
+      !hasCaseMessagePageAuthorityMigration ||
+      !hasCaseRecipientReadAuthorityMigration ||
+      !hasCaseStaffQueueAuthorityMigration ||
+      !hasCaseOrderActiveAuthorityMigration ||
+      !hasCaseSellerAggregateAuthorityMigration ||
+      !hasCaseAccountExportAuthorityMigration ||
+      !hasCaseEscalationCronAuthorityMigration ||
+      !hasCaseAccountDeletionAuthorityMigration ||
+      !hasCaseInvariantMigration ||
+      !hasCaseReadModeMigration ||
+      !hasDirectUploadRetirementMigration
     ) {
       throw new Error(
-        `${REVIEWED_DIRECT_UPLOAD_RETIREMENT} requires the accepted Case `
-        + "read-mode boundary plus the reviewed DirectUpload compatibility-key retirement migration",
+        `${REVIEWED_DIRECT_UPLOAD_RETIREMENT} requires the accepted Case ` +
+          "read-mode boundary plus the reviewed DirectUpload compatibility-key retirement migration",
       );
     }
 
@@ -2645,13 +2645,13 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_DIRECT_UPLOAD_ACTIVATION) {
     if (
-      !hasCaseReadModeMigration
-      || !hasDirectUploadRetirementMigration
-      || !hasDirectUploadActivationMigration
+      !hasCaseReadModeMigration ||
+      !hasDirectUploadRetirementMigration ||
+      !hasDirectUploadActivationMigration
     ) {
       throw new Error(
-        `${REVIEWED_DIRECT_UPLOAD_ACTIVATION} requires the reviewed `
-        + "DirectUpload retirement and service-only activation migrations",
+        `${REVIEWED_DIRECT_UPLOAD_ACTIVATION} requires the reviewed ` +
+          "DirectUpload retirement and service-only activation migrations",
       );
     }
 
@@ -2678,23 +2678,19 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_ACTIVATION) {
     if (
-      !hasCaseReadModeMigration
-      || !hasDirectUploadRetirementMigration
-      || !hasDirectUploadActivationMigration
-      || !hasCaseActivationMigration
+      !hasCaseReadModeMigration ||
+      !hasDirectUploadRetirementMigration ||
+      !hasDirectUploadActivationMigration ||
+      !hasCaseActivationMigration
     ) {
       throw new Error(
-        `${REVIEWED_CASE_ACTIVATION} requires the accepted Case read-mode `
-        + "and DirectUpload activation boundaries plus the policyless Case "
-        + "ENABLE migration",
+        `${REVIEWED_CASE_ACTIVATION} requires the accepted Case read-mode ` +
+          "and DirectUpload activation boundaries plus the policyless Case " +
+          "ENABLE migration",
       );
     }
 
-    assertNoLaterMigration(
-      migrationNames,
-      CASE_ACTIVATION_MIGRATION,
-      phase,
-    );
+    assertNoLaterMigration(migrationNames, CASE_ACTIVATION_MIGRATION, phase);
     assertReviewedMigrationTree(phase, migrationTreeSha256);
     assertReviewedPrismaMigrationConfig(prismaConfigSha256);
     assertProductionArtifactExcludesContextGate({
@@ -2713,24 +2709,20 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_FORCE) {
     if (
-      !hasCaseReadModeMigration
-      || !hasDirectUploadRetirementMigration
-      || !hasDirectUploadActivationMigration
-      || !hasCaseActivationMigration
-      || !hasCaseForceMigration
+      !hasCaseReadModeMigration ||
+      !hasDirectUploadRetirementMigration ||
+      !hasDirectUploadActivationMigration ||
+      !hasCaseActivationMigration ||
+      !hasCaseForceMigration
     ) {
       throw new Error(
-        `${REVIEWED_CASE_FORCE} requires the accepted DirectUpload and `
-        + "policyless Case activation boundaries plus the posture-only "
-        + "Case FORCE migration",
+        `${REVIEWED_CASE_FORCE} requires the accepted DirectUpload and ` +
+          "policyless Case activation boundaries plus the posture-only " +
+          "Case FORCE migration",
       );
     }
 
-    assertNoLaterMigration(
-      migrationNames,
-      CASE_FORCE_MIGRATION,
-      phase,
-    );
+    assertNoLaterMigration(migrationNames, CASE_FORCE_MIGRATION, phase);
     assertReviewedMigrationTree(phase, migrationTreeSha256);
     assertReviewedPrismaMigrationConfig(prismaConfigSha256);
     assertProductionArtifactExcludesContextGate({
@@ -2750,14 +2742,14 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY) {
     if (
-      !hasCaseActivationMigration
-      || !hasCaseForceMigration
-      || !hasOrderPaymentShippingCompatibilityMigration
+      !hasCaseActivationMigration ||
+      !hasCaseForceMigration ||
+      !hasOrderPaymentShippingCompatibilityMigration
     ) {
       throw new Error(
-        `${REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY} requires the `
-        + "completed Case FORCE boundary plus the reviewed additive "
-        + "Order/payment/shipping compatibility migration",
+        `${REVIEWED_ORDER_PAYMENT_SHIPPING_COMPATIBILITY} requires the ` +
+          "completed Case FORCE boundary plus the reviewed additive " +
+          "Order/payment/shipping compatibility migration",
       );
     }
 
@@ -2784,15 +2776,15 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY) {
     if (
-      !hasCaseForceMigration
-      || !hasOrderPaymentShippingCompatibilityMigration
-      || !hasStripeWebhookMaintenanceAuthorityMigration
+      !hasCaseForceMigration ||
+      !hasOrderPaymentShippingCompatibilityMigration ||
+      !hasStripeWebhookMaintenanceAuthorityMigration
     ) {
       throw new Error(
-        `${REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY} requires the `
-        + "completed Case FORCE boundary, the reviewed Order/payment/shipping "
-        + "compatibility migration, and the reviewed Stripe webhook "
-        + "maintenance-authority migration",
+        `${REVIEWED_STRIPE_WEBHOOK_MAINTENANCE_AUTHORITY} requires the ` +
+          "completed Case FORCE boundary, the reviewed Order/payment/shipping " +
+          "compatibility migration, and the reviewed Stripe webhook " +
+          "maintenance-authority migration",
       );
     }
 
@@ -2820,16 +2812,16 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION) {
     if (
-      !hasCaseForceMigration
-      || !hasOrderPaymentShippingCompatibilityMigration
-      || !hasStripeWebhookMaintenanceAuthorityMigration
-      || !hasStripeWebhookEventActivationMigration
+      !hasCaseForceMigration ||
+      !hasOrderPaymentShippingCompatibilityMigration ||
+      !hasStripeWebhookMaintenanceAuthorityMigration ||
+      !hasStripeWebhookEventActivationMigration
     ) {
       throw new Error(
-        `${REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION} requires the `
-        + "completed Case FORCE boundary, the reviewed Order/payment/shipping "
-        + "compatibility and Stripe maintenance migrations, and the reviewed "
-        + "StripeWebhookEvent policyless activation migration",
+        `${REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION} requires the ` +
+          "completed Case FORCE boundary, the reviewed Order/payment/shipping " +
+          "compatibility and Stripe maintenance migrations, and the reviewed " +
+          "StripeWebhookEvent policyless activation migration",
       );
     }
 
@@ -2858,16 +2850,16 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE) {
     if (
-      !hasCaseForceMigration
-      || !hasOrderPaymentShippingCompatibilityMigration
-      || !hasStripeWebhookMaintenanceAuthorityMigration
-      || !hasStripeWebhookEventActivationMigration
-      || !hasStripeWebhookEventForceMigration
+      !hasCaseForceMigration ||
+      !hasOrderPaymentShippingCompatibilityMigration ||
+      !hasStripeWebhookMaintenanceAuthorityMigration ||
+      !hasStripeWebhookEventActivationMigration ||
+      !hasStripeWebhookEventForceMigration
     ) {
       throw new Error(
-        `${REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE} requires the completed `
-        + "StripeWebhookEvent policyless activation and the reviewed "
-        + "posture-only FORCE migration",
+        `${REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE} requires the completed ` +
+          "StripeWebhookEvent policyless activation and the reviewed " +
+          "posture-only FORCE migration",
       );
     }
 
@@ -2897,14 +2889,14 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY) {
     if (
-      !hasStripeWebhookEventActivationMigration
-      || !hasStripeWebhookEventForceMigration
-      || !hasCheckoutStockReservationAuthorityMigration
+      !hasStripeWebhookEventActivationMigration ||
+      !hasStripeWebhookEventForceMigration ||
+      !hasCheckoutStockReservationAuthorityMigration
     ) {
       throw new Error(
-        `${REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY} requires the `
-        + "completed StripeWebhookEvent policyless activation and FORCE "
-        + "boundaries plus the reviewed CheckoutStockReservation authority migration",
+        `${REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY} requires the ` +
+          "completed StripeWebhookEvent policyless activation and FORCE " +
+          "boundaries plus the reviewed CheckoutStockReservation authority migration",
       );
     }
 
@@ -2932,16 +2924,16 @@ export function validateSavedSearchRlsDeployShape({
 
   if (phase === REVIEWED_CASE_RESOLUTION_WINDOW) {
     if (
-      !hasCaseForceMigration
-      || !hasStripeWebhookEventActivationMigration
-      || !hasStripeWebhookEventForceMigration
-      || !hasCheckoutStockReservationAuthorityMigration
-      || !hasCaseResolutionWindowMigration
+      !hasCaseForceMigration ||
+      !hasStripeWebhookEventActivationMigration ||
+      !hasStripeWebhookEventForceMigration ||
+      !hasCheckoutStockReservationAuthorityMigration ||
+      !hasCaseResolutionWindowMigration
     ) {
       throw new Error(
-        `${REVIEWED_CASE_RESOLUTION_WINDOW} requires the completed Case FORCE `
-        + "boundary, the reviewed StripeWebhookEvent and reservation candidates, "
-        + "and the exact Case resolution-window migration",
+        `${REVIEWED_CASE_RESOLUTION_WINDOW} requires the completed Case FORCE ` +
+          "boundary, the reviewed StripeWebhookEvent and reservation candidates, " +
+          "and the exact Case resolution-window migration",
       );
     }
 
@@ -2982,7 +2974,9 @@ export function validateCurrentSavedSearchRlsDeployShape({
   const migrationDirectory = path.resolve(rootDirectory, "prisma/migrations");
   const prismaConfigPath = path.resolve(rootDirectory, PRISMA_CONFIG_PATH);
   const middlewarePath = path.resolve(rootDirectory, "src/middleware.ts");
-  const migrationNames = readdirSync(migrationDirectory, { withFileTypes: true })
+  const migrationNames = readdirSync(migrationDirectory, {
+    withFileTypes: true,
+  })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
 
@@ -3012,8 +3006,8 @@ function runDeployGuard() {
 }
 
 const isDirectExecution =
-  process.argv[1] !== undefined
-  && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isDirectExecution) {
   try {

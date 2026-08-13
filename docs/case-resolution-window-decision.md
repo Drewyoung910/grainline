@@ -9,12 +9,12 @@ Decision date: 2026-08-11.
 
 Participant resolution marks are asymmetric because the buyer owns the dispute:
 
-| State | Result |
-| --- | --- |
-| Buyer and seller both mark resolved | Resolve immediately as `DISMISSED`. |
-| Buyer marks resolved; seller does not confirm or reply | Remain `PENDING_CLOSE` for seven calendar days, then resolve as `DISMISSED`. |
-| Seller marks resolved; buyer does not confirm or reply | Remain `PENDING_CLOSE` until the buyer confirms or either party sends a Case message. Seller silence never dismisses the buyer's Case. |
-| Either participant sends a message while pending | Return to `IN_DISCUSSION` and clear both resolution marks. |
+| State                                                      | Result                                                                                                                                    |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Buyer and seller both mark resolved                        | Resolve immediately as `DISMISSED`.                                                                                                       |
+| Buyer marks resolved; seller does not confirm or reply     | Remain `PENDING_CLOSE` for seven calendar days, then resolve as `DISMISSED`.                                                              |
+| Seller marks resolved; buyer does not confirm or reply     | Remain `PENDING_CLOSE` until the buyer confirms or either party sends a Case message. Seller silence never dismisses the buyer's Case.    |
+| Either participant sends a message while pending           | Return to `IN_DISCUSSION` and clear both resolution marks.                                                                                |
 | The same participant marks resolved again after that reply | Start a new resolution cycle with a new database-derived audit and Notification source; retries within one active cycle reuse its source. |
 
 Seller-only pending rows remain visible in the existing staff queue. Automatic
@@ -88,6 +88,12 @@ the record:
   present for the full-tree verification;
 - `31540984229`: the queued FORCE and checkout directories remained visible to
   a grant audit whose disposable database had not applied them.
+- `31563305183`: PostgreSQL rejected the candidate before any proof ran because
+  a schema-qualified `substring` call incorrectly used the parser-only
+  `substring(value FROM start)` form. The migration now uses the ordinary
+  two-argument function form, and the repository-wide PostgreSQL special-form
+  guard rejects schema-qualified `substring` calls containing top-level `FROM`
+  or `FOR` tokens.
 
 None of these runs changed production. The final invariant is fail-closed in
 both directions: complete reviewed tree during sealed proofs, and an applied-
