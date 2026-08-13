@@ -108,6 +108,16 @@ blindly: the operator reveals the provider-held credential and compares it in
 memory with the private restart state. Only PostgreSQL `28P01` is accepted as
 proof that a superseded password rejects.
 
+Neon has returned two URL-safe generated-password shapes for the reviewed
+runtime role (16 and 64 characters); the control accepts exactly those observed
+lengths while keeping every target, role and operation assertion fixed. A lost
+Vercel deploy response is reconciled through a bounded deployment inventory:
+zero exact-source candidates permits one create, one exact candidate is reused,
+and multiple candidates stop as ambiguous. Existing mode-0600 FORCE postflight
+or final recovery evidence is reused only after every release, role, run, hash,
+route and no-mutation field validates; it is never overwritten or assumed valid
+because the file exists.
+
 The runtime path updates the sensitive Production `DATABASE_URL`, builds the
 exact currently deployed source `69c14c0618ea7ab9c74756422273d17d66db7efa`
 with `--prod --skip-domain`, requires READY state, then promotes and verifies
