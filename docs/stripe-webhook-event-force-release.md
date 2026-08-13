@@ -108,3 +108,25 @@ same six-function/direct-denial boundary, and records
 Connect v2 signed delivery and live-mode provider topology remain mandatory
 launch gates. They are not part of this posture-only database release and must
 not be used to broaden or reorder it.
+
+## Successor-isolated production runner correction
+
+Current `main` now also contains the separately reviewed but unapplied
+`20260810190000_prepare_checkout_stock_reservation_authority` successor. A
+plain `prisma migrate deploy` from that tree would collapse the FORCE and
+reservation-authority boundaries. The production workflow therefore verifies
+the complete successor tree and both byte-pinned releases first, moves only the
+reservation successor out of the disposable Actions checkout, re-verifies the
+exact FORCE-only tree, and only then invokes Prisma. After migration status and
+the global grant/RLS audit pass against that isolated tree, an engine-attested
+read-only transaction requires exactly one successful FORCE row and zero rows
+for the reservation successor, then rolls back. The proof emits only migration
+names and booleans; it does not mutate production or expose credentials,
+timestamps, checksums, or row data.
+
+This runner correction is production-inert until separately merged and
+dispatched. It does not authorize FORCE, reservation authority, application
+deployment, PR #196, or any provider change. The later reservation-authority
+release still requires its own wiring, inspection, exact-main CI, dispatch and
+postflight before application code that calls those fixed functions may be
+deployed.

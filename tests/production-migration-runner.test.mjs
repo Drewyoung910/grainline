@@ -9,6 +9,11 @@ import {
   parseProductionMigrationEnvironment,
   runProductionMigrationPreflight,
 } from "../scripts/guard-production-migration-runner.mjs";
+import {
+  assertStripeWebhookEventForceProductionScope,
+  parseStripeWebhookEventForceProductionScopeEnvironment,
+  verifyStripeWebhookEventForceProductionScope,
+} from "../scripts/verify-stripe-webhook-event-force-production-scope.mjs";
 
 const COMMIT = "a".repeat(40);
 const DIRECT_URL = "postgresql://neondb_owner:owner-password@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
@@ -202,11 +207,86 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     assert.match(
       workflow,
-      /Verify exact StripeWebhookEvent FORCE migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed[\s\S]{0,260}Verify exact StripeWebhookEvent FORCE release[\s\S]{0,220}audit:rls-stripe-webhook-event-force-release[\s\S]{0,220}Verify exact Case FORCE proof equivalence[\s\S]{0,180}audit:rls-case-force-release[\s\S]*Verify exact Case read-mode release bytes[\s\S]*audit:rls-case-read-mode-candidate[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*audit:rls-direct-upload-activation-release[\s\S]{0,220}Generate Prisma client/,
+      /Verify exact CheckoutStockReservation successor migration tree[\s\S]{0,260}checkout-stock-reservation-authority-reviewed[\s\S]{0,260}Verify exact CheckoutStockReservation successor release[\s\S]{0,220}audit:rls-checkout-stock-reservation-authority-release[\s\S]{0,260}Verify sealed StripeWebhookEvent FORCE predecessor[\s\S]{0,220}audit:rls-stripe-webhook-event-force-sealed-prefix[\s\S]*Verify exact Case FORCE proof equivalence[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*Isolate the reviewed CheckoutStockReservation successor[\s\S]*Verify exact StripeWebhookEvent FORCE migration tree after isolation[\s\S]{0,260}stripe-webhook-event-force-reviewed[\s\S]*Verify exact StripeWebhookEvent FORCE release after isolation[\s\S]{0,220}audit:rls-stripe-webhook-event-force-release[\s\S]{0,220}Generate Prisma client/,
+    );
+    assert.match(
+      workflow,
+      /Apply production migrations[\s\S]*Verify production migration status[\s\S]*Audit final runtime grants and RLS catalog[\s\S]*Prove exact FORCE-only production migration scope/,
     );
     assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);
     assert.match(runtimeSource, /requiredProductionEnv\("DATABASE_URL"\)/);
     assert.doesNotMatch(runtimeSource, /DIRECT_URL|MIGRATION_DB_ROLE/);
+  });
+
+  it("attests one applied FORCE row and an absent reservation successor", async () => {
+    const parsed = parseStripeWebhookEventForceProductionScopeEnvironment(
+      environment(),
+    );
+    const acceptedRows = [{
+      migration_name: "20260810172000_force_stripe_webhook_event_rls",
+      finished_at: new Date("2026-08-13T00:00:00.000Z"),
+      rolled_back_at: null,
+      applied_steps_count: 1,
+    }];
+    assert.deepEqual(assertStripeWebhookEventForceProductionScope(acceptedRows), {
+      forceMigration: "20260810172000_force_stripe_webhook_event_rls",
+      forceApplied: true,
+      successorMigration:
+        "20260810190000_prepare_checkout_stock_reservation_authority",
+      successorRows: 0,
+      productionChangedByProof: false,
+    });
+    const result = await verifyStripeWebhookEventForceProductionScope(parsed, {
+      readRows: async (url) => {
+        assert.equal(url, DIRECT_URL);
+        return acceptedRows;
+      },
+    });
+    assert.equal(result.forceApplied, true);
+    assert.doesNotMatch(JSON.stringify(result), /owner-password|DIRECT_URL/);
+
+    for (const rows of [
+      [],
+      [{ ...acceptedRows[0], finished_at: null }],
+      [{ ...acceptedRows[0], finished_at: undefined }],
+      [{ ...acceptedRows[0], rolled_back_at: new Date() }],
+      [{ ...acceptedRows[0], applied_steps_count: 0 }],
+      [...acceptedRows, {
+        migration_name:
+          "20260810190000_prepare_checkout_stock_reservation_authority",
+        finished_at: new Date(),
+        rolled_back_at: null,
+        applied_steps_count: 1,
+      }],
+    ]) {
+      assert.throws(
+        () => assertStripeWebhookEventForceProductionScope(rows),
+        /FORCE-only scope/,
+      );
+    }
+
+    for (const drift of [
+      { GITHUB_ACTIONS: "false" },
+      { GITHUB_EVENT_NAME: "push" },
+      { GITHUB_REF: "refs/heads/feature" },
+      { DIRECT_URL: DIRECT_URL.replace(".westus3", "-pooler.westus3") },
+      { DIRECT_URL: DIRECT_URL.replace("neondb_owner", "grainline_app_runtime") },
+    ]) {
+      assert.throws(
+        () => parseStripeWebhookEventForceProductionScopeEnvironment(
+          environment(drift),
+        ),
+      );
+    }
+
+    const scopeSource = fs.readFileSync(
+      "scripts/verify-stripe-webhook-event-force-production-scope.mjs",
+      "utf8",
+    );
+    assert.match(scopeSource, /BEGIN TRANSACTION READ ONLY/);
+    assert.match(scopeSource, /transaction_read_only/);
+    assert.match(scopeSource, /ROLLBACK/);
+    assert.doesNotMatch(scopeSource, /\b(?:insert|update|delete|truncate)\b/i);
   });
 });

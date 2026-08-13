@@ -73,6 +73,7 @@
     "audit:rls-stripe-webhook-event-activation-rollback": "node scripts/stripe-webhook-event-activation-rollback-proof.mjs",
     "audit:rls-stripe-webhook-event-force-release": "node scripts/verify-stripe-webhook-event-force-release.mjs",
     "audit:rls-stripe-webhook-event-force-sealed-prefix": "node scripts/verify-stripe-webhook-event-force-release.mjs --allow-reviewed-successor",
+    "audit:rls-stripe-webhook-event-force-production-scope": "node scripts/verify-stripe-webhook-event-force-production-scope.mjs",
     "audit:rls-stripe-webhook-event-force-postgres": "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/stripe-webhook-event-force-postgres-proof.mjs",
     "audit:rls-stripe-webhook-event-force-rollback": "node scripts/stripe-webhook-event-force-rollback-proof.mjs",
     "audit:rls-checkout-stock-reservation-authority-candidate": "node scripts/stage-checkout-stock-reservation-authority.mjs",
