@@ -49,6 +49,7 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
           ORDER_PAYMENT_SHIPPING_LEGACY_INSPECT_EVIDENCE_PATH: ${{ runner.temp }}/order-payment-shipping-legacy-inspection-${{ inputs.release_commit }}.json
       - name: Upload sanitized aggregate evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: order-payment-shipping-legacy-inspection-${{ github.sha }}

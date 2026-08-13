@@ -316,32 +316,68 @@ async function readPosture(client) {
     ],
   );
   const expectedTables = [...ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES].sort();
-  if (
-    result.rows.length !== expectedTables.length
-    || result.rows.some((row, index) =>
-      row.table_name !== expectedTables[index]
-      || row.owner_name
-        !== REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole
-      || row.rls_enabled !== false
-      || row.rls_forced !== false
-      || Number(row.policy_count) !== 0
-      || row.runtime_can_select !== true
-      || row.runtime_can_insert !== true
-      || row.runtime_can_update !== true
-      || row.runtime_can_delete !== true
-    )
-  ) {
+  const postureMatches = result.rows.length === expectedTables.length
+    && result.rows.every((row, index) => {
+      if (
+        row.table_name !== expectedTables[index]
+        || row.owner_name
+          !== REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole
+        || Number(row.policy_count) !== 0
+      ) return false;
+      if (row.table_name === "StripeWebhookEvent") {
+        return row.rls_enabled === true
+          && row.rls_forced === true
+          && row.runtime_can_select === false
+          && row.runtime_can_insert === false
+          && row.runtime_can_update === false
+          && row.runtime_can_delete === false;
+      }
+      return row.rls_enabled === false
+        && row.rls_forced === false
+        && row.runtime_can_select === true
+        && row.runtime_can_insert === true
+        && row.runtime_can_update === true
+        && row.runtime_can_delete === true;
+    });
+  if (!postureMatches) {
     throw new Error(
-      "Order/payment/shipping legacy inspection database posture is not the reviewed broad-CRUD predecessor",
+      "Order/payment/shipping inspection database posture is not the reviewed Stripe FORCE plus broad-CRUD predecessor",
     );
   }
   return Object.freeze({
     tables: expectedTables,
     tableOwner: REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole,
-    rlsEnabled: false,
-    rlsForced: false,
     policyCountPerTable: 0,
-    legacyRuntimeCrudRetained: true,
+    checkoutStockReservation: Object.freeze({
+      rlsEnabled: false,
+      rlsForced: false,
+      legacyRuntimeCrudRetained: true,
+    }),
+    stripeWebhookEvent: Object.freeze({
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    }),
+  });
+}
+
+export const RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS = Object.freeze([
+  "reservation_invalid_payload_hash_count",
+  "reservation_invalid_items_shape_count",
+  "reservation_invalid_item_member_count",
+  "reservation_missing_actor_count",
+  "reservation_duplicate_active_lock_count",
+  "reservation_state_coherence_count",
+  "stale_reservation_count",
+]);
+
+export function reservationAuthorityInspectionDecision(counts) {
+  const rejectedFields = RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS.filter(
+    (field) => counts?.[field] !== 0,
+  );
+  return Object.freeze({
+    accepted: rejectedFields.length === 0,
+    rejectedFields: Object.freeze(rejectedFields),
   });
 }
 
@@ -868,6 +904,8 @@ export async function runOrderPaymentShippingLegacyInspection(config) {
         snapshots: false,
         userIds: false,
       }),
+      reservationAuthorityCandidate:
+        reservationAuthorityInspectionDecision(counts),
       transaction: Object.freeze({ isolation: "repeatable read", readOnly: true }),
     });
   } catch (error) {
@@ -915,13 +953,20 @@ async function main() {
     const evidence = Object.freeze({
       generatedAt: new Date().toISOString(),
       git,
-      status: "passed",
+      status: result.reservationAuthorityCandidate.accepted
+        ? "passed"
+        : "blocked",
       ...result,
     });
     writeOrderPaymentShippingLegacyInspectionEvidence(
       config.evidencePath,
       evidence,
     );
+    if (!evidence.reservationAuthorityCandidate.accepted) {
+      throw new Error(
+        "reservation authority candidate has nonzero rejected aggregate counts",
+      );
+    }
     process.stdout.write(`${JSON.stringify({
       counts: evidence.counts,
       evidenceWritten: true,

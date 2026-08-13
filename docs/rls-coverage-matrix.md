@@ -67,7 +67,7 @@ completed alternative.
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
-| `CheckoutStockReservation` | `COMPATIBLE_CANDIDATE` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | Zero direct reservation delegates remain under `src`. The byte-pinned compatible migration and 15-operation reservation catalog are packaged and CI-isolated behind the separate StripeWebhookEvent FORCE proof; immutable source-object binding uses an atomic bound-begin overload with a private binder. The exact findings and gates are retained in `docs/checkout-stock-reservation-rls-audit.md`. Production is unchanged and the production runner is unwired. Next: full CI, Extra-High SQL review, separate webhook FORCE production completion, fresh aggregate reservation inspection, then compatible preparation |
+| `CheckoutStockReservation` | `COMPATIBLE_CANDIDATE` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | Zero direct reservation delegates remain under `src`; the byte-pinned compatible migration, 15 reservation operations plus the source-bound Stripe overload, and private helpers are merged. StripeWebhookEvent FORCE and its recovered pooled-runtime proof are accepted. A dedicated restart-safe compatible runner, exact production-scope proof, corrected mixed-posture aggregate inspection and separate pooled-runtime postflight are isolated and production-inert. Obsolete waiting inspection `31734121511` executed zero steps and was cancelled. Exact findings remain in `docs/checkout-stock-reservation-rls-audit.md`. Next: CI/review/merge, fresh same-main inspection with seven zero reservation-integrity fields, compatible migration, pooled-runtime postflight, then compatible app deployment/drain before separate ENABLE and FORCE |
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
@@ -216,9 +216,11 @@ preclude a later reviewed policy or grant migration.
    Keep Case evidence enablement, cleanup scheduling and provider/token changes
    outside that database boundary.
 6. Continue the Order/payment/shipping program: StripeWebhookEvent policyless
-   Phase A and its actual pooled-runtime postflight are complete. Preserve the
-   database-first rollback through the observation boundary, prepare FORCE as
-   a separate posture-only release, then continue the remaining Order,
+   FORCE and its recovered actual pooled-runtime postflight are complete.
+   CheckoutStockReservation compatible authority is the active release; run
+   its fresh inspection, compatible migration, pooled-runtime proof and
+   compatible app drain before separate policyless ENABLE and FORCE. Then
+   continue the remaining Order,
    OrderItem, quote, payment, payout and reservation tables as separately
    reviewed activations. Keep Connect v2 plus live-mode provider topology and
    signed delivery as distinct mandatory launch gates; the v2 route shares the

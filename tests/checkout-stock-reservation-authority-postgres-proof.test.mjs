@@ -10,6 +10,12 @@ import {
 import {
   stripeWebhookEventFunctionSources,
 } from "../scripts/stripe-webhook-event-function-source-catalog.mjs";
+import {
+  verifyReservationAuthorityRuntimeIdentity,
+  verifyReservationCompatibleFunctionCatalog,
+  verifyReservationCompatibleSchema,
+  verifyReservationCompatibleTablePosture,
+} from "../scripts/checkout-stock-reservation-authority-production-postflight.mjs";
 
 const draft = fs.readFileSync("docs/rls-drafts/checkout-stock-reservation-authority.sql", "utf8");
 const predecessorWebhookBeginSource =
@@ -88,6 +94,16 @@ const SOURCE_SCHEMA = String.raw`
     "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE INDEX "CheckoutStockReservation_checkoutLockKey_idx"
+    ON public."CheckoutStockReservation" ("checkoutLockKey");
+  CREATE INDEX "CheckoutStockReservation_status_expiresAt_idx"
+    ON public."CheckoutStockReservation" (status, "expiresAt");
+  CREATE INDEX "CheckoutStockReservation_buyerId_createdAt_idx"
+    ON public."CheckoutStockReservation" ("buyerId", "createdAt");
+  CREATE INDEX "CheckoutStockReservation_sellerId_createdAt_idx"
+    ON public."CheckoutStockReservation" ("sellerId", "createdAt");
+  CREATE INDEX "CheckoutStockReservation_buyerId_checkoutGroupId_idx"
+    ON public."CheckoutStockReservation" ("buyerId", "checkoutGroupId");
   ALTER TABLE public."CheckoutStockReservation"
     ADD CONSTRAINT "CheckoutStockReservation_status_chk"
     CHECK (status IN ('RESERVED', 'SESSION_CREATED', 'COMPLETED', 'RESTORED')),
@@ -319,6 +335,44 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       can_begin_bound_event: true,
       can_private_bind_event: false,
     });
+  });
+
+  it("executes the production compatible catalog readers as the restricted runtime", async () => {
+    await db.exec("SET ROLE grainline_app_runtime");
+    try {
+      await db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const transaction = await db.query(`
+        SELECT pg_catalog.current_setting('transaction_isolation') AS isolation,
+               pg_catalog.current_setting('transaction_read_only') AS read_only
+      `);
+      assert.deepEqual(transaction.rows, [{
+        isolation: "repeatable read",
+        read_only: "on",
+      }]);
+      await verifyReservationAuthorityRuntimeIdentity(db, {
+        databaseName: "grainline_ci",
+        runtimeRole: "grainline_app_runtime",
+      }, "ci", "postgres");
+      await verifyReservationCompatibleTablePosture(db, "ci");
+      await verifyReservationCompatibleSchema(db);
+      await verifyReservationCompatibleFunctionCatalog(db, "ci");
+      const direct = await db.query(`
+        SELECT pg_catalog.count(*)::integer AS count
+          FROM public."CheckoutStockReservation"
+      `);
+      assert.ok(Number.isSafeInteger(direct.rows[0]?.count));
+      const fixed = await db.query(`
+        SELECT pg_catalog.count(*)::integer AS count
+          FROM public.grainline_checkout_reservation_export(
+            'grainline-authority-postflight-absent-user'
+          )
+      `);
+      assert.deepEqual(fixed.rows, [{ count: 0 }]);
+      await db.exec("ROLLBACK");
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+      await db.exec("RESET ROLE");
+    }
   });
 
   it("pins the complete function catalog and runtime/PUBLIC ACL partition", async () => {

@@ -179,6 +179,40 @@ credential. Keep that credential out of the owner-only GitHub Production
 migration environment; local operator execution with sanitized mode-0600
 evidence is the deliberate separation boundary.
 
+### CheckoutStockReservation compatible production boundary (2026-08-13)
+
+StripeWebhookEvent FORCE is accepted after the restart-safe database
+credential recovery; its recovered pooled-runtime postflight is the
+prerequisite for reservation authority. The reservation migration and
+fixed-operation application are merged, while production remains at the
+broad-CRUD reservation predecessor.
+
+The production path is deliberately dedicated rather than reopening the
+single-purpose Stripe FORCE runner. It requires successful same-commit main CI
+and the corrected aggregate-only inspection, accepts only a clean predecessor
+or exact completed-compatible restart state, applies
+`20260810190000_prepare_checkout_stock_reservation_authority` only from the
+predecessor, and finishes with migration status, global grants/RLS audit and an
+exact whole-tree ledger proof. That proof byte-hashes all 194 reviewed
+migrations and admits only the already-proved listing-variants alias and
+DirectUpload failed-plus-corrected history; another pending, unknown,
+duplicated or checksum-drifted migration fails before Prisma can apply it. A
+separate pooled-runtime read-only postflight proves the
+compatible CRUD coexistence plus exact schema, trigger, index and 20-function
+source/ACL catalog.
+
+Review caught that the older inspection assumed StripeWebhookEvent was still
+RLS-off with broad CRUD. Waiting run `31734121511` ran no steps and was
+cancelled. The corrected gate requires StripeWebhookEvent policyless FORCE and
+zero direct runtime CRUD while the six other order/payment predecessors remain
+RLS-off broad CRUD; it fails when any of the seven reservation integrity counts
+is nonzero. Only a fresh successful inspection from the exact eventual main
+release SHA may authorize the compatible migration. After pooled-runtime
+acceptance, deploy and smoke the already-merged fixed-operation application,
+drain predecessor versions, then prepare reservation ENABLE and FORCE as two
+separate releases. Do not bundle Order/OrderItem/payment/payout activation into
+this service-ledger boundary.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
