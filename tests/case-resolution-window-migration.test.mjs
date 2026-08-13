@@ -118,9 +118,9 @@ describe("Case resolution-window correction", () => {
       migration,
       /pg_catalog\.substring\([^)]*\bFROM\b/i,
     );
-    assert.match(
+    assert.doesNotMatch(
       migration,
-      /audit\.id = audit_id_prefix\s+OR locked_case\.status = 'RESOLVED'::public\."CaseStatus"\s+OR audit\.metadata->>'at' = pg_catalog\.to_char\(\s*locked_case\."updatedAt"/,
+      /audit\.metadata->>'at'\s*=\s*pg_catalog\.to_char\(\s*locked_case\."updatedAt"/,
     );
     assert.doesNotMatch(migration, /p_audit|p_dedup|p_source_id/i);
   });
@@ -209,7 +209,7 @@ describe("Case resolution-window correction", () => {
     );
     assert.match(
       productionPostflight,
-      /20260811170000_align_case_resolution_window[\s\S]*446b99fd7541efd5f1f6f768bb522cfa6254a0cb9222872bd5d76d4938dbcd03/,
+      /20260811170000_align_case_resolution_window[\s\S]*b73f0887935cfd45ed15065c2807e3a556ddffcb8154f5bba8b29ae2981e1387/,
     );
     assert.match(
       productionPostflight,

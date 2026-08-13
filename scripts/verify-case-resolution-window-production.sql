@@ -31,7 +31,7 @@ BEGIN
    WHERE migration.migration_name =
          '20260811170000_align_case_resolution_window'
      AND migration.checksum =
-         '446b99fd7541efd5f1f6f768bb522cfa6254a0cb9222872bd5d76d4938dbcd03'
+         'b73f0887935cfd45ed15065c2807e3a556ddffcb8154f5bba8b29ae2981e1387'
      AND migration.finished_at IS NOT NULL
      AND migration.rolled_back_at IS NULL
      AND migration.applied_steps_count = 1;

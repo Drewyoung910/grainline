@@ -120,9 +120,10 @@ BEGIN
     || pg_catalog.md5(locked_case.id || ':' || locked_actor.id);
 
   -- A committed mark may be retried after its response was lost. Reuse the
-  -- newest valid source for the actor's currently active mark. A prior cycle
-  -- cannot reach this branch because a participant reply atomically clears
-  -- both marks before a new cycle begins.
+  -- newest valid source for the actor's currently active mark. A participant
+  -- reply atomically clears both marks before a new cycle begins; a staff reply
+  -- may advance updatedAt without clearing the active participant mark, so the
+  -- replay identity must not depend on the Case timestamp.
   IF (actor_is_buyer AND locked_case."buyerMarkedResolved")
      OR (actor_is_seller AND locked_case."sellerMarkedResolved") THEN
     SELECT
@@ -140,14 +141,6 @@ BEGIN
        AND audit.action = 'MARK_CASE_RESOLVED'
        AND audit."targetType" = 'CASE'
        AND audit."targetId" = locked_case.id
-       AND (
-         audit.id = audit_id_prefix
-         OR locked_case.status = 'RESOLVED'::public."CaseStatus"
-         OR audit.metadata->>'at' = pg_catalog.to_char(
-           locked_case."updatedAt",
-           'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
-         )
-       )
        AND (
          audit.id = audit_id_prefix
          OR (

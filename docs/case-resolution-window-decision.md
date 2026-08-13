@@ -38,9 +38,11 @@ treated a resolution mark as a permanent one-per-actor event. Its deterministic
 `(Case, actor)` audit ID was correct for retries but collided after a Case reply
 cleared both marks and the same participant later started a legitimate new
 resolution cycle. The correction keeps legacy audit IDs replayable, generates
-each new cycle suffix inside PostgreSQL, binds active-cycle replay to the Case's
-current transition timestamp, and rejects an ambiguous older source rather than
-minting authority. No audit or dedup identity is accepted from the caller.
+each new cycle suffix inside PostgreSQL, and reuses the newest fully validated
+source while that participant's mark remains active. A participant reply clears
+both marks before another cycle; a staff reply may advance the Case timestamp
+without clearing the mark, so timestamp equality is deliberately not replay
+authority. No audit or dedup identity is accepted from the caller.
 
 ## Required atomic release surface
 
@@ -50,7 +52,8 @@ minting authority. No audit or dedup identity is accepted from the caller.
   User, Order, and Case locks;
 - retain exact audit and Notification source binding;
 - prove mark, same-cycle retry, reply/reopen, second mark with a distinct source,
-  and second-cycle retry through the pooled runtime role;
+  staff follow-up without mark invalidation, and second-cycle retry through the
+  pooled runtime role;
 - verify the database-derived participant notification remains accurate, and
   align buyer and seller UI, Help pages, Terms, cron metrics, static tests, and
   disposable PostgreSQL proof;

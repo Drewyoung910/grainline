@@ -56,6 +56,7 @@ describe("Case participant-resolution PostgreSQL proof", () => {
       "buyerReplay",
       "sellerReplay",
       "proveRepeatedResolutionCycle",
+      "Staff follow-up must not invalidate the active resolution source",
       "secondReplay",
       "secondMark.auditLogId, firstMark.auditLogId",
       "waitForLock",

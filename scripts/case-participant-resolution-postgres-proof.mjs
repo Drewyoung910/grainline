@@ -530,6 +530,20 @@ async function proveRepeatedResolutionCycle(observer, runtime) {
   assert.equal(secondMark.action, "updated");
   assert.notEqual(secondMark.auditLogId, firstMark.auditLogId);
 
+  const staffReply = await runtimeQuery(
+    runtime,
+    `
+      SELECT public.grainline_case_reply(
+        $1,
+        $2,
+        'Staff follow-up must not invalidate the active resolution source.',
+        ARRAY[]::text[]
+      ) AS result
+    `,
+    [ids.staff, ids.repeatedCycleCase],
+  );
+  assert.equal(staffReply.rows[0]?.result?.status, "PENDING_CLOSE");
+
   const secondReplay = await markResolved(
     runtime,
     ids.buyer,
