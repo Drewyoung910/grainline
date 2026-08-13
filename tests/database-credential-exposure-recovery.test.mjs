@@ -9,6 +9,7 @@ import {
   FORCE_RELEASE_COMMIT,
   PRIOR_DEPLOYMENT_ID,
   RECOVERY_CONFIRMATION,
+  assertRecoveryVercelStage,
   classifyCredentialProbe,
   freshRecoveryState,
   normalizeCandidateDeployment,
@@ -184,20 +185,147 @@ test("recovery Vercel inventory tolerates credential timestamp changes but no au
       { key: "RUNTIME_DB_ROLE", type: "sensitive", target: ["production"], gitBranch: null, updatedAt: 2 },
     ],
   };
-  const shared = { data: [], pagination: { count: 0, next: null } };
-  assert.equal(normalizeRecoveryVercelState(project, shared).stage, "runtime-only");
+  const sharedId = "env_TestRetainedSharedDatabase";
+  const reviewed = {
+    developmentDatabaseValueSha256: "0".repeat(64),
+    developmentCreatedAt: 10,
+    developmentUpdatedAt: 10,
+    projectId: "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp",
+    sharedDatabaseEnvironmentIdSha256: createHash("sha256")
+      .update(sharedId).digest("hex"),
+    sharedCreatedAt: 20,
+    sharedUpdatedAt: 21,
+  };
+  const shared = {
+    data: [{
+      id: sharedId,
+      key: "DATABASE_URL",
+      type: "encrypted",
+      target: ["development", "preview", "production"],
+      projectId: [],
+      createdAt: 20,
+      updatedAt: 22,
+    }],
+    pagination: { count: 1, next: null },
+  };
+  assert.equal(normalizeRecoveryVercelState(project, shared, reviewed).stage, "runtime-only");
   assert.equal(normalizeRecoveryVercelState({
     envs: project.envs.map((entry) => ({ ...entry, updatedAt: entry.updatedAt + 100 })),
-  }, shared).stage, "runtime-only");
+  }, shared, reviewed).stage, "runtime-only");
   assert.throws(() => normalizeRecoveryVercelState({
     envs: [...project.envs, {
       key: "DIRECT_URL", type: "sensitive", target: ["production"], gitBranch: null,
     }],
-  }, shared), /privileged/);
+  }, shared, reviewed), /privileged/);
   assert.throws(() => normalizeRecoveryVercelState(project, {
-    data: [{ key: "DATABASE_URL", projectId: ["prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp"] }],
+    data: [{
+      ...shared.data[0],
+      id: "env_Unexpected",
+      projectId: ["prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp"],
+    }],
     pagination: { count: 1, next: null },
-  }), /shared/);
+  }, reviewed), /shared/);
+  assert.throws(() => normalizeRecoveryVercelState(project, {
+    data: [], pagination: { count: 0, next: null },
+  }, reviewed), /shared/);
+});
+
+test("recovery Vercel inventory accepts only the reviewed removal sequence", () => {
+  const projectId = "prj_TestGrainline";
+  const developmentCiphertext = "provider-ciphertext-test-fixture";
+  const sharedId = "env_SharedDatabaseTest";
+  const reviewed = {
+    developmentDatabaseValueSha256: createHash("sha256")
+      .update(developmentCiphertext).digest("hex"),
+    developmentCreatedAt: 10,
+    developmentUpdatedAt: 10,
+    projectId,
+    sharedDatabaseEnvironmentIdSha256: createHash("sha256")
+      .update(sharedId).digest("hex"),
+    sharedCreatedAt: 20,
+    sharedUpdatedAt: 21,
+  };
+  const production = [
+    {
+      key: "DATABASE_URL", type: "sensitive", target: ["production"],
+      gitBranch: null, createdAt: 1, updatedAt: 2,
+    },
+    {
+      key: "RUNTIME_DB_ROLE", type: "sensitive", target: ["production"],
+      gitBranch: null, createdAt: 3, updatedAt: 4,
+    },
+  ];
+  const development = {
+    configurationId: null,
+    key: "DATABASE_URL",
+    type: "encrypted",
+    target: ["development"],
+    createdAt: 10,
+    updatedAt: 10,
+    value: developmentCiphertext,
+  };
+  const sharedDatabase = {
+    id: sharedId,
+    key: "DATABASE_URL",
+    type: "encrypted",
+    target: ["development", "preview", "production"],
+    projectId: [projectId],
+    createdAt: 20,
+    updatedAt: 21,
+  };
+  const shared = (data) => ({ data, pagination: { count: data.length, next: null } });
+
+  const initial = normalizeRecoveryVercelState(
+    { envs: [...production, development] },
+    shared([sharedDatabase]),
+    reviewed,
+  );
+  assert.equal(initial.stage, "reviewed-owner-scope");
+  assert.equal(initial.sharedDatabaseEnvironmentId, sharedId);
+  assert.equal(normalizeRecoveryVercelState(
+    { envs: production }, shared([sharedDatabase]), reviewed,
+  ).stage, "development-removed");
+  assert.equal(normalizeRecoveryVercelState(
+    { envs: production },
+    shared([{ ...sharedDatabase, projectId: [], updatedAt: 22 }]),
+    reviewed,
+  ).stage, "runtime-only");
+  assert.throws(() => normalizeRecoveryVercelState(
+    { envs: [...production, development] },
+    shared([{ ...sharedDatabase, projectId: [], updatedAt: 22 }]),
+    reviewed,
+  ), /order drifted/);
+  assert.throws(() => normalizeRecoveryVercelState(
+    { envs: [...production, { ...development, updatedAt: 11 }] },
+    shared([sharedDatabase]),
+    reviewed,
+  ), /inventory drifted/);
+  assert.throws(() => normalizeRecoveryVercelState(
+    { envs: [...production, development] },
+    shared([{ ...sharedDatabase, projectId: [projectId, "prj_Other"] }]),
+    reviewed,
+  ), /shared database credential inventory drifted/);
+});
+
+test("recovery restart stages accept only their exact Vercel sanitation state", () => {
+  assert.equal(assertRecoveryVercelStage(
+    "preflight", "reviewed-owner-scope",
+  ), true);
+  assert.equal(assertRecoveryVercelStage(
+    "vercel-development-removal-started", "development-removed",
+  ), true);
+  assert.equal(assertRecoveryVercelStage(
+    "vercel-shared-unlink-started", "runtime-only",
+  ), true);
+  assert.equal(assertRecoveryVercelStage(
+    "runtime-reset-started", "runtime-only",
+  ), true);
+  assert.throws(() => assertRecoveryVercelStage(
+    "vercel-development-removed", "runtime-only",
+  ), /restart stage/);
+  assert.throws(() => assertRecoveryVercelStage(
+    "runtime-reset-started", "development-removed",
+  ), /restart stage/);
 });
 
 test("replacement deployment inventory recovers exactly one lost CLI response", () => {
@@ -324,6 +452,8 @@ test("restart evidence validators accept only the exact completed proofs", () =>
       },
     },
     productionChangedByRecovery: [
+      "vercel_development_database_url_removed",
+      "vercel_shared_database_url_unlinked",
       "neon_runtime_password",
       "vercel_production_database_url",
       "vercel_exact_source_redeployment",
@@ -331,6 +461,13 @@ test("restart evidence validators accept only the exact completed proofs", () =>
       "github_production_migration_secret_and_digest",
     ],
     migrationsApplied: [],
+    vercel: {
+      developmentDatabaseUrlRemoved: true,
+      sharedDatabaseUrlUnlinked: true,
+      sharedDatabaseEnvironmentRetained: true,
+      developmentDatabaseUrlAbsent: true,
+      previewDatabaseUrlAbsent: true,
+    },
     providerScopeOutsideRecoveryChanged: false,
   };
   assert.equal(
@@ -340,6 +477,13 @@ test("restart evidence validators accept only the exact completed proofs", () =>
   assert.throws(() => validateRecoveryEvidence({
     ...recoveryEvidence,
     migrationsApplied: ["forbidden"],
+  }, config, state));
+  assert.throws(() => validateRecoveryEvidence({
+    ...recoveryEvidence,
+    vercel: {
+      ...recoveryEvidence.vercel,
+      sharedDatabaseEnvironmentRetained: false,
+    },
   }, config, state));
 });
 
@@ -388,6 +532,9 @@ test("operator never logs secrets and preserves all explicit no-migration bounda
   assert.match(source, /"promote"/);
   assert.match(source, /expectCredentialRejected\(state\.priorRuntimeUrl\)/);
   assert.match(source, /expectCredentialRejected\(state\.priorOwnerUrl\)/);
+  assert.match(source, /"env", "rm", "DATABASE_URL", "development"/);
+  assert.match(source, /\/unlink\/\$\{REVIEWED_VERCEL_PROJECT\.projectId\}/);
+  assert.match(source, /\["development", "preview"\]/);
   assert.match(source, /runStripeWebhookEventForcePostflight/);
   assert.match(source, /migrationsApplied: \[\]/);
   assert.match(source, /providerScopeOutsideRecoveryChanged: false/);
