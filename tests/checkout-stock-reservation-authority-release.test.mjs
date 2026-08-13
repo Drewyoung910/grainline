@@ -141,6 +141,16 @@ test("dedicated production runner and compatible runtime proof are documented se
   assert.match(release, /all 194 local migration files/i);
   assert.match(release, /listing-variants alias/i);
   assert.match(release, /DirectUpload activation pair/i);
+  assert.match(release, /31745337593[\s\S]*failed[\s\S]*read-only/i);
+  assert.match(
+    release,
+    /faf1ac4063a888e0405981aba57c177c4bbb33b184a8b315ace52152d21dc274/,
+  );
+  assert.match(
+    release,
+    /0ae1197e6d8fd936e201ac793f810a42c1358bbea70f66cabffb7415f960aad6/,
+  );
+  assert.match(release, /does not rewrite[\s\S]*_prisma_migrations/i);
 });
 
 test("release record retains exact bytes and the no-production boundary", () => {

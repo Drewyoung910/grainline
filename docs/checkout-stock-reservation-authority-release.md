@@ -1,8 +1,10 @@
 # CheckoutStockReservation compatible authority release
 
-Status: compatible migration and application are merged; production runner
-and pooled-runtime postflight are prepared on an isolated branch. Production
-is unchanged.
+Status: compatible migration and application are merged. The first production
+preparation run failed closed before Prisma or any mutating step because one
+historical migration was amended after production had applied its original
+bytes. The exact-checksum verifier correction is isolated; the authority
+migration remains unapplied and production schema/grants are unchanged.
 
 This release packages the reviewed CheckoutStockReservation fixed-operation
 authority without activating reservation RLS or removing predecessor table
@@ -72,12 +74,14 @@ compatible migration only from the predecessor state, then runs migration
 status, the global grant/RLS audit and an exact post-application ledger proof.
 The restart proof hashes all 194 local migration files and requires every
 ordinary predecessor to have exactly one completed matching ledger row. It
-permits only the two previously proved historical exceptions: the
+permits only three explicitly pinned historical exceptions: the
 same-checksum, zero-step, rolled-back listing-variants alias and the exact
-zero-step failed plus corrected-applied DirectUpload activation pair. Every
-other unknown name, rolled-back or incomplete row, duplicate, checksum change,
-or local successor migration fails before `prisma migrate deploy`, so that
-command cannot silently apply an unrelated pending migration.
+zero-step failed plus corrected-applied DirectUpload activation pair, plus the
+single completed original-checksum row for
+`20260523223000_schema_numeric_guards_and_indexes` described below. Every other
+unknown name, rolled-back or incomplete row, duplicate, checksum change, or
+local successor migration fails before `prisma migrate deploy`, so that command
+cannot silently apply an unrelated pending migration.
 It does not deploy, enable reservation RLS, revoke predecessor table grants or
 change provider state. The separate pooled-runtime postflight uses the actual
 restricted pooled role in an engine-attested repeatable-read/read-only
@@ -96,6 +100,40 @@ counts is nonzero. The eventual production runner requires a fresh successful
 inspection from its own exact release commit; historical or predecessor-SHA
 evidence cannot satisfy it.
 
+### Failed run 31745337593 and immutable-history correction
+
+Guarded production run `31745337593`, bound to exact main
+`cfd628da30d7fc44153f423fde28caddbd97b195`, passed its exact-run bindings,
+source/owner/role checks, migration byte pins and sealed StripeWebhookEvent
+FORCE predecessor. It then failed at the engine-read-only restart-scope step.
+Prisma generation, `prisma migrate deploy`, migration status, grant convergence
+and every post-application proof were skipped. The run made no production
+database change.
+
+A subsequent sanitized, repeatable-read/read-only owner inspection found one
+otherwise-unclassified predecessor row:
+`20260523223000_schema_numeric_guards_and_indexes` is complete, not rolled back,
+has one applied step and retains SHA-256
+`faf1ac4063a888e0405981aba57c177c4bbb33b184a8b315ace52152d21dc274`.
+That checksum exactly matches the migration as created by
+`207c52c80206ff211bb9d552e141ee8885837ffa`. Commit
+`374fe421f74e7726379f8dfd305587cd539fc1ad` appended 26 lines to the already
+applied file about 3 hours 13 minutes later, producing the repository's current
+SHA-256
+`0ae1197e6d8fd936e201ac793f810a42c1358bbea70f66cabffb7415f960aad6`.
+This is a proved repository-history defect, not evidence of production
+tampering.
+
+The production-scope correction does not rewrite the migration, resolve or
+modify `_prisma_migrations`, or permit a general checksum bypass. For this one
+named migration it requires exactly one completed, non-rolled-back, one-step
+row with the exact original checksum and also requires the current repository
+checksum to be different. The current checksum, any near match, duplicate,
+unfinished, rolled-back or zero-step shape fails closed. Unit tests and a
+disposable PostgreSQL ledger proof cover the accepted and rejected shapes.
+Future migrations must correct previously applied behavior in a new migration;
+an applied migration file is immutable.
+
 ## Required pre-production gates
 
 1. Complete exact-head and exact-main CI, including exact-tree verification, real PostgreSQL migration
@@ -103,11 +141,12 @@ evidence cannot satisfy it.
 2. Independently review the promoted SQL/function catalog at Extra High.
 3. Retain the accepted StripeWebhookEvent FORCE migration and actual
    pooled-runtime postflight from the completed credential recovery.
-4. Merge the reviewed dedicated runner, then run the corrected aggregate-only
-   inspection from that exact main commit. All reservation-integrity fields
-   must be zero.
-5. Dispatch only the restart-safe compatible-authority runner bound to that
-   exact successful CI and inspection.
+4. Merge the separately reviewed exact historical-checksum correction only
+   after CI and disposable PostgreSQL proof succeed.
+5. Dispatch only the restart-safe compatible-authority runner bound to a fresh
+   exact-main CI and the already accepted aggregate inspection if its binding
+   remains valid; otherwise obtain a fresh aggregate-only inspection. All
+   reservation-integrity fields must be zero.
 6. Run and retain the separate actual pooled-runtime compatible postflight.
 7. Deploy and smoke the already-merged fixed-operation application, drain predecessor
    versions, prove zero direct reservation access, then prepare policyless

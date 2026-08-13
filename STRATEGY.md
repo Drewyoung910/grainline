@@ -194,8 +194,10 @@ or exact completed-compatible restart state, applies
 `20260810190000_prepare_checkout_stock_reservation_authority` only from the
 predecessor, and finishes with migration status, global grants/RLS audit and an
 exact whole-tree ledger proof. That proof byte-hashes all 194 reviewed
-migrations and admits only the already-proved listing-variants alias and
-DirectUpload failed-plus-corrected history; another pending, unknown,
+migrations and admits only the already-proved listing-variants alias,
+DirectUpload failed-plus-corrected history, and the exact original checksum of
+the numeric-guards migration that production applied before the repository
+amended that file; another pending, unknown,
 duplicated or checksum-drifted migration fails before Prisma can apply it. A
 separate pooled-runtime read-only postflight proves the
 compatible CRUD coexistence plus exact schema, trigger, index and 20-function
@@ -212,6 +214,17 @@ acceptance, deploy and smoke the already-merged fixed-operation application,
 drain predecessor versions, then prepare reservation ENABLE and FORCE as two
 separate releases. Do not bundle Order/OrderItem/payment/payout activation into
 this service-ledger boundary.
+
+First application attempt `31745337593` failed safely in the read-only ledger
+scope before Prisma generation or mutation. A read-only inspection proved that
+production has the exact original one-step checksum for
+`20260523223000_schema_numeric_guards_and_indexes`; the file was amended in Git
+about 3 hours 13 minutes after production applied it. The isolated correction
+accepts only that one named original checksum and exact completed shape, with
+unit and disposable PostgreSQL rejection coverage for current/near-match,
+duplicate, incomplete, rolled-back and zero-step rows. It does not rewrite the
+ledger or migration. Do not resume production preparation until that correction
+has separate review and exact-main CI.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
