@@ -36,7 +36,8 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, and
-`CaseMessageAttachment`; all nine tables are `FORCE ROW LEVEL SECURITY`
+`CaseMessageAttachment`, and `StripeWebhookEvent`; all ten tables are
+`FORCE ROW LEVEL SECURITY`
 hardened in production. DirectUpload and the Case family intentionally use
 policyless RLS with no direct ordinary-runtime table or column authority: all
 permitted behavior goes through reviewed fixed functions. DirectUpload's
@@ -66,11 +67,12 @@ service/audit ledgers remain separately reviewed later groups; do not bundle
 their policies or grants.
 
 The first Order/payment/shipping database boundary is the service-owned
-`StripeWebhookEvent` ledger. Its target is policyless ENABLE (FORCE later), zero
+`StripeWebhookEvent` ledger. Policyless ENABLE plus FORCE is live with zero
 ordinary-runtime/PUBLIC table or column authority, and exactly six
-source-pinned fixed functions. Production activation evidence must include a
-separate actual pooled-runtime read-only postflight; do not add the runtime URL
-to the owner-only GitHub Production migration environment to automate it.
+source-pinned fixed functions. Its final pooled-runtime read-only postflight is
+blocked only on the separately documented 2026-08-13 credential rotation; do
+not add the runtime URL to the owner-only GitHub Production migration
+environment to automate it.
 
 `CheckoutStockReservation` is the next service-ledger boundary. Its compatible
 candidate keeps direct table grants temporarily for old deployments but moves
