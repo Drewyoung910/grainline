@@ -137,15 +137,17 @@ export async function POST(
     }
 
     const message = caseResolutionMessage(result.status);
-    await notifyCounterpartyOfResolutionMark({
-      caseId: result.caseId,
-      orderId: result.orderId,
-      actorId: me.id,
-      buyerId: result.buyerUserId,
-      sellerId: result.sellerUserId,
-      status: result.status,
-      authoritySourceId: result.auditLogId,
-    });
+    if (result.action !== "historical_replay") {
+      await notifyCounterpartyOfResolutionMark({
+        caseId: result.caseId,
+        orderId: result.orderId,
+        actorId: me.id,
+        buyerId: result.buyerUserId,
+        sellerId: result.sellerUserId,
+        status: result.status,
+        authoritySourceId: result.auditLogId,
+      });
+    }
 
     return privateJson({
       ok: true,
