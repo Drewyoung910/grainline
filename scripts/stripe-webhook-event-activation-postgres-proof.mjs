@@ -258,7 +258,9 @@ export async function proveStripeWebhookEventRuntimeBoundary(
 
 export async function runStripeWebhookEventActivationProof(env = process.env) {
   const { databaseUrl } = parseStripeWebhookEventActivationProofConfig(env);
-  verifyStripeWebhookEventActivationRelease();
+  verifyStripeWebhookEventActivationRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
   const owner = new Client({ connectionString: databaseUrl });
   await owner.connect();
   try {

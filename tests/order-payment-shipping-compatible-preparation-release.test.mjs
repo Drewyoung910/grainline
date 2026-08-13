@@ -93,16 +93,17 @@ test("CI and production migration workflows fail closed on the exact release", (
   assert.ok(forceProof > reservationProof);
   assert.ok(ciDeploy > forceProof);
 
-  const productionTreeGuard = production.indexOf(
-    "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed",
+  const productionPredecessorProof = production.indexOf(
+    "npm run audit:rls-stripe-webhook-event-force-sealed-prefix",
   );
-  const productionProof = production.indexOf(
-    "npm run audit:rls-stripe-webhook-event-force-release",
+  const productionTreeGuard = production.indexOf(
+    "SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed",
   );
   const productionDeploy = production.indexOf("npx prisma migrate deploy");
+  assert.ok(productionPredecessorProof >= 0);
   assert.ok(productionTreeGuard >= 0);
-  assert.ok(productionProof > productionTreeGuard);
-  assert.ok(productionDeploy > productionProof);
+  assert.ok(productionTreeGuard > productionPredecessorProof);
+  assert.ok(productionDeploy > productionTreeGuard);
 });
 
 test("release record preserves the non-activation boundary and proof history", () => {

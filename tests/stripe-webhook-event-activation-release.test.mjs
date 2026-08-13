@@ -54,7 +54,7 @@ test("release pins one policyless ENABLE activation with no row mutation", () =>
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.successorPhase,
-    "checkout-stock-reservation-authority-reviewed",
+    "case-resolution-window-reviewed",
   );
   assert.equal(release.draftSha256, STRIPE_WEBHOOK_EVENT_ACTIVATION_DRAFT_SHA256);
   assert.equal(release.migrationSha256, candidate.migrationSha256);
@@ -205,6 +205,14 @@ test("CI stages compatibility first and proves activation before production can 
     pkg.scripts["ops:stripe-webhook-event-activation-postflight"],
     "node scripts/stripe-webhook-event-activation-production-postflight.mjs",
   );
+  assert.match(
+    proof,
+    /verifyStripeWebhookEventActivationRelease\(undefined, \{\s*allowReviewedSuccessor: true/,
+  );
+  assert.match(
+    rollbackProof,
+    /verifyStripeWebhookEventActivationRelease\(undefined, \{\s*allowReviewedSuccessor: true/,
+  );
   const isolate = ci.indexOf("Isolate the exact StripeWebhookEvent activation");
   const compatibility = ci.indexOf("Apply compatible migrations to CI Postgres");
   const restore = ci.indexOf("Restore the exact StripeWebhookEvent activation");
@@ -221,9 +229,17 @@ test("CI stages compatibility first and proves activation before production can 
   );
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
+  assert.match(
+    ci,
+    /Audit activated StripeWebhookEvent grants and RLS catalog[\s\S]*Restore reviewed successor directories for sealed StripeWebhookEvent activation proofs[\s\S]*20260810172000_force_stripe_webhook_event_rls[\s\S]*20260810190000_prepare_checkout_stock_reservation_authority[\s\S]*Prove policyless StripeWebhookEvent activation[\s\S]*Re-isolate reviewed successors before the StripeWebhookEvent FORCE migration[\s\S]*Re-audit restored StripeWebhookEvent activation posture[\s\S]*Restore the exact StripeWebhookEvent FORCE release/,
+  );
+  assert.match(production, /case-resolution-window-reviewed/);
   assert.ok(
-    production.indexOf("audit:rls-stripe-webhook-event-force-release")
+    production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
       < production.indexOf("npx prisma migrate deploy"),
+  );
+  assert.match(
+    production,
+    /Isolate queued StripeWebhookEvent FORCE from this Case-only release[\s\S]*20260810172000_force_stripe_webhook_event_rls[\s\S]*Apply production migrations/,
   );
 });

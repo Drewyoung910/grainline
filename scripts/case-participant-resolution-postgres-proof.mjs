@@ -21,6 +21,8 @@ const ids = Object.freeze({
   staffClaimOrder: `${PREFIX}-order-staff-claim`,
   nullableBuyerOrder: `${PREFIX}-order-nullable-buyer`,
   invalidReplayOrder: `${PREFIX}-order-invalid-replay`,
+  repeatedCycleOrder: `${PREFIX}-order-repeated-cycle`,
+  autoCloseOrder: `${PREFIX}-order-auto-close`,
   concurrencyOrder: `${PREFIX}-order-concurrency`,
   rollbackOrder: `${PREFIX}-order-rollback`,
   sequentialCase: `${PREFIX}-case-sequential`,
@@ -28,6 +30,8 @@ const ids = Object.freeze({
   staffClaimCase: `${PREFIX}-case-staff-claim`,
   nullableBuyerCase: `${PREFIX}-case-nullable-buyer`,
   invalidReplayCase: `${PREFIX}-case-invalid-replay`,
+  repeatedCycleCase: `${PREFIX}-case-repeated-cycle`,
+  autoCloseCase: `${PREFIX}-case-auto-close`,
   concurrencyCase: `${PREFIX}-case-concurrency`,
   rollbackCase: `${PREFIX}-case-rollback`,
 });
@@ -144,6 +148,8 @@ async function seedFixturesBody(client) {
     [ids.staffClaimOrder, ids.staffClaimCase],
     [ids.nullableBuyerOrder, ids.nullableBuyerCase],
     [ids.invalidReplayOrder, ids.invalidReplayCase],
+    [ids.repeatedCycleOrder, ids.repeatedCycleCase],
+    [ids.autoCloseOrder, ids.autoCloseCase],
     [ids.concurrencyOrder, ids.concurrencyCase],
     [ids.rollbackOrder, ids.rollbackCase],
   ];
@@ -206,6 +212,19 @@ async function seedFixtures(client) {
 async function cleanupFixtures(client) {
   await client.query("BEGIN");
   try {
+    await client.query(`
+      DELETE FROM public."Notification"
+       WHERE "sourceType" = 'case_system_action'
+         AND "sourceId" IN (
+           SELECT id
+             FROM public."SystemAuditLog"
+            WHERE "targetId" LIKE $1
+         )
+    `, [`${PREFIX}%`]);
+    await client.query(
+      'DELETE FROM public."SystemAuditLog" WHERE "targetId" LIKE $1',
+      [`${PREFIX}%`],
+    );
     await client.query(`
       DELETE FROM public."AdminAuditLog"
        WHERE "adminId" IN ($1, $2, $3, $4)
@@ -453,7 +472,8 @@ async function proveMalformedReplayAuditRejected(observer, runtime) {
   await observer.query(`
     UPDATE public."Case"
        SET status = 'PENDING_CLOSE'::public."CaseStatus",
-           "buyerMarkedResolved" = true
+           "buyerMarkedResolved" = true,
+           "resolutionMarkedAt" = CURRENT_TIMESTAMP
      WHERE id = $1
   `, [ids.invalidReplayCase]);
   await observer.query(`
@@ -487,6 +507,113 @@ async function proveMalformedReplayAuditRejected(observer, runtime) {
   );
 }
 
+async function proveRepeatedResolutionCycle(observer, runtime) {
+  const firstMark = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.repeatedCycleCase,
+  );
+  assert.equal(firstMark.status, "PENDING_CLOSE");
+  assert.equal(firstMark.action, "updated");
+
+  const firstReplay = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.repeatedCycleCase,
+  );
+  assert.equal(firstReplay.action, "replay");
+  assert.equal(firstReplay.auditLogId, firstMark.auditLogId);
+
+  const reply = await runtimeQuery(
+    runtime,
+    `
+      SELECT public.grainline_case_reply(
+        $1,
+        $2,
+        'The discussion continues before another resolution attempt.',
+        ARRAY[]::text[]
+      ) AS result
+    `,
+    [ids.seller, ids.repeatedCycleCase],
+  );
+  assert.equal(reply.rows[0]?.result?.status, "IN_DISCUSSION");
+
+  const secondMark = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.repeatedCycleCase,
+  );
+  assert.equal(secondMark.status, "PENDING_CLOSE");
+  assert.equal(secondMark.action, "updated");
+  assert.notEqual(secondMark.auditLogId, firstMark.auditLogId);
+
+  const clockBeforeStaffReply = await observer.query(`
+    SELECT "resolutionMarkedAt" AS marked_at
+      FROM public."Case"
+     WHERE id = $1
+  `, [ids.repeatedCycleCase]);
+
+  const staffReply = await runtimeQuery(
+    runtime,
+    `
+      SELECT public.grainline_case_reply(
+        $1,
+        $2,
+        'Staff follow-up must not invalidate the active resolution source.',
+        ARRAY[]::text[]
+      ) AS result
+    `,
+    [ids.staff, ids.repeatedCycleCase],
+  );
+  assert.equal(staffReply.rows[0]?.result?.status, "PENDING_CLOSE");
+
+  const clockAfterStaffReply = await observer.query(`
+    SELECT
+      "resolutionMarkedAt" AS marked_at,
+      "updatedAt" > "resolutionMarkedAt" AS staff_advanced_updated_at
+      FROM public."Case"
+     WHERE id = $1
+  `, [ids.repeatedCycleCase]);
+  assert.equal(
+    clockAfterStaffReply.rows[0]?.marked_at.getTime(),
+    clockBeforeStaffReply.rows[0]?.marked_at.getTime(),
+  );
+  assert.equal(
+    clockAfterStaffReply.rows[0]?.staff_advanced_updated_at,
+    true,
+  );
+
+  const secondReplay = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.repeatedCycleCase,
+  );
+  assert.equal(secondReplay.action, "replay");
+  assert.equal(secondReplay.auditLogId, secondMark.auditLogId);
+
+  const state = await observer.query(`
+    SELECT
+      case_row.status::text,
+      case_row."buyerMarkedResolved",
+      case_row."sellerMarkedResolved",
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."AdminAuditLog" AS audit
+         WHERE audit.action = 'MARK_CASE_RESOLVED'
+           AND audit."targetId" = case_row.id
+           AND audit."adminId" = $2
+      ) AS "auditCount"
+      FROM public."Case" AS case_row
+     WHERE case_row.id = $1
+  `, [ids.repeatedCycleCase, ids.buyer]);
+  assert.deepEqual(state.rows[0], {
+    status: "PENDING_CLOSE",
+    buyerMarkedResolved: true,
+    sellerMarkedResolved: false,
+    auditCount: 2,
+  });
+}
+
 async function proveConcurrentMarks(
   observer,
   first,
@@ -516,6 +643,25 @@ async function proveConcurrentMarks(
 
   assert.equal(lock.wait_event_type, "Lock");
   assert.equal(seller.rows[0]?.result?.status, "RESOLVED");
+
+  const buyerTerminalReplay = await markResolved(
+    first,
+    ids.buyer,
+    ids.concurrencyCase,
+  );
+  assert.equal(buyerTerminalReplay.action, "historical_replay");
+  assert.equal(buyerTerminalReplay.status, "RESOLVED");
+  assert.equal(buyerTerminalReplay.auditLogId, buyer.rows[0]?.result?.auditLogId);
+
+  const sellerTerminalReplay = await markResolved(
+    second,
+    ids.seller,
+    ids.concurrencyCase,
+  );
+  assert.equal(sellerTerminalReplay.action, "replay");
+  assert.equal(sellerTerminalReplay.status, "RESOLVED");
+  assert.equal(sellerTerminalReplay.auditLogId, seller.rows[0]?.result?.auditLogId);
+
   const finalState = await observer.query(`
     SELECT
       status::text,
@@ -530,6 +676,78 @@ async function proveConcurrentMarks(
     resolution: "DISMISSED",
     buyerMarkedResolved: true,
     sellerMarkedResolved: true,
+  });
+}
+
+async function proveAutoClosedHistoricalReplay(observer, runtime) {
+  const buyerMark = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.autoCloseCase,
+  );
+  assert.equal(buyerMark.status, "PENDING_CLOSE");
+  assert.equal(buyerMark.action, "updated");
+
+  await observer.query(`
+    UPDATE public."Case"
+       SET "resolutionMarkedAt" = CURRENT_TIMESTAMP - INTERVAL '8 days'
+     WHERE id = $1
+  `, [ids.autoCloseCase]);
+  const closed = await runtimeQuery(
+    runtime,
+    `
+      SELECT *
+        FROM public.grainline_case_cron_transition_batch(
+          'PENDING_CLOSE_EXPIRED',
+          100
+        )
+    `,
+  );
+  assert.equal(
+    closed.rows.some((row) => row.caseId === ids.autoCloseCase),
+    true,
+  );
+
+  const retry = await markResolved(
+    runtime,
+    ids.buyer,
+    ids.autoCloseCase,
+  );
+  assert.equal(retry.action, "historical_replay");
+  assert.equal(retry.status, "RESOLVED");
+  assert.equal(retry.buyerMarkedResolved, true);
+  assert.equal(retry.sellerMarkedResolved, false);
+  assert.equal(retry.auditLogId, buyerMark.auditLogId);
+
+  const evidence = await observer.query(`
+    SELECT
+      case_row.status::text,
+      case_row.resolution::text,
+      case_row."buyerMarkedResolved",
+      case_row."sellerMarkedResolved",
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."AdminAuditLog" AS audit
+         WHERE audit.action = 'MARK_CASE_RESOLVED'
+           AND audit."targetId" = case_row.id
+           AND audit."adminId" = $2
+      ) AS "participantAuditCount",
+      (
+        SELECT pg_catalog.count(*)::integer
+          FROM public."SystemAuditLog" AS audit
+         WHERE audit.action = 'AUTO_CLOSE_CASE'
+           AND audit."targetId" = case_row.id
+      ) AS "cronAuditCount"
+      FROM public."Case" AS case_row
+     WHERE case_row.id = $1
+  `, [ids.autoCloseCase, ids.buyer]);
+  assert.deepEqual(evidence.rows[0], {
+    status: "RESOLVED",
+    resolution: "DISMISSED",
+    buyerMarkedResolved: true,
+    sellerMarkedResolved: false,
+    participantAuditCount: 1,
+    cronAuditCount: 1,
   });
 }
 
@@ -598,6 +816,8 @@ export async function runParticipantResolutionPostgresProof(
     await proveLeaseFences(observer, runtime);
     await proveNullableLegacyParticipant(observer, runtime);
     await proveMalformedReplayAuditRejected(observer, runtime);
+    await proveRepeatedResolutionCycle(observer, runtime);
+    await proveAutoClosedHistoricalReplay(observer, runtime);
     await proveConcurrentMarks(observer, first, second);
     await proveRollback(observer, runtime);
     await cleanupFixtures(observer);
@@ -613,14 +833,20 @@ export async function runParticipantResolutionPostgresProof(
             FROM public."AdminAuditLog"
            WHERE "targetId" LIKE $1
               OR "adminId" LIKE $1
-        ) AS audit_count
+        ) AS audit_count,
+        (
+          SELECT pg_catalog.count(*)::integer
+            FROM public."SystemAuditLog"
+           WHERE "targetId" LIKE $1
+        ) AS system_audit_count
     `, [`${PREFIX}%`]);
     assert.deepEqual(residue.rows[0], {
       case_count: 0,
       audit_count: 0,
+      system_audit_count: 0,
     });
     return Object.freeze({
-      checks: 12,
+      checks: 14,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

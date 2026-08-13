@@ -28,6 +28,58 @@ const EXECUTABLE_SQL_ROOTS = Object.freeze([
 
 const POSTGRES_SPECIAL_FORM = /\bpg_catalog\s*\.\s*(?:greatest|least|coalesce|nullif|position|extract|exists|case|current_user|session_user|current_date|current_time|current_timestamp|localtime|localtimestamp)\b/gi;
 const QUALIFIED_UNNEST = /\bpg_catalog\s*\.\s*unnest\s*\(/gi;
+const QUALIFIED_SUBSTRING = /\bpg_catalog\s*\.\s*substring\s*\(/gi;
+
+function qualifiedSubstringSpecialForms(source) {
+  const violations = [];
+  for (const match of source.matchAll(QUALIFIED_SUBSTRING)) {
+    const open = source.indexOf("(", match.index);
+    let parentheses = 1;
+    let quote = null;
+    let word = "";
+    for (let index = open + 1; index < source.length && parentheses > 0; index += 1) {
+      const character = source[index];
+      const next = source[index + 1];
+      if (quote) {
+        if (character === quote && next === quote) {
+          index += 1;
+        } else if (character === quote) {
+          quote = null;
+        }
+        continue;
+      }
+      if (character === "'" || character === '"') {
+        quote = character;
+        word = "";
+      } else if (character === "(") {
+        parentheses += 1;
+        word = "";
+      } else if (character === ")") {
+        if (
+          parentheses === 1 &&
+          (word.toLowerCase() === "from" || word.toLowerCase() === "for")
+        ) {
+          violations.push(match.index);
+          break;
+        }
+        parentheses -= 1;
+        word = "";
+      } else if (parentheses === 1 && /[A-Za-z]/.test(character)) {
+        word += character;
+      } else {
+        if (
+          parentheses === 1 &&
+          (word.toLowerCase() === "from" || word.toLowerCase() === "for")
+        ) {
+          violations.push(match.index);
+          break;
+        }
+        word = "";
+      }
+    }
+  }
+  return violations;
+}
 
 function qualifiedMultiArrayUnnest(source) {
   const violations = [];
@@ -76,6 +128,25 @@ function sourceFiles(root, extensions) {
 }
 
 describe("PostgreSQL special-form qualification guardrails", () => {
+  it("distinguishes callable substring syntax from parser-only forms", () => {
+    assert.deepEqual(
+      qualifiedSubstringSpecialForms("SELECT pg_catalog.substring(value, 2);"),
+      [],
+    );
+    assert.equal(
+      qualifiedSubstringSpecialForms(
+        "SELECT pg_catalog.substring(value FROM 2);",
+      ).length,
+      1,
+    );
+    assert.equal(
+      qualifiedSubstringSpecialForms(
+        "SELECT pg_catalog.substring(value FOR 4);",
+      ).length,
+      1,
+    );
+  });
+
   it("does not schema-qualify parser-resolved SQL constructs", () => {
     const violations = [];
 
@@ -89,6 +160,10 @@ describe("PostgreSQL special-form qualification guardrails", () => {
         for (const index of qualifiedMultiArrayUnnest(source)) {
           const line = source.slice(0, index).split("\n").length;
           violations.push(`${file}:${line}:qualified multi-array unnest`);
+        }
+        for (const index of qualifiedSubstringSpecialForms(source)) {
+          const line = source.slice(0, index).split("\n").length;
+          violations.push(`${file}:${line}:qualified substring special form`);
         }
       }
     }

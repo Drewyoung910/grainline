@@ -24,6 +24,10 @@ function auditId(caseId, actorUserId) {
   }`;
 }
 
+function cycleAuditId(caseId, actorUserId, suffix = "a".repeat(32)) {
+  return `${auditId(caseId, actorUserId)}:${suffix}`;
+}
+
 function validResult(overrides = {}) {
   const row = {
     caseId: "case-1",
@@ -93,6 +97,10 @@ describe("Case participant-resolution application authority", () => {
       /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_RESOLUTION_MARK/,
     );
     assert.match(route, /sourceId: authoritySourceId/);
+    assert.match(
+      route,
+      /if \(result\.action !== "historical_replay"\)[\s\S]*await notifyCounterpartyOfResolutionMark/,
+    );
   });
 
   it("maps only reviewed SQLSTATE families to bounded client responses", () => {
@@ -124,17 +132,47 @@ describe("Case participant-resolution application authority", () => {
     assert.equal(result.action, "updated");
   });
 
-  it("permits an older stable replay source after the Case later resolves", () => {
+  it("accepts only a database-derived cycle suffix bound to the actor and Case", () => {
+    const input = { actorUserId: "buyer-1", caseId: "case-1" };
     const result = validateParticipantResolutionResult(
       validResult({
-        action: "replay",
-        buyerMarkedResolved: true,
-        sellerMarkedResolved: true,
+        auditLogId: cycleAuditId("case-1", "buyer-1"),
       }),
-      { actorUserId: "buyer-1", caseId: "case-1" },
+      input,
     );
-    assert.equal(result.status, "PENDING_CLOSE");
-    assert.equal(result.sellerMarkedResolved, true);
+    assert.equal(result.action, "updated");
+
+    for (const auditLogId of [
+      cycleAuditId("case-2", "buyer-1"),
+      cycleAuditId("case-1", "seller-1"),
+      `${auditId("case-1", "buyer-1")}:short`,
+      `${auditId("case-1", "buyer-1")}:${"G".repeat(32)}`,
+      `${auditId("case-1", "buyer-1")}:${"a".repeat(33)}`,
+    ]) {
+      assert.throws(
+        () => validateParticipantResolutionResult(
+          validResult({ auditLogId }),
+          input,
+        ),
+        /identity drifted/,
+      );
+    }
+  });
+
+  it("accepts only a terminal historical replay and keeps its current state", () => {
+    for (const sellerMarkedResolved of [false, true]) {
+      const result = validateParticipantResolutionResult(
+        validResult({
+          action: "historical_replay",
+          status: "RESOLVED",
+          buyerMarkedResolved: true,
+          sellerMarkedResolved,
+        }),
+        { actorUserId: "buyer-1", caseId: "case-1" },
+      );
+      assert.equal(result.status, "RESOLVED");
+      assert.equal(result.sellerMarkedResolved, sellerMarkedResolved);
+    }
   });
 
   it("rejects shape, identity, audit, participant, and state drift", () => {
@@ -167,6 +205,12 @@ describe("Case participant-resolution application authority", () => {
         status: "RESOLVED",
         sellerMarkedResolved: false,
       }),
+      validResult({ action: "historical_replay" }),
+      validResult({
+        action: "historical_replay",
+        status: "RESOLVED",
+        buyerMarkedResolved: false,
+      }),
     ];
 
     const patterns = [
@@ -175,6 +219,8 @@ describe("Case participant-resolution application authority", () => {
       /identity drifted/,
       /identity drifted/,
       /identity drifted/,
+      /state drifted/,
+      /state drifted/,
       /state drifted/,
       /state drifted/,
       /state drifted/,

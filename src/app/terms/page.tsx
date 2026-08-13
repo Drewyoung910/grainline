@@ -883,6 +883,9 @@ export default function TermsPage() {
           <ul className="list-disc pl-6 mt-3 space-y-2">
             <li>The Maker has <strong>48 hours</strong> to respond. Failure to respond may result in an automatic finding in favor of the Buyer.</li>
             <li>Both parties enter the &quot;IN_DISCUSSION&quot; phase and have the opportunity to resolve the matter directly.</li>
+            <li>Either party may mark the case resolved. The case closes immediately when both parties confirm. A new case message instead returns the case to discussion.</li>
+            <li>If the Buyer marks the case resolved and the Maker neither confirms nor sends a new case message within <strong>7 calendar days</strong>, the case closes as resolved without a refund.</li>
+            <li>A Maker&apos;s resolution mark alone does not close the Buyer&apos;s case. The case remains pending until the Buyer confirms or either party continues the discussion.</li>
             <li>If unresolved after the discussion period (48 hours after discussion begins), either party may escalate to Grainline staff.</li>
             <li>Escalated cases are reviewed by Grainline staff. Review and determination are typically completed within <strong>3–5 business days</strong>.</li>
           </ul>

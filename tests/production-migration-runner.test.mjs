@@ -202,7 +202,11 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     assert.match(
       workflow,
-      /Verify exact StripeWebhookEvent FORCE migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed[\s\S]{0,260}Verify exact StripeWebhookEvent FORCE release[\s\S]{0,220}audit:rls-stripe-webhook-event-force-release[\s\S]{0,220}Verify exact Case FORCE proof equivalence[\s\S]{0,180}audit:rls-case-force-release[\s\S]*Verify exact Case read-mode release bytes[\s\S]*audit:rls-case-read-mode-candidate[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*audit:rls-direct-upload-activation-release[\s\S]{0,220}Generate Prisma client/,
+      /Isolate the Case resolution-window release while sealed predecessors are verified[\s\S]*Verify exact CheckoutStockReservation authority migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed[\s\S]*Verify exact CheckoutStockReservation authority release[\s\S]*audit:rls-checkout-stock-reservation-authority-release[\s\S]*Restore the exact Case resolution-window release[\s\S]*Verify sealed StripeWebhookEvent FORCE release[\s\S]*audit:rls-stripe-webhook-event-force-sealed-prefix[\s\S]*Verify exact Case resolution-window migration tree[\s\S]{0,260}SAVED_SEARCH_RLS_DEPLOY_PHASE: case-resolution-window-reviewed[\s\S]*Verify exact Case FORCE proof equivalence[\s\S]*audit:rls-case-force-release[\s\S]*Verify exact Case read-mode release bytes[\s\S]*audit:rls-case-read-mode-candidate[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*audit:rls-direct-upload-activation-release[\s\S]*Generate Prisma client/,
+    );
+    assert.match(
+      workflow,
+      /Generate Prisma client[\s\S]*Isolate queued StripeWebhookEvent FORCE from this Case-only release[\s\S]*20260810172000_force_stripe_webhook_event_rls[\s\S]*Isolate queued CheckoutStockReservation authority from this Case-only release[\s\S]*20260810190000_prepare_checkout_stock_reservation_authority[\s\S]*Apply production migrations[\s\S]*Verify production migration status[\s\S]*Audit final runtime grants and RLS catalog[\s\S]*Prove exact Case resolution-window production catalog read-only/,
     );
     assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);

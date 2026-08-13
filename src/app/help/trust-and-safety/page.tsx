@@ -62,6 +62,10 @@ export default function TrustAndSafetyHelpPage() {
           binding decision.
         </p>
         <p>
+          Either side can propose that a case is resolved, but a maker&apos;s proposal never closes a
+          buyer&apos;s case through silence. The buyer must confirm it or continue the discussion.
+        </p>
+        <p>
           For full details on how disputes work, see our{" "}
           <Link href="/help/shipping-and-returns">shipping &amp; returns page</Link>.
         </p>

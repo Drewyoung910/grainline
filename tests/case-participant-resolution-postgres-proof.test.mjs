@@ -55,11 +55,19 @@ describe("Case participant-resolution PostgreSQL proof", () => {
       "missing_replay_status_rejected",
       "buyerReplay",
       "sellerReplay",
+      "proveRepeatedResolutionCycle",
+      "Staff follow-up must not invalidate the active resolution source",
+      "secondReplay",
+      "secondMark.auditLogId, firstMark.auditLogId",
+      "proveAutoClosedHistoricalReplay",
+      'retry.action, "historical_replay"',
+      "participantAuditCount: 1",
+      "cronAuditCount: 1",
       "waitForLock",
       "wait_event_type, \"Lock\"",
       "proveRollback",
       "audit_count: 0",
-      "checks: 12",
+      "checks: 14",
     ]) {
       assert.match(proof, new RegExp(check), check);
     }

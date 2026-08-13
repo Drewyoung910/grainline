@@ -40,6 +40,14 @@ const releaseDocument = fs.readFileSync(
   "docs/stripe-webhook-event-force-release.md",
   "utf8",
 );
+const postgresProof = fs.readFileSync(
+  "scripts/stripe-webhook-event-force-postgres-proof.mjs",
+  "utf8",
+);
+const rollbackProof = fs.readFileSync(
+  "scripts/stripe-webhook-event-force-rollback-proof.mjs",
+  "utf8",
+);
 const runbook = fs.readFileSync("docs/runbook.md", "utf8");
 const launchChecklist = fs.readFileSync("docs/launch-checklist.md", "utf8");
 const RELEASE_COMMIT = "a".repeat(40);
@@ -79,7 +87,7 @@ test("FORCE release is one byte-pinned posture-only catalog change", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.successorPhase,
-    "checkout-stock-reservation-authority-reviewed",
+    "case-resolution-window-reviewed",
   );
   assert.equal(
     (migration.match(
@@ -222,6 +230,14 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
     pkg.scripts["ops:stripe-webhook-event-force-postflight"],
     "node scripts/stripe-webhook-event-force-production-postflight.mjs",
   );
+  assert.match(
+    postgresProof,
+    /verifyStripeWebhookEventForceRelease\(undefined, \{\s*allowReviewedSuccessor: true/,
+  );
+  assert.match(
+    rollbackProof,
+    /verifyStripeWebhookEventForceRelease\(undefined, \{\s*allowReviewedSuccessor: true/,
+  );
   const forceIsolate = ci.indexOf(
     "Isolate the exact StripeWebhookEvent FORCE release",
   );
@@ -240,12 +256,20 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.ok(sealedPhaseA >= 0 && sealedPhaseA < forceIsolate);
   assert.ok(forceIsolate >= 0 && forceIsolate < phaseARestore);
   assert.ok(forceRestore > phaseARestore && forceProof > forceRestore);
+  assert.match(
+    ci,
+    /Audit FORCE-hardened StripeWebhookEvent grants and RLS catalog[\s\S]*Restore CheckoutStockReservation authority for sealed FORCE proofs[\s\S]*20260810190000_prepare_checkout_stock_reservation_authority[\s\S]*Prove FORCE-hardened StripeWebhookEvent authority[\s\S]*Re-isolate CheckoutStockReservation before the FORCE grant audit[\s\S]*Re-audit restored StripeWebhookEvent FORCE posture[\s\S]*Restore CheckoutStockReservation authority release[\s\S]*Apply CheckoutStockReservation compatible authority/,
+  );
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
+  assert.match(production, /case-resolution-window-reviewed/);
   assert.ok(
-    production.indexOf("audit:rls-stripe-webhook-event-force-release")
+    production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
       < production.indexOf("npx prisma migrate deploy"),
+  );
+  assert.match(
+    production,
+    /Isolate queued StripeWebhookEvent FORCE from this Case-only release[\s\S]*20260810172000_force_stripe_webhook_event_rls[\s\S]*Apply production migrations/,
   );
   assert.match(
     releaseDocument,

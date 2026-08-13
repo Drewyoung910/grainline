@@ -93,28 +93,33 @@ test("Prisma schema records every compatible column", () => {
   );
 });
 
-test("CI isolates preparation until StripeWebhookEvent FORCE passes", () => {
+test("CI isolates preparation until StripeWebhookEvent FORCE is applied and proof-bound", () => {
   const isolate = ci.indexOf("Isolate CheckoutStockReservation authority until webhook FORCE passes");
+  const forceApply = ci.indexOf("Apply the exact StripeWebhookEvent FORCE release");
   const forceProof = ci.indexOf("Prove FORCE-hardened StripeWebhookEvent authority");
-  const restore = ci.indexOf("Restore CheckoutStockReservation authority release");
+  const restore = ci.indexOf(
+    "Restore CheckoutStockReservation authority for sealed FORCE proofs",
+  );
   const apply = ci.indexOf("Apply CheckoutStockReservation compatible authority");
   const audit = ci.indexOf("Audit compatible reservation grants and RLS catalog");
   assert.ok(isolate >= 0);
-  assert.ok(forceProof > isolate);
-  assert.ok(restore > forceProof);
-  assert.ok(apply > restore);
+  assert.ok(forceApply > isolate);
+  assert.ok(restore > forceApply);
+  assert.ok(forceProof > restore);
+  assert.ok(apply > forceProof);
   assert.ok(audit > apply);
 });
 
-test("production runner remains intentionally unwired at this checkpoint", () => {
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
-  assert.doesNotMatch(
-    production,
-    /checkout-stock-reservation-authority-reviewed/,
-  );
-  assert.doesNotMatch(
+test("production runner verifies but isolates reservation authority from the Case-only release", () => {
+  assert.match(production, /case-resolution-window-reviewed/);
+  assert.match(production, /checkout-stock-reservation-authority-reviewed/);
+  assert.match(
     production,
     /audit:rls-checkout-stock-reservation-authority-release/,
+  );
+  assert.match(
+    production,
+    /Isolate queued CheckoutStockReservation authority from this Case-only release[\s\S]*20260810190000_prepare_checkout_stock_reservation_authority[\s\S]*Apply production migrations/,
   );
 });
 
