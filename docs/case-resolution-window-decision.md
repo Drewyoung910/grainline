@@ -9,12 +9,12 @@ Decision date: 2026-08-11.
 
 Participant resolution marks are asymmetric because the buyer owns the dispute:
 
-| State                                                      | Result                                                                                                                                    |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Buyer and seller both mark resolved                        | Resolve immediately as `DISMISSED`.                                                                                                       |
-| Buyer marks resolved; seller does not confirm or reply     | Remain `PENDING_CLOSE` for seven calendar days, then resolve as `DISMISSED`.                                                              |
-| Seller marks resolved; buyer does not confirm or reply     | Remain `PENDING_CLOSE` until the buyer confirms or either party sends a Case message. Seller silence never dismisses the buyer's Case.    |
-| Either participant sends a message while pending           | Return to `IN_DISCUSSION` and clear both resolution marks.                                                                                |
+| State | Result |
+| --- | --- |
+| Buyer and seller both mark resolved | Resolve immediately as `DISMISSED`. |
+| Buyer marks resolved; seller does not confirm or reply | Remain `PENDING_CLOSE` for seven calendar days, then resolve as `DISMISSED`. |
+| Seller marks resolved; buyer does not confirm or reply | Remain `PENDING_CLOSE` until the buyer confirms or either party sends a Case message. Seller silence never dismisses the buyer's Case. |
+| Either participant sends a message while pending | Return to `IN_DISCUSSION` and clear both resolution marks. |
 | The same participant marks resolved again after that reply | Start a new resolution cycle with a new database-derived audit and Notification source; retries within one active cycle reuse its source. |
 
 Seller-only pending rows remain visible in the existing staff queue. Automatic

@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+} from "node:fs";
 import { extname, join } from "node:path";
 import { describe, it } from "node:test";
 
@@ -22,8 +26,7 @@ const EXECUTABLE_SQL_ROOTS = Object.freeze([
   },
 ]);
 
-const POSTGRES_SPECIAL_FORM =
-  /\bpg_catalog\s*\.\s*(?:greatest|least|coalesce|nullif|position|extract|exists|case|current_user|session_user|current_date|current_time|current_timestamp|localtime|localtimestamp)\b/gi;
+const POSTGRES_SPECIAL_FORM = /\bpg_catalog\s*\.\s*(?:greatest|least|coalesce|nullif|position|extract|exists|case|current_user|session_user|current_date|current_time|current_timestamp|localtime|localtimestamp)\b/gi;
 const QUALIFIED_UNNEST = /\bpg_catalog\s*\.\s*unnest\s*\(/gi;
 const QUALIFIED_SUBSTRING = /\bpg_catalog\s*\.\s*substring\s*\(/gi;
 
@@ -34,11 +37,7 @@ function qualifiedSubstringSpecialForms(source) {
     let parentheses = 1;
     let quote = null;
     let word = "";
-    for (
-      let index = open + 1;
-      index < source.length && parentheses > 0;
-      index += 1
-    ) {
+    for (let index = open + 1; index < source.length && parentheses > 0; index += 1) {
       const character = source[index];
       const next = source[index + 1];
       if (quote) {
@@ -89,11 +88,7 @@ function qualifiedMultiArrayUnnest(source) {
     let parentheses = 1;
     let brackets = 0;
     let quote = null;
-    for (
-      let index = open + 1;
-      index < source.length && parentheses > 0;
-      index += 1
-    ) {
+    for (let index = open + 1; index < source.length && parentheses > 0; index += 1) {
       const character = source[index];
       const next = source[index + 1];
       if (quote) {
