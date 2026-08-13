@@ -97,6 +97,10 @@ describe("Case participant-resolution application authority", () => {
       /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_RESOLUTION_MARK/,
     );
     assert.match(route, /sourceId: authoritySourceId/);
+    assert.match(
+      route,
+      /if \(result\.action !== "historical_replay"\)[\s\S]*await notifyCounterpartyOfResolutionMark/,
+    );
   });
 
   it("maps only reviewed SQLSTATE families to bounded client responses", () => {
@@ -155,17 +159,20 @@ describe("Case participant-resolution application authority", () => {
     }
   });
 
-  it("permits an older stable replay source after the Case later resolves", () => {
-    const result = validateParticipantResolutionResult(
-      validResult({
-        action: "replay",
-        buyerMarkedResolved: true,
-        sellerMarkedResolved: true,
-      }),
-      { actorUserId: "buyer-1", caseId: "case-1" },
-    );
-    assert.equal(result.status, "PENDING_CLOSE");
-    assert.equal(result.sellerMarkedResolved, true);
+  it("accepts only a terminal historical replay and keeps its current state", () => {
+    for (const sellerMarkedResolved of [false, true]) {
+      const result = validateParticipantResolutionResult(
+        validResult({
+          action: "historical_replay",
+          status: "RESOLVED",
+          buyerMarkedResolved: true,
+          sellerMarkedResolved,
+        }),
+        { actorUserId: "buyer-1", caseId: "case-1" },
+      );
+      assert.equal(result.status, "RESOLVED");
+      assert.equal(result.sellerMarkedResolved, sellerMarkedResolved);
+    }
   });
 
   it("rejects shape, identity, audit, participant, and state drift", () => {
@@ -198,6 +205,12 @@ describe("Case participant-resolution application authority", () => {
         status: "RESOLVED",
         sellerMarkedResolved: false,
       }),
+      validResult({ action: "historical_replay" }),
+      validResult({
+        action: "historical_replay",
+        status: "RESOLVED",
+        buyerMarkedResolved: false,
+      }),
     ];
 
     const patterns = [
@@ -206,6 +219,8 @@ describe("Case participant-resolution application authority", () => {
       /identity drifted/,
       /identity drifted/,
       /identity drifted/,
+      /state drifted/,
+      /state drifted/,
       /state drifted/,
       /state drifted/,
       /state drifted/,

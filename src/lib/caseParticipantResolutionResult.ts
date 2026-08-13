@@ -10,7 +10,7 @@ export type CaseParticipantResolutionResult = {
   buyerMarkedResolved: boolean;
   sellerMarkedResolved: boolean;
   auditLogId: string;
-  action: "updated" | "replay" | "legacy_recovered";
+  action: "updated" | "replay" | "historical_replay" | "legacy_recovered";
 };
 
 const RESULT_KEYS = Object.freeze([
@@ -154,7 +154,12 @@ export function validateParticipantResolutionResult(
     ),
     action: requireOneOf(
       row.action,
-      ["updated", "replay", "legacy_recovered"] as const,
+      [
+        "updated",
+        "replay",
+        "historical_replay",
+        "legacy_recovered",
+      ] as const,
       "Case participant-resolution action",
     ),
   };
@@ -183,6 +188,7 @@ export function validateParticipantResolutionResult(
     !actorMarkedResolved
     || (
       result.status === "RESOLVED"
+      && result.action !== "historical_replay"
       && (
         !result.buyerMarkedResolved
         || !result.sellerMarkedResolved
@@ -195,6 +201,10 @@ export function validateParticipantResolutionResult(
         result.buyerMarkedResolved
         === result.sellerMarkedResolved
       )
+    )
+    || (
+      result.action === "historical_replay"
+      && result.status !== "RESOLVED"
     )
   ) {
     throw new TypeError(
