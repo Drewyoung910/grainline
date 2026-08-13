@@ -32,6 +32,12 @@ export const RESERVATION_ACTIVATION_MIGRATION =
   "20260810220000_enable_checkout_stock_reservation_rls";
 export const RESERVATION_FORCE_MIGRATION =
   "20260811020000_force_checkout_stock_reservation_rls";
+export const SCHEMA_NUMERIC_GUARDS_MIGRATION =
+  "20260523223000_schema_numeric_guards_and_indexes";
+export const SCHEMA_NUMERIC_GUARDS_HISTORICAL_LEDGER_SHA256 =
+  "faf1ac4063a888e0405981aba57c177c4bbb33b184a8b315ace52152d21dc274";
+export const SCHEMA_NUMERIC_GUARDS_CURRENT_SHA256 =
+  "0ae1197e6d8fd936e201ac793f810a42c1358bbea70f66cabffb7415f960aad6";
 export const RESERVATION_AUTHORITY_SCOPE_STAGES = Object.freeze([
   "before",
   "after",
@@ -164,9 +170,14 @@ export function assertReservationAuthorityProductionScope(
     ...expectedByName.keys(),
     LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
   ]);
+  const schemaNumericCurrentChecksum = expectedByName.get(
+    SCHEMA_NUMERIC_GUARDS_MIGRATION,
+  );
   if (
     expectedByName.size !== catalog.length
     || !expectedByName.has(STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION)
+    || typeof schemaNumericCurrentChecksum !== "string"
+    || schemaNumericCurrentChecksum !== SCHEMA_NUMERIC_GUARDS_CURRENT_SHA256
     || catalog.some((entry, index) =>
       index > 0
       && catalog[index - 1]?.migration_name.localeCompare(
@@ -205,6 +216,20 @@ export function assertReservationAuthorityProductionScope(
   for (const [name, checksum] of expectedByName) {
     const matches = rowsFor(name);
     if (name === CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION) continue;
+    if (name === SCHEMA_NUMERIC_GUARDS_MIGRATION) {
+      if (
+        matches.length !== 1
+        || !isAppliedRow(
+          matches[0],
+          SCHEMA_NUMERIC_GUARDS_HISTORICAL_LEDGER_SHA256,
+        )
+      ) {
+        throw new Error(
+          "production ledger is not the exact reservation-compatible scope",
+        );
+      }
+      continue;
+    }
     if (name === DIRECT_UPLOAD_ACTIVATION_RELEASE.migrationName) {
       if (
         matches.length !== 2
@@ -254,7 +279,7 @@ export function assertReservationAuthorityProductionScope(
     reservationActivationRows: 0,
     reservationForceRows: 0,
     reviewedMigrationCount: catalog.length,
-    historicalLedgerExceptionCount: 2,
+    historicalLedgerExceptionCount: 3,
     state: authorityApplied ? "prepared" : "predecessor",
     productionChangedByProof: false,
   });
