@@ -45,12 +45,14 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify exact StripeWebhookEvent FORCE migration tree
+      - name: Verify exact CheckoutStockReservation successor migration tree
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed
-      - name: Verify exact StripeWebhookEvent FORCE release
-        run: npm run audit:rls-stripe-webhook-event-force-release
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed
+      - name: Verify exact CheckoutStockReservation successor release
+        run: npm run audit:rls-checkout-stock-reservation-authority-release
+      - name: Verify sealed StripeWebhookEvent FORCE predecessor
+        run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
       - name: Verify exact Case FORCE proof equivalence
         run: npm run audit:rls-case-force-release
       - name: Verify exact Case read-mode release bytes
@@ -69,6 +71,17 @@ jobs:
         run: npm run audit:rls-direct-upload-retirement-release
       - name: Verify DirectUpload activation proof equivalence
         run: npm run audit:rls-direct-upload-activation-release
+      - name: Isolate the reviewed CheckoutStockReservation successor
+        run: >-
+          mv
+          prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority
+          "$RUNNER_TEMP/checkout-stock-reservation-authority-release"
+      - name: Verify exact StripeWebhookEvent FORCE migration tree after isolation
+        run: npm run verify:rls-release-artifact
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed
+      - name: Verify exact StripeWebhookEvent FORCE release after isolation
+        run: npm run audit:rls-stripe-webhook-event-force-release
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Apply production migrations
@@ -81,5 +94,9 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Audit final runtime grants and RLS catalog
         run: npm run audit:db-grants -- --require-direct-url
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Prove exact FORCE-only production migration scope
+        run: npm run audit:rls-stripe-webhook-event-force-production-scope
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

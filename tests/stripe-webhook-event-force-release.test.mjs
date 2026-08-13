@@ -222,6 +222,10 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
     pkg.scripts["ops:stripe-webhook-event-force-postflight"],
     "node scripts/stripe-webhook-event-force-production-postflight.mjs",
   );
+  assert.equal(
+    pkg.scripts["audit:rls-stripe-webhook-event-force-production-scope"],
+    "node scripts/verify-stripe-webhook-event-force-production-scope.mjs",
+  );
   const forceIsolate = ci.indexOf(
     "Isolate the exact StripeWebhookEvent FORCE release",
   );
@@ -242,10 +246,25 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.ok(forceRestore > phaseARestore && forceProof > forceRestore);
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
+  assert.match(production, /checkout-stock-reservation-authority-reviewed/);
+  assert.match(
+    production,
+    /Isolate the reviewed CheckoutStockReservation successor/,
+  );
   assert.match(production, /stripe-webhook-event-force-reviewed/);
   assert.ok(
-    production.indexOf("audit:rls-stripe-webhook-event-force-release")
+    production.indexOf("Isolate the reviewed CheckoutStockReservation successor")
+      < production.indexOf("audit:rls-stripe-webhook-event-force-release")
+      && production.indexOf("audit:rls-stripe-webhook-event-force-release")
       < production.indexOf("npx prisma migrate deploy"),
+  );
+  assert.ok(
+    production.indexOf("npx prisma migrate deploy")
+      < production.indexOf("Prove exact FORCE-only production migration scope"),
+  );
+  assert.match(
+    production,
+    /Prove exact FORCE-only production migration scope[\s\S]{0,180}audit:rls-stripe-webhook-event-force-production-scope/,
   );
   assert.match(
     releaseDocument,

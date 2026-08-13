@@ -170,17 +170,21 @@ test("runtime grant convergence accepts only uniform Case ENABLE or FORCE", () =
   assert.match(caseBoundary, /WHERE NOT active AND NOT clean_predecessor/);
 });
 
-test("production workflow permits only the reviewed Case FORCE tree", () => {
-  const guard = production.indexOf(
-    "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed",
+test("production workflow retains the reviewed Case FORCE proof before migration", () => {
+  const sourceGuard = production.indexOf(
+    "Verify exact source, owner connection, role posture, and Phase B",
   );
   const verifier = production.indexOf(
     "npm run audit:rls-case-force-release",
   );
+  const forceGuard = production.indexOf(
+    "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed",
+  );
   const deploy = production.indexOf("npx prisma migrate deploy");
-  assert.ok(guard >= 0);
-  assert.ok(verifier > guard);
-  assert.ok(deploy > verifier);
+  assert.ok(sourceGuard >= 0);
+  assert.ok(verifier > sourceGuard);
+  assert.ok(forceGuard > verifier);
+  assert.ok(deploy > forceGuard);
   assert.doesNotMatch(
     production,
     /vercel|CASE_EVIDENCE_ATTACHMENTS_ENABLED|prisma migrate resolve/i,

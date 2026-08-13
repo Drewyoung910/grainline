@@ -52,12 +52,15 @@ StripeWebhookEvent FORCE proof succeeds does CI restore and apply this exact
 migration, converge the fixed grants, audit the global catalog, and run the
 disposable reservation authority proof.
 
-The production migration workflow remains intentionally unwired at this
-checkpoint. Consequently, merging or testing this branch cannot make the
-guarded production runner apply the reservation migration. Wiring that runner,
-merging, dispatching, deploying the compatible app, draining predecessor app
-versions, enabling reservation RLS, and applying FORCE are all later separate
-boundaries.
+The production migration workflow remains intentionally unwired to **apply**
+this release at this checkpoint. The earlier StripeWebhookEvent FORCE runner
+may verify this successor's exact bytes and then move it out of the disposable
+Actions checkout; it never restores it before Prisma runs, and its read-only
+ledger proof requires zero rows for this migration. Consequently, merging or
+testing the FORCE runner cannot make the guarded production runner apply the
+reservation migration. Wiring this release for application, merging,
+dispatching, deploying the compatible app, draining predecessor app versions,
+enabling reservation RLS, and applying FORCE are all later separate boundaries.
 
 ## Required pre-production gates
 

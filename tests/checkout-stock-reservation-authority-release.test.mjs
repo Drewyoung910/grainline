@@ -106,15 +106,28 @@ test("CI isolates preparation until StripeWebhookEvent FORCE passes", () => {
   assert.ok(audit > apply);
 });
 
-test("production runner remains intentionally unwired at this checkpoint", () => {
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
-  assert.doesNotMatch(
-    production,
-    /checkout-stock-reservation-authority-reviewed/,
+test("production runner verifies then isolates the successor without applying it", () => {
+  const verifySuccessor = production.indexOf(
+    "checkout-stock-reservation-authority-reviewed",
   );
+  const verifySuccessorRelease = production.indexOf(
+    "audit:rls-checkout-stock-reservation-authority-release",
+  );
+  const isolateSuccessor = production.indexOf(
+    "Isolate the reviewed CheckoutStockReservation successor",
+  );
+  const verifyForce = production.indexOf(
+    "stripe-webhook-event-force-reviewed",
+  );
+  const apply = production.indexOf("npx prisma migrate deploy");
+  assert.ok(verifySuccessor >= 0);
+  assert.ok(verifySuccessorRelease > verifySuccessor);
+  assert.ok(isolateSuccessor > verifySuccessorRelease);
+  assert.ok(verifyForce > isolateSuccessor);
+  assert.ok(apply > verifyForce);
   assert.doesNotMatch(
     production,
-    /audit:rls-checkout-stock-reservation-authority-release/,
+    /Restore (?:the reviewed )?CheckoutStockReservation successor/i,
   );
 });
 
