@@ -9,13 +9,16 @@ import {
   FORCE_RELEASE_COMMIT,
   PRIOR_DEPLOYMENT_ID,
   RECOVERY_CONFIRMATION,
+  REVIEWED_RESTART_PREDECESSOR,
   assertRecoveryVercelStage,
   classifyCredentialProbe,
   freshRecoveryState,
   normalizeCandidateDeployment,
+  normalizeCanonicalAliasTargets,
   normalizeGithubRun,
   normalizePriorDeployment,
   normalizeRecoveryVercelState,
+  normalizeRecoveryStateReleaseHandoff,
   normalizeReplacementDeploymentInventory,
   recoveryDeploymentMarker,
   parseRecoveryConfig,
@@ -140,6 +143,65 @@ test("private restart state accepts only reviewed database identities and monoto
   }), /replacement deployment/);
 });
 
+test("restart handoff accepts only an exact hash-pinned predecessor journal", () => {
+  const prior = "postgresql://runtime:prior@example.test/db";
+  const next = "postgresql://runtime:next@example.test/db";
+  const owner = "postgresql://owner:prior@example.test/db";
+  const operations = [{ id: "operation-1", status: "finished" }];
+  const predecessor = {
+    ...REVIEWED_RESTART_PREDECESSOR,
+    operatorCommit: "a".repeat(40),
+    operatorCiRunId: 1,
+    stage: "runtime-deployment-ready",
+    createdAt: "2026-08-13T18:12:07.809Z",
+    updatedAt: "2026-08-13T18:14:44.981Z",
+    runtimeRoleUpdatedAtBefore: "2026-07-19T15:47:23.000Z",
+    runtimeRoleUpdatedAtAfter: "2026-08-13T18:12:23.000Z",
+    replacementDeploymentId: "dpl_Replacement123",
+    replacementDeploymentUrl: "grainline-replacement.vercel.app",
+    priorRuntimeUrlSha256: createHash("sha256").update(prior).digest("hex"),
+    nextRuntimeUrlSha256: createHash("sha256").update(next).digest("hex"),
+    priorOwnerUrlSha256: createHash("sha256").update(owner).digest("hex"),
+    runtimeOperationsSha256: createHash("sha256")
+      .update(JSON.stringify(operations)).digest("hex"),
+  };
+  const state = {
+    version: 3,
+    operatorCommit: predecessor.operatorCommit,
+    operatorCiRunId: predecessor.operatorCiRunId,
+    stage: predecessor.stage,
+    createdAt: predecessor.createdAt,
+    updatedAt: predecessor.updatedAt,
+    runtimeRoleUpdatedAtBefore: predecessor.runtimeRoleUpdatedAtBefore,
+    runtimeRoleUpdatedAtAfter: predecessor.runtimeRoleUpdatedAtAfter,
+    replacementDeployment: {
+      id: predecessor.replacementDeploymentId,
+      url: predecessor.replacementDeploymentUrl,
+    },
+    priorRuntimeUrl: prior,
+    nextRuntimeUrl: next,
+    priorOwnerUrl: owner,
+    nextOwnerUrl: null,
+    runtimeOperations: operations,
+    ownerOperations: [],
+  };
+  const nextConfig = { operatorCommit: "b".repeat(40), operatorCiRunId: 2 };
+  const accepted = normalizeRecoveryStateReleaseHandoff(
+    state, nextConfig, predecessor,
+  );
+  assert.equal(accepted.operatorCommit, nextConfig.operatorCommit);
+  assert.equal(accepted.operatorCiRunId, nextConfig.operatorCiRunId);
+  assert.equal(accepted.stage, "runtime-deployment-ready");
+  assert.throws(() => normalizeRecoveryStateReleaseHandoff(
+    { ...state, updatedAt: "2026-08-13T18:15:00.000Z" },
+    nextConfig,
+    predecessor,
+  ), /another release/);
+  assert.throws(() => normalizeRecoveryStateReleaseHandoff(
+    { ...state, nextRuntimeUrl: `${next}x` }, nextConfig, predecessor,
+  ), /another release/);
+});
+
 test("deployment boundaries pin the prior production and exact-source replacement", () => {
   const recoveryCreatedAt = "2026-08-13T17:00:00.000Z";
   const prior = normalizePriorDeployment({
@@ -176,6 +238,33 @@ test("deployment boundaries pin the prior production and exact-source replacemen
     url: "grainline-replacement.vercel.app",
     meta: { gitCommitSha: FORCE_RELEASE_COMMIT, gitCommitRef: "HEAD" },
   }, recoveryCreatedAt));
+});
+
+test("canonical alias proof rejects partial promotion and ignores alias arrays", () => {
+  const deploymentId = "dpl_Replacement123";
+  const hosts = ["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app"];
+  const targets = (ids) => hosts.map((hostname, index) => ({
+    hostname,
+    deployment: {
+      id: ids[index],
+      projectId: "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp",
+      readyState: "READY",
+      target: "production",
+      alias: [],
+    },
+  }));
+  assert.equal(normalizeCanonicalAliasTargets(
+    targets(Array(3).fill(deploymentId)), deploymentId,
+  ).stage, "promoted");
+  assert.equal(normalizeCanonicalAliasTargets(
+    targets(Array(3).fill("dpl_Previous123")), deploymentId,
+  ).stage, "unpromoted");
+  assert.throws(() => normalizeCanonicalAliasTargets(
+    targets([deploymentId, "dpl_Previous123", "dpl_Previous123"]), deploymentId,
+  ), /partial/);
+  assert.throws(() => normalizeCanonicalAliasTargets(
+    targets(Array(3).fill(deploymentId)).reverse(), deploymentId,
+  ), /inventory/);
 });
 
 test("recovery Vercel inventory tolerates credential timestamp changes but no authority drift", () => {
