@@ -10,6 +10,7 @@ DECLARE
   participant_function_count integer;
   participant_function_oid oid;
   participant_function_definition text;
+  participant_body_issues text[] := ARRAY[]::text[];
   forced_table_count integer;
 BEGIN
   IF pg_catalog.current_setting('transaction_isolation')
@@ -148,41 +149,93 @@ BEGIN
   IF pg_catalog.strpos(
        participant_function_definition,
        'audit_id_prefix :='
-     ) = 0
-     OR pg_catalog.strpos(
+     ) = 0 THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'audit-prefix assignment missing'
+    );
+  END IF;
+  IF pg_catalog.strpos(
        participant_function_definition,
        '''case_resolution_mark_'''
-     ) = 0
-     OR pg_catalog.strpos(
+     ) = 0 THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'audit-prefix value missing'
+    );
+  END IF;
+  IF pg_catalog.strpos(
        participant_function_definition,
        'pg_catalog.gen_random_uuid()'
-     ) = 0
-     OR pg_catalog.strpos(
+     ) = 0 THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'database nonce missing'
+    );
+  END IF;
+  IF pg_catalog.strpos(
        participant_function_definition,
        'audit_id := existing_audit.id'
-     ) = 0
-     OR pg_catalog.strpos(
+     ) = 0 THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'stable replay assignment missing'
+    );
+  END IF;
+  IF pg_catalog.strpos(
        participant_function_definition,
        'ORDER BY audit."createdAt" DESC, audit.id DESC'
-     ) = 0
-     OR pg_catalog.strpos(
+     ) = 0 THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'newest-audit ordering missing'
+    );
+  END IF;
+  IF pg_catalog.strpos(
        participant_function_definition,
        '~ ''^[0-9a-f]{32}$'''
-     ) = 0
-     OR pg_catalog.strpos(
+     ) = 0 THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'cycle-suffix validation missing'
+    );
+  END IF;
+  IF pg_catalog.strpos(
        participant_function_definition,
        'actor_is_buyer AND locked_case."buyerMarkedResolved"'
-     ) = 0
-     OR pg_catalog.strpos(
+     ) = 0 THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'active buyer-mark replay gate missing'
+    );
+  END IF;
+  IF pg_catalog.strpos(
        participant_function_definition,
        'actor_is_seller AND locked_case."sellerMarkedResolved"'
-     ) = 0
-     OR participant_function_definition ~
-       'p_audit|p_dedup|p_source_id'
-     OR participant_function_definition ~
+     ) = 0 THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'active seller-mark replay gate missing'
+    );
+  END IF;
+  IF participant_function_definition ~
+       'p_audit|p_dedup|p_source_id' THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'caller-controlled source parameter present'
+    );
+  END IF;
+  IF participant_function_definition ~
        'existing_audit\.metadata[[:space:]]*->[[:space:]]*>[[:space:]]*''at''[[:space:]]*=[[:space:]]*pg_catalog\.to_char\([[:space:]]*locked_case\."updatedAt"' THEN
+    participant_body_issues := pg_catalog.array_append(
+      participant_body_issues,
+      'timestamp-coupled replay predicate present'
+    );
+  END IF;
+  IF pg_catalog.cardinality(participant_body_issues) <> 0 THEN
     RAISE EXCEPTION
-      'Case participant-resolution function body drifted';
+      'Case participant-resolution function body drifted: %',
+      pg_catalog.array_to_string(participant_body_issues, '; ');
   END IF;
 
   SELECT pg_catalog.count(*)::integer

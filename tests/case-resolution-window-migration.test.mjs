@@ -250,6 +250,18 @@ describe("Case resolution-window correction", () => {
       productionPostflight,
       /existing_audit\\\.metadata[\s\S]*locked_case\\\."updatedAt"/,
     );
+    assert.match(
+      productionPostflight,
+      /caller-controlled source parameter present/,
+    );
+    assert.match(
+      productionPostflight,
+      /timestamp-coupled replay predicate present/,
+    );
+    assert.match(
+      productionPostflight,
+      /array_to_string\(participant_body_issues, '; '\)/,
+    );
     assert.doesNotMatch(
       productionPostflight,
       /pg_get_functiondef\(procedure\.oid\)[\s\S]{0,180}locked_case\\\."updatedAt"/,
