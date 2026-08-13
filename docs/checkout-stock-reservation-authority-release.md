@@ -127,12 +127,23 @@ tampering.
 The production-scope correction does not rewrite the migration, resolve or
 modify `_prisma_migrations`, or permit a general checksum bypass. For this one
 named migration it requires exactly one completed, non-rolled-back, one-step
-row with the exact original checksum and also requires the current repository
-checksum to be different. The current checksum, any near match, duplicate,
+row with the exact original checksum and independently requires the repository
+file to retain its exact currently reviewed checksum. The current checksum in
+the production row, any near match, duplicate,
 unfinished, rolled-back or zero-step shape fails closed. Unit tests and a
 disposable PostgreSQL ledger proof cover the accepted and rejected shapes.
 Future migrations must correct previously applied behavior in a new migration;
 an applied migration file is immutable.
+
+Exact branch head `8c561881922143217ae31b1ef4c5f5d9894ff1d1` then ran the
+corrected verifier against the production owner connection in its
+engine-enforced read-only transaction with scope stage `before`. The sanitized
+result was: 194 reviewed migrations, three historical exceptions,
+StripeWebhookEvent FORCE present, reservation authority absent, zero
+reservation activation/FORCE rows, state `predecessor`, and
+`productionChangedByProof: false`. This proves the correction matches the live
+predecessor; it does not authorize or perform a migration, ledger resolution,
+deployment, grant change or provider mutation.
 
 ## Required pre-production gates
 

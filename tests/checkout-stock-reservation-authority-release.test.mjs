@@ -151,6 +151,14 @@ test("dedicated production runner and compatible runtime proof are documented se
     /0ae1197e6d8fd936e201ac793f810a42c1358bbea70f66cabffb7415f960aad6/,
   );
   assert.match(release, /does not rewrite[\s\S]*_prisma_migrations/i);
+  assert.match(
+    release,
+    /8c561881922143217ae31b1ef4c5f5d9894ff1d1[\s\S]*engine-enforced read-only/i,
+  );
+  assert.match(
+    release,
+    /194 reviewed migrations[\s\S]*three historical exceptions[\s\S]*productionChangedByProof: false/i,
+  );
 });
 
 test("release record retains exact bytes and the no-production boundary", () => {
