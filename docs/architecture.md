@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -55,12 +55,18 @@ least-privilege database groups roll out:
 - Webhooks and cron routes are middleware-public only because they authenticate with provider signatures or shared secrets inside the route.
 
 Notification, Conversation/Message, DirectUpload, and the Case family are
-independent completed production database groups. The Case source inventory,
+independent completed production database groups. Together with SavedSearch
+they account for nine FORCE-hardened tables; StripeWebhookEvent Phase A brings
+the total number of production RLS tables to ten without yet adding FORCE to
+that service ledger. The Case source inventory,
 fixed-operation catalog, policyless ENABLE/FORCE posture, and pooled-runtime
 proof remain retained in the Case rollout records. Case evidence UI/API
 enablement, private-R2 route smoke, cleanup scheduling, token retirement, and
 provider variables remain disabled separate releases; they are not evidence
-that Case database RLS is incomplete. Order/payment/shipping is the active
+that Case database RLS is incomplete. They do mean the Case product is not yet
+launch-complete. The 2026-08-11 review also records a product-contract gap in
+the one-sided Case resolution timeout; see
+`docs/system-readiness-review-20260811.md`. Order/payment/shipping is the active
 sensitive-data program. User, public/private catalog data, carts, and other
 service/audit ledgers remain separately reviewed later groups; do not bundle
 their policies or grants.
@@ -79,6 +85,13 @@ restore bind an immutable Stripe source object plus claim generation; repair
 workers use monotonic claims; Redis checkout publication uses unique owner
 tokens. CI will not apply this candidate until the separate webhook FORCE
 release passes, and the production migration workflow is intentionally unwired.
+
+The broader Order group is not yet read-converted. Several buyer, seller, and
+admin surfaces still derive historical presentation and seller authority from
+the mutable current Listing even though checkout writes `listingSnapshot` and
+new Orders/OrderItems dual-write durable seller keys. Those projections and
+fixed operations must move to immutable checkout facts before Order-family RLS
+activation.
 
 ## Core Lifecycles
 
@@ -104,7 +117,7 @@ Conversations are participant-scoped, with specific staff/admin exceptions only 
 
 ### Uploads
 
-Write paths must persist only first-party Grainline media URLs, and new user-submitted upload URLs must be scoped to the current uploader's R2 key segment and expected endpoint. Edit paths may preserve existing DB-owned media rows/fields for legacy compatibility, but hidden fields must not let one signed-in user attach another user's public Grainline media URL. Image upload routes validate MIME/size/count rules, strip image metadata where applicable, verify object availability, and clean up failed writes. Direct-to-R2 PDF/video uploads are tracked in `DirectUpload` from presign through verify, claim, and cleanup so abandoned successful uploads can be deleted without bucket listing. DirectUpload cleanup is isolated from the ordinary Vercel runtime: the compatible retirement removed its route and schedule before FORCE RLS, and the dedicated GitHub worker remains unscheduled until the restricted cleanup-role postflight is accepted. Chat/file upload paths have different friction than profile/listing image paths.
+Write paths must persist only first-party Grainline media URLs, and new user-submitted upload URLs must be scoped to the current uploader's R2 key segment and expected endpoint. Edit paths may preserve existing DB-owned media rows/fields for legacy compatibility, but hidden fields must not let one signed-in user attach another user's public Grainline media URL. Image upload routes validate MIME/size/count rules, strip image metadata where applicable, verify object availability, and clean up failed writes. Direct-to-R2 PDF/video uploads are tracked in `DirectUpload` from presign through verify, claim, and cleanup so abandoned successful uploads can be deleted without bucket listing. DirectUpload cleanup is isolated from the ordinary Vercel runtime: the compatible retirement removed its route and schedule before FORCE RLS. The restricted cleanup-role postflight is accepted, but the dedicated GitHub worker remains unscheduled pending its separate launch operation, first-run evidence, alert proof, and token/credential retirement. Chat/file upload paths have different friction than profile/listing image paths.
 
 ### Email And Notifications
 
@@ -124,6 +137,14 @@ Notifications respect preference keys and deduplication helpers. Time-critical t
 - `docs/security-hardening-plan.md`: adversarial security audit process.
 - `docs/maintainability-plan.md`: codebase stabilization and bug-resistance plan.
 - `docs/legal-risk-register.md`: legal/compliance issue tracker for attorney review.
+- `docs/system-readiness-review-20260811.md`: current Case and
+  Order/payment/shipping product-plus-RLS readiness decision record.
+
+Preparation, audit, and release documents are append-only evidence for the
+checkpoint named in their header. When their opening status no longer matches
+production, add a clear historical/superseded pointer rather than rewriting the
+past. Use this architecture map, the coverage matrix, and the top of
+`STRATEGY.md` for current state.
 
 ## Current Architecture Health And Deliberate Debt
 

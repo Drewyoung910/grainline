@@ -18,11 +18,14 @@ describe("deferred launch backlog", () => {
 
   it("lists the current grouped deferred categories with closure criteria", () => {
     const requiredCategories = [
-      "RLS staging and first table policy",
+      "Order/payment/shipping RLS continuation",
+      "Private Case evidence release",
+      "Case resolution-window contract",
+      "DirectUpload cleanup operations",
       "Stripe refund runtime reconciliation",
       "Stripe partial-refund reconciliation",
       "Shipping label clawback reconciliation",
-      "Stripe webhook subscriptions",
+      "Stripe webhook launch topology",
       "Stripe Connect v2 loss-liability",
       "Runtime query plans",
       "Provider-side privacy erasure",
@@ -39,6 +42,7 @@ describe("deferred launch backlog", () => {
       "Vercel Analytics and Speed Insights",
       "Homepage browser a11y/runtime proof",
       "Deployed security headers",
+      "Node runtime major alignment",
     ];
 
     for (const category of requiredCategories) {

@@ -4,6 +4,27 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### System readiness checkpoint (2026-08-11)
+
+The combined product-logic, architecture and RLS review is retained in
+`docs/system-readiness-review-20260811.md`. The rollout direction remains
+correct, but database completion must not be described as product completion.
+Case FORCE is complete; private Case evidence remains a launch boundary, and
+the one-sided `PENDING_CLOSE` seven-day auto-dismissal has an inconsistent
+Terms/UI/comment contract that must be resolved before launch. The recommended
+buyer-protective design does not let a seller-only resolution mark silently
+dismiss the buyer's Case.
+
+For Order/payment/shipping, preserve this exact order: StripeWebhookEvent FORCE
+plus pooled-runtime postflight; fresh aggregate-only CheckoutStockReservation
+inspection; compatible reservation preparation and app/drain proof; reservation
+ENABLE and FORCE as separate releases; then the remaining Order/OrderItem/
+quote/payment/payout conversions. Historical order views and seller authority
+still rely on mutable Listings in several current paths, so durable seller keys
+and `listingSnapshot` projections must become the authority/read source before
+Order-family activation. Provider/live-money launch proofs remain separate and
+must not be used to broaden or reorder database authority.
+
 ### Case FORCE completion and Order/payment/shipping start (2026-08-04)
 
 The Case-family database RLS group is complete. Exact main

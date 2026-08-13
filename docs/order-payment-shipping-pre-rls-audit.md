@@ -1,5 +1,13 @@
 # Order, payment and shipping pre-RLS audit
 
+> Current routing note: this document preserves the baseline findings and
+> fixed-operation design. StripeWebhookEvent Phase A is now live, its FORCE
+> preparation is merged but unapplied, and the CheckoutStockReservation
+> compatible candidate remains production-inert. See
+> `docs/rls-coverage-matrix.md`, the top of `STRATEGY.md`, and
+> `docs/system-readiness-review-20260811.md` before acting on the historical
+> baseline below.
+
 Opened 2026-08-04 from exact main
 `9e5d87f4c5b4a529bc84c6c2cf077778fe553186` after the Case-family FORCE
 release and real pooled-runtime postflight completed. This is an isolated

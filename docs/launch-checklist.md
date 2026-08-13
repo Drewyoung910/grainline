@@ -268,6 +268,17 @@ Run these in test mode before switching to live money:
 - Stripe webhook creates orders and order items correctly.
 - Seller order fulfillment: shipped and pickup paths.
 - Seller refund and staff case refund paths.
+- Case lifecycle: eligible paid-order open, seller 48-hour response/escalation,
+  participant discussion, `PENDING_CLOSE`, staff review, full/partial/dismissed
+  resolution, and both participant notification surfaces. Verify the finalized
+  seven-day resolution-window policy from
+  `docs/system-readiness-review-20260811.md`; a seller-only resolution mark must
+  not silently dismiss the buyer's Case unless that exact policy is consciously
+  approved and disclosed.
+- Private Case evidence: authenticated JPEG/PNG/WebP upload, participant and
+  staff signed read, foreign-user denial, disabled PDF rejection, export/
+  deletion behavior, and abandoned-object cleanup through the restricted
+  DirectUpload worker.
 - Private custom listing is visible only to the reserved buyer.
 - Public listing visibility: draft, hidden, pending review, rejected, private, vacation, banned seller.
 - `/api/health` returns 200 when DB/Redis/R2 dependency checks are healthy and 503 on dependency failure; verbose dependency output works only with `Authorization: Bearer $HEALTH_CHECK_TOKEN`, not a query string token. Confirm deployed responses include `Cache-Control: private, no-store, max-age=0` and `Vary: Authorization, X-Health-Check-Token`.
@@ -306,6 +317,10 @@ Record links/screenshots/dates for:
 ## Business And Legal
 
 - Attorney sign-off on Terms and Privacy.
+- Case Terms/operations alignment: evidence-photo availability, the exact
+  participant resolution timeout, the 3–5 business-day staff review process,
+  and the legal@ re-review mailbox/14-day response process match the deployed
+  product and staffed runbook.
 - DRAFT banners removed only after attorney sign-off.
 - Clickwrap and age-attestation decision finalized.
 - Money transmitter analysis documented.
