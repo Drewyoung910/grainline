@@ -16,12 +16,14 @@ export const REVIEWED_NEON_BRANCH_ID = "br-hidden-mouse-aaugn2wr";
 export const REVIEWED_NEON_BRANCH_NAME = "production";
 export const REVIEWED_NEON_ORG_ID = "org-raspy-frost-18952075";
 export const REVIEWED_NEON_CLI_PATH =
-  "/Users/drewyoung/.npm/_npx/74274893b9fe65d3/node_modules/neonctl/dist/cli.js";
+  "/Users/drewyoung/.npm/_npx/eeb76a5ebe01076e/node_modules/neonctl/dist/cli.js";
 export const REVIEWED_NEON_CLI_VERSION = "2.35.1";
+export const REVIEWED_NEON_CLI_INTEGRITY =
+  "sha512-gxDmTYDjW8hwhe7WSfuR06jJ2WNdAjBTTJEIM5FXkmgGZpgf/Hp69rZc8PJCKXOsrRiGM1I50luv48I8vkDQww==";
 export const REVIEWED_NEON_CREDENTIAL_PATH =
   "/Users/drewyoung/.config/neonctl/credentials.json";
 export const NEON_OWNER_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{16}$/;
-export const NEON_RUNTIME_PASSWORD_PATTERN = /^[A-Za-z0-9_-]{64}$/;
+export const NEON_RUNTIME_PASSWORD_PATTERN = /^(?:[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{64})$/;
 
 const OPERATION_ATTEMPTS = 16;
 const OPERATION_INTERVAL_MS = 2_000;
@@ -53,10 +55,23 @@ export function assertReviewedNeonCli() {
     "package.json",
   );
   const metadata = JSON.parse(readFileSync(packagePath, "utf8"));
+  const cacheLockPath = path.resolve(
+    path.dirname(packagePath),
+    "..",
+    "..",
+    "package-lock.json",
+  );
+  const cacheLock = JSON.parse(readFileSync(cacheLockPath, "utf8"));
+  const lockedPackage = cacheLock?.packages?.["node_modules/neonctl"];
   const credentialStat = statSync(REVIEWED_NEON_CREDENTIAL_PATH);
   if (
     metadata?.name !== "neonctl"
     || metadata.version !== REVIEWED_NEON_CLI_VERSION
+    || metadata?.bin?.neonctl !== "dist/cli.js"
+    || lockedPackage?.version !== REVIEWED_NEON_CLI_VERSION
+    || lockedPackage?.resolved
+      !== `https://registry.npmjs.org/neonctl/-/neonctl-${REVIEWED_NEON_CLI_VERSION}.tgz`
+    || lockedPackage?.integrity !== REVIEWED_NEON_CLI_INTEGRITY
     || !credentialStat.isFile()
     || (credentialStat.mode & 0o077) !== 0
   ) {
@@ -126,13 +141,29 @@ export function normalizeNeonOperation(operation) {
 }
 
 export function validateNeonOwnerResetResponse(payload) {
+  return validateNeonRoleResetResponse(
+    payload,
+    REVIEWED_OWNER_ROLE,
+    NEON_OWNER_PASSWORD_PATTERN,
+  );
+}
+
+export function validateNeonRuntimeResetResponse(payload) {
+  return validateNeonRoleResetResponse(
+    payload,
+    REVIEWED_RUNTIME_ROLE,
+    NEON_RUNTIME_PASSWORD_PATTERN,
+  );
+}
+
+function validateNeonRoleResetResponse(payload, expectedRole, passwordPattern) {
   const role = payload?.role;
   if (
     role?.branch_id !== REVIEWED_NEON_BRANCH_ID
-    || role.name !== REVIEWED_OWNER_ROLE
+    || role.name !== expectedRole
     || role.authentication_method !== "password"
     || typeof role.updated_at !== "string"
-    || !NEON_OWNER_PASSWORD_PATTERN.test(role.password)
+    || !passwordPattern.test(role.password)
     || !Array.isArray(payload.operations)
     || payload.operations.length === 0
   ) {
@@ -154,6 +185,15 @@ export function resetReviewedNeonOwnerPassword() {
   ));
 }
 
+export function resetReviewedNeonRuntimePassword() {
+  return validateNeonRuntimeResetResponse(runNeonApi(
+    `/projects/${REVIEWED_NEON_PROJECT_ID}`
+      + `/branches/${REVIEWED_NEON_BRANCH_ID}`
+      + `/roles/${REVIEWED_RUNTIME_ROLE}/reset_password`,
+    "POST",
+  ));
+}
+
 export function readReviewedNeonOperation(operationId) {
   if (typeof operationId !== "string" || !/^[A-Za-z0-9-]{8,80}$/.test(operationId)) {
     throw new Error("Neon operation id is not bounded");
@@ -164,14 +204,22 @@ export function readReviewedNeonOperation(operationId) {
 }
 
 export function readReviewedNeonOwnerRoleMetadata() {
+  return readReviewedNeonRoleMetadata(REVIEWED_OWNER_ROLE);
+}
+
+export function readReviewedNeonRuntimeRoleMetadata() {
+  return readReviewedNeonRoleMetadata(REVIEWED_RUNTIME_ROLE);
+}
+
+function readReviewedNeonRoleMetadata(expectedRole) {
   const role = runNeonApi(
     `/projects/${REVIEWED_NEON_PROJECT_ID}`
       + `/branches/${REVIEWED_NEON_BRANCH_ID}`
-      + `/roles/${REVIEWED_OWNER_ROLE}`,
+      + `/roles/${expectedRole}`,
   )?.role;
   if (
     role?.branch_id !== REVIEWED_NEON_BRANCH_ID
-    || role.name !== REVIEWED_OWNER_ROLE
+    || role.name !== expectedRole
     || role.authentication_method !== "password"
     || typeof role.updated_at !== "string"
   ) {

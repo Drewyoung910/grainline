@@ -5,6 +5,7 @@ import {
   buildNeonRuntimePoolerUrl,
   validateNeonRuntimePasswordResponse,
   validateNeonOwnerResetResponse,
+  validateNeonRuntimeResetResponse,
   waitForReviewedNeonOperations,
 } from "../scripts/neon-owner-password-control.mjs";
 
@@ -61,6 +62,38 @@ describe("pinned Neon owner password control", () => {
     assert.equal(parsed.port, "5432");
     assert.equal(parsed.pathname, "/neondb");
     assert.throws(() => validateNeonRuntimePasswordResponse({ password: "short" }));
+  });
+
+  it("accepts only the two reviewed Neon runtime password shapes", () => {
+    const payload = {
+      role: {
+        branch_id: "br-hidden-mouse-aaugn2wr",
+        name: "grainline_app_runtime",
+        authentication_method: "password",
+        updated_at: "2026-08-13T17:00:00Z",
+        password: RUNTIME_PASSWORD,
+      },
+      operations: [{
+        id: "operation-1234",
+        project_id: "icy-unit-96812898",
+        branch_id: "br-hidden-mouse-aaugn2wr",
+        action: "reset_password",
+        status: "running",
+      }],
+    };
+    assert.equal(validateNeonRuntimeResetResponse(payload).password, RUNTIME_PASSWORD);
+    assert.equal(validateNeonRuntimeResetResponse({
+      ...payload,
+      role: { ...payload.role, password: PASSWORD },
+    }).password, PASSWORD);
+    assert.throws(() => validateNeonRuntimeResetResponse({
+      ...payload,
+      role: { ...payload.role, name: "neondb_owner" },
+    }));
+    assert.throws(() => validateNeonRuntimeResetResponse({
+      ...payload,
+      role: { ...payload.role, password: "too-short" },
+    }));
   });
 
   it("waits for every returned operation and fails on terminal error", async () => {
