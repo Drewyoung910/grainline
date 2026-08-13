@@ -1,7 +1,14 @@
 # Database credential exposure recovery — 2026-08-13
 
-Status: contained; recovery operator preparation is active. No credential value belongs in this
-document, a commit, a PR, an Actions artifact, or ordinary terminal output.
+Status: recovered and accepted. No credential value belongs in this document,
+a commit, a PR, an Actions artifact, or ordinary terminal output.
+
+The sealed recovery completed at `2026-08-13T18:32:53Z` from exact operator
+commit `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89` after exact-head CI
+`31730856176` passed. Sanitized mode-0600 evidence is retained outside the
+repository as `database-credential-recovery-20260813.json`; its accepted
+result is `status=passed`, `acceptanceEligible=true`, zero issues, zero
+migrations applied and no provider change outside the authorized recovery.
 
 ## Incident
 
@@ -43,10 +50,14 @@ delete the shared team variable or change another linked project.
   production migration rows and was not applied.
 - No Vercel deployment, alias, environment variable, Neon role, GitHub secret,
   Stripe resource, or database grant was changed during containment or the
-  first failed recovery preflight.
-- Current production still points at READY deployment
-  `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` until a separately authorized credential
-  recovery redeploy replaces it.
+  first failed recovery preflight. The later accepted recovery changed only
+  the explicitly authorized credential and Vercel-linkage surfaces recorded
+  below.
+- Production now points at READY replacement deployment
+  `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6`. It contains the exact same deployed
+  application source `69c14c0618ea7ab9c74756422273d17d66db7efa` as its
+  predecessor; the redeploy exists solely to pick up the replacement pooled
+  runtime credential.
 
 ## Credential locations that must converge
 
@@ -170,6 +181,37 @@ Any ambiguous restart state must stop and inspect. Do not repeat a non-idempoten
 Neon password reset merely because the first response was lost; reveal the
 current stored password and compare only in memory against the private recovery
 state before choosing the next step.
+
+## Accepted production outcome
+
+The restart-safe operator completed every authorized boundary:
+
+- removed Grainline's exact project-level Development `DATABASE_URL`;
+- unlinked Grainline from the exact shared `DATABASE_URL` while retaining the
+  shared team variable itself, then proved Development and Preview resolve no
+  `DATABASE_URL`;
+- rotated only `grainline_app_runtime` and `neondb_owner`, proved each
+  replacement role identity, and proved both superseded passwords reject;
+- updated only the sensitive Vercel Production `DATABASE_URL`, the protected
+  GitHub Production migration secret and digest, and the dedicated ignored
+  mode-0600 local credential files;
+- removed legacy `DATABASE_URL` and `DIRECT_URL` assignments from the ignored
+  local `.env` rather than perpetuating duplicate consumers;
+- promoted replacement deployment
+  `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6`, proved all three canonical hostnames
+  resolve to it, and passed the production health check; and
+- ran the exact pooled-runtime StripeWebhookEvent FORCE postflight against the
+  replacement runtime credential. Sanitized mode-0600 evidence
+  `stripe-webhook-event-force-production-postflight-ea19fa0ace85dd61868667022c45afb3cf3218fa.json`
+  records `status=passed` and `productionChangedByPostflight=false`.
+
+The operator deleted its private restart journal only after acceptance. It ran
+no migration and changed no database grants, Stripe resource, Case evidence
+flag, cleanup schedule, CheckoutStockReservation state or PR #196 state.
+
+The executed release commit remains immutable. This completion record is a
+separate successor documentation change; it does not alter the reviewed
+operator or retroactively change its seal.
 
 ## Diagnostic rules added by this incident
 

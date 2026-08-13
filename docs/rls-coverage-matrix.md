@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-10
+Last updated: 2026-08-13
 
 ## Purpose And Scope
 
@@ -95,7 +95,7 @@ completed alternative.
 | `EmailOutbox` | `ALTERNATIVE_REVIEW` | Email service ledgers | Recipient PII and rendered email content; producers, sender cron and operations | Dedicated producer and worker operations, least-privilege reads and retention proof |
 | `AccountDeletionSideEffect` | `ALTERNATIVE_REVIEW` | Account lifecycle service | Deletion payloads and retry state; account deletion, worker and operations | Service-only durable queue with target-user cleanup semantics and ordinary runtime denial |
 | `SupportRequest` | `BLOCKED_DESIGN` | Support | User or anonymous contact PII and case text; requester and staff | Authenticated-owner versus anonymous submission design, staff queue and retention rules |
-| `StripeWebhookEvent` | `RLS_LIVE_FORCE_POSTFLIGHT_PENDING` | Provider event ledgers | Six source-pinned fixed lease/maintenance functions; direct ordinary source removed | Policyless ENABLE plus FORCE, zero policies, zero runtime/PUBLIC table or column authority, and exactly six fixed functions are live. Exact main `ea19fa0ace85dd61868667022c45afb3cf3218fa`, CI `31716577153`, and guarded migration run `31717354633` applied only `20260810172000_force_stripe_webhook_event_rls`; migration status, global grant/RLS audit and FORCE-only ledger proof passed, with zero successor rows. The final pooled-runtime postflight is blocked until both PostgreSQL passwords exposed on 2026-08-13 are rotated; retain `docs/database-credential-exposure-recovery-20260813.md`. Connect v2 signed delivery and live-mode provider proof remain mandatory launch gates, not database-authority gaps |
+| `StripeWebhookEvent` | `RLS_LIVE_FORCE` | Provider event ledgers | Six source-pinned fixed lease/maintenance functions; direct ordinary source removed | Policyless ENABLE plus FORCE, zero policies, zero runtime/PUBLIC table or column authority, and exactly six fixed functions are live. Exact main `ea19fa0ace85dd61868667022c45afb3cf3218fa`, CI `31716577153`, and guarded migration run `31717354633` applied only `20260810172000_force_stripe_webhook_event_rls`; migration status, global grant/RLS audit and FORCE-only ledger proof passed, with zero successor rows. After the accepted credential recovery sealed at `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89`, the final exact pooled-runtime postflight passed read-only with `productionChangedByPostflight=false`. Retain `docs/database-credential-exposure-recovery-20260813.md`. Connect v2 signed delivery and live-mode provider proof remain mandatory launch gates, not database-authority gaps |
 | `SellerMetrics` | `BLOCKED_DESIGN` | Seller analytics | Seller performance and sales totals; seller, staff, guild logic and jobs | Separate seller-private metrics from any public eligibility projection; service-only calculation writes |
 | `SellerRatingSummary` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived public rating summary; public readers and calculation jobs | Read-only ordinary runtime plus service-only refresh and integrity proof |
 | `SiteMetricsSnapshot` | `ALTERNATIVE_REVIEW` | Public aggregate projections | Derived site metrics; public readers and calculation jobs | Read-only ordinary runtime plus service-only singleton refresh |
@@ -216,13 +216,12 @@ preclude a later reviewed policy or grant migration.
    Keep Case evidence enablement, cleanup scheduling and provider/token changes
    outside that database boundary.
 6. Continue the Order/payment/shipping program: StripeWebhookEvent policyless
-   Phase A and its actual pooled-runtime postflight are complete. Preserve the
-   database-first rollback through the observation boundary, prepare FORCE as
-   a separate posture-only release, then continue the remaining Order,
-   OrderItem, quote, payment, payout and reservation tables as separately
-   reviewed activations. Keep Connect v2 plus live-mode provider topology and
-   signed delivery as distinct mandatory launch gates; the v2 route shares the
-   fixed lease functions and does not reopen the Phase-A database boundary.
+   ENABLE, FORCE and the actual pooled-runtime postflights are complete and
+   accepted. Continue CheckoutStockReservation, Order, OrderItem, quote,
+   payment and payout tables as separately reviewed activations. Keep Connect
+   v2 plus live-mode provider topology and signed delivery as distinct
+   mandatory launch gates; the v2 route shares the fixed lease functions and
+   does not reopen the accepted database boundary.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger

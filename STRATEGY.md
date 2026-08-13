@@ -12,13 +12,12 @@ guarded Production Migrations run `31717354633` applied only
 `20260810172000_force_stripe_webhook_event_rls`, with migration status, global
 grant/RLS audit and the FORCE-only ledger proof passing. The separately staged
 CheckoutStockReservation authority migration still has zero production rows.
-The FORCE pooled-runtime postflight and all later production work are paused at
-one incident boundary: a local diagnostic exposed both production PostgreSQL
-passwords in agent tool output. Follow
-`docs/database-credential-exposure-recovery-20260813.md`; rotate both roles and
-redeploy the replacement runtime credential before running the postflight or
-resuming reservation authority. This is a credential-recovery prerequisite,
-not a reason to redesign or discard the accepted FORCE implementation.
+The 2026-08-13 database-credential recovery is complete: both passwords were
+replaced, superseded-password rejection was proved, the same application
+source was promoted with the replacement runtime credential, and the final
+pooled-runtime FORCE postflight passed read-only. Retain
+`docs/database-credential-exposure-recovery-20260813.md`; reservation authority
+is now the next database boundary rather than remaining paused on the incident.
 
 The Case-family database RLS group is complete. Exact main
 `9e5d87f4c5b4a529bc84c6c2cf077778fe553186` passed CI `30951067980`;

@@ -69,10 +69,10 @@ their policies or grants.
 The first Order/payment/shipping database boundary is the service-owned
 `StripeWebhookEvent` ledger. Policyless ENABLE plus FORCE is live with zero
 ordinary-runtime/PUBLIC table or column authority, and exactly six
-source-pinned fixed functions. Its final pooled-runtime read-only postflight is
-blocked only on the separately documented 2026-08-13 credential rotation; do
-not add the runtime URL to the owner-only GitHub Production migration
-environment to automate it.
+source-pinned fixed functions. Its final pooled-runtime read-only postflight
+passed with the replacement runtime credential after the separately documented
+2026-08-13 credential recovery. The runtime URL remains outside the owner-only
+GitHub Production migration environment.
 
 `CheckoutStockReservation` is the next service-ledger boundary. Its compatible
 candidate keeps direct table grants temporarily for old deployments but moves
