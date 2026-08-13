@@ -34,7 +34,6 @@ import {
   REVIEWED_GITHUB_REPOSITORY,
   loadSeparationLocalDatabaseEnvironment,
   readGithubMigrationState,
-  readVercelIsolationState,
   updateGithubMigrationCredential,
   updateSeparationLocalDirectUrl,
 } from "./runtime-db-credential-separation-operator.mjs";
@@ -286,6 +285,68 @@ function runProvider(command, args, { cwd, input, json = false, timeout = 45_000
   }
 }
 
+export function normalizeRecoveryVercelState(
+  projectPayload,
+  sharedPayload = { data: [], pagination: { count: 0, next: null } },
+) {
+  const records = Array.isArray(projectPayload?.envs) ? projectPayload.envs : [];
+  const sharedRecords = sharedPayload?.data;
+  if (
+    !Array.isArray(sharedRecords)
+    || sharedPayload?.pagination?.next !== null
+    || sharedPayload?.pagination?.count !== sharedRecords.length
+  ) throw new Error("Vercel shared environment inventory is incomplete");
+  const productionRecord = (key) => records.filter((entry) => (
+    entry?.key === key
+    && entry.type === "sensitive"
+    && JSON.stringify(entry.target) === JSON.stringify(["production"])
+    && (entry.gitBranch === null || entry.gitBranch === undefined)
+  ));
+  if (
+    productionRecord("DATABASE_URL").length !== 1
+    || productionRecord("RUNTIME_DB_ROLE").length !== 1
+  ) throw new Error("Vercel production runtime credential structure drifted");
+  const projectPrivilegedKeys = records
+    .map((entry) => entry?.key)
+    .filter((key) => privilegedDatabaseEnvironmentKeys({ [key]: true }).length > 0)
+    .sort();
+  const linkedSharedDatabaseKeys = sharedRecords
+    .filter((entry) => (
+      Array.isArray(entry?.projectId)
+      && entry.projectId.includes(REVIEWED_VERCEL_PROJECT.projectId)
+      && (
+        entry.key === "DATABASE_URL"
+        || entry.key === "RUNTIME_DB_ROLE"
+        || privilegedDatabaseEnvironmentKeys({ [entry.key]: true }).length > 0
+      )
+    ))
+    .map((entry) => entry.key)
+    .sort();
+  if (projectPrivilegedKeys.length > 0 || linkedSharedDatabaseKeys.length > 0) {
+    throw new Error("Vercel regained a privileged or shared database credential");
+  }
+  return Object.freeze({
+    stage: "runtime-only",
+    presentPrivilegedKeys: [],
+    projectPrivilegedKeys,
+    sharedPrivilegedLinks: [],
+    linkedSharedDatabaseKeys,
+  });
+}
+
+function readRecoveryVercelState() {
+  const projectEnvironment = runProvider(process.execPath, [
+    REVIEWED_VERCEL_CLI_PATH,
+    "env", "ls", "--format", "json", "--no-color",
+  ], { cwd: "/Users/drewyoung/grainline", json: true });
+  const sharedEnvironment = runProvider(process.execPath, [
+    REVIEWED_VERCEL_CLI_PATH,
+    "api", "/v1/env", "--raw", "--scope", REVIEWED_VERCEL_SCOPE,
+    "--no-color",
+  ], { cwd: "/Users/drewyoung/grainline", json: true });
+  return normalizeRecoveryVercelState(projectEnvironment, sharedEnvironment);
+}
+
 export function normalizeGithubRun(run, expected) {
   if (
     run?.id !== expected.id
@@ -343,7 +404,14 @@ function readDeployment(deploymentId) {
   ], { cwd: "/Users/drewyoung/grainline", json: true });
 }
 
-export function normalizeCandidateDeployment(deployment) {
+export function recoveryDeploymentMarker(stateCreatedAt) {
+  if (!Number.isFinite(Date.parse(stateCreatedAt))) {
+    throw new Error("replacement deployment marker timestamp is invalid");
+  }
+  return sha256(`grainline-database-credential-recovery:${stateCreatedAt}`);
+}
+
+export function normalizeCandidateDeployment(deployment, stateCreatedAt) {
   if (
     deployment?.projectId !== REVIEWED_VERCEL_PROJECT.projectId
     || deployment.readyState !== "READY"
@@ -354,10 +422,75 @@ export function normalizeCandidateDeployment(deployment) {
     || deployment.source !== "cli"
     || deployment.meta?.gitCommitSha !== DEPLOYED_SOURCE_COMMIT
     || deployment.meta.gitCommitRef !== "HEAD"
+    || deployment.meta.grainlineCredentialRecovery
+      !== recoveryDeploymentMarker(stateCreatedAt)
     || typeof deployment.url !== "string"
     || !deployment.url.endsWith(".vercel.app")
   ) throw new Error("replacement deployment does not match the exact reviewed source");
   return Object.freeze({ id: deployment.id, url: deployment.url });
+}
+
+export function normalizeReplacementDeploymentInventory(payload, stateCreatedAt) {
+  const createdAfter = Date.parse(stateCreatedAt);
+  const marker = recoveryDeploymentMarker(stateCreatedAt);
+  const deployments = payload?.deployments;
+  if (
+    !Number.isFinite(createdAfter)
+    || !Array.isArray(deployments)
+    || deployments.length >= 100
+    || (payload?.pagination?.count !== undefined
+      && payload.pagination.count !== deployments.length)
+  ) throw new Error("replacement deployment inventory is incomplete");
+  const ids = deployments.filter((deployment) => {
+    const id = deployment?.id ?? deployment?.uid;
+    const createdAt = deployment?.createdAt ?? deployment?.created;
+    return (
+      typeof id === "string"
+      && /^dpl_[A-Za-z0-9]+$/.test(id)
+      && id !== PRIOR_DEPLOYMENT_ID
+      && deployment?.projectId === REVIEWED_VERCEL_PROJECT.projectId
+      && deployment.target === "production"
+      && deployment.meta?.gitCommitSha === DEPLOYED_SOURCE_COMMIT
+      && deployment.meta.gitCommitRef === "HEAD"
+      && deployment.meta.grainlineCredentialRecovery === marker
+      && Number.isFinite(createdAt)
+      && createdAt >= createdAfter
+    );
+  }).map((deployment) => deployment.id ?? deployment.uid);
+  if (ids.length > 1 || new Set(ids).size !== ids.length) {
+    throw new Error("replacement deployment inventory is ambiguous");
+  }
+  return Object.freeze([...ids]);
+}
+
+function listReplacementDeploymentIds(stateCreatedAt) {
+  const createdAfter = Date.parse(stateCreatedAt);
+  const payload = runProvider(process.execPath, [
+    REVIEWED_VERCEL_CLI_PATH,
+    "api",
+    `/v6/deployments?projectId=${encodeURIComponent(
+      REVIEWED_VERCEL_PROJECT.projectId,
+    )}&target=production&limit=100&since=${createdAfter}`,
+    "--raw",
+    "--scope",
+    REVIEWED_VERCEL_SCOPE,
+    "--no-color",
+  ], { cwd: DEPLOY_SOURCE_DIRECTORY, json: true });
+  return normalizeReplacementDeploymentInventory(payload, stateCreatedAt);
+}
+
+async function waitForCandidateDeployment(deploymentId, stateCreatedAt) {
+  for (let attempt = 0; attempt < 180; attempt += 1) {
+    const deployment = readDeployment(deploymentId);
+    if (deployment?.readyState === "READY") {
+      return normalizeCandidateDeployment(deployment, stateCreatedAt);
+    }
+    if (["ERROR", "CANCELED"].includes(deployment?.readyState)) {
+      throw new Error("replacement deployment entered a terminal failure state");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
+  throw new Error("replacement deployment did not become ready in time");
 }
 
 function exactRuntimeUrlFromLocal() {
@@ -376,9 +509,16 @@ function exactOwnerUrlFromLocal() {
   return loadSeparationLocalDatabaseEnvironment({}).DIRECT_URL;
 }
 
-export function freshRecoveryState(runtimeUrl, ownerUrl) {
+export function freshRecoveryState(runtimeUrl, ownerUrl, config = {
+  operatorCommit: "a".repeat(40),
+  operatorCiRunId: 1,
+}) {
   return Object.freeze({
-    version: 1,
+    version: 2,
+    operatorCommit: config.operatorCommit,
+    operatorCiRunId: config.operatorCiRunId,
+    deployedSourceCommit: DEPLOYED_SOURCE_COMMIT,
+    forceReleaseCommit: FORCE_RELEASE_COMMIT,
     stage: "preflight",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -395,8 +535,13 @@ export function freshRecoveryState(runtimeUrl, ownerUrl) {
 export function validateRecoveryState(value) {
   const stageIndex = RECOVERY_STAGES.indexOf(value?.stage);
   if (
-    value?.version !== 1
+    value?.version !== 2
     || stageIndex < 0
+    || !COMMIT_PATTERN.test(value.operatorCommit)
+    || !Number.isSafeInteger(value.operatorCiRunId)
+    || value.operatorCiRunId <= 0
+    || value.deployedSourceCommit !== DEPLOYED_SOURCE_COMMIT
+    || value.forceReleaseCommit !== FORCE_RELEASE_COMMIT
     || !Number.isFinite(Date.parse(value.createdAt))
     || !Number.isFinite(Date.parse(value.updatedAt))
     || typeof value.priorRuntimeUrl !== "string"
@@ -438,7 +583,50 @@ export function validateRecoveryState(value) {
       throw new Error("private credential recovery role timestamp is invalid");
     }
   }
+  if (Date.parse(value.updatedAt) < Date.parse(value.createdAt)) {
+    throw new Error("private credential recovery timestamps moved backward");
+  }
+  const runtimeFinished = RECOVERY_STAGES.indexOf("runtime-reset-finished");
+  if (stageIndex >= runtimeFinished) {
+    if (
+      value.nextRuntimeUrl === null
+      || value.nextRuntimeUrl === value.priorRuntimeUrl
+      || typeof value.runtimeRoleUpdatedAtBefore !== "string"
+      || typeof value.runtimeRoleUpdatedAtAfter !== "string"
+      || Date.parse(value.runtimeRoleUpdatedAtAfter)
+        <= Date.parse(value.runtimeRoleUpdatedAtBefore)
+    ) throw new Error("private runtime credential recovery state is incomplete");
+  }
+  const deploymentReady = RECOVERY_STAGES.indexOf("runtime-deployment-ready");
+  if (stageIndex >= deploymentReady) {
+    if (
+      typeof value.replacementDeployment?.id !== "string"
+      || !/^dpl_[A-Za-z0-9]+$/.test(value.replacementDeployment.id)
+      || value.replacementDeployment.id === PRIOR_DEPLOYMENT_ID
+      || typeof value.replacementDeployment.url !== "string"
+      || !value.replacementDeployment.url.endsWith(".vercel.app")
+    ) throw new Error("private replacement deployment state is incomplete");
+  }
+  const ownerFinished = RECOVERY_STAGES.indexOf("owner-reset-finished");
+  if (stageIndex >= ownerFinished) {
+    if (
+      value.nextOwnerUrl === null
+      || value.nextOwnerUrl === value.priorOwnerUrl
+      || typeof value.ownerRoleUpdatedAtBefore !== "string"
+      || typeof value.ownerRoleUpdatedAtAfter !== "string"
+      || Date.parse(value.ownerRoleUpdatedAtAfter)
+        <= Date.parse(value.ownerRoleUpdatedAtBefore)
+    ) throw new Error("private owner credential recovery state is incomplete");
+  }
   return Object.freeze({ ...value });
+}
+
+function assertRecoveryStateRelease(state, config) {
+  if (
+    state.operatorCommit !== config.operatorCommit
+    || state.operatorCiRunId !== config.operatorCiRunId
+  ) throw new Error("private credential recovery state belongs to another release");
+  return state;
 }
 
 function readRecoveryState() {
@@ -542,7 +730,8 @@ function updateVercelRuntimeCredential(runtimeUrl) {
   ], { cwd: "/Users/drewyoung/grainline", input: `${runtimeUrl}\n` });
 }
 
-function createReplacementDeployment() {
+function createReplacementDeployment(stateCreatedAt) {
+  const marker = recoveryDeploymentMarker(stateCreatedAt);
   const output = runProvider(process.execPath, [
     REVIEWED_VERCEL_CLI_PATH,
     "deploy", DEPLOY_SOURCE_DIRECTORY,
@@ -551,6 +740,7 @@ function createReplacementDeployment() {
     "--scope", REVIEWED_VERCEL_SCOPE,
     "--meta", `gitCommitSha=${DEPLOYED_SOURCE_COMMIT}`,
     "--meta", "gitCommitRef=HEAD",
+    "--meta", `grainlineCredentialRecovery=${marker}`,
     "--no-color",
   ], { cwd: DEPLOY_SOURCE_DIRECTORY, timeout: 15 * 60_000 });
   const deploymentUrl = output.split(/\r?\n/).find((line) => (
@@ -559,10 +749,27 @@ function createReplacementDeployment() {
   if (!deploymentUrl) throw new Error("replacement deployment URL was not returned");
   return normalizeCandidateDeployment(
     readDeployment(new URL(deploymentUrl).hostname),
+    stateCreatedAt,
   );
 }
 
-function promoteReplacementDeployment(deployment) {
+function promoteReplacementDeployment(deployment, stateCreatedAt) {
+  const canonicalAliases = [
+    "thegrainline.com",
+    "www.thegrainline.com",
+    "grainline.vercel.app",
+  ];
+  const before = readDeployment(deployment.id);
+  const beforeAliases = Array.isArray(before.alias) ? before.alias : [];
+  const canonicalBefore = canonicalAliases.filter((alias) => (
+    beforeAliases.includes(alias)
+  ));
+  if (canonicalBefore.length > 0 && canonicalBefore.length < canonicalAliases.length) {
+    throw new Error("replacement deployment has a partial canonical alias state");
+  }
+  if (canonicalBefore.length === canonicalAliases.length) {
+    return normalizeCandidateDeployment(before, stateCreatedAt);
+  }
   runProvider(process.execPath, [
     REVIEWED_VERCEL_CLI_PATH,
     "promote", deployment.id,
@@ -570,11 +777,10 @@ function promoteReplacementDeployment(deployment) {
   ], { cwd: DEPLOY_SOURCE_DIRECTORY, timeout: 5 * 60_000 });
   const promoted = readDeployment(deployment.id);
   const aliases = Array.isArray(promoted.alias) ? promoted.alias : [];
-  if (!["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app"]
-    .every((alias) => aliases.includes(alias))) {
+  if (!canonicalAliases.every((alias) => aliases.includes(alias))) {
     throw new Error("replacement deployment did not receive all canonical aliases");
   }
-  return normalizeCandidateDeployment(promoted);
+  return normalizeCandidateDeployment(promoted, stateCreatedAt);
 }
 
 async function readLiveRoutes() {
@@ -683,6 +889,100 @@ function sanitizedEvidence(config, state, liveRoutes) {
   });
 }
 
+function readExactPrivateJson(filePath, label) {
+  exactPrivateFile(filePath, label);
+  let value;
+  try {
+    value = JSON.parse(readFileSync(filePath, "utf8"));
+  } catch {
+    throw new Error(`${label} is not valid JSON`);
+  }
+  return value;
+}
+
+export function validateForcePostflightEvidence(value, runtimeUrl) {
+  if (
+    value?.schemaVersion !== 1
+    || value.operation !== "stripe-webhook-event-force-production-postflight"
+    || value.source?.clean !== true
+    || value.source.commit !== FORCE_RELEASE_COMMIT
+    || value.target?.databaseName !== REVIEWED_DATABASE_NAME
+    || value.target.databaseUrlSha256 !== sha256(runtimeUrl)
+    || value.target.endpointId !== REVIEWED_ENDPOINT_ID
+    || value.target.region !== REVIEWED_DATABASE_REGION
+    || value.target.role !== REVIEWED_RUNTIME_ROLE
+    || value.runs?.mainCiRunId !== FORCE_MAIN_CI_RUN_ID
+    || value.runs.migrationRunId !== FORCE_MIGRATION_RUN_ID
+    || value.proof?.postflightReadOnly !== true
+    || value.proof.rlsEnabled !== true
+    || value.proof.rlsForced !== true
+    || value.proof.publicAuthority !== false
+    || value.proof.runtimeTableOrColumnAuthority !== false
+    || value.productionChangedByPostflight !== false
+    || value.status !== "passed"
+    || !Number.isFinite(Date.parse(value.completedAt))
+  ) throw new Error("existing StripeWebhookEvent FORCE postflight evidence is invalid");
+  return Object.freeze({ ...value });
+}
+
+function normalizedCanonicalRoutes(value) {
+  if (
+    !Array.isArray(value)
+    || value.length !== 2
+    || value[0]?.route !== "/"
+    || value[0].status !== 200
+    || typeof value[0].contentType !== "string"
+    || !value[0].contentType.startsWith("text/html")
+    || value[1]?.route !== "/api/health"
+    || value[1].status !== 200
+    || typeof value[1].contentType !== "string"
+    || !value[1].contentType.startsWith("application/json")
+  ) throw new Error("existing recovery route evidence is invalid");
+  return Object.freeze(value.map((route) => Object.freeze({ ...route })));
+}
+
+export function validateRecoveryEvidence(value, config, state) {
+  const routes = normalizedCanonicalRoutes(value?.deployment?.canonicalRoutes);
+  if (
+    value?.schemaVersion !== 1
+    || value.operation !== "database-credential-exposure-recovery"
+    || value.status !== "passed"
+    || value.acceptanceEligible !== true
+    || value.issueCount !== 0
+    || !Number.isFinite(Date.parse(value.completedAt))
+    || value.operator?.commit !== config.operatorCommit
+    || value.operator.ciRunId !== config.operatorCiRunId
+    || value.stripeForce?.releaseCommit !== FORCE_RELEASE_COMMIT
+    || value.stripeForce.mainCiRunId !== FORCE_MAIN_CI_RUN_ID
+    || value.stripeForce.migrationRunId !== FORCE_MIGRATION_RUN_ID
+    || value.stripeForce.postflightEvidence
+      !== path.basename(FORCE_POSTFLIGHT_EVIDENCE_PATH)
+    || value.deployment.priorId !== PRIOR_DEPLOYMENT_ID
+    || value.deployment.replacementId !== state.replacementDeployment.id
+    || value.deployment.sourceCommit !== DEPLOYED_SOURCE_COMMIT
+    || value.credentials?.runtime?.role !== REVIEWED_RUNTIME_ROLE
+    || value.credentials.runtime.priorSha256 !== sha256(state.priorRuntimeUrl)
+    || value.credentials.runtime.replacementSha256 !== sha256(state.nextRuntimeUrl)
+    || value.credentials.runtime.priorRejected !== true
+    || value.credentials.runtime.replacementVerified !== true
+    || value.credentials?.owner?.role !== REVIEWED_OWNER_ROLE
+    || value.credentials.owner.priorSha256 !== sha256(state.priorOwnerUrl)
+    || value.credentials.owner.replacementSha256 !== sha256(state.nextOwnerUrl)
+    || value.credentials.owner.priorRejected !== true
+    || value.credentials.owner.replacementVerified !== true
+    || JSON.stringify(value.productionChangedByRecovery) !== JSON.stringify([
+      "neon_runtime_password",
+      "vercel_production_database_url",
+      "vercel_exact_source_redeployment",
+      "neon_owner_password",
+      "github_production_migration_secret_and_digest",
+    ])
+    || JSON.stringify(value.migrationsApplied) !== "[]"
+    || value.providerScopeOutsideRecoveryChanged !== false
+  ) throw new Error("existing database credential recovery evidence is invalid");
+  return Object.freeze({ evidence: Object.freeze({ ...value }), routes });
+}
+
 function allOperationsFinished(operations) {
   return operations.length > 0
     && operations.every((operation) => TERMINAL_NEON_STATUSES.has(operation.status));
@@ -730,9 +1030,11 @@ export async function runCredentialRecovery(config, overrides = {}) {
     readGithubRun,
     readGithubState: readGithubMigrationState,
     updateGithubCredential: updateGithubMigrationCredential,
-    readVercelState: readVercelIsolationState,
+    readVercelState: readRecoveryVercelState,
     updateVercelRuntimeCredential,
     readDeployment,
+    listReplacementDeploymentIds,
+    waitForCandidateDeployment,
     createReplacementDeployment,
     promoteReplacementDeployment,
     verifyNeonTarget: verifyReviewedNeonTarget,
@@ -833,7 +1135,7 @@ export async function runCredentialRecovery(config, overrides = {}) {
 
   let state;
   if (existsSync(RECOVERY_STATE_PATH)) {
-    state = readRecoveryState();
+    state = assertRecoveryStateRelease(readRecoveryState(), config);
   } else {
     normalizePriorDeployment(dependencies.readDeployment(PRIOR_DEPLOYMENT_ID));
     const runtimeUrl = exactRuntimeUrlFromLocal();
@@ -843,7 +1145,7 @@ export async function runCredentialRecovery(config, overrides = {}) {
     await dependencies.proveDatabaseIdentity(runtimeUrl, REVIEWED_RUNTIME_ROLE, { expectForce: true });
     await dependencies.proveDatabaseIdentity(ownerUrl, REVIEWED_OWNER_ROLE);
     state = {
-      ...freshRecoveryState(runtimeUrl, ownerUrl),
+      ...freshRecoveryState(runtimeUrl, ownerUrl, config),
       runtimeRoleUpdatedAtBefore: runtimeMetadata.updatedAt,
       ownerRoleUpdatedAtBefore: ownerMetadata.updatedAt,
     };
@@ -878,13 +1180,22 @@ export async function runCredentialRecovery(config, overrides = {}) {
     state = writeRecoveryState(state, "runtime-provider-updated");
   }
   if (state.stage === "runtime-provider-updated") {
-    const deployment = dependencies.createReplacementDeployment();
+    const discovered = dependencies.listReplacementDeploymentIds(state.createdAt);
+    if (!Array.isArray(discovered) || discovered.length > 1) {
+      throw new Error("replacement deployment inventory is ambiguous");
+    }
+    const deployment = discovered.length === 1
+      ? await dependencies.waitForCandidateDeployment(discovered[0], state.createdAt)
+      : dependencies.createReplacementDeployment(state.createdAt);
     state = writeRecoveryState(state, "runtime-deployment-ready", {
       replacementDeployment: deployment,
     });
   }
   if (state.stage === "runtime-deployment-ready") {
-    dependencies.promoteReplacementDeployment(state.replacementDeployment);
+    dependencies.promoteReplacementDeployment(
+      state.replacementDeployment,
+      state.createdAt,
+    );
     state = writeRecoveryState(state, "runtime-deployment-promoted");
   }
   let liveRoutes = [];
@@ -943,16 +1254,61 @@ export async function runCredentialRecovery(config, overrides = {}) {
     state = writeRecoveryState(state, "local-converged");
   }
   if (state.stage === "local-converged") {
-    await dependencies.runForcePostflight(state.nextRuntimeUrl);
+    if (existsSync(FORCE_POSTFLIGHT_EVIDENCE_PATH)) {
+      validateForcePostflightEvidence(
+        readExactPrivateJson(
+          FORCE_POSTFLIGHT_EVIDENCE_PATH,
+          "StripeWebhookEvent FORCE postflight evidence",
+        ),
+        state.nextRuntimeUrl,
+      );
+    } else {
+      await dependencies.runForcePostflight(state.nextRuntimeUrl);
+      validateForcePostflightEvidence(
+        readExactPrivateJson(
+          FORCE_POSTFLIGHT_EVIDENCE_PATH,
+          "StripeWebhookEvent FORCE postflight evidence",
+        ),
+        state.nextRuntimeUrl,
+      );
+    }
     state = writeRecoveryState(state, "postflight-passed");
   }
   if (state.stage === "postflight-passed") {
-    if (liveRoutes.length === 0) liveRoutes = await dependencies.readLiveRoutes();
-    const evidence = sanitizedEvidence(config, state, liveRoutes);
-    writeAtomicPrivate(RECOVERY_EVIDENCE_PATH, `${JSON.stringify(evidence, null, 2)}\n`);
+    if (existsSync(RECOVERY_EVIDENCE_PATH)) {
+      const accepted = validateRecoveryEvidence(
+        readExactPrivateJson(
+          RECOVERY_EVIDENCE_PATH,
+          "database credential recovery evidence",
+        ),
+        config,
+        state,
+      );
+      liveRoutes = accepted.routes;
+    } else {
+      if (liveRoutes.length === 0) liveRoutes = await dependencies.readLiveRoutes();
+      const evidence = sanitizedEvidence(config, state, liveRoutes);
+      writeAtomicPrivate(RECOVERY_EVIDENCE_PATH, `${JSON.stringify(evidence, null, 2)}\n`);
+      validateRecoveryEvidence(evidence, config, state);
+    }
     state = writeRecoveryState(state, "complete");
   }
   if (state.stage !== "complete") throw new Error("credential recovery stopped before completion");
+  validateForcePostflightEvidence(
+    readExactPrivateJson(
+      FORCE_POSTFLIGHT_EVIDENCE_PATH,
+      "StripeWebhookEvent FORCE postflight evidence",
+    ),
+    state.nextRuntimeUrl,
+  );
+  validateRecoveryEvidence(
+    readExactPrivateJson(
+      RECOVERY_EVIDENCE_PATH,
+      "database credential recovery evidence",
+    ),
+    config,
+    state,
+  );
   unlinkSync(RECOVERY_STATE_PATH);
   return Object.freeze({
     status: "passed",
