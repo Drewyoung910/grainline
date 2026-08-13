@@ -76,6 +76,10 @@ export const PRIOR_DEPLOYMENT_ID = "dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP";
 export const PRIOR_DEPLOYMENT_URL =
   "grainline-luhwmzddm-drew-youngs-projects.vercel.app";
 export const REVIEWED_VERCEL_SCOPE = "drew-youngs-projects";
+export const REVIEWED_DEVELOPMENT_DATABASE_VALUE_SHA256 =
+  "1f6c0de4b72ecdb902aa4dfb1cbad42a68e393f79137711c9e3d152992f2ce36";
+export const REVIEWED_SHARED_DATABASE_ENVIRONMENT_ID_SHA256 =
+  "d06c1fe428226e9aef1a961911291d7b87d594d829c85a0576e393d484344f6c";
 export const RECOVERY_STATE_PATH =
   "/Users/drewyoung/grainline/.env.database-credential-recovery-20260813.json";
 export const RECOVERY_EVIDENCE_PATH =
@@ -95,6 +99,10 @@ const GH_PATH = "/opt/homebrew/bin/gh";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const RECOVERY_STAGES = Object.freeze([
   "preflight",
+  "vercel-development-removal-started",
+  "vercel-development-removed",
+  "vercel-shared-unlink-started",
+  "vercel-database-scope-clean",
   "runtime-reset-started",
   "runtime-reset-finished",
   "runtime-provider-updated",
@@ -288,6 +296,16 @@ function runProvider(command, args, { cwd, input, json = false, timeout = 45_000
 export function normalizeRecoveryVercelState(
   projectPayload,
   sharedPayload = { data: [], pagination: { count: 0, next: null } },
+  reviewed = {
+    developmentDatabaseValueSha256: REVIEWED_DEVELOPMENT_DATABASE_VALUE_SHA256,
+    developmentCreatedAt: 1777424054461,
+    developmentUpdatedAt: 1777424054461,
+    projectId: REVIEWED_VERCEL_PROJECT.projectId,
+    sharedDatabaseEnvironmentIdSha256:
+      REVIEWED_SHARED_DATABASE_ENVIRONMENT_ID_SHA256,
+    sharedCreatedAt: 1774667874721,
+    sharedUpdatedAt: 1776530955914,
+  },
 ) {
   const records = Array.isArray(projectPayload?.envs) ? projectPayload.envs : [];
   const sharedRecords = sharedPayload?.data;
@@ -301,36 +319,95 @@ export function normalizeRecoveryVercelState(
     && entry.type === "sensitive"
     && JSON.stringify(entry.target) === JSON.stringify(["production"])
     && (entry.gitBranch === null || entry.gitBranch === undefined)
+    && !Object.hasOwn(entry, "value")
   ));
   if (
     productionRecord("DATABASE_URL").length !== 1
     || productionRecord("RUNTIME_DB_ROLE").length !== 1
   ) throw new Error("Vercel production runtime credential structure drifted");
+  const reviewedDevelopmentDatabaseRecords = records.filter((entry) => (
+    entry?.key === "DATABASE_URL"
+    && entry.type === "encrypted"
+    && JSON.stringify(entry.target) === JSON.stringify(["development"])
+    && (entry.gitBranch === null || entry.gitBranch === undefined)
+    && entry.configurationId === null
+    && entry.createdAt === reviewed.developmentCreatedAt
+    && entry.updatedAt === reviewed.developmentUpdatedAt
+    && typeof entry.value === "string"
+    && sha256(entry.value) === reviewed.developmentDatabaseValueSha256
+  ));
+  const databaseProjectRecords = records.filter((entry) => (
+    entry?.key === "DATABASE_URL" || entry?.key === "RUNTIME_DB_ROLE"
+  ));
+  const expectedDatabaseProjectRecordCount = 2
+    + reviewedDevelopmentDatabaseRecords.length;
+  if (
+    reviewedDevelopmentDatabaseRecords.length > 1
+    || databaseProjectRecords.length !== expectedDatabaseProjectRecordCount
+  ) throw new Error("Vercel project database credential inventory drifted");
   const projectPrivilegedKeys = records
     .map((entry) => entry?.key)
     .filter((key) => privilegedDatabaseEnvironmentKeys({ [key]: true }).length > 0)
     .sort();
-  const linkedSharedDatabaseKeys = sharedRecords
-    .filter((entry) => (
-      Array.isArray(entry?.projectId)
-      && entry.projectId.includes(REVIEWED_VERCEL_PROJECT.projectId)
-      && (
-        entry.key === "DATABASE_URL"
-        || entry.key === "RUNTIME_DB_ROLE"
-        || privilegedDatabaseEnvironmentKeys({ [entry.key]: true }).length > 0
-      )
-    ))
-    .map((entry) => entry.key)
-    .sort();
-  if (projectPrivilegedKeys.length > 0 || linkedSharedDatabaseKeys.length > 0) {
-    throw new Error("Vercel regained a privileged or shared database credential");
+  if (projectPrivilegedKeys.length > 0) {
+    throw new Error("Vercel regained a privileged project database credential");
   }
+  const linkedSharedDatabaseRecords = sharedRecords.filter((entry) => (
+    Array.isArray(entry?.projectId)
+    && entry.projectId.includes(reviewed.projectId)
+    && (
+      entry.key === "DATABASE_URL"
+      || entry.key === "RUNTIME_DB_ROLE"
+      || privilegedDatabaseEnvironmentKeys({ [entry.key]: true }).length > 0
+    )
+  ));
+  const reviewedSharedDatabaseRecords = sharedRecords.filter((entry) => (
+    entry.key === "DATABASE_URL"
+    && typeof entry.id === "string"
+    && sha256(entry.id) === reviewed.sharedDatabaseEnvironmentIdSha256
+    && entry.type === "encrypted"
+    && JSON.stringify(entry.target)
+      === JSON.stringify(["development", "preview", "production"])
+    && Array.isArray(entry.projectId)
+    && (
+      JSON.stringify(entry.projectId) === JSON.stringify([reviewed.projectId])
+      || JSON.stringify(entry.projectId) === JSON.stringify([])
+    )
+    && (entry.gitBranch === null || entry.gitBranch === undefined)
+    && entry.createdAt === reviewed.sharedCreatedAt
+    && Number.isFinite(entry.updatedAt)
+    && entry.updatedAt >= reviewed.sharedUpdatedAt
+    && !Object.hasOwn(entry, "value")
+  ));
+  if (
+    reviewedSharedDatabaseRecords.length !== 1
+    || linkedSharedDatabaseRecords.some((entry) => (
+      entry.id !== reviewedSharedDatabaseRecords[0].id
+    ))
+  ) throw new Error("Vercel linked shared database credential inventory drifted");
+  const sharedLinkedToGrainline = reviewedSharedDatabaseRecords[0].projectId
+    .includes(reviewed.projectId);
+  let stage = "runtime-only";
+  if (
+    reviewedDevelopmentDatabaseRecords.length === 0
+    && sharedLinkedToGrainline
+  ) stage = "development-removed";
+  if (
+    reviewedDevelopmentDatabaseRecords.length === 1
+    && sharedLinkedToGrainline
+  ) stage = "reviewed-owner-scope";
+  if (
+    reviewedDevelopmentDatabaseRecords.length === 1
+    && !sharedLinkedToGrainline
+  ) throw new Error("Vercel database credential removal order drifted");
   return Object.freeze({
-    stage: "runtime-only",
+    stage,
     presentPrivilegedKeys: [],
     projectPrivilegedKeys,
     sharedPrivilegedLinks: [],
-    linkedSharedDatabaseKeys,
+    linkedSharedDatabaseKeys: sharedLinkedToGrainline ? ["DATABASE_URL"] : [],
+    sharedDatabaseEnvironmentId: reviewedSharedDatabaseRecords[0].id,
+    sharedDatabaseEnvironmentRetained: true,
   });
 }
 
@@ -345,6 +422,68 @@ function readRecoveryVercelState() {
     "--no-color",
   ], { cwd: "/Users/drewyoung/grainline", json: true });
   return normalizeRecoveryVercelState(projectEnvironment, sharedEnvironment);
+}
+
+function removeReviewedDevelopmentDatabaseUrl(before) {
+  if (before?.stage !== "reviewed-owner-scope") {
+    throw new Error("Vercel Development DATABASE_URL removal target drifted");
+  }
+  runProvider(process.execPath, [
+    REVIEWED_VERCEL_CLI_PATH,
+    "env", "rm", "DATABASE_URL", "development",
+    "--project", REVIEWED_VERCEL_PROJECT.projectName,
+    "--yes", "--scope", REVIEWED_VERCEL_SCOPE, "--no-color",
+  ], { cwd: "/Users/drewyoung/grainline" });
+}
+
+function unlinkReviewedSharedDatabaseUrl(before) {
+  if (
+    before?.stage !== "development-removed"
+    || typeof before.sharedDatabaseEnvironmentId !== "string"
+    || sha256(before.sharedDatabaseEnvironmentId)
+      !== REVIEWED_SHARED_DATABASE_ENVIRONMENT_ID_SHA256
+  ) throw new Error("Vercel shared DATABASE_URL unlink target drifted");
+  runProvider(process.execPath, [
+    REVIEWED_VERCEL_CLI_PATH,
+    "api",
+    `/v1/env/${before.sharedDatabaseEnvironmentId}/unlink/${REVIEWED_VERCEL_PROJECT.projectId}`,
+    "-X", "PATCH",
+    "-H", "Content-Type: application/json",
+    "--scope", REVIEWED_VERCEL_SCOPE,
+    "--silent", "--no-color",
+  ], { cwd: "/Users/drewyoung/grainline" });
+}
+
+function proveNonProductionDatabaseUrlAbsent() {
+  for (const environment of ["development", "preview"]) {
+    runProvider(process.execPath, [
+      REVIEWED_VERCEL_CLI_PATH,
+      "env", "run",
+      "--environment", environment,
+      "--project", REVIEWED_VERCEL_PROJECT.projectName,
+      "--scope", REVIEWED_VERCEL_SCOPE,
+      "--no-color",
+      "--", process.execPath, "-e",
+      "if (typeof process.env.DATABASE_URL === 'string') process.exit(42)",
+    ], { cwd: DEPLOY_SOURCE_DIRECTORY });
+  }
+  return true;
+}
+
+export function assertRecoveryVercelStage(recoveryStage, vercelStage) {
+  const allowed = new Map([
+    ["preflight", ["reviewed-owner-scope"]],
+    ["vercel-development-removal-started", [
+      "reviewed-owner-scope", "development-removed",
+    ]],
+    ["vercel-development-removed", ["development-removed"]],
+    ["vercel-shared-unlink-started", ["development-removed", "runtime-only"]],
+  ]);
+  const accepted = allowed.get(recoveryStage) ?? ["runtime-only"];
+  if (!accepted.includes(vercelStage)) {
+    throw new Error("Vercel database scope does not match the recovery restart stage");
+  }
+  return true;
 }
 
 export function normalizeGithubRun(run, expected) {
@@ -514,7 +653,7 @@ export function freshRecoveryState(runtimeUrl, ownerUrl, config = {
   operatorCiRunId: 1,
 }) {
   return Object.freeze({
-    version: 2,
+    version: 3,
     operatorCommit: config.operatorCommit,
     operatorCiRunId: config.operatorCiRunId,
     deployedSourceCommit: DEPLOYED_SOURCE_COMMIT,
@@ -535,7 +674,7 @@ export function freshRecoveryState(runtimeUrl, ownerUrl, config = {
 export function validateRecoveryState(value) {
   const stageIndex = RECOVERY_STAGES.indexOf(value?.stage);
   if (
-    value?.version !== 2
+    value?.version !== 3
     || stageIndex < 0
     || !COMMIT_PATTERN.test(value.operatorCommit)
     || !Number.isSafeInteger(value.operatorCiRunId)
@@ -878,6 +1017,8 @@ function sanitizedEvidence(config, state, liveRoutes) {
       },
     },
     productionChangedByRecovery: [
+      "vercel_development_database_url_removed",
+      "vercel_shared_database_url_unlinked",
       "neon_runtime_password",
       "vercel_production_database_url",
       "vercel_exact_source_redeployment",
@@ -885,6 +1026,13 @@ function sanitizedEvidence(config, state, liveRoutes) {
       "github_production_migration_secret_and_digest",
     ],
     migrationsApplied: [],
+    vercel: {
+      developmentDatabaseUrlRemoved: true,
+      sharedDatabaseUrlUnlinked: true,
+      sharedDatabaseEnvironmentRetained: true,
+      developmentDatabaseUrlAbsent: true,
+      previewDatabaseUrlAbsent: true,
+    },
     providerScopeOutsideRecoveryChanged: false,
   });
 }
@@ -971,6 +1119,8 @@ export function validateRecoveryEvidence(value, config, state) {
     || value.credentials.owner.priorRejected !== true
     || value.credentials.owner.replacementVerified !== true
     || JSON.stringify(value.productionChangedByRecovery) !== JSON.stringify([
+      "vercel_development_database_url_removed",
+      "vercel_shared_database_url_unlinked",
       "neon_runtime_password",
       "vercel_production_database_url",
       "vercel_exact_source_redeployment",
@@ -978,6 +1128,11 @@ export function validateRecoveryEvidence(value, config, state) {
       "github_production_migration_secret_and_digest",
     ])
     || JSON.stringify(value.migrationsApplied) !== "[]"
+    || value.vercel?.developmentDatabaseUrlRemoved !== true
+    || value.vercel.sharedDatabaseUrlUnlinked !== true
+    || value.vercel.sharedDatabaseEnvironmentRetained !== true
+    || value.vercel.developmentDatabaseUrlAbsent !== true
+    || value.vercel.previewDatabaseUrlAbsent !== true
     || value.providerScopeOutsideRecoveryChanged !== false
   ) throw new Error("existing database credential recovery evidence is invalid");
   return Object.freeze({ evidence: Object.freeze({ ...value }), routes });
@@ -1031,6 +1186,9 @@ export async function runCredentialRecovery(config, overrides = {}) {
     readGithubState: readGithubMigrationState,
     updateGithubCredential: updateGithubMigrationCredential,
     readVercelState: readRecoveryVercelState,
+    removeVercelDevelopmentDatabaseUrl: removeReviewedDevelopmentDatabaseUrl,
+    unlinkVercelSharedDatabaseUrl: unlinkReviewedSharedDatabaseUrl,
+    proveNonProductionDatabaseUrlAbsent,
     updateVercelRuntimeCredential,
     readDeployment,
     listReplacementDeploymentIds,
@@ -1120,12 +1278,6 @@ export async function runCredentialRecovery(config, overrides = {}) {
   assertReviewedVercelProject(DEPLOY_SOURCE_DIRECTORY);
   dependencies.verifyNeonTarget();
   const vercel = dependencies.readVercelState();
-  if (
-    vercel.stage !== "runtime-only"
-    || vercel.presentPrivilegedKeys.length !== 0
-    || vercel.projectPrivilegedKeys.length !== 0
-    || vercel.sharedPrivilegedLinks.length !== 0
-  ) throw new Error("Vercel database isolation drifted before recovery");
   const github = dependencies.readGithubState();
   if (
     github.protectionVerified !== true
@@ -1137,6 +1289,7 @@ export async function runCredentialRecovery(config, overrides = {}) {
   if (existsSync(RECOVERY_STATE_PATH)) {
     state = assertRecoveryStateRelease(readRecoveryState(), config);
   } else {
+    assertRecoveryVercelStage("preflight", vercel.stage);
     normalizePriorDeployment(dependencies.readDeployment(PRIOR_DEPLOYMENT_ID));
     const runtimeUrl = exactRuntimeUrlFromLocal();
     const ownerUrl = exactOwnerUrlFromLocal();
@@ -1152,8 +1305,45 @@ export async function runCredentialRecovery(config, overrides = {}) {
     writeAtomicPrivate(RECOVERY_STATE_PATH, `${JSON.stringify(state, null, 2)}\n`);
   }
 
-  if (state.stage === "preflight" || state.stage === "runtime-reset-started") {
+  assertRecoveryVercelStage(state.stage, vercel.stage);
+  if (
+    state.stage === "preflight"
+    || state.stage === "vercel-development-removal-started"
+  ) {
     if (state.stage === "preflight") {
+      state = writeRecoveryState(state, "vercel-development-removal-started");
+    }
+    const before = dependencies.readVercelState();
+    if (before.stage === "reviewed-owner-scope") {
+      dependencies.removeVercelDevelopmentDatabaseUrl(before);
+    }
+    const after = dependencies.readVercelState();
+    if (after.stage !== "development-removed") {
+      throw new Error("Vercel Development DATABASE_URL removal did not converge");
+    }
+    state = writeRecoveryState(state, "vercel-development-removed");
+  }
+  if (state.stage === "vercel-development-removed") {
+    state = writeRecoveryState(state, "vercel-shared-unlink-started");
+  }
+  if (state.stage === "vercel-shared-unlink-started") {
+    const before = dependencies.readVercelState();
+    if (before.stage === "development-removed") {
+      dependencies.unlinkVercelSharedDatabaseUrl(before);
+    }
+    const after = dependencies.readVercelState();
+    if (after.stage !== "runtime-only") {
+      throw new Error("Vercel shared DATABASE_URL unlink did not converge");
+    }
+    dependencies.proveNonProductionDatabaseUrlAbsent();
+    state = writeRecoveryState(state, "vercel-database-scope-clean");
+  }
+
+  if (
+    state.stage === "vercel-database-scope-clean"
+    || state.stage === "runtime-reset-started"
+  ) {
+    if (state.stage === "vercel-database-scope-clean") {
       state = writeRecoveryState(state, "runtime-reset-started");
       const reset = dependencies.resetRuntimePassword();
       state = { ...state,

@@ -24,6 +24,16 @@ Those fields are provider ciphertext, not plaintext credentials, and do not
 expand the credential-rotation scope. Future inventory code must normalize
 provider metadata in-process and emit only key, type, target and timestamps.
 
+The recovery preflight then found two pre-existing non-Production credential
+paths for the same production Neon owner URL: a project Development
+`DATABASE_URL`, and a shared encrypted `DATABASE_URL` linked only to Grainline
+for Development, Preview and Production. The project-level sensitive
+Production `DATABASE_URL` overrides that shared key for normal Production
+builds, but Development and Preview resolved the owner credential. The
+authorized containment extension removes only Grainline's exact Development
+record and unlinks only Grainline from the exact shared record. It does not
+delete the shared team variable or change another linked project.
+
 ## Confirmed boundaries
 
 - StripeWebhookEvent FORCE itself succeeded before this incident. Exact main
@@ -32,7 +42,8 @@ provider metadata in-process and emit only key, type, target and timestamps.
 - `20260810190000_prepare_checkout_stock_reservation_authority` has zero
   production migration rows and was not applied.
 - No Vercel deployment, alias, environment variable, Neon role, GitHub secret,
-  Stripe resource, or database grant was changed during containment.
+  Stripe resource, or database grant was changed during containment or the
+  first failed recovery preflight.
 - Current production still points at READY deployment
   `dpl_CasoctMLsvfcA1Vj2JJcNUFzXQXP` until a separately authorized credential
   recovery redeploy replaces it.
@@ -66,27 +77,32 @@ stored-password vault and later reveal-based postflights stay consistent.
 2. Write a mode-0600 local recovery-state file containing only the prior and
    replacement secret material required for restart. Never write secrets to
    the sanitized evidence file.
-3. Reset the runtime role through the reviewed Neon API and wait for every
+3. Pin the exact encrypted Development record by ciphertext hash and immutable
+   metadata, remove only that project/environment record, pin the exact shared
+   record by ID hash and linked-project set, and unlink only Grainline. Prove
+   both Development and Preview resolve no `DATABASE_URL`; retain the shared
+   team variable itself.
+4. Reset the runtime role through the reviewed Neon API and wait for every
    returned operation. Neon documents that the prior password remains valid
    until the final operation finishes and that existing compute connections
    are dropped.
-4. Build the exact currently deployed source as a staged Production deployment
+5. Build the exact currently deployed source as a staged Production deployment
    with the replacement pooled runtime URL. Because Vercel environment changes
    affect only new deployments, keep it unaliased until READY. A build failure
    must stop before owner rotation and retain recovery state.
-5. Promote only that READY deployment, verify canonical aliases and
+6. Promote only that READY deployment, verify canonical aliases and
    `/api/health`, then prove the prior runtime password rejects and the new
    runtime password authenticates as membership-free LOGIN/NOINHERIT/
    NOBYPASSRLS `grainline_app_runtime`.
-6. Reset `neondb_owner` through Neon, wait for every operation, update the
+7. Reset `neondb_owner` through Neon, wait for every operation, update the
    protected GitHub secret and digest plus the dedicated local mode-0600 owner
    file, then prove new authentication and prior-password rejection. Owner
    rotation does not require another application deployment because Vercel
    does not receive that credential.
-7. Converge ignored local development to the replacement runtime URL and
+8. Converge ignored local development to the replacement runtime URL and
    remove legacy owner URLs from `.env` after a key-only inventory proves no
    local runtime depends on them.
-8. Run the StripeWebhookEvent FORCE pooled-runtime postflight from exact clean
+9. Run the StripeWebhookEvent FORCE pooled-runtime postflight from exact clean
    `ea19fa0ace85dd61868667022c45afb3cf3218fa`, bind it to CI `31716577153` and
    migration run `31717354633`, retain sanitized mode-0600 evidence, and delete
    the private recovery-state file only after every acceptance assertion.
@@ -126,6 +142,14 @@ all canonical aliases and `/api/health`. The owner path updates only the
 protected GitHub Production migration secret and SHA-256 variable plus the
 dedicated ignored local owner file. No migration command exists in this
 operator; CheckoutStockReservation remains outside its executable surface.
+
+The Vercel sanitation path precedes both password resets and is separately
+restart-journaled. A retry checks provider inventory first: an existing exact
+record is removed or unlinked once, while an already-absent exact record is
+accepted only at its matching recovery stage. Every other metadata shape or
+partial order fails closed. The final provider proof requires Production to
+retain only its sensitive runtime credential while Development and Preview
+resolve no `DATABASE_URL` at all.
 
 Execution is not permitted while the local GitHub CLI authentication is
 invalid. That prerequisite must be restored before any Neon password reset so
