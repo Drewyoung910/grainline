@@ -1,5 +1,117 @@
 BEGIN;
 
+-- A general Case update is not resolution-window authority: staff replies and
+-- other lifecycle bookkeeping legitimately advance updatedAt. Persist the
+-- current one-sided proposal clock separately so only a participant mark or a
+-- participant reply can start/reset the disclosed window.
+ALTER TABLE public."Case"
+  ADD COLUMN "resolutionMarkedAt" timestamp(3);
+
+-- Existing PENDING_CLOSE rows were created by the predecessor fixed function.
+-- Backfill only from its fully validated, co-committed participant audit. The
+-- suffixed form is accepted for restart safety, although no new function can
+-- emit it until this atomic migration commits.
+WITH pending_mark AS (
+  SELECT
+    case_row.id AS case_id,
+    case_row."orderId" AS order_id,
+    CASE
+      WHEN case_row."buyerMarkedResolved" THEN case_row."buyerId"
+      ELSE case_row."sellerId"
+    END AS actor_id
+    FROM public."Case" AS case_row
+   WHERE case_row.status = 'PENDING_CLOSE'::public."CaseStatus"
+),
+validated_source AS (
+  SELECT DISTINCT ON (pending.case_id)
+    pending.case_id,
+    audit."createdAt" AS marked_at
+    FROM pending_mark AS pending
+    JOIN public."AdminAuditLog" AS audit
+      ON audit."adminId" = pending.actor_id
+     AND audit.action = 'MARK_CASE_RESOLVED'
+     AND audit."targetType" = 'CASE'
+     AND audit."targetId" = pending.case_id
+     AND audit.reason IS NULL
+     AND NOT audit.undone
+     AND pg_catalog.jsonb_typeof(audit.metadata) = 'object'
+     AND (
+       audit.metadata
+         - 'actorKind'
+         - 'orderId'
+         - 'status'
+         - 'at'
+     ) = '{}'::jsonb
+     AND audit.metadata->>'actorKind' = 'user'
+     AND audit.metadata->>'orderId' = pending.order_id
+     AND audit.metadata->>'status' = 'PENDING_CLOSE'
+     AND pg_catalog.btrim(COALESCE(audit.metadata->>'at', '')) <> ''
+     AND audit.metadata->>'at' = pg_catalog.to_char(
+       audit."createdAt",
+       'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+     )
+     AND (
+       audit.id =
+         'case_resolution_mark_'
+         || pg_catalog.md5(pending.case_id || ':' || pending.actor_id)
+       OR (
+         pg_catalog.left(
+           audit.id,
+           pg_catalog.char_length(
+             'case_resolution_mark_'
+             || pg_catalog.md5(pending.case_id || ':' || pending.actor_id)
+           ) + 1
+         ) =
+           'case_resolution_mark_'
+           || pg_catalog.md5(pending.case_id || ':' || pending.actor_id)
+           || ':'
+         AND pg_catalog.substring(
+           audit.id,
+           pg_catalog.char_length(
+             'case_resolution_mark_'
+             || pg_catalog.md5(pending.case_id || ':' || pending.actor_id)
+           ) + 2
+         ) ~ '^[0-9a-f]{32}$'
+       )
+     )
+   ORDER BY pending.case_id, audit."createdAt" DESC, audit.id DESC
+)
+UPDATE public."Case" AS case_row
+   SET "resolutionMarkedAt" = source.marked_at
+  FROM validated_source AS source
+ WHERE case_row.id = source.case_id;
+
+DO $grainline_case_resolution_clock_preflight$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+      FROM public."Case" AS case_row
+     WHERE case_row.status = 'PENDING_CLOSE'::public."CaseStatus"
+       AND case_row."resolutionMarkedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION
+      'Case resolution-window preflight found a pending row without validated mark evidence';
+  END IF;
+END
+$grainline_case_resolution_clock_preflight$;
+
+ALTER TABLE public."Case"
+  ADD CONSTRAINT "Case_pending_close_resolution_clock_check"
+  CHECK (
+    status <> 'PENDING_CLOSE'::public."CaseStatus"
+    OR "resolutionMarkedAt" IS NOT NULL
+  )
+  NOT VALID;
+ALTER TABLE public."Case"
+  VALIDATE CONSTRAINT "Case_pending_close_resolution_clock_check";
+
+DROP INDEX public."Case_pendingCloseUpdatedAtId_idx";
+CREATE INDEX "Case_pendingCloseResolutionMarkedAtId_idx"
+  ON public."Case" ("resolutionMarkedAt", id)
+  WHERE status = 'PENDING_CLOSE'::public."CaseStatus"
+    AND "buyerMarkedResolved" = true
+    AND "sellerMarkedResolved" = false;
+
 -- Participant resolution marks are repeatable lifecycle events, not a single
 -- permanent event per actor and Case. The original authority used one
 -- deterministic audit ID for (Case, actor), so a reply could clear the marks
@@ -89,6 +201,7 @@ BEGIN
     case_row."stripeRefundId",
     case_row."buyerMarkedResolved",
     case_row."sellerMarkedResolved",
+    case_row."resolutionMarkedAt",
     case_row."resolvedAt",
     case_row."resolvedById",
     case_row."updatedAt"
@@ -134,7 +247,8 @@ BEGIN
       audit."targetId",
       audit.reason,
       audit.metadata,
-      audit.undone
+      audit.undone,
+      audit."createdAt"
       INTO existing_audit
       FROM public."AdminAuditLog" AS audit
      WHERE audit."adminId" = locked_actor.id
@@ -183,13 +297,34 @@ BEGIN
             )
          OR pg_catalog.btrim(
               COALESCE(existing_audit.metadata->>'at', '')
-            ) = '' THEN
+            ) = ''
+         OR existing_audit.metadata->>'at' IS DISTINCT FROM
+              pg_catalog.to_char(
+                existing_audit."createdAt",
+                'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+              )
+         OR (
+           locked_case.status = 'PENDING_CLOSE'::public."CaseStatus"
+           AND locked_case."resolutionMarkedAt"
+                 IS DISTINCT FROM existing_audit."createdAt"
+         ) THEN
         RAISE EXCEPTION 'Case resolution-mark replay audit is invalid'
           USING ERRCODE = '23505';
       END IF;
       audit_id := existing_audit.id;
       audit_status := existing_audit.metadata->>'status';
-      result_action := 'replay';
+      IF locked_case.status = 'RESOLVED'::public."CaseStatus"
+         AND audit_status = 'PENDING_CLOSE' THEN
+        -- The other participant completed the Case after this actor's mark.
+        -- Preserve the older source as historical evidence, report the current
+        -- terminal state, and let the route suppress a mismatched notification.
+        result_action := 'historical_replay';
+      ELSIF audit_status = locked_case.status::text THEN
+        result_action := 'replay';
+      ELSE
+        RAISE EXCEPTION 'Case resolution-mark replay state is invalid'
+          USING ERRCODE = '23514';
+      END IF;
     ELSE
       IF locked_case.status <> 'RESOLVED'::public."CaseStatus"
          AND EXISTS (
@@ -276,7 +411,11 @@ BEGIN
       'actorUserId', locked_actor.id,
       'buyerUserId', locked_case."buyerId",
       'sellerUserId', locked_case."sellerId",
-      'status', audit_status,
+      'status', CASE
+        WHEN result_action = 'historical_replay'
+          THEN locked_case.status::text
+        ELSE audit_status
+      END,
       'buyerMarkedResolved', locked_case."buyerMarkedResolved",
       'sellerMarkedResolved', locked_case."sellerMarkedResolved",
       'auditLogId', audit_id,
@@ -344,6 +483,7 @@ BEGIN
              THEN locked_actor.id
            ELSE NULL
          END,
+         "resolutionMarkedAt" = transition_at,
          "updatedAt" = transition_at
    WHERE case_row.id = locked_case.id
      AND case_row."orderId" = locked_order.id;
@@ -484,13 +624,13 @@ BEGIN
           case_row."orderId",
           case_row."buyerId",
           case_row."sellerId",
-          case_row."updatedAt" AS due_at
+          case_row."resolutionMarkedAt" AS due_at
           FROM public."Case" AS case_row
          WHERE p_transition_family = 'PENDING_CLOSE_EXPIRED'
            AND case_row.status = 'PENDING_CLOSE'::public."CaseStatus"
            AND case_row."buyerMarkedResolved" = true
            AND case_row."sellerMarkedResolved" = false
-           AND case_row."updatedAt" < transition_cutoff
+           AND case_row."resolutionMarkedAt" < transition_cutoff
         UNION ALL
         SELECT
           case_row.id,
@@ -550,6 +690,7 @@ BEGIN
       case_row."sellerRespondBy",
       case_row."buyerMarkedResolved",
       case_row."sellerMarkedResolved",
+      case_row."resolutionMarkedAt",
       case_row."updatedAt"
       INTO locked_case
       FROM public."Case" AS case_row
@@ -567,7 +708,8 @@ BEGIN
            <> 'PENDING_CLOSE'::public."CaseStatus"
          OR locked_case."buyerMarkedResolved" IS DISTINCT FROM true
          OR locked_case."sellerMarkedResolved" IS DISTINCT FROM false
-         OR locked_case."updatedAt" >= transition_cutoff THEN
+         OR locked_case."resolutionMarkedAt" IS NULL
+         OR locked_case."resolutionMarkedAt" >= transition_cutoff THEN
         CONTINUE;
       END IF;
       target_status := 'RESOLVED'::public."CaseStatus";

@@ -42,7 +42,23 @@ each new cycle suffix inside PostgreSQL, and reuses the newest fully validated
 source while that participant's mark remains active. A participant reply clears
 both marks before another cycle; a staff reply may advance the Case timestamp
 without clearing the mark, so timestamp equality is deliberately not replay
-authority. No audit or dedup identity is accepted from the caller.
+authority. If the other participant has since completed the Case, the first
+actor's older pending source is returned only as an explicit
+`historical_replay`: PostgreSQL reports the current terminal state and the route
+suppresses a notification that the older source cannot truthfully authorize.
+No audit or dedup identity is accepted from the caller.
+
+The seven-day deadline also has a dedicated `resolutionMarkedAt` clock. Using
+the general Case `updatedAt` value would let an unrelated staff reply silently
+restart the seller's response window. The compatible migration backfills only
+from a fully validated, co-committed participant mark audit and fails closed for
+an active pending row without that evidence. New participant marks set the
+clock atomically; the cron selects and rechecks that immutable active-window
+clock. The field is authoritative only while the Case is `PENDING_CLOSE`.
+Participant replies clear the active marks and status; the historical clock is
+then ignored, and the next participant mark overwrites it atomically. Keeping
+it nullable and non-authoritative outside `PENDING_CLOSE` preserves compatible
+coexistence with existing staff and refund transitions during deployment.
 
 ## Required atomic release surface
 

@@ -200,7 +200,7 @@ async function seedCase(client, caseId, status, {
       id, "orderId", "buyerId", "sellerId", reason, description,
       status, "sellerRespondBy", "discussionStartedAt",
       "escalateUnlocksAt", "buyerMarkedResolved",
-      "sellerMarkedResolved", resolution, "resolvedAt",
+      "sellerMarkedResolved", "resolutionMarkedAt", resolution, "resolvedAt",
       "createdAt", "updatedAt"
     )
     VALUES (
@@ -211,6 +211,7 @@ async function seedCase(client, caseId, status, {
       CASE WHEN $5 = 'OPEN' THEN NULL ELSE CURRENT_TIMESTAMP - INTERVAL '1 hour' END,
       CASE WHEN $5 = 'OPEN' THEN NULL ELSE CURRENT_TIMESTAMP + INTERVAL '47 hours' END,
       $6, $7,
+      CASE WHEN $5 = 'PENDING_CLOSE' THEN CURRENT_TIMESTAMP ELSE NULL END,
       CASE WHEN $5 IN ('RESOLVED', 'CLOSED')
         THEN 'DISMISSED'::public."CaseResolution"
         ELSE NULL

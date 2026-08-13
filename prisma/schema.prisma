@@ -944,6 +944,11 @@ model Case {
   escalateUnlocksAt         DateTime?
   buyerMarkedResolved       Boolean                        @default(false)
   sellerMarkedResolved      Boolean                        @default(false)
+  // Start of the active one-sided resolution proposal while PENDING_CLOSE. The
+  // Case cron uses this clock instead of mutable updatedAt, so staff activity
+  // cannot extend or shorten the disclosed seven-day buyer-initiated window.
+  // Outside PENDING_CLOSE it is historical only; the next mark overwrites it.
+  resolutionMarkedAt        DateTime?
   resolvedAt                DateTime?
   resolvedById              String?
   resolvedBy                User?                          @relation("CasesResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)

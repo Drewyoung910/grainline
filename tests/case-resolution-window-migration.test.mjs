@@ -98,6 +98,26 @@ describe("Case resolution-window correction", () => {
   it("derives a fresh database-only audit identity for each resolution cycle", () => {
     assert.match(
       migration,
+      /ADD COLUMN "resolutionMarkedAt" timestamp\(3\)/,
+    );
+    assert.match(
+      migration,
+      /Case_pending_close_resolution_clock_check/,
+    );
+    assert.match(
+      migration,
+      /Case_pendingCloseResolutionMarkedAtId_idx/,
+    );
+    assert.match(
+      migration,
+      /existing_audit\.metadata->>'at' IS DISTINCT FROM[\s\S]*existing_audit\."createdAt"/,
+    );
+    assert.match(
+      migration,
+      /locked_case\.status = 'PENDING_CLOSE'[\s\S]*locked_case\."resolutionMarkedAt"[\s\S]*existing_audit\."createdAt"/,
+    );
+    assert.match(
+      migration,
       /audit_id_prefix :=\s+'case_resolution_mark_'\s+\|\| pg_catalog\.md5\(locked_case\.id \|\| ':' \|\| locked_actor\.id\)/,
     );
     assert.match(
@@ -110,6 +130,14 @@ describe("Case resolution-window correction", () => {
     );
     assert.match(migration, /audit_id := existing_audit\.id/);
     assert.match(migration, /result_action := 'replay'/);
+    assert.match(
+      migration,
+      /locked_case\.status = 'RESOLVED'[\s\S]*audit_status = 'PENDING_CLOSE'[\s\S]*result_action := 'historical_replay'/,
+    );
+    assert.match(
+      migration,
+      /WHEN result_action = 'historical_replay'[\s\S]*THEN locked_case\.status::text/,
+    );
     assert.match(
       migration,
       /pg_catalog\.substring\(\s*audit\.id,\s*pg_catalog\.char_length\(audit_id_prefix\) \+ 2\s*\)/,
@@ -129,7 +157,7 @@ describe("Case resolution-window correction", () => {
     assert.match(migration, /transition_at - INTERVAL '7 days'/);
     assert.match(
       migration,
-      /case_row\.status = 'PENDING_CLOSE'::public\."CaseStatus"\s+AND case_row\."buyerMarkedResolved" = true\s+AND case_row\."sellerMarkedResolved" = false\s+AND case_row\."updatedAt" < transition_cutoff/,
+      /case_row\.status = 'PENDING_CLOSE'::public\."CaseStatus"\s+AND case_row\."buyerMarkedResolved" = true\s+AND case_row\."sellerMarkedResolved" = false\s+AND case_row\."resolutionMarkedAt" < transition_cutoff/,
     );
     assert.match(
       migration,
@@ -141,6 +169,10 @@ describe("Case resolution-window correction", () => {
     assert.match(migration, /audit_reason := 'Buyer resolution window expired'/);
     assert.match(migration, /'resolutionInitiator',[\s\S]*THEN 'buyer'/);
     assert.match(migration, /grainline_notification_create_case_event/);
+    assert.doesNotMatch(
+      migration,
+      /status = 'PENDING_CLOSE'[\s\S]{0,300}"updatedAt" < transition_cutoff/,
+    );
   });
 
   it("aligns user-facing behavior and legal disclosure with the database rule", () => {
@@ -209,7 +241,7 @@ describe("Case resolution-window correction", () => {
     );
     assert.match(
       productionPostflight,
-      /20260811170000_align_case_resolution_window[\s\S]*b73f0887935cfd45ed15065c2807e3a556ddffcb8154f5bba8b29ae2981e1387/,
+      /20260811170000_align_case_resolution_window[\s\S]*8c8c6a2dc65b9b6bb49c63c4a1a44624ee3e4a0be08b4b92095e2393c8852707/,
     );
     assert.match(
       productionPostflight,
@@ -219,6 +251,18 @@ describe("Case resolution-window correction", () => {
     assert.match(
       productionPostflight,
       /buyerMarkedResolved[\s\S]*sellerMarkedResolved[\s\S]*Buyer resolution window expired/,
+    );
+    assert.match(
+      productionPostflight,
+      /resolutionMarkedAt[\s\S]*Case_pending_close_resolution_clock_check[\s\S]*Case_pendingCloseResolutionMarkedAtId_idx/,
+    );
+    assert.match(
+      productionPostflight,
+      /format_type\([\s\S]*timestamp\(3\) without time zone/,
+    );
+    assert.match(
+      productionPostflight,
+      /Case_pendingCloseUpdatedAtId_idx[\s\S]*resolution-window clock catalog drifted/,
     );
     assert.match(productionPostflight, /grainline_case_mark_resolved/);
     assert.match(
@@ -257,6 +301,10 @@ describe("Case resolution-window correction", () => {
     assert.match(
       productionPostflight,
       /timestamp-coupled replay predicate present/,
+    );
+    assert.match(
+      productionPostflight,
+      /terminal historical-replay convergence missing/,
     );
     assert.match(
       productionPostflight,

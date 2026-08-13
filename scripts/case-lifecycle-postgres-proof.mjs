@@ -234,6 +234,8 @@ async function resetCase(
         status,
         buyerMarkedResolved,
         sellerMarkedResolved,
+        resolutionMarkedAt:
+          status === "PENDING_CLOSE" ? fixtureCreatedAt : null,
         createdAt: fixtureCreatedAt,
         sellerRespondBy,
         discussionStartedAt,
@@ -491,6 +493,7 @@ async function attemptReply(tx, { actorId, body, suffix }) {
             status: "IN_DISCUSSION",
             buyerMarkedResolved: false,
             sellerMarkedResolved: false,
+            resolutionMarkedAt: null,
             updatedAt: transitionAt,
           }
         : { updatedAt: transitionAt };
@@ -536,6 +539,7 @@ async function attemptBuyerMarkResolved(tx, caseId) {
   const rows = await tx.$queryRaw`
     UPDATE "Case"
     SET "buyerMarkedResolved" = true,
+        "resolutionMarkedAt" = ${transitionAt},
         status = CASE
           WHEN "sellerMarkedResolved"
             THEN 'RESOLVED'::"CaseStatus"
