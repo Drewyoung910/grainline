@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-10
+Last updated: 2026-08-13
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -66,19 +66,25 @@ service/audit ledgers remain separately reviewed later groups; do not bundle
 their policies or grants.
 
 The first Order/payment/shipping database boundary is the service-owned
-`StripeWebhookEvent` ledger. Its target is policyless ENABLE (FORCE later), zero
-ordinary-runtime/PUBLIC table or column authority, and exactly six
-source-pinned fixed functions. Production activation evidence must include a
-separate actual pooled-runtime read-only postflight; do not add the runtime URL
-to the owner-only GitHub Production migration environment to automate it.
+`StripeWebhookEvent` ledger. Policyless ENABLE plus FORCE, zero
+ordinary-runtime/PUBLIC table or column authority, exactly six source-pinned
+fixed functions and the recovered actual pooled-runtime read-only postflight
+are live. Do not add the runtime URL to the owner-only GitHub Production
+migration environment; owner migration and actual-runtime proof remain
+separate credential boundaries.
 
 `CheckoutStockReservation` is the next service-ledger boundary. Its compatible
-candidate keeps direct table grants temporarily for old deployments but moves
+release keeps direct table grants temporarily for old deployments but moves
 the new application to 15 source-specific operations. Signed completion and
 restore bind an immutable Stripe source object plus claim generation; repair
 workers use monotonic claims; Redis checkout publication uses unique owner
-tokens. CI will not apply this candidate until the separate webhook FORCE
-release passes, and the production migration workflow is intentionally unwired.
+tokens. A dedicated restart-safe migration runner requires successful exact-main
+CI plus a same-commit aggregate inspection proving the mixed live posture and
+seven zero reservation-integrity counts. The separate actual pooled-runtime
+postflight proves the compatible table, schema and 20-function catalog without
+placing the runtime credential in the owner-only GitHub environment. The
+generic migration runner still isolates this successor; compatible migration,
+app deployment/drain, policyless ENABLE and FORCE remain separate boundaries.
 
 ## Core Lifecycles
 

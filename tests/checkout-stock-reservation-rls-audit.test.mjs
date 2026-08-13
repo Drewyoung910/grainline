@@ -111,7 +111,8 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(row, /`COMPATIBLE_CANDIDATE`/);
     assert.match(row, /checkout-stock-reservation-rls-audit\.md/);
     assert.doesNotMatch(row, /RLS_LIVE/);
-    assert.match(row, /production runner is unwired/);
+    assert.match(row, /dedicated restart-safe compatible runner/);
+    assert.match(row, /production-inert/);
     assert.match(strategy, /next isolated dependency is `CheckoutStockReservation`/);
     assert.match(strategy, /StripeWebhookEvent FORCE\s+remains a separate/);
   });

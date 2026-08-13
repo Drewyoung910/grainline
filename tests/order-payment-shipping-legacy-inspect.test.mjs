@@ -10,9 +10,11 @@ import {
   ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_CONFIRMATION,
   ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
   ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITE_CONFIRMATION,
+  RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS,
   assertOrderPaymentShippingLegacyInspectionGitState,
   normalizeOrderPaymentShippingLegacyCounts,
   parseOrderPaymentShippingLegacyInspectionConfig,
+  reservationAuthorityInspectionDecision,
   writeOrderPaymentShippingLegacyInspectionEvidence,
 } from "../scripts/order-payment-shipping-legacy-inspect.mjs";
 
@@ -147,6 +149,21 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     );
   });
 
+  it("makes workflow success an exact reservation-authority data gate", () => {
+    const clean = normalizeOrderPaymentShippingLegacyCounts(countRow());
+    assert.deepEqual(reservationAuthorityInspectionDecision(clean), {
+      accepted: true,
+      rejectedFields: [],
+    });
+    for (const field of RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS) {
+      assert.deepEqual(
+        reservationAuthorityInspectionDecision({ ...clean, [field]: 1 }),
+        { accepted: false, rejectedFields: [field] },
+      );
+    }
+    assert.match(workflow, /Upload sanitized aggregate evidence\s*\n\s*if: always\(\)/);
+  });
+
   it("keeps one aggregate SELECT and covers every reviewed table", () => {
     assert.match(ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL, /^\s*WITH[\s\S]*\bSELECT\b/);
     assert.doesNotMatch(
@@ -197,6 +214,20 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
       /"payloadHash" = 'deleted'[\s\S]*"checkoutLockKey" <> 'deleted:' \|\| id[\s\S]*status NOT IN \('COMPLETED', 'RESTORED'\)/,
     );
+  });
+
+  it("requires live Stripe FORCE and reservation predecessor CRUD", () => {
+    const script = fs.readFileSync(
+      "scripts/order-payment-shipping-legacy-inspect.mjs",
+      "utf8",
+    );
+    assert.match(script, /row\.table_name === "StripeWebhookEvent"/);
+    assert.match(script, /row\.rls_enabled === true/);
+    assert.match(script, /row\.rls_forced === true/);
+    assert.match(script, /row\.runtime_can_select === false/);
+    assert.match(script, /checkoutStockReservation:[\s\S]*legacyRuntimeCrudRetained: true/);
+    assert.match(script, /reservation authority candidate has nonzero rejected aggregate counts/);
+    assert.match(script, /status: result\.reservationAuthorityCandidate\.accepted[\s\S]*\? "passed"[\s\S]*: "blocked"/);
   });
 
   it("compares application timestamps only to their causal predecessor", () => {

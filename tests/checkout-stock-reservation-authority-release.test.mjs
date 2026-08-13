@@ -131,11 +131,23 @@ test("production runner verifies then isolates the successor without applying it
   );
 });
 
+test("dedicated production runner and compatible runtime proof are documented separately", () => {
+  assert.match(release, /checkout-stock-reservation-authority-production\.yml/);
+  assert.match(release, /clean predecessor or the exact already-prepared restart state/i);
+  assert.match(release, /separate pooled-runtime postflight/i);
+  assert.match(release, /StripeWebhookEvent policyless FORCE with no direct runtime CRUD/i);
+  assert.match(release, /seven reservation-integrity\s+counts is nonzero/i);
+  assert.match(release, /31734121511[\s\S]*zero steps[\s\S]*cancelled/i);
+  assert.match(release, /all 194 local migration files/i);
+  assert.match(release, /listing-variants alias/i);
+  assert.match(release, /DirectUpload activation pair/i);
+});
+
 test("release record retains exact bytes and the no-production boundary", () => {
   assert.match(release, new RegExp(candidate.migrationSha256));
   assert.match(release, new RegExp(candidate.draftSha256));
   assert.match(release, new RegExp(verified.migrationTreeSha256));
-  assert.match(release, /production migration workflow remains intentionally unwired/i);
+  assert.match(release, /generic production migration workflow remains intentionally unable/i);
   assert.match(
     release,
     /does not enable or FORCE\s+CheckoutStockReservation RLS/i,
