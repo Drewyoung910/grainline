@@ -1,14 +1,15 @@
 # StripeWebhookEvent FORCE RLS release
 
-Status: FORCE is live in production. Exact main
+Status: FORCE is live in production and accepted. Exact main
 `ea19fa0ace85dd61868667022c45afb3cf3218fa` passed CI `31716577153`;
 guarded Production Migrations run `31717354633` applied only
 `20260810172000_force_stripe_webhook_event_rls`. Migration status and the
-global grant/RLS audit passed. The read-only pooled-runtime FORCE postflight is
-temporarily blocked by the database-credential exposure described in
-`docs/database-credential-exposure-recovery-20260813.md`; do not call this
-release fully accepted until both database passwords are rotated and that
-postflight passes with the replacement runtime credential.
+global grant/RLS audit passed. Both database passwords were replaced by the
+accepted recovery sealed at `7bf07801152962eca4d3e5e3a0cfe9cb5b88ba89`,
+and the read-only pooled-runtime FORCE postflight passed with the replacement
+runtime credential at `2026-08-13T18:32:53Z`. See
+`docs/database-credential-exposure-recovery-20260813.md` for the
+database-credential exposure and accepted recovery record.
 
 ## Exact release unit
 
@@ -111,14 +112,15 @@ tables, and zero sequence references. The engine-attested ledger proof recorded
 `productionChangedByProof=false`.
 
 No application deployment, CheckoutStockReservation migration, or provider
-change accompanied the run. The remaining acceptance step is to execute
-`npm run ops:stripe-webhook-event-force-postflight` from the same exact clean
-main commit with the actual pooled production `grainline_app_runtime` URL. The
-postflight is engine-attested repeatable-read/read-only, rejects owner or
-aliased URLs, requires a fresh mode-0600 evidence path, proves FORCE plus the
-same six-function/direct-denial boundary, and records
-`productionChangedByPostflight=false`. Rotate the exposed owner and runtime
-passwords first; do not use the superseded local values for this proof.
+change accompanied the migration run. The later credential recovery deployed
+the same application source solely to install the replacement runtime
+credential, then executed
+`npm run ops:stripe-webhook-event-force-postflight` from the exact clean FORCE
+release commit with the actual pooled production `grainline_app_runtime` URL.
+The engine-attested repeatable-read/read-only proof rejected owner or aliased
+URLs, proved FORCE plus the same six-function/direct-denial boundary, and
+recorded `status=passed` and `productionChangedByPostflight=false` in sanitized
+mode-0600 evidence. This closes the database-release acceptance gate.
 
 Connect v2 signed delivery and live-mode provider topology remain mandatory
 launch gates. They are not part of this posture-only database release and must

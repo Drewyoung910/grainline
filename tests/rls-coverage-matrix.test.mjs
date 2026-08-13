@@ -42,7 +42,6 @@ describe("site-wide RLS coverage matrix", () => {
       "RLS_LIVE_PHASE_A",
       "RLS_LIVE_PHASE_B",
       "RLS_LIVE_FORCE",
-      "RLS_LIVE_FORCE_POSTFLIGHT_PENDING",
       "PLANNED_RLS",
       "COMPATIBLE_CANDIDATE",
       "BLOCKED_DESIGN",
@@ -83,7 +82,7 @@ describe("site-wide RLS coverage matrix", () => {
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
-        ["StripeWebhookEvent", "RLS_LIVE_FORCE_POSTFLIGHT_PENDING"],
+        ["StripeWebhookEvent", "RLS_LIVE_FORCE"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
