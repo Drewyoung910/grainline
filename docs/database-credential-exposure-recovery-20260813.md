@@ -135,6 +135,17 @@ or final recovery evidence is reused only after every release, role, run, hash,
 route and no-mutation field validates; it is never overwritten or assumed valid
 because the file exists.
 
+The first promotion attempt for replacement deployment
+`dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` returned nonzero even though Vercel later
+reported the promotion successful. The deployment catalog's `alias` array was
+empty while all three canonical hostnames resolved to the replacement. The
+corrected operator therefore proves promotion by resolving each canonical host
+through the reviewed deployments API, rejects partial convergence, and treats
+a nonzero CLI response as successful only when all three hosts already resolve
+to the exact candidate. The correction accepts the existing private journal
+only through a one-time predecessor handoff pinned to its exact prior seal, CI,
+stage, deployment, timestamps and credential-state hashes.
+
 The runtime path updates the sensitive Production `DATABASE_URL`, builds the
 exact currently deployed source `69c14c0618ea7ab9c74756422273d17d66db7efa`
 with `--prod --skip-domain`, requires READY state, then promotes and verifies

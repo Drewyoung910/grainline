@@ -80,6 +80,25 @@ export const REVIEWED_DEVELOPMENT_DATABASE_VALUE_SHA256 =
   "1f6c0de4b72ecdb902aa4dfb1cbad42a68e393f79137711c9e3d152992f2ce36";
 export const REVIEWED_SHARED_DATABASE_ENVIRONMENT_ID_SHA256 =
   "d06c1fe428226e9aef1a961911291d7b87d594d829c85a0576e393d484344f6c";
+export const REVIEWED_RESTART_PREDECESSOR = Object.freeze({
+  operatorCommit: "fb1a52c7e47641373625272de61dd5f96366a6be",
+  operatorCiRunId: 31729096651,
+  stage: "runtime-deployment-ready",
+  createdAt: "2026-08-13T18:12:07.809Z",
+  updatedAt: "2026-08-13T18:14:44.981Z",
+  runtimeRoleUpdatedAtBefore: "2026-07-19T15:47:23.000Z",
+  runtimeRoleUpdatedAtAfter: "2026-08-13T18:12:23.000Z",
+  replacementDeploymentId: "dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6",
+  replacementDeploymentUrl: "grainline-os3mvmmdd-drew-youngs-projects.vercel.app",
+  priorRuntimeUrlSha256:
+    "e2a229e9acad4c76976e8a4c0ccd6bde4fe0f9e8fc68faa525a33ff0b2f0cdaa",
+  nextRuntimeUrlSha256:
+    "1f801d9d46fdb6c756250c3748a0b50a72bcabafbac9f6cbbcf2fa5b2bedf8a9",
+  priorOwnerUrlSha256:
+    "92db542ed3afed64a3cbcfd61d2656fa54a380938667fedb5e5e1812a1f521dd",
+  runtimeOperationsSha256:
+    "88c49f4d15ddb11805c83755d0ce8280349fe0caac90d0610da2256b428b74f0",
+});
 export const RECOVERY_STATE_PATH =
   "/Users/drewyoung/grainline/.env.database-credential-recovery-20260813.json";
 export const RECOVERY_EVIDENCE_PATH =
@@ -760,11 +779,49 @@ export function validateRecoveryState(value) {
   return Object.freeze({ ...value });
 }
 
-function assertRecoveryStateRelease(state, config) {
+export function normalizeRecoveryStateReleaseHandoff(
+  state,
+  config,
+  predecessor = REVIEWED_RESTART_PREDECESSOR,
+) {
   if (
     state.operatorCommit !== config.operatorCommit
     || state.operatorCiRunId !== config.operatorCiRunId
-  ) throw new Error("private credential recovery state belongs to another release");
+  ) {
+    if (
+      state.operatorCommit !== predecessor.operatorCommit
+      || state.operatorCiRunId !== predecessor.operatorCiRunId
+      || state.stage !== predecessor.stage
+      || state.createdAt !== predecessor.createdAt
+      || state.updatedAt !== predecessor.updatedAt
+      || state.runtimeRoleUpdatedAtBefore !== predecessor.runtimeRoleUpdatedAtBefore
+      || state.runtimeRoleUpdatedAtAfter !== predecessor.runtimeRoleUpdatedAtAfter
+      || state.replacementDeployment?.id !== predecessor.replacementDeploymentId
+      || state.replacementDeployment.url !== predecessor.replacementDeploymentUrl
+      || sha256(state.priorRuntimeUrl) !== predecessor.priorRuntimeUrlSha256
+      || sha256(state.nextRuntimeUrl) !== predecessor.nextRuntimeUrlSha256
+      || sha256(state.priorOwnerUrl) !== predecessor.priorOwnerUrlSha256
+      || state.nextOwnerUrl !== null
+      || state.ownerOperations.length !== 0
+      || sha256(JSON.stringify(state.runtimeOperations))
+        !== predecessor.runtimeOperationsSha256
+    ) throw new Error("private credential recovery state belongs to another release");
+    return Object.freeze({ ...state,
+      operatorCommit: config.operatorCommit,
+      operatorCiRunId: config.operatorCiRunId,
+    });
+  }
+  return state;
+}
+
+export function assertRecoveryStateRelease(state, config) {
+  const accepted = normalizeRecoveryStateReleaseHandoff(state, config);
+  if (accepted !== state) {
+    return writeRecoveryState(state, state.stage, {
+      operatorCommit: accepted.operatorCommit,
+      operatorCiRunId: accepted.operatorCiRunId,
+    });
+  }
   return state;
 }
 
@@ -892,31 +949,71 @@ function createReplacementDeployment(stateCreatedAt) {
   );
 }
 
-function promoteReplacementDeployment(deployment, stateCreatedAt) {
+function readCanonicalAliasTargets() {
+  return ["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app"]
+    .map((hostname) => Object.freeze({
+      hostname,
+      deployment: readDeployment(hostname),
+    }));
+}
+
+export function normalizeCanonicalAliasTargets(targets, deploymentId) {
   const canonicalAliases = [
-    "thegrainline.com",
-    "www.thegrainline.com",
-    "grainline.vercel.app",
+    "thegrainline.com", "www.thegrainline.com", "grainline.vercel.app",
   ];
-  const before = readDeployment(deployment.id);
-  const beforeAliases = Array.isArray(before.alias) ? before.alias : [];
-  const canonicalBefore = canonicalAliases.filter((alias) => (
-    beforeAliases.includes(alias)
-  ));
-  if (canonicalBefore.length > 0 && canonicalBefore.length < canonicalAliases.length) {
+  if (
+    !/^dpl_[A-Za-z0-9]+$/.test(deploymentId)
+    || !Array.isArray(targets)
+    || targets.length !== canonicalAliases.length
+    || targets.some((target, index) => (
+      target?.hostname !== canonicalAliases[index]
+      || target.deployment?.projectId !== REVIEWED_VERCEL_PROJECT.projectId
+      || target.deployment.readyState !== "READY"
+      || target.deployment.target !== "production"
+      || typeof target.deployment.id !== "string"
+    ))
+  ) throw new Error("canonical production alias inventory drifted");
+  const ids = targets.map((target) => target.deployment.id);
+  const replacementCount = ids.filter((id) => id === deploymentId).length;
+  if (replacementCount !== 0 && replacementCount !== canonicalAliases.length) {
     throw new Error("replacement deployment has a partial canonical alias state");
   }
-  if (canonicalBefore.length === canonicalAliases.length) {
+  return Object.freeze({
+    stage: replacementCount === canonicalAliases.length ? "promoted" : "unpromoted",
+    deploymentIds: Object.freeze([...ids]),
+  });
+}
+
+function promoteReplacementDeployment(deployment, stateCreatedAt) {
+  const before = readDeployment(deployment.id);
+  const beforeTargets = normalizeCanonicalAliasTargets(
+    readCanonicalAliasTargets(),
+    deployment.id,
+  );
+  if (beforeTargets.stage === "promoted") {
     return normalizeCandidateDeployment(before, stateCreatedAt);
   }
-  runProvider(process.execPath, [
-    REVIEWED_VERCEL_CLI_PATH,
-    "promote", deployment.id,
-    "--yes", "--scope", REVIEWED_VERCEL_SCOPE, "--no-color",
-  ], { cwd: DEPLOY_SOURCE_DIRECTORY, timeout: 5 * 60_000 });
+  try {
+    runProvider(process.execPath, [
+      REVIEWED_VERCEL_CLI_PATH,
+      "promote", deployment.id,
+      "--yes", "--scope", REVIEWED_VERCEL_SCOPE, "--no-color",
+    ], { cwd: DEPLOY_SOURCE_DIRECTORY, timeout: 5 * 60_000 });
+  } catch {
+    const reconciled = normalizeCanonicalAliasTargets(
+      readCanonicalAliasTargets(),
+      deployment.id,
+    );
+    if (reconciled.stage !== "promoted") {
+      throw new Error("promotion failed before convergence");
+    }
+  }
   const promoted = readDeployment(deployment.id);
-  const aliases = Array.isArray(promoted.alias) ? promoted.alias : [];
-  if (!canonicalAliases.every((alias) => aliases.includes(alias))) {
+  const afterTargets = normalizeCanonicalAliasTargets(
+    readCanonicalAliasTargets(),
+    deployment.id,
+  );
+  if (afterTargets.stage !== "promoted") {
     throw new Error("replacement deployment did not receive all canonical aliases");
   }
   return normalizeCandidateDeployment(promoted, stateCreatedAt);
