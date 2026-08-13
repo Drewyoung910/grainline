@@ -268,7 +268,7 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   );
   assert.match(
     releaseDocument,
-    /Status: the reviewed FORCE preparation is merged but not applied/,
+    /Status: FORCE is live in production/,
   );
   assert.doesNotMatch(releaseDocument, /Status: isolated candidate only/);
   assert.match(
@@ -279,14 +279,16 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
     releaseDocument,
     /6d448bce38bed2aa54bf4ce7ae8e5f8a4ba73186/,
   );
-  assert.match(releaseDocument, /exact-main CI `31419148169` passed/);
+  assert.match(releaseDocument, /CI `31716577153`/);
   assert.match(
     releaseDocument,
-    /merge and exact-main CI do not authorize or imply production FORCE/,
+    /Production run `31717354633`/,
   );
   assert.match(releaseDocument, /exact main\s+`f987645784a447604fcab2399dc8e7fd7bef9d7c`/);
   assert.match(releaseDocument, /Migrations run `31410550315`/);
   assert.match(releaseDocument, /durable ownership-drift invariant/);
+  assert.match(releaseDocument, /successorRows=0/);
+  assert.match(releaseDocument, /database-credential exposure/);
   assert.match(releaseDocument, /Connect v2 signed delivery/);
   assert.match(releaseDocument, /31415661672/);
   assert.match(releaseDocument, /before any Prisma deploy or PostgreSQL proof/);

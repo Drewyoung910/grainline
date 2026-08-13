@@ -6,6 +6,20 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ### Case FORCE completion and Order/payment/shipping start (2026-08-04)
 
+StripeWebhookEvent FORCE is now live from exact main
+`ea19fa0ace85dd61868667022c45afb3cf3218fa`: CI `31716577153` passed and
+guarded Production Migrations run `31717354633` applied only
+`20260810172000_force_stripe_webhook_event_rls`, with migration status, global
+grant/RLS audit and the FORCE-only ledger proof passing. The separately staged
+CheckoutStockReservation authority migration still has zero production rows.
+The FORCE pooled-runtime postflight and all later production work are paused at
+one incident boundary: a local diagnostic exposed both production PostgreSQL
+passwords in agent tool output. Follow
+`docs/database-credential-exposure-recovery-20260813.md`; rotate both roles and
+redeploy the replacement runtime credential before running the postflight or
+resuming reservation authority. This is a credential-recovery prerequisite,
+not a reason to redesign or discard the accepted FORCE implementation.
+
 The Case-family database RLS group is complete. Exact main
 `9e5d87f4c5b4a529bc84c6c2cf077778fe553186` passed CI `30951067980`;
 guarded Production Migrations run `30953378226` applied only

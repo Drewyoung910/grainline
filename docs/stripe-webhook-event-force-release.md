@@ -1,15 +1,21 @@
 # StripeWebhookEvent FORCE RLS release
 
-Status: the reviewed FORCE preparation is merged but not applied. PR #188
-merged exact head `b8a9f41b9f5ca966f02901fb322ba9775210fd80` as exact main
-`6d448bce38bed2aa54bf4ce7ae8e5f8a4ba73186`; PR exact-head CI
-`31417322388` and exact-main CI `31419148169` passed. Production remains the
-accepted policyless Phase-A predecessor: ENABLE with FORCE off, zero policies,
-zero direct runtime/PUBLIC table or column authority, and exactly six fixed
-source-pinned SECURITY DEFINER functions.
+Status: FORCE is live in production. Exact main
+`ea19fa0ace85dd61868667022c45afb3cf3218fa` passed CI `31716577153`;
+guarded Production Migrations run `31717354633` applied only
+`20260810172000_force_stripe_webhook_event_rls`. Migration status and the
+global grant/RLS audit passed. The read-only pooled-runtime FORCE postflight is
+temporarily blocked by the database-credential exposure described in
+`docs/database-credential-exposure-recovery-20260813.md`; do not call this
+release fully accepted until both database passwords are rotated and that
+postflight passes with the replacement runtime credential.
 
 ## Exact release unit
 
+- Preparation PR #188 merged exact head
+  `b8a9f41b9f5ca966f02901fb322ba9775210fd80` as main
+  `6d448bce38bed2aa54bf4ce7ae8e5f8a4ba73186`; PR CI `31417322388` and
+  preparation exact-main CI `31419148169` passed.
 - Migration: `20260810172000_force_stripe_webhook_event_rls`
 - Reviewed FORCE draft SHA-256:
   `eeb9f8cc287b0b9c7302684bfab02d74eaa82d5851018d08c4129ab65f92a90f`
@@ -92,18 +98,27 @@ corrected workflow verifies Phase A while both exact migrations remain present,
 requires the exact reviewed FORCE successor guard, and only then isolates the
 two releases for ordered engine proof.
 
-## Next production acceptance boundary
+## Production execution evidence
 
-The merge and exact-main CI do not authorize or imply production FORCE. A
-separately reviewed guarded migration run must apply only
-`20260810172000_force_stripe_webhook_event_rls` from an exact green main commit.
-After that run, execute
+Production run `31717354633` verified the complete CheckoutStockReservation
+successor tree, isolated `20260810190000_prepare_checkout_stock_reservation_authority`
+from the Actions checkout, reverified the exact FORCE-only tree, and then
+applied the FORCE migration. Prisma reported exactly that migration applied and
+the isolated 193-migration tree up to date. The final audit reported 64 tables,
+22 enums, 138 `grainline_*` functions, one extension, four policy-bearing RLS
+tables, and zero sequence references. The engine-attested ledger proof recorded
+`forceApplied=true`, `successorRows=0`, and
+`productionChangedByProof=false`.
+
+No application deployment, CheckoutStockReservation migration, or provider
+change accompanied the run. The remaining acceptance step is to execute
 `npm run ops:stripe-webhook-event-force-postflight` from the same exact clean
 main commit with the actual pooled production `grainline_app_runtime` URL. The
 postflight is engine-attested repeatable-read/read-only, rejects owner or
 aliased URLs, requires a fresh mode-0600 evidence path, proves FORCE plus the
 same six-function/direct-denial boundary, and records
-`productionChangedByPostflight=false`.
+`productionChangedByPostflight=false`. Rotate the exposed owner and runtime
+passwords first; do not use the superseded local values for this proof.
 
 Connect v2 signed delivery and live-mode provider topology remain mandatory
 launch gates. They are not part of this posture-only database release and must
@@ -124,9 +139,9 @@ for the reservation successor, then rolls back. The proof emits only migration
 names and booleans; it does not mutate production or expose credentials,
 timestamps, checksums, or row data.
 
-This runner correction is production-inert until separately merged and
-dispatched. It does not authorize FORCE, reservation authority, application
-deployment, PR #196, or any provider change. The later reservation-authority
-release still requires its own wiring, inspection, exact-main CI, dispatch and
-postflight before application code that calls those fixed functions may be
-deployed.
+The runner correction performed exactly that isolation in successful run
+`31717354633`. It did not apply reservation authority, deploy application code,
+merge PR #196, or change provider state. The later reservation-authority
+release still requires its own wiring, refreshed inspection, exact-main CI,
+dispatch and postflight before application code that calls those fixed
+functions may be deployed.

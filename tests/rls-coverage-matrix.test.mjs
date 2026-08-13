@@ -42,6 +42,7 @@ describe("site-wide RLS coverage matrix", () => {
       "RLS_LIVE_PHASE_A",
       "RLS_LIVE_PHASE_B",
       "RLS_LIVE_FORCE",
+      "RLS_LIVE_FORCE_POSTFLIGHT_PENDING",
       "PLANNED_RLS",
       "COMPATIBLE_CANDIDATE",
       "BLOCKED_DESIGN",
@@ -82,7 +83,7 @@ describe("site-wide RLS coverage matrix", () => {
         ["SavedSearch", "RLS_LIVE_PHASE_B"],
         ["DirectUpload", "RLS_LIVE_FORCE"],
         ["DirectUploadReference", "RLS_LIVE_FORCE"],
-        ["StripeWebhookEvent", "RLS_LIVE_PHASE_A"],
+        ["StripeWebhookEvent", "RLS_LIVE_FORCE_POSTFLIGHT_PENDING"],
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
@@ -94,7 +95,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /Every\s+other row is \*\*not active\s+RLS\*\*/);
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
-    assert.match(architecture, /all nine tables are `FORCE ROW LEVEL SECURITY`/);
+    assert.match(architecture, /all ten tables are\s+`FORCE ROW LEVEL SECURITY`/);
     assert.match(architecture, /Order\/payment\/shipping is the active/);
     assert.doesNotMatch(architecture, /Case-family RLS is still off/);
   });
