@@ -8,6 +8,8 @@ DECLARE
   queued_migration_count integer;
   cron_function_count integer;
   participant_function_count integer;
+  participant_function_oid oid;
+  participant_function_definition text;
   forced_table_count integer;
 BEGIN
   IF pg_catalog.current_setting('transaction_isolation')
@@ -101,8 +103,10 @@ BEGIN
       cron_function_count;
   END IF;
 
-  SELECT pg_catalog.count(*)::integer
-    INTO participant_function_count
+  SELECT
+    pg_catalog.count(*)::integer,
+    pg_catalog.min(procedure.oid)
+    INTO participant_function_count, participant_function_oid
     FROM pg_catalog.pg_proc AS procedure
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = procedure.pronamespace
@@ -131,21 +135,54 @@ BEGIN
          ) AS acl
         WHERE acl.grantee = 0
           AND acl.privilege_type = 'EXECUTE'
-     )
-     AND pg_catalog.pg_get_functiondef(procedure.oid) ~
-         'audit_id_prefix :=[[:space:]]+''case_resolution_mark_'''
-     AND pg_catalog.pg_get_functiondef(procedure.oid) ~
-         'pg_catalog\.gen_random_uuid\(\)::text'
-     AND pg_catalog.pg_get_functiondef(procedure.oid) ~
-         'audit_id := existing_audit\.id'
-     AND pg_catalog.pg_get_functiondef(procedure.oid) ~
-         'locked_case\."updatedAt"'
-     AND pg_catalog.pg_get_functiondef(procedure.oid) !~
-         'p_audit|p_dedup|p_source_id';
+     );
   IF participant_function_count <> 1 THEN
     RAISE EXCEPTION
-      'Case participant-resolution function catalog drifted: %',
+      'Case participant-resolution function authority drifted: %',
       participant_function_count;
+  END IF;
+
+  SELECT pg_catalog.pg_get_functiondef(participant_function_oid)
+    INTO STRICT participant_function_definition;
+
+  IF pg_catalog.strpos(
+       participant_function_definition,
+       'audit_id_prefix :='
+     ) = 0
+     OR pg_catalog.strpos(
+       participant_function_definition,
+       '''case_resolution_mark_'''
+     ) = 0
+     OR pg_catalog.strpos(
+       participant_function_definition,
+       'pg_catalog.gen_random_uuid()'
+     ) = 0
+     OR pg_catalog.strpos(
+       participant_function_definition,
+       'audit_id := existing_audit.id'
+     ) = 0
+     OR pg_catalog.strpos(
+       participant_function_definition,
+       'ORDER BY audit."createdAt" DESC, audit.id DESC'
+     ) = 0
+     OR pg_catalog.strpos(
+       participant_function_definition,
+       '~ ''^[0-9a-f]{32}$'''
+     ) = 0
+     OR pg_catalog.strpos(
+       participant_function_definition,
+       'actor_is_buyer AND locked_case."buyerMarkedResolved"'
+     ) = 0
+     OR pg_catalog.strpos(
+       participant_function_definition,
+       'actor_is_seller AND locked_case."sellerMarkedResolved"'
+     ) = 0
+     OR participant_function_definition ~
+       'p_audit|p_dedup|p_source_id'
+     OR participant_function_definition ~
+       'existing_audit\.metadata[[:space:]]*->[[:space:]]*>[[:space:]]*''at''[[:space:]]*=[[:space:]]*pg_catalog\.to_char\([[:space:]]*locked_case\."updatedAt"' THEN
+    RAISE EXCEPTION
+      'Case participant-resolution function body drifted';
   END IF;
 
   SELECT pg_catalog.count(*)::integer

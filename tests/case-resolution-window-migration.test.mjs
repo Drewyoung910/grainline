@@ -221,9 +221,39 @@ describe("Case resolution-window correction", () => {
       /buyerMarkedResolved[\s\S]*sellerMarkedResolved[\s\S]*Buyer resolution window expired/,
     );
     assert.match(productionPostflight, /grainline_case_mark_resolved/);
+    assert.match(
+      productionPostflight,
+      /participant_function_count, participant_function_oid[\s\S]*participant-resolution function authority drifted/,
+    );
+    assert.match(
+      productionPostflight,
+      /pg_get_functiondef\(participant_function_oid\)[\s\S]*participant-resolution function body drifted/,
+    );
     assert.match(productionPostflight, /audit_id_prefix/);
     assert.match(productionPostflight, /gen_random_uuid/);
     assert.match(productionPostflight, /audit_id := existing_audit/);
+    assert.match(
+      productionPostflight,
+      /ORDER BY audit\."createdAt" DESC, audit\.id DESC/,
+    );
+    assert.match(productionPostflight, /\^\[0-9a-f\]\{32\}\$/);
+    assert.match(
+      productionPostflight,
+      /actor_is_buyer AND locked_case\."buyerMarkedResolved"/,
+    );
+    assert.match(
+      productionPostflight,
+      /actor_is_seller AND locked_case\."sellerMarkedResolved"/,
+    );
+    assert.match(productionPostflight, /p_audit\|p_dedup\|p_source_id/);
+    assert.match(
+      productionPostflight,
+      /existing_audit\\\.metadata[\s\S]*locked_case\\\."updatedAt"/,
+    );
+    assert.doesNotMatch(
+      productionPostflight,
+      /pg_get_functiondef\(procedure\.oid\)[\s\S]{0,180}locked_case\\\."updatedAt"/,
+    );
     assert.match(
       productionPostflight,
       /class\.relrowsecurity[\s\S]*class\.relforcerowsecurity[\s\S]*forced_table_count <> 3/,

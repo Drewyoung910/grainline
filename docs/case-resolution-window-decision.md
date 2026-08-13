@@ -97,6 +97,14 @@ the record:
   two-argument function form, and the repository-wide PostgreSQL special-form
   guard rejects schema-qualified `substring` calls containing top-level `FROM`
   or `FOR` tokens.
+- `31663445190`: every disposable PostgreSQL behavior, concurrency, grant,
+  Case activation, and Case FORCE proof passed, but the final read-only catalog
+  postflight collapsed function authority and body predicates into one opaque
+  zero count. The postflight now proves the exact function authority first and
+  then checks named replay/body invariants separately. It also rejects the old
+  timestamp-coupled replay predicate directly instead of treating the mere
+  presence of `updatedAt` as evidence; that field remains a legitimate Case
+  lifecycle field but is not replay authority.
 
 None of these runs changed production. The final invariant is fail-closed in
 both directions: complete reviewed tree during sealed proofs, and an applied-
