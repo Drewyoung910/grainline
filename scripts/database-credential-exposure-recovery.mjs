@@ -1101,7 +1101,7 @@ export async function runCredentialRecovery(config, overrides = {}) {
     config.operatorCiRunId,
     "CI",
     config.operatorCommit,
-    "push",
+    "pull_request",
   );
   dependencies.readGithubRun(
     FORCE_MAIN_CI_RUN_ID,

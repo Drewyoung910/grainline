@@ -344,6 +344,20 @@ test("restart evidence validators accept only the exact completed proofs", () =>
 });
 
 test("reviewed runs and definitive password rejection are fail closed", () => {
+  const operatorRun = normalizeGithubRun({
+    id: 31729999999,
+    name: "CI",
+    event: "pull_request",
+    head_sha: "a".repeat(40),
+    status: "completed",
+    conclusion: "success",
+  }, {
+    id: 31729999999,
+    name: "CI",
+    event: "pull_request",
+    headSha: "a".repeat(40),
+  });
+  assert.equal(operatorRun.conclusion, "success");
   const run = normalizeGithubRun({
     id: FORCE_MAIN_CI_RUN_ID,
     name: "CI",

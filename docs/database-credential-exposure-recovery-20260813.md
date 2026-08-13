@@ -96,7 +96,8 @@ stored-password vault and later reveal-based postflights stay consistent.
 `scripts/database-credential-exposure-recovery.mjs` is the only executable
 recovery path. The package is deliberately sealed in two checkpoints: the
 implementation commit is reviewed first, then the release commit pins that
-implementation and its own successful CI run. It rejects every other source
+implementation and its own successful exact-head pull-request CI run. It
+rejects every other source
 commit, dirty checkout, ambient PostgreSQL URL, unreviewed Neon/Vercel client,
 provider identity, deployment source, GitHub run, or restart transition.
 
