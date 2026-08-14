@@ -1333,6 +1333,17 @@ Open work:
   found zero activation rows, zero FORCE rows and made no changes itself. No
   deployment, RLS activation, predecessor-grant revocation, cleanup or provider
   change occurred.
+- The actual production postflight passed separately from exact clean main
+  `ac4c9d2139f5294c5e91edd24acb3dbe71b4976c`, bound to exact-main CI
+  `31819848330`, migration-main CI `31813433933` and migration run
+  `31814032227`. It authenticated only as pooled `grainline_app_runtime` inside
+  an engine-attested repeatable-read/read-only transaction, matched the exact
+  25-function and compatible table catalog, proved private-helper denial and a
+  SQLSTATE `25006` fixed-write fence, then rolled back. Sanitized mode-0600
+  evidence SHA-256 is
+  `bec37f40d995e311bee5d80fc63c3485f7d325cdcd846b88656684fe2f592afe`;
+  `productionChangedByPostflight=false`. No deployment, RLS/grant change,
+  cleanup or provider mutation occurred.
 - Exact authority-hardening checkpoint
   `7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
   `31282060518`. The run exercised the actual direct disposable runtime login,
