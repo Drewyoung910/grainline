@@ -770,6 +770,7 @@ Two compatibility defects were found and closed during promotion:
   `RLS_CONTEXT_GATE_DATABASE_URL` alias and maps `DATABASE_URL` to the generic
   gate parser's historical key only inside a request-local environment object.
   The alias is explicitly forbidden by the provider manifest, and the proof
-  branch is deployment-disabled again between attempts. A later run must use a
-  freshly prepared child and fresh non-replayable slots; this failed build
-  consumed neither slot.
+  manifest is now executed through the real Vercel runtime database isolation
+  guard in unit coverage. The proof branch is deployment-disabled again between
+  attempts. A later run must use a freshly prepared child and fresh
+  non-replayable slots; this failed build consumed neither slot.

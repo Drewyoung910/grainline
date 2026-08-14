@@ -23,6 +23,7 @@ import {
   validateProviderEvidence,
   validateProviderState,
 } from "../scripts/checkout-stock-reservation-provider-proof-operator.mjs";
+import { assertVercelRuntimeDatabaseIsolation } from "../scripts/guard-runtime-db-env.mjs";
 
 const source = readFileSync(
   "scripts/checkout-stock-reservation-provider-proof-operator.mjs",
@@ -227,6 +228,20 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.equal(entries.some((entry) => entry.value === state.adminDatabaseUrl), false);
     assert.equal(entries.some((entry) => entry.key === "RLS_CONTEXT_GATE_DATABASE_URL"), false);
     assert.ok(FORBIDDEN_PROVIDER_ENVIRONMENT_KEYS.includes("RLS_CONTEXT_GATE_DATABASE_URL"));
+  });
+
+  it("passes the exact generated Preview manifest through the real runtime database guard", () => {
+    const providerEnvironment = Object.fromEntries(
+      providerEnvironmentEntries(state).map((entry) => [entry.key, entry.value]),
+    );
+    const result = assertVercelRuntimeDatabaseIsolation({
+      ...providerEnvironment,
+      VERCEL: "1",
+      VERCEL_ENV: "preview",
+    });
+    assert.equal(result.runtimeDatabaseVerified, true);
+    assert.equal(result.endpointId, state.neonEndpointId);
+    assert.equal(result.runtimeRole, "grainline_app_runtime");
   });
 
   it("accepts only the exact child endpoint, role, pool mode and URL controls", () => {
