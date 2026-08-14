@@ -131,9 +131,9 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(deploymentAudit, /84a58f0fc818b502564ef6bcd974ff4af3cc4395/);
     assert.match(deploymentAudit, /31822968848/);
     assert.match(deploymentAudit, /dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw/);
-    assert.match(deploymentAudit, /do not prove\s+the authenticated checkout paths/);
-    assert.match(strategy, /production-safe disposable checkout smoke operator is now implemented/);
-    assert.match(strategy, /distinct paid-completion side-effect decision/i);
+    assert.match(deploymentAudit, /authenticated production smoke subsequently passed/);
+    assert.match(strategy, /production-safe disposable checkout smoke subsequently passed/);
+    assert.match(strategy, /Paid completion remains a distinct accounting/i);
   });
 
   it("keeps current production posture honest in the coverage ledger", () => {
@@ -152,7 +152,7 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.doesNotMatch(row, /RLS_LIVE/);
     assert.match(row, /source-locking PostgreSQL statement/);
     assert.match(row, /dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw/);
-    assert.match(row, /authenticated checkout smoke remains open/);
+    assert.match(row, /authenticated checkout smoke passed/);
     assert.match(row, /RLS remains off/);
     assert.match(strategy, /CheckoutStockReservation source-consistency boundary/);
     assert.match(strategy, /Two fresh provider slots passed/);

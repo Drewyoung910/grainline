@@ -46,13 +46,17 @@ Completed CheckoutStockReservation source-consistency postflight:
   `84a58f0fc818b502564ef6bcd974ff4af3cc4395`, exact-main CI `31822968848`,
   Vercel deployment `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`. Canonical alias and
   health checks passed, as did the four unauthenticated 401 route boundaries.
-  Do not treat those 401s as authenticated checkout proof. The fail-closed
-  disposable production smoke operator is implemented but not merged or run;
-  follow `docs/checkout-stock-reservation-production-smoke.md`. It covers real
-  cart/Buy Now, retry/resume/rollback and signed expiry without claiming paid
-  completion, which has a separate durable side-effect decision.
-  Keep reservation RLS off and predecessor table grants intact until that
-  smoke and the predecessor drain pass.
+  Do not treat those 401s as authenticated checkout proof. The separate
+  fail-closed production smoke passed from exact main
+  `e9d343b6f316ceb1c75553aec77e9f310a12d802`, CI `31829740992`, proving the
+  real cart/Buy Now, retry/resume/rollback, stock-restore and signed-expiry
+  matrix with every cleanup invariant true. Follow
+  `docs/checkout-stock-reservation-production-smoke.md`; its sanitized evidence
+  SHA-256 is
+  `86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`.
+  Paid completion remains a separate durable side-effect decision. Keep
+  reservation RLS off and predecessor table grants intact until the
+  predecessor deployment drain passes.
 
 Current Conversation/Message production boundary:
 
