@@ -106,7 +106,7 @@ Public discovery routes are split by purpose. `/browse` remains the full filter 
 
 ### Checkout And Orders
 
-Checkout uses Stripe Checkout Sessions and local lock/idempotency state. Destination-charge accounting keeps platform tax handling and seller transfer math explicit. Order, payment event, refund, dispute, label, and case state transitions must be idempotent and race-aware. Full refunds restore eligible in-stock inventory automatically before buyer handoff; seller and staff partial refunds restore inventory only through explicit bounded quantities validated against purchased in-stock order items.
+Checkout uses Stripe Checkout Sessions and local lock/idempotency state. Destination-charge accounting keeps platform tax handling and seller transfer math explicit. The route's priced inventory snapshot must exactly match the database-derived CartItem/Listing source returned under the stock-reservation locks before Stripe session creation; listing-level inventory comparisons sum multiple variant cart lines. A mismatch restores the still-unbound reservation and returns a retryable conflict. Order, payment event, refund, dispute, label, and case state transitions must be idempotent and race-aware. Full refunds restore eligible in-stock inventory automatically before buyer handoff; seller and staff partial refunds restore inventory only through explicit bounded quantities validated against purchased in-stock order items.
 
 ### Messaging
 

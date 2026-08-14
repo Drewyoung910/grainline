@@ -28,6 +28,7 @@ import {
   createCartCheckoutStockReservation,
   isCheckoutStockUnavailableDatabaseError,
 } from "@/lib/checkoutStockReservationAuthority";
+import { checkoutReservationSourceMatches } from "@/lib/checkoutReservationSourceState";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
@@ -513,8 +514,9 @@ export async function POST(req: Request) {
         title: it.listing.title,
       }));
     checkoutReservationItemCount = reservableItems.length;
+    let reservation: Awaited<ReturnType<typeof createCartCheckoutStockReservation>>;
     try {
-      const reservation = await createCartCheckoutStockReservation({
+      reservation = await createCartCheckoutStockReservation({
         cartId: cart.id,
         sellerProfileId: sellerId,
         checkoutGroupId: body.checkoutGroupId,
@@ -531,6 +533,47 @@ export async function POST(req: Request) {
         );
       }
       throw reservationError;
+    }
+
+    // The fixed function re-reads and locks the cart source. A concurrent cart
+    // mutation can therefore make its authoritative item set differ from the
+    // earlier snapshot used to price Stripe. Never create a session for that
+    // mixed snapshot; restore the still-unbound reservation and make the buyer
+    // review the latest cart state.
+    if (
+      !reservation ||
+      !checkoutReservationSourceMatches(reservation.reservedItems, reservableItems)
+    ) {
+      Sentry.captureMessage("Checkout reservation source changed before cart stock lock", {
+        level: "warning",
+        tags: { source: "checkout_stock_reservation_source", route: "cart_checkout_seller" },
+        extra: {
+          pricedItemCount: reservableItems.length,
+          reservedItemCount: reservation?.reservedItems.length ?? 0,
+        },
+      });
+      let databaseReservationReleased = !reservation;
+      if (reservation) {
+        const abortResult = await abortCheckoutStockReservation({
+          reservationId: reservation.id,
+          buyerId: me.id,
+          payloadHash,
+        }).catch((abortError) => {
+          Sentry.captureException(abortError, {
+            tags: { source: "checkout_stock_reservation_source_abort", route: "cart_checkout_seller" },
+            extra: { checkoutReservationId: reservation.id },
+          });
+          return null;
+        });
+        databaseReservationReleased = Boolean(abortResult && abortResult.result !== "retained");
+      }
+      if (databaseReservationReleased) {
+        await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      }
+      return privateJson(
+        { error: "Your cart changed while checkout was starting. Review it and try again." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
     }
 
     const return_url = `${APP_BASE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;

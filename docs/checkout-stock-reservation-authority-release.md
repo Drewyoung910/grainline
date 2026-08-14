@@ -194,7 +194,18 @@ reservation operations represented at their intended callers. A focused
 checkout, webhook, account-deletion, export, lock and payment suite passed
 98/98 locally. The exact-main CI remains the authoritative full-tree result.
 
-The next boundary is an exact-source application deployment, health and
+The final pre-deploy review found that the application priced from its first
+cart/listing snapshot while the fixed function returned a later locked source
+without an equality check. A concurrent cart or inventory-type change could
+therefore reserve a different quantity/set than Stripe charged. Isolated
+finding `CSR-A21` adds a fail-closed, listing-level source comparison before
+Stripe creation and aborts/restores a mismatched unbound reservation. Because
+stock is Listing-level, legitimate variant cart lines are summed by
+seller/listing before comparison. Exact `77fc45fe` must not be deployed; the
+next deploy source is the reviewed successor containing this correction after
+its complete CI succeeds.
+
+The next boundary is an exact-successor application deployment, health and
 fixed-path smoke, followed by predecessor-version drain and a fresh proof of
 zero direct reservation access. The known-good rollback source remains
 `69c14c0618ea7ab9c74756422273d17d66db7efa`; rollback stays database-compatible
@@ -206,9 +217,11 @@ ENABLE and FORCE remain later, separate releases.
 1. Completed: exact-main CI, Extra-High SQL review, StripeWebhookEvent FORCE,
    immutable-history correction, same-main aggregate inspection, guarded
    compatible migration, global audit, and actual pooled-runtime postflight.
-2. Deploy exact `77fc45fe06feb3f4e440afea916728c3d2873315` only after a
-   separate deployment boundary; attest provider-owned source and canonical
-   alias/health.
+2. Complete CI for and merge the isolated `CSR-A21` correction, then deploy
+   only that exact successor after a separate deployment boundary; attest
+   provider-owned source and canonical alias/health. Do not deploy
+   `77fc45fe06feb3f4e440afea916728c3d2873315` because its source-consistency
+   check is incomplete.
 3. Prove checkout creation, signed completion and failed-session restoration,
    bounded cron repair/prune, account deletion, resume and export without
    bypassing the normal route/provider authority boundaries.

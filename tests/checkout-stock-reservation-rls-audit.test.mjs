@@ -103,6 +103,20 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(preAudit, /OPS-A24: reservation cleanup is one-batch-per-deletion-attempt/);
   });
 
+  it("records the locked-source versus Stripe-pricing consistency boundary", () => {
+    const audit = source("docs/checkout-stock-reservation-rls-audit.md");
+    const release = source("docs/checkout-stock-reservation-authority-release.md");
+    const architecture = source("docs/architecture.md");
+
+    assert.match(audit, /CSR-A21/);
+    assert.match(audit, /comparing it with the function's returned `reservedItems`/);
+    assert.match(audit, /before any Stripe session is\s+created/);
+    assert.match(audit, /multiple variant cart lines because stock\s+is Listing-level/);
+    assert.match(release, /Exact `77fc45fe` must not be deployed/);
+    assert.match(release, /exact-successor application deployment/);
+    assert.match(architecture, /priced inventory snapshot must exactly match the database-derived/);
+  });
+
   it("keeps current production posture honest in the coverage ledger", () => {
     const matrix = source("docs/rls-coverage-matrix.md");
     const strategy = source("STRATEGY.md");
@@ -117,7 +131,8 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(row, /compatible migration is live from exact main `77fc45fe`/);
     assert.match(row, /actual pooled-runtime postflight accepted/);
     assert.match(row, /production app source is still `69c14c06`/);
-    assert.match(row, /deploy\/smoke\/drain the fixed-operation app/);
+    assert.match(row, /CSR-A21/);
+    assert.match(row, /deploy\/smoke\/drain only the exact successor/);
     assert.match(strategy, /next isolated dependency is `CheckoutStockReservation`/);
     assert.match(strategy, /StripeWebhookEvent FORCE\s+remains a separate/);
   });

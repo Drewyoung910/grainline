@@ -77,6 +77,24 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(authoritySql, /grainline_checkout_reservation_checkout_abort[\s\S]*source_reservation\."stripeSessionId" IS NOT NULL[\s\S]*'retained'/);
   });
 
+  it("rejects a priced source that changed before the database stock lock", () => {
+    for (const routePath of [
+      "src/app/api/cart/checkout/single/route.ts",
+      "src/app/api/cart/checkout-seller/route.ts",
+    ]) {
+      const route = source(routePath);
+      const sourceMatch = route.indexOf("checkoutReservationSourceMatches(");
+      const stripeCreate = route.indexOf("stripe.checkout.sessions.create(");
+
+      assert.match(route, /checkoutReservationSourceMatches\(/);
+      assert.match(route, /abortCheckoutStockReservation\(\{/);
+      assert.match(route, /status: HTTP_STATUS\.CONFLICT/);
+      assert.notEqual(sourceMatch, -1);
+      assert.notEqual(stripeCreate, -1);
+      assert.ok(sourceMatch < stripeCreate, `${routePath} must compare the locked source before Stripe creation`);
+    }
+  });
+
   it("never restores or releases a checkout lock while a created Stripe session may remain payable", () => {
     for (const routePath of [
       "src/app/api/cart/checkout/single/route.ts",

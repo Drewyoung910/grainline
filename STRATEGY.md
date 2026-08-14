@@ -243,11 +243,16 @@ reservation rows; its sanitized mode-`0600` artifact SHA-256 is
 The application boundary remains open. Canonical production deployment
 `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` still serves exact source
 `69c14c0618ea7ab9c74756422273d17d66db7efa`; the fixed-operation conversion
-is merged in `77fc45fe` but is not live. Next deploy and smoke that exact source,
-drain predecessor versions, and prove zero direct reservation access. The old
-source is a database-compatible rollback while predecessor CRUD remains. Do
-not prepare ENABLE until this drain proof passes; ENABLE and FORCE remain
-separate releases.
+is merged in `77fc45fe` but is not live. The final pre-deploy review then found
+`CSR-A21`: a concurrent cart or listing inventory-type mutation could make the
+database-derived locked reservation source differ from the route snapshot used
+to price Stripe. The isolated correction compares canonical seller/listing/
+summed-quantity sources before Stripe creation and aborts/restores a mismatch;
+`77fc45fe` is therefore not an eligible deploy source. Next complete CI and
+merge that correction, deploy/smoke only its exact successor, drain predecessor
+versions, and prove zero direct reservation access. The old source remains a
+database-compatible rollback while predecessor CRUD remains. Do not prepare
+ENABLE until this drain proof passes; ENABLE and FORCE remain separate releases.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

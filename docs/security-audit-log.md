@@ -1428,5 +1428,14 @@ Open work:
   `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` at source `69c14c06`; the merged
   fixed-operation source in `77fc45fe` is not live. Focused checkout/webhook/
   deletion/export/lock/payment tests passed 98/98 locally and exact-main CI is
-  the authoritative full-tree result. The next boundary is exact-source deploy,
+  the authoritative full-tree result.
+- **Found before deploy:** `CSR-A21` identified a source-consistency race in the
+  converted application: the route priced from an earlier snapshot while the
+  fixed database function derived the reservation from locked current rows.
+  A concurrent cart or listing inventory-type change could make those item sets
+  differ. The isolated fix canonicalizes seller/listing/summed quantities,
+  compares before Stripe session creation, and aborts/restores a mismatch with
+  `409`. Multiple variant lines intentionally collapse because inventory is
+  Listing-level. Exact `77fc45fe` must not be deployed; the next boundary is
+  complete CI and merge for the correction, followed by exact-successor deploy,
   fixed-path smoke and predecessor drain, not policyless ENABLE.

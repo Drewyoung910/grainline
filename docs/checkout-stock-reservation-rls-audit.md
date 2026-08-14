@@ -517,3 +517,27 @@ Two compatibility defects were found and closed during promotion:
   `varchar` by the target column and `text` by the canonical JSON object. The
   repaired fixture casts every reused identity parameter to `text` at its SQL
   boundary, matching the repository's fail-closed parameter-typing rule.
+
+## Compatible app pre-deploy source-consistency review (2026-08-13)
+
+- `CSR-A21`: the fixed cart/single creation functions correctly re-read and
+  lock their durable CartItem/Listing sources, but the first application
+  conversion retained the earlier route snapshot for Stripe pricing without
+  comparing it with the function's returned `reservedItems`. A concurrent
+  cart quantity/remove/add or listing inventory-type change after route
+  preflight could therefore make PostgreSQL reserve one item set while Stripe
+  charged the older one. This was not an RLS-policy defect and no converted
+  application version had been deployed; production still ran source
+  `69c14c06` when the review found it.
+- The isolated successor now canonicalizes the expected and locked reservation
+  sources by seller/listing and summed quantity before any Stripe session is
+  created. It deliberately collapses multiple variant cart lines because stock
+  is Listing-level. A mismatch aborts the still-unbound reservation, restores
+  stock through the fixed authority, releases the owner-token Redis lock only
+  after database restoration succeeds, returns `409`, and emits count-only
+  telemetry. Both-empty is accepted only for intentional made-to-order
+  checkout. Focused pure-state and route-order tests cover order independence,
+  variant aggregation, identity/quantity/type drift, malformed input and
+  overflow. The compatible application must not be deployed until this
+  successor passes complete CI and the release record names its exact merge
+  commit.

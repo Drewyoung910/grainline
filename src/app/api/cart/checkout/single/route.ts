@@ -28,6 +28,7 @@ import {
   createSingleCheckoutStockReservation,
   isCheckoutStockUnavailableDatabaseError,
 } from "@/lib/checkoutStockReservationAuthority";
+import { checkoutReservationSourceMatches } from "@/lib/checkoutReservationSourceState";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
@@ -401,8 +402,9 @@ export async function POST(req: Request) {
         }]
       : [];
     checkoutReservationItemCount = reservableItems.length;
+    let reservation: Awaited<ReturnType<typeof createSingleCheckoutStockReservation>>;
     try {
-      const reservation = await createSingleCheckoutStockReservation({
+      reservation = await createSingleCheckoutStockReservation({
         listingId: listing.id,
         quantity: body.quantity,
         payloadHash,
@@ -418,6 +420,43 @@ export async function POST(req: Request) {
         );
       }
       throw reservationError;
+    }
+
+    // The fixed function re-reads and locks the listing source. Fail closed if
+    // its inventory type/identity no longer matches the snapshot priced above.
+    // A made-to-order listing intentionally produces no reservation and matches
+    // the empty expected inventory set.
+    if (!checkoutReservationSourceMatches(reservation?.reservedItems ?? [], reservableItems)) {
+      Sentry.captureMessage("Checkout reservation source changed before listing stock lock", {
+        level: "warning",
+        tags: { source: "checkout_stock_reservation_source", route: "single_checkout" },
+        extra: {
+          pricedItemCount: reservableItems.length,
+          reservedItemCount: reservation?.reservedItems.length ?? 0,
+        },
+      });
+      let databaseReservationReleased = !reservation;
+      if (reservation) {
+        const abortResult = await abortCheckoutStockReservation({
+          reservationId: reservation.id,
+          buyerId: me.id,
+          payloadHash,
+        }).catch((abortError) => {
+          Sentry.captureException(abortError, {
+            tags: { source: "checkout_stock_reservation_source_abort", route: "single_checkout" },
+            extra: { checkoutReservationId: reservation.id },
+          });
+          return null;
+        });
+        databaseReservationReleased = Boolean(abortResult && abortResult.result !== "retained");
+      }
+      if (databaseReservationReleased) {
+        await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      }
+      return privateJson(
+        { error: "This listing changed while checkout was starting. Review it and try again." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
     }
 
     // Variant description suffix for Stripe line item name
