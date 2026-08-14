@@ -57,6 +57,13 @@ Completed CheckoutStockReservation source-consistency postflight:
   Paid completion remains a separate durable side-effect decision. Keep
   reservation RLS off and predecessor table grants intact until the
   predecessor deployment drain passes.
+- The drain procedure is `npm run
+  ops:checkout-stock-reservation-predecessor-drain -- preflight`, followed by
+  the same exact binding with `run`; see
+  `docs/checkout-stock-reservation-predecessor-drain.md`. It may remove only
+  `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6`. Never substitute the project name, a URL,
+  a wildcard or another deployment ID. A failed run must retain its mode-`0600`
+  restart state and resume only from the same exact main commit and CI run.
 
 Current Conversation/Message production boundary:
 

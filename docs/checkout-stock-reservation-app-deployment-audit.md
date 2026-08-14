@@ -2,7 +2,9 @@
 
 Status: compatible application live in production; exact deployment, alias,
 health, unauthenticated route-boundary checks and the authenticated checkout
-smoke matrix passed. The predecessor deployment drain remains open.
+smoke matrix passed. The predecessor deployment drain remains open, with the
+exact restart-safe operator and live inventory recorded in
+`docs/checkout-stock-reservation-predecessor-drain.md`.
 CheckoutStockReservation RLS remains off and predecessor table grants remain
 compatible.
 
@@ -144,6 +146,13 @@ claimed.
 The remaining coexistence boundary is predecessor deployment drain. After it
 passes, prepare policyless ENABLE plus direct-grant revocation as a separate
 database release; FORCE remains a later posture-only release.
+
+The provider audit found exactly one superseded READY deployment that shares
+the current pooled runtime credential: `dpl_C3N3Pud...`. All older deployments
+are fenced by the accepted prior-password rejection proof. The drain operator
+removes only that exact deployment after proving current aliases, source,
+maximum request duration, inventory and health; this preparation does not
+itself change production.
 
 Order, OrderItem, payment, payout and shipping activation remain separate.
 

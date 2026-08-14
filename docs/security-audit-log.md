@@ -1492,3 +1492,22 @@ Open work:
   create durable charge, Order, notification and email side effects. The next
   boundary is predecessor deployment drain before policyless ENABLE/direct-
   grant revocation; FORCE remains separate.
+
+## CheckoutStockReservation predecessor drain preparation (2026-08-14)
+
+- Provider inventory proved the current compatible deployment is exact source
+  `84a58f0f...` at `dpl_AGN7...`. Exactly one superseded READY deployment,
+  `dpl_C3N3...`, sits between the accepted credential rotation and the current
+  deployment and therefore shares the current runtime password.
+- The restored credential-recovery record and byte-pinned sanitized evidence
+  prove every older deployment's embedded runtime password rejects. The prior
+  completion doc had remained on an unmerged record branch while current docs
+  referenced it; this preparation restores a concise accepted record on main.
+- The restart-safe operator validates exact clean main/CI, deployment sources,
+  inventory, aliases, maximum 300-second request duration, canonical health
+  and credential-recovery evidence. It writes private restart state before it
+  removes only the exact superseded deployment, then proves absence and writes
+  sanitized evidence.
+- This preparation changes no production/provider state. CheckoutStockReservation
+  RLS remains off and direct predecessor grants remain until the separate
+  operator execution passes.
