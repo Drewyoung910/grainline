@@ -50,6 +50,12 @@ export const REVIEWED_NEON_REGION_ID = "azure-westus3";
 export const REVIEWED_PRODUCTION_ENDPOINT_ID = "ep-plain-river-aaqg8gj4";
 export const REVIEWED_OWNER_ROLE = "neondb_owner";
 export const REVIEWED_RUNTIME_ROLE = "grainline_app_runtime";
+export const REVIEWED_CLEANUP_ROLE = "grainline_direct_upload_cleanup_v2";
+export const REVIEWED_CHILD_LOGIN_ROLES = Object.freeze([
+  REVIEWED_OWNER_ROLE,
+  REVIEWED_RUNTIME_ROLE,
+  REVIEWED_CLEANUP_ROLE,
+]);
 export const REVIEWED_EXECUTION_REGION = "sfo1";
 export const PROVIDER_PROOF_STATE_PATH =
   "/private/tmp/grainline-checkout-reservation-provider-proof-20260813.json";
@@ -403,7 +409,7 @@ function buildDatabaseUrl(state, role, password, { pooled }) {
 
 export function buildProductionCredentialChallengeUrl(role, password) {
   if (
-    ![REVIEWED_OWNER_ROLE, REVIEWED_RUNTIME_ROLE].includes(role)
+    !REVIEWED_CHILD_LOGIN_ROLES.includes(role)
     || typeof password !== "string"
     || !/^[A-Za-z0-9_-]{16,128}$/u.test(password)
   ) throw new Error("production credential challenge input drifted");
@@ -451,7 +457,7 @@ function normalizeDisposablePasswordOperation(operation, state) {
 export function validateChildPasswordResetResponse(payload, state, role) {
   const childRole = payload?.role;
   if (
-    ![REVIEWED_OWNER_ROLE, REVIEWED_RUNTIME_ROLE].includes(role)
+    !REVIEWED_CHILD_LOGIN_ROLES.includes(role)
     || childRole?.branch_id !== state.neonBranchId
     || childRole.name !== role
     || childRole.authentication_method !== "password"
@@ -592,7 +598,7 @@ async function verifyDisposableNeon(state, { requireReady = true } = {}) {
     || endpoint.type !== "read_write"
     || requireReady && !["idle", "active"].includes(endpoint.current_state)
     || requireReady && JSON.stringify(roleNames) !== JSON.stringify(
-      [REVIEWED_OWNER_ROLE, REVIEWED_RUNTIME_ROLE].sort(),
+      [...REVIEWED_CHILD_LOGIN_ROLES].sort(),
     )
     || requireReady && database?.branch_id !== state.neonBranchId
     || requireReady && database.owner_name !== REVIEWED_OWNER_ROLE
@@ -1234,27 +1240,27 @@ async function prepare() {
     await waitForDisposableNeon(state);
     state = { ...state, passwordResetAttemptedAt: new Date().toISOString() };
     replaceState(state);
-    const ownerReset = resetChildRolePassword(state, REVIEWED_OWNER_ROLE);
-    await waitForChildPasswordOperations(state, ownerReset.operations);
-    await waitForDisposableNeon(state);
-    const runtimeReset = resetChildRolePassword(state, REVIEWED_RUNTIME_ROLE);
-    await waitForChildPasswordOperations(state, runtimeReset.operations);
-    await waitForDisposableNeon(state);
-    await proveChildPasswordRejectedByProduction(REVIEWED_OWNER_ROLE, ownerReset.password);
-    await proveChildPasswordRejectedByProduction(REVIEWED_RUNTIME_ROLE, runtimeReset.password);
+    const childPasswords = new Map();
+    for (const role of REVIEWED_CHILD_LOGIN_ROLES) {
+      const reset = resetChildRolePassword(state, role);
+      await waitForChildPasswordOperations(state, reset.operations);
+      await waitForDisposableNeon(state);
+      await proveChildPasswordRejectedByProduction(role, reset.password);
+      childPasswords.set(role, reset.password);
+    }
     state = {
       ...state,
       adminDatabaseUrl: buildDatabaseUrl(
         state,
         REVIEWED_OWNER_ROLE,
-        ownerReset.password,
+        childPasswords.get(REVIEWED_OWNER_ROLE),
         { pooled: false },
       ),
       phase: "credentials-ready",
       runtimeDatabaseUrl: buildDatabaseUrl(
         state,
         REVIEWED_RUNTIME_ROLE,
-        runtimeReset.password,
+        childPasswords.get(REVIEWED_RUNTIME_ROLE),
         { pooled: true },
       ),
     };

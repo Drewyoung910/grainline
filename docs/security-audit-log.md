@@ -1475,9 +1475,17 @@ Open work:
   the parent branch is protected. Read-only inspection proved production is
   unprotected while the two Launch-plan protection slots hold the retained
   Notification and DirectUpload recovery branches. The operator therefore
-  resets both roles on the exact child, waits for the provider operations and
-  never reveals an inherited password. It then challenges the exact production
-  endpoint with both fresh child passwords and accepts only PostgreSQL `28P01`
+  resets every exact inherited login role on the child, waits for the provider
+  operations and never reveals an inherited password. It then challenges the
+  exact production endpoint with each fresh child password and accepts only PostgreSQL `28P01`
   rejection before it can persist credential-ready state or configure Vercel.
   No branch protection, provider resource or credential was changed while
   correcting this gate.
+- OAuth was restored and the exact stale failed Preview was deleted with zero
+  remaining residue. The first authorized preparation then failed closed on a
+  stale two-role child inventory: production also contains the existing
+  DirectUpload cleanup role. Exact automatic child deletion completed and the
+  post-failure status showed zero child, Preview, branch variables and local
+  state. The operator now pins owner, ordinary runtime and cleanup as the only
+  inherited login roles, resets and production-challenges all three, and still
+  exposes only the pooled ordinary-runtime URL to the later Preview manifest.

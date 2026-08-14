@@ -636,9 +636,12 @@ Two compatibility defects were found and closed during promotion:
   proved production is currently unprotected and both available Launch-plan
   protection slots are occupied by retained Notification and DirectUpload
   recovery branches. Neither backup is weakened merely to run a performance
-  proof. Instead, after child creation the operator immediately resets both
-  child roles through Neon, waits for every reset operation, and never calls
-  `reveal_password`. The disposable child must remain exact `protected=false`
+  proof. Instead, after child creation the operator immediately resets all
+  three exact inherited login roles—owner, ordinary runtime and DirectUpload
+  cleanup—through Neon, waits for every reset operation, and never calls
+  `reveal_password`. Only owner and runtime URLs are constructed locally, and
+  only the runtime URL can enter branch-scoped Vercel variables; the cleanup
+  credential is never persisted. The disposable child must remain exact `protected=false`
   so teardown stays available. This follows Neon's
   [protected-branch password isolation](https://neon.com/docs/guides/protected-branches)
   and [role reset](https://api-docs.neon.tech/reference/resetprojectbranchrolepassword)
@@ -659,3 +662,12 @@ Two compatibility defects were found and closed during promotion:
   cleanup command prevent it from being confused with the counted Preview.
   Authorization must be restored before that cleanup, the operator's read-only
   status check and mutation preflight can pass.
+- Authorization was restored and exact bootstrap cleanup removed the sole old
+  failed Preview, after which status proved zero child, Preview, branch variable
+  and local state. The first authorized preparation attempt then failed closed
+  because the child-role inventory still expected only owner and ordinary
+  runtime, while production correctly also contains the previously provisioned
+  `grainline_direct_upload_cleanup_v2` role. Automatic rollback deleted the
+  exact child and a second zero-residue status passed. The corrected inventory
+  requires exactly all three roles and resets/challenges every inherited
+  credential without broadening the later Vercel manifest.

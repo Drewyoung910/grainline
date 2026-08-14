@@ -9,6 +9,8 @@ import {
   PROVIDER_PROOF_BRANCH,
   REVIEWED_BOOTSTRAP_FAILED_DEPLOYMENT_ID,
   REVIEWED_BOOTSTRAP_FAILED_SOURCE_SHA,
+  REVIEWED_CHILD_LOGIN_ROLES,
+  REVIEWED_CLEANUP_ROLE,
   REVIEWED_PRODUCTION_ALIASES,
   REVIEWED_PRODUCTION_BRANCH_ID,
   REVIEWED_PRODUCTION_DEPLOYMENT_ID,
@@ -188,6 +190,12 @@ describe("CheckoutStockReservation provider proof operator", () => {
     );
     assert.equal(accepted.password, "fresh_child_password_1234");
     assert.equal(accepted.operations[0].id, "operation-child-reset-1234");
+    assert.deepEqual(REVIEWED_CHILD_LOGIN_ROLES, [
+      "neondb_owner",
+      "grainline_app_runtime",
+      "grainline_direct_upload_cleanup_v2",
+    ]);
+    assert.equal(REVIEWED_CLEANUP_ROLE, "grainline_direct_upload_cleanup_v2");
     assert.throws(() => validateChildPasswordResetResponse(
       {
         ...payload,
@@ -203,6 +211,7 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.ok(entries.length >= 20);
     assert.deepEqual(entries.map((entry) => entry.key), PROVIDER_ENVIRONMENT_KEYS);
     assert.equal(new Set(entries.map((entry) => entry.key)).size, entries.length);
+    assert.equal(JSON.stringify(entries).includes(REVIEWED_CLEANUP_ROLE), false);
     assert.ok(entries.every((entry) => (
       entry.gitBranch === PROVIDER_PROOF_BRANCH
       && entry.type === "sensitive"
@@ -291,8 +300,10 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.match(source, /roles\/\$\{role\}\/reset_password/);
     assert.doesNotMatch(source, /roles\/\$\{role\}\/reveal_password/);
     assert.match(source, /error\?\.code === "28P01"/);
-    assert.match(source, /proveChildPasswordRejectedByProduction\(REVIEWED_OWNER_ROLE, ownerReset\.password\)/);
-    assert.match(source, /proveChildPasswordRejectedByProduction\(REVIEWED_RUNTIME_ROLE, runtimeReset\.password\)/);
+    assert.match(source, /for \(const role of REVIEWED_CHILD_LOGIN_ROLES\)/);
+    assert.match(source, /proveChildPasswordRejectedByProduction\(role, reset\.password\)/);
+    assert.match(source, /childPasswords\.get\(REVIEWED_OWNER_ROLE\)/);
+    assert.match(source, /childPasswords\.get\(REVIEWED_RUNTIME_ROLE\)/);
     assert.match(source, /expires_at: expiresAt/);
     assert.match(source, /endpoints: \[\{ type: "read_write" \}\]/);
     assert.match(source, /deployment\.target !== null/);
