@@ -1449,7 +1449,7 @@ Open work:
   Preview failed only at the expected missing-`DATABASE_URL` deployment guard.
   The temporary provider branch then added the production-forbidden runner,
   actual atomic checkout workload, collision-safe fixture lifecycle and a
-  restart-safe provider operator. Focused provider coverage passes 23/23,
+  restart-safe provider operator. Focused provider coverage passes 24/24,
   including real disposable PostgreSQL fixture setup, collision denial and
   teardown.
 - Pre-execution review found and fixed two operator-only defects before any

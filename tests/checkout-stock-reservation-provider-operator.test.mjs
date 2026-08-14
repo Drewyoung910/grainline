@@ -15,6 +15,7 @@ import {
   providerEnvironmentEntries,
   validateDatabaseUrl,
   validateProviderEvidence,
+  validateProviderState,
 } from "../scripts/checkout-stock-reservation-provider-proof-operator.mjs";
 
 const source = readFileSync(
@@ -32,6 +33,7 @@ const state = Object.freeze({
   neonEndpointId: "ep-proof",
   neonProjectId: "icy-unit-96812898",
   parentBranchId: REVIEWED_PRODUCTION_BRANCH_ID,
+  phase: "credentials-ready",
   projectId: "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp",
   runId: `checkout-reservation-${"r".repeat(36)}`,
   runtimeDatabaseUrl: "postgresql://grainline_app_runtime:runtime_secret@ep-proof-pooler.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require",
@@ -150,6 +152,29 @@ describe("CheckoutStockReservation provider proof operator", () => {
       state,
       { pooled: true, role: "grainline_app_runtime" },
     ));
+  });
+
+  it("accepts only the three restart-safe provider state phases", () => {
+    const ready = { ...state };
+    assert.equal(validateProviderState(ready), ready);
+    const created = {
+      ...state,
+      adminDatabaseUrl: "",
+      bypassSecret: "",
+      phase: "neon-created",
+      runtimeDatabaseUrl: "",
+    };
+    assert.equal(validateProviderState(created), created);
+    const attempted = {
+      ...created,
+      neonBranchId: "",
+      neonEndpointId: "",
+      phase: "creation-attempted",
+    };
+    assert.equal(validateProviderState(attempted), attempted);
+    assert.throws(() => validateProviderState({ ...attempted, neonBranchId: "br-unbound" }));
+    assert.throws(() => validateProviderState({ ...created, runtimeDatabaseUrl: state.runtimeDatabaseUrl }));
+    assert.throws(() => validateProviderState({ ...state, phase: "prepared-ish" }));
   });
 
   it("pins production read-only while bounding child creation and teardown", () => {

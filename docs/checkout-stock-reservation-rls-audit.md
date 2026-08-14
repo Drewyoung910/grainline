@@ -630,7 +630,7 @@ Two compatibility defects were found and closed during promotion:
   `grainline_app_runtime` child URL; no owner URL or setup/teardown authority is
   copied to Vercel. Counted slots are one-shot and cleanup validates exact
   identities before deleting anything.
-- Focused static, runtime-manifest, audit and executable fixture tests pass 23/23,
+- Focused static, runtime-manifest, audit and executable fixture tests pass 24/24,
   including real disposable PostgreSQL fixture creation, collision denial and
   zero-residue teardown. The external provider preparation has not started:
   the local Neon CLI credential disappeared during its earlier refresh/OAuth

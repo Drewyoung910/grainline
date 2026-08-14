@@ -178,8 +178,10 @@ function readPrivateJson(filePath, label) {
   return parsed;
 }
 
-function readState() {
-  const state = readPrivateJson(PROVIDER_PROOF_STATE_PATH, "provider proof state");
+export function validateProviderState(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    throw new Error("provider proof state must contain an object");
+  }
   const creationUncertain = state.phase === "creation-attempted";
   if (
     state.branch !== PROVIDER_PROOF_BRANCH
@@ -217,6 +219,12 @@ function readState() {
     });
   }
   return state;
+}
+
+function readState() {
+  return validateProviderState(
+    readPrivateJson(PROVIDER_PROOF_STATE_PATH, "provider proof state"),
+  );
 }
 
 function assertCredentialReadyState(state) {
