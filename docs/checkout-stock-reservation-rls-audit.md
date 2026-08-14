@@ -559,3 +559,8 @@ Two compatibility defects were found and closed during promotion:
   checkout-source operation. Treat that later table rollout as a compile-time,
   PostgreSQL-proof and authenticated-checkout compatibility gate; do not grant
   broad SellerProfile access merely to preserve this helper.
+- The seller source row uses `FOR SHARE`, not `FOR UPDATE`: checkout needs to
+  exclude seller-setting updates until its source comparison commits, but
+  unrelated buyers checking out different listings from the same shop must not
+  serialize on a needlessly exclusive seller lock. The provider gate must prove
+  both same-seller/different-listing concurrency and bounded same-listing waits.

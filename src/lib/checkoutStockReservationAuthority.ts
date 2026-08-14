@@ -200,9 +200,9 @@ export async function lockCheckoutReservationSellerSource(
 ) {
   const rows = await client.$queryRaw<Array<{ id: unknown }>>`
     SELECT seller.id
-      FROM public."SellerProfile" AS seller
+     FROM public."SellerProfile" AS seller
      WHERE seller.id = ${sellerProfileId}
-     FOR UPDATE
+     FOR SHARE
   `;
   if (rows.length !== 1 || rows[0]?.id !== sellerProfileId) {
     throw new Error("Checkout reservation seller source is unavailable");
