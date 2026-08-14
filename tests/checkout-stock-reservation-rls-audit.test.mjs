@@ -122,14 +122,17 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       deploymentAudit,
       /bec37f40d995e311bee5d80fc63c3485f7d325cdcd846b88656684fe2f592afe/,
     );
-    assert.match(deploymentAudit, /database-postflight prerequisite\s+complete/);
+    assert.match(deploymentAudit, /actual database proof ran/);
     assert.match(deploymentAudit, /checkoutSessionCreateAttempted = true/);
     assert.match(deploymentAudit, /one bounded Stripe idempotency key/);
     assert.match(deploymentAudit, /same Order transaction/);
     assert.match(deploymentAudit, /made-to-order single checkout legitimately/);
     assert.match(deploymentAudit, /policyless ENABLE plus direct-grant revocation/);
-    assert.match(deploymentAudit, /does not authorize a\s+merge, deployment, migration/);
-    assert.match(strategy, /Hold the compatible deployment until/);
+    assert.match(deploymentAudit, /84a58f0fc818b502564ef6bcd974ff4af3cc4395/);
+    assert.match(deploymentAudit, /31822968848/);
+    assert.match(deploymentAudit, /dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw/);
+    assert.match(deploymentAudit, /do not prove\s+the authenticated checkout paths/);
+    assert.match(strategy, /no production-safe disposable checkout smoke operator exists yet/);
   });
 
   it("keeps current production posture honest in the coverage ledger", () => {
@@ -147,6 +150,8 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     );
     assert.doesNotMatch(row, /RLS_LIVE/);
     assert.match(row, /source-locking PostgreSQL statement/);
+    assert.match(row, /dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw/);
+    assert.match(row, /authenticated checkout smoke remains open/);
     assert.match(row, /RLS remains off/);
     assert.match(strategy, /CheckoutStockReservation source-consistency boundary/);
     assert.match(strategy, /Two fresh provider slots passed/);

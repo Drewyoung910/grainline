@@ -42,6 +42,15 @@ Completed CheckoutStockReservation source-consistency postflight:
   predecessor-grant revocation, cleanup or provider change. Keep the compatible
   deployment/smoke, drain, policyless ENABLE/grant revocation and FORCE as
   separate boundaries.
+- The compatible application deployment is now complete at exact main
+  `84a58f0fc818b502564ef6bcd974ff4af3cc4395`, exact-main CI `31822968848`,
+  Vercel deployment `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`. Canonical alias and
+  health checks passed, as did the four unauthenticated 401 route boundaries.
+  Do not treat those 401s as authenticated checkout proof. The repository
+  still needs a fail-closed disposable production smoke operator before the
+  cart/Buy Now and signed completion/rollback/expiry matrix is exercised.
+  Keep reservation RLS off and predecessor table grants intact until that
+  smoke and the predecessor drain pass.
 
 Current Conversation/Message production boundary:
 

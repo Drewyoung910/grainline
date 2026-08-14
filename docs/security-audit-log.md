@@ -1441,3 +1441,26 @@ Open work:
   `20260810172000_force_stripe_webhook_event_rls` on main but did not run it;
   production remains policyless ENABLE/NO-FORCE Phase A. No migration,
   deployment, provider change or production FORCE occurred at this boundary.
+
+## CheckoutStockReservation compatible application production release (2026-08-14)
+
+- PR #209 merged exact reviewed head
+  `a6556be1ae4afde93af46899f0a9e74e22d85644` as exact main
+  `84a58f0fc818b502564ef6bcd974ff4af3cc4395`. Exact-main CI run
+  `31822968848` passed all 109 gates, including disposable PostgreSQL proofs,
+  TypeScript, lint, the complete suite, dependency audits and production build.
+- Manual Vercel Production deployment
+  `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`
+  (`grainline-l8zenc6ym-drew-youngs-projects.vercel.app`) built from an exact
+  clean detached worktree. The runtime DB guard proved the pooled
+  `grainline_app_runtime` role; Vercel reported READY and assigned
+  `thegrainline.com`, `www.thegrainline.com` and both stable Vercel aliases.
+- Canonical `GET /api/health` returned HTTP 200 with `{ "ok": true }`.
+  Unauthenticated POSTs to cart checkout, Buy Now checkout, resume and rollback
+  each returned the expected 401. No migration, RLS/grant change, cleanup or
+  Stripe/provider mutation accompanied the release.
+- These immediate checks do not prove authenticated checkout. No fail-closed
+  production fixture/session/cleanup operator exists yet, so the cart/Buy Now,
+  in-stock/made-to-order, retry, signed-completion, rollback and expiry matrix
+  remains open. CheckoutStockReservation RLS remains off and predecessor table
+  grants remain intact until that smoke and predecessor drain pass.

@@ -285,6 +285,19 @@ Order transaction. Older bound Sessions and made-to-order checkout without a
 reservation must remain compatible. The durable decision and smoke matrix are
 in `docs/checkout-stock-reservation-app-deployment-audit.md`.
 
+The accepted correction merged through PR #209 as exact main
+`84a58f0fc818b502564ef6bcd974ff4af3cc4395`; exact-main CI `31822968848`
+passed all 109 gates. Manual Vercel Production deployment
+`dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw` is READY on the canonical aliases and its
+build guard proved the pooled runtime role. Canonical health returned 200 and
+the four unauthenticated checkout/resume/rollback probes returned 401. Those
+are deployment and auth-boundary evidence, not authenticated checkout proof.
+Because no production-safe disposable checkout smoke operator exists yet,
+build and review that operator before exercising cart, Buy Now, in-stock,
+made-to-order, retry, signed-completion, rollback or expiry mutations. RLS stays
+off and predecessor direct grants stay compatible until that smoke and the
+separate predecessor drain pass.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

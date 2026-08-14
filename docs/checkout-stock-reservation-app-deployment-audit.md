@@ -1,12 +1,14 @@
 # CheckoutStockReservation application deployment audit
 
-Status: isolated implementation with its database-postflight prerequisite
-complete; not merged, deployed or active in production.
+Status: compatible application live in production; exact deployment, alias,
+health and unauthenticated route-boundary checks passed. The authenticated
+checkout smoke matrix and predecessor drain remain open. CheckoutStockReservation
+RLS remains off and predecessor table grants remain compatible.
 
 This record covers the application/coexistence boundary after the additive
-CheckoutStockReservation source-consistency migration. It does not authorize a
-merge, deployment, migration, RLS or grant change, cleanup, or provider-state
-change.
+CheckoutStockReservation source-consistency migration. The application-only
+deployment described below is complete. This record does not authorize a
+migration, RLS or grant change, cleanup, or any further provider-state change.
 
 ## Exact boundary
 
@@ -30,6 +32,22 @@ change.
 - The source delta contains 19 runtime files and five non-merge runtime
   commits: reservation authority audit, fixed-operation conversion, two
   terminal Case-replay corrections, and reservation source consistency.
+- PR #209 merged exact reviewed head
+  `a6556be1ae4afde93af46899f0a9e74e22d85644` as exact main
+  `84a58f0fc818b502564ef6bcd974ff4af3cc4395`. Exact-main CI run
+  `31822968848` passed all 109 steps, including the complete disposable
+  PostgreSQL proof set, TypeScript, lint, the complete repository suite,
+  dependency audits and production build.
+- Manual Vercel Production deployment
+  `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`
+  (`grainline-l8zenc6ym-drew-youngs-projects.vercel.app`) built from a clean
+  detached worktree at exact main `84a58f0f...`. The production build's
+  runtime database guard proved the pooled `grainline_app_runtime` role and the
+  deployment became READY before Vercel assigned `thegrainline.com`,
+  `www.thegrainline.com` and the stable Vercel aliases. The provider's filtered
+  inspection does not expose a Git SHA, so this record retains the exact local
+  source, deploy command binding and same-commit CI instead of inferring a
+  provider-owned Git attestation.
 
 The affected runtime families are checkout creation/resume/rollback, signed
 Stripe platform/Connect/v2 delivery, account export/deletion, Cart ownership,
@@ -93,18 +111,31 @@ Completed prerequisites:
 - the payment/inventory authority review accepted the conservative retention,
   source-bound late bind, predecessor compatibility and smoke requirements.
 
-Remaining before deployment:
+Completed before deployment:
 
-- the main-refreshed exact application head must pass TypeScript, lint, the
+- the main-refreshed exact application head passed TypeScript, lint, the
   complete suite, disposable PostgreSQL authority proof, dependency audits and
   production build; and
-- the exact reviewed application head must merge separately before a manual
-  production deployment is considered.
+- the exact reviewed application head merged separately before the manual
+  production deployment.
 
-Then deploy the compatible application without changing database posture.
-Smoke both cart and Buy Now checkout, including in-stock and made-to-order
-listings, duplicate/retry behavior, signed completion, rollback/expiry, and
-health. Retain the predecessor deployment until smoke passes. After the
+Post-deployment checks completed on 2026-08-14:
+
+- independent Vercel inspection resolved the canonical domain to exact READY
+  deployment `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw` and all four expected aliases;
+- `GET https://thegrainline.com/api/health` returned HTTP 200 with
+  `{ "ok": true }` and the reviewed private/no-store security headers; and
+- unauthenticated POSTs to cart checkout, Buy Now checkout, resume and rollback
+  each returned the expected HTTP 401 boundary without creating application or
+  provider state.
+
+These checks prove deployment, health and auth fencing only. They do not prove
+the authenticated checkout paths. The repository has no production-safe
+fixture/session/cleanup operator for that matrix yet, so the release must not
+claim cart, Buy Now, in-stock, made-to-order, retry, signed completion,
+rollback or expiry smoke merely from the 401 checks. Build and review a
+fail-closed disposable smoke operator before those mutations are attempted.
+Retain the predecessor deployment until that smoke passes. After the
 predecessor drain, prepare policyless ENABLE plus direct-grant revocation as a
 separate database release; FORCE remains a later posture-only release.
 
