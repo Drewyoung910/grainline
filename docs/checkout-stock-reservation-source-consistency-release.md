@@ -1,10 +1,10 @@
 # CheckoutStockReservation source-consistency release
 
-Status: additive source-consistency migration live in production and accepted
-through the actual pooled-runtime postflight; compatible application deployment
-and RLS activation remain separate. This document does not authorize a
-deployment, RLS change, predecessor-grant revocation, cleanup or provider
-mutation.
+Status: additive source-consistency migration and compatible application live
+in production. Database and immediate deployment checks passed; authenticated
+checkout smoke, predecessor drain and RLS activation remain separate. This
+document does not authorize an RLS change, predecessor-grant revocation,
+cleanup or further provider mutation.
 
 Date: 2026-08-14
 
@@ -146,7 +146,11 @@ drop these functions ad hoc.
 
 1. **Complete:** run the actual pooled-runtime postflight against the applied
    production catalog.
-2. Deploy the source-consistent application and smoke both checkout paths.
+2. **Application deployed; smoke incomplete:** exact main
+   `84a58f0fc818b502564ef6bcd974ff4af3cc4395` is READY as Vercel deployment
+   `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`; alias, health and unauthenticated
+   checkout boundaries passed. Complete the separately guarded authenticated
+   cart/Buy Now matrix.
 3. Drain predecessor deployments and prove the legacy creation wrappers are no
    longer called.
 4. Prepare policyless ENABLE and direct-grant revocation as a separate release.
