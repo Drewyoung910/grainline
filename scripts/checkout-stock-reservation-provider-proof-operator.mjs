@@ -809,6 +809,14 @@ async function setupFixtures(state) {
   );
 }
 
+async function applySourceConsistencyCandidate(state) {
+  await executeFixtureSql(
+    state,
+    "docs/rls-drafts/checkout-stock-reservation-source-consistency.sql",
+    "checkout-reservation-source-consistency-candidate",
+  );
+}
+
 async function teardownFixtures(state) {
   await executeFixtureSql(
     state,
@@ -1275,6 +1283,12 @@ async function prepare() {
     }
     throw error;
   }
+  await applySourceConsistencyCandidate(state);
+  state = {
+    ...state,
+    sourceConsistencyCandidateAppliedAt: new Date().toISOString(),
+  };
+  replaceState(state);
   state = {
     ...state,
     bypassCreationAttemptedAt: new Date().toISOString(),

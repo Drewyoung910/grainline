@@ -6,15 +6,14 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./db.ts";
 import {
   abortCheckoutStockReservation,
+  createConsistentSingleCheckoutStockReservation,
   createSingleCheckoutStockReservation,
   exportCheckoutStockReservations,
-  lockCheckoutReservationSellerSource,
   type CheckoutReservationCreation,
 } from "./checkoutStockReservationAuthority.ts";
 import {
-  checkoutReservationInventorySourceMatches,
-  CheckoutReservationSourceChangedError,
   singleCheckoutReservationSourceSignature,
+  singleCheckoutReservationSourceWitness,
 } from "./checkoutReservationSourceState.ts";
 import {
   CHECKOUT_RESERVATION_PROVIDER_FIXTURE_COUNT,
@@ -106,7 +105,7 @@ async function readFixtureListing(
   return client.listing.findUnique({
     where: { id: listingId },
     include: {
-      photos: { orderBy: { sortOrder: "asc" as const } },
+      photos: { orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }] },
       seller: {
         select: {
           id: true,
@@ -141,6 +140,18 @@ function pricedSignature(buyerId: string, listing: SourceListing) {
   );
   if (!signature) throw new Error("provider fixture source is unavailable");
   return signature;
+}
+
+function pricedWitness(buyerId: string, listing: SourceListing) {
+  const selectedVariantOptionIds = [listing.variantGroups[0]!.options[0]!.id];
+  const witness = singleCheckoutReservationSourceWitness(
+    buyerId,
+    listing,
+    1,
+    selectedVariantOptionIds,
+  );
+  if (!witness) throw new Error("provider fixture source witness is unavailable");
+  return { selectedVariantOptionIds, witness };
 }
 
 async function restoreFixtureReservation(
@@ -187,38 +198,17 @@ async function runCandidate(
   const fixture = checkoutReservationProviderFixture(runSlot, fixtureIndex);
   const listing = await readFixtureListing(fixture.listingId);
   if (!listing) throw new Error("provider candidate fixture is unavailable");
-  const sourceSignature = pricedSignature(fixture.buyerId, listing);
-  const selectedVariantOptionIds = [listing.variantGroups[0]!.options[0]!.id];
+  const source = pricedWitness(fixture.buyerId, listing);
   const sourcePayloadHash = payloadHash(runSlot, label, requestIndex);
-  const creation = await prisma.$transaction(async (tx) => {
-    const created = await createSingleCheckoutStockReservation({
-      buyerId: fixture.buyerId,
-      listingId: fixture.listingId,
-      payloadHash: sourcePayloadHash,
-      quantity: 1,
-    }, tx);
-    await lockCheckoutReservationSellerSource(tx, fixture.sellerProfileId);
-    const lockedListing = await readFixtureListing(fixture.listingId, tx);
-    const lockedSignature = lockedListing
-      ? singleCheckoutReservationSourceSignature(
-          fixture.buyerId,
-          lockedListing,
-          1,
-          selectedVariantOptionIds,
-        )
-      : null;
-    const lockedInventory = lockedListing?.listingType === "IN_STOCK"
-      ? [{ listingId: lockedListing.id, sellerId: lockedListing.sellerId, quantity: 1 }]
-      : [];
-    if (
-      !created ||
-      lockedSignature !== sourceSignature ||
-      !checkoutReservationInventorySourceMatches(created.reservedItems, lockedInventory)
-    ) {
-      throw new CheckoutReservationSourceChangedError();
-    }
-    return created;
+  const creation = await createConsistentSingleCheckoutStockReservation({
+    buyerId: fixture.buyerId,
+    listingId: fixture.listingId,
+    payloadHash: sourcePayloadHash,
+    quantity: 1,
+    selectedVariantOptionIds: source.selectedVariantOptionIds,
+    sourceWitness: source.witness,
   });
+  if (!creation) throw new Error("provider candidate returned no reservation");
   await restoreFixtureReservation(creation, fixture.buyerId, sourcePayloadHash);
 }
 

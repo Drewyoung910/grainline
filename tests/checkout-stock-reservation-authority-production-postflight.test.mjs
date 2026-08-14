@@ -11,8 +11,13 @@ import {
   writeReservationAuthorityPostflightEvidence,
 } from "../scripts/checkout-stock-reservation-authority-production-postflight.mjs";
 import {
+  checkoutStockReservationCandidateFunctionSources,
   checkoutStockReservationFunctionSources,
 } from "../scripts/checkout-stock-reservation-function-source-catalog.mjs";
+import {
+  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
+} from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 
 const RELEASE_COMMIT = "a".repeat(40);
 const RUNTIME_URL =
@@ -92,8 +97,23 @@ test("compatible postflight binds exact clean source and writes evidence once", 
   }
 });
 
-test("function source catalog extracts all twenty reviewed bodies", () => {
-  assert.equal(Object.keys(checkoutStockReservationFunctionSources()).length, 20);
+test("function source catalog extracts every applied compatible body", () => {
+  assert.equal(
+    Object.keys(checkoutStockReservationFunctionSources()).length,
+    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+  );
+});
+
+test("candidate source catalog adds only the five reviewed draft bodies", () => {
+  assert.equal(
+    Object.keys(checkoutStockReservationCandidateFunctionSources()).length,
+    CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length,
+  );
+  assert.equal(
+    CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
+      - CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+    5,
+  );
 });
 
 test("postflight proves compatible catalog and behavior in one read-only snapshot", () => {

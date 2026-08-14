@@ -158,6 +158,120 @@ function exactSignature(value: unknown) {
   return JSON.stringify(value);
 }
 
+function compareIdentifier(left: string, right: string) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function canonicalVariantSource(listing: CheckoutSourceListing) {
+  return listing.variantGroups
+    .map((group) => ({
+      id: group.id,
+      name: group.name,
+      options: group.options
+        .map((option) => ({
+          id: option.id,
+          label: option.label,
+          priceAdjustCents: option.priceAdjustCents,
+          inStock: option.inStock,
+        }))
+        .sort((left, right) => compareIdentifier(left.id, right.id)),
+    }))
+    .sort((left, right) => compareIdentifier(left.id, right.id));
+}
+
+function sellerSourceWitness(seller: CheckoutSourceSeller) {
+  return {
+    id: seller.id,
+    userId: seller.userId,
+    displayName: seller.displayName,
+    stripeAccountId: seller.stripeAccountId,
+    stripeAccountVersion: seller.stripeAccountVersion,
+    chargesEnabled: seller.chargesEnabled,
+    vacationMode: seller.vacationMode,
+    acceptingNewOrders: seller.acceptingNewOrders,
+    allowLocalPickup: seller.allowLocalPickup,
+    offersGiftWrapping: seller.offersGiftWrapping,
+    giftWrappingPriceCents: seller.giftWrappingPriceCents,
+    defaultPkgWeightGrams: seller.defaultPkgWeightGrams,
+    defaultPkgLengthCm: seller.defaultPkgLengthCm,
+    defaultPkgWidthCm: seller.defaultPkgWidthCm,
+    defaultPkgHeightCm: seller.defaultPkgHeightCm,
+    userBanned: seller.user.banned,
+    userDeleted: seller.user.deletedAt !== null,
+  };
+}
+
+function listingSourceWitness(listing: CheckoutSourceListing) {
+  return {
+    id: listing.id,
+    sellerId: listing.sellerId,
+    title: listing.title,
+    priceCents: listing.priceCents,
+    priceVersion: listing.priceVersion,
+    currency: listing.currency,
+    status: listing.status,
+    listingType: listing.listingType,
+    isPrivate: listing.isPrivate,
+    reservedForUserId: listing.reservedForUserId,
+    packagedWeightGrams: listing.packagedWeightGrams,
+    packagedLengthCm: listing.packagedLengthCm,
+    packagedWidthCm: listing.packagedWidthCm,
+    packagedHeightCm: listing.packagedHeightCm,
+    imageUrl: listing.photos[0]?.url ?? null,
+    variantGroups: canonicalVariantSource(listing),
+  };
+}
+
+/**
+ * Returns the raw database witness PostgreSQL independently rebuilds while all
+ * checkout source rows are locked. The witness is rejection-only: the fixed
+ * database function still derives every reservation and inventory target.
+ */
+export function cartCheckoutReservationSourceWitness(
+  buyerId: string,
+  sellerProfileId: string,
+  items: readonly CheckoutSourceCartItem[],
+): string | null {
+  if (!cartCheckoutReservationSourceSignature(buyerId, sellerProfileId, items)) return null;
+  return exactSignature({
+    seller: sellerSourceWitness(items[0]!.listing.seller),
+    items: items
+      .map((item) => ({
+        cartItemId: item.id,
+        listingId: item.listingId,
+        quantity: item.quantity,
+        storedPriceCents: item.priceCents,
+        storedPriceVersion: item.priceVersion,
+        selectedVariantOptionIds: [...item.selectedVariantOptionIds],
+        listing: listingSourceWitness(item.listing),
+      }))
+      .sort((left, right) => compareIdentifier(left.cartItemId, right.cartItemId)),
+  });
+}
+
+/** Equivalent raw witness for Buy Now, including the caller's variant order. */
+export function singleCheckoutReservationSourceWitness(
+  buyerId: string,
+  listing: CheckoutSourceListing,
+  quantity: number,
+  selectedVariantOptionIds: readonly string[],
+): string | null {
+  if (!singleCheckoutReservationSourceSignature(
+    buyerId,
+    listing,
+    quantity,
+    selectedVariantOptionIds,
+  )) return null;
+  return exactSignature({
+    seller: sellerSourceWitness(listing.seller),
+    item: {
+      quantity,
+      selectedVariantOptionIds: [...selectedVariantOptionIds],
+      listing: listingSourceWitness(listing),
+    },
+  });
+}
+
 /**
  * Captures every mutable database value used to price, route, or describe a
  * seller-cart Stripe Checkout session. Call this once for the route snapshot
@@ -200,7 +314,7 @@ export function cartCheckoutReservationSourceSignature(
 
   return exactSignature({
     seller: firstSeller,
-    items: sourceItems.sort((left, right) => left.cartItemId.localeCompare(right.cartItemId)),
+    items: sourceItems.sort((left, right) => compareIdentifier(left.cartItemId, right.cartItemId)),
   });
 }
 
@@ -256,8 +370,8 @@ function canonicalInventorySource(items: readonly InventorySourceItem[]) {
     quantities.set(key, { ...item, quantity });
   }
   return JSON.stringify([...quantities.values()].sort((left, right) => (
-    left.sellerId.localeCompare(right.sellerId) ||
-    left.listingId.localeCompare(right.listingId)
+    compareIdentifier(left.sellerId, right.sellerId) ||
+    compareIdentifier(left.listingId, right.listingId)
   )));
 }
 

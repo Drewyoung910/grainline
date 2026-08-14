@@ -40,11 +40,15 @@ describe("temporary CheckoutStockReservation provider runner", () => {
   });
 
   it("exercises the actual atomic candidate and explicit concurrency contracts", () => {
-    assert.match(gate, /createSingleCheckoutStockReservation\(/);
-    assert.match(gate, /lockCheckoutReservationSellerSource\(tx,/);
-    assert.match(gate, /singleCheckoutReservationSourceSignature\(/);
-    assert.match(gate, /checkoutReservationInventorySourceMatches\(/);
-    assert.match(gate, /prisma\.\$transaction\(async \(tx\) =>/);
+    const candidateStart = gate.indexOf("async function runCandidate");
+    const candidateEnd = gate.indexOf("function evaluateCandidate", candidateStart);
+    const candidate = gate.slice(candidateStart, candidateEnd);
+    assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);
+    assert.match(gate, /createConsistentSingleCheckoutStockReservation\(/);
+    assert.match(gate, /singleCheckoutReservationSourceWitness\(/);
+    assert.doesNotMatch(candidate, /lockCheckoutReservationSellerSource\(tx,/);
+    assert.doesNotMatch(candidate, /checkoutReservationInventorySourceMatches\(/);
+    assert.doesNotMatch(candidate, /prisma\.\$transaction\(async \(tx\) =>/);
     assert.match(gate, /same_seller_different_listing_target/);
     assert.match(gate, /same_seller_different_listing_burst/);
     assert.match(gate, /proveBoundedSameListingWait/);
@@ -61,5 +65,8 @@ describe("temporary CheckoutStockReservation provider runner", () => {
       /temporary context-gate app artifact/,
     );
     assert.match(route, /provider-runtime-checkout-reservation-candidate/);
+    const releaseGuard = readFileSync("scripts/guard-saved-search-rls-deploy.mjs", "utf8");
+    assert.match(releaseGuard, /temporary context-gate app artifact/);
+    assert.match(releaseGuard, /assertProductionArtifactExcludesContextGate/);
   });
 });

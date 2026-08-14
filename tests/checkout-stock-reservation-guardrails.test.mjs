@@ -11,6 +11,9 @@ function source(path) {
 }
 
 const authoritySql = source("docs/rls-drafts/checkout-stock-reservation-authority.sql");
+const sourceConsistencySql = source(
+  "docs/rls-drafts/checkout-stock-reservation-source-consistency.sql",
+);
 const authorityClient = source("src/lib/checkoutStockReservationAuthority.ts");
 
 describe("durable checkout stock reservation guardrails", () => {
@@ -54,11 +57,11 @@ describe("durable checkout stock reservation guardrails", () => {
     const routes = [
       {
         path: "src/app/api/cart/checkout/single/route.ts",
-        create: /createSingleCheckoutStockReservation\(\{/,
+        create: /createConsistentSingleCheckoutStockReservation\(\{/,
       },
       {
         path: "src/app/api/cart/checkout-seller/route.ts",
-        create: /createCartCheckoutStockReservation\(\{/,
+        create: /createConsistentCartCheckoutStockReservation\(\{/,
       },
     ];
 
@@ -83,25 +86,40 @@ describe("durable checkout stock reservation guardrails", () => {
       "src/app/api/cart/checkout-seller/route.ts",
     ]) {
       const route = source(routePath);
-      const sourceMatch = route.indexOf("SourceSignature(");
+      const sourceMatch = route.indexOf("SourceWitness(");
       const stripeCreate = route.indexOf("stripe.checkout.sessions.create(");
 
-      assert.match(route, /prisma\.\$transaction\(async \(tx\) =>/);
-      assert.match(route, /lockCheckoutReservationSellerSource\(tx,/);
-      assert.match(route, /CheckoutReservationSourceChangedError/);
+      assert.doesNotMatch(route, /prisma\.\$transaction\(async \(tx\) =>/);
+      assert.doesNotMatch(route, /lockCheckoutReservationSellerSource\(tx,/);
+      assert.match(route, /isCheckoutReservationSourceChangedDatabaseError/);
       assert.match(route, /status: HTTP_STATUS\.CONFLICT/);
       assert.notEqual(sourceMatch, -1);
       assert.notEqual(stripeCreate, -1);
       assert.ok(sourceMatch < stripeCreate, `${routePath} must compare the locked source before Stripe creation`);
     }
-    assert.match(authorityClient, /createCartCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
-    assert.match(authorityClient, /createSingleCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
-    const sellerSourceLock = authorityClient.slice(
-      authorityClient.indexOf("export async function lockCheckoutReservationSellerSource"),
-      authorityClient.indexOf("export async function bindCheckoutStockReservationSession"),
+    assert.match(authorityClient, /createConsistentCartCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
+    assert.match(authorityClient, /createConsistentSingleCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
+    assert.match(sourceConsistencySql, /grainline_checkout_reservation_create_cart_consistent/);
+    assert.match(sourceConsistencySql, /grainline_checkout_reservation_create_single_consistent/);
+    assert.match(sourceConsistencySql, /source_witness IS DISTINCT FROM p_expected_source/);
+    assert.match(sourceConsistencySql, /ORDER BY listing\.id, variant_group\.id, variant_option\.id[\s\S]*FOR SHARE OF variant_option/);
+    assert.match(sourceConsistencySql, /Checkout reservation inventory derivation mismatch/);
+  });
+
+  it("keeps listing edits on the parent-first lock order required by source consistency", () => {
+    const editRoute = source("src/app/dashboard/listings/[id]/edit/page.tsx");
+    const transactionStart = editRoute.indexOf("prisma.$transaction(async (tx) =>");
+    const parentUpdate = editRoute.indexOf("tx.listing.update({", transactionStart);
+    const variantDelete = editRoute.indexOf("tx.listingVariantGroup.deleteMany", transactionStart);
+    const photoDelete = editRoute.indexOf("tx.photo.deleteMany", transactionStart);
+    assert.ok(transactionStart >= 0);
+    assert.ok(parentUpdate > transactionStart);
+    assert.ok(variantDelete > parentUpdate);
+    assert.ok(photoDelete > parentUpdate);
+    assert.match(
+      sourceConsistencySql,
+      /compatible function already holds every target Listing[\s\S]*FOR UPDATE/,
     );
-    assert.match(sellerSourceLock, /FOR SHARE/);
-    assert.doesNotMatch(sellerSourceLock, /FOR UPDATE/);
   });
 
   it("never restores or releases a checkout lock while a created Stripe session may remain payable", () => {

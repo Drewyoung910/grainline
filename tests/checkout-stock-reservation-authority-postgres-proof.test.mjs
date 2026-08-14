@@ -5,7 +5,8 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import {
   stripeWebhookEventFunctionSources,
@@ -16,8 +17,16 @@ import {
   verifyReservationCompatibleSchema,
   verifyReservationCompatibleTablePosture,
 } from "../scripts/checkout-stock-reservation-authority-production-postflight.mjs";
+import {
+  cartCheckoutReservationSourceWitness,
+  singleCheckoutReservationSourceWitness,
+} from "../src/lib/checkoutReservationSourceState.ts";
 
 const draft = fs.readFileSync("docs/rls-drafts/checkout-stock-reservation-authority.sql", "utf8");
+const sourceConsistencyMigration = fs.readFileSync(
+  "docs/rls-drafts/checkout-stock-reservation-source-consistency.sql",
+  "utf8",
+);
 const predecessorWebhookBeginSource =
   stripeWebhookEventFunctionSources().grainline_stripe_webhook_begin;
 let db;
@@ -37,11 +46,19 @@ const SOURCE_SCHEMA = String.raw`
   CREATE TABLE public."SellerProfile" (
     id text PRIMARY KEY,
     "userId" text NOT NULL UNIQUE REFERENCES public."User"(id),
+    "displayName" varchar(100) NOT NULL DEFAULT 'Proof Seller',
     "stripeAccountId" varchar(255),
     "stripeAccountVersion" text,
     "chargesEnabled" boolean NOT NULL DEFAULT false,
     "vacationMode" boolean NOT NULL DEFAULT false,
-    "acceptingNewOrders" boolean NOT NULL DEFAULT true
+    "acceptingNewOrders" boolean NOT NULL DEFAULT true,
+    "allowLocalPickup" boolean NOT NULL DEFAULT false,
+    "offersGiftWrapping" boolean NOT NULL DEFAULT false,
+    "giftWrappingPriceCents" integer,
+    "defaultPkgWeightGrams" integer,
+    "defaultPkgLengthCm" double precision,
+    "defaultPkgWidthCm" double precision,
+    "defaultPkgHeightCm" double precision
   );
   CREATE TABLE public."Cart" (
     id text PRIMARY KEY,
@@ -50,17 +67,48 @@ const SOURCE_SCHEMA = String.raw`
   CREATE TABLE public."Listing" (
     id text PRIMARY KEY,
     "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id),
+    title varchar(150) NOT NULL DEFAULT 'Proof listing',
+    "priceCents" integer NOT NULL DEFAULT 10000,
+    "priceVersion" integer NOT NULL DEFAULT 1,
+    currency varchar(3) NOT NULL DEFAULT 'usd',
     status public."ListingStatus" NOT NULL DEFAULT 'ACTIVE',
     "listingType" public."ListingType" NOT NULL DEFAULT 'MADE_TO_ORDER',
     "stockQuantity" integer,
     "isPrivate" boolean NOT NULL DEFAULT false,
-    "reservedForUserId" text
+    "reservedForUserId" text,
+    "packagedWeightGrams" integer,
+    "packagedLengthCm" double precision,
+    "packagedWidthCm" double precision,
+    "packagedHeightCm" double precision
   );
   CREATE TABLE public."CartItem" (
     id text PRIMARY KEY,
     "cartId" text NOT NULL REFERENCES public."Cart"(id),
     "listingId" text NOT NULL REFERENCES public."Listing"(id),
-    quantity integer NOT NULL DEFAULT 1
+    quantity integer NOT NULL DEFAULT 1,
+    "priceCents" integer NOT NULL DEFAULT 10000,
+    "priceVersion" integer NOT NULL DEFAULT 1,
+    "selectedVariantOptionIds" text[] NOT NULL DEFAULT '{}'
+  );
+  CREATE TABLE public."Photo" (
+    id text PRIMARY KEY,
+    "listingId" text NOT NULL REFERENCES public."Listing"(id),
+    url varchar(2048) NOT NULL,
+    "sortOrder" integer NOT NULL DEFAULT 0
+  );
+  CREATE TABLE public."ListingVariantGroup" (
+    id text PRIMARY KEY,
+    "listingId" text NOT NULL REFERENCES public."Listing"(id),
+    name varchar(100) NOT NULL,
+    "sortOrder" integer NOT NULL DEFAULT 0
+  );
+  CREATE TABLE public."ListingVariantOption" (
+    id text PRIMARY KEY,
+    "groupId" text NOT NULL REFERENCES public."ListingVariantGroup"(id),
+    label varchar(100) NOT NULL,
+    "priceAdjustCents" integer NOT NULL DEFAULT 0,
+    "sortOrder" integer NOT NULL DEFAULT 0,
+    "inStock" boolean NOT NULL DEFAULT true
   );
   CREATE TABLE public."StripeWebhookEvent" (
     id varchar(255) PRIMARY KEY,
@@ -218,6 +266,70 @@ function rows(result) {
   return result.rows;
 }
 
+function sourceSeller() {
+  return {
+    id: "source-seller",
+    userId: "source-seller-user",
+    displayName: "Source Shop",
+    stripeAccountId: "acct_source",
+    stripeAccountVersion: "v2",
+    chargesEnabled: true,
+    vacationMode: false,
+    acceptingNewOrders: true,
+    allowLocalPickup: true,
+    offersGiftWrapping: true,
+    giftWrappingPriceCents: 400,
+    defaultPkgWeightGrams: 1200,
+    defaultPkgLengthCm: 30,
+    defaultPkgWidthCm: 20,
+    defaultPkgHeightCm: 10,
+    user: { banned: false, deletedAt: null },
+  };
+}
+
+function sourceListing(overrides = {}) {
+  return {
+    id: "source-listing",
+    sellerId: "source-seller",
+    title: "Source listing",
+    priceCents: 10500,
+    priceVersion: 7,
+    currency: "usd",
+    status: "ACTIVE",
+    listingType: "IN_STOCK",
+    isPrivate: false,
+    reservedForUserId: null,
+    packagedWeightGrams: 1100,
+    packagedLengthCm: 25,
+    packagedWidthCm: 15,
+    packagedHeightCm: 8,
+    photos: [{ url: "https://cdn.example/source.jpg" }],
+    seller: sourceSeller(),
+    variantGroups: [{
+      id: "source-wood",
+      name: "Wood",
+      options: [
+        { id: "source-oak", label: "Oak", priceAdjustCents: 0, inStock: true },
+        { id: "source-walnut", label: "Walnut", priceAdjustCents: 500, inStock: true },
+      ],
+    }],
+    ...overrides,
+  };
+}
+
+function sourceCartItem(overrides = {}) {
+  return {
+    id: "source-cart-item",
+    listingId: "source-listing",
+    quantity: 2,
+    priceCents: 11000,
+    priceVersion: 7,
+    selectedVariantOptionIds: ["source-walnut"],
+    listing: sourceListing(),
+    ...overrides,
+  };
+}
+
 async function provePreflightRejection(tamperSql, expectedError) {
   const proofDirectory = fs.mkdtempSync(
     path.join(os.tmpdir(), "grainline-reservation-preflight-reject-"),
@@ -271,24 +383,63 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
     });
     await db.exec(SOURCE_SCHEMA);
     await db.exec(draft);
+    await db.exec(sourceConsistencyMigration);
     await db.exec(`
-      INSERT INTO public."User" (id) VALUES ('buyer-a'), ('buyer-b'), ('seller-user'), ('seller-user-b');
+      INSERT INTO public."User" (id) VALUES
+        ('buyer-a'), ('buyer-b'), ('seller-user'), ('seller-user-b'),
+        ('source-buyer'), ('source-seller-user');
       INSERT INTO public."SellerProfile" (
         id, "userId", "stripeAccountId", "stripeAccountVersion", "chargesEnabled"
       ) VALUES
         ('seller-a', 'seller-user', 'acct_a', 'v2', true),
         ('seller-b', 'seller-user-b', 'acct_b', 'v2', true);
-      INSERT INTO public."Cart" (id, "userId") VALUES ('cart-a', 'buyer-a');
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "stripeAccountId", "stripeAccountVersion",
+        "chargesEnabled", "vacationMode", "acceptingNewOrders",
+        "allowLocalPickup", "offersGiftWrapping", "giftWrappingPriceCents",
+        "defaultPkgWeightGrams", "defaultPkgLengthCm", "defaultPkgWidthCm",
+        "defaultPkgHeightCm"
+      ) VALUES (
+        'source-seller', 'source-seller-user', 'Source Shop', 'acct_source', 'v2',
+        true, false, true, true, true, 400, 1200, 30, 20, 10
+      );
+      INSERT INTO public."Cart" (id, "userId") VALUES
+        ('cart-a', 'buyer-a'),
+        ('source-cart', 'source-buyer');
       INSERT INTO public."Listing" (
         id, "sellerId", status, "listingType", "stockQuantity", "isPrivate", "reservedForUserId"
       ) VALUES
         ('listing-a', 'seller-a', 'ACTIVE', 'IN_STOCK', 8, false, NULL),
         ('listing-private', 'seller-a', 'ACTIVE', 'IN_STOCK', 3, true, 'buyer-a'),
         ('listing-mto', 'seller-a', 'ACTIVE', 'MADE_TO_ORDER', NULL, false, NULL);
+      INSERT INTO public."Listing" (
+        id, "sellerId", title, "priceCents", "priceVersion", currency,
+        status, "listingType", "stockQuantity", "isPrivate", "reservedForUserId",
+        "packagedWeightGrams", "packagedLengthCm", "packagedWidthCm", "packagedHeightCm"
+      ) VALUES (
+        'source-listing', 'source-seller', 'Source listing', 10500, 7, 'usd',
+        'ACTIVE', 'IN_STOCK', 20, false, NULL, 1100, 25, 15, 8
+      );
       INSERT INTO public."CartItem" (id, "cartId", "listingId", quantity) VALUES
         ('cart-item-a', 'cart-a', 'listing-a', 2),
         ('cart-item-private', 'cart-a', 'listing-private', 1),
         ('cart-item-mto', 'cart-a', 'listing-mto', 1);
+      INSERT INTO public."CartItem" (
+        id, "cartId", "listingId", quantity, "priceCents", "priceVersion",
+        "selectedVariantOptionIds"
+      ) VALUES (
+        'source-cart-item', 'source-cart', 'source-listing', 2, 11000, 7,
+        ARRAY['source-walnut']
+      );
+      INSERT INTO public."Photo" (id, "listingId", url, "sortOrder") VALUES
+        ('source-photo', 'source-listing', 'https://cdn.example/source.jpg', 0);
+      INSERT INTO public."ListingVariantGroup" (id, "listingId", name, "sortOrder") VALUES
+        ('source-wood', 'source-listing', 'Wood', 0);
+      INSERT INTO public."ListingVariantOption" (
+        id, "groupId", label, "priceAdjustCents", "sortOrder", "inStock"
+      ) VALUES
+        ('source-oak', 'source-wood', 'Oak', 0, 0, true),
+        ('source-walnut', 'source-wood', 'Walnut', 500, 1, true);
     `);
   });
 
@@ -326,7 +477,27 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
           'grainline_app_runtime',
           'public.grainline_stripe_webhook_bind_source(text,text,bigint,text)',
           'EXECUTE'
-        ) AS can_private_bind_event
+        ) AS can_private_bind_event,
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_checkout_reservation_create_cart_consistent(text,text,text,text,text,jsonb)',
+          'EXECUTE'
+        ) AS can_create_consistent_cart,
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_checkout_reservation_create_single_consistent(text,text,integer,text[],text,jsonb)',
+          'EXECUTE'
+        ) AS can_create_consistent_single,
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_checkout_reservation_listing_witness(text)',
+          'EXECUTE'
+        ) AS can_read_private_witness,
+        pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_checkout_reservation_variant_source_valid(text,text[],integer)',
+          'EXECUTE'
+        ) AS can_call_private_variant_validator
     `));
     assert.deepEqual(privileges[0], {
       can_create: true,
@@ -334,10 +505,221 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       can_private_validate: false,
       can_begin_bound_event: true,
       can_private_bind_event: false,
+      can_create_consistent_cart: true,
+      can_create_consistent_single: true,
+      can_read_private_witness: false,
+      can_call_private_variant_validator: false,
     });
   });
 
-  it("executes the production compatible catalog readers as the restricted runtime", async () => {
+  it("creates from the exact single-statement source witness as the restricted runtime", async () => {
+    const witness = singleCheckoutReservationSourceWitness(
+      "source-buyer",
+      sourceListing(),
+      1,
+      ["source-walnut"],
+    );
+    assert.ok(witness);
+    const stockBefore = Number(rows(await db.query(`
+      SELECT "stockQuantity" FROM public."Listing" WHERE id = 'source-listing'
+    `))[0].stockQuantity);
+
+    await db.exec("BEGIN");
+    try {
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      const created = rows(await db.query(`
+        SELECT * FROM public.grainline_checkout_reservation_create_single_consistent(
+          $1, $2, $3, $4::text[], $5, $6::jsonb
+        )
+      `, [
+        "source-buyer",
+        "source-listing",
+        1,
+        ["source-walnut"],
+        "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+        witness,
+      ]));
+      assert.equal(created.length, 1);
+      assert.deepEqual(created[0].reserved_items, [{
+        listingId: "source-listing",
+        sellerId: "source-seller",
+        quantity: 1,
+      }]);
+      await db.exec("RESET ROLE");
+      assert.equal(Number(rows(await db.query(`
+        SELECT "stockQuantity" FROM public."Listing" WHERE id = 'source-listing'
+      `))[0].stockQuantity), stockBefore - 1);
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+
+    assert.equal(Number(rows(await db.query(`
+      SELECT "stockQuantity" FROM public."Listing" WHERE id = 'source-listing'
+    `))[0].stockQuantity), stockBefore);
+  });
+
+  it("atomically rolls back reservation and stock when source changes", async () => {
+    const witness = singleCheckoutReservationSourceWitness(
+      "source-buyer",
+      sourceListing(),
+      1,
+      ["source-walnut"],
+    );
+    const stockBefore = Number(rows(await db.query(`
+      SELECT "stockQuantity" FROM public."Listing" WHERE id = 'source-listing'
+    `))[0].stockQuantity);
+    await db.exec(`UPDATE public."Listing" SET title = 'Changed after snapshot' WHERE id = 'source-listing'`);
+    await assert.rejects(
+      db.query(`
+        SELECT * FROM public.grainline_checkout_reservation_create_single_consistent(
+          $1, $2, $3, $4::text[], $5, $6::jsonb
+        )
+      `, [
+        "source-buyer",
+        "source-listing",
+        1,
+        ["source-walnut"],
+        "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        witness,
+      ]),
+      /Checkout source witness changed/,
+    );
+    assert.equal(Number(rows(await db.query(`
+      SELECT "stockQuantity" FROM public."Listing" WHERE id = 'source-listing'
+    `))[0].stockQuantity), stockBefore);
+    assert.equal(Number(rows(await db.query(`
+      SELECT pg_catalog.count(*) AS count
+        FROM public."CheckoutStockReservation"
+       WHERE "payloadHash" = 'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT'
+    `))[0].count), 0);
+    await db.exec(`UPDATE public."Listing" SET title = 'Source listing' WHERE id = 'source-listing'`);
+  });
+
+  it("permits only quantity one for made-to-order checkout without inventing stock", async () => {
+    let witness;
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."Listing"
+           SET "listingType" = 'MADE_TO_ORDER', "stockQuantity" = NULL
+         WHERE id = 'source-listing'
+      `);
+      witness = singleCheckoutReservationSourceWitness(
+        "source-buyer",
+        sourceListing({ listingType: "MADE_TO_ORDER" }),
+        1,
+        ["source-walnut"],
+      );
+      assert.ok(witness);
+
+      const created = rows(await db.query(`
+        SELECT * FROM public.grainline_checkout_reservation_create_single_consistent(
+          $1, $2, $3, $4::text[], $5, $6::jsonb
+        )
+      `, [
+        "source-buyer",
+        "source-listing",
+        1,
+        ["source-walnut"],
+        "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM",
+        witness,
+      ]));
+      assert.deepEqual(created, []);
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+
+    await db.exec("BEGIN");
+    try {
+      await db.exec(`
+        UPDATE public."Listing"
+           SET "listingType" = 'MADE_TO_ORDER', "stockQuantity" = NULL
+         WHERE id = 'source-listing'
+      `);
+      await assert.rejects(
+        db.query(`
+          SELECT * FROM public.grainline_checkout_reservation_create_single_consistent(
+            $1, $2, $3, $4::text[], $5, $6::jsonb
+          )
+        `, [
+          "source-buyer",
+          "source-listing",
+          2,
+          ["source-walnut"],
+          "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+          witness,
+        ]),
+        /Checkout source witness changed/,
+      );
+    } finally {
+      await db.exec("ROLLBACK").catch(() => {});
+    }
+
+    assert.equal(Number(rows(await db.query(`
+      SELECT pg_catalog.count(*) AS count
+        FROM public."CheckoutStockReservation"
+       WHERE "payloadHash" IN (
+         'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM',
+         'NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN'
+       )
+    `))[0].count), 0);
+  });
+
+  it("binds the complete variant graph and validates cart price inside PostgreSQL", async () => {
+    const singleWitness = singleCheckoutReservationSourceWitness(
+      "source-buyer",
+      sourceListing(),
+      1,
+      ["source-walnut"],
+    );
+    await db.exec(`
+      INSERT INTO public."ListingVariantOption" (
+        id, "groupId", label, "priceAdjustCents", "sortOrder", "inStock"
+      ) VALUES ('source-maple', 'source-wood', 'Maple', 250, 2, true)
+    `);
+    await assert.rejects(
+      db.query(`
+        SELECT * FROM public.grainline_checkout_reservation_create_single_consistent(
+          $1, $2, $3, $4::text[], $5, $6::jsonb
+        )
+      `, [
+        "source-buyer",
+        "source-listing",
+        1,
+        ["source-walnut"],
+        "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU",
+        singleWitness,
+      ]),
+      /Checkout source witness changed/,
+    );
+    await db.exec(`DELETE FROM public."ListingVariantOption" WHERE id = 'source-maple'`);
+
+    const cartWitness = cartCheckoutReservationSourceWitness(
+      "source-buyer",
+      "source-seller",
+      [sourceCartItem()],
+    );
+    assert.ok(cartWitness);
+    await db.exec(`UPDATE public."CartItem" SET "priceCents" = 10999 WHERE id = 'source-cart-item'`);
+    await assert.rejects(
+      db.query(`
+        SELECT * FROM public.grainline_checkout_reservation_create_cart_consistent(
+          $1, $2, $3, $4, $5, $6::jsonb
+        )
+      `, [
+        "source-buyer",
+        "source-cart",
+        "source-seller",
+        "source-group",
+        "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV",
+        cartWitness,
+      ]),
+      /Checkout source witness changed/,
+    );
+    await db.exec(`UPDATE public."CartItem" SET "priceCents" = 11000 WHERE id = 'source-cart-item'`);
+  });
+
+  it("executes production-compatible readers and rejects the applied-only function catalog after candidate installation", async () => {
     await db.exec("SET ROLE grainline_app_runtime");
     try {
       await db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -355,7 +737,12 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       }, "ci", "postgres");
       await verifyReservationCompatibleTablePosture(db, "ci");
       await verifyReservationCompatibleSchema(db);
-      await verifyReservationCompatibleFunctionCatalog(db, "ci");
+      await assert.rejects(
+        verifyReservationCompatibleFunctionCatalog(db, "ci"),
+        (error) => error instanceof assert.AssertionError
+          && error.actual === CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
+          && error.expected === CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS.length,
+      );
       const direct = await db.query(`
         SELECT pg_catalog.count(*)::integer AS count
           FROM public."CheckoutStockReservation"
@@ -396,10 +783,10 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
        WHERE namespace.nspname = 'public'
          AND procedure.proname = ANY($1::text[])
     `, [[...new Set(
-      CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
+      CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.map((entry) => entry.name),
     )]]));
     const expectedKeys = new Set(
-      CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map(
+      CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.map(
         (entry) => `${entry.name}(${entry.argumentTypes})`,
       ),
     );
@@ -417,7 +804,7 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
           `${left.name}(${left.argumentTypes})`
             .localeCompare(`${right.name}(${right.argumentTypes})`)
         )),
-      CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+      CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS
         .map((entry) => ({
           name: entry.name,
           argumentTypes: entry.argumentTypes,
@@ -888,9 +1275,9 @@ describe("CheckoutStockReservation authority draft static contract", () => {
   });
 
   it("pins the complete signature-level runtime/private partition", () => {
-    const runtime = CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+    const runtime = CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS
       .filter((entry) => entry.runtimeExecute);
-    const privateHelpers = CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+    const privateHelpers = CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS
       .filter((entry) => !entry.runtimeExecute);
     assert.equal(runtime.length, 16);
     assert.equal(privateHelpers.length, 4);

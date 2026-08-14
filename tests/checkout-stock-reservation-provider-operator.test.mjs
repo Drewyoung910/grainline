@@ -338,6 +338,19 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.match(source, /Vercel branch environment contains an unreviewed partial manifest/);
   });
 
+  it("applies the one-statement draft only to the disposable child before provider setup", () => {
+    assert.match(source, /docs\/rls-drafts\/checkout-stock-reservation-source-consistency\.sql/);
+    const candidate = source.indexOf("await applySourceConsistencyCandidate(state)");
+    const bypass = source.indexOf("await createBypassSecret()", candidate);
+    const ownerGate = source.indexOf('runOwnerGate(state, "prepare")', candidate);
+    const fixtures = source.indexOf("await setupFixtures(state)", candidate);
+    assert.ok(candidate >= 0);
+    assert.ok(bypass > candidate);
+    assert.ok(ownerGate > bypass);
+    assert.ok(fixtures > ownerGate);
+    assert.doesNotMatch(source, /npx prisma migrate deploy/);
+  });
+
   it("independently revalidates every counted latency and residue bound", () => {
     const accepted = passingEvidence();
     assert.equal(validateProviderEvidence(accepted, state, 1), accepted);

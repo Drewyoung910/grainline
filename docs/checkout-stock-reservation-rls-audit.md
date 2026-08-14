@@ -708,3 +708,44 @@ Two compatibility defects were found and closed during promotion:
   successor must lock every exact dependency in stable order and derive the
   canonical source from those locked rows; merely reducing round trips without
   closing this race is not acceptable.
+
+## One-statement successor implementation checkpoint (2026-08-13)
+
+- The successor is implemented as the unapplied draft
+  `docs/rls-drafts/checkout-stock-reservation-source-consistency.sql`, not as a
+  Prisma migration. Its bytes are eligible for disposable PostgreSQL and
+  provider proof only. They cannot enter the production migration tree until a
+  fresh provider gate passes and the SQL is separately hardened, byte-pinned
+  and reviewed for release.
+- Cart and Buy Now now call one runtime-executable `SECURITY DEFINER` statement.
+  Each wrapper invokes the sealed compatible creation function, then compares
+  the complete caller witness with database-derived JSON while all relevant
+  User, SellerProfile, Cart, CartItem, Listing, Photo, ListingVariantGroup and
+  ListingVariantOption rows remain locked. A mismatch raises
+  `serialization_failure`, rolling back the reservation and stock decrement
+  before Stripe can be called.
+- The witness is rejection-only. Buyer, seller, listing, quantity and inventory
+  targets still come from locked durable relationships inside the compatible
+  creator. Private witness/variant helpers remain denied to `PUBLIC` and
+  `grainline_app_runtime`; runtime execute is limited to two bounded wrappers.
+- The draft validates exact cart price/version, the entire variant graph,
+  selected-option membership and stock, primary-photo ordering, seller routing
+  and orderability, private-listing recipient, product/shipping fields,
+  made-to-order quantity one, and an independent Listing-level inventory
+  aggregate. The ordinary listing edit path is guarded to update the parent
+  Listing before deleting or recreating photo/variant children.
+- Disposable PostgreSQL coverage proves exact-source success, atomic drift
+  rollback with zero reservation/stock residue, complete variant-graph drift
+  rejection, stale cart-price rejection, made-to-order quantity fencing,
+  private-helper denial and production catalog reads. TypeScript and lint pass.
+  The repository-wide suite has only the two intended production-release
+  failures: StripeWebhookEvent activation/FORCE packaging refuses to run while
+  the temporary provider route and middleware exemption exist. The underlying
+  deploy-guard suite passes all 307 checks, so those failures must remain until
+  proof teardown removes the temporary artifacts.
+  A fresh provider run and two candidate-aligned one-shot slots remain
+  mandatory; the rejected multi-statement slots are never reused.
+- Compatibility remains intentionally open for DB-first/app-second rollout:
+  predecessor create functions retain runtime execute until the successor app
+  deploys and drains. Those grants must be revoked in a separately reviewed
+  retirement boundary before activation claims exclusive consistent creation.

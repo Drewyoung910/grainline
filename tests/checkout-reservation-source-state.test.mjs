@@ -3,9 +3,11 @@ import { describe, it } from "node:test";
 
 import {
   cartCheckoutReservationSourceSignature,
+  cartCheckoutReservationSourceWitness,
   checkoutReservationInventorySourceMatches,
   CheckoutReservationSourceChangedError,
   singleCheckoutReservationSourceSignature,
+  singleCheckoutReservationSourceWitness,
 } from "../src/lib/checkoutReservationSourceState.ts";
 
 function seller(overrides = {}) {
@@ -82,6 +84,88 @@ describe("checkout reservation source state", () => {
       cartCheckoutReservationSourceSignature("buyer", "seller-a", [first, second]),
       cartCheckoutReservationSourceSignature("buyer", "seller-a", [second, first]),
     );
+  });
+
+  it("produces a stable raw witness with canonical full variant ordering", () => {
+    const first = cartItem("cart-b", "listing-b");
+    const second = cartItem("cart-a", "listing-a");
+    assert.equal(
+      cartCheckoutReservationSourceWitness("buyer", "seller-a", [first, second]),
+      cartCheckoutReservationSourceWitness("buyer", "seller-a", [second, first]),
+    );
+
+    const sourceListing = listing("listing-a");
+    const baseline = singleCheckoutReservationSourceWitness(
+      "buyer",
+      sourceListing,
+      1,
+      ["listing-a-walnut"],
+    );
+    const reordered = {
+      ...sourceListing,
+      variantGroups: sourceListing.variantGroups.map((group) => ({
+        ...group,
+        options: [...group.options].reverse(),
+      })),
+    };
+    assert.equal(
+      singleCheckoutReservationSourceWitness("buyer", reordered, 1, ["listing-a-walnut"]),
+      baseline,
+    );
+    assert.notEqual(
+      singleCheckoutReservationSourceWitness("buyer", {
+        ...sourceListing,
+        variantGroups: sourceListing.variantGroups.map((group) => ({
+          ...group,
+          options: [...group.options, {
+            id: "listing-a-maple",
+            label: "Maple",
+            priceAdjustCents: 500,
+            inStock: true,
+          }],
+        })),
+      }, 1, ["listing-a-walnut"]),
+      baseline,
+    );
+  });
+
+  it("keeps the legitimate 50-item maximum below the bounded database witness size", () => {
+    const fixedId = (prefix, index) => `${prefix}-${index}`.padEnd(191, "x");
+    const items = Array.from({ length: 50 }, (_, itemIndex) => {
+      const listingId = fixedId("listing", itemIndex);
+      const groups = Array.from({ length: 3 }, (_, groupIndex) => {
+        const groupId = fixedId(`group-${itemIndex}`, groupIndex);
+        return {
+          id: groupId,
+          name: "G".repeat(100),
+          options: Array.from({ length: 10 }, (_, optionIndex) => ({
+            id: fixedId(`option-${itemIndex}-${groupIndex}`, optionIndex),
+            label: "O".repeat(100),
+            priceAdjustCents: 0,
+            inStock: true,
+          })),
+        };
+      });
+      const sourceListing = listing(listingId, {
+        title: "T".repeat(150),
+        photos: [{ url: `https://cdn.example/${"p".repeat(2028)}` }],
+        variantGroups: groups,
+      });
+      return {
+        id: fixedId("cart-item", itemIndex),
+        listingId,
+        quantity: 1,
+        priceCents: 10_000,
+        priceVersion: 3,
+        selectedVariantOptionIds: groups.map((group) => group.options[0].id),
+        listing: sourceListing,
+      };
+    });
+    const witness = cartCheckoutReservationSourceWitness("buyer", "seller-a", items);
+    assert.ok(witness);
+    const bytes = Buffer.byteLength(witness, "utf8");
+    assert.ok(bytes > 262_144, "the old 256 KiB bound must remain recognized as too small");
+    assert.ok(bytes < 1_048_576, "the maximum legitimate cart must fit the 1 MiB bound");
   });
 
   it("binds price, version, variant, quantity, currency, media and shipping source", () => {

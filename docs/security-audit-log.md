@@ -1505,3 +1505,18 @@ Open work:
   source comparison that locks all exact dependencies in stable order before
   it reserves stock. This is both the latency correction and the remaining
   source-race correction; the security invariant is not traded away for speed.
+- The replacement is now an unapplied SQL draft rather than an entry in the
+  Prisma migration tree. Cart and single checkout use one fixed database call;
+  PostgreSQL derives and locks the durable source, validates the full seller,
+  listing, photo, variant and cart witness, independently checks reserved
+  inventory, and rolls back on any drift before Stripe. Focused disposable
+  PostgreSQL, route-contract, TypeScript and lint checks pass, including MTO
+  quantity and zero-residue drift cases. Old runtime create grants remain
+  compatibility-only and need a separately reviewed post-deploy retirement.
+  TypeScript, lint and focused database/grant checks pass. The full suite is
+  green except for the two production-release assertions deliberately blocked
+  by the temporary context-gate route/middleware; the 307-check deploy-guard
+  suite itself passes and still requires those artifacts to be absent from a
+  production release.
+  No fresh provider run, merge, deployment, migration, RLS/grant or production
+  state change occurred at this successor checkpoint.

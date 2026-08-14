@@ -201,25 +201,29 @@ const REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE =
   "stripe-webhook-event-force-reviewed";
 const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY =
   "checkout-stock-reservation-authority-reviewed";
-const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
-  `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
+const CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH =
+  "agent/checkout-stock-reservation-provider-proof-20260813";
+const PREVIEW_MIDDLEWARE_EXEMPTION_LINES = Object.freeze([
+  `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // CHECKOUT_STOCK_RESERVATION_PROVIDER_RUNNER_ONLY\n`,
+  `    pathname === "${RLS_CONTEXT_GATE_PUBLIC_PATH}" ||\n`,
+]);
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
-const middlewareExemptionParts =
-  CURRENT_MIDDLEWARE_SOURCE.split(PREVIEW_MIDDLEWARE_EXEMPTION_LINE);
-
-assert.ok(
-  middlewareExemptionParts.length === 1
-    || middlewareExemptionParts.length === 2,
-  "the reviewed Preview-only middleware exemption line must occur at most once",
-);
-
-const REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE =
-  CURRENT_MIDDLEWARE_SOURCE.replace(PREVIEW_MIDDLEWARE_EXEMPTION_LINE, "");
+let REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE = CURRENT_MIDDLEWARE_SOURCE;
+for (const exemptionLine of PREVIEW_MIDDLEWARE_EXEMPTION_LINES) {
+  const middlewareExemptionParts = CURRENT_MIDDLEWARE_SOURCE.split(exemptionLine);
+  assert.ok(
+    middlewareExemptionParts.length === 1
+      || middlewareExemptionParts.length === 2,
+    "each reviewed provider-only middleware exemption line must occur at most once",
+  );
+  REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE =
+    REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE.replace(exemptionLine, "");
+}
 
 assert.equal(
   computeTextSha256(REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE),
   REVIEWED_PRODUCTION_MIDDLEWARE_SHA256,
-  "the reviewed production middleware fingerprint must match the Preview source with only the exact exemption removed",
+  "the reviewed production middleware fingerprint must match the provider source with only the exact exemptions removed",
 );
 assert.equal(
   computeFileSha256(PRISMA_CONFIG_PATH),
@@ -3531,7 +3535,15 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.equal(buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(buildCommand, /migrat|DIRECT_URL|MIGRATION_DB_ROLE/i);
     assert.equal(vercel.git.deploymentEnabled.main, false);
-    assert.deepEqual(vercel.git.deploymentEnabled, { main: false });
+    const {
+      [CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH]: providerProofDeployment,
+      ...productionDeploymentPolicy
+    } = vercel.git.deploymentEnabled;
+    assert.ok(
+      providerProofDeployment === undefined || providerProofDeployment === false,
+      "the exact disposable provider-proof branch may only be explicitly deployment-disabled",
+    );
+    assert.deepEqual(productionDeploymentPolicy, { main: false });
     assert.equal(buildCommand.includes(guardedMigrationCommand), false);
   });
 

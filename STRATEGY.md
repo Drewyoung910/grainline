@@ -247,16 +247,22 @@ is merged in `77fc45fe` but is not live. The final pre-deploy review then found
 `CSR-A23` (A21 was already assigned to the repair-index mismatch): a concurrent
 cart, price-version, variant, seller-payout or listing inventory-type mutation
 could make the database-derived locked reservation source differ from the route
-snapshot used to build Stripe. The corrected isolated successor keeps the fixed
-creation call and a complete source re-read in one short database-only
-transaction. The function's locks remain held through comparison; a dedicated
-source-drift sentinel rolls back the reservation row and stock decrement before
-the Redis owner lock is released and `409` is returned. Stripe/provider work is
-outside the transaction. `77fc45fe` is therefore not an eligible deploy source.
-Next complete local/CI and disposable PostgreSQL proof, prove the new pooled
-transaction's provider locality/latency and lock waits against the exact
-candidate, merge it, deploy/smoke only that exact successor, drain predecessor
-versions, and prove zero direct reservation access. The old source remains a
+snapshot used to build Stripe. The first corrected successor kept fixed
+creation and a source re-read in one database-only transaction, but the exact
+provider attempt rejected that shape at target and burst concurrency on the
+fixed 750 ms p95 ceiling. It also exposed `CSR-A24`: the later Prisma read did
+not explicitly lock every photo and variant dependency. Those failed slots are
+historical evidence and must not be replayed or rescued by weakening the gate.
+
+The current direction is one database statement. Its unapplied SQL draft calls
+the sealed compatible creator, locks the full User/SellerProfile/Cart/CartItem/
+Listing/Photo/variant dependency set, independently derives and compares the
+complete Stripe-bound witness and inventory, and raises a rollback sentinel on
+drift before Stripe. Keep it outside `prisma/migrations` until disposable
+PostgreSQL and a fresh two-slot provider gate accept the exact candidate. Then
+package hardened byte-pinned migration bytes, merge and deploy the exact
+successor, drain predecessor versions, revoke compatibility-only old create
+grants, and prove zero direct reservation access. The old source remains a
 database-compatible rollback while predecessor CRUD remains. Do not prepare
 ENABLE until this drain proof passes; ENABLE and FORCE remain separate releases.
 

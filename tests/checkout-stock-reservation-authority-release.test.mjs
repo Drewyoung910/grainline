@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import {
   buildCheckoutStockReservationAuthorityCandidate,
@@ -68,7 +68,7 @@ test("release verifier pins the full migration prefix and authority catalog", ()
   assert.equal(verified.runtimeOperations, 16);
   assert.equal(verified.privateHelpers, 4);
   assert.equal(
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.filter(
+    CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS.filter(
       (entry) => entry.name.startsWith("grainline_checkout_reservation_")
         && entry.runtimeExecute,
     ).length,

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -14,6 +15,15 @@ const AUTHORITY_MIGRATION = path.join(
   "20260810190000_prepare_checkout_stock_reservation_authority",
   "migration.sql",
 );
+const SOURCE_CONSISTENCY_DRAFT = path.join(
+  "docs",
+  "rls-drafts",
+  "checkout-stock-reservation-source-consistency.sql",
+);
+const CANDIDATE_SOURCES = Object.freeze([
+  AUTHORITY_MIGRATION,
+  SOURCE_CONSISTENCY_DRAFT,
+]);
 
 function normalizeIdentityArguments(declarations) {
   const trimmed = declarations.trim();
@@ -30,10 +40,12 @@ function normalizeIdentityArguments(declarations) {
   }).join(", ");
 }
 
-export function checkoutStockReservationFunctionSources(rootDir = ROOT_DIR) {
-  const migration = readFileSync(path.join(rootDir, AUTHORITY_MIGRATION), "utf8");
+function functionSources(rootDir, sourcePaths, contracts) {
+  const migration = sourcePaths
+    .map((sourcePath) => readFileSync(path.join(rootDir, sourcePath), "utf8"))
+    .join("\n");
   const expected = new Set(
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map(
+    contracts.map(
       (entry) => `${entry.name}(${entry.argumentTypes})`,
     ),
   );
@@ -48,6 +60,22 @@ export function checkoutStockReservationFunctionSources(rootDir = ROOT_DIR) {
     throw new Error(`reservation function source catalog drifted: ${missing.join(",")}`);
   }
   return Object.freeze(Object.fromEntries([...sources].sort()));
+}
+
+export function checkoutStockReservationFunctionSources(rootDir = ROOT_DIR) {
+  return functionSources(
+    rootDir,
+    [AUTHORITY_MIGRATION],
+    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  );
+}
+
+export function checkoutStockReservationCandidateFunctionSources(rootDir = ROOT_DIR) {
+  return functionSources(
+    rootDir,
+    CANDIDATE_SOURCES,
+    CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
+  );
 }
 
 export function checkoutStockReservationFunctionSourceSha256(rootDir = ROOT_DIR) {

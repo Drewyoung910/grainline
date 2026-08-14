@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 type AuthorityClient = Pick<Prisma.TransactionClient, "$queryRaw">;
@@ -189,6 +189,53 @@ export async function createSingleCheckoutStockReservation(input: {
         ${input.listingId},
         ${input.quantity},
         ${input.payloadHash}
+      )
+  `;
+  return parseCreation(rows);
+}
+
+export async function createConsistentCartCheckoutStockReservation(input: {
+  buyerId: string;
+  cartId: string;
+  sellerProfileId: string;
+  checkoutGroupId?: string | null;
+  payloadHash: string;
+  sourceWitness: string;
+}, client: AuthorityClient = prisma) {
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
+    SELECT reservation_id, reserved_items, expires_at
+      FROM public.grainline_checkout_reservation_create_cart_consistent(
+        ${input.buyerId},
+        ${input.cartId},
+        ${input.sellerProfileId},
+        ${input.checkoutGroupId ?? null},
+        ${input.payloadHash},
+        ${input.sourceWitness}::jsonb
+      )
+  `;
+  return parseCreation(rows);
+}
+
+export async function createConsistentSingleCheckoutStockReservation(input: {
+  buyerId: string;
+  listingId: string;
+  quantity: number;
+  selectedVariantOptionIds: readonly string[];
+  payloadHash: string;
+  sourceWitness: string;
+}, client: AuthorityClient = prisma) {
+  const selectedVariantOptionIds = input.selectedVariantOptionIds.length > 0
+    ? Prisma.sql`ARRAY[${Prisma.join(input.selectedVariantOptionIds)}]::text[]`
+    : Prisma.sql`ARRAY[]::text[]`;
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
+    SELECT reservation_id, reserved_items, expires_at
+      FROM public.grainline_checkout_reservation_create_single_consistent(
+        ${input.buyerId},
+        ${input.listingId},
+        ${input.quantity},
+        ${selectedVariantOptionIds},
+        ${input.payloadHash},
+        ${input.sourceWitness}::jsonb
       )
   `;
   return parseCreation(rows);
@@ -450,4 +497,9 @@ export async function scrubCheckoutStockReservationsForAccount(
 export function isCheckoutStockUnavailableDatabaseError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes("Checkout stock is unavailable");
+}
+
+export function isCheckoutReservationSourceChangedDatabaseError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Checkout source witness changed");
 }
