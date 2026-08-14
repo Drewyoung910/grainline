@@ -332,9 +332,9 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.doesNotMatch(source, /DELETE FROM public\.(?!"CheckoutStockReservation")/);
   });
 
-  it("keeps main and the exact proof branch disabled between provider attempts", () => {
+  it("keeps main disabled while the exact proof branch is eligible for one Preview", () => {
     assert.equal(vercel.git.deploymentEnabled.main, false);
-    assert.equal(vercel.git.deploymentEnabled[PROVIDER_PROOF_BRANCH], false);
+    assert.equal(vercel.git.deploymentEnabled[PROVIDER_PROOF_BRANCH], undefined);
     assert.match(source, new RegExp(REVIEWED_BOOTSTRAP_FAILED_DEPLOYMENT_ID));
     assert.match(source, new RegExp(REVIEWED_BOOTSTRAP_FAILED_SOURCE_SHA));
     assert.match(source, /deployment\.readyState !== "ERROR"/);
