@@ -18,6 +18,8 @@ const intentionalNoAuthPublicRoutes = new Set([
   "src/app/api/csp-report/route.ts",
   "src/app/api/email/unsubscribe/route.ts",
   "src/app/api/health/route.ts",
+  // CHECKOUT_STOCK_RESERVATION_PROVIDER_RUNNER_ONLY
+  "src/app/api/internal/rls-context-gate/route.ts",
   "src/app/api/legal/data-request/route.ts",
   "src/app/api/newsletter/confirm/route.ts",
   "src/app/api/newsletter/route.ts",

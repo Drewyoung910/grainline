@@ -564,3 +564,41 @@ Two compatibility defects were found and closed during promotion:
   unrelated buyers checking out different listings from the same shop must not
   serialize on a needlessly exclusive seller lock. The provider gate must prove
   both same-seller/different-listing concurrency and bounded same-listing waits.
+
+## Exact-candidate provider proof scaffold (2026-08-13)
+
+- The temporary proof branch contains a Preview-only
+  `/api/internal/rls-context-gate` runner and checkout-specific workload module.
+  The route is unavailable outside Vercel Preview, requires a timing-safe secret,
+  exact `VERCEL_GIT_COMMIT_SHA`, identical application/gate database URLs and a
+  durable non-replayable run slot. It receives no owner URL, fixture authority,
+  local evidence path or teardown switch. The production release guard rejects
+  any source tree that still contains this runner, so the proof artifacts cannot
+  be merged or deployed as the compatible application release.
+- Each of two slots owns a disjoint synthetic source graph: one seller, twenty
+  buyers, twenty active in-stock listings and one variant option per listing.
+  Setup fails if any exact fixture prefix already exists. Setup and teardown are
+  transaction wrapped, use only the exact disposable prefix, and teardown
+  refuses to claim success if any source or reservation row remains. The fixture
+  lifecycle is executed in disposable PostgreSQL in addition to static scope
+  tests; the eventual external run must repeat it against the isolated Neon
+  child containing the complete production schema.
+- Every workload operation uses the actual fixed creation and abort functions.
+  The candidate additionally runs the exact application transaction: fixed
+  create, seller `FOR SHARE`, locked source re-read, canonical signature compare
+  and returned-inventory compare. Target and burst passes exercise concurrent
+  checkouts for different listings from the same seller; a separate blocker
+  proves the same-listing path waits for a real Listing row lock and then
+  completes inside a fixed bound. Baseline/candidate order reverses between the
+  two non-replayable slots to reduce warm-cache/order bias.
+- Acceptance requires zero operation errors, candidate p95 at or below 750 ms,
+  candidate max at or below 3000 ms, bounded mean/p95 regression relative to the
+  single-statement baseline, a 100-2000 ms same-listing lock wait, runtime role
+  `grainline_app_runtime`, exact fixture counts, and zero reservation/stock
+  residue. Thresholds are fixed before the external run and must not be weakened
+  after observing results.
+- No provider resource has been created at this checkpoint. The external proof
+  must use a fresh disposable Neon child and branch-scoped Vercel Preview
+  variables, retain only sanitized mode-0600 evidence, and remove the Preview,
+  branch variables, child database, exact fixtures and local secret state after
+  both accepted passes. It does not authorize or alter production.

@@ -74,6 +74,7 @@ const isPublic = createRouteMatcher([
   "/api/listings/recently-viewed",    // recently viewed — public (IDs passed as query param)
   "/api/cases/([^/]+)/escalate",       // case escalation — route verifies session or CRON_SECRET
   "/api/health",                      // health check — public (UptimeRobot monitoring)
+  "/api/internal/rls-context-gate",   // CHECKOUT_STOCK_RESERVATION_PROVIDER_RUNNER_ONLY
   "/api/cron(.*)",                    // Vercel Cron jobs — no Clerk session; auth via CRON_SECRET bearer token
 ]);
 
@@ -190,6 +191,7 @@ function isGeoAllowedApiPath(pathname: string): boolean {
   return (
     pathname === "/api/health" ||
     pathname === "/api/health/deep" ||
+    pathname === "/api/internal/rls-context-gate" ||
     pathname === "/api/csp-report" ||
     pathname.startsWith("/api/cron/") ||
     pathname === "/api/clerk/webhook" ||
