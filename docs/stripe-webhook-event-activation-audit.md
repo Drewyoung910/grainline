@@ -217,6 +217,13 @@ defect. Each remaining path is classified:
   rollback behavior. It proves missing-row inserts and stale reclaims roll
   back, processed/in-progress classification is preserved, type mismatch
   fails, and exact fixture residue returns to zero.
+- `scripts/checkout-stock-reservation-production-smoke.mjs` is the protected,
+  one-shot compatible-application checkout smoke. Its direct
+  `StripeWebhookEvent` reads use only the protected owner connection to prove
+  three exact signed expiry rows and one exact made-to-order legacy restore
+  claim for its disposable session IDs. It never deletes those immutable
+  audit/idempotency rows, grants no runtime table access, retains no IDs in its
+  sanitized evidence, and is not an ordinary application path.
 - `scripts/stripe-connect-signed-payout-proof.mjs` is the protected,
   exact-release-bound pre-activation Connect delivery proof. It uses the
   reviewed pooled runtime credential inside an engine-enforced read-only
