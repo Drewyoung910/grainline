@@ -89,7 +89,7 @@ test("source-consistency release contains no temporary provider artifact", () =>
   assert.doesNotMatch(middleware, /\/api\/internal\/rls-context-gate/u);
 });
 
-test("source-consistency release records the exact production preparation boundary", () => {
+test("source-consistency release records the exact production and pooled-runtime boundaries", () => {
   const record = fs.readFileSync(
     "docs/checkout-stock-reservation-source-consistency-release.md",
     "utf8",
@@ -104,6 +104,20 @@ test("source-consistency release records the exact production preparation bounda
   assert.match(record, /zero reservation activation rows/u);
   assert.match(record, /zero\s+reservation FORCE rows/u);
   assert.match(record, /RLS remains off/u);
+  assert.match(
+    record,
+    /ac4c9d2139f5294c5e91edd24acb3dbe71b4976c/u,
+  );
+  assert.match(record, /exact-main CI run\s+`31819848330`/u);
+  assert.match(record, /migration-main CI run `31813433933`/u);
+  assert.match(record, /successful migration run `31814032227`/u);
+  assert.match(record, /pooled `grainline_app_runtime` role/u);
+  assert.match(record, /SQLSTATE `25006`/u);
+  assert.match(record, /productionChangedByPostflight: false/u);
+  assert.match(
+    record,
+    /bec37f40d995e311bee5d80fc63c3485f7d325cdcd846b88656684fe2f592afe/u,
+  );
 });
 
 test("CI proves the successor before isolating it and then seals the predecessor", () => {

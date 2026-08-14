@@ -1,9 +1,10 @@
 # CheckoutStockReservation source-consistency release
 
-Status: additive source-consistency migration live in production; compatible
-application deployment and RLS activation remain separate. This document does
-not authorize a deployment, RLS change, predecessor-grant revocation, cleanup
-or provider mutation.
+Status: additive source-consistency migration live in production and accepted
+through the actual pooled-runtime postflight; compatible application deployment
+and RLS activation remain separate. This document does not authorize a
+deployment, RLS change, predecessor-grant revocation, cleanup or provider
+mutation.
 
 Date: 2026-08-14
 
@@ -60,6 +61,35 @@ did not deploy application code, enable or FORCE RLS, create policies, revoke
 predecessor table authority, clean data or change provider state.
 RLS remains off.
 
+## Production pooled-runtime postflight
+
+The actual production postflight passed on 2026-08-14 from exact clean main
+commit `ac4c9d2139f5294c5e91edd24acb3dbe71b4976c`, after exact-main CI run
+`31819848330`, and was bound to migration-main CI run `31813433933` plus
+successful migration run `31814032227`. It authenticated only through the
+pooled `grainline_app_runtime` role and PostgreSQL attested `repeatable read`
+plus `read only` before any proof query ran.
+
+The proof matched the exact 25-function catalog, compatible table/schema
+posture, zero policies, RLS off, FORCE off and retained predecessor CRUD. The
+direct aggregate read and fixed export succeeded; the new private helper was
+denied; and a fixed write reached SQLSTATE `25006`, proving the engine-level
+read-only fence. The table contained zero reservation rows during the aggregate
+proof. The transaction rolled back and recorded
+`productionChangedByPostflight: false`.
+
+Sanitized mode-0600 evidence:
+
+- file:
+  `checkout-stock-reservation-source-consistency-production-postflight-ac4c9d2139f5294c5e91edd24acb3dbe71b4976c.json`
+- SHA-256:
+  `bec37f40d995e311bee5d80fc63c3485f7d325cdcd846b88656684fe2f592afe`
+
+The artifact contains no connection string or row data. This closes the
+source-consistency database postflight only; it does not authorize or imply an
+application deployment, predecessor drain, RLS activation, grant revocation,
+cleanup or provider change.
+
 ## Provider proof
 
 The proof ran only on a disposable Neon child through one exact Vercel Preview
@@ -114,8 +144,8 @@ drop these functions ad hoc.
 
 ## Remaining sequence
 
-1. Run the actual pooled-runtime postflight against the applied production
-   catalog.
+1. **Complete:** run the actual pooled-runtime postflight against the applied
+   production catalog.
 2. Deploy the source-consistent application and smoke both checkout paths.
 3. Drain predecessor deployments and prove the legacy creation wrappers are no
    longer called.

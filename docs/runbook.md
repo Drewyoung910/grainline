@@ -8,7 +8,7 @@ For a plain-English map of RLS operators, deploy phases, common fail-closed
 errors, evidence locations, and safe operation without agent context, read
 `docs/rls-operator-guide.md` before preparing or dispatching an RLS migration.
 
-Prepared CheckoutStockReservation source-consistency postflight:
+Completed CheckoutStockReservation source-consistency postflight:
 
 - Production migration run `31814032227`, bound to exact main
   `16239fce2956c6dc726c24ccd7a91d1ea35463bd` and CI `31813433933`, applied
@@ -30,6 +30,14 @@ Prepared CheckoutStockReservation source-consistency postflight:
   new private helper is denied, and proves a fixed write reaches PostgreSQL's
   read-only fence. It creates no synthetic row and writes only a fresh
   sanitized mode-0600 evidence file.
+- The actual postflight passed from exact clean main
+  `ac4c9d2139f5294c5e91edd24acb3dbe71b4976c`, bound to exact-main CI
+  `31819848330`, migration-main CI `31813433933` and migration run
+  `31814032227`. PostgreSQL attested the pooled `grainline_app_runtime` role,
+  repeatable-read/read-only transaction state, exact compatible catalog,
+  private-helper denial and SQLSTATE `25006` write fence. Evidence SHA-256 is
+  `bec37f40d995e311bee5d80fc63c3485f7d325cdcd846b88656684fe2f592afe`;
+  it recorded `productionChangedByPostflight=false`.
 - This postflight does not authorize an application deployment, RLS activation,
   predecessor-grant revocation, cleanup or provider change. Keep the compatible
   deployment/smoke, drain, policyless ENABLE/grant revocation and FORCE as
