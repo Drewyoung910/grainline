@@ -35,9 +35,9 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 
 Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
-`DirectUploadReference`, `Case`, `CaseMessage`, and
-`CaseMessageAttachment`; all nine tables are `FORCE ROW LEVEL SECURITY`
-hardened in production. DirectUpload and the Case family intentionally use
+`DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`, and
+`StripeWebhookEvent`; all ten tables are `FORCE ROW LEVEL SECURITY` hardened
+in production. DirectUpload, StripeWebhookEvent, and the Case family intentionally use
 policyless RLS with no direct ordinary-runtime table or column authority: all
 permitted behavior goes through reviewed fixed functions. DirectUpload's
 owner, pooled-runtime, and cleanup-role proofs are accepted; its dedicated

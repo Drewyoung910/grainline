@@ -81,40 +81,34 @@ repair claim; and checkout abort, signed expiry, cron repair and account
 deletion must not share a generic restore-by-ID function. The audit also found
 that an unexpected post-Stripe checkout error can restore stock while a session
 remains payable, and that the deployed 32-character base64url replay hash,
-64-character column and legacy hex inspector disagreed. The isolated checkpoint
-now makes unexpected-error restoration contingent on confirmed Stripe expiry
-and aligns the inspector to the deployed hash plus deletion sentinel; compatible
-schema/functions and production remain unchanged. StripeWebhookEvent FORCE
-remains a separate earlier production boundary.
+64-character column and legacy hex inspector disagreed. The compatible
+application now makes unexpected-error restoration contingent on confirmed
+Stripe expiry and aligns the inspector to the deployed hash plus deletion
+sentinel.
 
-The isolated reservation conversion now removes all direct reservation-table
-delegates under `src` and replaces them with 15 fixed operations covering
-source-derived cart/single creation, exact bind/completion, unbound abort,
-signed webhook restore, distinct buyer/seller confirmed-expiry restore,
-generation-fenced cron/account repair, prune, resume, export and terminal
-account scrub. Disposable PostgreSQL currently passes 13 checks (12 engine-
-executed authority/state checks plus one static catalog contract), but this
-remains draft-only and is not deployable yet. The deeper
-review found that webhook ID/type/generation alone did not bind the signed
-Stripe object: compatible preparation must first add immutable bounded
-`StripeWebhookEvent.sourceObjectId` authority and compare it to the exact
-Checkout Session. Creation now also locks buyer/seller User lifecycle rows in
-stable order and revalidates seller orderability so account deletion cannot
-race in a new reservation. Account deletion remains intentionally one bounded
-batch per attempt and fails closed at scrub if active rows remain. Finish the source-
-binding application tests, full regression suite and schema/migration
-packaging before any compatible production boundary.
+The compatible reservation authority is live. The application uses 15 fixed
+operations covering source-derived cart/single creation, exact
+bind/completion, unbound abort, signed webhook restore, distinct buyer/seller
+confirmed-expiry restore, generation-fenced cron/account repair, prune,
+resume, export and terminal account scrub. The database adds immutable bounded
+`StripeWebhookEvent.sourceObjectId` authority, compares it to the exact
+Checkout Session, locks buyer/seller User lifecycle rows in stable order and
+revalidates seller orderability. Account deletion remains intentionally one
+bounded batch per attempt and fails closed at scrub if active rows remain.
+StripeWebhookEvent FORCE was completed as its separate earlier production
+boundary before this compatible reservation release.
 
-Compatible schema/migration packaging is now complete on the isolated branch:
-the byte-pinned candidate adds source binding, repair generations/invariants,
-the 15 fixed reservation operations and a temporary seventh Stripe webhook
-runtime overload without changing reservation RLS or predecessor table grants.
-CI deliberately isolates it until the existing StripeWebhookEvent FORCE proof
-passes. The migration has an engine-enforced predecessor gate, and the
-production workflow remains unwired. Before promotion, finish full CI and the
-Extra-High SQL review, complete the separate webhook FORCE production release,
-and rerun the aggregate reservation inspection because the accepted zero-row
-result is five days old and may no longer describe production.
+The additive source-consistency successor is also live in the database. Exact
+main `16239fce2956c6dc726c24ccd7a91d1ea35463bd`, CI `31813433933`, and guarded
+run `31814032227` applied only
+`20260814053000_prepare_checkout_stock_reservation_source_consistency`,
+converged the reviewed fixed-function grants, and passed migration status, the
+global grant/RLS audit and the read-only exact-scope proof. This did not deploy
+the source-consistent application, enable or FORCE reservation RLS, revoke
+predecessor authority, clean data or change provider state. The current release
+boundary is therefore app deployment and coexistence drain, followed by
+policyless ENABLE with direct-grant revocation and then FORCE as separate
+database releases.
 
 The same deep review found an application-level Redis ABA race: a stale worker
 could publish or remove a newer identical-payload checkout lock after TTL reuse.
@@ -143,14 +137,16 @@ separately signed `/api/stripe/webhook/connect`, and v2 thin account events on
 before provider configuration changes. Provider correction, one signed payout
 delivery plus retry and the exact three-surface proof are complete. The
 predecessor drain and hardened final pooled-runtime proof subsequently passed,
-and StripeWebhookEvent policyless Phase A is now live: exact main
-`f987645784a447604fcab2399dc8e7fd7bef9d7c`, CI `31408797498`, migration run
-`31410550315`, global grant/RLS audit and the actual pooled-runtime postflight
-are accepted. The posture-only FORCE preparation is merged from PR #188 exact
-head `b8a9f41b9f5ca966f02901fb322ba9775210fd80` at main
-`6d448bce38bed2aa54bf4ce7ae8e5f8a4ba73186`; exact-head CI `31417322388` and
-exact-main CI `31419148169` passed. It remains unapplied and does not change the
-accepted Phase-A production posture. Connect v2 signed delivery remains a
+and StripeWebhookEvent policyless ENABLE plus FORCE is live. Phase A landed
+from exact main `f987645784a447604fcab2399dc8e7fd7bef9d7c` in run
+`31410550315`. Exact main `ea19fa0ace85dd61868667022c45afb3cf3218fa`, CI
+`31716577153`, and guarded migration run `31717354633` then applied only
+`20260810172000_force_stripe_webhook_event_rls`; migration status, the global
+grant/RLS audit and FORCE-only proof passed with zero reservation-successor
+rows. The accepted credential recovery replaced both database passwords,
+proved superseded-password rejection, redeployed the unchanged application
+source with the replacement runtime credential, and passed the exact
+pooled-runtime FORCE postflight read-only. Connect v2 signed delivery remains a
 mandatory launch/provider gate, but does not block this database-authority
 release because all three routes use the same fixed lease functions and have
 zero direct table access. Do not broaden the new Connect route with legacy account events

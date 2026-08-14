@@ -7,11 +7,20 @@ const catalog = fs.readFileSync(
   "utf8",
 );
 
-test("Order fixed-operation catalog is design-only and policyless-targeted", () => {
-  assert.match(catalog, /design only/);
-  assert.match(catalog, /not SQL, a migration, an EXECUTE grant/);
+test("Order fixed-operation catalog separates live service ledgers from designs", () => {
+  assert.match(catalog, /mixed implementation ledger/);
+  assert.match(catalog, /StripeWebhookEvent operations 1-3 and\s+34-36 are live/);
+  assert.match(catalog, /Remaining Order, OrderItem,\s+shipping-quote, payment and payout families are design contracts only/);
+  assert.match(catalog, /does not authorize SQL, a migration,\s+an EXECUTE grant/);
   assert.match(catalog, /policyless ENABLE\/FORCE RLS/);
   assert.match(catalog, /PUBLIC` has no EXECUTE/);
+});
+
+test("reservation creation catalog names the source-consistent live successors", () => {
+  assert.match(catalog, /grainline_checkout_reservation_create_cart_consistent/);
+  assert.match(catalog, /grainline_checkout_reservation_create_single_consistent/);
+  assert.match(catalog, /application witness only as a rejection condition/);
+  assert.match(catalog, /predecessor deployment coexistence/);
 });
 
 test("catalog pins every numbered operation family from 1 through 36", () => {

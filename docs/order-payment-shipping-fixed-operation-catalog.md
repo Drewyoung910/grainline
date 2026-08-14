@@ -1,9 +1,13 @@
 # Order/payment/shipping fixed-operation catalog
 
-Status: design only on `agent/order-payment-shipping-rls-audit-20260804`.
-This is not SQL, a migration, an EXECUTE grant, an application conversion or a
-production approval. Exact signatures may narrow after aggregate-only
-production inspection, but no family may become broader than this contract.
+Status: mixed implementation ledger. StripeWebhookEvent operations 1-3 and
+34-36 are live behind policyless FORCE RLS. CheckoutStockReservation operations
+4-9 and its bounded export/scrub projections have compatible fixed authority
+and source-consistency functions live while RLS remains off and predecessor
+direct grants remain temporarily available. Remaining Order, OrderItem,
+shipping-quote, payment and payout families are design contracts only until
+their own audited releases. This document does not authorize SQL, a migration,
+an EXECUTE grant, application deployment or production mutation.
 
 ## Global contract
 
@@ -50,11 +54,15 @@ ID-only finalization is forbidden.
 
 ### Checkout stock reservation lifecycle
 
-4. `grainline_checkout_reservation_create_cart(...)` and the distinct
-   `grainline_checkout_reservation_create_single(...)` lock their actor-owned
-   Cart/CartItems/Listings or one Listing; derive the complete reservable item
-   set, seller and canonical checkout lock key; decrement stock atomically; and
-   return reservation ID and database-derived expiry.
+4. `grainline_checkout_reservation_create_cart_consistent(...)` and the
+   distinct `grainline_checkout_reservation_create_single_consistent(...)`
+   lock their actor-owned Cart/CartItems/Listings or one Listing; derive the
+   complete reservable item set, seller, canonical checkout lock key and stored
+   payload; validate the application witness only as a rejection condition;
+   decrement stock atomically; and return reservation ID and database-derived
+   expiry. The older `create_cart` and `create_single` wrappers remain only for
+   predecessor deployment coexistence and must be drained before direct grants
+   are revoked.
 5. `grainline_checkout_reservation_bind_session(...)` binds once to the same
    buyer and application-derived replay fingerprint; a Stripe session cannot
    move between reservations.
