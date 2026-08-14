@@ -12,6 +12,7 @@ import { stripeStatementDescriptorSuffix } from "@/lib/stripeStatementDescriptor
 import {
   acquireCheckoutLock,
   checkoutPayloadHash,
+  checkoutSessionCreateIdempotencyKey,
   getCheckoutLock,
   markCheckoutLockReady,
   releaseCheckoutLock,
@@ -96,6 +97,7 @@ export async function POST(req: Request) {
   let checkoutLockOwnerToken: string | null = null;
   let createdCheckoutSessionId: string | null = null;
   let createdCheckoutSessionExpired = false;
+  let checkoutSessionCreateAttempted = false;
   let checkoutBuyerId: string | null = null;
   let checkoutPayloadHashValue: string | null = null;
   let checkoutReservationSessionBound = false;
@@ -537,10 +539,12 @@ export async function POST(req: Request) {
       giftWrappingPriceCents: body.giftWrapping ? String(giftWrapCents) : "",
       selectedVariants: selectedVariantsMetadata,
       checkoutLockKey: checkoutLockKeyValue,
+      checkoutPayloadHash: payloadHash,
       ...checkoutStockReservationMetadata(checkoutReservationId),
       reservedStock: `${body.listingId}:${body.quantity}`,
     };
 
+    checkoutSessionCreateAttempted = true;
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       // CRITICAL: "if_required" lets onComplete fire for card payments.
@@ -596,6 +600,8 @@ export async function POST(req: Request) {
         // deferred until Terms update
       },
       metadata: checkoutMetadata,
+    }, {
+      idempotencyKey: checkoutSessionCreateIdempotencyKey(checkoutLockOwnerTokenValue),
     });
     createdCheckoutSessionId = session.id;
 
@@ -724,6 +730,7 @@ export async function POST(req: Request) {
         checkoutReservationId,
         reservedItemCount: checkoutReservationItemCount,
         checkoutLockAcquired,
+        checkoutSessionCreateAttempted,
       },
     });
 
@@ -739,7 +746,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const reservationCanBeRestored = !createdCheckoutSessionId || createdCheckoutSessionExpired;
+    const reservationCanBeRestored = !checkoutSessionCreateAttempted || createdCheckoutSessionExpired;
     let databaseReservationReleased = !checkoutReservationId;
     if (
       checkoutReservationId &&
@@ -783,7 +790,11 @@ export async function POST(req: Request) {
       Sentry.captureMessage("Checkout reservation retained because Stripe session expiry was not confirmed", {
         level: "warning",
         tags: { source: "checkout_outer_error_reservation_retained", route: "cart_checkout_single" },
-        extra: { checkoutReservationId, stripeSessionId: createdCheckoutSessionId },
+        extra: {
+          checkoutReservationId,
+          stripeSessionId: createdCheckoutSessionId,
+          checkoutSessionCreateAttempted,
+        },
       });
     }
 

@@ -134,7 +134,13 @@ describe("durable checkout stock reservation guardrails", () => {
       const buyerRestoreIndex = outerCatch.indexOf("restoreBuyerExpiredCheckoutStockOnce({");
 
       assert.match(route, /createdCheckoutSessionId = session\.id/);
+      assert.match(route, /checkoutSessionCreateAttempted = true/);
       assert.match(route, /checkoutReservationSessionBound = true/);
+      assert.match(route, /checkoutPayloadHash: payloadHash/);
+      assert.match(
+        route,
+        /idempotencyKey: checkoutSessionCreateIdempotencyKey\(checkoutLockOwnerTokenValue\)/,
+      );
       assert.notEqual(expireIndex, -1, `${routePath} must expire a created session in the outer catch`);
       assert.ok(expireIndex < safetyDecisionIndex, `${routePath} must attempt expiry before restoration`);
       assert.ok(safetyDecisionIndex < buyerRestoreIndex, `${routePath} must decide safety before bound restore`);
@@ -149,6 +155,18 @@ describe("durable checkout stock reservation guardrails", () => {
       assert.match(
         outerCatch,
         /if \(checkoutLockAcquired && reservationCanBeRestored && databaseReservationReleased\)/,
+      );
+      assert.match(
+        outerCatch,
+        /const reservationCanBeRestored = !checkoutSessionCreateAttempted \|\| createdCheckoutSessionExpired/,
+      );
+      assert.match(
+        outerCatch,
+        /checkout_outer_error_reservation_retained[\s\S]*checkoutSessionCreateAttempted/,
+      );
+      assert.doesNotMatch(
+        outerCatch,
+        /const reservationCanBeRestored = !createdCheckoutSessionId \|\| createdCheckoutSessionExpired/,
       );
       assert.doesNotMatch(route, /releaseCheckoutLock\(checkoutLockKeyValue\s*\)/);
       assert.match(
@@ -199,6 +217,12 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(authoritySql, /source_event\."sourceObjectId" IS DISTINCT FROM p_source_object_id/);
     assert.match(authoritySql, /event\."sourceObjectId" = p_session_id/g);
     assert.match(webhook, /markCheckoutStockReservationCompleted\(tx, \{[\s\S]*eventId: event\.id[\s\S]*claimGeneration/);
+    assert.match(webhook, /payloadHash: sessionMeta\.checkoutPayloadHash/g);
+    assert.match(webhook, /buyerId: sessionMeta\.buyerId/g);
+    assert.match(
+      restore,
+      /if \(input\.reservationId && input\.payloadHash\) \{[\s\S]*bindCheckoutStockReservationSession\(\{[\s\S]*reservationId: input\.reservationId,[\s\S]*buyerId: input\.buyerId,[\s\S]*payloadHash: input\.payloadHash,[\s\S]*sessionId: input\.sessionId,[\s\S]*\}, tx\);[\s\S]*completeCheckoutStockReservation\(tx, input\)/,
+    );
     assert.match(restore, /restoreCheckoutStockReservationFromWebhook\(\{[\s\S]*eventId: input\.eventId[\s\S]*claimGeneration: input\.claimGeneration/);
   });
 

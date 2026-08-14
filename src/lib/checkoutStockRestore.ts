@@ -9,6 +9,7 @@ import { checkoutStockReservationRepairAction } from "@/lib/checkoutStockReserva
 import { claimLegacyStockRestore } from "@/lib/stripeWebhookMaintenance";
 import {
   claimStaleCheckoutStockReservations,
+  bindCheckoutStockReservationSession,
   completeCheckoutStockReservation,
   finalizeCheckoutStockReservationRepair,
   pruneCheckoutStockReservationBatch,
@@ -71,9 +72,22 @@ export async function markCheckoutStockReservationCompleted(
     eventId: string;
     claimGeneration: bigint;
     reservationId?: string | null;
+    buyerId?: string | null;
+    payloadHash?: string | null;
     sessionId: string;
   },
 ) {
+  if (input.reservationId && input.payloadHash) {
+    if (!input.buyerId) {
+      throw new Error("Checkout reservation late bind metadata is incomplete");
+    }
+    await bindCheckoutStockReservationSession({
+      reservationId: input.reservationId,
+      buyerId: input.buyerId,
+      payloadHash: input.payloadHash,
+      sessionId: input.sessionId,
+    }, tx);
+  }
   return completeCheckoutStockReservation(tx, input);
 }
 

@@ -6,8 +6,11 @@ import {
   MARK_CHECKOUT_LOCK_READY_SCRIPT,
   RELEASE_PREPARING_CHECKOUT_LOCK_SCRIPT,
   RELEASE_CHECKOUT_LOCK_SCRIPT,
+  checkoutSessionCreateIdempotencyKey,
   type CheckoutLock,
 } from "@/lib/checkoutLockState";
+
+export { checkoutSessionCreateIdempotencyKey };
 
 const markCheckoutLockReadyScript = redis.createScript<number>(MARK_CHECKOUT_LOCK_READY_SCRIPT);
 const releaseCheckoutLockScript = redis.createScript<number>(RELEASE_CHECKOUT_LOCK_SCRIPT);
