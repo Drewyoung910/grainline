@@ -198,10 +198,12 @@ The final pre-deploy review found that the application priced from its first
 cart/listing snapshot while the fixed function returned a later locked source
 without an equality check. A concurrent cart or inventory-type change could
 therefore reserve a different quantity/set than Stripe charged. Isolated
-finding `CSR-A21` adds a fail-closed, listing-level source comparison before
-Stripe creation and aborts/restores a mismatched unbound reservation. Because
-stock is Listing-level, legitimate variant cart lines are summed by
-seller/listing before comparison. Exact `77fc45fe` must not be deployed; the
+finding `CSR-A23` (A21 already names the repair-index mismatch) requires exact
+Stripe-bound source plus Listing-level inventory comparison while the fixed
+function's locks remain held. The corrected successor performs fixed creation
+and source re-read in one short database-only transaction; mismatch rolls back
+the reservation and stock decrement rather than committing and compensating.
+Exact `77fc45fe` must not be deployed; the
 next deploy source is the reviewed successor containing this correction after
 its complete CI succeeds.
 
@@ -217,7 +219,9 @@ ENABLE and FORCE remain later, separate releases.
 1. Completed: exact-main CI, Extra-High SQL review, StripeWebhookEvent FORCE,
    immutable-history correction, same-main aggregate inspection, guarded
    compatible migration, global audit, and actual pooled-runtime postflight.
-2. Complete CI for and merge the isolated `CSR-A21` correction, then deploy
+2. Complete CI, disposable PostgreSQL rollback/concurrency coverage and the
+   exact-candidate provider pool/latency gate for the isolated `CSR-A23`
+   correction; merge it, then deploy
    only that exact successor after a separate deployment boundary; attest
    provider-owned source and canonical alias/health. Do not deploy
    `77fc45fe06feb3f4e440afea916728c3d2873315` because its source-consistency

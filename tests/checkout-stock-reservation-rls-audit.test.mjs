@@ -108,13 +108,17 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     const release = source("docs/checkout-stock-reservation-authority-release.md");
     const architecture = source("docs/architecture.md");
 
-    assert.match(audit, /CSR-A21/);
+    assert.match(audit, /CSR-A23/);
     assert.match(audit, /comparing it with the function's returned `reservedItems`/);
-    assert.match(audit, /before any Stripe session is\s+created/);
-    assert.match(audit, /multiple variant cart lines because stock\s+is Listing-level/);
+    assert.match(audit, /fixed creation call inside a short application transaction/);
+    assert.match(audit, /Stripe\/provider I\/O is never performed inside the database transaction/);
+    assert.match(audit, /exact locked Listing-level inventory set/);
+    assert.match(audit, /Before `SellerProfile` base\s+rows are restricted or direct runtime reads are revoked/);
+    assert.match(audit, /do not grant\s+broad SellerProfile access merely to preserve this helper/);
     assert.match(release, /Exact `77fc45fe` must not be deployed/);
     assert.match(release, /exact-successor application deployment/);
-    assert.match(architecture, /priced inventory snapshot must exactly match the database-derived/);
+    assert.match(architecture, /fixed function derives and locks inventory/);
+    assert.match(architecture, /no Stripe\/provider call is allowed inside that transaction/);
   });
 
   it("keeps current production posture honest in the coverage ledger", () => {
@@ -131,7 +135,7 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(row, /compatible migration is live from exact main `77fc45fe`/);
     assert.match(row, /actual pooled-runtime postflight accepted/);
     assert.match(row, /production app source is still `69c14c06`/);
-    assert.match(row, /CSR-A21/);
+    assert.match(row, /CSR-A23/);
     assert.match(row, /deploy\/smoke\/drain only the exact successor/);
     assert.match(strategy, /next isolated dependency is `CheckoutStockReservation`/);
     assert.match(strategy, /StripeWebhookEvent FORCE\s+remains a separate/);

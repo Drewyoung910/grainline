@@ -244,12 +244,18 @@ The application boundary remains open. Canonical production deployment
 `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` still serves exact source
 `69c14c0618ea7ab9c74756422273d17d66db7efa`; the fixed-operation conversion
 is merged in `77fc45fe` but is not live. The final pre-deploy review then found
-`CSR-A21`: a concurrent cart or listing inventory-type mutation could make the
-database-derived locked reservation source differ from the route snapshot used
-to price Stripe. The isolated correction compares canonical seller/listing/
-summed-quantity sources before Stripe creation and aborts/restores a mismatch;
-`77fc45fe` is therefore not an eligible deploy source. Next complete CI and
-merge that correction, deploy/smoke only its exact successor, drain predecessor
+`CSR-A23` (A21 was already assigned to the repair-index mismatch): a concurrent
+cart, price-version, variant, seller-payout or listing inventory-type mutation
+could make the database-derived locked reservation source differ from the route
+snapshot used to build Stripe. The corrected isolated successor keeps the fixed
+creation call and a complete source re-read in one short database-only
+transaction. The function's locks remain held through comparison; a dedicated
+source-drift sentinel rolls back the reservation row and stock decrement before
+the Redis owner lock is released and `409` is returned. Stripe/provider work is
+outside the transaction. `77fc45fe` is therefore not an eligible deploy source.
+Next complete local/CI and disposable PostgreSQL proof, prove the new pooled
+transaction's provider locality/latency and lock waits against the exact
+candidate, merge it, deploy/smoke only that exact successor, drain predecessor
 versions, and prove zero direct reservation access. The old source remains a
 database-compatible rollback while predecessor CRUD remains. Do not prepare
 ENABLE until this drain proof passes; ENABLE and FORCE remain separate releases.

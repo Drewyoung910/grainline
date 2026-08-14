@@ -474,6 +474,46 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
     }
   });
 
+  it("rolls fixed creation back with the outer checkout-source transaction", async () => {
+    const stockBefore = Number(rows(await db.query(`
+      SELECT "stockQuantity" FROM public."Listing" WHERE id = 'listing-a'
+    `))[0].stockQuantity);
+    let rolledBack = false;
+    await db.exec("BEGIN");
+    try {
+      const created = rows(await db.query(`
+        SELECT * FROM public.grainline_checkout_reservation_create_single(
+          'buyer-b', 'listing-a', 1, 'RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR'
+        )
+      `));
+      assert.equal(created.length, 1);
+      assert.equal(Number(rows(await db.query(`
+        SELECT "stockQuantity" FROM public."Listing" WHERE id = 'listing-a'
+      `))[0].stockQuantity), stockBefore - 1);
+      assert.equal(Number(rows(await db.query(`
+        SELECT pg_catalog.count(*) AS count
+          FROM public."CheckoutStockReservation"
+         WHERE id = $1
+      `, [created[0].reservation_id]))[0].count), 1);
+
+      // The application throws its source-drift sentinel here. PostgreSQL must
+      // unwind the nested fixed function rather than require compensating stock.
+      await db.exec("ROLLBACK");
+      rolledBack = true;
+    } finally {
+      if (!rolledBack) await db.exec("ROLLBACK").catch(() => {});
+    }
+
+    assert.equal(Number(rows(await db.query(`
+      SELECT "stockQuantity" FROM public."Listing" WHERE id = 'listing-a'
+    `))[0].stockQuantity), stockBefore);
+    assert.equal(Number(rows(await db.query(`
+      SELECT pg_catalog.count(*) AS count
+        FROM public."CheckoutStockReservation"
+       WHERE "payloadHash" = 'RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR'
+    `))[0].count), 0);
+  });
+
   it("acquires and source-binds a webhook lease in one fixed operation", async () => {
     const lease = rows(await db.query(`
       SELECT * FROM public.grainline_stripe_webhook_begin(

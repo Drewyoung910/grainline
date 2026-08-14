@@ -1429,13 +1429,19 @@ Open work:
   fixed-operation source in `77fc45fe` is not live. Focused checkout/webhook/
   deletion/export/lock/payment tests passed 98/98 locally and exact-main CI is
   the authoritative full-tree result.
-- **Found before deploy:** `CSR-A21` identified a source-consistency race in the
+- **Found before deploy:** `CSR-A23` identified a source-consistency race in the
   converted application: the route priced from an earlier snapshot while the
   fixed database function derived the reservation from locked current rows.
-  A concurrent cart or listing inventory-type change could make those item sets
-  differ. The isolated fix canonicalizes seller/listing/summed quantities,
-  compares before Stripe session creation, and aborts/restores a mismatch with
-  `409`. Multiple variant lines intentionally collapse because inventory is
-  Listing-level. Exact `77fc45fe` must not be deployed; the next boundary is
-  complete CI and merge for the correction, followed by exact-successor deploy,
-  fixed-path smoke and predecessor drain, not policyless ENABLE.
+  A concurrent cart, price/version, selected-variant, listing-type or seller
+  payout-setting change could make those sources differ. A21 already names the
+  repair-index mismatch; the duplicate identifier was corrected rather than
+  overwriting that history. The isolated fix now keeps fixed creation plus a
+  complete source re-read inside one short database-only transaction, compares
+  exact monetary, variant, destination, product and effective shipping source,
+  and independently checks the Listing-level inventory aggregate. Its drift
+  sentinel causes PostgreSQL to roll back the reservation and stock decrement;
+  the route then releases the Redis owner lock and returns `409`. Stripe is not
+  called inside the transaction. Exact `77fc45fe` must not be deployed; the next
+  boundary is full CI, disposable PostgreSQL rollback/concurrency proof and an
+  exact-candidate provider pool/latency gate, followed by merge, exact-successor
+  deploy, fixed-path smoke and predecessor drain—not policyless ENABLE.

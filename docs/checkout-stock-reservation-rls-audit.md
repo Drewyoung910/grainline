@@ -520,24 +520,42 @@ Two compatibility defects were found and closed during promotion:
 
 ## Compatible app pre-deploy source-consistency review (2026-08-13)
 
-- `CSR-A21`: the fixed cart/single creation functions correctly re-read and
+- `CSR-A23`: the fixed cart/single creation functions correctly re-read and
   lock their durable CartItem/Listing sources, but the first application
   conversion retained the earlier route snapshot for Stripe pricing without
   comparing it with the function's returned `reservedItems`. A concurrent
-  cart quantity/remove/add or listing inventory-type change after route
-  preflight could therefore make PostgreSQL reserve one item set while Stripe
-  charged the older one. This was not an RLS-policy defect and no converted
-  application version had been deployed; production still ran source
-  `69c14c06` when the review found it.
-- The isolated successor now canonicalizes the expected and locked reservation
-  sources by seller/listing and summed quantity before any Stripe session is
-  created. It deliberately collapses multiple variant cart lines because stock
-  is Listing-level. A mismatch aborts the still-unbound reservation, restores
-  stock through the fixed authority, releases the owner-token Redis lock only
-  after database restoration succeeds, returns `409`, and emits count-only
-  telemetry. Both-empty is accepted only for intentional made-to-order
-  checkout. Focused pure-state and route-order tests cover order independence,
-  variant aggregation, identity/quantity/type drift, malformed input and
-  overflow. The compatible application must not be deployed until this
-  successor passes complete CI and the release record names its exact merge
-  commit.
+  cart quantity/remove/add, variant switch, price-version change or listing
+  inventory-type change after route preflight could therefore make PostgreSQL
+  reserve one source while Stripe charged another. This was not an RLS-policy
+  defect and no converted application version had been deployed; production
+  still ran source `69c14c06` when the review found it. The identifier is A23,
+  not A21: A21 already names the Prisma repair-index catalog mismatch above.
+- The corrected successor no longer commits and then compensates. Cart and Buy
+  Now execute the fixed creation call inside a short application transaction;
+  the function's Cart/CartItem/Listing/User locks remain held while the route
+  locks the seller row and re-reads the complete Stripe-bound source. The
+  canonical source binds item identity, quantity, price/version, selected
+  variants, listing type/currency/title/primary image, effective shipping
+  dimensions, seller payout destination, statement descriptor, gift-wrap and
+  pickup settings. The returned `reservedItems` are independently compared to
+  the exact locked Listing-level inventory set. A mismatch throws a dedicated
+  sentinel inside the transaction, so PostgreSQL atomically rolls back both the
+  reservation row and stock decrement; only after rollback does the route
+  release its owner-token Redis lock and return `409` with count-only telemetry.
+  Stripe/provider I/O is never performed inside the database transaction.
+- Pure-state coverage proves source ordering, monetary/variant/seller/shipping
+  drift, malformed/unavailable inputs and Listing-level variant aggregation.
+  The disposable PostgreSQL proof independently demonstrates that rolling back
+  the outer transaction removes the fixed-function reservation and restores
+  stock without compensating writes. Because this introduces a short
+  multi-statement pooled transaction on a checkout hot path, provider locality/latency and lock
+  wait behavior remain an explicit pre-deploy gate. The compatible application
+  must not be deployed until the successor passes complete CI and that provider
+  proof is accepted against its exact commit.
+- The application transaction currently locks and re-reads `SellerProfile`
+  directly because that table remains outside RLS. Before `SellerProfile` base
+  rows are restricted or direct runtime reads are revoked, this dependency must
+  move behind the reviewed seller public/private projection or a narrow fixed
+  checkout-source operation. Treat that later table rollout as a compile-time,
+  PostgreSQL-proof and authenticated-checkout compatibility gate; do not grant
+  broad SellerProfile access merely to preserve this helper.
