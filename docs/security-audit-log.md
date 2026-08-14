@@ -1325,6 +1325,14 @@ Open work:
   successor order and fail closed on unknown, duplicate, failed, drifted or
   later migration rows. This isolated wiring does not authorize merge,
   dispatch, migration, deployment, activation or provider change.
+- Exact main `16239fce2956c6dc726c24ccd7a91d1ea35463bd` passed CI run
+  `31813433933`. Guarded Production Migrations run `31814032227` applied only
+  the promoted source-consistency migration, converged the reviewed function
+  grants, reported all 195 migrations applied, passed the 64-table global
+  grant/RLS audit and ended with `state: source-consistent`. The final proof
+  found zero activation rows, zero FORCE rows and made no changes itself. No
+  deployment, RLS activation, predecessor-grant revocation, cleanup or provider
+  change occurred.
 - Exact authority-hardening checkpoint
   `7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
   `31282060518`. The run exercised the actual direct disposable runtime login,

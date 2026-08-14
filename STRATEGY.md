@@ -256,11 +256,19 @@ package, fail-closed scope verifier, CI proof and guarded migration wiring are
 documented in
 `docs/checkout-stock-reservation-source-consistency-release.md`.
 
-Keep the remaining boundaries separate: review/merge and exact-main CI;
-guarded additive migration; actual pooled-runtime postflight; compatible app
-deployment and checkout smoke; predecessor drain; policyless ENABLE plus
-direct-grant revocation; then FORCE. Do not bundle Order, OrderItem, payment,
-payout or shipping activation into this service-ledger release.
+Exact main `16239fce2956c6dc726c24ccd7a91d1ea35463bd` passed CI run
+`31813433933`; guarded Production Migrations run `31814032227` then applied
+only the source-consistency migration and converged the reviewed runtime
+function grants. Migration status, the global grant/RLS audit and the
+read-only after-scope proof all passed. The resulting state is
+`source-consistent` with zero activation and FORCE rows. No application was
+deployed, RLS remains off, and predecessor table authority remains available.
+
+Keep the remaining boundaries separate: actual pooled-runtime postflight;
+compatible app deployment and checkout smoke; predecessor drain; policyless
+ENABLE plus direct-grant revocation; then FORCE. Do not bundle Order,
+OrderItem, payment, payout or shipping activation into this service-ledger
+release.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

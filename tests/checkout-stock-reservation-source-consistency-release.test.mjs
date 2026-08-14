@@ -89,6 +89,23 @@ test("source-consistency release contains no temporary provider artifact", () =>
   assert.doesNotMatch(middleware, /\/api\/internal\/rls-context-gate/u);
 });
 
+test("source-consistency release records the exact production preparation boundary", () => {
+  const record = fs.readFileSync(
+    "docs/checkout-stock-reservation-source-consistency-release.md",
+    "utf8",
+  );
+  assert.match(
+    record,
+    /16239fce2956c6dc726c24ccd7a91d1ea35463bd/u,
+  );
+  assert.match(record, /exact-main CI run\s+`31813433933`/u);
+  assert.match(record, /production migration run `31814032227`/u);
+  assert.match(record, /state: source-consistent/u);
+  assert.match(record, /zero reservation activation rows/u);
+  assert.match(record, /zero\s+reservation FORCE rows/u);
+  assert.match(record, /RLS remains off/u);
+});
+
 test("CI proves the successor before isolating it and then seals the predecessor", () => {
   const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const verifySuccessor = workflow.indexOf(
