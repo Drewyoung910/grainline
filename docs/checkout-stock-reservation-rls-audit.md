@@ -630,7 +630,17 @@ Two compatibility defects were found and closed during promotion:
   `grainline_app_runtime` child URL; no owner URL or setup/teardown authority is
   copied to Vercel. Counted slots are one-shot and cleanup validates exact
   identities before deleting anything.
-- Focused static, runtime-manifest, audit and executable fixture tests pass 24/24,
+- A final pre-execution review found that ordinary Neon child branches inherit
+  their parent's Postgres role passwords. Neon generates fresh child passwords
+  only when the parent is protected. The operator now requires the live parent
+  API response to contain exact `protected=true` before any child-creation
+  attempt and requires the disposable child itself to remain deletable with
+  exact `protected=false`. A missing or false field fails closed before any
+  credential reveal or provider mutation. This contract follows Neon's
+  [protected-branch password isolation](https://neon.com/docs/guides/protected-branches)
+  guarantee; live parent protection still must be read-only verified after
+  OAuth is restored and is not inferred from the branch being primary/default.
+- Focused static, runtime-manifest, audit and executable fixture tests pass 25/25,
   including real disposable PostgreSQL fixture creation, collision denial and
   zero-residue teardown. The external provider preparation has not started:
   the local Neon CLI credential disappeared during its earlier refresh/OAuth

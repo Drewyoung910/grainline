@@ -14,6 +14,7 @@ import {
   REVIEWED_PRODUCTION_DEPLOYMENT_ID,
   providerEnvironmentEntries,
   validateDatabaseUrl,
+  validateProductionNeonBoundary,
   validateProviderEvidence,
   validateProviderState,
 } from "../scripts/checkout-stock-reservation-provider-proof-operator.mjs";
@@ -114,6 +115,33 @@ function passingEvidence() {
 }
 
 describe("CheckoutStockReservation provider proof operator", () => {
+  it("requires a protected production parent before any child credential can exist", () => {
+    const project = {
+      id: "icy-unit-96812898",
+      org_id: "org-raspy-frost-18952075",
+      region_id: "azure-westus3",
+    };
+    const production = {
+      current_state: "ready",
+      default: true,
+      id: REVIEWED_PRODUCTION_BRANCH_ID,
+      primary: true,
+      protected: true,
+    };
+    assert.deepEqual(validateProductionNeonBoundary(project, production), {
+      branchId: REVIEWED_PRODUCTION_BRANCH_ID,
+      protected: true,
+    });
+    assert.throws(
+      () => validateProductionNeonBoundary(project, { ...production, protected: false }),
+      /production Neon identity drifted/u,
+    );
+    assert.throws(
+      () => validateProductionNeonBoundary(project, { ...production, protected: undefined }),
+      /production Neon identity drifted/u,
+    );
+  });
+
   it("keeps every runtime variable branch-scoped, sensitive and owner-free", () => {
     const entries = providerEnvironmentEntries(state);
     assert.ok(entries.length >= 20);
@@ -187,6 +215,8 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.match(source, /deployment\.source !== "cli"/);
     assert.doesNotMatch(source, /deployment\.gitSource\?\.sha !== REVIEWED_PRODUCTION_SOURCE_SHA/);
     assert.match(source, /parent_id: REVIEWED_PRODUCTION_BRANCH_ID/);
+    assert.match(source, /production\.protected !== true/);
+    assert.match(source, /branch\.protected !== false/);
     assert.match(source, /expires_at: expiresAt/);
     assert.match(source, /endpoints: \[\{ type: "read_write" \}\]/);
     assert.match(source, /deployment\.target !== null/);

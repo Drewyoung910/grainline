@@ -411,11 +411,7 @@ function revealRolePassword(state, role) {
   return password;
 }
 
-async function verifyProductionBoundaries() {
-  const project = runNeonApi(`/projects/${REVIEWED_NEON_PROJECT_ID}`)?.project;
-  const production = runNeonApi(
-    `/projects/${REVIEWED_NEON_PROJECT_ID}/branches/${REVIEWED_PRODUCTION_BRANCH_ID}`,
-  )?.branch;
+export function validateProductionNeonBoundary(project, production) {
   if (
     project?.id !== REVIEWED_NEON_PROJECT_ID
     || project.org_id !== REVIEWED_NEON_ORG_ID
@@ -423,8 +419,21 @@ async function verifyProductionBoundaries() {
     || production?.id !== REVIEWED_PRODUCTION_BRANCH_ID
     || production.primary !== true
     || production.default !== true
+    || production.protected !== true
     || production.current_state !== "ready"
   ) throw new Error("production Neon identity drifted before disposable preparation");
+  return Object.freeze({
+    branchId: production.id,
+    protected: production.protected,
+  });
+}
+
+async function verifyProductionBoundaries() {
+  const project = runNeonApi(`/projects/${REVIEWED_NEON_PROJECT_ID}`)?.project;
+  const production = runNeonApi(
+    `/projects/${REVIEWED_NEON_PROJECT_ID}/branches/${REVIEWED_PRODUCTION_BRANCH_ID}`,
+  )?.branch;
+  const neon = validateProductionNeonBoundary(project, production);
   const { payload: deployment } = await vercelApi(
     `/v13/deployments/${REVIEWED_PRODUCTION_DEPLOYMENT_ID}`,
   );
@@ -449,6 +458,7 @@ async function verifyProductionBoundaries() {
   return Object.freeze({
     aliases,
     deploymentId: deployment.id,
+    neon,
     providerSource: deployment.source,
     sourceProvenance: "accepted-release-record",
     sourceSha: REVIEWED_PRODUCTION_SOURCE_SHA,
@@ -480,6 +490,7 @@ async function verifyDisposableNeon(state, { requireReady = true } = {}) {
     || branch.parent_id !== REVIEWED_PRODUCTION_BRANCH_ID
     || branch.primary !== false
     || branch.default !== false
+    || branch.protected !== false
     || requireReady && branch.current_state !== "ready"
     || endpoint?.branch_id !== state.neonBranchId
     || endpoint.region_id !== REVIEWED_NEON_REGION_ID

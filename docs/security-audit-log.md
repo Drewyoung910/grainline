@@ -1470,3 +1470,10 @@ Open work:
   after the earlier OAuth refresh attempt; external preparation remains blocked
   until authorization is restored, the old Preview is removed and a read-only
   zero-residue status check passes.
+- The pre-execution credential review found a provider-specific boundary not
+  previously pinned: Neon child branches inherit parent role passwords unless
+  the parent branch is protected. The provider operator now requires exact live
+  `protected=true` on production before child creation and exact
+  `protected=false` on the disposable child. This prevents a Preview-scoped
+  child URL from carrying a password that could authenticate to production.
+  No provider resource or credential was created while correcting this gate.
