@@ -391,6 +391,19 @@ a retry rather than partial active-state anonymization. This safe bounded
 behavior must be tested and documented; an explicit multi-batch operator is a
 later evidence-led decision, not an assumed property.
 
+### OPS-A25: a missing Stripe response is not proof no Session exists
+
+The compatible checkout catch path closed failures after a returned Session,
+but it still inferred that a missing local Session ID meant no external Session
+had been created. Network response loss makes that implication false. The
+application boundary must mark the provider create attempt before calling
+Stripe, use one idempotency key per lock acquisition, and retain stock whenever
+the provider outcome is unknown. A later signed completion may late-bind the
+unbound reservation through the existing fixed operation before completing it;
+stale repair remains the conservative fallback after Session expiry. The exact
+coexistence and made-to-order compatibility contract is in
+`docs/checkout-stock-reservation-app-deployment-audit.md`.
+
 ## Semantic write conversion map
 
 This is the first exact write-authority map. Read projections and aggregate

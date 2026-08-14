@@ -566,3 +566,24 @@ It adds three private helpers and two runtime wrappers for an exact
 table grants or rewrite data. The release verifier, CI ordering, guarded
 production-scope verifier, evidence hashes and remaining sequencing are pinned
 in `docs/checkout-stock-reservation-source-consistency-release.md`.
+
+### CSR-A25: a lost Stripe create response could reopen payable stock
+
+The deployment audit found a narrower interval that CSR-A07/OPS-A18 did not
+close. Both checkout routes learned the Stripe Session ID only after
+`stripe.checkout.sessions.create()` returned. If Stripe created the Session but
+the response was lost, the outer catch saw no local Session ID and treated that
+as proof that the reservation was safe to abort. The external Session could
+still be payable after inventory reopened.
+
+The isolated correction derives a stable bounded Stripe idempotency key from
+the exact Redis lock acquisition and marks Session creation attempted before
+the provider call. Once attempted, an absent returned ID is unknown provider
+state and cannot authorize reservation or lock release. New signed Session
+metadata carries the already-derived payload hash so the platform webhook can
+late-bind an unbound reservation with the existing fixed database function and
+complete it inside the same Order transaction. Older Sessions remain
+compatible, and made-to-order single checkout correctly skips late binding
+because it has no stock-reservation row. The full boundary, availability
+tradeoff and deployment smoke requirements are recorded in
+`docs/checkout-stock-reservation-app-deployment-audit.md`.

@@ -262,6 +262,16 @@ deployment and checkout smoke; predecessor drain; policyless ENABLE plus
 direct-grant revocation; then FORCE. Do not bundle Order, OrderItem, payment,
 payout or shipping activation into this service-ledger release.
 
+The exact deployment-delta audit subsequently found that a Stripe Session may
+be created even when its response never reaches the checkout route. The
+predecessor catch treated the absent returned ID as proof that stock could be
+released. Hold the compatible deployment until the isolated correction proves
+one idempotency key per lock acquisition, pre-call attempt fencing, conservative
+retention for unknown provider state, and signed-webhook late binding inside the
+Order transaction. Older bound Sessions and made-to-order checkout without a
+reservation must remain compatible. The durable decision and smoke matrix are
+in `docs/checkout-stock-reservation-app-deployment-audit.md`.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

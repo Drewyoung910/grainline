@@ -13,6 +13,7 @@ import {
   acquireCheckoutLock,
   cartCheckoutLockKey,
   checkoutPayloadHash,
+  checkoutSessionCreateIdempotencyKey,
   getCheckoutLock,
   markCheckoutLockReady,
   releaseCheckoutLock,
@@ -96,6 +97,7 @@ export async function POST(req: Request) {
   let checkoutLockOwnerToken: string | null = null;
   let createdCheckoutSessionId: string | null = null;
   let createdCheckoutSessionExpired = false;
+  let checkoutSessionCreateAttempted = false;
   let checkoutBuyerId: string | null = null;
   let checkoutPayloadHashValue: string | null = null;
   let checkoutReservationSessionBound = false;
@@ -591,10 +593,12 @@ export async function POST(req: Request) {
       cartSellerCount: String(cartSellerCount),
       multiSellerCheckout: cartSellerCount > 1 ? "true" : "false",
       checkoutLockKey: checkoutLockKeyValue,
+      checkoutPayloadHash: payloadHash,
       ...checkoutStockReservationMetadata(checkoutReservationId, body.checkoutGroupId),
       ...(reservedStockMetadata.length <= 500 ? { reservedStock: reservedStockMetadata } : {}),
     };
 
+    checkoutSessionCreateAttempted = true;
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       redirect_on_completion: "if_required",
@@ -631,6 +635,8 @@ export async function POST(req: Request) {
         statement_descriptor_suffix: csDescriptor,
       },
       metadata: checkoutMetadata,
+    }, {
+      idempotencyKey: checkoutSessionCreateIdempotencyKey(checkoutLockOwnerTokenValue),
     });
     createdCheckoutSessionId = session.id;
 
@@ -774,7 +780,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const reservationCanBeRestored = !createdCheckoutSessionId || createdCheckoutSessionExpired;
+    const reservationCanBeRestored = !checkoutSessionCreateAttempted || createdCheckoutSessionExpired;
     let databaseReservationReleased = !checkoutReservationId;
     if (
       checkoutReservationId &&

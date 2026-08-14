@@ -6,6 +6,7 @@ const {
   checkoutLockCanMarkReady,
   checkoutLockCanRelease,
   checkoutLockCanReleasePreparing,
+  checkoutSessionCreateIdempotencyKey,
 } = await import("../src/lib/checkoutLockState.ts");
 
 function source(path) {
@@ -92,6 +93,17 @@ describe("checkout lock state guards", () => {
       false,
     );
     assert.equal(checkoutLockCanReleasePreparing(null, "owner-a"), false);
+  });
+
+  it("derives a stable, bounded Stripe idempotency key from one lock acquisition", () => {
+    const ownerToken = "123e4567-e89b-42d3-a456-426614174000";
+    const key = checkoutSessionCreateIdempotencyKey(ownerToken);
+    assert.equal(key, `grainline-checkout-session-v1:${ownerToken}`);
+    assert.ok(key.length < 255);
+    assert.throws(
+      () => checkoutSessionCreateIdempotencyKey("not-an-owner-token"),
+      /owner token is invalid/,
+    );
   });
 
   it("hashes checkout lock keys before Sentry telemetry", () => {

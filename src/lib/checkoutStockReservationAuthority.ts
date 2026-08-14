@@ -246,9 +246,9 @@ export async function bindCheckoutStockReservationSession(input: {
   buyerId: string;
   payloadHash: string;
   sessionId: string;
-}) {
+}, client: AuthorityClient = prisma) {
   if (!input.reservationId) return false;
-  const rows = await prisma.$queryRaw<Array<{ result: unknown }>>`
+  const rows = await client.$queryRaw<Array<{ result: unknown }>>`
     SELECT public.grainline_checkout_reservation_bind_session(
       ${input.reservationId},
       ${input.buyerId},

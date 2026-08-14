@@ -1880,6 +1880,8 @@ export async function POST(req: Request) {
             eventId: event.id,
             claimGeneration,
             reservationId: sessionMeta.checkoutReservationId,
+            buyerId: sessionMeta.buyerId,
+            payloadHash: sessionMeta.checkoutPayloadHash,
             sessionId,
           });
 
@@ -2216,6 +2218,8 @@ export async function POST(req: Request) {
             eventId: event.id,
             claimGeneration,
             reservationId: sessionMeta.checkoutReservationId,
+            buyerId: sessionMeta.buyerId,
+            payloadHash: sessionMeta.checkoutPayloadHash,
             sessionId,
           });
 
