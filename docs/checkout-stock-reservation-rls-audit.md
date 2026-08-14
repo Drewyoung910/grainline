@@ -602,3 +602,41 @@ Two compatibility defects were found and closed during promotion:
   variables, retain only sanitized mode-0600 evidence, and remove the Preview,
   branch variables, child database, exact fixtures and local secret state after
   both accepted passes. It does not authorize or alter production.
+
+## Provider operator pre-execution review (2026-08-13)
+
+- The disposable operator persists an exact `creation-attempted` recovery
+  record before asking Neon to create anything, then records the resolved child
+  and endpoint as `neon-created` before it reveals either child password. It
+  waits for both to become ready before revealing credentials. A failure during
+  creation response recovery, readiness or reveal
+  automatically deletes only that recorded child; if automatic deletion itself
+  fails, the mode-`0600` partial state remains and only the separately confirmed
+  abort-cleanup path can consume it. Successful state transitions use exclusive
+  create plus atomic rename and refuse stale `.next` or evidence files.
+- A read-only Vercel API inspection corrected a false source assumption before
+  any mutation. Production deployment
+  `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` is a `READY` CLI production deployment, so
+  Vercel exposes no Git source SHA on that object. The operator therefore proves
+  the exact deployment/project/target/source identity and independently proves
+  both `thegrainline.com` and `www.thegrainline.com` resolve to that same ID.
+  Exact source `69c14c0618ea7ab9c74756422273d17d66db7efa` remains provenance from
+  the accepted release record; it is not misrepresented as provider-attested
+  Git metadata.
+- The operator allows only one 24-hour Neon child under exact production parent
+  `br-hidden-mouse-aaugn2wr`, one read-write endpoint in `azure-westus3`, one
+  automation bypass and sensitive Preview variables scoped only to the exact
+  temporary branch. The runtime receives only the pooled
+  `grainline_app_runtime` child URL; no owner URL or setup/teardown authority is
+  copied to Vercel. Counted slots are one-shot and cleanup validates exact
+  identities before deleting anything.
+- Focused static, runtime-manifest, audit and executable fixture tests pass 23/23,
+  including real disposable PostgreSQL fixture creation, collision denial and
+  zero-residue teardown. The external provider preparation has not started:
+  the local Neon CLI credential disappeared during its earlier refresh/OAuth
+  attempt, so no Neon child, Vercel variable or bypass exists from this operator
+  checkpoint. Exactly one older failed Preview from scaffold commit `835ca226`
+  remains; the deployment-disabled bootstrap and an exact-ID/source-pinned
+  cleanup command prevent it from being confused with the counted Preview.
+  Authorization must be restored before that cleanup, the operator's read-only
+  status check and mutation preflight can pass.

@@ -3,6 +3,7 @@
   "buildCommand": "npm run guard:runtime-db-env && npm run build",
   "git": {
     "deploymentEnabled": {
+      "agent/checkout-stock-reservation-provider-proof-20260813": false,
       "main": false
     }
   },

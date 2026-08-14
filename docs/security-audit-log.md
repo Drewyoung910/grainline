@@ -1445,3 +1445,28 @@ Open work:
   boundary is full CI, disposable PostgreSQL rollback/concurrency proof and an
   exact-candidate provider pool/latency gate, followed by merge, exact-successor
   deploy, fixed-path smoke and predecessor drain—not policyless ENABLE.
+- Exact candidate `8526444e` passed all CI gates in run `31760710656`; its
+  Preview failed only at the expected missing-`DATABASE_URL` deployment guard.
+  The temporary provider branch then added the production-forbidden runner,
+  actual atomic checkout workload, collision-safe fixture lifecycle and a
+  restart-safe provider operator. Focused provider coverage passes 23/23,
+  including real disposable PostgreSQL fixture setup, collision denial and
+  teardown.
+- Pre-execution review found and fixed two operator-only defects before any
+  provider mutation. First, a child creation attempt and password reveal had no
+  durable recovery record; the operator now writes exact mode-`0600` partial
+  state before creation, resolves the exact child, waits for readiness,
+  performs narrowly validated automatic deletion on reveal failure and retains
+  recoverable state if that rollback fails. Second, the current production
+  deployment is a CLI deployment and
+  Vercel exposes no `gitSource.sha`; the operator now checks exact deployment,
+  project, READY/production/CLI state and both canonical aliases, while treating
+  source `69c14c06` as accepted release-record provenance rather than false
+  provider attestation.
+- No Neon child, Vercel branch variable or automation bypass was created during
+  this review. Exactly one older failed Preview from scaffold commit `835ca226`
+  remains and is now pinned for exact cleanup while the branch is explicitly
+  deployment-disabled. The local Neon CLI credential file is currently absent
+  after the earlier OAuth refresh attempt; external preparation remains blocked
+  until authorization is restored, the old Preview is removed and a read-only
+  zero-residue status check passes.
