@@ -1,9 +1,9 @@
 # CheckoutStockReservation source-consistency release
 
-Status: provider-proven additive candidate, wired on an isolated release branch.
-Production is unchanged by this record. This document does not authorize a
-merge, workflow dispatch, migration, deployment, RLS change, predecessor-grant
-revocation or provider mutation.
+Status: additive source-consistency migration live in production; compatible
+application deployment and RLS activation remain separate. This document does
+not authorize a deployment, RLS change, predecessor-grant revocation, cleanup
+or provider mutation.
 
 Date: 2026-08-14
 
@@ -37,6 +37,28 @@ price, item payload or lock identity.
 The migration adds three owner-private helpers and two runtime-executable
 wrappers. The resulting reviewed reservation catalog has 25 functions: 18
 runtime-executable fixed operations and seven owner-private helpers.
+
+## Production application
+
+The guarded Production Migrations workflow applied only
+`20260814053000_prepare_checkout_stock_reservation_source_consistency` on
+2026-08-14. The release was bound to exact main commit
+`16239fce2956c6dc726c24ccd7a91d1ea35463bd`, exact-main CI run
+`31813433933`, and production migration run `31814032227`.
+
+The run passed the byte-sealed release and predecessor checks, the read-only
+restart-scope check, the exact migration application, runtime-function grant
+convergence, Prisma migration status, the global grant/RLS audit, and the
+read-only after-scope proof. Prisma reported 195 migrations and an up-to-date
+schema. The global audit passed for 64 tables, 22 enums, 162 `grainline_*`
+functions, one extension, four RLS policy tables and zero sequence references.
+
+The final scope proof reported `state: source-consistent`, both reviewed
+preparation migrations present, zero reservation activation rows, zero
+reservation FORCE rows, and `productionChangedByProof: false`. This boundary
+did not deploy application code, enable or FORCE RLS, create policies, revoke
+predecessor table authority, clean data or change provider state.
+RLS remains off.
 
 ## Provider proof
 
@@ -92,12 +114,10 @@ drop these functions ad hoc.
 
 ## Remaining sequence
 
-1. Review and merge this exact release package.
-2. Run exact-main CI.
-3. Separately authorize the guarded additive production migration.
-4. Run the actual pooled-runtime postflight.
-5. Deploy the source-consistent application and smoke both checkout paths.
-6. Drain predecessor deployments and prove the legacy creation wrappers are no
+1. Run the actual pooled-runtime postflight against the applied production
+   catalog.
+2. Deploy the source-consistent application and smoke both checkout paths.
+3. Drain predecessor deployments and prove the legacy creation wrappers are no
    longer called.
-7. Prepare policyless ENABLE and direct-grant revocation as a separate release.
-8. Prepare FORCE as a final separate posture release.
+4. Prepare policyless ENABLE and direct-grant revocation as a separate release.
+5. Prepare FORCE as a final separate posture release.

@@ -35,9 +35,9 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 
 Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
-`DirectUploadReference`, `Case`, `CaseMessage`, and
-`CaseMessageAttachment`; all nine tables are `FORCE ROW LEVEL SECURITY`
-hardened in production. DirectUpload and the Case family intentionally use
+`DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`, and
+`StripeWebhookEvent`; all ten tables are `FORCE ROW LEVEL SECURITY` hardened
+in production. DirectUpload, StripeWebhookEvent, and the Case family intentionally use
 policyless RLS with no direct ordinary-runtime table or column authority: all
 permitted behavior goes through reviewed fixed functions. DirectUpload's
 owner, pooled-runtime, and cleanup-role proofs are accepted; its dedicated
@@ -74,8 +74,8 @@ migration environment; owner migration and actual-runtime proof remain
 separate credential boundaries.
 
 `CheckoutStockReservation` is the next service-ledger boundary. Its compatible
-authority migration and fixed-operation application are live while direct
-table grants remain temporarily available to drained predecessor deployments.
+authority and additive source-consistency migrations are live while direct
+table grants remain temporarily available to predecessor deployments.
 Signed completion and restore bind an immutable Stripe source object plus
 claim generation; repair workers use monotonic claims; Redis checkout
 publication uses unique owner tokens. The accepted next candidate closes the
@@ -83,10 +83,13 @@ remaining creation-time source-consistency window: each checkout path calls one
 fixed PostgreSQL statement that locks Cart, CartItem, Listing, variant and
 photo sources, derives the reservation payload in the database and treats the
 application's canonical witness only as a rejection condition. Two fresh
-provider slots passed without weaker thresholds or residue. The additive
-source-consistency migration, app deployment/drain, policyless ENABLE with
-direct-grant revocation, and FORCE remain separate release boundaries. Exact
-bytes, evidence hashes and rollback limits are retained in
+provider slots passed without weaker thresholds or residue. Exact main
+`16239fce2956c6dc726c24ccd7a91d1ea35463bd` and production migration run
+`31814032227` applied the additive migration with the global audit and exact
+scope proof green; RLS remains off. The actual pooled-runtime postflight, app
+deployment/drain, policyless ENABLE with direct-grant revocation, and FORCE
+remain separate release boundaries. Exact bytes, evidence hashes and rollback
+limits are retained in
 `docs/checkout-stock-reservation-source-consistency-release.md`.
 
 ## Core Lifecycles

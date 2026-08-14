@@ -1,12 +1,39 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-07-26
+Last updated: 2026-08-14
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
 For a plain-English map of RLS operators, deploy phases, common fail-closed
 errors, evidence locations, and safe operation without agent context, read
 `docs/rls-operator-guide.md` before preparing or dispatching an RLS migration.
+
+Prepared CheckoutStockReservation source-consistency postflight:
+
+- Production migration run `31814032227`, bound to exact main
+  `16239fce2956c6dc726c24ccd7a91d1ea35463bd` and CI `31813433933`, applied
+  only `20260814053000_prepare_checkout_stock_reservation_source_consistency`.
+  RLS remains off and predecessor direct CRUD remains temporarily compatible.
+- Run `npm run ops:checkout-stock-reservation-source-consistency-postflight`
+  only from its eventual exact clean main release commit after same-commit CI
+  succeeds, with the actual pooled production `DATABASE_URL` and:
+  - `CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_CONFIRM=verify-production-checkout-stock-reservation-source-consistency-runtime-read-only`
+  - `CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_RELEASE_COMMIT=<exact-40-character-main-sha>`
+  - `CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MAIN_CI_RUN_ID=<same-commit-green-main-ci-run-id>`
+  - `CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_MAIN_CI_RUN_ID=31813433933`
+  - `CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_RUN_ID=31814032227`
+  - `CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_EVIDENCE_PATH=<private-directory>/checkout-stock-reservation-source-consistency-production-postflight-<exact-40-character-main-sha>.json`
+- Keep owner/direct URLs and every aliased PostgreSQL URL absent. The operator
+  opens an engine-attested repeatable-read/read-only transaction, requires the
+  actual pooled `grainline_app_runtime` identity, pins the exact 25-function
+  source/mode/owner/ACL catalog and compatible table/schema posture, proves a
+  new private helper is denied, and proves a fixed write reaches PostgreSQL's
+  read-only fence. It creates no synthetic row and writes only a fresh
+  sanitized mode-0600 evidence file.
+- This postflight does not authorize an application deployment, RLS activation,
+  predecessor-grant revocation, cleanup or provider change. Keep the compatible
+  deployment/smoke, drain, policyless ENABLE/grant revocation and FORCE as
+  separate boundaries.
 
 Current Conversation/Message production boundary:
 

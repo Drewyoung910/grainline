@@ -5,18 +5,19 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-  RESERVATION_AUTHORITY_POSTFLIGHT_CONFIRMATION,
-  assertReservationAuthorityPostflightGitState,
-  parseReservationAuthorityPostflightConfig,
-  writeReservationAuthorityPostflightEvidence,
+  RESERVATION_SOURCE_CONSISTENCY_POSTFLIGHT_CONFIRMATION,
+  assertReservationSourceConsistencyPostflightGitState,
+  parseReservationSourceConsistencyPostflightConfig,
+  writeReservationSourceConsistencyPostflightEvidence,
 } from "../scripts/checkout-stock-reservation-authority-production-postflight.mjs";
 import {
-  checkoutStockReservationCandidateFunctionSources,
   checkoutStockReservationFunctionSources,
+  checkoutStockReservationSourceConsistentFunctionSourceSha256,
+  checkoutStockReservationSourceConsistentFunctionSources,
 } from "../scripts/checkout-stock-reservation-function-source-catalog.mjs";
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
-  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 
 const RELEASE_COMMIT = "a".repeat(40);
@@ -26,70 +27,90 @@ const RUNTIME_URL =
 function environment(directory, overrides = {}) {
   return {
     DATABASE_URL: RUNTIME_URL,
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_CONFIRM:
-      RESERVATION_AUTHORITY_POSTFLIGHT_CONFIRMATION,
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_EVIDENCE_PATH: path.join(
+    CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_CONFIRM:
+      RESERVATION_SOURCE_CONSISTENCY_POSTFLIGHT_CONFIRMATION,
+    CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_EVIDENCE_PATH: path.join(
       directory,
-      `checkout-stock-reservation-authority-production-postflight-${RELEASE_COMMIT}.json`,
+      `checkout-stock-reservation-source-consistency-production-postflight-${RELEASE_COMMIT}.json`,
     ),
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_INSPECTION_RUN_ID: "31740000001",
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_MAIN_CI_RUN_ID: "31740000002",
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_MIGRATION_RUN_ID: "31740000003",
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_RELEASE_COMMIT: RELEASE_COMMIT,
+    CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MAIN_CI_RUN_ID: "31820000001",
+    CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_MAIN_CI_RUN_ID:
+      "31813433933",
+    CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_RUN_ID: "31814032227",
+    CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_RELEASE_COMMIT: RELEASE_COMMIT,
     ...overrides,
   };
 }
 
-test("compatible postflight accepts only pooled runtime and exact bindings", () => {
+test("source-consistency postflight accepts only pooled runtime and exact bindings", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "reservation-authority-postflight-"));
   try {
-    const parsed = parseReservationAuthorityPostflightConfig(environment(directory));
+    const parsed = parseReservationSourceConsistencyPostflightConfig(
+      environment(directory),
+    );
     assert.equal(parsed.releaseCommit, RELEASE_COMMIT);
     assert.equal(parsed.runtimeIdentity.runtimeRole, "grainline_app_runtime");
-    assert.equal(parsed.inspectionRunId, 31740000001);
+    assert.equal(parsed.mainCiRunId, 31820000001);
+    assert.equal(parsed.migrationMainCiRunId, 31813433933);
+    assert.equal(parsed.migrationRunId, 31814032227);
     for (const drift of [
-      { CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_CONFIRM: "yes" },
-      { CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_RELEASE_COMMIT: "short" },
-      { CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_INSPECTION_RUN_ID: "0" },
-      { CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_MAIN_CI_RUN_ID: "bad" },
+      { CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_CONFIRM: "yes" },
+      { CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_RELEASE_COMMIT: "short" },
+      { CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MAIN_CI_RUN_ID: "0" },
+      {
+        CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_MAIN_CI_RUN_ID:
+          "bad",
+      },
+      { CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_RUN_ID: "0" },
       { DATABASE_URL: RUNTIME_URL.replace("grainline_app_runtime", "neondb_owner") },
       { DATABASE_URL: RUNTIME_URL.replace("-pooler", "") },
       { DIRECT_URL: "present" },
       { OTHER_DATABASE_URL: RUNTIME_URL },
       { NODE_TLS_REJECT_UNAUTHORIZED: "0" },
       { PGOPTIONS: "-c row_security=off" },
-      { CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_EVIDENCE_PATH: "/tmp/wrong.json" },
+      { CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_EVIDENCE_PATH: "/tmp/wrong.json" },
     ]) {
-      assert.throws(() => parseReservationAuthorityPostflightConfig(
+      assert.throws(() => parseReservationSourceConsistencyPostflightConfig(
         environment(directory, drift),
       ));
     }
+    const unsafeDirectory = path.join(directory, "unsafe-evidence");
+    fs.mkdirSync(unsafeDirectory, { mode: 0o755 });
+    fs.chmodSync(unsafeDirectory, 0o755);
+    assert.throws(() => parseReservationSourceConsistencyPostflightConfig(
+      environment(directory, {
+        CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_EVIDENCE_PATH: path.join(
+          unsafeDirectory,
+          `checkout-stock-reservation-source-consistency-production-postflight-${RELEASE_COMMIT}.json`,
+        ),
+      }),
+    ));
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("compatible postflight binds exact clean source and writes evidence once", () => {
+test("source-consistency postflight binds exact clean source and writes evidence once", () => {
   assert.deepEqual(
-    assertReservationAuthorityPostflightGitState(
+    assertReservationSourceConsistencyPostflightGitState(
       { head: RELEASE_COMMIT, status: "" },
       RELEASE_COMMIT,
     ),
     { clean: true, head: RELEASE_COMMIT },
   );
-  assert.throws(() => assertReservationAuthorityPostflightGitState(
+  assert.throws(() => assertReservationSourceConsistencyPostflightGitState(
     { head: RELEASE_COMMIT, status: "?? residue" },
     RELEASE_COMMIT,
   ));
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "reservation-authority-evidence-"));
   try {
     const pathname = path.join(directory, "evidence.json");
-    writeReservationAuthorityPostflightEvidence(pathname, {
+    writeReservationSourceConsistencyPostflightEvidence(pathname, {
       status: "passed",
       productionChangedByPostflight: false,
     });
     assert.equal(fs.statSync(pathname).mode & 0o777, 0o600);
-    assert.throws(() => writeReservationAuthorityPostflightEvidence(pathname, {}), {
+    assert.throws(() => writeReservationSourceConsistencyPostflightEvidence(pathname, {}), {
       code: "EEXIST",
     });
   } finally {
@@ -100,23 +121,29 @@ test("compatible postflight binds exact clean source and writes evidence once", 
 test("function source catalog extracts every applied compatible body", () => {
   assert.equal(
     Object.keys(checkoutStockReservationFunctionSources()).length,
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+    CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS.length,
   );
 });
 
-test("candidate source catalog adds only the five reviewed draft bodies", () => {
+test("source-consistent catalog adds only the five reviewed successor bodies", () => {
   assert.equal(
-    Object.keys(checkoutStockReservationCandidateFunctionSources()).length,
-    CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length,
+    Object.keys(checkoutStockReservationSourceConsistentFunctionSources()).length,
+    CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS.length,
   );
   assert.equal(
-    CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
-      - CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+    CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS.length
+      - CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS.length,
     5,
   );
+  assert.equal(
+    Object.keys(
+      checkoutStockReservationSourceConsistentFunctionSourceSha256(),
+    ).length,
+    CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS.length,
+  );
 });
 
-test("postflight proves compatible catalog and behavior in one read-only snapshot", () => {
+test("postflight proves source-consistent catalog and behavior in one read-only snapshot", () => {
   const source = fs.readFileSync(
     "scripts/checkout-stock-reservation-authority-production-postflight.mjs",
     "utf8",
@@ -130,12 +157,18 @@ test("postflight proves compatible catalog and behavior in one read-only snapsho
   assert.match(source, /rls_enabled: false/);
   assert.match(source, /FROM unnest\(\$1::text\[\], \$2::text\[\]\)/);
   assert.match(source, /oidvectortypes\(procedure\.proargtypes\)/);
-  assert.match(source, /checkoutStockReservationFunctionSourceSha256/);
   assert.match(source, /actual_function_count/);
   assert.match(source, /pg_get_constraintdef/);
   assert.match(source, /FROM pg_catalog\.pg_attribute/);
   assert.doesNotMatch(source, /information_schema\.columns/);
-  assert.match(source, /private helper execution/);
+  assert.match(source, /source-consistency private helper execution/);
+  assert.match(source, /CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS/);
+  assert.match(
+    source,
+    /checkoutStockReservationSourceConsistentFunctionSourceSha256/,
+  );
+  assert.match(source, /functionCount: 25/);
+  assert.match(source, /migrationMainCiRunId/);
   assert.match(source, /fixed write read-only fence/);
   assert.match(source, /"25006"/);
   assert.doesNotMatch(source, /SET\s+(?:LOCAL\s+)?ROLE/i);
@@ -147,7 +180,15 @@ test("postflight proves compatible catalog and behavior in one read-only snapsho
   assert.match(source, /productionChangedByPostflight: false/);
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
   assert.equal(
-    pkg.scripts["ops:checkout-stock-reservation-authority-postflight"],
+    pkg.scripts["ops:checkout-stock-reservation-source-consistency-postflight"],
     "node scripts/checkout-stock-reservation-authority-production-postflight.mjs",
   );
+  assert.equal(pkg.scripts["ops:checkout-stock-reservation-authority-postflight"], undefined);
+
+  const runbook = fs.readFileSync("docs/runbook.md", "utf8");
+  assert.match(runbook, /ops:checkout-stock-reservation-source-consistency-postflight/u);
+  assert.match(runbook, /CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_CONFIRM/u);
+  assert.match(runbook, /CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_MAIN_CI_RUN_ID=31813433933/u);
+  assert.match(runbook, /CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_RUN_ID=31814032227/u);
+  assert.match(runbook, /exact 25-function/u);
 });
