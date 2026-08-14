@@ -4,8 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
-  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -67,7 +67,7 @@ export function checkoutStockReservationFunctionSources(rootDir = ROOT_DIR) {
   return functionSources(
     rootDir,
     [AUTHORITY_MIGRATION],
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+    CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
   );
 }
 
@@ -75,17 +75,41 @@ export function checkoutStockReservationCandidateFunctionSources(rootDir = ROOT_
   return functionSources(
     rootDir,
     CANDIDATE_SOURCES,
-    CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
+    CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS,
   );
 }
 
-export function checkoutStockReservationFunctionSourceSha256(rootDir = ROOT_DIR) {
+export function checkoutStockReservationSourceConsistentFunctionSources(
+  rootDir = ROOT_DIR,
+) {
+  return checkoutStockReservationCandidateFunctionSources(rootDir);
+}
+
+function sourceSha256(sources) {
   return Object.freeze(Object.fromEntries(
-    Object.entries(checkoutStockReservationFunctionSources(rootDir)).map(
+    Object.entries(sources).map(
       ([signature, source]) => [
         signature,
         createHash("sha256").update(source, "utf8").digest("hex"),
       ],
     ),
   ));
+}
+
+export function checkoutStockReservationFunctionSourceSha256(rootDir = ROOT_DIR) {
+  return sourceSha256(checkoutStockReservationFunctionSources(rootDir));
+}
+
+export function checkoutStockReservationCandidateFunctionSourceSha256(
+  rootDir = ROOT_DIR,
+) {
+  return sourceSha256(checkoutStockReservationCandidateFunctionSources(rootDir));
+}
+
+export function checkoutStockReservationSourceConsistentFunctionSourceSha256(
+  rootDir = ROOT_DIR,
+) {
+  return sourceSha256(
+    checkoutStockReservationSourceConsistentFunctionSources(rootDir),
+  );
 }

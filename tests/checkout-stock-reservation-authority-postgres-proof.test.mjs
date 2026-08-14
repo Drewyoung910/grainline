@@ -13,7 +13,7 @@ import {
 } from "../scripts/stripe-webhook-event-function-source-catalog.mjs";
 import {
   verifyReservationAuthorityRuntimeIdentity,
-  verifyReservationCompatibleFunctionCatalog,
+  verifyReservationSourceConsistentFunctionCatalog,
   verifyReservationCompatibleSchema,
   verifyReservationCompatibleTablePosture,
 } from "../scripts/checkout-stock-reservation-authority-production-postflight.mjs";
@@ -719,7 +719,7 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
     await db.exec(`UPDATE public."CartItem" SET "priceCents" = 11000 WHERE id = 'source-cart-item'`);
   });
 
-  it("executes production-compatible readers and rejects the applied-only function catalog after candidate installation", async () => {
+  it("proves the source-consistent function catalog through the runtime role", async () => {
     await db.exec("SET ROLE grainline_app_runtime");
     try {
       await db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -737,12 +737,7 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       }, "ci", "postgres");
       await verifyReservationCompatibleTablePosture(db, "ci");
       await verifyReservationCompatibleSchema(db);
-      await assert.rejects(
-        verifyReservationCompatibleFunctionCatalog(db, "ci"),
-        (error) => error instanceof assert.AssertionError
-          && error.actual === CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
-          && error.expected === CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS.length,
-      );
+      await verifyReservationSourceConsistentFunctionCatalog(db, "ci");
       const direct = await db.query(`
         SELECT pg_catalog.count(*)::integer AS count
           FROM public."CheckoutStockReservation"

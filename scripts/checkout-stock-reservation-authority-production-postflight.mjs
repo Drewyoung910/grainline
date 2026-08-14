@@ -26,20 +26,20 @@ import {
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 import {
-  checkoutStockReservationFunctionSourceSha256,
+  checkoutStockReservationSourceConsistentFunctionSourceSha256,
 } from "./checkout-stock-reservation-function-source-catalog.mjs";
 
 const { Client } = pg;
-export const RESERVATION_AUTHORITY_POSTFLIGHT_CONFIRMATION =
-  "verify-production-checkout-stock-reservation-authority-runtime-read-only";
+export const RESERVATION_SOURCE_CONSISTENCY_POSTFLIGHT_CONFIRMATION =
+  "verify-production-checkout-stock-reservation-source-consistency-runtime-read-only";
 const MIGRATION_ROLE = "neondb_owner";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/;
 const SAFE_POSITIVE_INTEGER = /^[1-9][0-9]{0,19}$/;
 const EVIDENCE_PREFIX =
-  "checkout-stock-reservation-authority-production-postflight-";
+  "checkout-stock-reservation-source-consistency-production-postflight-";
 
 const TARGET_CONSTRAINTS = Object.freeze([
   "CheckoutStockReservation_payloadHash_check",
@@ -77,25 +77,27 @@ function positiveInteger(env, key) {
   return value;
 }
 
-export function parseReservationAuthorityPostflightConfig(env = process.env) {
+export function parseReservationSourceConsistencyPostflightConfig(
+  env = process.env,
+) {
   assertDeterministicPostgresEnvironment(
     env,
-    "CheckoutStockReservation compatible authority production postflight",
+    "CheckoutStockReservation source-consistency production postflight",
   );
   if (
-    env.CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_CONFIRM
-      !== RESERVATION_AUTHORITY_POSTFLIGHT_CONFIRMATION
+    env.CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_CONFIRM
+      !== RESERVATION_SOURCE_CONSISTENCY_POSTFLIGHT_CONFIRMATION
   ) {
-    throw new Error("reservation authority postflight confirmation is invalid");
+    throw new Error("reservation source-consistency postflight confirmation is invalid");
   }
   const privilegedKeys = privilegedDatabaseEnvironmentKeys(env);
   const unreviewedKeys = unreviewedPostgresUrlEnvironmentKeys(env);
   if (privilegedKeys.length > 0 || unreviewedKeys.length > 0) {
-    throw new Error("reservation authority postflight rejects privileged or aliased database keys");
+    throw new Error("reservation source-consistency postflight rejects privileged or aliased database keys");
   }
   const releaseCommit = required(
     env,
-    "CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_RELEASE_COMMIT",
+    "CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_RELEASE_COMMIT",
   );
   if (!COMMIT_PATTERN.test(releaseCommit)) throw new Error("release commit is invalid");
   const databaseUrl = required(env, "DATABASE_URL");
@@ -109,36 +111,48 @@ export function parseReservationAuthorityPostflightConfig(env = process.env) {
   });
   const evidencePath = path.resolve(required(
     env,
-    "CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_EVIDENCE_PATH",
+    "CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_EVIDENCE_PATH",
   ));
   if (
     path.basename(evidencePath) !== `${EVIDENCE_PREFIX}${releaseCommit}.json`
     || existsSync(evidencePath)
   ) {
-    throw new Error("reservation authority evidence path is not fresh and exact");
+    throw new Error("reservation source-consistency evidence path is not fresh and exact");
+  }
+  const evidenceParent = lstatSync(path.dirname(evidencePath));
+  if (
+    !evidenceParent.isDirectory()
+    || evidenceParent.isSymbolicLink()
+    || (evidenceParent.mode & 0o077) !== 0
+  ) {
+    throw new Error(
+      "reservation source-consistency evidence parent must be a private directory",
+    );
   }
   return Object.freeze({
     databaseUrl,
     databaseUrlSha256: createHash("sha256").update(databaseUrl).digest("hex"),
     evidencePath,
-    inspectionRunId: positiveInteger(
-      env,
-      "CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_INSPECTION_RUN_ID",
-    ),
     mainCiRunId: positiveInteger(
       env,
-      "CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_MAIN_CI_RUN_ID",
+      "CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MAIN_CI_RUN_ID",
+    ),
+    migrationMainCiRunId: positiveInteger(
+      env,
+      "CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_MAIN_CI_RUN_ID",
     ),
     migrationRunId: positiveInteger(
       env,
-      "CHECKOUT_STOCK_RESERVATION_AUTHORITY_POSTFLIGHT_MIGRATION_RUN_ID",
+      "CHECKOUT_STOCK_RESERVATION_SOURCE_POSTFLIGHT_MIGRATION_RUN_ID",
     ),
     releaseCommit,
     runtimeIdentity,
   });
 }
 
-export function readReservationAuthorityPostflightGitState(cwd = process.cwd()) {
+export function readReservationSourceConsistencyPostflightGitState(
+  cwd = process.cwd(),
+) {
   const run = (args) => execFileSync("git", args, {
     cwd,
     encoding: "utf8",
@@ -150,9 +164,14 @@ export function readReservationAuthorityPostflightGitState(cwd = process.cwd()) 
   });
 }
 
-export function assertReservationAuthorityPostflightGitState(state, releaseCommit) {
+export function assertReservationSourceConsistencyPostflightGitState(
+  state,
+  releaseCommit,
+) {
   if (state?.head !== releaseCommit || state.status !== "") {
-    throw new Error("reservation authority postflight requires the exact clean release commit");
+    throw new Error(
+      "reservation source-consistency postflight requires the exact clean release commit",
+    );
   }
   return Object.freeze({ clean: true, head: state.head });
 }
@@ -397,12 +416,14 @@ export async function verifyReservationCompatibleSchema(client) {
   }]);
 }
 
-export async function verifyReservationCompatibleFunctionCatalog(
+export async function verifyReservationSourceConsistentFunctionCatalog(
   client,
   migrationRole = MIGRATION_ROLE,
 ) {
-  const names = CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map((entry) => entry.name);
-  const args = CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map((entry) => entry.argumentTypes);
+  const names = CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS
+    .map((entry) => entry.name);
+  const args = CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS
+    .map((entry) => entry.argumentTypes);
   const result = await client.query(`
     WITH expected(function_name, identity_arguments) AS (
       SELECT * FROM unnest($1::text[], $2::text[])
@@ -457,12 +478,16 @@ export async function verifyReservationCompatibleFunctionCatalog(
      WHERE namespace.nspname = 'public'
      ORDER BY procedure.proname, identity_arguments
   `, [names, args]);
-  assert.equal(result.rows.length, CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length);
-  const expected = new Map(CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map((entry) => [
+  assert.equal(
+    result.rows.length,
+    CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS.length,
+  );
+  const expected = new Map(CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS.map((entry) => [
     `${entry.name}(${entry.argumentTypes})`,
     entry,
   ]));
-  const sourceHashes = checkoutStockReservationFunctionSourceSha256();
+  const sourceHashes =
+    checkoutStockReservationSourceConsistentFunctionSourceSha256();
   for (const row of result.rows) {
     const signature = `${row.function_name}(${row.identity_arguments})`;
     const contract = expected.get(signature);
@@ -480,7 +505,7 @@ export async function verifyReservationCompatibleFunctionCatalog(
     assert.equal(row.invalid_acl_count, 0, signature);
     assert.equal(
       row.actual_function_count,
-      CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+      CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS.length,
       signature,
     );
     assert.equal(
@@ -491,14 +516,14 @@ export async function verifyReservationCompatibleFunctionCatalog(
   }
 }
 
-export async function runReservationAuthorityPostflight(config) {
-  const git = assertReservationAuthorityPostflightGitState(
-    readReservationAuthorityPostflightGitState(),
+export async function runReservationSourceConsistencyPostflight(config) {
+  const git = assertReservationSourceConsistencyPostflightGitState(
+    readReservationSourceConsistencyPostflightGitState(),
     config.releaseCommit,
   );
   const client = new Client({
     connectionString: config.databaseUrl,
-    application_name: "grainline-reservation-authority-postflight",
+    application_name: "grainline-reservation-source-consistency-postflight",
     connectionTimeoutMillis: 10_000,
     statement_timeout: 30_000,
     query_timeout: 35_000,
@@ -517,7 +542,7 @@ export async function runReservationAuthorityPostflight(config) {
     await verifyReservationAuthorityRuntimeIdentity(client, config.runtimeIdentity);
     await verifyReservationCompatibleTablePosture(client);
     await verifyReservationCompatibleSchema(client);
-    await verifyReservationCompatibleFunctionCatalog(client);
+    await verifyReservationSourceConsistentFunctionCatalog(client);
     const directRead = await client.query(`
       SELECT pg_catalog.count(*)::integer AS count
         FROM public."CheckoutStockReservation"
@@ -532,9 +557,13 @@ export async function runReservationAuthorityPostflight(config) {
     assert.deepEqual(fixedRead.rows, [{ count: 0 }]);
     await expectSqlState(
       client,
-      () => client.query(`SELECT public.grainline_checkout_reservation_restore_items('[]'::jsonb)`),
+      () => client.query(`
+        SELECT public.grainline_checkout_reservation_seller_witness(
+          'grainline-source-consistency-postflight-absent-seller'
+        )
+      `),
       "42501",
-      "private helper execution",
+      "source-consistency private helper execution",
     );
     await expectSqlState(
       client,
@@ -546,7 +575,7 @@ export async function runReservationAuthorityPostflight(config) {
     open = false;
     const evidence = Object.freeze({
       schemaVersion: 1,
-      operation: "checkout-stock-reservation-authority-production-postflight",
+      operation: "checkout-stock-reservation-source-consistency-production-postflight",
       source: Object.freeze({ clean: git.clean, commit: git.head }),
       target: Object.freeze({
         databaseName: config.runtimeIdentity.databaseName,
@@ -556,12 +585,12 @@ export async function runReservationAuthorityPostflight(config) {
         role: config.runtimeIdentity.runtimeRole,
       }),
       runs: Object.freeze({
-        inspectionRunId: config.inspectionRunId,
         mainCiRunId: config.mainCiRunId,
+        migrationMainCiRunId: config.migrationMainCiRunId,
         migrationRunId: config.migrationRunId,
       }),
       proof: Object.freeze({
-        functionCount: 20,
+        functionCount: 25,
         policyCount: 0,
         predecessorCrudRetained: true,
         reservationCount: directRead.rows[0].count,
@@ -572,10 +601,10 @@ export async function runReservationAuthorityPostflight(config) {
           "actual_pooled_runtime_role_identity",
           "compatible_predecessor_crud_and_policyless_rls_off_posture",
           "exact_columns_constraints_indexes_and_trigger",
-          "exact_twenty_function_source_mode_owner_and_acl_catalog",
+          "exact_twenty_five_function_source_mode_owner_and_acl_catalog",
           "direct_aggregate_read_compatible",
           "fixed_export_succeeds",
-          "private_helper_execution_denied",
+          "source_consistency_private_helper_execution_denied",
           "fixed_write_reaches_read_only_fence",
         ]),
       }),
@@ -583,7 +612,7 @@ export async function runReservationAuthorityPostflight(config) {
       productionChangedByPostflight: false,
       status: "passed",
     });
-    writeReservationAuthorityPostflightEvidence(config.evidencePath, evidence);
+    writeReservationSourceConsistencyPostflightEvidence(config.evidencePath, evidence);
     return evidence;
   } finally {
     if (open) await client.query("ROLLBACK").catch(() => {});
@@ -591,7 +620,10 @@ export async function runReservationAuthorityPostflight(config) {
   }
 }
 
-export function writeReservationAuthorityPostflightEvidence(pathname, evidence) {
+export function writeReservationSourceConsistencyPostflightEvidence(
+  pathname,
+  evidence,
+) {
   const descriptor = openSync(pathname, "wx", 0o600);
   try {
     writeFileSync(descriptor, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
@@ -602,14 +634,14 @@ export function writeReservationAuthorityPostflightEvidence(pathname, evidence) 
   chmodSync(pathname, 0o600);
   const stat = lstatSync(pathname);
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o600) {
-    throw new Error("reservation authority evidence is not mode 0600");
+    throw new Error("reservation source-consistency evidence is not mode 0600");
   }
 }
 
 async function main() {
   try {
-    const evidence = await runReservationAuthorityPostflight(
-      parseReservationAuthorityPostflightConfig(),
+    const evidence = await runReservationSourceConsistencyPostflight(
+      parseReservationSourceConsistencyPostflightConfig(),
     );
     process.stdout.write(`${JSON.stringify({
       status: evidence.status,
@@ -617,7 +649,7 @@ async function main() {
       postflightReadOnly: evidence.productionChangedByPostflight === false,
     })}\n`);
   } catch (error) {
-    process.stderr.write(`reservation authority production postflight failed: ${
+    process.stderr.write(`reservation source-consistency production postflight failed: ${
       error instanceof Error ? error.message : "unknown error"
     }\n`);
     process.exitCode = 1;
