@@ -682,12 +682,19 @@ async function assertExpiredAndRestored({ owner, redis, state, stripe, sessionId
   if (reservationExpected) {
     await assertReservation(owner, state, sessionId, "RESTORED");
   } else {
-    const count = await owner.query(`
-      SELECT pg_catalog.count(*)::integer AS count
-        FROM public."CheckoutStockReservation"
-       WHERE "stripeSessionId" = $1
+    const legacyState = await owner.query(`
+      SELECT
+        (SELECT pg_catalog.count(*)::integer
+           FROM public."CheckoutStockReservation"
+          WHERE "stripeSessionId" = $1) AS reservations,
+        (SELECT pg_catalog.count(*)::integer
+           FROM public."StripeWebhookEvent"
+          WHERE id = 'checkout-stock-restore:' || $1::text
+            AND type = 'checkout.session.stock_restored'
+            AND "processedAt" IS NOT NULL
+            AND "lastError" IS NULL) AS legacy_restore_claims
     `, [sessionId]);
-    assert.deepEqual(count.rows, [{ count: 0 }]);
+    assert.deepEqual(legacyState.rows, [{ reservations: 0, legacy_restore_claims: 1 }]);
   }
 }
 
@@ -948,6 +955,7 @@ export function sanitizedEvidence({ cleanup: cleanupResult, config, result, stag
     expectedRetainedProviderEvidence: {
       expiredStripeTestCheckoutSessions: result?.checkoutSessionsCreated ?? 0,
       processedStripeExpiryLedgerRows: result?.signedExpiryDeliveries ?? 0,
+      processedLegacyStockRestoreClaims: result?.legacyStockRestoreClaims ?? 0,
     },
     failureStage: status === "failed" ? stage : null,
     secretsRetained: false,
@@ -1114,18 +1122,33 @@ async function runOperator() {
 
     stage = "signed-expiry-ledger";
     const signedExpiryDeliveries = await waitForSignedExpiry(owner, state.sessions.map((entry) => entry.id));
+    const legacyRestoreClaimIds = state.sessions
+      .filter((entry) => entry.kind === "single-made-to-order")
+      .map((entry) => `checkout-stock-restore:${entry.id}`);
     const final = await owner.query(`
       SELECT
         (SELECT "stockQuantity" FROM public."Listing" WHERE id = $1) AS stock,
         (SELECT pg_catalog.count(*)::integer FROM public."Order" WHERE "buyerId" = $2) AS orders,
         (SELECT pg_catalog.count(*)::integer
            FROM public."CheckoutStockReservation"
-          WHERE id = ANY($3::text[]) AND status = 'RESTORED') AS restored_reservations
-    `, [state.listingIds.inStock, state.buyerId, state.reservationIds]);
+          WHERE id = ANY($3::text[]) AND status = 'RESTORED') AS restored_reservations,
+        (SELECT pg_catalog.count(*)::integer
+           FROM public."StripeWebhookEvent"
+          WHERE id = ANY($4::text[])
+            AND type = 'checkout.session.stock_restored'
+            AND "processedAt" IS NOT NULL
+            AND "lastError" IS NULL) AS legacy_restore_claims
+    `, [
+      state.listingIds.inStock,
+      state.buyerId,
+      state.reservationIds,
+      legacyRestoreClaimIds,
+    ]);
     if (
       final.rows[0]?.stock !== FIXTURE_STOCK
       || final.rows[0]?.orders !== 0
       || final.rows[0]?.restored_reservations !== 2
+      || final.rows[0]?.legacy_restore_claims !== 1
     ) {
       throw new Error("checkout smoke final database state drifted");
     }
@@ -1139,6 +1162,7 @@ async function runOperator() {
       cartInStockPassed: true,
       cartResumePassed: true,
       rollbackAndStockRestorePassed: true,
+      legacyStockRestoreClaims: final.rows[0].legacy_restore_claims,
       crossOriginDenied: true,
       signedExpiryDeliveries,
       paidCompletionExercised: false,

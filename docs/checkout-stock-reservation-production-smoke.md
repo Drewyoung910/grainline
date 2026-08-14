@@ -32,7 +32,11 @@ does not edit seller configuration or inventory on a real listing.
 - exact Stripe test-mode session expiry, reservation restoration, stock return,
   Redis lock release and zero Order creation; and
 - receipt and processing of the three real signed
-  `checkout.session.expired` deliveries in the production webhook ledger.
+  `checkout.session.expired` deliveries in the production webhook ledger;
+- exactly one processed `checkout.session.stock_restored` synthetic claim for
+  the made-to-order session, which has no fixed stock reservation. This durable
+  idempotency row prevents the later signed expiry delivery from falling back
+  through the predecessor restore path a second time.
 
 This is intentionally not a paid-completion test. A genuine paid completion
 would create a charge, Order, notifications, emails and other durable business
@@ -61,8 +65,9 @@ decision. This production smoke must not claim that narrower test happened.
   canary sessions. It never deletes a terminal reservation before signed
   expiry processing, preventing a late event from falling through to the
   predecessor restore path.
-- Stripe Checkout Sessions and their processed StripeWebhookEvent rows remain
-  as expected immutable provider/audit evidence. The final mode-`0600`
+- Stripe Checkout Sessions, three signed expiry ledger rows and the one
+  synthetic made-to-order restore claim remain as expected immutable
+  provider/audit and idempotency evidence. The final mode-`0600`
   evidence contains counts and booleans only—no credentials, Clerk/database
   identifiers, session IDs, listing IDs or Redis keys.
 

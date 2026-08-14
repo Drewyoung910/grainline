@@ -94,6 +94,8 @@ test("operator is exact-fixture, test-mode, restart-cleanable and non-activating
   assert.match(source, /grainline_checkout_reservation_buyer_expired_restore/);
   assert.match(source, /grainline_checkout_reservation_checkout_abort/);
   assert.match(source, /checkout\.session\.expired/);
+  assert.match(source, /checkout\.session\.stock_restored/);
+  assert.match(source, /legacy_restore_claims !== 1/);
   assert.match(source, /expectedRetainedProviderEvidence/);
   assert.match(source, /paidCompletionExercised: false/);
   assert.match(
@@ -126,6 +128,7 @@ test("sanitized evidence retains counts and boundaries but no fixture identifier
     result: {
       checkoutSessionsCreated: 3,
       signedExpiryDeliveries: 3,
+      legacyStockRestoreClaims: 1,
       paidCompletionExercised: false,
     },
     stage: "cleanup",
@@ -133,6 +136,8 @@ test("sanitized evidence retains counts and boundaries but no fixture identifier
   });
   const serialized = JSON.stringify(evidence);
   assert.equal(evidence.expectedRetainedProviderEvidence.expiredStripeTestCheckoutSessions, 3);
+  assert.equal(evidence.expectedRetainedProviderEvidence.processedStripeExpiryLedgerRows, 3);
+  assert.equal(evidence.expectedRetainedProviderEvidence.processedLegacyStockRestoreClaims, 1);
   assert.equal(evidence.result.paidCompletionExercised, false);
   assert.doesNotMatch(serialized, /buyer-|seller-|listing-|cart-|cs_test_/);
 });
