@@ -27,7 +27,13 @@ import {
   bindCheckoutStockReservationSession,
   createSingleCheckoutStockReservation,
   isCheckoutStockUnavailableDatabaseError,
+  lockCheckoutReservationSellerSource,
 } from "@/lib/checkoutStockReservationAuthority";
+import {
+  checkoutReservationInventorySourceMatches,
+  CheckoutReservationSourceChangedError,
+  singleCheckoutReservationSourceSignature,
+} from "@/lib/checkoutReservationSourceState";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
@@ -134,9 +140,10 @@ export async function POST(req: Request) {
     const listing = await prisma.listing.findUnique({
       where: { id: body.listingId },
       include: {
-        photos: true,
+        photos: { orderBy: { sortOrder: "asc" } },
         seller: {
           select: {
+            id: true,
             userId: true,
             displayName: true,
             stripeAccountId: true,
@@ -401,16 +408,91 @@ export async function POST(req: Request) {
         }]
       : [];
     checkoutReservationItemCount = reservableItems.length;
+    const pricedSourceSignature = singleCheckoutReservationSourceSignature(
+      me.id,
+      listing,
+      body.quantity,
+      body.selectedVariantOptionIds,
+    );
+    if (!pricedSourceSignature) {
+      await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      return privateJson(
+        { error: "This listing changed while checkout was starting. Review it and try again." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    }
+    let reservation: Awaited<ReturnType<typeof createSingleCheckoutStockReservation>>;
     try {
-      const reservation = await createSingleCheckoutStockReservation({
-        listingId: listing.id,
-        quantity: body.quantity,
-        payloadHash,
-        buyerId: me.id,
+      reservation = await prisma.$transaction(async (tx) => {
+        const created = await createSingleCheckoutStockReservation({
+          listingId: listing.id,
+          quantity: body.quantity,
+          payloadHash,
+          buyerId: me.id,
+        }, tx);
+        await lockCheckoutReservationSellerSource(tx, listing.sellerId);
+        const lockedListing = await tx.listing.findUnique({
+          where: { id: listing.id },
+          include: {
+            photos: { orderBy: { sortOrder: "asc" } },
+            seller: {
+              select: {
+                id: true,
+                userId: true,
+                displayName: true,
+                stripeAccountId: true,
+                stripeAccountVersion: true,
+                chargesEnabled: true,
+                vacationMode: true,
+                acceptingNewOrders: true,
+                allowLocalPickup: true,
+                offersGiftWrapping: true,
+                giftWrappingPriceCents: true,
+                defaultPkgWeightGrams: true,
+                defaultPkgLengthCm: true,
+                defaultPkgWidthCm: true,
+                defaultPkgHeightCm: true,
+                user: { select: { banned: true, deletedAt: true } },
+              },
+            },
+            variantGroups: { include: { options: true } },
+          },
+        });
+        const lockedSourceSignature = lockedListing
+          ? singleCheckoutReservationSourceSignature(
+              me.id,
+              lockedListing,
+              body.quantity,
+              body.selectedVariantOptionIds,
+            )
+          : null;
+        const expectsReservation = lockedListing?.listingType === "IN_STOCK";
+        const lockedInventoryItems = lockedListing?.listingType === "IN_STOCK"
+          ? [{ listingId: lockedListing.id, sellerId: lockedListing.sellerId, quantity: body.quantity }]
+          : [];
+        if (
+          lockedSourceSignature !== pricedSourceSignature ||
+          Boolean(created) !== expectsReservation ||
+          !checkoutReservationInventorySourceMatches(created?.reservedItems ?? [], lockedInventoryItems)
+        ) {
+          throw new CheckoutReservationSourceChangedError();
+        }
+        return created;
       });
       checkoutReservationId = reservation?.id ?? null;
     } catch (reservationError) {
       await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      if (reservationError instanceof CheckoutReservationSourceChangedError) {
+        Sentry.captureMessage("Checkout source changed before single reservation commit", {
+          level: "warning",
+          tags: { source: "checkout_stock_reservation_source", route: "single_checkout" },
+          extra: { pricedItemCount: 1 },
+        });
+        return privateJson(
+          { error: "This listing changed while checkout was starting. Review it and try again." },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
       if (isCheckoutStockUnavailableDatabaseError(reservationError)) {
         return privateJson(
           { error: "Not enough stock available for this item." },

@@ -1,10 +1,10 @@
 # CheckoutStockReservation compatible authority release
 
-Status: compatible migration and application are merged. The first production
-preparation run failed closed before Prisma or any mutating step because one
-historical migration was amended after production had applied its original
-bytes. The exact-checksum verifier correction is isolated; the authority
-migration remains unapplied and production schema/grants are unchanged.
+Status: the compatible migration is applied and the actual pooled-runtime
+postflight is accepted. CheckoutStockReservation still has RLS and FORCE off,
+zero policies, and predecessor table CRUD for old-application coexistence. The
+fixed-operation application is merged but not yet deployed; production still
+runs exact source `69c14c0618ea7ab9c74756422273d17d66db7efa`.
 
 This release packages the reviewed CheckoutStockReservation fixed-operation
 authority without activating reservation RLS or removing predecessor table
@@ -145,22 +145,92 @@ reservation activation/FORCE rows, state `predecessor`, and
 predecessor; it does not authorize or perform a migration, ledger resolution,
 deployment, grant change or provider mutation.
 
-## Required pre-production gates
+## Accepted compatible production boundary (2026-08-13)
 
-1. Complete exact-head and exact-main CI, including exact-tree verification, real PostgreSQL migration
-   application, grant convergence, global catalog audit, and authority proof.
-2. Independently review the promoted SQL/function catalog at Extra High.
-3. Retain the accepted StripeWebhookEvent FORCE migration and actual
-   pooled-runtime postflight from the completed credential recovery.
-4. Merge the separately reviewed exact historical-checksum correction only
-   after CI and disposable PostgreSQL proof succeed.
-5. Dispatch only the restart-safe compatible-authority runner bound to a fresh
-   exact-main CI and the already accepted aggregate inspection if its binding
-   remains valid; otherwise obtain a fresh aggregate-only inspection. All
-   reservation-integrity fields must be zero.
-6. Run and retain the separate actual pooled-runtime compatible postflight.
-7. Deploy and smoke the already-merged fixed-operation application, drain predecessor
-   versions, prove zero direct reservation access, then prepare policyless
-   ENABLE and later FORCE as distinct releases.
+Exact main `77fc45fe06feb3f4e440afea916728c3d2873315` passed all 100
+steps in CI run `31752628832`, including the sealed migration tree, disposable
+PostgreSQL authority proof, TypeScript, lint, full tests, dependency audit and
+production build. The same-commit engine-read-only inspection run
+`31753838550` accepted the mixed predecessor posture and all seven reservation
+integrity counts were zero.
+
+Guarded workflow run `31754431910` then applied only
+`20260810190000_prepare_checkout_stock_reservation_authority`. Its restart
+scope changed exactly from `predecessor` to `prepared`: StripeWebhookEvent
+FORCE remained present, reservation activation/FORCE rows remained zero, and
+the global audit reported 64 tables, 22 enums, 157 `grainline_*` functions,
+one extension, four RLS-policy tables, zero sequence references and a current
+194-migration tree. The post-application scope retained predecessor table CRUD,
+reported 16 runtime operations plus four private helpers, and explicitly
+reported `rlsChanged:false` and `predecessorTableGrantsChanged:false`.
+
+The separate actual pooled `grainline_app_runtime` postflight then passed from
+the same exact clean source in an engine-attested repeatable-read/read-only
+transaction. It proved the reviewed endpoint/role identity, RLS/FORCE off,
+zero policies, predecessor CRUD retained, zero live reservation rows, exact
+columns/constraints/indexes/trigger, the exact 20-function source/mode/owner/ACL
+catalog, successful direct aggregate read and fixed export, private-helper
+denial, and a fixed write reaching SQLSTATE `25006`. Sanitized mode-`0600`
+evidence was retained outside the repository with SHA-256
+`1be122b9cd834b5fe1829cab6769d0ff26f73605f3056b5be511a2777648d22f`;
+it reports `productionChangedByPostflight:false` and contains no connection
+string.
+
+The first local postflight invocation failed before any database connection
+because the clean worktree had no installed `pg` package. The accepted rerun
+used an existing dependency tree only after proving both worktrees had the
+identical package-lock SHA-256
+`8408da94eb3ba6a70e6e94eeebe9be4512ff44e0d242fa8045ded84e09cf2203`;
+this tooling-only failure did not query or mutate production.
+
+The canonical production deployment remains
+`dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6`, exact source
+`69c14c0618ea7ab9c74756422273d17d66db7efa`. The fixed-operation conversion
+was introduced at `6c788c37db17658ab3e657b089ff45ab40b1cb8b` and is contained
+in `77fc45fe`; it is therefore not live yet. Review of the runtime delta found
+19 application/schema/package files, zero direct
+`CheckoutStockReservation` Prisma delegates under `src`, and all 15 fixed
+reservation operations represented at their intended callers. A focused
+checkout, webhook, account-deletion, export, lock and payment suite passed
+98/98 locally. The exact-main CI remains the authoritative full-tree result.
+
+The final pre-deploy review found that the application priced from its first
+cart/listing snapshot while the fixed function returned a later locked source
+without an equality check. A concurrent cart or inventory-type change could
+therefore reserve a different quantity/set than Stripe charged. Isolated
+finding `CSR-A23` (A21 already names the repair-index mismatch) requires exact
+Stripe-bound source plus Listing-level inventory comparison while the fixed
+function's locks remain held. The corrected successor performs fixed creation
+and source re-read in one short database-only transaction; mismatch rolls back
+the reservation and stock decrement rather than committing and compensating.
+Exact `77fc45fe` must not be deployed; the
+next deploy source is the reviewed successor containing this correction after
+its complete CI succeeds.
+
+The next boundary is an exact-successor application deployment, health and
+fixed-path smoke, followed by predecessor-version drain and a fresh proof of
+zero direct reservation access. The known-good rollback source remains
+`69c14c0618ea7ab9c74756422273d17d66db7efa`; rollback stays database-compatible
+because predecessor table CRUD is intentionally still present. Policyless
+ENABLE and FORCE remain later, separate releases.
+
+## Required gates
+
+1. Completed: exact-main CI, Extra-High SQL review, StripeWebhookEvent FORCE,
+   immutable-history correction, same-main aggregate inspection, guarded
+   compatible migration, global audit, and actual pooled-runtime postflight.
+2. Complete CI, disposable PostgreSQL rollback/concurrency coverage and the
+   exact-candidate provider pool/latency gate for the isolated `CSR-A23`
+   correction; merge it, then deploy
+   only that exact successor after a separate deployment boundary; attest
+   provider-owned source and canonical alias/health. Do not deploy
+   `77fc45fe06feb3f4e440afea916728c3d2873315` because its source-consistency
+   check is incomplete.
+3. Prove checkout creation, signed completion and failed-session restoration,
+   bounded cron repair/prune, account deletion, resume and export without
+   bypassing the normal route/provider authority boundaries.
+4. Drain predecessor application versions and prove zero direct reservation
+   access remains.
+5. Prepare policyless ENABLE and later FORCE as distinct reviewed releases.
 
 No item in this document authorizes a production mutation.

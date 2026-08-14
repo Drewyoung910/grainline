@@ -83,8 +83,12 @@ CI plus a same-commit aggregate inspection proving the mixed live posture and
 seven zero reservation-integrity counts. The separate actual pooled-runtime
 postflight proves the compatible table, schema and 20-function catalog without
 placing the runtime credential in the owner-only GitHub environment. The
-generic migration runner still isolates this successor; compatible migration,
-app deployment/drain, policyless ENABLE and FORCE remain separate boundaries.
+generic migration runner still isolates this successor. The compatible
+migration is now live from exact main `77fc45fe` and guarded run `31754431910`;
+the actual pooled-runtime proof passed with RLS/FORCE off, zero policies,
+predecessor CRUD retained and zero reservation rows. Production application
+source remains `69c14c06`, so app deployment/drain, policyless ENABLE and FORCE
+remain separate boundaries.
 
 ## Core Lifecycles
 
@@ -102,7 +106,7 @@ Public discovery routes are split by purpose. `/browse` remains the full filter 
 
 ### Checkout And Orders
 
-Checkout uses Stripe Checkout Sessions and local lock/idempotency state. Destination-charge accounting keeps platform tax handling and seller transfer math explicit. Order, payment event, refund, dispute, label, and case state transitions must be idempotent and race-aware. Full refunds restore eligible in-stock inventory automatically before buyer handoff; seller and staff partial refunds restore inventory only through explicit bounded quantities validated against purchased in-stock order items.
+Checkout uses Stripe Checkout Sessions and local lock/idempotency state. Destination-charge accounting keeps platform tax handling and seller transfer math explicit. Cart and Buy Now reservation creation runs in a short database-only transaction: the fixed function derives and locks inventory, the route re-reads the complete price/variant/payout/shipping source under those same locks, and PostgreSQL commits only if that source exactly matches the snapshot used for Stripe. A mismatch rolls back the reservation and stock decrement atomically and returns a retryable conflict; no Stripe/provider call is allowed inside that transaction. Listing-level inventory comparisons still sum multiple variant cart lines. Order, payment event, refund, dispute, label, and case state transitions must be idempotent and race-aware. Full refunds restore eligible in-stock inventory automatically before buyer handoff; seller and staff partial refunds restore inventory only through explicit bounded quantities validated against purchased in-stock order items.
 
 ### Messaging
 

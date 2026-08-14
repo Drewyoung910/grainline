@@ -127,11 +127,13 @@ describe("order-state audit follow-up guardrails", () => {
       .replace(/\s+/g, " ");
 
     assert.match(singleCheckout, /createSingleCheckoutStockReservation\(\{/);
-    assert.match(singleCheckout, /createSingleCheckoutStockReservation\(\{\s*listingId: listing\.id,\s*quantity: body\.quantity,\s*payloadHash,\s*buyerId: me\.id,\s*\}\)/);
+    assert.match(singleCheckout, /createSingleCheckoutStockReservation\(\{\s*listingId: listing\.id,\s*quantity: body\.quantity,\s*payloadHash,\s*buyerId: me\.id,\s*\}, tx\)/);
+    assert.match(singleCheckout, /prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(singleCheckout, /checkoutStockReservationMetadata\(checkoutReservationId/);
 
     assert.match(sellerCheckout, /createCartCheckoutStockReservation\(\{/);
-    assert.match(sellerCheckout, /createCartCheckoutStockReservation\(\{\s*cartId: cart\.id,\s*sellerProfileId: sellerId,\s*checkoutGroupId: body\.checkoutGroupId,\s*payloadHash,\s*buyerId: me\.id,\s*\}\)/);
+    assert.match(sellerCheckout, /createCartCheckoutStockReservation\(\{\s*cartId: cart\.id,\s*sellerProfileId: sellerId,\s*checkoutGroupId: body\.checkoutGroupId,\s*payloadHash,\s*buyerId: me\.id,\s*\}, tx\)/);
+    assert.match(sellerCheckout, /prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(sellerCheckout, /checkoutStockReservationMetadata\(checkoutReservationId/);
 
     assert.match(authority, /CREATE FUNCTION public\.grainline_checkout_reservation_create_single/);

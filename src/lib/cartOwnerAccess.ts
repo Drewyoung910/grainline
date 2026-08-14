@@ -259,7 +259,7 @@ export async function ownerCartForCheckoutSeller(
           listing: {
             include: {
               seller: { include: { user: { select: { banned: true, deletedAt: true } } } },
-              photos: true,
+              photos: { orderBy: { sortOrder: "asc" } },
               variantGroups: { include: { options: true } },
             },
           },

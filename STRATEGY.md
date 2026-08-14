@@ -226,6 +226,40 @@ duplicate, incomplete, rolled-back and zero-step rows. It does not rewrite the
 ledger or migration. Do not resume production preparation until that correction
 has separate review and exact-main CI.
 
+The correction and compatible production boundary are now accepted. Exact
+main `77fc45fe06feb3f4e440afea916728c3d2873315` passed all 100 CI steps in
+run `31752628832`; same-main aggregate inspection `31753838550` reported the
+required mixed posture and seven zero reservation-integrity counts. Guarded
+run `31754431910` applied only
+`20260810190000_prepare_checkout_stock_reservation_authority`, retained
+CheckoutStockReservation RLS/FORCE off, zero policies and predecessor CRUD,
+and passed migration status, global grants/RLS audit and the exact 194-row
+migration ledger proof. The separate actual pooled-runtime read-only
+postflight accepted the exact schema/trigger/index and 20-function source/ACL
+catalog, private-helper denial, fixed-operation read-only fence and zero live
+reservation rows; its sanitized mode-`0600` artifact SHA-256 is
+`1be122b9cd834b5fe1829cab6769d0ff26f73605f3056b5be511a2777648d22f`.
+
+The application boundary remains open. Canonical production deployment
+`dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` still serves exact source
+`69c14c0618ea7ab9c74756422273d17d66db7efa`; the fixed-operation conversion
+is merged in `77fc45fe` but is not live. The final pre-deploy review then found
+`CSR-A23` (A21 was already assigned to the repair-index mismatch): a concurrent
+cart, price-version, variant, seller-payout or listing inventory-type mutation
+could make the database-derived locked reservation source differ from the route
+snapshot used to build Stripe. The corrected isolated successor keeps the fixed
+creation call and a complete source re-read in one short database-only
+transaction. The function's locks remain held through comparison; a dedicated
+source-drift sentinel rolls back the reservation row and stock decrement before
+the Redis owner lock is released and `409` is returned. Stripe/provider work is
+outside the transaction. `77fc45fe` is therefore not an eligible deploy source.
+Next complete local/CI and disposable PostgreSQL proof, prove the new pooled
+transaction's provider locality/latency and lock waits against the exact
+candidate, merge it, deploy/smoke only that exact successor, drain predecessor
+versions, and prove zero direct reservation access. The old source remains a
+database-compatible rollback while predecessor CRUD remains. Do not prepare
+ENABLE until this drain proof passes; ENABLE and FORCE remain separate releases.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

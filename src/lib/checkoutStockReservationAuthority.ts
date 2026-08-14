@@ -162,8 +162,8 @@ export async function createCartCheckoutStockReservation(input: {
   sellerProfileId: string;
   checkoutGroupId?: string | null;
   payloadHash: string;
-}) {
-  const rows = await prisma.$queryRaw<Array<Record<string, unknown>>>`
+}, client: AuthorityClient = prisma) {
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
     SELECT reservation_id, reserved_items, expires_at
       FROM public.grainline_checkout_reservation_create_cart(
         ${input.buyerId},
@@ -181,8 +181,8 @@ export async function createSingleCheckoutStockReservation(input: {
   listingId: string;
   quantity: number;
   payloadHash: string;
-}) {
-  const rows = await prisma.$queryRaw<Array<Record<string, unknown>>>`
+}, client: AuthorityClient = prisma) {
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
     SELECT reservation_id, reserved_items, expires_at
       FROM public.grainline_checkout_reservation_create_single(
         ${input.buyerId},
@@ -192,6 +192,21 @@ export async function createSingleCheckoutStockReservation(input: {
       )
   `;
   return parseCreation(rows);
+}
+
+export async function lockCheckoutReservationSellerSource(
+  client: AuthorityClient,
+  sellerProfileId: string,
+) {
+  const rows = await client.$queryRaw<Array<{ id: unknown }>>`
+    SELECT seller.id
+     FROM public."SellerProfile" AS seller
+     WHERE seller.id = ${sellerProfileId}
+     FOR SHARE
+  `;
+  if (rows.length !== 1 || rows[0]?.id !== sellerProfileId) {
+    throw new Error("Checkout reservation seller source is unavailable");
+  }
 }
 
 export async function bindCheckoutStockReservationSession(input: {

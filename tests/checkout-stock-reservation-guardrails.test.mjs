@@ -77,6 +77,33 @@ describe("durable checkout stock reservation guardrails", () => {
     assert.match(authoritySql, /grainline_checkout_reservation_checkout_abort[\s\S]*source_reservation\."stripeSessionId" IS NOT NULL[\s\S]*'retained'/);
   });
 
+  it("rejects a priced source that changed before the database stock lock", () => {
+    for (const routePath of [
+      "src/app/api/cart/checkout/single/route.ts",
+      "src/app/api/cart/checkout-seller/route.ts",
+    ]) {
+      const route = source(routePath);
+      const sourceMatch = route.indexOf("SourceSignature(");
+      const stripeCreate = route.indexOf("stripe.checkout.sessions.create(");
+
+      assert.match(route, /prisma\.\$transaction\(async \(tx\) =>/);
+      assert.match(route, /lockCheckoutReservationSellerSource\(tx,/);
+      assert.match(route, /CheckoutReservationSourceChangedError/);
+      assert.match(route, /status: HTTP_STATUS\.CONFLICT/);
+      assert.notEqual(sourceMatch, -1);
+      assert.notEqual(stripeCreate, -1);
+      assert.ok(sourceMatch < stripeCreate, `${routePath} must compare the locked source before Stripe creation`);
+    }
+    assert.match(authorityClient, /createCartCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
+    assert.match(authorityClient, /createSingleCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
+    const sellerSourceLock = authorityClient.slice(
+      authorityClient.indexOf("export async function lockCheckoutReservationSellerSource"),
+      authorityClient.indexOf("export async function bindCheckoutStockReservationSession"),
+    );
+    assert.match(sellerSourceLock, /FOR SHARE/);
+    assert.doesNotMatch(sellerSourceLock, /FOR UPDATE/);
+  });
+
   it("never restores or releases a checkout lock while a created Stripe session may remain payable", () => {
     for (const routePath of [
       "src/app/api/cart/checkout/single/route.ts",

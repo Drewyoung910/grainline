@@ -1,9 +1,10 @@
 # CheckoutStockReservation RLS authority audit
 
-Status: isolated compatible authority draft and application conversion in
-progress; production posture is unchanged. This document does not authorize a
-migration, deployment, grant change, cleanup, RLS activation or provider
-mutation.
+Status: compatible authority is applied and accepted through the actual pooled
+runtime role. The fixed-operation application remains merged but undeployed;
+production retains predecessor table CRUD with RLS/FORCE off and zero policies
+until the deployment and drain boundary. This document does not authorize a
+deployment, cleanup, RLS activation or provider mutation.
 
 Date: 2026-08-10
 
@@ -39,11 +40,12 @@ The four rows below are the predecessor baseline captured at audit start:
 | `src/app/api/cart/checkout/resume/route.ts` | recent completed buyer rows | buyer-bound bounded resume projection |
 | `src/app/api/account/export/route.ts` | buyer/seller rows and role-specific redaction | actor-bound export projection with seller profile derived in PostgreSQL |
 
-The isolated conversion currently has zero direct
+The merged conversion has zero direct
 `prisma.checkoutStockReservation`/`tx.checkoutStockReservation` delegates
-under `src`. That is not a production claim: main and the deployed application
-remain on the predecessor until compatible functions are packaged, promoted
-and proven. Semantic-call inventory now pins the checkout, webhook, buyer
+under `src`. That is not yet a deployed-application claim: production remains
+on exact source `69c14c0618ea7ab9c74756422273d17d66db7efa`, while the
+conversion is contained in accepted main `77fc45fe06feb3f4e440afea916728c3d2873315`.
+Semantic-call inventory pins the checkout, webhook, buyer
 rollback, seller/admin expiry, cron, account deletion, resume and export paths
 so zero direct delegates cannot hide an omitted capability.
 
@@ -515,3 +517,50 @@ Two compatibility defects were found and closed during promotion:
   `varchar` by the target column and `text` by the canonical JSON object. The
   repaired fixture casts every reused identity parameter to `text` at its SQL
   boundary, matching the repository's fail-closed parameter-typing rule.
+
+## Compatible app pre-deploy source-consistency review (2026-08-13)
+
+- `CSR-A23`: the fixed cart/single creation functions correctly re-read and
+  lock their durable CartItem/Listing sources, but the first application
+  conversion retained the earlier route snapshot for Stripe pricing without
+  comparing it with the function's returned `reservedItems`. A concurrent
+  cart quantity/remove/add, variant switch, price-version change or listing
+  inventory-type change after route preflight could therefore make PostgreSQL
+  reserve one source while Stripe charged another. This was not an RLS-policy
+  defect and no converted application version had been deployed; production
+  still ran source `69c14c06` when the review found it. The identifier is A23,
+  not A21: A21 already names the Prisma repair-index catalog mismatch above.
+- The corrected successor no longer commits and then compensates. Cart and Buy
+  Now execute the fixed creation call inside a short application transaction;
+  the function's Cart/CartItem/Listing/User locks remain held while the route
+  locks the seller row and re-reads the complete Stripe-bound source. The
+  canonical source binds item identity, quantity, price/version, selected
+  variants, listing type/currency/title/primary image, effective shipping
+  dimensions, seller payout destination, statement descriptor, gift-wrap and
+  pickup settings. The returned `reservedItems` are independently compared to
+  the exact locked Listing-level inventory set. A mismatch throws a dedicated
+  sentinel inside the transaction, so PostgreSQL atomically rolls back both the
+  reservation row and stock decrement; only after rollback does the route
+  release its owner-token Redis lock and return `409` with count-only telemetry.
+  Stripe/provider I/O is never performed inside the database transaction.
+- Pure-state coverage proves source ordering, monetary/variant/seller/shipping
+  drift, malformed/unavailable inputs and Listing-level variant aggregation.
+  The disposable PostgreSQL proof independently demonstrates that rolling back
+  the outer transaction removes the fixed-function reservation and restores
+  stock without compensating writes. Because this introduces a short
+  multi-statement pooled transaction on a checkout hot path, provider locality/latency and lock
+  wait behavior remain an explicit pre-deploy gate. The compatible application
+  must not be deployed until the successor passes complete CI and that provider
+  proof is accepted against its exact commit.
+- The application transaction currently locks and re-reads `SellerProfile`
+  directly because that table remains outside RLS. Before `SellerProfile` base
+  rows are restricted or direct runtime reads are revoked, this dependency must
+  move behind the reviewed seller public/private projection or a narrow fixed
+  checkout-source operation. Treat that later table rollout as a compile-time,
+  PostgreSQL-proof and authenticated-checkout compatibility gate; do not grant
+  broad SellerProfile access merely to preserve this helper.
+- The seller source row uses `FOR SHARE`, not `FOR UPDATE`: checkout needs to
+  exclude seller-setting updates until its source comparison commits, but
+  unrelated buyers checking out different listings from the same shop must not
+  serialize on a needlessly exclusive seller lock. The provider gate must prove
+  both same-seller/different-listing concurrency and bounded same-listing waits.
