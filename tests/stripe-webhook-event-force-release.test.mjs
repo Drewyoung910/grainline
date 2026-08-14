@@ -22,6 +22,9 @@ import {
   STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE,
   verifyStripeWebhookEventForceRelease,
 } from "../scripts/verify-stripe-webhook-event-force-release.mjs";
+import {
+  createSealedCheckoutStockReservationAuthorityRoot,
+} from "./helpers/sealed-checkout-stock-reservation-authority-root.mjs";
 
 const migration = fs.readFileSync(
   "prisma/migrations/20260810172000_force_stripe_webhook_event_rls/migration.sql",
@@ -61,9 +64,11 @@ function postflightEnvironment(directory) {
   };
 }
 
-test("FORCE release is one byte-pinned posture-only catalog change", () => {
+test("FORCE release is one byte-pinned posture-only catalog change", (t) => {
   const candidate = buildStripeWebhookEventForceCandidate();
-  const release = verifyStripeWebhookEventForceRelease(undefined, {
+  const sealedRoot = createSealedCheckoutStockReservationAuthorityRoot();
+  t.after(() => fs.rmSync(sealedRoot, { recursive: true, force: true }));
+  const release = verifyStripeWebhookEventForceRelease(sealedRoot, {
     allowReviewedSuccessor: true,
   });
   assert.equal(release.phase, STRIPE_WEBHOOK_EVENT_FORCE_RELEASE_PHASE);
@@ -246,25 +251,32 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.ok(forceRestore > phaseARestore && forceProof > forceRestore);
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
-  assert.match(production, /checkout-stock-reservation-authority-reviewed/);
   assert.match(
     production,
-    /Isolate the reviewed CheckoutStockReservation successor/,
+    /checkout-stock-reservation-source-consistency-reviewed/,
   );
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
+  assert.match(
+    production,
+    /Isolate the reviewed CheckoutStockReservation source-consistency successor/,
+  );
+  assert.match(production, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
   assert.ok(
-    production.indexOf("Isolate the reviewed CheckoutStockReservation successor")
-      < production.indexOf("audit:rls-stripe-webhook-event-force-release")
-      && production.indexOf("audit:rls-stripe-webhook-event-force-release")
+    production.indexOf(
+      "Isolate the reviewed CheckoutStockReservation source-consistency successor",
+    )
+      < production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
+      && production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
       < production.indexOf("npx prisma migrate deploy"),
   );
   assert.ok(
     production.indexOf("npx prisma migrate deploy")
-      < production.indexOf("Prove exact FORCE-only production migration scope"),
+      < production.indexOf(
+        "Prove exact CheckoutStockReservation source-consistency production scope",
+      ),
   );
   assert.match(
     production,
-    /Prove exact FORCE-only production migration scope[\s\S]{0,180}audit:rls-stripe-webhook-event-force-production-scope/,
+    /Prove exact CheckoutStockReservation source-consistency production scope[\s\S]{0,180}audit:rls-checkout-stock-reservation-source-consistency-production-scope/,
   );
   assert.match(
     releaseDocument,

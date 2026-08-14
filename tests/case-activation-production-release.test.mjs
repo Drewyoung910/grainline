@@ -108,8 +108,9 @@ test("production workflow has advanced to the separate exact Case FORCE gate", (
   assert.ok(deploy > verifier);
   assert.match(
     production,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed/,
   );
+  assert.match(production, /audit:rls-case-force-release/);
   assert.doesNotMatch(production, /vercel|CASE_EVIDENCE_ATTACHMENTS_ENABLED/i);
 });
 

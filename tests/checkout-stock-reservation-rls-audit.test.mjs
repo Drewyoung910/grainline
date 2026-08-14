@@ -27,8 +27,8 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.deepEqual(directAccessSources, []);
 
     const semanticSources = {
-      "src/app/api/cart/checkout/single/route.ts": /createSingleCheckoutStockReservation/,
-      "src/app/api/cart/checkout-seller/route.ts": /createCartCheckoutStockReservation/,
+      "src/app/api/cart/checkout/single/route.ts": /createConsistentSingleCheckoutStockReservation/,
+      "src/app/api/cart/checkout-seller/route.ts": /createConsistentCartCheckoutStockReservation/,
       "src/app/api/cart/checkout/rollback/route.ts": /restoreBuyerExpiredCheckoutStockOnce/,
       "src/app/api/stripe/webhook/route.ts": /markCheckoutStockReservationCompleted[\s\S]*restoreUnorderedCheckoutStockOnce/,
       "src/lib/checkoutSessionExpiry.ts": /restoreSellerExpiredCheckoutStockOnce/,
@@ -45,6 +45,8 @@ describe("CheckoutStockReservation RLS authority audit", () => {
   it("partitions every mutation, projection and cleanup capability", () => {
     const audit = source("docs/checkout-stock-reservation-rls-audit.md");
     const requiredOperations = [
+      "grainline_checkout_reservation_create_cart_consistent",
+      "grainline_checkout_reservation_create_single_consistent",
       "grainline_checkout_reservation_create_cart",
       "grainline_checkout_reservation_create_single",
       "grainline_checkout_reservation_bind_session",
@@ -68,7 +70,10 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(audit, /No public\/runtime function accepts a free-form restore reason/);
     assert.match(audit, /database-selected stale-repair claim\/finalize protocol/);
     assert.match(audit, /monotonic repair generation and claim clock/);
-    assert.match(audit, /does not authorize\s+a\s+migration, deployment, grant/);
+    assert.match(
+      audit,
+      /does not authorize a merge, migration, deployment, grant change/,
+    );
   });
 
   it("records the payable-session race and exact replay-fingerprint mismatch", () => {
@@ -108,12 +113,15 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       .find((line) => line.startsWith("| `CheckoutStockReservation`"));
 
     assert.ok(row);
-    assert.match(row, /`COMPATIBLE_CANDIDATE`/);
-    assert.match(row, /checkout-stock-reservation-rls-audit\.md/);
+    assert.match(row, /`COMPATIBLE_PREPARATION_LIVE`/);
+    assert.match(
+      row,
+      /checkout-stock-reservation-source-consistency-release\.md/,
+    );
     assert.doesNotMatch(row, /RLS_LIVE/);
-    assert.match(row, /dedicated restart-safe compatible runner/);
-    assert.match(row, /production-inert/);
-    assert.match(strategy, /next isolated dependency is `CheckoutStockReservation`/);
-    assert.match(strategy, /StripeWebhookEvent FORCE\s+remains a separate/);
+    assert.match(row, /source-locking PostgreSQL statement/);
+    assert.match(row, /RLS remains off/);
+    assert.match(strategy, /CheckoutStockReservation source-consistency boundary/);
+    assert.match(strategy, /Two fresh provider slots passed/);
   });
 });

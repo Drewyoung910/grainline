@@ -1133,7 +1133,10 @@ WITH private_trigger(function_signature) AS (
     ('public."grainline_stripe_webhook_bind_source"(text, text, bigint, text)'),
     ('public."grainline_checkout_reservation_items_valid"(jsonb, text, text)'),
     ('public."grainline_checkout_reservation_normalize_write"()'),
-    ('public."grainline_checkout_reservation_restore_items"(jsonb)')
+    ('public."grainline_checkout_reservation_restore_items"(jsonb)'),
+    ('public."grainline_checkout_reservation_seller_witness"(text)'),
+    ('public."grainline_checkout_reservation_listing_witness"(text)'),
+    ('public."grainline_checkout_reservation_variant_source_valid"(text, text[], integer)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM private_trigger
@@ -1163,7 +1166,10 @@ WITH private_trigger(function_signature) AS (
     ('public."grainline_stripe_webhook_bind_source"(text, text, bigint, text)'),
     ('public."grainline_checkout_reservation_items_valid"(jsonb, text, text)'),
     ('public."grainline_checkout_reservation_normalize_write"()'),
-    ('public."grainline_checkout_reservation_restore_items"(jsonb)')
+    ('public."grainline_checkout_reservation_restore_items"(jsonb)'),
+    ('public."grainline_checkout_reservation_seller_witness"(text)'),
+    ('public."grainline_checkout_reservation_listing_witness"(text)'),
+    ('public."grainline_checkout_reservation_variant_source_valid"(text, text[], integer)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -1238,6 +1244,8 @@ WITH checkout_reservation_service(function_signature) AS (
   VALUES
     ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)'),
     ('public."grainline_checkout_reservation_create_single"(text, text, integer, text)'),
+    ('public."grainline_checkout_reservation_create_cart_consistent"(text, text, text, text, text, jsonb)'),
+    ('public."grainline_checkout_reservation_create_single_consistent"(text, text, integer, text[], text, jsonb)'),
     ('public."grainline_checkout_reservation_bind_session"(text, text, text, text)'),
     ('public."grainline_checkout_reservation_complete"(text, bigint, text, text)'),
     ('public."grainline_checkout_reservation_checkout_abort"(text, text, text)'),
@@ -1261,6 +1269,8 @@ WITH checkout_reservation_service(function_signature) AS (
   VALUES
     ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)'),
     ('public."grainline_checkout_reservation_create_single"(text, text, integer, text)'),
+    ('public."grainline_checkout_reservation_create_cart_consistent"(text, text, text, text, text, jsonb)'),
+    ('public."grainline_checkout_reservation_create_single_consistent"(text, text, integer, text[], text, jsonb)'),
     ('public."grainline_checkout_reservation_bind_session"(text, text, text, text)'),
     ('public."grainline_checkout_reservation_complete"(text, bigint, text, text)'),
     ('public."grainline_checkout_reservation_checkout_abort"(text, text, text)'),
@@ -1288,6 +1298,8 @@ WITH checkout_reservation_service(function_signature) AS (
   VALUES
     ('public."grainline_checkout_reservation_create_cart"(text, text, text, text, text)'),
     ('public."grainline_checkout_reservation_create_single"(text, text, integer, text)'),
+    ('public."grainline_checkout_reservation_create_cart_consistent"(text, text, text, text, text, jsonb)'),
+    ('public."grainline_checkout_reservation_create_single_consistent"(text, text, integer, text[], text, jsonb)'),
     ('public."grainline_checkout_reservation_bind_session"(text, text, text, text)'),
     ('public."grainline_checkout_reservation_complete"(text, bigint, text, text)'),
     ('public."grainline_checkout_reservation_checkout_abort"(text, text, text)'),

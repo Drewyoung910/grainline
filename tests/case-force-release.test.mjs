@@ -177,14 +177,22 @@ test("production workflow retains the reviewed Case FORCE proof before migration
   const verifier = production.indexOf(
     "npm run audit:rls-case-force-release",
   );
-  const forceGuard = production.indexOf(
-    "SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed",
+  const currentGuard = production.indexOf(
+    "SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed",
+  );
+  const isolateSuccessor = production.indexOf(
+    "Isolate the reviewed CheckoutStockReservation source-consistency successor",
+  );
+  const restoreSuccessor = production.indexOf(
+    "Restore the reviewed CheckoutStockReservation source-consistency successor",
   );
   const deploy = production.indexOf("npx prisma migrate deploy");
   assert.ok(sourceGuard >= 0);
-  assert.ok(verifier > sourceGuard);
-  assert.ok(forceGuard > verifier);
-  assert.ok(deploy > forceGuard);
+  assert.ok(currentGuard > sourceGuard);
+  assert.ok(isolateSuccessor > currentGuard);
+  assert.ok(verifier > isolateSuccessor);
+  assert.ok(restoreSuccessor > verifier);
+  assert.ok(deploy > restoreSuccessor);
   assert.doesNotMatch(
     production,
     /vercel|CASE_EVIDENCE_ATTACHMENTS_ENABLED|prisma migrate resolve/i,

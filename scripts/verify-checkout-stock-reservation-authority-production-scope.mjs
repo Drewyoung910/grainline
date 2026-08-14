@@ -114,6 +114,9 @@ export function readReservationAuthorityMigrationCatalog(
   const migrationsDirectory = path.join(root, MIGRATIONS_DIRECTORY);
   const entries = readdirSync(migrationsDirectory, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
+    .filter(
+      (entry) => entry.name <= CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+    )
     .sort((left, right) => left.name.localeCompare(right.name));
   const catalog = entries.map((entry) => {
     const migrationPath = path.join(

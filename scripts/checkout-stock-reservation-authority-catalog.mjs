@@ -1,4 +1,4 @@
-export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS = Object.freeze([
+export const CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS = Object.freeze([
   { name: "grainline_stripe_webhook_bind_source", argumentTypes: "text, text, bigint, text", runtimeExecute: false, volatility: "v", parallelSafety: "u" },
   { name: "grainline_stripe_webhook_begin", argumentTypes: "text, text, text", runtimeExecute: true, volatility: "v", parallelSafety: "u" },
   { name: "grainline_checkout_reservation_items_valid", argumentTypes: "jsonb, text, text", runtimeExecute: false, volatility: "i", parallelSafety: "s" },
@@ -21,14 +21,33 @@ export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS = Object.freeze([
   { name: "grainline_checkout_reservation_account_scrub", argumentTypes: "text", runtimeExecute: true, volatility: "v", parallelSafety: "u" },
 ]);
 
+export const CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_FUNCTIONS = Object.freeze([
+  { name: "grainline_checkout_reservation_seller_witness", argumentTypes: "text", runtimeExecute: false, volatility: "s", parallelSafety: "r", language: "sql" },
+  { name: "grainline_checkout_reservation_listing_witness", argumentTypes: "text", runtimeExecute: false, volatility: "s", parallelSafety: "r", language: "sql" },
+  { name: "grainline_checkout_reservation_variant_source_valid", argumentTypes: "text, text[], integer", runtimeExecute: false, volatility: "s", parallelSafety: "r", language: "sql" },
+  { name: "grainline_checkout_reservation_create_cart_consistent", argumentTypes: "text, text, text, text, text, jsonb", runtimeExecute: true, volatility: "v", parallelSafety: "u" },
+  { name: "grainline_checkout_reservation_create_single_consistent", argumentTypes: "text, text, integer, text[], text, jsonb", runtimeExecute: true, volatility: "v", parallelSafety: "u" },
+]);
+
+export const CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS = Object.freeze([
+  ...CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
+  ...CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_FUNCTIONS,
+]);
+
+// The production grant inventory remains on the compatible, applied catalog.
+// Candidate-only functions stay outside that inventory until their migration
+// is sealed and reviewed.
+export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS =
+  CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS;
+
 export const CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES = Object.freeze(
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS
     .filter((entry) => !entry.runtimeExecute)
     .map((entry) => entry.name),
 );
 
 export const CHECKOUT_STOCK_RESERVATION_RUNTIME_FUNCTION_SIGNATURES = Object.freeze(
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS
     .filter((entry) => entry.runtimeExecute)
     .map((entry) => `public."${entry.name}"(${entry.argumentTypes})`),
 );

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import {
   buildCheckoutStockReservationAuthorityCandidate,
@@ -68,7 +68,7 @@ test("release verifier pins the full migration prefix and authority catalog", ()
   assert.equal(verified.runtimeOperations, 16);
   assert.equal(verified.privateHelpers, 4);
   assert.equal(
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.filter(
+    CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS.filter(
       (entry) => entry.name.startsWith("grainline_checkout_reservation_")
         && entry.runtimeExecute,
     ).length,
@@ -106,29 +106,34 @@ test("CI isolates preparation until StripeWebhookEvent FORCE passes", () => {
   assert.ok(audit > apply);
 });
 
-test("production runner verifies then isolates the successor without applying it", () => {
-  const verifySuccessor = production.indexOf(
-    "checkout-stock-reservation-authority-reviewed",
+test("production runner seals authority as predecessor before restoring source consistency", () => {
+  const verifySource = production.indexOf(
+    "checkout-stock-reservation-source-consistency-reviewed",
   );
-  const verifySuccessorRelease = production.indexOf(
+  const verifySourceRelease = production.indexOf(
+    "audit:rls-checkout-stock-reservation-source-consistency-release",
+  );
+  const verifyAuthorityRelease = production.indexOf(
     "audit:rls-checkout-stock-reservation-authority-release",
   );
-  const isolateSuccessor = production.indexOf(
-    "Isolate the reviewed CheckoutStockReservation successor",
+  const isolateSource = production.indexOf(
+    "Isolate the reviewed CheckoutStockReservation source-consistency successor",
   );
-  const verifyForce = production.indexOf(
-    "stripe-webhook-event-force-reviewed",
+  const verifyAuthority = production.indexOf(
+    "checkout-stock-reservation-authority-reviewed",
+  );
+  const restoreSource = production.indexOf(
+    "Restore the reviewed CheckoutStockReservation source-consistency successor",
   );
   const apply = production.indexOf("npx prisma migrate deploy");
-  assert.ok(verifySuccessor >= 0);
-  assert.ok(verifySuccessorRelease > verifySuccessor);
-  assert.ok(isolateSuccessor > verifySuccessorRelease);
-  assert.ok(verifyForce > isolateSuccessor);
-  assert.ok(apply > verifyForce);
-  assert.doesNotMatch(
-    production,
-    /Restore (?:the reviewed )?CheckoutStockReservation successor/i,
-  );
+  assert.ok(verifySource >= 0);
+  assert.ok(verifySourceRelease > verifySource);
+  assert.ok(isolateSource > verifySourceRelease);
+  assert.ok(verifyAuthority > isolateSource);
+  assert.ok(verifyAuthorityRelease > verifyAuthority);
+  assert.ok(restoreSource > verifyAuthority);
+  assert.ok(restoreSource > verifyAuthorityRelease);
+  assert.ok(apply > restoreSource);
 });
 
 test("dedicated production runner and compatible runtime proof are documented separately", () => {

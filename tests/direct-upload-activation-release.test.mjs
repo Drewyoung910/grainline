@@ -151,7 +151,14 @@ describe("DirectUpload service-only activation release", () => {
       "utf8",
     );
     assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
-    assert.match(production, /stripe-webhook-event-force-reviewed/);
+    assert.match(
+      production,
+      /checkout-stock-reservation-source-consistency-reviewed/,
+    );
+    assert.match(
+      production,
+      /audit:rls-direct-upload-activation-release/,
+    );
     assert.match(
       ci,
       /Isolate the exact DirectUpload activation until external grants converge[\s\S]*Apply compatible migrations to CI Postgres[\s\S]*Converge pre-activation production-style runtime grants[\s\S]*Converge pre-activation DirectUpload cleanup-worker grants[\s\S]*Prove DirectUpload legacy repair in ephemeral PostgreSQL[\s\S]*Restore the exact DirectUpload activation release[\s\S]*Apply migrations to CI Postgres/,

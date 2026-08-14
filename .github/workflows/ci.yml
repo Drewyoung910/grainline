@@ -82,7 +82,18 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
-      - name: Verify CheckoutStockReservation authority migration tree
+      - name: Verify CheckoutStockReservation source-consistency migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify CheckoutStockReservation source-consistency release
+        run: npm run audit:rls-checkout-stock-reservation-source-consistency-release
+      - name: Isolate CheckoutStockReservation source consistency until authority passes
+        run: >-
+          mv
+          prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency
+          "$RUNNER_TEMP/checkout-stock-reservation-source-consistency-release"
+      - name: Verify sealed CheckoutStockReservation authority predecessor
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed
         run: npm run verify:rls-release-artifact
@@ -363,7 +374,22 @@ jobs:
         run: npx prisma migrate status
       - name: Audit compatible reservation grants and RLS catalog
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Prove CheckoutStockReservation compatible authority
+      - name: Restore CheckoutStockReservation source-consistency release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-source-consistency-release"
+          prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency
+      - name: Prove CheckoutStockReservation source successor before application
+        run: npm run audit:rls-checkout-stock-reservation-authority-postgres
+      - name: Apply CheckoutStockReservation source-consistency authority
+        run: npx prisma migrate deploy
+      - name: Converge source-consistent reservation function grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify CheckoutStockReservation source-consistency migration status
+        run: npx prisma migrate status
+      - name: Audit source-consistent reservation grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove promoted CheckoutStockReservation source consistency
         run: npm run audit:rls-checkout-stock-reservation-authority-postgres
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback

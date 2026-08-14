@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -74,17 +74,20 @@ migration environment; owner migration and actual-runtime proof remain
 separate credential boundaries.
 
 `CheckoutStockReservation` is the next service-ledger boundary. Its compatible
-release keeps direct table grants temporarily for old deployments but moves
-the new application to 15 source-specific operations. Signed completion and
-restore bind an immutable Stripe source object plus claim generation; repair
-workers use monotonic claims; Redis checkout publication uses unique owner
-tokens. A dedicated restart-safe migration runner requires successful exact-main
-CI plus a same-commit aggregate inspection proving the mixed live posture and
-seven zero reservation-integrity counts. The separate actual pooled-runtime
-postflight proves the compatible table, schema and 20-function catalog without
-placing the runtime credential in the owner-only GitHub environment. The
-generic migration runner still isolates this successor; compatible migration,
-app deployment/drain, policyless ENABLE and FORCE remain separate boundaries.
+authority migration and fixed-operation application are live while direct
+table grants remain temporarily available to drained predecessor deployments.
+Signed completion and restore bind an immutable Stripe source object plus
+claim generation; repair workers use monotonic claims; Redis checkout
+publication uses unique owner tokens. The accepted next candidate closes the
+remaining creation-time source-consistency window: each checkout path calls one
+fixed PostgreSQL statement that locks Cart, CartItem, Listing, variant and
+photo sources, derives the reservation payload in the database and treats the
+application's canonical witness only as a rejection condition. Two fresh
+provider slots passed without weaker thresholds or residue. The additive
+source-consistency migration, app deployment/drain, policyless ENABLE with
+direct-grant revocation, and FORCE remain separate release boundaries. Exact
+bytes, evidence hashes and rollback limits are retained in
+`docs/checkout-stock-reservation-source-consistency-release.md`.
 
 ## Core Lifecycles
 
