@@ -640,6 +640,12 @@ Two compatibility defects were found and closed during promotion:
   [protected-branch password isolation](https://neon.com/docs/guides/protected-branches)
   guarantee; live parent protection still must be read-only verified after
   OAuth is restored and is not inferred from the branch being primary/default.
+- After revealing each fresh child password locally, preparation challenges the
+  exact production endpoint with that child-only credential and accepts only
+  PostgreSQL `28P01` invalid-password rejection. An authenticated connection or
+  any ambiguous transport/provider result aborts preparation and triggers exact
+  child teardown before URLs are persisted as credential-ready or copied to
+  Vercel. No production query is issued by this negative-authentication proof.
 - Focused static, runtime-manifest, audit and executable fixture tests pass 25/25,
   including real disposable PostgreSQL fixture creation, collision denial and
   zero-residue teardown. The external provider preparation has not started:

@@ -47,6 +47,7 @@ export const REVIEWED_STAGING_BRANCH_NAME =
 export const REVIEWED_DATABASE_NAME = "neondb";
 export const REVIEWED_DATABASE_REGION = "westus3.azure";
 export const REVIEWED_NEON_REGION_ID = "azure-westus3";
+export const REVIEWED_PRODUCTION_ENDPOINT_ID = "ep-plain-river-aaqg8gj4";
 export const REVIEWED_OWNER_ROLE = "neondb_owner";
 export const REVIEWED_RUNTIME_ROLE = "grainline_app_runtime";
 export const REVIEWED_EXECUTION_REGION = "sfo1";
@@ -400,6 +401,37 @@ function buildDatabaseUrl(state, role, password, { pooled }) {
   return validateDatabaseUrl(target.toString(), state, { pooled, role });
 }
 
+export function buildProductionCredentialChallengeUrl(role, password) {
+  if (
+    ![REVIEWED_OWNER_ROLE, REVIEWED_RUNTIME_ROLE].includes(role)
+    || typeof password !== "string"
+    || !/^[A-Za-z0-9_-]{16,128}$/u.test(password)
+  ) throw new Error("production credential challenge input drifted");
+  const target = new URL(
+    `postgresql://${role}:placeholder@${REVIEWED_PRODUCTION_ENDPOINT_ID}.${REVIEWED_DATABASE_REGION}.neon.tech:5432/${REVIEWED_DATABASE_NAME}?sslmode=verify-full&channel_binding=require`,
+  );
+  target.password = password;
+  return target.toString();
+}
+
+async function proveChildPasswordRejectedByProduction(role, password) {
+  const client = new Client({
+    connectionString: buildProductionCredentialChallengeUrl(role, password),
+    connectionTimeoutMillis: 10_000,
+  });
+  let connected = false;
+  try {
+    await client.connect();
+    connected = true;
+  } catch (error) {
+    if (error?.code === "28P01") return;
+    throw new Error(`production rejected the ${role} child credential with an unreviewed result`);
+  } finally {
+    if (connected) await client.end().catch(() => {});
+  }
+  throw new Error(`disposable ${role} credential unexpectedly authenticated to production`);
+}
+
 function revealRolePassword(state, role) {
   const result = runNeonApi(
     `/projects/${REVIEWED_NEON_PROJECT_ID}/branches/${state.neonBranchId}/roles/${role}/reveal_password`,
@@ -411,7 +443,7 @@ function revealRolePassword(state, role) {
   return password;
 }
 
-export function validateProductionNeonBoundary(project, production) {
+export function validateProductionNeonBoundary(project, production, endpoint) {
   if (
     project?.id !== REVIEWED_NEON_PROJECT_ID
     || project.org_id !== REVIEWED_NEON_ORG_ID
@@ -421,9 +453,15 @@ export function validateProductionNeonBoundary(project, production) {
     || production.default !== true
     || production.protected !== true
     || production.current_state !== "ready"
+    || endpoint?.id !== REVIEWED_PRODUCTION_ENDPOINT_ID
+    || endpoint.branch_id !== REVIEWED_PRODUCTION_BRANCH_ID
+    || endpoint.region_id !== REVIEWED_NEON_REGION_ID
+    || endpoint.type !== "read_write"
+    || !["active", "idle"].includes(endpoint.current_state)
   ) throw new Error("production Neon identity drifted before disposable preparation");
   return Object.freeze({
     branchId: production.id,
+    endpointId: endpoint.id,
     protected: production.protected,
   });
 }
@@ -433,7 +471,11 @@ async function verifyProductionBoundaries() {
   const production = runNeonApi(
     `/projects/${REVIEWED_NEON_PROJECT_ID}/branches/${REVIEWED_PRODUCTION_BRANCH_ID}`,
   )?.branch;
-  const neon = validateProductionNeonBoundary(project, production);
+  const endpoints = runNeonApi(`/projects/${REVIEWED_NEON_PROJECT_ID}/endpoints`)?.endpoints;
+  const endpoint = Array.isArray(endpoints)
+    ? endpoints.find((candidate) => candidate?.id === REVIEWED_PRODUCTION_ENDPOINT_ID)
+    : null;
+  const neon = validateProductionNeonBoundary(project, production, endpoint);
   const { payload: deployment } = await vercelApi(
     `/v13/deployments/${REVIEWED_PRODUCTION_DEPLOYMENT_ID}`,
   );
@@ -1139,6 +1181,8 @@ async function prepare() {
     await waitForDisposableNeon(state);
     const ownerPassword = revealRolePassword(state, REVIEWED_OWNER_ROLE);
     const runtimePassword = revealRolePassword(state, REVIEWED_RUNTIME_ROLE);
+    await proveChildPasswordRejectedByProduction(REVIEWED_OWNER_ROLE, ownerPassword);
+    await proveChildPasswordRejectedByProduction(REVIEWED_RUNTIME_ROLE, runtimePassword);
     state = {
       ...state,
       adminDatabaseUrl: buildDatabaseUrl(state, REVIEWED_OWNER_ROLE, ownerPassword, { pooled: false }),

@@ -12,6 +12,8 @@ import {
   REVIEWED_PRODUCTION_ALIASES,
   REVIEWED_PRODUCTION_BRANCH_ID,
   REVIEWED_PRODUCTION_DEPLOYMENT_ID,
+  REVIEWED_PRODUCTION_ENDPOINT_ID,
+  buildProductionCredentialChallengeUrl,
   providerEnvironmentEntries,
   validateDatabaseUrl,
   validateProductionNeonBoundary,
@@ -128,16 +130,31 @@ describe("CheckoutStockReservation provider proof operator", () => {
       primary: true,
       protected: true,
     };
-    assert.deepEqual(validateProductionNeonBoundary(project, production), {
+    const endpoint = {
+      branch_id: REVIEWED_PRODUCTION_BRANCH_ID,
+      current_state: "idle",
+      id: REVIEWED_PRODUCTION_ENDPOINT_ID,
+      region_id: "azure-westus3",
+      type: "read_write",
+    };
+    assert.deepEqual(validateProductionNeonBoundary(project, production, endpoint), {
       branchId: REVIEWED_PRODUCTION_BRANCH_ID,
+      endpointId: REVIEWED_PRODUCTION_ENDPOINT_ID,
       protected: true,
     });
     assert.throws(
-      () => validateProductionNeonBoundary(project, { ...production, protected: false }),
+      () => validateProductionNeonBoundary(project, { ...production, protected: false }, endpoint),
       /production Neon identity drifted/u,
     );
     assert.throws(
-      () => validateProductionNeonBoundary(project, { ...production, protected: undefined }),
+      () => validateProductionNeonBoundary(project, { ...production, protected: undefined }, endpoint),
+      /production Neon identity drifted/u,
+    );
+    assert.throws(
+      () => validateProductionNeonBoundary(project, production, {
+        ...endpoint,
+        id: "ep-unreviewed",
+      }),
       /production Neon identity drifted/u,
     );
   });
@@ -174,6 +191,21 @@ describe("CheckoutStockReservation provider proof operator", () => {
       state.runtimeDatabaseUrl.replace("-pooler", ""),
       state,
       { pooled: true, role: "grainline_app_runtime" },
+    ));
+    const challenged = new URL(buildProductionCredentialChallengeUrl(
+      "grainline_app_runtime",
+      "runtime_child_secret",
+    ));
+    assert.equal(
+      challenged.hostname,
+      `${REVIEWED_PRODUCTION_ENDPOINT_ID}.westus3.azure.neon.tech`,
+    );
+    assert.equal(challenged.username, "grainline_app_runtime");
+    assert.equal(challenged.password, "runtime_child_secret");
+    assert.equal(challenged.searchParams.get("sslmode"), "verify-full");
+    assert.throws(() => buildProductionCredentialChallengeUrl(
+      "unreviewed_role",
+      "runtime_child_secret",
     ));
     assert.throws(() => validateDatabaseUrl(
       state.runtimeDatabaseUrl.replace("grainline_app_runtime", "neondb_owner"),
@@ -217,6 +249,9 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.match(source, /parent_id: REVIEWED_PRODUCTION_BRANCH_ID/);
     assert.match(source, /production\.protected !== true/);
     assert.match(source, /branch\.protected !== false/);
+    assert.match(source, /error\?\.code === "28P01"/);
+    assert.match(source, /proveChildPasswordRejectedByProduction\(REVIEWED_OWNER_ROLE, ownerPassword\)/);
+    assert.match(source, /proveChildPasswordRejectedByProduction\(REVIEWED_RUNTIME_ROLE, runtimePassword\)/);
     assert.match(source, /expires_at: expiresAt/);
     assert.match(source, /endpoints: \[\{ type: "read_write" \}\]/);
     assert.match(source, /deployment\.target !== null/);

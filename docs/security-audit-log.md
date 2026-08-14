@@ -1476,4 +1476,7 @@ Open work:
   `protected=true` on production before child creation and exact
   `protected=false` on the disposable child. This prevents a Preview-scoped
   child URL from carrying a password that could authenticate to production.
-  No provider resource or credential was created while correcting this gate.
+  Preparation also challenges the exact production endpoint with both fresh
+  child passwords and accepts only PostgreSQL `28P01` rejection before it can
+  persist credential-ready state or configure Vercel. No provider resource or
+  credential was created while correcting this gate.
