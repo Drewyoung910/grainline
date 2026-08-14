@@ -597,11 +597,10 @@ Two compatibility defects were found and closed during promotion:
   `grainline_app_runtime`, exact fixture counts, and zero reservation/stock
   residue. Thresholds are fixed before the external run and must not be weakened
   after observing results.
-- No provider resource has been created at this checkpoint. The external proof
-  must use a fresh disposable Neon child and branch-scoped Vercel Preview
-  variables, retain only sanitized mode-0600 evidence, and remove the Preview,
-  branch variables, child database, exact fixtures and local secret state after
-  both accepted passes. It does not authorize or alter production.
+- At this scaffold checkpoint no provider resource had been created. The later
+  external attempt used a fresh disposable Neon child and retained only
+  sanitized mode-`0600` evidence. Its exact outcome is recorded below; this
+  historical statement must not be read as the current provider state.
 
 ## Provider operator pre-execution review (2026-08-13)
 
@@ -654,14 +653,11 @@ Two compatibility defects were found and closed during promotion:
   Vercel. No production query is issued by this negative-authentication proof.
 - Focused static, runtime-manifest, audit and executable fixture tests pass 26/26,
   including real disposable PostgreSQL fixture creation, collision denial and
-  zero-residue teardown. The external provider preparation has not started:
-  the local Neon CLI credential disappeared during its earlier refresh/OAuth
-  attempt, so no Neon child, Vercel variable or bypass exists from this operator
-  checkpoint. Exactly one older failed Preview from scaffold commit `835ca226`
-  remains; the deployment-disabled bootstrap and an exact-ID/source-pinned
-  cleanup command prevent it from being confused with the counted Preview.
-  Authorization must be restored before that cleanup, the operator's read-only
-  status check and mutation preflight can pass.
+  zero-residue teardown. At the pre-execution checkpoint the Neon CLI
+  credential had disappeared and one old failed Preview from scaffold commit
+  `835ca226` remained. The subsequent bullets record the authorization restore,
+  exact old-Preview cleanup and external attempts; this is retained as
+  chronology rather than current-state evidence.
 - Authorization was restored and exact bootstrap cleanup removed the sole old
   failed Preview, after which status proved zero child, Preview, branch variable
   and local state. The first authorized preparation attempt then failed closed
@@ -671,3 +667,44 @@ Two compatibility defects were found and closed during promotion:
   exact child and a second zero-residue status passed. The corrected inventory
   requires exactly all three roles and resets/challenges every inherited
   credential without broadening the later Vercel manifest.
+
+## Provider result and successor decision (2026-08-13)
+
+- The corrected preparation from exact commit
+  `4d32322418fc294c685dde33a3abcc8b9ae002ea` created one disposable Neon child,
+  reset the child-only `neondb_owner`, `grainline_app_runtime` and
+  `grainline_direct_upload_cleanup_v2` passwords, and proved every replacement
+  password was rejected by the production endpoint with PostgreSQL `28P01`.
+  Only the child runtime URL was eligible for the temporary Vercel manifest.
+  Fixture setup passed with 20 listings at stock 10,000 and zero active
+  reservations.
+- The database authority and lock behavior passed: all operations completed
+  without error and the same-listing blocker waited 894.4 ms before completing.
+  The candidate nevertheless failed the fixed provider latency gate. At target
+  concurrency 8 its p95 was 1057.2 ms versus 457.3 ms for the one-statement
+  baseline; at burst concurrency 10 its p95 was 1054.1 ms versus 617.6 ms.
+  Both candidate p95 values exceeded the precommitted 750 ms ceiling. The
+  threshold is not weakened and these failed slots are not replayed or
+  reclassified.
+- Exact abort cleanup then removed the fixtures, revoked the temporary
+  automation bypass and deleted the disposable Neon child. A final status read
+  proved zero temporary branch variables, Preview deployments, child branches
+  and local operator state. Production application, database, RLS/grants,
+  credentials and provider variables were unchanged. Sanitized evidence is in
+  the mode-`0600` setup, local-preflight and abort-cleanup artifacts bearing the
+  `4d32322418fc` suffix.
+- The result rejects the multi-statement pooled transaction, not the source
+  integrity requirement. The successor must perform locked source derivation,
+  exact source comparison, reservation insertion and stock decrement in one
+  database statement. Caller input may carry an expected-source witness, but
+  PostgreSQL must independently derive every security-relevant target,
+  quantity, price and inventory item from the locked durable source.
+- `CSR-A24`: the rejected candidate's fixed creation functions lock
+  `Cart`/`CartItem`/`Listing`/buyer rows, while the later application re-read
+  also depends on mutable `SellerProfile`, seller `User`, primary `Photo`,
+  `ListingVariantGroup` and `ListingVariantOption` rows. Holding only a shared
+  seller-row lock does not fence photo or variant edits, and the Prisma nested
+  read does not explicitly lock those dependent rows. The one-statement
+  successor must lock every exact dependency in stable order and derive the
+  canonical source from those locked rows; merely reducing round trips without
+  closing this race is not acceptable.

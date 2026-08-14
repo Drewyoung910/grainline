@@ -1489,3 +1489,19 @@ Open work:
   state. The operator now pins owner, ordinary runtime and cleanup as the only
   inherited login roles, resets and production-challenges all three, and still
   exposes only the pooled ordinary-runtime URL to the later Preview manifest.
+- The corrected exact-three-role provider attempt from `4d323224` passed child
+  credential isolation, production `28P01` rejection, fixture setup, zero-error
+  authority execution and a bounded 894.4 ms same-listing lock wait. It rejected
+  the application candidate on the fixed 750 ms latency ceiling: target p95 was
+  1057.2 ms and burst p95 was 1054.1 ms, compared with one-statement baselines
+  of 457.3 ms and 617.6 ms. Exact abort cleanup revoked the temporary Vercel
+  bypass, deleted the child and proved zero temporary provider/local residue.
+  Production was unchanged. The failed multi-statement shape will not be
+  replayed or rescued by weakening thresholds.
+- **Found before deploy:** `CSR-A24` records that the rejected transaction also
+  did not explicitly lock every mutable dependent source used by the nested
+  checkout read—seller user/profile, primary photo and variant group/option
+  rows. The successor therefore must be a one-statement, database-derived
+  source comparison that locks all exact dependencies in stable order before
+  it reserves stock. This is both the latency correction and the remaining
+  source-race correction; the security invariant is not traded away for speed.
