@@ -68,7 +68,10 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(audit, /No public\/runtime function accepts a free-form restore reason/);
     assert.match(audit, /database-selected stale-repair claim\/finalize protocol/);
     assert.match(audit, /monotonic repair generation and claim clock/);
-    assert.match(audit, /does not authorize\s+a\s+migration, deployment, grant/);
+    assert.match(
+      audit,
+      /does not authorize a\s+deployment, cleanup, RLS activation or provider mutation/,
+    );
   });
 
   it("records the payable-session race and exact replay-fingerprint mismatch", () => {
@@ -111,8 +114,10 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(row, /`COMPATIBLE_CANDIDATE`/);
     assert.match(row, /checkout-stock-reservation-rls-audit\.md/);
     assert.doesNotMatch(row, /RLS_LIVE/);
-    assert.match(row, /dedicated restart-safe compatible runner/);
-    assert.match(row, /production-inert/);
+    assert.match(row, /compatible migration is live from exact main `77fc45fe`/);
+    assert.match(row, /actual pooled-runtime postflight accepted/);
+    assert.match(row, /production app source is still `69c14c06`/);
+    assert.match(row, /deploy\/smoke\/drain the fixed-operation app/);
     assert.match(strategy, /next isolated dependency is `CheckoutStockReservation`/);
     assert.match(strategy, /StripeWebhookEvent FORCE\s+remains a separate/);
   });

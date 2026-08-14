@@ -1,9 +1,10 @@
 # CheckoutStockReservation RLS authority audit
 
-Status: isolated compatible authority draft and application conversion in
-progress; production posture is unchanged. This document does not authorize a
-migration, deployment, grant change, cleanup, RLS activation or provider
-mutation.
+Status: compatible authority is applied and accepted through the actual pooled
+runtime role. The fixed-operation application remains merged but undeployed;
+production retains predecessor table CRUD with RLS/FORCE off and zero policies
+until the deployment and drain boundary. This document does not authorize a
+deployment, cleanup, RLS activation or provider mutation.
 
 Date: 2026-08-10
 
@@ -39,11 +40,12 @@ The four rows below are the predecessor baseline captured at audit start:
 | `src/app/api/cart/checkout/resume/route.ts` | recent completed buyer rows | buyer-bound bounded resume projection |
 | `src/app/api/account/export/route.ts` | buyer/seller rows and role-specific redaction | actor-bound export projection with seller profile derived in PostgreSQL |
 
-The isolated conversion currently has zero direct
+The merged conversion has zero direct
 `prisma.checkoutStockReservation`/`tx.checkoutStockReservation` delegates
-under `src`. That is not a production claim: main and the deployed application
-remain on the predecessor until compatible functions are packaged, promoted
-and proven. Semantic-call inventory now pins the checkout, webhook, buyer
+under `src`. That is not yet a deployed-application claim: production remains
+on exact source `69c14c0618ea7ab9c74756422273d17d66db7efa`, while the
+conversion is contained in accepted main `77fc45fe06feb3f4e440afea916728c3d2873315`.
+Semantic-call inventory pins the checkout, webhook, buyer
 rollback, seller/admin expiry, cron, account deletion, resume and export paths
 so zero direct delegates cannot hide an omitted capability.
 

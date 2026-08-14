@@ -83,8 +83,12 @@ CI plus a same-commit aggregate inspection proving the mixed live posture and
 seven zero reservation-integrity counts. The separate actual pooled-runtime
 postflight proves the compatible table, schema and 20-function catalog without
 placing the runtime credential in the owner-only GitHub environment. The
-generic migration runner still isolates this successor; compatible migration,
-app deployment/drain, policyless ENABLE and FORCE remain separate boundaries.
+generic migration runner still isolates this successor. The compatible
+migration is now live from exact main `77fc45fe` and guarded run `31754431910`;
+the actual pooled-runtime proof passed with RLS/FORCE off, zero policies,
+predecessor CRUD retained and zero reservation rows. Production application
+source remains `69c14c06`, so app deployment/drain, policyless ENABLE and FORCE
+remain separate boundaries.
 
 ## Core Lifecycles
 

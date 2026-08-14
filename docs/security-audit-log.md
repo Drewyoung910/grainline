@@ -1396,3 +1396,37 @@ Open work:
   `20260810172000_force_stripe_webhook_event_rls` on main but did not run it;
   production remains policyless ENABLE/NO-FORCE Phase A. No migration,
   deployment, provider change or production FORCE occurred at this boundary.
+
+## CheckoutStockReservation compatible authority production boundary (2026-08-13)
+
+- Exact main `77fc45fe06feb3f4e440afea916728c3d2873315` passed all 100
+  CI steps in run `31752628832`. Same-main protected inspection
+  `31753838550` accepted the mixed live predecessor and seven zero reservation
+  integrity counts.
+- Guarded run `31754431910` applied only
+  `20260810190000_prepare_checkout_stock_reservation_authority`. It moved the
+  exact restart scope from `predecessor` to `prepared`, retained reservation
+  RLS/FORCE off, zero policies and predecessor table CRUD, and passed migration
+  status, the global 64-table/22-enum/157-function audit and exact 194-migration
+  ledger proof. It did not deploy, clean data, revoke predecessor CRUD or
+  change provider state.
+- The separate actual pooled `grainline_app_runtime` postflight passed from the
+  exact clean release in an engine-attested repeatable-read/read-only
+  transaction. It proved exact role/endpoint identity, schema/trigger/index,
+  20-function source/mode/owner/ACL catalog, private-helper denial, fixed-write
+  SQLSTATE `25006`, predecessor CRUD retained and zero reservation rows. The
+  sanitized mode-`0600` artifact SHA-256 is
+  `1be122b9cd834b5fe1829cab6769d0ff26f73605f3056b5be511a2777648d22f`;
+  `productionChangedByPostflight=false`.
+- A first local postflight invocation failed before database connection because
+  the clean worktree lacked installed `pg`. The accepted rerun reused an
+  existing dependency tree only after both worktrees' package-lock SHA-256
+  matched exactly at
+  `8408da94eb3ba6a70e6e94eeebe9be4512ff44e0d242fa8045ded84e09cf2203`.
+  This was a local tooling failure and made no production query or mutation.
+- The canonical Vercel deployment remains
+  `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` at source `69c14c06`; the merged
+  fixed-operation source in `77fc45fe` is not live. Focused checkout/webhook/
+  deletion/export/lock/payment tests passed 98/98 locally and exact-main CI is
+  the authoritative full-tree result. The next boundary is exact-source deploy,
+  fixed-path smoke and predecessor drain, not policyless ENABLE.
