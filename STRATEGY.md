@@ -260,9 +260,18 @@ read-only after-scope proof all passed. The resulting state is
 `source-consistent` with zero activation and FORCE rows. No application was
 deployed, RLS remains off, and predecessor table authority remains available.
 
-Keep the remaining boundaries separate: actual pooled-runtime postflight;
-compatible app deployment and checkout smoke; predecessor drain; policyless
-ENABLE plus direct-grant revocation; then FORCE. Do not bundle Order,
+The separate actual pooled-runtime postflight subsequently passed from exact
+clean main `ac4c9d2139f5294c5e91edd24acb3dbe71b4976c`, bound to exact-main CI
+`31819848330`, migration-main CI `31813433933` and migration run `31814032227`.
+It proved the compatible 25-function catalog, retained predecessor CRUD,
+private-helper denial and the engine read-only write fence as
+`grainline_app_runtime`, then rolled back with
+`productionChangedByPostflight=false`. The database postflight boundary is
+complete.
+
+Keep the remaining boundaries separate: compatible app deployment and checkout
+smoke; predecessor drain; policyless ENABLE plus direct-grant revocation; then
+FORCE. Do not bundle Order,
 OrderItem, payment, payout or shipping activation into this service-ledger
 release.
 
