@@ -1,11 +1,12 @@
 # CheckoutStockReservation RLS authority audit
 
-Status: isolated compatible authority draft and application conversion in
-progress; production posture is unchanged. This document does not authorize a
-migration, deployment, grant change, cleanup, RLS activation or provider
-mutation.
+Status: compatible authority and application live; provider-proven additive
+source-consistency successor packaged on an isolated release branch. RLS
+remains off and predecessor table grants remain temporarily compatible. This
+document does not authorize a merge, migration, deployment, grant change,
+cleanup, RLS activation or provider change.
 
-Date: 2026-08-10
+Date: 2026-08-14
 
 ## Scope and current posture
 
@@ -27,6 +28,14 @@ The table is not an owner-CRUD table. It is a stock state machine shared by:
 
 The target is policyless ENABLE and later FORCE RLS, zero direct runtime/PUBLIC
 table or column grants, and a fixed operation for every legitimate path.
+
+The additive source-consistency successor introduces the exact runtime entry
+points `grainline_checkout_reservation_create_cart_consistent` and
+`grainline_checkout_reservation_create_single_consistent`. They supplement the
+temporarily retained predecessor operations
+`grainline_checkout_reservation_create_cart` and
+`grainline_checkout_reservation_create_single`; retiring those predecessors is
+a later deployment-drain boundary.
 
 ## Exact direct-access inventory
 
@@ -515,3 +524,45 @@ Two compatibility defects were found and closed during promotion:
   `varchar` by the target column and `text` by the canonical JSON object. The
   repaired fixture casts every reused identity parameter to `text` at its SQL
   boundary, matching the repository's fail-closed parameter-typing rule.
+
+## Source-consistency acceptance (2026-08-14)
+
+### CSR-A23: multi-statement creation left a source-consistency window
+
+The first fixed-operation application removed caller-controlled reservation
+targets, but it still read Cart, CartItem, Listing, photo and variant evidence
+in application statements before invoking the database creation operation. A
+concurrent source edit could therefore make the already-authorized snapshot
+stale by mutation time. This was not broad cross-user authority, but it was an
+avoidable time-of-check/time-of-use integrity gap on a payment-adjacent stock
+ledger.
+
+The accepted candidate replaces both checkout creation paths with one fixed
+PostgreSQL statement. It locks and validates the user/seller, cart, item,
+listing, photo and variant graph in the documented global order and derives
+the reservation buyer, seller, listing, quantity, price, item JSON and lock
+identity inside the database. The application passes a canonical expected
+source witness only for equality rejection. Changing that witness cannot
+select a different write target or payload.
+
+### CSR-A24: provider proof selected the one-statement candidate
+
+Two fresh provider slots ran through exact Preview commit
+`d0bb3824176ad9e006d9423c771b9a984a09bf16` and deployment
+`dpl_CB3uX5qzZESrBMCMh9hYMuDgWbES` against a disposable Neon child. Each target
+and burst workload completed 80 requests with zero errors, proof issues or
+residue. Candidate p95 ranged from 151.4 ms to 185.4 ms and maximum latency was
+187.1 ms, below the unchanged 750 ms p95 and 3000 ms maximum thresholds. The
+child, Preview, 27 scoped variables, bypass, fixtures and local state were
+deleted. Production was unchanged and the proof branch must never merge.
+
+The promoted additive migration is
+`20260814053000_prepare_checkout_stock_reservation_source_consistency`, SHA-256
+`69623f2363c6ae4978ff2cc8a22ccc1b8d9f43d378e01678c2fc6ef6f14b9928`;
+the migration-tree SHA-256 is
+`527b93f81e4b74a2cf04218d2d4b53cd8524bbb4fc9b93db6072c387bbb71e54`.
+It adds three private helpers and two runtime wrappers for an exact
+18-runtime/7-private catalog. It does not enable RLS, create policies, narrow
+table grants or rewrite data. The release verifier, CI ordering, guarded
+production-scope verifier, evidence hashes and remaining sequencing are pinned
+in `docs/checkout-stock-reservation-source-consistency-release.md`.

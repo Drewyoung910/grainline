@@ -1299,6 +1299,32 @@ Open work:
   `d525a4d8e7982f49dbfd280b9d9cc46e0dac39da0507b66881b7828786cd4bdc`.
   These bytes remain isolated on PR #164. No production migration, grant, RLS,
   deployment or provider state changed in this review.
+
+## CheckoutStockReservation source-consistency acceptance (2026-08-14)
+
+- `CSR-A23`: the compatible fixed-operation application was authority-safe but
+  assembled Cart/Listing creation evidence in multiple application statements.
+  A concurrent source edit could make the snapshot stale before mutation. The
+  accepted candidate now locks and validates every creation source and derives
+  the written reservation in one PostgreSQL statement; the application witness
+  is rejection-only and cannot select targets or payload.
+- `CSR-A24`: two fresh provider slots passed through exact disposable Preview
+  commit `d0bb3824176ad9e006d9423c771b9a984a09bf16` and deployment
+  `dpl_CB3uX5qzZESrBMCMh9hYMuDgWbES`. All four 80-request workloads completed
+  with zero errors/issues/residue; candidate p95 was 151.4-185.4 ms and maximum
+  187.1 ms against unchanged 750/3000 ms thresholds. All child, Preview,
+  variable, bypass, fixture and local proof state was deleted; production was
+  unchanged.
+- The additive promoted migration
+  `20260814053000_prepare_checkout_stock_reservation_source_consistency` has
+  SHA-256 `69623f2363c6ae4978ff2cc8a22ccc1b8d9f43d378e01678c2fc6ef6f14b9928`
+  and complete-tree SHA-256
+  `527b93f81e4b74a2cf04218d2d4b53cd8524bbb4fc9b93db6072c387bbb71e54`.
+  It adds three private and two runtime functions without RLS, policy, grant or
+  data changes. CI and the guarded production workflow now prove the exact
+  successor order and fail closed on unknown, duplicate, failed, drifted or
+  later migration rows. This isolated wiring does not authorize merge,
+  dispatch, migration, deployment, activation or provider change.
 - Exact authority-hardening checkpoint
   `7a57316bcd16daeef5ac9d595180284d1953e316` passed exact-head CI run
   `31282060518`. The run exercised the actual direct disposable runtime login,

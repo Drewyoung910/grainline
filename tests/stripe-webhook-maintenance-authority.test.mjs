@@ -176,8 +176,11 @@ test("historical maintenance and Phase-A proofs remain after workflows advance t
   assert.match(ci, /audit:rls-stripe-webhook-event-activation-sealed-prefix/);
   assert.match(ci, /audit:rls-stripe-webhook-maintenance-postgres/);
   assert.match(ci, /STRIPE_WEBHOOK_MAINTENANCE_PROOF_DATABASE_URL/);
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
-  assert.match(production, /audit:rls-stripe-webhook-event-force-release/);
+  assert.match(
+    production,
+    /checkout-stock-reservation-source-consistency-reviewed/,
+  );
+  assert.match(production, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
 });
 
 test("release applies additive authority before deploying its call sites", () => {

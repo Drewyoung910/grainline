@@ -182,10 +182,11 @@ evidence is the deliberate separation boundary.
 ### CheckoutStockReservation compatible production boundary (2026-08-13)
 
 StripeWebhookEvent FORCE is accepted after the restart-safe database
-credential recovery; its recovered pooled-runtime postflight is the
-prerequisite for reservation authority. The reservation migration and
-fixed-operation application are merged, while production remains at the
-broad-CRUD reservation predecessor.
+credential recovery; its recovered pooled-runtime postflight was the
+prerequisite for reservation authority. The compatible reservation migration
+and fixed-operation application are now live. Direct table grants remain only
+as temporary compatibility authority for predecessor deployments; reservation
+RLS remains off.
 
 The production path is deliberately dedicated rather than reopening the
 single-purpose Stripe FORCE runner. It requires successful same-commit main CI
@@ -225,6 +226,41 @@ unit and disposable PostgreSQL rejection coverage for current/near-match,
 duplicate, incomplete, rolled-back and zero-step rows. It does not rewrite the
 ledger or migration. Do not resume production preparation until that correction
 has separate review and exact-main CI.
+
+### CheckoutStockReservation source-consistency boundary (2026-08-14)
+
+The first fixed-operation application still assembled checkout creation
+evidence across multiple application statements before invoking PostgreSQL.
+That was authority-safe but left a time-of-check/time-of-use consistency gap if
+Cart, CartItem, Listing, photo or variant sources changed between the reads and
+the mutation. The accepted replacement uses one fixed database statement per
+checkout path: source rows are locked and validated, the reservation payload
+is derived in PostgreSQL, and the application-provided canonical witness is a
+rejection condition rather than write authority.
+
+Two fresh provider slots passed through an exact disposable Vercel Preview and
+Neon child with zero errors, issues or residue. Target p95 was 161.1 ms and
+151.4 ms; burst p95 was 174.5 ms and 185.4 ms; candidate maximum was 187.1 ms.
+The existing 750 ms p95 and 3000 ms maximum thresholds were not weakened. The
+proof branch and all provider resources were deleted and must never merge.
+
+The additive migration is
+`20260814053000_prepare_checkout_stock_reservation_source_consistency` with
+SHA-256 `69623f2363c6ae4978ff2cc8a22ccc1b8d9f43d378e01678c2fc6ef6f14b9928`;
+the full tree SHA-256 is
+`527b93f81e4b74a2cf04218d2d4b53cd8524bbb4fc9b93db6072c387bbb71e54`.
+It adds three private helpers and two runtime wrappers, bringing the exact
+catalog to 18 runtime operations and seven private helpers. It does not enable
+RLS, create policies, revoke predecessor grants or rewrite data. The release
+package, fail-closed scope verifier, CI proof and guarded migration wiring are
+documented in
+`docs/checkout-stock-reservation-source-consistency-release.md`.
+
+Keep the remaining boundaries separate: review/merge and exact-main CI;
+guarded additive migration; actual pooled-runtime postflight; compatible app
+deployment and checkout smoke; predecessor drain; policyless ENABLE plus
+direct-grant revocation; then FORCE. Do not bundle Order, OrderItem, payment,
+payout or shipping activation into this service-ledger release.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

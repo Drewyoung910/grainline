@@ -16,6 +16,9 @@ import {
   STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE,
   verifyStripeWebhookEventActivationRelease,
 } from "../scripts/verify-stripe-webhook-event-activation-release.mjs";
+import {
+  createSealedCheckoutStockReservationAuthorityRoot,
+} from "./helpers/sealed-checkout-stock-reservation-authority-root.mjs";
 
 const migration = fs.readFileSync(
   "prisma/migrations/20260805060000_enable_stripe_webhook_event_rls/migration.sql",
@@ -45,9 +48,11 @@ const production = fs.readFileSync(
   "utf8",
 );
 
-test("release pins one policyless ENABLE activation with no row mutation", () => {
+test("release pins one policyless ENABLE activation with no row mutation", (t) => {
   const candidate = buildStripeWebhookEventActivationCandidate();
-  const release = verifyStripeWebhookEventActivationRelease(undefined, {
+  const sealedRoot = createSealedCheckoutStockReservationAuthorityRoot();
+  t.after(() => fs.rmSync(sealedRoot, { recursive: true, force: true }));
+  const release = verifyStripeWebhookEventActivationRelease(sealedRoot, {
     allowReviewedSuccessor: true,
   });
   assert.equal(release.phase, STRIPE_WEBHOOK_EVENT_ACTIVATION_RELEASE_PHASE);
@@ -221,9 +226,13 @@ test("CI stages compatibility first and proves activation before production can 
   );
   assert.match(ci, /checkout-stock-reservation-authority-reviewed/);
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
-  assert.match(production, /stripe-webhook-event-force-reviewed/);
+  assert.match(
+    production,
+    /checkout-stock-reservation-source-consistency-reviewed/,
+  );
+  assert.match(production, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
   assert.ok(
-    production.indexOf("audit:rls-stripe-webhook-event-force-release")
+    production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
       < production.indexOf("npx prisma migrate deploy"),
   );
 });

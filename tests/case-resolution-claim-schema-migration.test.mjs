@@ -36,8 +36,9 @@ test("Case claim preparation remains included through the reviewed FORCE boundar
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed/,
   );
+  assert.match(productionWorkflow, /audit:rls-case-force-release/);
 });
 
 test("Stripe-dispute source is nullable and bound to the exact Order", () => {

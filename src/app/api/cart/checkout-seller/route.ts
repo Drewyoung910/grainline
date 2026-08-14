@@ -25,9 +25,13 @@ import {
 import {
   abortCheckoutStockReservation,
   bindCheckoutStockReservationSession,
-  createCartCheckoutStockReservation,
+  createConsistentCartCheckoutStockReservation,
+  isCheckoutReservationSourceChangedDatabaseError,
   isCheckoutStockUnavailableDatabaseError,
 } from "@/lib/checkoutStockReservationAuthority";
+import {
+  cartCheckoutReservationSourceWitness,
+} from "@/lib/checkoutReservationSourceState";
 import { logSecurityEvent } from "@/lib/security";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { DEFAULT_CURRENCY } from "@/lib/money";
@@ -513,17 +517,43 @@ export async function POST(req: Request) {
         title: it.listing.title,
       }));
     checkoutReservationItemCount = reservableItems.length;
+    const pricedSourceWitness = cartCheckoutReservationSourceWitness(
+      me.id,
+      sellerId,
+      resolvedSellerItems,
+    );
+    if (!pricedSourceWitness) {
+      await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      return privateJson(
+        { error: "Your cart changed while checkout was starting. Review it and try again." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    }
+    let reservation: Awaited<ReturnType<typeof createConsistentCartCheckoutStockReservation>>;
     try {
-      const reservation = await createCartCheckoutStockReservation({
+      reservation = await createConsistentCartCheckoutStockReservation({
         cartId: cart.id,
         sellerProfileId: sellerId,
         checkoutGroupId: body.checkoutGroupId,
         payloadHash,
         buyerId: me.id,
+        sourceWitness: pricedSourceWitness,
       });
+      if (!reservation) throw new Error("Consistent cart reservation returned no reservation");
       checkoutReservationId = reservation?.id ?? null;
     } catch (reservationError) {
       await releasePreparingCheckoutLock(checkoutLockKeyValue, checkoutLockOwnerTokenValue);
+      if (isCheckoutReservationSourceChangedDatabaseError(reservationError)) {
+        Sentry.captureMessage("Checkout source changed before cart reservation commit", {
+          level: "warning",
+          tags: { source: "checkout_stock_reservation_source", route: "cart_checkout_seller" },
+          extra: { pricedItemCount: resolvedSellerItems.length },
+        });
+        return privateJson(
+          { error: "Your cart changed while checkout was starting. Review it and try again." },
+          { status: HTTP_STATUS.CONFLICT },
+        );
+      }
       if (isCheckoutStockUnavailableDatabaseError(reservationError)) {
         return privateJson(
           { error: "One or more items do not have enough stock." },

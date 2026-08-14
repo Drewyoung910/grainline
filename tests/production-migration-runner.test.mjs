@@ -207,11 +207,11 @@ describe("isolated production migration runner", () => {
     assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     assert.match(
       workflow,
-      /Verify exact CheckoutStockReservation successor migration tree[\s\S]{0,260}checkout-stock-reservation-authority-reviewed[\s\S]{0,260}Verify exact CheckoutStockReservation successor release[\s\S]{0,220}audit:rls-checkout-stock-reservation-authority-release[\s\S]{0,260}Verify sealed StripeWebhookEvent FORCE predecessor[\s\S]{0,220}audit:rls-stripe-webhook-event-force-sealed-prefix[\s\S]*Verify exact Case FORCE proof equivalence[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*Isolate the reviewed CheckoutStockReservation successor[\s\S]*Verify exact StripeWebhookEvent FORCE migration tree after isolation[\s\S]{0,260}stripe-webhook-event-force-reviewed[\s\S]*Verify exact StripeWebhookEvent FORCE release after isolation[\s\S]{0,220}audit:rls-stripe-webhook-event-force-release[\s\S]{0,220}Generate Prisma client/,
+      /Verify exact CheckoutStockReservation source-consistency migration tree[\s\S]{0,280}checkout-stock-reservation-source-consistency-reviewed[\s\S]{0,280}Verify exact CheckoutStockReservation source-consistency release[\s\S]{0,240}audit:rls-checkout-stock-reservation-source-consistency-release[\s\S]{0,280}Isolate the reviewed CheckoutStockReservation source-consistency successor[\s\S]*Verify exact CheckoutStockReservation authority migration tree after isolation[\s\S]{0,260}checkout-stock-reservation-authority-reviewed[\s\S]*Verify sealed CheckoutStockReservation authority predecessor release[\s\S]{0,220}audit:rls-checkout-stock-reservation-authority-release[\s\S]*Verify exact Case FORCE proof equivalence[\s\S]*Verify DirectUpload activation proof equivalence[\s\S]*Restore the reviewed CheckoutStockReservation source-consistency successor[\s\S]*Inspect exact CheckoutStockReservation source-consistency restart scope read-only[\s\S]*Generate Prisma client/,
     );
     assert.match(
       workflow,
-      /Apply production migrations[\s\S]*Verify production migration status[\s\S]*Audit final runtime grants and RLS catalog[\s\S]*Prove exact FORCE-only production migration scope/,
+      /Apply production migrations[\s\S]*Verify production migration status[\s\S]*Audit final runtime grants and RLS catalog[\s\S]*Prove exact CheckoutStockReservation source-consistency production scope/,
     );
     assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);

@@ -17,7 +17,7 @@ import {
   CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/case-invariant-catalog.mjs";
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
@@ -1214,7 +1214,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_saved_search_delete_one",
       "grainline_saved_search_list",
       ...DIRECT_UPLOAD_AUTHORITY_FUNCTIONS.map((entry) => entry.name),
-      ...CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map(
+      ...CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.map(
         (entry) => entry.name,
       ).filter((name) => name !== "grainline_stripe_webhook_begin"),
       ...(conversationMessageAuthorityPrepared
@@ -1231,7 +1231,7 @@ describe("database grant inventory guardrails", () => {
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
-        + CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+        + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length,
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -1298,7 +1298,7 @@ describe("database grant inventory guardrails", () => {
     }
     for (const {
       name: functionName,
-    } of CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS) {
+    } of CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS) {
       assert.equal(
         inventory.publicRevokes.some((statement) => (
           statement.includes(`public.${functionName}(`)

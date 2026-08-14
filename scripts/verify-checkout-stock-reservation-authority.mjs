@@ -8,7 +8,7 @@ import {
   computeMigrationTreeSha256,
 } from "./guard-saved-search-rls-deploy.mjs";
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 import {
   verifyPromotedCheckoutStockReservationAuthority,
@@ -43,9 +43,9 @@ export function verifyCheckoutStockReservationAuthority(
     migrationSha256: candidate.migrationSha256,
     draftSha256: candidate.draftSha256,
     migrationTreeSha256,
-    runtimeOperations: CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+    runtimeOperations: CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS
       .filter((entry) => entry.runtimeExecute).length,
-    privateHelpers: CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS
+    privateHelpers: CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS
       .filter((entry) => !entry.runtimeExecute).length,
     rlsChanged: false,
     predecessorTableGrantsChanged: false,

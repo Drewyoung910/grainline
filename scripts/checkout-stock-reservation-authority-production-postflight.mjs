@@ -469,7 +469,7 @@ export async function verifyReservationCompatibleFunctionCatalog(
     assert.ok(contract, signature);
     assert.equal(row.owner_name, migrationRole, signature);
     assert.equal(row.function_kind, "f", signature);
-    assert.equal(row.language_name, "plpgsql", signature);
+    assert.equal(row.language_name, contract.language ?? "plpgsql", signature);
     assert.equal(row.security_definer, true, signature);
     assert.equal(row.leakproof, false, signature);
     assert.equal(row.volatility, contract.volatility, signature);
@@ -478,7 +478,11 @@ export async function verifyReservationCompatibleFunctionCatalog(
     assert.equal(row.runtime_execute, contract.runtimeExecute, signature);
     assert.equal(row.public_execute, false, signature);
     assert.equal(row.invalid_acl_count, 0, signature);
-    assert.equal(row.actual_function_count, 20, signature);
+    assert.equal(
+      row.actual_function_count,
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+      signature,
+    );
     assert.equal(
       createHash("sha256").update(row.function_source).digest("hex"),
       sourceHashes[signature],

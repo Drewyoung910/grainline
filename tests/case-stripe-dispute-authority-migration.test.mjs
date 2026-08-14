@@ -34,8 +34,9 @@ test("Case Stripe dispute packaging remains included through Case FORCE", () => 
   );
   assert.match(
     productionWorkflow,
-    /SAVED_SEARCH_RLS_DEPLOY_PHASE: stripe-webhook-event-force-reviewed/,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed/,
   );
+  assert.match(productionWorkflow, /audit:rls-case-force-release/);
 });
 
 test("the fixed function accepts only one exact durable source", () => {

@@ -27,6 +27,8 @@ import {
   STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION_TREE_SHA256,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
   CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
@@ -201,25 +203,31 @@ const REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE =
   "stripe-webhook-event-force-reviewed";
 const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY =
   "checkout-stock-reservation-authority-reviewed";
-const PREVIEW_MIDDLEWARE_EXEMPTION_LINE =
-  `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // Preview-only, token-protected RLS acceptance runner\n`;
+const REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY =
+  "checkout-stock-reservation-source-consistency-reviewed";
+const CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH =
+  "agent/checkout-stock-reservation-provider-proof-20260813";
+const PREVIEW_MIDDLEWARE_EXEMPTION_LINES = Object.freeze([
+  `  "${RLS_CONTEXT_GATE_PUBLIC_PATH}",   // CHECKOUT_STOCK_RESERVATION_PROVIDER_RUNNER_ONLY\n`,
+  `    pathname === "${RLS_CONTEXT_GATE_PUBLIC_PATH}" ||\n`,
+]);
 const CURRENT_MIDDLEWARE_SOURCE = readFileSync("src/middleware.ts", "utf8");
-const middlewareExemptionParts =
-  CURRENT_MIDDLEWARE_SOURCE.split(PREVIEW_MIDDLEWARE_EXEMPTION_LINE);
-
-assert.ok(
-  middlewareExemptionParts.length === 1
-    || middlewareExemptionParts.length === 2,
-  "the reviewed Preview-only middleware exemption line must occur at most once",
-);
-
-const REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE =
-  CURRENT_MIDDLEWARE_SOURCE.replace(PREVIEW_MIDDLEWARE_EXEMPTION_LINE, "");
+let REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE = CURRENT_MIDDLEWARE_SOURCE;
+for (const exemptionLine of PREVIEW_MIDDLEWARE_EXEMPTION_LINES) {
+  const middlewareExemptionParts = CURRENT_MIDDLEWARE_SOURCE.split(exemptionLine);
+  assert.ok(
+    middlewareExemptionParts.length === 1
+      || middlewareExemptionParts.length === 2,
+    "each reviewed provider-only middleware exemption line must occur at most once",
+  );
+  REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE =
+    REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE.replace(exemptionLine, "");
+}
 
 assert.equal(
   computeTextSha256(REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE),
   REVIEWED_PRODUCTION_MIDDLEWARE_SHA256,
-  "the reviewed production middleware fingerprint must match the Preview source with only the exact exemption removed",
+  "the reviewed production middleware fingerprint must match the provider source with only the exact exemptions removed",
 );
 assert.equal(
   computeFileSha256(PRISMA_CONFIG_PATH),
@@ -313,6 +321,8 @@ function validate(
         STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION_TREE_SHA256,
       [REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY]:
         CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY]:
+        CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -348,6 +358,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     STRIPE_WEBHOOK_EVENT_ACTIVATION_MIGRATION,
     STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
     CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+    CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION,
     CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
     CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
     CONVERSATION_MESSAGE_LEGACY_CLEANUP_MIGRATION,
@@ -557,6 +568,10 @@ const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS = [
   ...REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS = [
+  ...REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -639,6 +654,8 @@ function migrationsFor(phase) {
       REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE_MIGRATIONS,
     [REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY]:
       REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
+    [REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY]:
+      REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS,
   }[phase];
 }
 
@@ -1130,12 +1147,19 @@ describe("SavedSearch RLS production deploy guard", () => {
       () => validate(REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE, currentMigrations),
       /remain the latest migration/,
     );
-    assert.equal(
-      validate(
+    assert.throws(
+      () => validate(
         REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
         currentMigrations,
+      ),
+      /remain the latest migration/,
+    );
+    assert.equal(
+      validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
+        currentMigrations,
       ).phase,
-      REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+      REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
     );
   });
 
@@ -2508,6 +2532,35 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact source-consistency authority after compatible preparation", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
+        hasStripeWebhookEventForceMigration: true,
+        hasCheckoutStockReservationAuthorityMigration: true,
+        hasCheckoutStockReservationSourceConsistencyMigration: true,
+      },
+    );
+    for (const migration of [
+      STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+      CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
+          REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS
+            .filter((name) => name !== migration),
+        ),
+        /requires the completed StripeWebhookEvent FORCE and CheckoutStockReservation compatible-authority boundaries plus the reviewed source-consistency migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2551,6 +2604,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_STRIPE_WEBHOOK_EVENT_ACTIVATION,
     REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
     REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
+    REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -2644,7 +2698,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current reservation-authority guard before CI migrations", () => {
+  it("runs the current reservation source-consistency guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -2654,7 +2708,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
     assert.match(
       workflow,
-      /Verify CheckoutStockReservation authority migration tree[\s\S]{0,300}SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,300}Verify CheckoutStockReservation authority release[\s\S]{0,220}npm run audit:rls-checkout-stock-reservation-authority-release[\s\S]{0,260}Verify StripeWebhookEvent FORCE release[\s\S]{0,220}npm run audit:rls-stripe-webhook-event-force-sealed-prefix[\s\S]*Isolate CheckoutStockReservation authority until webhook FORCE passes[\s\S]*Apply compatible migrations to CI Postgres/,
+      /Verify CheckoutStockReservation source-consistency migration tree[\s\S]{0,320}SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,320}Verify CheckoutStockReservation source-consistency release[\s\S]{0,260}npm run audit:rls-checkout-stock-reservation-source-consistency-release[\s\S]{0,520}Isolate CheckoutStockReservation source consistency until authority passes[\s\S]{0,520}Verify sealed CheckoutStockReservation authority predecessor[\s\S]{0,260}checkout-stock-reservation-authority-reviewed[\s\S]*Isolate CheckoutStockReservation authority until webhook FORCE passes[\s\S]*Apply compatible migrations to CI Postgres/,
     );
   });
 
@@ -3051,6 +3105,18 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /review or retire the temporary SavedSearch deploy guard/,
     );
+    const laterCheckoutStockReservationSourceConsistencyMigration =
+      "20260814053001_unreviewed_after_checkout_stock_reservation_source_consistency";
+    assert.throws(
+      () => validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
+        [
+          ...REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS,
+          laterCheckoutStockReservationSourceConsistencyMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
   });
 
   it("pins the exact reviewed migration inventory and SQL contents", () => {
@@ -3339,6 +3405,13 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
     );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS,
+      ),
+      CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION_TREE_SHA256,
+    );
 
     assert.throws(
       () => validate(RELEASE_ZERO, [
@@ -3531,7 +3604,15 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.equal(buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(buildCommand, /migrat|DIRECT_URL|MIGRATION_DB_ROLE/i);
     assert.equal(vercel.git.deploymentEnabled.main, false);
-    assert.deepEqual(vercel.git.deploymentEnabled, { main: false });
+    const {
+      [CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH]: providerProofDeployment,
+      ...productionDeploymentPolicy
+    } = vercel.git.deploymentEnabled;
+    assert.ok(
+      providerProofDeployment === undefined || providerProofDeployment === false,
+      "the exact disposable provider-proof branch may only be explicitly deployment-disabled",
+    );
+    assert.deepEqual(productionDeploymentPolicy, { main: false });
     assert.equal(buildCommand.includes(guardedMigrationCommand), false);
   });
 

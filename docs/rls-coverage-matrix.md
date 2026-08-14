@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-10
+Last updated: 2026-08-14
 
 ## Purpose And Scope
 
@@ -28,6 +28,9 @@ callbacks remain mandatory after a policy is enabled.
   runtime-role and maintenance proof.
 - `RLS_LIVE_FORCE`: production RLS is enabled and FORCE-hardened with retained
   proof outside the historical SavedSearch/Notification A/B labels.
+- `COMPATIBLE_PREPARATION_LIVE`: reviewed fixed-operation authority is live,
+  while RLS remains off and predecessor direct grants are retained only for a
+  separately drained compatibility window.
 - `PLANNED_RLS`: RLS is the expected target shape, but the table-specific
   actor and operation inventory, staging proof, rollback, and monitoring are
   not complete.
@@ -67,7 +70,7 @@ completed alternative.
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
-| `CheckoutStockReservation` | `COMPATIBLE_CANDIDATE` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | Zero direct reservation delegates remain under `src`; the byte-pinned compatible migration, 15 reservation operations plus the source-bound Stripe overload, and private helpers are merged. StripeWebhookEvent FORCE and its recovered pooled-runtime proof are accepted. A dedicated restart-safe compatible runner, exact production-scope proof, corrected mixed-posture aggregate inspection and separate pooled-runtime postflight are isolated and production-inert. Obsolete waiting inspection `31734121511` executed zero steps and was cancelled. Exact findings remain in `docs/checkout-stock-reservation-rls-audit.md`. Next: CI/review/merge, fresh same-main inspection with seven zero reservation-integrity fields, compatible migration, pooled-runtime postflight, then compatible app deployment/drain before separate ENABLE and FORCE |
+| `CheckoutStockReservation` | `COMPATIBLE_PREPARATION_LIVE` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | The compatible migration and fixed-operation application are live; RLS remains off and predecessor direct grants are retained temporarily. The next provider-proven additive candidate moves both creation paths into one source-locking PostgreSQL statement, derives all written authority from Cart/Listing sources, and treats the application witness only as a rejection condition. It adds three private helpers and two runtime wrappers for an exact 18-runtime/7-private catalog without enabling RLS or narrowing table grants. Release bytes and two fresh provider slots are retained in `docs/checkout-stock-reservation-source-consistency-release.md`. Next: review/merge, exact-main CI, separate guarded additive migration and pooled-runtime proof, app smoke/drain, then separate policyless ENABLE/grant revocation and FORCE |
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
@@ -217,9 +220,10 @@ preclude a later reviewed policy or grant migration.
    outside that database boundary.
 6. Continue the Order/payment/shipping program: StripeWebhookEvent policyless
    FORCE and its recovered actual pooled-runtime postflight are complete.
-   CheckoutStockReservation compatible authority is the active release; run
-   its fresh inspection, compatible migration, pooled-runtime proof and
-   compatible app drain before separate policyless ENABLE and FORCE. Then
+   CheckoutStockReservation compatible authority is live. Promote its
+   provider-proven source-consistency successor through a separate additive
+   migration, pooled-runtime proof and compatible app drain before separate
+   policyless ENABLE/direct-grant revocation and FORCE. Then
    continue the remaining Order,
    OrderItem, quote, payment, payout and reservation tables as separately
    reviewed activations. Keep Connect v2 plus live-mode provider topology and

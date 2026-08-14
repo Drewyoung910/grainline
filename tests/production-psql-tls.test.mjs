@@ -38,6 +38,7 @@ describe("protected production psql TLS roots", () => {
     assert.deepEqual(reviewedSteps, [
       "direct-upload-activation-production-recovery.yml:Converge activated runtime and cleanup grants",
       "direct-upload-cleanup-role-provision.yml:Converge cleanup role to three-function authority",
+      "production-migrations.yml:Converge exact CheckoutStockReservation runtime function grants",
     ]);
   });
 });
