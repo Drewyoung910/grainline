@@ -115,6 +115,8 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(audit, /exact locked Listing-level inventory set/);
     assert.match(audit, /Before `SellerProfile` base\s+rows are restricted or direct runtime reads are revoked/);
     assert.match(audit, /do not grant\s+broad SellerProfile access merely to preserve this helper/);
+    assert.match(audit, /seller source row uses `FOR SHARE`, not `FOR UPDATE`/);
+    assert.match(audit, /same-seller\/different-listing concurrency/);
     assert.match(release, /Exact `77fc45fe` must not be deployed/);
     assert.match(release, /exact-successor application deployment/);
     assert.match(architecture, /fixed function derives and locks inventory/);

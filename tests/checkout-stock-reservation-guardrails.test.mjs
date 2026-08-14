@@ -96,7 +96,12 @@ describe("durable checkout stock reservation guardrails", () => {
     }
     assert.match(authorityClient, /createCartCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
     assert.match(authorityClient, /createSingleCheckoutStockReservation[\s\S]*client: AuthorityClient = prisma/);
-    assert.match(authorityClient, /lockCheckoutReservationSellerSource[\s\S]*FOR UPDATE/);
+    const sellerSourceLock = authorityClient.slice(
+      authorityClient.indexOf("export async function lockCheckoutReservationSellerSource"),
+      authorityClient.indexOf("export async function bindCheckoutStockReservationSession"),
+    );
+    assert.match(sellerSourceLock, /FOR SHARE/);
+    assert.doesNotMatch(sellerSourceLock, /FOR UPDATE/);
   });
 
   it("never restores or releases a checkout lock while a created Stripe session may remain payable", () => {
