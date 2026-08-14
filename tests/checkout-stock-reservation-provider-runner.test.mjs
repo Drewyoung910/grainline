@@ -18,7 +18,8 @@ describe("temporary CheckoutStockReservation provider runner", () => {
     assert.match(route, /process\.env\.VERCEL_ENV !== "preview"/);
     assert.match(route, /timingSafeEqual\(digest\(provided\), digest\(expected!\)\)/);
     assert.match(route, /allowedCommitSha === process\.env\.VERCEL_GIT_COMMIT_SHA/);
-    assert.match(route, /timingSafeEqual\(digest\(applicationUrl!\), digest\(gateUrl!\)\)/);
+    assert.match(route, /Boolean\(applicationUrl\) && !unsupportedGateAlias/);
+    assert.match(route, /RLS_CONTEXT_GATE_DATABASE_URL: process\.env\.DATABASE_URL/);
     assert.match(route, /Cache-Control": "no-store, private"/);
     assert.match(route, /runSlot: z\.union\(\[z\.literal\(1\), z\.literal\(2\)\]\)/);
     assert.match(middleware, new RegExp(RLS_CONTEXT_GATE_PUBLIC_PATH.replaceAll("/", "\\/")));
@@ -29,7 +30,7 @@ describe("temporary CheckoutStockReservation provider runner", () => {
     const envStart = route.indexOf("const gateEnv");
     const envEnd = route.indexOf("try {", envStart);
     const gateEnv = route.slice(envStart, envEnd);
-    assert.match(gateEnv, /RLS_CONTEXT_GATE_DATABASE_URL/);
+    assert.match(gateEnv, /RLS_CONTEXT_GATE_DATABASE_URL: process\.env\.DATABASE_URL/);
     assert.doesNotMatch(gateEnv, /ADMIN_DATABASE_URL|EVIDENCE_PATH|PREPARE|ROLLBACK|TEARDOWN/);
     const claim = route.indexOf("await claimProviderRuntimeRunSlot");
     const run = route.indexOf("await runCheckoutStockReservationProviderGate");

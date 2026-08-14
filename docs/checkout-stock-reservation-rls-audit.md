@@ -749,3 +749,27 @@ Two compatibility defects were found and closed during promotion:
   predecessor create functions retain runtime execute until the successor app
   deploys and drains. Those grants must be revoked in a separately reviewed
   retirement boundary before activation claims exclusive consistent creation.
+
+## One-statement provider bootstrap rejection (2026-08-13)
+
+- The first authorized one-statement provider attempt from exact proof commit
+  `51d31b09d7174885f8e94f529be699f0d59b6522` failed before application build,
+  attestation or slot claim. Preview
+  `dpl_52mPPYF6WKKq72S1pJEcwWMidLuV` correctly stopped at the runtime database
+  isolation guard because the temporary manifest duplicated the child runtime
+  URL as `RLS_CONTEXT_GATE_DATABASE_URL`; the build reported
+  `ALIASED_DATABASE_URL`. No threshold, candidate SQL or runtime guard changed.
+- Exact abort cleanup removed the Preview, all branch-scoped variables, the
+  automation bypass and the disposable Neon child. A final status read proved
+  zero provider/local residue with production unchanged. The sanitized
+  mode-`0600` teardown and abort-cleanup artifact SHA-256 values are respectively
+  `430df0ec6aa9f52ebabf203e2eec5cc60f7c8c016eedac0ed8dc9e6145c30220` and
+  `4bde9a8f85cf91b0c79d2851a8728325f2601c6b8c92d541bf2aea280fc3afbb`.
+- The corrected provider contract exposes exactly one database credential:
+  pooled child `DATABASE_URL`. The route rejects a provider-level
+  `RLS_CONTEXT_GATE_DATABASE_URL` alias and maps `DATABASE_URL` to the generic
+  gate parser's historical key only inside a request-local environment object.
+  The alias is explicitly forbidden by the provider manifest, and the proof
+  branch is deployment-disabled again between attempts. A later run must use a
+  freshly prepared child and fresh non-replayable slots; this failed build
+  consumed neither slot.

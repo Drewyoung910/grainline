@@ -225,6 +225,8 @@ describe("CheckoutStockReservation provider proof operator", () => {
       [],
     );
     assert.equal(entries.some((entry) => entry.value === state.adminDatabaseUrl), false);
+    assert.equal(entries.some((entry) => entry.key === "RLS_CONTEXT_GATE_DATABASE_URL"), false);
+    assert.ok(FORBIDDEN_PROVIDER_ENVIRONMENT_KEYS.includes("RLS_CONTEXT_GATE_DATABASE_URL"));
   });
 
   it("accepts only the exact child endpoint, role, pool mode and URL controls", () => {
@@ -315,9 +317,9 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.doesNotMatch(source, /DELETE FROM public\.(?!"CheckoutStockReservation")/);
   });
 
-  it("keeps main disabled while the exact proof branch is eligible for one Preview", () => {
+  it("keeps main and the exact proof branch disabled between provider attempts", () => {
     assert.equal(vercel.git.deploymentEnabled.main, false);
-    assert.equal(vercel.git.deploymentEnabled[PROVIDER_PROOF_BRANCH], undefined);
+    assert.equal(vercel.git.deploymentEnabled[PROVIDER_PROOF_BRANCH], false);
     assert.match(source, new RegExp(REVIEWED_BOOTSTRAP_FAILED_DEPLOYMENT_ID));
     assert.match(source, new RegExp(REVIEWED_BOOTSTRAP_FAILED_SOURCE_SHA));
     assert.match(source, /deployment\.readyState !== "ERROR"/);

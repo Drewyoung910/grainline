@@ -266,6 +266,15 @@ grants, and prove zero direct reservation access. The old source remains a
 database-compatible rollback while predecessor CRUD remains. Do not prepare
 ENABLE until this drain proof passes; ENABLE and FORCE remain separate releases.
 
+The first fresh one-statement Preview failed before build, attestation or slot
+claim because its temporary manifest duplicated the child runtime credential
+under an alias that the established Vercel isolation guard forbids. Keep that
+guard unchanged. Future provider attempts expose only pooled child
+`DATABASE_URL`; request code may adapt that single value to a generic local
+parser in memory, but no second PostgreSQL URL key may enter Vercel. Exact abort
+cleanup proved zero temporary residue, so the next attempt starts with a fresh
+child and two fresh slots rather than replaying any prior result.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

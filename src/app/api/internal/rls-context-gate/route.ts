@@ -39,11 +39,10 @@ function providerRunIsPinned() {
   return Boolean(allowedCommitSha) && allowedCommitSha === process.env.VERCEL_GIT_COMMIT_SHA;
 }
 
-function providerDatabaseUrlsMatch() {
+function providerDatabaseUrlIsIsolated() {
   const applicationUrl = process.env.DATABASE_URL;
-  const gateUrl = process.env.RLS_CONTEXT_GATE_DATABASE_URL;
-  return Boolean(applicationUrl && gateUrl)
-    && timingSafeEqual(digest(applicationUrl!), digest(gateUrl!));
+  const unsupportedGateAlias = process.env.RLS_CONTEXT_GATE_DATABASE_URL;
+  return Boolean(applicationUrl) && !unsupportedGateAlias;
 }
 
 function privateJson(body: unknown, status = 200) {
@@ -73,8 +72,8 @@ export async function POST(request: Request) {
 
   if (!isAuthorized(parsed.token)) return privateJson({ error: "Unauthorized" }, 401);
   if (!providerRunIsPinned()) return privateJson({ error: "Runner is not pinned to this commit" }, 403);
-  if (!providerDatabaseUrlsMatch()) {
-    return privateJson({ error: "Runner database configuration does not match the application" }, 503);
+  if (!providerDatabaseUrlIsIsolated()) {
+    return privateJson({ error: "Runner database configuration is not isolated" }, 503);
   }
 
   const runId = process.env.RLS_CONTEXT_GATE_RUN_ID;
@@ -95,7 +94,10 @@ export async function POST(request: Request) {
     RLS_CONTEXT_GATE_BURST_CONCURRENCY: process.env.RLS_CONTEXT_GATE_BURST_CONCURRENCY,
     RLS_CONTEXT_GATE_CONFIRM: process.env.RLS_CONTEXT_GATE_CONFIRM,
     RLS_CONTEXT_GATE_CONNECTION_TIMEOUT_MS: process.env.RLS_CONTEXT_GATE_CONNECTION_TIMEOUT_MS,
-    RLS_CONTEXT_GATE_DATABASE_URL: process.env.RLS_CONTEXT_GATE_DATABASE_URL,
+    // The generic gate parser keeps its historical input name, but Vercel gets
+    // only DATABASE_URL. The alias exists only in this in-memory copy and can
+    // neither bypass the build guard nor become a second provider credential.
+    RLS_CONTEXT_GATE_DATABASE_URL: process.env.DATABASE_URL,
     RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID:
       process.env.RLS_CONTEXT_GATE_EXPECTED_DATABASE_ENDPOINT_ID,
     RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME: process.env.RLS_CONTEXT_GATE_EXPECTED_DATABASE_NAME,

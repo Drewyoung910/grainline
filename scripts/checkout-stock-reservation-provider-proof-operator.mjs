@@ -103,6 +103,7 @@ export const FORBIDDEN_PROVIDER_ENVIRONMENT_KEYS = Object.freeze([
   "DIRECT_URL",
   "PRODUCTION_MIGRATION_DIRECT_URL",
   "RLS_CONTEXT_GATE_ADMIN_DATABASE_URL",
+  "RLS_CONTEXT_GATE_DATABASE_URL",
   "RLS_CONTEXT_GATE_EVIDENCE_PATH",
   "RLS_CONTEXT_GATE_PREPARE",
   "RLS_CONTEXT_GATE_ROLLBACK_PROBE",
@@ -115,7 +116,6 @@ export const FORBIDDEN_PROVIDER_ENVIRONMENT_KEYS = Object.freeze([
 
 export const PROVIDER_ENVIRONMENT_KEYS = Object.freeze([
   "DATABASE_URL",
-  "RLS_CONTEXT_GATE_DATABASE_URL",
   "RLS_CONTEXT_GATE_TRIGGER_SECRET",
   "RLS_CONTEXT_GATE_RUN_ID",
   "RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA",
@@ -933,7 +933,6 @@ async function branchEnvironmentInventory() {
 export function providerEnvironmentEntries(state) {
   const values = {
     DATABASE_URL: state.runtimeDatabaseUrl,
-    RLS_CONTEXT_GATE_DATABASE_URL: state.runtimeDatabaseUrl,
     RLS_CONTEXT_GATE_TRIGGER_SECRET: state.triggerSecret,
     RLS_CONTEXT_GATE_RUN_ID: state.runId,
     RLS_CONTEXT_GATE_ALLOWED_COMMIT_SHA: state.commitSha,

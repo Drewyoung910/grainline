@@ -1520,3 +1520,15 @@ Open work:
   production release.
   No fresh provider run, merge, deployment, migration, RLS/grant or production
   state change occurred at this successor checkpoint.
+- The authorized one-statement CSR provider Preview at exact commit
+  `51d31b09d7174885f8e94f529be699f0d59b6522` failed closed before Next build,
+  attestation or any slot claim. Vercel deployment
+  `dpl_52mPPYF6WKKq72S1pJEcwWMidLuV` reported `ALIASED_DATABASE_URL` because the
+  temporary provider manifest exposed the child runtime URL under both
+  `DATABASE_URL` and `RLS_CONTEXT_GATE_DATABASE_URL`. Exact abort cleanup
+  removed all branch variables, the Preview, bypass and Neon child; final
+  status proved zero temporary/local residue and production remained unchanged.
+  The correction keeps the runtime isolation guard intact, forbids the alias
+  in the provider manifest, maps the sole `DATABASE_URL` to the generic parser
+  only in memory, restores proof-branch deployment-disabled posture, and keeps
+  every fixed performance threshold unchanged.
