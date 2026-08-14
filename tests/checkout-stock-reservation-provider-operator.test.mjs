@@ -16,6 +16,7 @@ import {
   buildProductionCredentialChallengeUrl,
   providerEnvironmentEntries,
   validateDatabaseUrl,
+  validateChildPasswordResetResponse,
   validateProductionNeonBoundary,
   validateProviderEvidence,
   validateProviderState,
@@ -117,7 +118,7 @@ function passingEvidence() {
 }
 
 describe("CheckoutStockReservation provider proof operator", () => {
-  it("requires a protected production parent before any child credential can exist", () => {
+  it("pins the production branch protection state without assuming password isolation", () => {
     const project = {
       id: "icy-unit-96812898",
       org_id: "org-raspy-frost-18952075",
@@ -142,9 +143,13 @@ describe("CheckoutStockReservation provider proof operator", () => {
       endpointId: REVIEWED_PRODUCTION_ENDPOINT_ID,
       protected: true,
     });
-    assert.throws(
-      () => validateProductionNeonBoundary(project, { ...production, protected: false }, endpoint),
-      /production Neon identity drifted/u,
+    assert.deepEqual(
+      validateProductionNeonBoundary(project, { ...production, protected: false }, endpoint),
+      {
+        branchId: REVIEWED_PRODUCTION_BRANCH_ID,
+        endpointId: REVIEWED_PRODUCTION_ENDPOINT_ID,
+        protected: false,
+      },
     );
     assert.throws(
       () => validateProductionNeonBoundary(project, { ...production, protected: undefined }, endpoint),
@@ -157,6 +162,40 @@ describe("CheckoutStockReservation provider proof operator", () => {
       }),
       /production Neon identity drifted/u,
     );
+  });
+
+  it("accepts only exact disposable-role password reset responses", () => {
+    const payload = {
+      operations: [{
+        action: "reset_password",
+        branch_id: state.neonBranchId,
+        id: "operation-child-reset-1234",
+        project_id: state.neonProjectId,
+        status: "running",
+      }],
+      role: {
+        authentication_method: "password",
+        branch_id: state.neonBranchId,
+        name: "grainline_app_runtime",
+        password: "fresh_child_password_1234",
+        updated_at: "2026-08-13T20:00:00Z",
+      },
+    };
+    const accepted = validateChildPasswordResetResponse(
+      payload,
+      state,
+      "grainline_app_runtime",
+    );
+    assert.equal(accepted.password, "fresh_child_password_1234");
+    assert.equal(accepted.operations[0].id, "operation-child-reset-1234");
+    assert.throws(() => validateChildPasswordResetResponse(
+      {
+        ...payload,
+        role: { ...payload.role, branch_id: REVIEWED_PRODUCTION_BRANCH_ID },
+      },
+      state,
+      "grainline_app_runtime",
+    ));
   });
 
   it("keeps every runtime variable branch-scoped, sensitive and owner-free", () => {
@@ -247,11 +286,13 @@ describe("CheckoutStockReservation provider proof operator", () => {
     assert.match(source, /deployment\.source !== "cli"/);
     assert.doesNotMatch(source, /deployment\.gitSource\?\.sha !== REVIEWED_PRODUCTION_SOURCE_SHA/);
     assert.match(source, /parent_id: REVIEWED_PRODUCTION_BRANCH_ID/);
-    assert.match(source, /production\.protected !== true/);
+    assert.match(source, /typeof production\.protected !== "boolean"/);
     assert.match(source, /branch\.protected !== false/);
+    assert.match(source, /roles\/\$\{role\}\/reset_password/);
+    assert.doesNotMatch(source, /roles\/\$\{role\}\/reveal_password/);
     assert.match(source, /error\?\.code === "28P01"/);
-    assert.match(source, /proveChildPasswordRejectedByProduction\(REVIEWED_OWNER_ROLE, ownerPassword\)/);
-    assert.match(source, /proveChildPasswordRejectedByProduction\(REVIEWED_RUNTIME_ROLE, runtimePassword\)/);
+    assert.match(source, /proveChildPasswordRejectedByProduction\(REVIEWED_OWNER_ROLE, ownerReset\.password\)/);
+    assert.match(source, /proveChildPasswordRejectedByProduction\(REVIEWED_RUNTIME_ROLE, runtimeReset\.password\)/);
     assert.match(source, /expires_at: expiresAt/);
     assert.match(source, /endpoints: \[\{ type: "read_write" \}\]/);
     assert.match(source, /deployment\.target !== null/);

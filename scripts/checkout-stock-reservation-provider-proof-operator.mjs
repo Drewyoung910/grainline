@@ -432,15 +432,68 @@ async function proveChildPasswordRejectedByProduction(role, password) {
   throw new Error(`disposable ${role} credential unexpectedly authenticated to production`);
 }
 
-function revealRolePassword(state, role) {
-  const result = runNeonApi(
-    `/projects/${REVIEWED_NEON_PROJECT_ID}/branches/${state.neonBranchId}/roles/${role}/reveal_password`,
-  );
-  const password = result?.password;
-  if (typeof password !== "string" || !/^[A-Za-z0-9_-]{16,128}$/u.test(password)) {
-    throw new Error("Neon role reveal did not return a bounded password");
+function normalizeDisposablePasswordOperation(operation, state) {
+  if (
+    typeof operation?.id !== "string"
+    || !/^[A-Za-z0-9-]{8,128}$/u.test(operation.id)
+    || operation.project_id !== REVIEWED_NEON_PROJECT_ID
+    || (operation.branch_id && operation.branch_id !== state.neonBranchId)
+    || typeof operation.action !== "string"
+    || typeof operation.status !== "string"
+  ) throw new Error("Neon child password operation identity drifted");
+  return Object.freeze({
+    action: operation.action,
+    id: operation.id,
+    status: operation.status,
+  });
+}
+
+export function validateChildPasswordResetResponse(payload, state, role) {
+  const childRole = payload?.role;
+  if (
+    ![REVIEWED_OWNER_ROLE, REVIEWED_RUNTIME_ROLE].includes(role)
+    || childRole?.branch_id !== state.neonBranchId
+    || childRole.name !== role
+    || childRole.authentication_method !== "password"
+    || typeof childRole.updated_at !== "string"
+    || typeof childRole.password !== "string"
+    || !/^[A-Za-z0-9_-]{16,128}$/u.test(childRole.password)
+    || !Array.isArray(payload.operations)
+    || payload.operations.length === 0
+  ) throw new Error("Neon child password reset response drifted");
+  return Object.freeze({
+    operations: payload.operations.map((operation) => (
+      normalizeDisposablePasswordOperation(operation, state)
+    )),
+    password: childRole.password,
+  });
+}
+
+function resetChildRolePassword(state, role) {
+  return validateChildPasswordResetResponse(runNeonApi(
+    `/projects/${REVIEWED_NEON_PROJECT_ID}/branches/${state.neonBranchId}/roles/${role}/reset_password`,
+    { method: "POST" },
+  ), state, role);
+}
+
+async function waitForChildPasswordOperations(state, initialOperations) {
+  let operations = initialOperations;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (operations.some((operation) => (
+      ["cancelled", "error", "failed"].includes(operation.status)
+    ))) throw new Error("Neon child password reset operation failed");
+    if (operations.every((operation) => ["finished", "skipped"].includes(operation.status))) {
+      return operations;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    operations = operations.map((operation) => normalizeDisposablePasswordOperation(
+      runNeonApi(
+        `/projects/${REVIEWED_NEON_PROJECT_ID}/operations/${operation.id}`,
+      )?.operation,
+      state,
+    ));
   }
-  return password;
+  throw new Error("Neon child password resets did not finish in two minutes");
 }
 
 export function validateProductionNeonBoundary(project, production, endpoint) {
@@ -451,7 +504,7 @@ export function validateProductionNeonBoundary(project, production, endpoint) {
     || production?.id !== REVIEWED_PRODUCTION_BRANCH_ID
     || production.primary !== true
     || production.default !== true
-    || production.protected !== true
+    || typeof production.protected !== "boolean"
     || production.current_state !== "ready"
     || endpoint?.id !== REVIEWED_PRODUCTION_ENDPOINT_ID
     || endpoint.branch_id !== REVIEWED_PRODUCTION_BRANCH_ID
@@ -1179,15 +1232,31 @@ async function prepare() {
   }
   try {
     await waitForDisposableNeon(state);
-    const ownerPassword = revealRolePassword(state, REVIEWED_OWNER_ROLE);
-    const runtimePassword = revealRolePassword(state, REVIEWED_RUNTIME_ROLE);
-    await proveChildPasswordRejectedByProduction(REVIEWED_OWNER_ROLE, ownerPassword);
-    await proveChildPasswordRejectedByProduction(REVIEWED_RUNTIME_ROLE, runtimePassword);
+    state = { ...state, passwordResetAttemptedAt: new Date().toISOString() };
+    replaceState(state);
+    const ownerReset = resetChildRolePassword(state, REVIEWED_OWNER_ROLE);
+    await waitForChildPasswordOperations(state, ownerReset.operations);
+    await waitForDisposableNeon(state);
+    const runtimeReset = resetChildRolePassword(state, REVIEWED_RUNTIME_ROLE);
+    await waitForChildPasswordOperations(state, runtimeReset.operations);
+    await waitForDisposableNeon(state);
+    await proveChildPasswordRejectedByProduction(REVIEWED_OWNER_ROLE, ownerReset.password);
+    await proveChildPasswordRejectedByProduction(REVIEWED_RUNTIME_ROLE, runtimeReset.password);
     state = {
       ...state,
-      adminDatabaseUrl: buildDatabaseUrl(state, REVIEWED_OWNER_ROLE, ownerPassword, { pooled: false }),
+      adminDatabaseUrl: buildDatabaseUrl(
+        state,
+        REVIEWED_OWNER_ROLE,
+        ownerReset.password,
+        { pooled: false },
+      ),
       phase: "credentials-ready",
-      runtimeDatabaseUrl: buildDatabaseUrl(state, REVIEWED_RUNTIME_ROLE, runtimePassword, { pooled: true }),
+      runtimeDatabaseUrl: buildDatabaseUrl(
+        state,
+        REVIEWED_RUNTIME_ROLE,
+        runtimeReset.password,
+        { pooled: true },
+      ),
     };
     replaceState(state);
   } catch (error) {

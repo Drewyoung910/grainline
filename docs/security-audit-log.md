@@ -1472,11 +1472,12 @@ Open work:
   zero-residue status check passes.
 - The pre-execution credential review found a provider-specific boundary not
   previously pinned: Neon child branches inherit parent role passwords unless
-  the parent branch is protected. The provider operator now requires exact live
-  `protected=true` on production before child creation and exact
-  `protected=false` on the disposable child. This prevents a Preview-scoped
-  child URL from carrying a password that could authenticate to production.
-  Preparation also challenges the exact production endpoint with both fresh
-  child passwords and accepts only PostgreSQL `28P01` rejection before it can
-  persist credential-ready state or configure Vercel. No provider resource or
-  credential was created while correcting this gate.
+  the parent branch is protected. Read-only inspection proved production is
+  unprotected while the two Launch-plan protection slots hold the retained
+  Notification and DirectUpload recovery branches. The operator therefore
+  resets both roles on the exact child, waits for the provider operations and
+  never reveals an inherited password. It then challenges the exact production
+  endpoint with both fresh child passwords and accepts only PostgreSQL `28P01`
+  rejection before it can persist credential-ready state or configure Vercel.
+  No branch protection, provider resource or credential was changed while
+  correcting this gate.

@@ -632,21 +632,24 @@ Two compatibility defects were found and closed during promotion:
   identities before deleting anything.
 - A final pre-execution review found that ordinary Neon child branches inherit
   their parent's Postgres role passwords. Neon generates fresh child passwords
-  only when the parent is protected. The operator now requires the live parent
-  API response to contain exact `protected=true` before any child-creation
-  attempt and requires the disposable child itself to remain deletable with
-  exact `protected=false`. A missing or false field fails closed before any
-  credential reveal or provider mutation. This contract follows Neon's
+  automatically only when the parent is protected. Live read-only inspection
+  proved production is currently unprotected and both available Launch-plan
+  protection slots are occupied by retained Notification and DirectUpload
+  recovery branches. Neither backup is weakened merely to run a performance
+  proof. Instead, after child creation the operator immediately resets both
+  child roles through Neon, waits for every reset operation, and never calls
+  `reveal_password`. The disposable child must remain exact `protected=false`
+  so teardown stays available. This follows Neon's
   [protected-branch password isolation](https://neon.com/docs/guides/protected-branches)
-  guarantee; live parent protection still must be read-only verified after
-  OAuth is restored and is not inferred from the branch being primary/default.
+  and [role reset](https://api-docs.neon.tech/reference/resetprojectbranchrolepassword)
+  contracts without falsely claiming the live parent is protected.
 - After revealing each fresh child password locally, preparation challenges the
   exact production endpoint with that child-only credential and accepts only
   PostgreSQL `28P01` invalid-password rejection. An authenticated connection or
   any ambiguous transport/provider result aborts preparation and triggers exact
   child teardown before URLs are persisted as credential-ready or copied to
   Vercel. No production query is issued by this negative-authentication proof.
-- Focused static, runtime-manifest, audit and executable fixture tests pass 25/25,
+- Focused static, runtime-manifest, audit and executable fixture tests pass 26/26,
   including real disposable PostgreSQL fixture creation, collision denial and
   zero-residue teardown. The external provider preparation has not started:
   the local Neon CLI credential disappeared during its earlier refresh/OAuth
