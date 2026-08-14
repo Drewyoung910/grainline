@@ -55,9 +55,12 @@ decision. This production smoke must not claim that narrower test happened.
   a session/reservation even if the route committed but its HTTP response was
   lost.
 - Cleanup expires test Checkout Sessions, runs only the reviewed reservation
-  restore/abort functions, verifies stock, deletes exact database fixtures,
-  removes exact Redis locks and the account-state cache key, restores the
-  canary terms fields and revokes all canary sessions.
+  restore/abort functions, verifies stock, waits for the real signed expiry
+  ledger rows, deletes exact database fixtures, removes exact Redis locks and
+  the account-state cache key, restores the canary terms fields and revokes all
+  canary sessions. It never deletes a terminal reservation before signed
+  expiry processing, preventing a late event from falling through to the
+  predecessor restore path.
 - Stripe Checkout Sessions and their processed StripeWebhookEvent rows remain
   as expected immutable provider/audit evidence. The final mode-`0600`
   evidence contains counts and booleans only—no credentials, Clerk/database

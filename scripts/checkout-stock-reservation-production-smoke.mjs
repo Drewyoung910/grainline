@@ -711,6 +711,7 @@ async function waitForSignedExpiry(owner, sessionIds) {
 async function cleanup({ clerk, owner, redis, runtime, state, stripe }) {
   const cleanup = {
     sessionsExpired: false,
+    signedExpiryProcessed: false,
     reservationsRestored: false,
     redisLocksDeleted: false,
     databaseFixturesDeleted: false,
@@ -788,6 +789,16 @@ async function cleanup({ clerk, owner, redis, runtime, state, stripe }) {
   }
   cleanup.sessionsExpired = sessionsExpired;
 
+  if (sessionsExpired) {
+    try {
+      const sessionIds = (state.sessions ?? []).map((entry) => entry.id);
+      cleanup.signedExpiryProcessed = sessionIds.length === 0
+        || await waitForSignedExpiry(owner, sessionIds) === sessionIds.length;
+    } catch {
+      cleanup.signedExpiryProcessed = false;
+    }
+  }
+
   let reservationsRestored = sessionsExpired && reservationDiscoveryPassed;
   if (sessionsExpired) {
     for (const reservation of exactReservations) {
@@ -843,7 +854,10 @@ async function cleanup({ clerk, owner, redis, runtime, state, stripe }) {
   }
   cleanup.redisLocksDeleted = redisLocksDeleted;
 
-  if (reservationsRestored && redisLocksDeleted) {
+  // Never delete terminal reservation evidence before the real signed expiry
+  // delivery has finished. Otherwise a later webhook would find no fixed row
+  // and could fall through to the predecessor restore path.
+  if (reservationsRestored && redisLocksDeleted && cleanup.signedExpiryProcessed) {
     try {
       await owner.query("BEGIN");
       await owner.query(`DELETE FROM public."CartItem" WHERE id = $1`, [state.cartItemId]);

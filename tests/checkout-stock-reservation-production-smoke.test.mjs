@@ -105,6 +105,7 @@ test("sanitized evidence retains counts and boundaries but no fixture identifier
   const evidence = sanitizedEvidence({
     cleanup: {
       sessionsExpired: true,
+      signedExpiryProcessed: true,
       reservationsRestored: true,
       redisLocksDeleted: true,
       databaseFixturesDeleted: true,
