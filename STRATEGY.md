@@ -301,7 +301,14 @@ sanitized mode-`0600` evidence SHA-256 is
 `86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`.
 Paid completion remains a distinct accounting and durable side-effect
 decision and was not claimed. RLS stays off and predecessor direct grants stay
-compatible until the separate predecessor deployment drain completes.
+compatible until the separate predecessor deployment drain completes. The
+provider audit found exactly one callable superseded deployment sharing the
+current runtime credential; every older deployment is fenced by the accepted
+prior-password rejection proof. A restart-safe exact-ID drain operator is now
+prepared and documented in
+`docs/checkout-stock-reservation-predecessor-drain.md`. It must remove only that
+one predecessor and preserve all canonical aliases before policyless ENABLE
+plus direct-grant revocation can begin.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
