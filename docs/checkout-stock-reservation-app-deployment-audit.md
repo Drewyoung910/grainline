@@ -98,3 +98,18 @@ predecessor drain, prepare policyless ENABLE plus direct-grant revocation as a
 separate database release; FORCE remains a later posture-only release.
 
 Order, OrderItem, payment, payout and shipping activation remain separate.
+
+## Isolated candidate evidence
+
+Exact checkpoint `912eb9fdefa05b7cf7af26d8cd21c5768cfd23b6` is retained in
+draft PR #209. GitHub CI run `31819103219` passed all 109 steps, including the
+complete migration tree, disposable PostgreSQL authority and rollback proofs,
+TypeScript, lint, the complete repository test suite, dependency security
+audit, and production build. Focused checkout/audit contracts passed 41/41
+locally before that clean run.
+
+Vercel Preview `dpl_QbB9kvUsjEU99dtFNzECV8bihPLS` compiled the exact commit
+and passed TypeScript, then failed closed at page-data collection because the
+isolated branch intentionally has no Preview `DATABASE_URL`. It did not deploy
+or contact production. That expected guard failure is not a production-build
+failure and does not weaken the separate deployment gate.

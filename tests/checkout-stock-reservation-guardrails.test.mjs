@@ -160,6 +160,10 @@ describe("durable checkout stock reservation guardrails", () => {
         outerCatch,
         /const reservationCanBeRestored = !checkoutSessionCreateAttempted \|\| createdCheckoutSessionExpired/,
       );
+      assert.match(
+        outerCatch,
+        /checkout_outer_error_reservation_retained[\s\S]*checkoutSessionCreateAttempted/,
+      );
       assert.doesNotMatch(
         outerCatch,
         /const reservationCanBeRestored = !createdCheckoutSessionId \|\| createdCheckoutSessionExpired/,

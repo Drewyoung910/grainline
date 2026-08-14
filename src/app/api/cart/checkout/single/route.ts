@@ -730,6 +730,7 @@ export async function POST(req: Request) {
         checkoutReservationId,
         reservedItemCount: checkoutReservationItemCount,
         checkoutLockAcquired,
+        checkoutSessionCreateAttempted,
       },
     });
 
@@ -789,7 +790,11 @@ export async function POST(req: Request) {
       Sentry.captureMessage("Checkout reservation retained because Stripe session expiry was not confirmed", {
         level: "warning",
         tags: { source: "checkout_outer_error_reservation_retained", route: "cart_checkout_single" },
-        extra: { checkoutReservationId, stripeSessionId: createdCheckoutSessionId },
+        extra: {
+          checkoutReservationId,
+          stripeSessionId: createdCheckoutSessionId,
+          checkoutSessionCreateAttempted,
+        },
       });
     }
 
