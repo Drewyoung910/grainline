@@ -130,11 +130,13 @@ Post-deployment checks completed on 2026-08-14:
   provider state.
 
 These checks prove deployment, health and auth fencing only. They do not prove
-the authenticated checkout paths. The repository has no production-safe
-fixture/session/cleanup operator for that matrix yet, so the release must not
-claim cart, Buy Now, in-stock, made-to-order, retry, signed completion,
-rollback or expiry smoke merely from the 401 checks. Build and review a
-fail-closed disposable smoke operator before those mutations are attempted.
+the authenticated checkout paths. A production-safe fixture/session/cleanup
+operator is now implemented on an isolated branch but has not been merged or
+executed; its exact coverage and residue contract are in
+`docs/checkout-stock-reservation-production-smoke.md`. The release must not
+claim cart, Buy Now, in-stock, made-to-order, retry, rollback or signed expiry
+smoke merely from the 401 checks. Paid completion remains a separate provider
+side-effect decision and is not claimed by this operator.
 Retain the predecessor deployment until that smoke passes. After the
 predecessor drain, prepare policyless ENABLE plus direct-grant revocation as a
 separate database release; FORCE remains a later posture-only release.

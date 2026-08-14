@@ -132,7 +132,8 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(deploymentAudit, /31822968848/);
     assert.match(deploymentAudit, /dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw/);
     assert.match(deploymentAudit, /do not prove\s+the authenticated checkout paths/);
-    assert.match(strategy, /no production-safe disposable checkout smoke operator exists yet/);
+    assert.match(strategy, /production-safe disposable checkout smoke operator is now implemented/);
+    assert.match(strategy, /distinct paid-completion side-effect decision/i);
   });
 
   it("keeps current production posture honest in the coverage ledger", () => {

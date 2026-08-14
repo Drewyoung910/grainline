@@ -1460,7 +1460,9 @@ Open work:
   each returned the expected 401. No migration, RLS/grant change, cleanup or
   Stripe/provider mutation accompanied the release.
 - These immediate checks do not prove authenticated checkout. No fail-closed
-  production fixture/session/cleanup operator exists yet, so the cart/Buy Now,
-  in-stock/made-to-order, retry, signed-completion, rollback and expiry matrix
-  remains open. CheckoutStockReservation RLS remains off and predecessor table
-  grants remain intact until that smoke and predecessor drain pass.
+  production fixture/session/cleanup operator had existed at deployment time.
+  One is now implemented on an isolated branch, with real test-mode Checkout
+  Session creation/retry/resume/rollback and signed-expiry coverage plus exact
+  cleanup. It is not merged or executed and does not claim paid completion.
+  CheckoutStockReservation RLS remains off and predecessor table grants remain
+  intact until that smoke and predecessor drain pass.
