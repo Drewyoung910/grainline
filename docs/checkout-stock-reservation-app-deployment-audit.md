@@ -1,7 +1,7 @@
 # CheckoutStockReservation application deployment audit
 
-Status: isolated implementation and review checkpoint; not merged, deployed or
-active in production.
+Status: isolated implementation with its database-postflight prerequisite
+complete; not merged, deployed or active in production.
 
 This record covers the application/coexistence boundary after the additive
 CheckoutStockReservation source-consistency migration. It does not authorize a
@@ -17,10 +17,16 @@ change.
 - The latest retained compatible-production record pins the deployed
   application lineage to source
   `69c14c0618ea7ab9c74756422273d17d66db7efa`.
-- The audited candidate base is exact main
+- The audited runtime candidate was originally based on exact main
   `16239fce2956c6dc726c24ccd7a91d1ea35463bd`, after guarded production run
   `31814032227` applied only
   `20260814053000_prepare_checkout_stock_reservation_source_consistency`.
+- The candidate now integrates accepted postflight-record main
+  `21e18ced17e876160e728b4c6f1a691ec6624b94`. The actual database proof ran
+  from exact clean main `ac4c9d2139f5294c5e91edd24acb3dbe71b4976c`, bound to
+  exact-main CI `31819848330`, migration-main CI `31813433933` and migration
+  run `31814032227`; its sanitized evidence SHA-256 is
+  `bec37f40d995e311bee5d80fc63c3485f7d325cdcd846b88656684fe2f592afe`.
 - The source delta contains 19 runtime files and five non-merge runtime
   commits: reservation authority audit, fixed-operation conversion, two
   terminal Case-replay corrections, and reservation source consistency.
@@ -77,18 +83,23 @@ The isolated correction establishes these invariants:
 
 ## Verification and release sequence
 
-Before the candidate can deploy:
+Completed prerequisites:
 
-- focused state and guardrail tests must pin idempotency-key derivation,
+- focused state and guardrail tests pin idempotency-key derivation,
   pre-call attempt fencing, unknown-state retention, in-transaction late bind,
   predecessor compatibility, and the made-to-order no-reservation case;
-- TypeScript, lint, the complete suite, disposable PostgreSQL authority proof,
-  dependency audits, and the production build must pass from the exact
-  candidate;
-- the actual pooled-runtime source-consistency postflight must first merge and
-  pass from exact main; and
-- the final application delta must receive the separate security/authority
-  review used for payment-adjacent fixed functions.
+- the actual pooled-runtime source-consistency postflight passed from exact
+  main and its durable record merged through PR #210; and
+- the payment/inventory authority review accepted the conservative retention,
+  source-bound late bind, predecessor compatibility and smoke requirements.
+
+Remaining before deployment:
+
+- the main-refreshed exact application head must pass TypeScript, lint, the
+  complete suite, disposable PostgreSQL authority proof, dependency audits and
+  production build; and
+- the exact reviewed application head must merge separately before a manual
+  production deployment is considered.
 
 Then deploy the compatible application without changing database posture.
 Smoke both cart and Buy Now checkout, including in-stock and made-to-order

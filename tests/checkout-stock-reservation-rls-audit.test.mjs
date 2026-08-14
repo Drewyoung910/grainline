@@ -114,6 +114,15 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(deploymentAudit, /dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6/);
     assert.match(deploymentAudit, /69c14c0618ea7ab9c74756422273d17d66db7efa/);
     assert.match(deploymentAudit, /16239fce2956c6dc726c24ccd7a91d1ea35463bd/);
+    assert.match(deploymentAudit, /21e18ced17e876160e728b4c6f1a691ec6624b94/);
+    assert.match(deploymentAudit, /ac4c9d2139f5294c5e91edd24acb3dbe71b4976c/);
+    assert.match(deploymentAudit, /31819848330/);
+    assert.match(deploymentAudit, /31814032227/);
+    assert.match(
+      deploymentAudit,
+      /bec37f40d995e311bee5d80fc63c3485f7d325cdcd846b88656684fe2f592afe/,
+    );
+    assert.match(deploymentAudit, /database-postflight prerequisite\s+complete/);
     assert.match(deploymentAudit, /checkoutSessionCreateAttempted = true/);
     assert.match(deploymentAudit, /one bounded Stripe idempotency key/);
     assert.match(deploymentAudit, /same Order transaction/);
