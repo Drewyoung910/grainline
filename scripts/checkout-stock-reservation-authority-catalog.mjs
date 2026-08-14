@@ -29,25 +29,28 @@ export const CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_FUNCTIONS = Object.fr
   { name: "grainline_checkout_reservation_create_single_consistent", argumentTypes: "text, text, integer, text[], text, jsonb", runtimeExecute: true, volatility: "v", parallelSafety: "u" },
 ]);
 
-export const CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS = Object.freeze([
+export const CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS = Object.freeze([
   ...CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS,
   ...CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_FUNCTIONS,
 ]);
 
-// The production grant inventory remains on the compatible, applied catalog.
-// Candidate-only functions stay outside that inventory until their migration
-// is sealed and reviewed.
+// Historical release verifiers still use the candidate name for the exact
+// pre-production package. It now aliases the applied source-consistent catalog.
+export const CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS =
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS;
+
+// Production authority now includes the applied source-consistency successor.
 export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS =
-  CHECKOUT_STOCK_RESERVATION_BASE_AUTHORITY_FUNCTIONS;
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS;
 
 export const CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES = Object.freeze(
-  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS
     .filter((entry) => !entry.runtimeExecute)
     .map((entry) => entry.name),
 );
 
 export const CHECKOUT_STOCK_RESERVATION_RUNTIME_FUNCTION_SIGNATURES = Object.freeze(
-  CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS
     .filter((entry) => entry.runtimeExecute)
     .map((entry) => `public."${entry.name}"(${entry.argumentTypes})`),
 );
