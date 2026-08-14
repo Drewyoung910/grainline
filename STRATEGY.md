@@ -292,12 +292,16 @@ passed all 109 gates. Manual Vercel Production deployment
 build guard proved the pooled runtime role. Canonical health returned 200 and
 the four unauthenticated checkout/resume/rollback probes returned 401. Those
 are deployment and auth-boundary evidence, not authenticated checkout proof.
-A production-safe disposable checkout smoke operator is now implemented on an
-isolated branch but has not been merged or executed. It separates real
-authenticated cart/Buy Now, in-stock/made-to-order, retry/resume/rollback and
-signed-expiry evidence from the distinct paid-completion side-effect decision.
-RLS stays off and predecessor direct grants stay compatible until the reviewed
-operator passes and the separate predecessor drain pass completes.
+The production-safe disposable checkout smoke subsequently passed from exact
+main `e9d343b6f316ceb1c75553aec77e9f310a12d802`, exact-main CI
+`31829740992`. It proved authenticated cart/Buy Now,
+in-stock/made-to-order, retry/resume/rollback, stock restoration and three
+genuine signed-expiry deliveries, then completed every bounded cleanup. The
+sanitized mode-`0600` evidence SHA-256 is
+`86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`.
+Paid completion remains a distinct accounting and durable side-effect
+decision and was not claimed. RLS stays off and predecessor direct grants stay
+compatible until the separate predecessor deployment drain completes.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

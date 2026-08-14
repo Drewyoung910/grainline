@@ -1,9 +1,10 @@
 # CheckoutStockReservation application deployment audit
 
 Status: compatible application live in production; exact deployment, alias,
-health and unauthenticated route-boundary checks passed. The authenticated
-checkout smoke matrix and predecessor drain remain open. CheckoutStockReservation
-RLS remains off and predecessor table grants remain compatible.
+health, unauthenticated route-boundary checks and the authenticated checkout
+smoke matrix passed. The predecessor deployment drain remains open.
+CheckoutStockReservation RLS remains off and predecessor table grants remain
+compatible.
 
 This record covers the application/coexistence boundary after the additive
 CheckoutStockReservation source-consistency migration. The application-only
@@ -129,17 +130,20 @@ Post-deployment checks completed on 2026-08-14:
   each returned the expected HTTP 401 boundary without creating application or
   provider state.
 
-These checks prove deployment, health and auth fencing only. They do not prove
-the authenticated checkout paths. A production-safe fixture/session/cleanup
-operator is now implemented on an isolated branch but has not been merged or
-executed; its exact coverage and residue contract are in
-`docs/checkout-stock-reservation-production-smoke.md`. The release must not
-claim cart, Buy Now, in-stock, made-to-order, retry, rollback or signed expiry
-smoke merely from the 401 checks. Paid completion remains a separate provider
-side-effect decision and is not claimed by this operator.
-Retain the predecessor deployment until that smoke passes. After the
-predecessor drain, prepare policyless ENABLE plus direct-grant revocation as a
-separate database release; FORCE remains a later posture-only release.
+Those immediate checks proved deployment, health and auth fencing only. The
+separate authenticated production smoke subsequently passed from exact main
+`e9d343b6f316ceb1c75553aec77e9f310a12d802`, bound to exact-main CI
+`31829740992`. It proved the reviewed cart and Buy Now in-stock/made-to-order
+matrix, exact retry reuse, resume, rollback, stock restoration, cross-origin
+denial and three genuine signed Stripe test-mode expiry deliveries. Every
+cleanup invariant passed; the sanitized mode-`0600` evidence SHA-256 is
+`86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`.
+Paid completion remains a separate provider side-effect decision and was not
+claimed.
+
+The remaining coexistence boundary is predecessor deployment drain. After it
+passes, prepare policyless ENABLE plus direct-grant revocation as a separate
+database release; FORCE remains a later posture-only release.
 
 Order, OrderItem, payment, payout and shipping activation remain separate.
 

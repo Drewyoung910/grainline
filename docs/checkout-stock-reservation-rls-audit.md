@@ -587,3 +587,21 @@ compatible, and made-to-order single checkout correctly skips late binding
 because it has no stock-reservation row. The full boundary, availability
 tradeoff and deployment smoke requirements are recorded in
 `docs/checkout-stock-reservation-app-deployment-audit.md`.
+
+### CSR-A26: authenticated production checkout smoke passed
+
+The reviewed smoke operator merged as exact main
+`e9d343b6f316ceb1c75553aec77e9f310a12d802`, and exact-main CI
+`31829740992` passed all 109 gates before execution. The production run proved
+the complete non-payment matrix: Buy Now in-stock, Buy Now made-to-order, cart
+in-stock, exact retries, resume, rollback, stock restoration, cross-origin
+denial and three real signed Stripe test-mode expiry deliveries. It created no
+Order and did not claim paid completion.
+
+Every cleanup invariant passed. Sanitized mode-`0600` evidence SHA-256
+`86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`
+retains counts and booleans only. Expected immutable residue is three expired
+test Checkout Sessions, three processed expiry rows and one processed
+made-to-order restore claim. CheckoutStockReservation RLS remains off and
+predecessor table grants remain intact; predecessor deployment drain is the
+next separate gate.

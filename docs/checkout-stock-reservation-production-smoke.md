@@ -1,10 +1,37 @@
 # CheckoutStockReservation production checkout smoke
 
-Status: operator implemented on an isolated branch; not merged or executed.
+Status: accepted production execution passed on 2026-08-14 from exact main
+`e9d343b6f316ceb1c75553aec77e9f310a12d802`, bound to exact-main CI
+`31829740992` (all 109 gates passed).
 Production still serves compatible application commit
 `84a58f0fc818b502564ef6bcd974ff4af3cc4395` as Vercel deployment
 `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`. CheckoutStockReservation RLS remains off
 and predecessor direct grants remain compatible.
+
+## Accepted production execution
+
+The exact reviewed operator passed against the canonical production
+application and the pooled `grainline_app_runtime` database role. It proved:
+
+- three authenticated checkout creations and three exact retry reuses across
+  Buy Now in-stock, Buy Now made-to-order and cart in-stock paths;
+- authenticated cart resume, rollback and stock restoration;
+- explicit cross-origin denial and zero Order creation;
+- three genuine Stripe test-mode Checkout Session expirations followed by
+  three processed signed `checkout.session.expired` deliveries;
+- exactly one processed made-to-order
+  `checkout.session.stock_restored` idempotency claim; and
+- complete cleanup of database fixtures, Redis locks, account-state cache,
+  canary sessions and temporary terms state.
+
+The sanitized mode-`0600` evidence is stored outside the repository at
+`checkout-stock-reservation-production-smoke-e9d343b6f316ceb1c75553aec77e9f310a12d802.json`.
+Its SHA-256 is
+`86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`.
+It retains counts and booleans only, reports `secretsRetained=false`, and
+records every cleanup invariant as true. Expected immutable provider/audit
+residue is limited to three expired test Checkout Sessions, three processed
+expiry ledger rows and one processed made-to-order restore claim.
 
 ## Why this operator exists
 
@@ -73,7 +100,7 @@ decision. This production smoke must not claim that narrower test happened.
 
 ## Reviewed invocation shape
 
-After the operator commit is merged to `main` and its exact CI run succeeds:
+The accepted invocation was:
 
 ```sh
 CHECKOUT_STOCK_SMOKE_CONFIRM=reviewed-checkout-stock-production-smoke \

@@ -1459,10 +1459,36 @@ Open work:
   Unauthenticated POSTs to cart checkout, Buy Now checkout, resume and rollback
   each returned the expected 401. No migration, RLS/grant change, cleanup or
   Stripe/provider mutation accompanied the release.
-- These immediate checks do not prove authenticated checkout. No fail-closed
-  production fixture/session/cleanup operator had existed at deployment time.
-  One is now implemented on an isolated branch, with real test-mode Checkout
-  Session creation/retry/resume/rollback and signed-expiry coverage plus exact
-  cleanup. It is not merged or executed and does not claim paid completion.
-  CheckoutStockReservation RLS remains off and predecessor table grants remain
-  intact until that smoke and predecessor drain pass.
+- These immediate checks did not prove authenticated checkout. No fail-closed
+  production fixture/session/cleanup operator existed at deployment time. The
+  separate execution recorded below later closed that gate without claiming
+  paid completion. CheckoutStockReservation RLS remained off and predecessor
+  table grants remained intact throughout.
+
+## CheckoutStockReservation authenticated production smoke (2026-08-14)
+
+- PR #212 merged the reviewed restart-safe smoke operator as exact main
+  `e9d343b6f316ceb1c75553aec77e9f310a12d802`. Exact-main CI run
+  `31829740992` passed all 109 gates before execution.
+- The operator reused only the retained non-customer Clerk canary and one
+  existing eligible test-mode seller. It created private buyer-reserved
+  fixtures, exercised Buy Now in-stock, Buy Now made-to-order and cart
+  in-stock checkout, proved three exact retry reuses, cart resume, rollback,
+  stock restoration, Redis-lock release, cross-origin denial and zero Orders.
+- Three real test-mode Checkout Sessions were expired and their three genuine
+  signed `checkout.session.expired` deliveries were processed. The
+  made-to-order predecessor path retained exactly one processed
+  `checkout.session.stock_restored` idempotency claim without changing stock.
+- Cleanup deleted every database fixture and Redis/account-state key, restored
+  canary terms state and revoked every canary session. Expected immutable
+  residue is limited to three expired test Checkout Sessions, three processed
+  expiry ledger rows and one processed made-to-order restore claim.
+- The sanitized mode-`0600` evidence SHA-256 is
+  `86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`;
+  it contains counts and booleans only, records every cleanup invariant true
+  and reports `secretsRetained=false`.
+- No migration, RLS/grant change, deployment or provider configuration change
+  occurred. Paid completion was deliberately not exercised because it would
+  create durable charge, Order, notification and email side effects. The next
+  boundary is predecessor deployment drain before policyless ENABLE/direct-
+  grant revocation; FORCE remains separate.
