@@ -275,6 +275,17 @@ parser in memory, but no second PostgreSQL URL key may enter Vercel. Exact abort
 cleanup proved zero temporary residue, so the next attempt starts with a fresh
 child and two fresh slots rather than replaying any prior result.
 
+That corrected fresh attempt is now accepted. Exact commit
+`d0bb3824176ad9e006d9423c771b9a984a09bf16` passed both non-replayable provider
+slots with candidate p95 between 151.4 ms and 185.4 ms, bounded real lock waits,
+zero errors/issues and zero residue under the ordinary pooled runtime role.
+Success cleanup proved zero remaining Preview variables, deployments, bypass,
+Neon child or local state; production was unchanged. The next boundary is a
+clean production-safe branch containing only the application changes and
+hardened byte-pinned SQL. Run full CI and disposable release proof, then deploy,
+smoke and drain before retiring predecessor create grants. Only after that
+retirement proof may policyless ENABLE and later FORCE proceed separately.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

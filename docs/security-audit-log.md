@@ -1532,3 +1532,15 @@ Open work:
   in the provider manifest, maps the sole `DATABASE_URL` to the generic parser
   only in memory, restores proof-branch deployment-disabled posture, and keeps
   every fixed performance threshold unchanged.
+- The corrected one-statement CheckoutStockReservation provider candidate then
+  passed two fresh non-replayable slots from exact commit
+  `d0bb3824176ad9e006d9423c771b9a984a09bf16` and Preview
+  `dpl_CB3uX5qzZESrBMCMh9hYMuDgWbES`. Candidate p95 values were 161.1/174.5 ms
+  at target/burst in slot 1 and 151.4/185.4 ms in slot 2, versus fixed 750 ms;
+  same-listing waits were 172.4/168.7 ms, both slots had zero errors/issues and
+  zero residue, and runtime/locality identities matched. Exact success cleanup
+  removed the Preview, 27 branch variables, bypass and Neon child; final status
+  showed no disposable or local state and production unchanged. The temporary
+  branch is deployment-disabled again. Full evidence hashes and the next clean
+  release-packaging boundary are retained in
+  `docs/checkout-stock-reservation-rls-audit.md`.

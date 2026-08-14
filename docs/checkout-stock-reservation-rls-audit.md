@@ -774,3 +774,46 @@ Two compatibility defects were found and closed during promotion:
   guard in unit coverage. The proof branch is deployment-disabled again between
   attempts. A later run must use a freshly prepared child and fresh
   non-replayable slots; this failed build consumed neither slot.
+
+## Accepted one-statement provider proof (2026-08-14)
+
+- Fresh preparation from exact deployment-disabled checkpoint
+  `e5e0189a5b68f83853ea8da77b313925f23560ff` created one expiring Neon child,
+  reset all three inherited login-role passwords, proved each child password
+  was rejected by production with PostgreSQL `28P01`, installed the unapplied
+  one-statement draft only on the child, and passed the local authority,
+  fixture, source-consistency and teardown preflight. The exact 27-variable
+  Preview manifest contained only one PostgreSQL URL under `DATABASE_URL`.
+- Vercel built and attested exact proof commit
+  `d0bb3824176ad9e006d9423c771b9a984a09bf16` as disposable Preview
+  `dpl_CB3uX5qzZESrBMCMh9hYMuDgWbES`. Both fresh non-replayable slots passed
+  with runtime role `grainline_app_runtime`, execution region `sfo1`, database
+  region `westus3.azure`, 20 fixture listings, stock floor 10,000, zero errors,
+  zero issues and zero active reservation residue.
+- Slot 1 candidate p95 was 161.1 ms at target concurrency 8 and 174.5 ms at
+  burst concurrency 10; the corresponding baselines were 163.2 ms and
+  163.4 ms. Slot 2 candidate p95 was 151.4 ms at target and 185.4 ms at burst;
+  the baselines were 147.8 ms and 179.1 ms. Candidate maxima ranged from
+  158.9 ms to 187.1 ms, well inside the fixed 3,000 ms ceiling. Same-listing
+  lock waits were real and bounded at 172.4 ms and 168.7 ms. The fixed 750 ms
+  p95 ceiling and every regression/residue threshold remained unchanged.
+- Success cleanup deleted the fixtures, all branch-scoped variables, the
+  Preview, automation bypass and Neon child. Final read-only status proved zero
+  temporary provider resources and no local state while the production branch
+  remained present. The proof branch is deployment-disabled again. Production
+  application, database, RLS/grants, credentials and provider variables were
+  unchanged.
+- Sanitized mode-`0600` evidence SHA-256 values: setup
+  `9a06e718734203473921f89791f839b632cbaaa3bf558f53489bf5b42708a0dd`, local
+  preflight `2619ddb1b8bce62ad719597875832e85ae32767d2f31f89fc1d914042a2b168f`,
+  attestation `630733461776a7328c235036702fd3a15969d5c3966a29592dbd3334ba6751e0`,
+  slot 1 `60240d493ddb04ab8f8fb88a1d8d1aff0565fb208a893860b02370f989b00610`,
+  slot 2 `62e91d50083e5f85c32fd77900cd0de1ef02f7fe80c04197ef97647e0e4cbf95`,
+  teardown `d3791d20f23bb11b734fcf6c2f449b02c85e91ff1e003e4de8fdd1ffa8e50c2d`
+  and cleanup `7a5e9560b2ee89e1cf2a8d15c144a596cd7e8b372cd75a4a8d35d3070faea0aa`.
+- This accepts the exact one-statement authority/performance candidate for
+  release packaging; it does not activate RLS or authorize the temporary
+  runner. Next, reproduce only the application and reviewed SQL on a clean
+  production-safe branch, harden and byte-pin the migration, run full CI and
+  disposable PostgreSQL release proof, then deploy/smoke/drain before revoking
+  predecessor creation grants. ENABLE and FORCE remain separate later releases.

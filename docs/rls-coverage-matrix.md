@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 ## Purpose And Scope
 
@@ -67,7 +67,7 @@ completed alternative.
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
-| `CheckoutStockReservation` | `COMPATIBLE_CANDIDATE` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | The compatible migration is live from exact main `77fc45fe`, CI `31752628832`, inspection `31753838550` and guarded run `31754431910`. The actual pooled-runtime postflight accepted RLS/FORCE off, zero policies, predecessor CRUD retained, the exact 20-function catalog and zero reservation rows. Zero direct reservation delegates remain under merged `src`, but production app source is still `69c14c06`. Pre-deploy review found `CSR-A23`: exact Stripe-bound source and returned Listing-level inventory must be re-read under the fixed function's locks in one short rollback-safe transaction. Complete full/PG/provider proof and merge for that isolated fix, deploy/smoke/drain only the exact successor, prove zero direct access, then separate ENABLE and FORCE. Exact findings remain in `docs/checkout-stock-reservation-rls-audit.md` |
+| `CheckoutStockReservation` | `COMPATIBLE_CANDIDATE` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | The compatible migration is live from exact main `77fc45fe`, CI `31752628832`, inspection `31753838550` and guarded run `31754431910`; RLS/FORCE remain off with predecessor CRUD retained. The one-statement `CSR-A23`/`CSR-A24` successor passed disposable PostgreSQL and two fresh provider slots from exact proof `d0bb3824` with candidate p95 151.4-185.4 ms, bounded real lock waits, zero errors/issues/residue, full cleanup and production unchanged. Reproduce only the accepted app/SQL bytes on a clean release branch, harden and byte-pin the migration, run full CI/release proof, deploy/smoke/drain, revoke predecessor creation grants and prove zero direct access before separate ENABLE and FORCE releases. Exact evidence remains in `docs/checkout-stock-reservation-rls-audit.md` |
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
