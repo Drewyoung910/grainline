@@ -96,6 +96,15 @@ test("operator is exact-fixture, test-mode, restart-cleanable and non-activating
   assert.match(source, /checkout\.session\.expired/);
   assert.match(source, /expectedRetainedProviderEvidence/);
   assert.match(source, /paidCompletionExercised: false/);
+  assert.match(
+    source,
+    /if \(reservationsRestored && redisLocksDeleted && cleanup\.signedExpiryProcessed\)/,
+  );
+  assert.ok(
+    source.indexOf("cleanup.signedExpiryProcessed =")
+      < source.indexOf('DELETE FROM public."CheckoutStockReservation"'),
+    "signed expiry must be proved before terminal reservation deletion",
+  );
   assert.doesNotMatch(source, /ALTER TABLE[\s\S]*ROW LEVEL SECURITY/i);
   assert.doesNotMatch(source, /prisma migrate|migrate deploy/i);
   assert.doesNotMatch(source, /DELETE FROM public\."StripeWebhookEvent"/);
