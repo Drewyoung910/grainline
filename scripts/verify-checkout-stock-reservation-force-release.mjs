@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 
 import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION_TREE_SHA256,
+  CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATION_TREE_SHA256,
   computeMigrationTreeSha256,
   validateCurrentSavedSearchRlsDeployShape,
 } from "./guard-saved-search-rls-deploy.mjs";
@@ -15,67 +16,64 @@ import {
 import {
   verifyPromotedCheckoutStockReservationActivation,
 } from "./stage-checkout-stock-reservation-activation-migration.mjs";
+import {
+  verifyPromotedCheckoutStockReservationForce,
+} from "./stage-checkout-stock-reservation-force-migration.mjs";
 
-export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE =
-  "checkout-stock-reservation-activation-reviewed";
-const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
+export const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
   "checkout-stock-reservation-force-reviewed";
 
-export function verifyCheckoutStockReservationActivationRelease(
-  rootDirectory = process.cwd(),
-  { allowReviewedSuccessor = false } = {},
-) {
-  const candidate = verifyPromotedCheckoutStockReservationActivation(
-    rootDirectory,
-  );
+function migrationPrefix(rootDirectory, finalMigration) {
   const migrationDirectory = path.join(rootDirectory, "prisma/migrations");
   const migrationNames = fs.readdirSync(migrationDirectory, {
     withFileTypes: true,
   })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .filter((name) => name <= candidate.migrationName);
-  const migrationTreeSha256 = computeMigrationTreeSha256(
-    migrationDirectory,
-    migrationNames,
+    .filter((name) => name <= finalMigration);
+  return computeMigrationTreeSha256(migrationDirectory, migrationNames);
+}
+
+export function verifyCheckoutStockReservationForceRelease(
+  rootDirectory = process.cwd(),
+) {
+  const activation = verifyPromotedCheckoutStockReservationActivation(
+    rootDirectory,
   );
   if (
-    migrationTreeSha256
+    migrationPrefix(rootDirectory, activation.migrationName)
     !== CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION_TREE_SHA256
   ) {
     throw new Error(
-      "CheckoutStockReservation activation migration prefix drifted",
+      "CheckoutStockReservation FORCE predecessor migration prefix drifted",
     );
   }
 
-  const forceMigrationExists = fs.existsSync(path.join(
-    migrationDirectory,
-    "20260815060001_force_checkout_stock_reservation_rls",
-  ));
-  let guard;
-  if (allowReviewedSuccessor && forceMigrationExists) {
-    const successorGuard = validateCurrentSavedSearchRlsDeployShape({
-      phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
-      rootDirectory,
-    });
-    guard = Object.freeze({
-      phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,
-      sealedPrefix: true,
-      successorPhase: successorGuard.phase,
-    });
-  } else {
-    guard = validateCurrentSavedSearchRlsDeployShape({
-      phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,
-      rootDirectory,
-    });
+  const candidate = verifyPromotedCheckoutStockReservationForce(rootDirectory);
+  const migrationTreeSha256 = migrationPrefix(
+    rootDirectory,
+    candidate.migrationName,
+  );
+  if (
+    migrationTreeSha256
+    !== CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATION_TREE_SHA256
+  ) {
+    throw new Error("CheckoutStockReservation FORCE migration prefix drifted");
   }
+
+  const guard = validateCurrentSavedSearchRlsDeployShape({
+    phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
+    rootDirectory,
+  });
   const runtimeFunctions = CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS
     .filter((entry) => entry.runtimeExecute).length;
   const privateFunctions = CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS
     .filter((entry) => !entry.runtimeExecute).length;
 
   return Object.freeze({
-    phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,
+    phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
+    activationMigration: activation.migrationName,
+    activationMigrationSha256: activation.migrationSha256,
     migration: candidate.migrationName,
     draftSha256: candidate.draftSha256,
     migrationSha256: candidate.migrationSha256,
@@ -85,7 +83,7 @@ export function verifyCheckoutStockReservationActivationRelease(
     runtimeFunctions,
     privateFunctions,
     rlsEnabled: true,
-    rlsForced: false,
+    rlsForced: true,
     policyCount: 0,
     runtimeTablePrivileges: 0,
     rowDataChanged: false,
@@ -94,17 +92,8 @@ export function verifyCheckoutStockReservationActivationRelease(
 }
 
 function main() {
-  const mode = process.argv[2];
-  if (mode !== undefined && mode !== "--allow-reviewed-successor") {
-    throw new Error(
-      "usage: verify-checkout-stock-reservation-activation-release.mjs "
-      + "[--allow-reviewed-successor]",
-    );
-  }
   process.stdout.write(`${JSON.stringify(
-    verifyCheckoutStockReservationActivationRelease(undefined, {
-      allowReviewedSuccessor: mode === "--allow-reviewed-successor",
-    }),
+    verifyCheckoutStockReservationForceRelease(),
     null,
     2,
   )}\n`);
@@ -115,7 +104,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     main();
   } catch (error) {
     process.stderr.write(
-      `CheckoutStockReservation activation release verification failed closed: ${
+      `CheckoutStockReservation FORCE release verification failed closed: ${
         error instanceof Error ? error.message : "unknown error"
       }\n`,
     );

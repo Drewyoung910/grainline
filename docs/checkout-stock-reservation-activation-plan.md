@@ -96,6 +96,12 @@ provisioning transaction whenever activation is present.
    sanitized mode-`0600` evidence and no production mutation.
 5. Prepare and execute FORCE as a separate posture-only release.
 
+The byte-pinned FORCE migration, rollback and disposable PostgreSQL proofs are
+now prepared in isolation; see
+`docs/checkout-stock-reservation-force-release.md`. Production remains at
+Phase A until a separate restart-safe production-wiring review is merged and
+explicitly dispatched.
+
 Exact promoted-release and production evidence details live in
 `docs/checkout-stock-reservation-activation-release.md` and
 `docs/checkout-stock-reservation-activation-production-wiring.md`.

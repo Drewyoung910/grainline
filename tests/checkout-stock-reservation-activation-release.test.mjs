@@ -5,7 +5,6 @@ import test from "node:test";
 import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION,
   CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION_TREE_SHA256,
-  validateCurrentSavedSearchRlsDeployShape,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
 import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATION_CANDIDATE_SHA256,
@@ -37,7 +36,9 @@ const productionWiring = fs.readFileSync(
 test("activation release exactly promotes the reviewed policyless candidate", () => {
   const candidate = buildCheckoutStockReservationActivationCandidate();
   const promoted = verifyPromotedCheckoutStockReservationActivation();
-  const release = verifyCheckoutStockReservationActivationRelease();
+  const release = verifyCheckoutStockReservationActivationRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
 
   assert.deepEqual(promoted, candidate);
   assert.equal(
@@ -69,20 +70,25 @@ test("activation release exactly promotes the reviewed policyless candidate", ()
   assert.equal(release.rlsForced, false);
   assert.equal(release.runtimeTablePrivileges, 0);
   assert.equal(release.rowDataChanged, false);
+  assert.equal(release.guard.sealedPrefix, true);
+  assert.equal(
+    release.guard.successorPhase,
+    "checkout-stock-reservation-force-reviewed",
+  );
 });
 
-test("activation release has a distinct exact migration-tree phase", () => {
-  assert.deepEqual(
-    validateCurrentSavedSearchRlsDeployShape({
-      phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,
-    }),
-    {
-      phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,
-      hasStripeWebhookEventForceMigration: true,
-      hasCheckoutStockReservationAuthorityMigration: true,
-      hasCheckoutStockReservationSourceConsistencyMigration: true,
-      hasCheckoutStockReservationActivationMigration: true,
-    },
+test("activation release remains a sealed prefix under only its reviewed successor", () => {
+  const release = verifyCheckoutStockReservationActivationRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
+  assert.deepEqual(release.guard, {
+    phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,
+    sealedPrefix: true,
+    successorPhase: "checkout-stock-reservation-force-reviewed",
+  });
+  assert.throws(
+    () => verifyCheckoutStockReservationActivationRelease(),
+    /requires 20260815060000_enable_checkout_stock_reservation_rls to remain the latest migration/,
   );
 });
 

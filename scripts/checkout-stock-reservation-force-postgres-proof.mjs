@@ -12,16 +12,15 @@ import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 import {
-  verifyCheckoutStockReservationActivationRelease,
-} from "./verify-checkout-stock-reservation-activation-release.mjs";
+  verifyCheckoutStockReservationForceRelease,
+} from "./verify-checkout-stock-reservation-force-release.mjs";
 
 const { Client } = pg;
-const DATABASE_ENV =
-  "CHECKOUT_STOCK_RESERVATION_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL";
+const DATABASE_ENV = "CHECKOUT_STOCK_RESERVATION_FORCE_PROOF_DATABASE_URL";
 const DATABASE_NAME = "grainline_ci";
 const RUNTIME_ROLE = "grainline_app_runtime";
 
-export function parseCheckoutStockReservationActivationPostflightProofConfig(
+export function parseCheckoutStockReservationForceProofConfig(
   env = process.env,
 ) {
   const databaseUrl = env[DATABASE_ENV];
@@ -30,16 +29,16 @@ export function parseCheckoutStockReservationActivationPostflightProofConfig(
   assert.equal(parsed.protocol, "postgresql:");
   assert.ok(
     ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname),
-    "activation postflight proof refuses a non-loopback database",
+    "FORCE proof refuses a non-loopback database",
   );
   assert.equal(parsed.pathname, `/${DATABASE_NAME}`);
   assert.equal(decodeURIComponent(parsed.username), RUNTIME_ROLE);
-  assert.ok(parsed.password, "activation postflight proof requires direct login");
+  assert.ok(parsed.password, "FORCE proof requires direct runtime login");
   return Object.freeze({ databaseUrl });
 }
 
 async function expectedFailure(client, operation, code, label) {
-  await client.query("SAVEPOINT checkout_reservation_postflight_expected_failure");
+  await client.query("SAVEPOINT checkout_reservation_force_expected_failure");
   let caught;
   try {
     await operation();
@@ -47,22 +46,19 @@ async function expectedFailure(client, operation, code, label) {
     caught = error;
   }
   await client.query(
-    "ROLLBACK TO SAVEPOINT checkout_reservation_postflight_expected_failure",
+    "ROLLBACK TO SAVEPOINT checkout_reservation_force_expected_failure",
   );
   await client.query(
-    "RELEASE SAVEPOINT checkout_reservation_postflight_expected_failure",
+    "RELEASE SAVEPOINT checkout_reservation_force_expected_failure",
   );
   assert.equal(caught?.code, code, `${label} returned the wrong SQLSTATE`);
 }
 
-export async function runCheckoutStockReservationActivationPostflightProof(
+export async function runCheckoutStockReservationForceProof(
   env = process.env,
 ) {
-  const { databaseUrl } =
-    parseCheckoutStockReservationActivationPostflightProofConfig(env);
-  verifyCheckoutStockReservationActivationRelease(undefined, {
-    allowReviewedSuccessor: true,
-  });
+  const { databaseUrl } = parseCheckoutStockReservationForceProofConfig(env);
+  verifyCheckoutStockReservationForceRelease();
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   let transactionOpen = false;
@@ -83,7 +79,7 @@ export async function runCheckoutStockReservationActivationPostflightProof(
       { databaseName: DATABASE_NAME, runtimeRole: RUNTIME_ROLE },
       "ci",
     );
-    await verifyCheckoutStockReservationActivatedCatalog(client, "ci");
+    await verifyCheckoutStockReservationActivatedCatalog(client, "ci", true);
     await expectedFailure(
       client,
       () => client.query(
@@ -95,7 +91,7 @@ export async function runCheckoutStockReservationActivationPostflightProof(
     const exported = await client.query(`
       SELECT pg_catalog.count(*)::integer AS count
         FROM public.grainline_checkout_reservation_export(
-          'grainline-ci-activation-postflight-absent-user'
+          'grainline-ci-force-proof-absent-user'
         )
     `);
     assert.deepEqual(exported.rows, [{ count: 0 }]);
@@ -126,7 +122,7 @@ export async function runCheckoutStockReservationActivationPostflightProof(
       postflightReadOnly: true,
       policyCount: 0,
       rlsEnabled: true,
-      rlsForced: false,
+      rlsForced: true,
       residue: 0,
       productionTouched: false,
     });
@@ -139,13 +135,13 @@ export async function runCheckoutStockReservationActivationPostflightProof(
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     process.stdout.write(`${JSON.stringify(
-      await runCheckoutStockReservationActivationPostflightProof(),
+      await runCheckoutStockReservationForceProof(),
       null,
       2,
     )}\n`);
   } catch (error) {
     process.stderr.write(
-      `CheckoutStockReservation activation postflight PostgreSQL proof failed: ${
+      `CheckoutStockReservation FORCE PostgreSQL proof failed: ${
         error instanceof Error ? error.message : "unknown error"
       }\n`,
     );

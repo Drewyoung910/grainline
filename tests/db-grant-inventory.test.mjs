@@ -1456,6 +1456,7 @@ describe("database grant inventory guardrails", () => {
         "CaseResolutionClaim",
         "CaseSellerRefundApplication",
         "CaseStripeDisputeApplication",
+        "CheckoutStockReservation",
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",
