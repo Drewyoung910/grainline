@@ -603,5 +603,6 @@ Every cleanup invariant passed. Sanitized mode-`0600` evidence SHA-256
 retains counts and booleans only. Expected immutable residue is three expired
 test Checkout Sessions, three processed expiry rows and one processed
 made-to-order restore claim. CheckoutStockReservation RLS remains off and
-predecessor table grants remain intact; predecessor deployment drain is the
-next separate gate.
+direct table grants remain intact. The later exact-ID predecessor drain passed
+with zero shared-credential predecessors; policyless ENABLE plus direct-grant
+revocation is the next separate gate.

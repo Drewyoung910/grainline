@@ -54,9 +54,7 @@ Completed CheckoutStockReservation source-consistency postflight:
   `docs/checkout-stock-reservation-production-smoke.md`; its sanitized evidence
   SHA-256 is
   `86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`.
-  Paid completion remains a separate durable side-effect decision. Keep
-  reservation RLS off and predecessor table grants intact until the
-  predecessor deployment drain passes.
+  Paid completion remains a separate durable side-effect decision.
 - The drain procedure is `npm run
   ops:checkout-stock-reservation-predecessor-drain -- preflight`, followed by
   the same exact binding with `run`; see
@@ -64,6 +62,14 @@ Completed CheckoutStockReservation source-consistency postflight:
   `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6`. Never substitute the project name, a URL,
   a wildcard or another deployment ID. A failed run must retain its mode-`0600`
   restart state and resume only from the same exact main commit and CI run.
+- The exact predecessor drain completed from corrected exact main
+  `4ff40f22c70072406168c378cdb13860f9de317b`, CI `31858295911`. Evidence
+  SHA-256
+  `5f3b63675bdc84749b5f8fef25086bc42a5dddba5e87f5a46fa7bf6015322141`
+  records zero shared-credential predecessors, preserved aliases and green
+  canonical health. The restart marker is absent. CheckoutStockReservation RLS
+  remains off and direct grants remain intact pending the separate policyless
+  ENABLE/grant-revocation release.
 
 Current Conversation/Message production boundary:
 

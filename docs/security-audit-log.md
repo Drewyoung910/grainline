@@ -1527,3 +1527,21 @@ Open work:
 - CheckoutStockReservation RLS remains off and direct grants remain intact.
   No migration, deployment, alias, secret, environment-variable, database or
   other provider-configuration change occurred.
+
+## CheckoutStockReservation predecessor drain completion (2026-08-14)
+
+- PR #215 merged the exact provider-diagnostic and restart-tuple correction as
+  main `4ff40f22c70072406168c378cdb13860f9de317b`; exact-main CI
+  `31858295911` passed the full database, type, lint, test, dependency and build
+  gates.
+- The restart-safe finalizer accepted only prior main `05e652501485e2701720e1883906ec0a36bb75a0`,
+  CI `31845083086` and stage `removal-authorized`, then proved the exact
+  predecessor absent, current deployment READY, all four canonical aliases
+  preserved and canonical health exact.
+- Sanitized mode-`0600` evidence SHA-256 is
+  `5f3b63675bdc84749b5f8fef25086bc42a5dddba5e87f5a46fa7bf6015322141`;
+  it records one-to-zero shared-credential predecessors and no secret retained.
+  The private restart marker was removed.
+- No migration, deployment, RLS/grant, alias, environment-variable or provider
+  configuration change occurred. CheckoutStockReservation RLS remains off;
+  policyless ENABLE/direct-grant revocation and FORCE remain separate.
