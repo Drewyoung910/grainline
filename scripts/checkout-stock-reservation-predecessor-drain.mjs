@@ -53,6 +53,11 @@ export const STATE_PATH = path.join(
   EVIDENCE_DIRECTORY,
   "checkout-stock-reservation-predecessor-drain-state.json",
 );
+export const AUTHORIZED_RESTART_PREDECESSOR = Object.freeze({
+  operatorCommit: "05e652501485e2701720e1883906ec0a36bb75a0",
+  mainCiRunId: 31845083086,
+  stage: "removal-authorized",
+});
 
 function required(env, key) {
   const value = env[key];
@@ -273,21 +278,35 @@ export function validateHealth(status, body) {
   return true;
 }
 
-function validateState(value, config) {
+export function validateState(value, config) {
+  const sameRelease = value?.operatorCommit === config.operatorCommit
+    && value.mainCiRunId === config.mainCiRunId;
+  const exactAuthorizedPredecessor =
+    value?.operatorCommit === AUTHORIZED_RESTART_PREDECESSOR.operatorCommit
+    && value.mainCiRunId === AUTHORIZED_RESTART_PREDECESSOR.mainCiRunId
+    && value.stage === AUTHORIZED_RESTART_PREDECESSOR.stage;
   if (
     value?.schemaVersion !== 1
-    || value.operatorCommit !== config.operatorCommit
-    || value.mainCiRunId !== config.mainCiRunId
+    || (!sameRelease && !exactAuthorizedPredecessor)
     || value.currentDeploymentId !== CURRENT_DEPLOYMENT.id
     || value.predecessorDeploymentId !== PREDECESSOR_DEPLOYMENT.id
     || !["removal-authorized", "predecessor-removed"].includes(value.stage)
   ) {
     throw new Error("predecessor drain restart state drifted");
   }
-  return value;
+  return Object.freeze({
+    ...value,
+    restartedFrom: exactAuthorizedPredecessor
+      ? Object.freeze({
+          operatorCommit: AUTHORIZED_RESTART_PREDECESSOR.operatorCommit,
+          mainCiRunId: AUTHORIZED_RESTART_PREDECESSOR.mainCiRunId,
+          stage: AUTHORIZED_RESTART_PREDECESSOR.stage,
+        })
+      : null,
+  });
 }
 
-export function sanitizedEvidence({ config, inventory, recovery, startedAt }) {
+export function sanitizedEvidence({ config, inventory, recovery, restart, startedAt }) {
   return Object.freeze({
     schemaVersion: 1,
     status: "passed",
@@ -297,6 +316,7 @@ export function sanitizedEvidence({ config, inventory, recovery, startedAt }) {
       commit: config.operatorCommit,
       mainCiRunId: config.mainCiRunId,
     },
+    restart: restart ?? null,
     credentialRecovery: {
       evidenceSha256: recovery.sha256,
       earlierDeploymentCredentialsRejected: true,
@@ -375,7 +395,10 @@ async function verifyAliasesAndHealth(command = runCommand, fetchFn = fetch) {
 
 export function validateInspectAbsentResult(result) {
   const output = `${result?.stdout ?? ""}\n${result?.stderr ?? ""}`;
-  if (result?.status === 0 || !/(?:could not find|not found|does not exist)/i.test(output)) {
+  if (
+    result?.status === 0
+    || !/(?:can(?:not|'t) find|could not find|not found|does not exist)/i.test(output)
+  ) {
     throw new Error("superseded deployment is still inspectable or absence was not proven");
   }
   return true;
@@ -475,6 +498,7 @@ export async function executeDrain(
     config,
     inventory: proof.inventory,
     recovery: proof.recovery,
+    restart: state.restartedFrom,
     startedAt: state.startedAt,
   });
   writePrivateJson(config.evidencePath, evidence);

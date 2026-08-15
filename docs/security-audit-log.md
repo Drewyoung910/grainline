@@ -1511,3 +1511,19 @@ Open work:
 - This preparation changes no production/provider state. CheckoutStockReservation
   RLS remains off and direct predecessor grants remain until the separate
   operator execution passes.
+
+## CheckoutStockReservation predecessor drain verifier correction (2026-08-14)
+
+- Exact main `05e652501485e2701720e1883906ec0a36bb75a0` and CI
+  `31845083086` passed before the reviewed operator removed only deployment
+  `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6`.
+- The final absence verifier failed closed on Vercel CLI 59.0.0's real `Can't
+  find the deployment` diagnostic. Direct read-only inspection confirms the
+  predecessor is absent and current deployment
+  `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw` remains READY.
+- A private restart marker remains at exact stage `removal-authorized`. The
+  correction adds that provider phrase plus an exact old-commit, old-CI and
+  stage tuple; it does not permit generic prior state or manual state edits.
+- CheckoutStockReservation RLS remains off and direct grants remain intact.
+  No migration, deployment, alias, secret, environment-variable, database or
+  other provider-configuration change occurred.

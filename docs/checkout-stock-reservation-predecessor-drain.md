@@ -1,9 +1,9 @@
 # CheckoutStockReservation predecessor deployment drain
 
-Status: reviewed restart-safe operator prepared on an isolated branch;
-production predecessor retirement has not yet executed. RLS remains off and
-the predecessor direct table grants remain intact until this record is updated
-with accepted execution evidence.
+Status: the exact predecessor was removed on 2026-08-14, but final evidence
+remains pending after a fail-closed provider-message compatibility defect. RLS
+remains off and the predecessor direct table grants remain intact until this
+record is updated with accepted completion evidence.
 
 ## Why elapsed time alone is insufficient
 
@@ -84,6 +84,24 @@ npm run ops:checkout-stock-reservation-predecessor-drain -- preflight
 Repeat with `run` only after preflight passes. A failed run must retain the
 private restart state. Rerun the same exact commit and CI binding; do not delete
 or edit that state by hand.
+
+## Fail-closed execution interruption (2026-08-14)
+
+- Exact main `05e652501485e2701720e1883906ec0a36bb75a0` and same-commit CI
+  `31845083086` passed. The read-only preflight reported exactly one
+  shared-credential predecessor.
+- The authorized exact-ID removal made
+  `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` non-inspectable. The current deployment
+  `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw` remained READY with all four aliases.
+- Finalization failed closed because Vercel CLI 59.0.0 emits `Can't find the
+  deployment` for the successful absence proof, while the reviewed parser
+  recognized only `could not find`, `not found`, or `does not exist`.
+- The mode-`0600` restart file remains at stage `removal-authorized`; no final
+  evidence has been accepted. The correction recognizes only the additional
+  real provider phrase and permits restart only from the exact old
+  commit/CI/stage tuple above. Every other stale state still fails closed.
+- No migration, deployment, database/RLS/grant, secret, alias, environment
+  variable or provider-configuration change accompanied the interruption.
 
 ## Following boundary
 
