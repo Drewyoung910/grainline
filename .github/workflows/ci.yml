@@ -463,6 +463,8 @@ jobs:
           mv
           "$RUNNER_TEMP/seller-payout-event-authority-release"
           prisma/migrations/20260815210000_prepare_seller_payout_event_authority
+      - name: Verify SellerPayoutEvent compatible authority release
+        run: npm run audit:rls-seller-payout-event-authority-release
       - name: Apply SellerPayoutEvent compatible authority
         run: npx prisma migrate deploy
       - name: Converge compatible SellerPayoutEvent runtime grants

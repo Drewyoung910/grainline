@@ -63,6 +63,13 @@ catalog, then runs the dedicated authority/race proof. This preserves every
 historical release byte boundary while proving the successor against the full
 schema it depends on.
 
+Historical CheckoutStockReservation catalog readers recognize this successor
+only after its exact name and SHA-256 pass the dedicated verifier. The deploy
+guard itself remains strict: calling the CheckoutStockReservation FORCE release
+without the reviewed-successor mode still rejects this later migration. Thus a
+historical proof can remain executable without permitting an old production
+phase to apply the new migration.
+
 The dedicated real-PostgreSQL proof is loopback-only and requires the `ci`
 migration login. It verifies the function owner, pinned search path, exact
 runtime/PUBLIC ACLs and compatible RLS-off posture; switches to the restricted

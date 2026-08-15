@@ -15,6 +15,10 @@ import {
 import {
   verifyPromotedCheckoutStockReservationActivation,
 } from "./stage-checkout-stock-reservation-activation-migration.mjs";
+import {
+  SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
+  verifySellerPayoutEventAuthorityRelease,
+} from "./verify-seller-payout-event-authority-release.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE =
   "checkout-stock-reservation-activation-reviewed";
@@ -54,9 +58,19 @@ export function verifyCheckoutStockReservationActivationRelease(
   ));
   let guard;
   if (allowReviewedSuccessor && forceMigrationExists) {
+    const payoutSuccessorExists = fs.existsSync(path.join(
+      migrationDirectory,
+      SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
+    ));
+    if (payoutSuccessorExists) {
+      verifySellerPayoutEventAuthorityRelease(rootDirectory);
+    }
     const successorGuard = validateCurrentSavedSearchRlsDeployShape({
       phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
       rootDirectory,
+      omittedReviewedMigrationNames: payoutSuccessorExists
+        ? [SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION]
+        : [],
     });
     guard = Object.freeze({
       phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,

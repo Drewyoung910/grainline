@@ -3,6 +3,11 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import {
+  SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256,
+  verifySellerPayoutEventAuthorityRelease,
+} from "../scripts/verify-seller-payout-event-authority-release.mjs";
+
 const migrationPath =
   "prisma/migrations/20260815210000_prepare_seller_payout_event_authority/migration.sql";
 const migration = readFileSync(migrationPath);
@@ -16,7 +21,7 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
   const digest = createHash("sha256").update(migration).digest("hex");
   assert.equal(
     digest,
-    "9aca2449c229d0c393e41e3b63c938b6ac80c3a3bbfcda5fc68198fbc94ec146",
+    SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256,
   );
   assert.match(release, new RegExp(digest));
   assert.match(release, /isolated candidate only/i);
@@ -25,6 +30,16 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
   assert.match(release, /fresh protected aggregate-only production inspection/i);
   assert.match(release, /policyless ENABLE/i);
   assert.match(release, /posture-only FORCE/i);
+});
+
+test("SellerPayoutEvent compatible verifier accepts only the byte-pinned latest candidate", () => {
+  const verified = verifySellerPayoutEventAuthorityRelease();
+  assert.equal(verified.migrationSha256, SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256);
+  assert.equal(verified.rlsEnabled, false);
+  assert.equal(verified.rlsForced, false);
+  assert.equal(verified.runtimeTablePrivilegesChanged, false);
+  assert.equal(verified.runtimeFunctions, 3);
+  assert.equal(verified.productionTouched, false);
 });
 
 test("CI restores payout authority only after sealed CheckoutStockReservation proofs", () => {

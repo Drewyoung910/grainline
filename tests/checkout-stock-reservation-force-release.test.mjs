@@ -39,7 +39,9 @@ const releaseDocument = fs.readFileSync(
 
 test("FORCE release is one exact posture-only catalog change", () => {
   const candidate = buildCheckoutStockReservationForceCandidate();
-  const release = verifyCheckoutStockReservationForceRelease();
+  const release = verifyCheckoutStockReservationForceRelease(undefined, {
+    allowReviewedSuccessor: true,
+  });
   assert.equal(release.phase, CHECKOUT_STOCK_RESERVATION_FORCE_PHASE);
   assert.equal(release.migration, candidate.migrationName);
   assert.equal(
@@ -58,6 +60,15 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.equal(release.policyCount, 0);
   assert.equal(release.runtimeTablePrivileges, 0);
   assert.equal(release.rowDataChanged, false);
+  assert.equal(release.guard.sealedPrefix, true);
+  assert.equal(
+    release.guard.reviewedSuccessorMigration,
+    "20260815210000_prepare_seller_payout_event_authority",
+  );
+  assert.throws(
+    () => verifyCheckoutStockReservationForceRelease(),
+    /requires 20260815060001_force_checkout_stock_reservation_rls to remain the latest migration/,
+  );
   assert.equal(
     (migration.match(
       /^ALTER TABLE public\."CheckoutStockReservation" FORCE ROW LEVEL SECURITY;$/gm,

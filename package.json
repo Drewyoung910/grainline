@@ -96,6 +96,7 @@
     "audit:rls-checkout-stock-reservation-force-postgres": "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/checkout-stock-reservation-force-postgres-proof.mjs",
     "audit:rls-checkout-stock-reservation-force-rollback": "node scripts/checkout-stock-reservation-force-rollback-proof.mjs",
     "audit:rls-checkout-stock-reservation-force-production-scope": "node scripts/verify-checkout-stock-reservation-force-production-scope.mjs",
+    "audit:rls-seller-payout-event-authority-release": "node scripts/verify-seller-payout-event-authority-release.mjs",
     "audit:rls-seller-payout-event-authority-postgres": "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/seller-payout-event-authority-postgres-proof.mjs",
     "ops:order-payment-shipping-legacy-inspect": "node scripts/order-payment-shipping-legacy-inspect.mjs",
     "ops:case-force-postflight": "node scripts/case-activation-production-postflight.mjs --post-force",

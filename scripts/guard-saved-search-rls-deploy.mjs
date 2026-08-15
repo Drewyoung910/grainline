@@ -3074,13 +3074,24 @@ export function validateSavedSearchRlsDeployShape({
 export function validateCurrentSavedSearchRlsDeployShape({
   phase,
   rootDirectory = process.cwd(),
+  omittedReviewedMigrationNames = [],
 } = {}) {
+  if (
+    !Array.isArray(omittedReviewedMigrationNames)
+    || omittedReviewedMigrationNames.some(
+      (name) => typeof name !== "string" || name.length === 0,
+    )
+  ) {
+    throw new TypeError("omittedReviewedMigrationNames must be migration names");
+  }
   const migrationDirectory = path.resolve(rootDirectory, "prisma/migrations");
   const prismaConfigPath = path.resolve(rootDirectory, PRISMA_CONFIG_PATH);
   const middlewarePath = path.resolve(rootDirectory, "src/middleware.ts");
+  const omitted = new Set(omittedReviewedMigrationNames);
   const migrationNames = readdirSync(migrationDirectory, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+    .map((entry) => entry.name)
+    .filter((name) => !omitted.has(name));
 
   return validateSavedSearchRlsDeployShape({
     phase,

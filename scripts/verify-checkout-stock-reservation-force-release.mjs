@@ -19,6 +19,10 @@ import {
 import {
   verifyPromotedCheckoutStockReservationForce,
 } from "./stage-checkout-stock-reservation-force-migration.mjs";
+import {
+  SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
+  verifySellerPayoutEventAuthorityRelease,
+} from "./verify-seller-payout-event-authority-release.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
   "checkout-stock-reservation-force-reviewed";
@@ -36,6 +40,7 @@ function migrationPrefix(rootDirectory, finalMigration) {
 
 export function verifyCheckoutStockReservationForceRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedSuccessor = false } = {},
 ) {
   const activation = verifyPromotedCheckoutStockReservationActivation(
     rootDirectory,
@@ -61,10 +66,29 @@ export function verifyCheckoutStockReservationForceRelease(
     throw new Error("CheckoutStockReservation FORCE migration prefix drifted");
   }
 
-  const guard = validateCurrentSavedSearchRlsDeployShape({
+  const payoutSuccessorExists = fs.existsSync(path.join(
+    rootDirectory,
+    "prisma/migrations",
+    SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
+  ));
+  if (allowReviewedSuccessor && payoutSuccessorExists) {
+    verifySellerPayoutEventAuthorityRelease(rootDirectory);
+  }
+  const strictGuard = validateCurrentSavedSearchRlsDeployShape({
     phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
     rootDirectory,
+    omittedReviewedMigrationNames:
+      allowReviewedSuccessor && payoutSuccessorExists
+        ? [SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION]
+        : [],
   });
+  const guard = allowReviewedSuccessor && payoutSuccessorExists
+    ? Object.freeze({
+        phase: strictGuard.phase,
+        sealedPrefix: true,
+        reviewedSuccessorMigration: SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
+      })
+    : strictGuard;
   const runtimeFunctions = CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS
     .filter((entry) => entry.runtimeExecute).length;
   const privateFunctions = CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS
