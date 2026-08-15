@@ -82,6 +82,17 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify CheckoutStockReservation FORCE migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-force-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify CheckoutStockReservation FORCE release
+        run: npm run audit:rls-checkout-stock-reservation-force-release
+      - name: Isolate CheckoutStockReservation FORCE until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260815060001_force_checkout_stock_reservation_rls
+          "$RUNNER_TEMP/checkout-stock-reservation-force-release"
       - name: Verify CheckoutStockReservation activation migration tree
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-activation-reviewed
@@ -421,6 +432,27 @@ jobs:
         run: npm run audit:rls-checkout-stock-reservation-activation-postflight-postgres
         env:
           CHECKOUT_STOCK_RESERVATION_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore CheckoutStockReservation FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-force-release"
+          prisma/migrations/20260815060001_force_checkout_stock_reservation_rls
+      - name: Apply CheckoutStockReservation FORCE hardening
+        run: npx prisma migrate deploy
+      - name: Verify CheckoutStockReservation FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened reservation grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened CheckoutStockReservation authority
+        run: npm run audit:rls-checkout-stock-reservation-force-postgres
+        env:
+          CHECKOUT_STOCK_RESERVATION_FORCE_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove CheckoutStockReservation FORCE rollback and restoration
+        run: npm run audit:rls-checkout-stock-reservation-force-rollback
+        env:
+          CHECKOUT_STOCK_RESERVATION_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-audit restored CheckoutStockReservation FORCE posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

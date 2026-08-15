@@ -346,7 +346,10 @@ The separate actual pooled-runtime read-only proof also passed; sanitized
 evidence SHA-256 is
 `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0` and
 records no production mutation. FORCE remains the sole separate database
-boundary for this table.
+boundary for this table. Its byte-pinned posture-only migration, rollback and
+disposable proofs are prepared in isolation, but production wiring and any
+dispatch remain separate reviewed work; retain
+`docs/checkout-stock-reservation-force-release.md`.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

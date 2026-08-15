@@ -62,7 +62,9 @@ export function readReservationActivationMigrationCatalog(
 ) {
   const predecessorCatalog =
     readReservationSourceConsistencyMigrationCatalog(root);
-  const release = verifyCheckoutStockReservationActivationRelease(root);
+  const release = verifyCheckoutStockReservationActivationRelease(root, {
+    allowReviewedSuccessor: true,
+  });
   if (
     release.migration !== CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION
     || release.migrationSha256

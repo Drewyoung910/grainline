@@ -1651,3 +1651,26 @@ Open work:
   or row data.
 - No application deployment or provider change accompanied Phase A. FORCE is
   the next separate CheckoutStockReservation database boundary.
+
+## CheckoutStockReservation FORCE isolated release (2026-08-15)
+
+- Prepared the separate posture-only migration
+  `20260815060001_force_checkout_stock_reservation_rls`, promoted SHA-256
+  `cfa05295bd469903aa967919a0178312dbbc855203c408db2395602589f5178d`.
+- The migration changes only `relforcerowsecurity`; policy, grant, function,
+  schema, data, application and provider changes are rejected by the builder
+  and release tests.
+- The preflight binds the exact accepted Phase-A table/role graph and all 25
+  function signatures, sources, modes and ACLs. It retains 16 runtime and nine
+  private functions and rejects dynamic SQL or authority expansion.
+- Added loopback-only direct-runtime FORCE proof and restart-safe owner
+  rollback/restoration proof to disposable CI PostgreSQL.
+- The first real disposable-PostgreSQL proof exposed a name-only overload
+  count: the legitimate older webhook-begin overload made the reviewed
+  16-signature runtime set appear to contain 17 functions. The final preflight
+  joins exact names plus `oidvectortypes(proargtypes)`. Real-PG regression
+  coverage now proves both accepted overload coexistence and post-Phase-A
+  function-drift rejection with FORCE left off.
+- Production remains at Phase A. The production scope, guarded workflow and
+  actual pooled-runtime postflight are intentionally deferred to a separate
+  reviewed boundary.
