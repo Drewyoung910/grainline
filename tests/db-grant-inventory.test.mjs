@@ -17,6 +17,7 @@ import {
   CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/case-invariant-catalog.mjs";
 import {
+  CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
@@ -39,6 +40,7 @@ const {
   RUNTIME_PRIVATE_TABLES,
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
+  CHECKOUT_STOCK_RESERVATION_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
@@ -52,6 +54,8 @@ const {
   collectTablePrivilegeAllowlistIssues,
   caseRlsActivationExpected,
   caseRlsForceExpected,
+  checkoutStockReservationRlsActivationExpected,
+  checkoutStockReservationRlsForceExpected,
   defaultPrivilegeRequirements,
   directUploadRlsActivationExpected,
   deriveGrantInventory,
@@ -903,6 +907,104 @@ describe("database grant inventory guardrails", () => {
     assert.equal(
       stripeWebhookEventRlsForceExpected(stripeForcedInventory),
       true,
+    );
+
+    const reservationActivatedInventory = {
+      ...stripeForcedInventory,
+      tables: [
+        ...stripeForcedInventory.tables,
+        CHECKOUT_STOCK_RESERVATION_TABLE,
+      ],
+      rlsEnableTables: [
+        ...stripeForcedInventory.rlsEnableTables,
+        CHECKOUT_STOCK_RESERVATION_TABLE,
+      ],
+    };
+    assert.equal(
+      checkoutStockReservationRlsActivationExpected(
+        reservationActivatedInventory,
+      ),
+      true,
+    );
+    assert.equal(
+      checkoutStockReservationRlsForceExpected(reservationActivatedInventory),
+      false,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        CHECKOUT_STOCK_RESERVATION_TABLE,
+        reservationActivatedInventory,
+      ),
+      [],
+    );
+    for (const functionName of
+      CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES) {
+      assert.equal(
+        runtimePrivateFunctionNames(reservationActivatedInventory).includes(
+          functionName,
+        ),
+        true,
+        `${functionName} must be runtime-private after reservation activation`,
+      );
+    }
+    assert.deepEqual(
+      policylessServiceRlsTableNames(reservationActivatedInventory).slice(-2),
+      [STRIPE_WEBHOOK_EVENT_TABLE, CHECKOUT_STOCK_RESERVATION_TABLE],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: "DirectUpload",
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          ...caseRows.map((row) => ({ ...row, rls_forced: true })),
+          {
+            table_name: STRIPE_WEBHOOK_EVENT_TABLE,
+            rls_enabled: true,
+            rls_forced: true,
+            policy_count: 0,
+          },
+          {
+            table_name: CHECKOUT_STOCK_RESERVATION_TABLE,
+            rls_enabled: true,
+            rls_forced: false,
+            policy_count: 0,
+          },
+        ],
+        reservationActivatedInventory,
+      ),
+      [],
+    );
+    const reservationForcedInventory = {
+      tables: [CHECKOUT_STOCK_RESERVATION_TABLE],
+      rlsEnableTables: [CHECKOUT_STOCK_RESERVATION_TABLE],
+      rlsForceTables: [CHECKOUT_STOCK_RESERVATION_TABLE],
+      rlsPolicyTables: [],
+    };
+    assert.equal(
+      checkoutStockReservationRlsForceExpected(reservationForcedInventory),
+      true,
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [
+          ...exact,
+          {
+            table_name: CHECKOUT_STOCK_RESERVATION_TABLE,
+            rls_enabled: true,
+            rls_forced: false,
+            policy_count: 0,
+          },
+        ],
+        reservationForcedInventory,
+      ),
+      [
+        "service-only table CheckoutStockReservation must have FORCE ROW LEVEL SECURITY enabled",
+      ],
     );
   });
 
@@ -2098,7 +2200,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 13);
+    assert.equal(guardResultCount, 14);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -2143,6 +2245,18 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :stripe_webhook_event_rls_active[\s\S]*REVOKE ALL ON TABLE public\."StripeWebhookEvent"/,
+    );
+    assert.match(
+      provision,
+      /CheckoutStockReservation RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :checkout_stock_reservation_rls_active[\s\S]*REVOKE ALL ON TABLE public\."CheckoutStockReservation"/,
+    );
+    assert.match(
+      provision,
+      /\\if :checkout_stock_reservation_rls_active[\s\S]*REVOKE EXECUTE ON FUNCTION[\s\S]*grainline_checkout_reservation_create_cart[\s\S]*grainline_checkout_reservation_create_single/,
     );
     assert.match(
       provision,

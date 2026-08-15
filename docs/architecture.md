@@ -80,20 +80,31 @@ deployment drain are complete. Direct table grants remain temporarily
 available only until the separate policyless ENABLE/grant-revocation release.
 Signed completion and restore bind an immutable Stripe source object plus
 claim generation; repair workers use monotonic claims; Redis checkout
-publication uses unique owner tokens. The accepted next candidate closes the
-remaining creation-time source-consistency window: each checkout path calls one
-fixed PostgreSQL statement that locks Cart, CartItem, Listing, variant and
-photo sources, derives the reservation payload in the database and treats the
+publication uses unique owner tokens. Each checkout path now calls one fixed
+PostgreSQL statement that locks Cart, CartItem, Listing, variant and photo
+sources, derives the reservation payload in the database and treats the
 application's canonical witness only as a rejection condition. Two fresh
 provider slots passed without weaker thresholds or residue. Exact main
 `16239fce2956c6dc726c24ccd7a91d1ea35463bd` and production migration run
 `31814032227` applied the additive migration with the global audit and exact
-scope proof green; RLS remains off. The pooled-runtime postflight, application
-deployment, authenticated smoke and exact-ID predecessor drain are accepted.
-No superseded deployment can authenticate with the current runtime credential.
-Policyless ENABLE with direct-grant revocation and FORCE remain separate
-release boundaries. Exact bytes, evidence hashes and rollback limits are
-retained in `docs/checkout-stock-reservation-source-consistency-release.md`,
+scope proof green. The pooled-runtime postflight, application deployment,
+authenticated smoke and exact-ID predecessor drain are accepted; no superseded
+deployment can authenticate with the current runtime credential.
+
+The stacked activation design remains policyless ENABLE first and FORCE later.
+Phase A removes all ordinary-runtime and PUBLIC table/column authority while
+retaining only the exact source-consistent fixed-operation catalog. It verifies
+the live 18-runtime/7-private predecessor, then retires EXECUTE on the two
+unused legacy creation functions for a 16-runtime/9-private activated
+partition. The functions remain installed for rollback, but the accepted
+rollback application uses their source-consistent successors. The global
+grant-audit disposition, database-first rollback, direct-denial proof and
+actual pooled-runtime read-only postflight are prepared as production-inert
+release artifacts. The byte-pinned candidate builder only reports deterministic
+proposed migration bytes and hashes; it cannot create a Prisma migration
+directory or execute a database change. Exact source-consistency bytes,
+evidence hashes and rollback limits remain in
+`docs/checkout-stock-reservation-source-consistency-release.md`,
 `docs/checkout-stock-reservation-production-smoke.md`, and
 `docs/checkout-stock-reservation-predecessor-drain.md`.
 

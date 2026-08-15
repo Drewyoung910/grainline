@@ -21,10 +21,21 @@ import {
   cartCheckoutReservationSourceWitness,
   singleCheckoutReservationSourceWitness,
 } from "../src/lib/checkoutReservationSourceState.ts";
+import {
+  verifyCheckoutStockReservationActivatedCatalog,
+} from "../scripts/checkout-stock-reservation-activation-production-postflight.mjs";
 
 const draft = fs.readFileSync("docs/rls-drafts/checkout-stock-reservation-authority.sql", "utf8");
 const sourceConsistencyMigration = fs.readFileSync(
   "prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency/migration.sql",
+  "utf8",
+);
+const activation = fs.readFileSync(
+  "docs/rls-drafts/checkout-stock-reservation-activation.sql",
+  "utf8",
+);
+const activationRollback = fs.readFileSync(
+  "docs/rls-drafts/checkout-stock-reservation-activation-rollback.sql",
   "utf8",
 );
 const predecessorWebhookBeginSource =
@@ -361,6 +372,65 @@ async function provePreflightRejection(tamperSql, expectedError) {
          AND NOT attisdropped
     `);
     assert.equal(sourceColumn.rows.length, 0);
+  } finally {
+    await predecessor.close();
+    fs.rmSync(proofDirectory, { recursive: true, force: true });
+  }
+}
+
+async function proveActivationPreflightRejection(tamperSql, expectedError) {
+  const proofDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "grainline-reservation-activation-reject-"),
+  );
+  const bootstrap = new PGlite({ dataDir: proofDirectory });
+  try {
+    await bootstrap.exec("CREATE ROLE ci SUPERUSER LOGIN");
+    await bootstrap.exec("CREATE DATABASE grainline_ci OWNER ci");
+  } finally {
+    await bootstrap.close();
+  }
+
+  const predecessor = new PGlite({
+    dataDir: proofDirectory,
+    username: "ci",
+    database: "grainline_ci",
+  });
+  try {
+    await predecessor.exec(SOURCE_SCHEMA);
+    await predecessor.exec(draft);
+    await predecessor.exec(sourceConsistencyMigration);
+    await predecessor.exec(tamperSql);
+    await assert.rejects(predecessor.exec(activation), expectedError);
+    await predecessor.exec("ROLLBACK");
+
+    const unchanged = rows(await predecessor.query(`
+      SELECT
+        class.relrowsecurity AS enabled,
+        class.relforcerowsecurity AS forced,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid, 'SELECT'
+        ) AS can_select,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid, 'INSERT'
+        ) AS can_insert,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid, 'UPDATE'
+        ) AS can_update,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid, 'DELETE'
+        ) AS can_delete
+        FROM pg_catalog.pg_class AS class
+       WHERE class.oid =
+             'public."CheckoutStockReservation"'::pg_catalog.regclass
+    `))[0];
+    assert.deepEqual(unchanged, {
+      enabled: false,
+      forced: false,
+      can_select: true,
+      can_insert: true,
+      can_update: true,
+      can_delete: true,
+    });
   } finally {
     await predecessor.close();
     fs.rmSync(proofDirectory, { recursive: true, force: true });
@@ -1196,6 +1266,114 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
       reservedItems: [{ listingId: "listing-a", quantity: 1 }],
     });
   });
+
+  it("activates policyless runtime authority and rolls back database-first", async () => {
+    // PGlite RESET ROLE returns to its internal bootstrap superuser even when
+    // the proof connection was opened with username=ci. Re-enter the exact
+    // migration-owner identity before exercising the owner-bound activation.
+    await db.exec("SET ROLE ci");
+    const predecessor = rows(await db.query(`
+      SELECT
+        CURRENT_USER AS current_user_name,
+        pg_catalog.pg_get_userbyid(class.relowner) AS owner_name,
+        class.relrowsecurity AS enabled,
+        class.relforcerowsecurity AS forced
+      FROM pg_catalog.pg_class AS class
+      WHERE class.oid =
+            'public."CheckoutStockReservation"'::pg_catalog.regclass
+    `));
+    assert.deepEqual(predecessor, [{
+      current_user_name: "ci",
+      owner_name: "ci",
+      enabled: false,
+      forced: false,
+    }]);
+    await db.exec(activation);
+
+    const activated = rows(await db.query(`
+      SELECT
+        class.relrowsecurity AS enabled,
+        class.relforcerowsecurity AS forced,
+        (
+          SELECT pg_catalog.count(*)::integer
+            FROM pg_catalog.pg_policy AS policy
+           WHERE policy.polrelid = class.oid
+        ) AS policy_count,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid,
+          'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+        ) AS runtime_table_authority
+        FROM pg_catalog.pg_class AS class
+       WHERE class.oid =
+             'public."CheckoutStockReservation"'::pg_catalog.regclass
+    `))[0];
+    assert.deepEqual(activated, {
+      enabled: true,
+      forced: false,
+      policy_count: 0,
+      runtime_table_authority: false,
+    });
+
+    await db.exec("BEGIN");
+    try {
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await assert.rejects(
+        db.query('SELECT id FROM public."CheckoutStockReservation" LIMIT 1'),
+        /permission denied for table CheckoutStockReservation/,
+      );
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+
+    await db.exec("BEGIN");
+    try {
+      await db.exec("SET LOCAL ROLE grainline_app_runtime");
+      await verifyCheckoutStockReservationActivatedCatalog(db, "ci");
+      const fixedRead = rows(await db.query(`
+        SELECT pg_catalog.count(*)::integer AS count
+          FROM public.grainline_checkout_reservation_export('buyer-a')
+      `))[0];
+      assert.equal(fixedRead.count, 0);
+      await assert.rejects(
+        db.query(`
+          SELECT public.grainline_checkout_reservation_restore_items('[]'::jsonb)
+        `),
+        /permission denied for function grainline_checkout_reservation_restore_items/,
+      );
+    } finally {
+      await db.exec("ROLLBACK");
+    }
+
+    await db.exec(activationRollback);
+    const restored = rows(await db.query(`
+      SELECT
+        class.relrowsecurity AS enabled,
+        class.relforcerowsecurity AS forced,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid, 'SELECT'
+        ) AS can_select,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid, 'INSERT'
+        ) AS can_insert,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid, 'UPDATE'
+        ) AS can_update,
+        pg_catalog.has_table_privilege(
+          'grainline_app_runtime', class.oid, 'DELETE'
+        ) AS can_delete
+        FROM pg_catalog.pg_class AS class
+       WHERE class.oid =
+             'public."CheckoutStockReservation"'::pg_catalog.regclass
+    `))[0];
+    assert.deepEqual(restored, {
+      enabled: false,
+      forced: false,
+      can_select: true,
+      can_insert: true,
+      can_update: true,
+      can_delete: true,
+    });
+  });
 });
 
 describe("CheckoutStockReservation authority draft static contract", () => {
@@ -1333,6 +1511,81 @@ ${predecessorWebhookBeginSource}
         -- Deliberate source-only drift: behavior and catalog attributes stay unchanged.
         $grainline_drifted_predecessor$;
       `, /predecessor webhook begin function drifted/);
+    });
+  });
+});
+
+describe("CheckoutStockReservation activation preflight in disposable PostgreSQL", () => {
+  it("fails closed without partially activating on authority drift", async (context) => {
+    await context.test("rejects an explicit runtime column ACL", async () => {
+      await proveActivationPreflightRejection(`
+        GRANT SELECT ("buyerId")
+          ON TABLE public."CheckoutStockReservation"
+          TO grainline_app_runtime;
+      `, /activation predecessor retains PUBLIC or column authority/);
+    });
+
+    await context.test("rejects a lifecycle-invalid ledger row", async () => {
+      await proveActivationPreflightRejection(`
+        ALTER TABLE public."CheckoutStockReservation"
+          DISABLE TRIGGER "CheckoutStockReservation_normalize_write";
+        INSERT INTO public."CheckoutStockReservation" (
+          id, "checkoutLockKey", "payloadHash", "buyerId", "sellerId",
+          "stripeSessionId", status, "reservedItems", "expiresAt",
+          "createdAt", "updatedAt"
+        ) VALUES (
+          'activation-invalid', 'checkout:activation:invalid',
+          'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'buyer-a', 'seller-a',
+          'cs_activation_invalid', 'RESERVED', '[]'::jsonb,
+          CURRENT_TIMESTAMP + interval '30 minutes',
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        );
+        ALTER TABLE public."CheckoutStockReservation"
+          ENABLE TRIGGER "CheckoutStockReservation_normalize_write";
+      `, /activation found 1 invalid rows/);
+    });
+
+    await context.test("rejects an extra unreviewed trigger", async () => {
+      await proveActivationPreflightRejection(`
+        CREATE FUNCTION public.grainline_unreviewed_reservation_trigger()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $grainline_unreviewed_reservation_trigger$
+        BEGIN
+          RETURN NEW;
+        END
+        $grainline_unreviewed_reservation_trigger$;
+        CREATE TRIGGER "CheckoutStockReservation_unreviewed"
+          BEFORE INSERT ON public."CheckoutStockReservation"
+          FOR EACH ROW
+          EXECUTE FUNCTION public.grainline_unreviewed_reservation_trigger();
+      `, /trigger catalog drifted: actual 2, accepted 1/);
+    });
+
+    await context.test("rejects a name-only index lookalike", async () => {
+      await proveActivationPreflightRejection(`
+        DROP INDEX public."CheckoutStockReservation_checkoutLockKey_idx";
+        CREATE INDEX "CheckoutStockReservation_checkoutLockKey_idx"
+          ON public."CheckoutStockReservation"("buyerId");
+      `, /index catalog drifted: actual 9, accepted 8/);
+    });
+
+    await context.test("rejects a name-only constraint lookalike", async () => {
+      await proveActivationPreflightRejection(`
+        ALTER TABLE public."CheckoutStockReservation"
+          DROP CONSTRAINT "CheckoutStockReservation_status_chk";
+        ALTER TABLE public."CheckoutStockReservation"
+          ADD CONSTRAINT "CheckoutStockReservation_status_chk"
+          CHECK (true);
+      `, /constraint catalog drifted: actual 5, accepted 4/);
+    });
+
+    await context.test("rejects leaked private-helper EXECUTE", async () => {
+      await proveActivationPreflightRejection(`
+        GRANT EXECUTE ON FUNCTION
+          public.grainline_checkout_reservation_restore_items(jsonb)
+          TO grainline_app_runtime;
+      `, /activation function catalog drifted: actual 25, accepted 24/);
     });
   });
 });

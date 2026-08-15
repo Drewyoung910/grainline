@@ -1323,6 +1323,68 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- CheckoutStockReservation is a policyless service ledger once Phase A is
+-- active. Refuse partial posture, and ensure the broad compatibility grant
+-- above cannot escape this transaction after activation.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)::integer
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'CheckoutStockReservation'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND policy_count = 0) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'CheckoutStockReservation RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS checkout_stock_reservation_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_reservation_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_reservation_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :checkout_stock_reservation_rls_active
+REVOKE ALL ON TABLE public."CheckoutStockReservation"
+  FROM PUBLIC, :"runtime_role";
+REVOKE EXECUTE ON FUNCTION
+  public.grainline_checkout_reservation_create_cart(text, text, text, text, text),
+  public.grainline_checkout_reservation_create_single(text, text, integer, text)
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset checkout_stock_reservation_rls_active
+
 -- These owner-operated ledgers sit behind fixed functions. They intentionally
 -- have FORCE RLS with zero policies and no runtime/PUBLIC table authority.
 SELECT format(

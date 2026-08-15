@@ -156,44 +156,6 @@ function parseCreation(rows: readonly Record<string, unknown>[]) {
   });
 }
 
-export async function createCartCheckoutStockReservation(input: {
-  buyerId: string;
-  cartId: string;
-  sellerProfileId: string;
-  checkoutGroupId?: string | null;
-  payloadHash: string;
-}, client: AuthorityClient = prisma) {
-  const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
-    SELECT reservation_id, reserved_items, expires_at
-      FROM public.grainline_checkout_reservation_create_cart(
-        ${input.buyerId},
-        ${input.cartId},
-        ${input.sellerProfileId},
-        ${input.checkoutGroupId ?? null},
-        ${input.payloadHash}
-      )
-  `;
-  return parseCreation(rows);
-}
-
-export async function createSingleCheckoutStockReservation(input: {
-  buyerId: string;
-  listingId: string;
-  quantity: number;
-  payloadHash: string;
-}, client: AuthorityClient = prisma) {
-  const rows = await client.$queryRaw<Array<Record<string, unknown>>>`
-    SELECT reservation_id, reserved_items, expires_at
-      FROM public.grainline_checkout_reservation_create_single(
-        ${input.buyerId},
-        ${input.listingId},
-        ${input.quantity},
-        ${input.payloadHash}
-      )
-  `;
-  return parseCreation(rows);
-}
-
 export async function createConsistentCartCheckoutStockReservation(input: {
   buyerId: string;
   cartId: string;

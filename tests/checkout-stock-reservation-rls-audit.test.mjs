@@ -154,6 +154,9 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(row, /dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw/);
     assert.match(row, /authenticated checkout smoke passed/);
     assert.match(row, /RLS remains off/);
+    assert.match(row, /checkout-stock-reservation-activation-plan\.md/);
+    assert.match(row, /read-only byte-pinned candidate builder/);
+    assert.match(row, /cannot create a migration/);
     assert.match(strategy, /CheckoutStockReservation source-consistency boundary/);
     assert.match(strategy, /Two fresh provider slots passed/);
   });

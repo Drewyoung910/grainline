@@ -1,6 +1,6 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
@@ -70,6 +70,22 @@ Completed CheckoutStockReservation source-consistency postflight:
   canonical health. The restart marker is absent. CheckoutStockReservation RLS
   remains off and direct grants remain intact pending the separate policyless
   ENABLE/grant-revocation release.
+- The Phase-A activation package is still production-inert. Its read-only
+  candidate command is
+  `npm run audit:rls-checkout-stock-reservation-activation-candidate`; it must
+  report migration name
+  `20260815060000_enable_checkout_stock_reservation_rls`, 16 runtime functions,
+  nine private functions, RLS enabled, FORCE false, zero policies, zero row
+  changes and `migrationDirectoryCreated=false`. Do not create that Prisma
+  migration directory or wire a production phase until the refreshed
+  disposable PostgreSQL and exact-catalog review is complete.
+- After a future Phase-A migration succeeds, the separate actual-runtime
+  postflight is `npm run ops:checkout-stock-reservation-activation-postflight`.
+  It must receive only the pooled production runtime URL plus the exact clean
+  main commit, same-commit CI run, guarded migration run and a fresh private
+  evidence path. Owner/direct or aliased database URLs are forbidden. The
+  postflight is engine read-only and does not replace the guarded migration,
+  global grant audit or later separate FORCE release.
 
 Current Conversation/Message production boundary:
 

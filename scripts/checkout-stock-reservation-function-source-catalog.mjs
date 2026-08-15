@@ -85,31 +85,48 @@ export function checkoutStockReservationSourceConsistentFunctionSources(
   return checkoutStockReservationCandidateFunctionSources(rootDir);
 }
 
-function sourceSha256(sources) {
+function sourceDigest(algorithm, sources) {
   return Object.freeze(Object.fromEntries(
     Object.entries(sources).map(
       ([signature, source]) => [
         signature,
-        createHash("sha256").update(source, "utf8").digest("hex"),
+        createHash(algorithm).update(source, "utf8").digest("hex"),
       ],
     ),
   ));
 }
 
+export function checkoutStockReservationFunctionSourceMd5(rootDir = ROOT_DIR) {
+  return sourceDigest("md5", checkoutStockReservationFunctionSources(rootDir));
+}
+
+export function checkoutStockReservationSourceConsistentFunctionSourceMd5(
+  rootDir = ROOT_DIR,
+) {
+  return sourceDigest(
+    "md5",
+    checkoutStockReservationSourceConsistentFunctionSources(rootDir),
+  );
+}
+
 export function checkoutStockReservationFunctionSourceSha256(rootDir = ROOT_DIR) {
-  return sourceSha256(checkoutStockReservationFunctionSources(rootDir));
+  return sourceDigest("sha256", checkoutStockReservationFunctionSources(rootDir));
 }
 
 export function checkoutStockReservationCandidateFunctionSourceSha256(
   rootDir = ROOT_DIR,
 ) {
-  return sourceSha256(checkoutStockReservationCandidateFunctionSources(rootDir));
+  return sourceDigest(
+    "sha256",
+    checkoutStockReservationCandidateFunctionSources(rootDir),
+  );
 }
 
 export function checkoutStockReservationSourceConsistentFunctionSourceSha256(
   rootDir = ROOT_DIR,
 ) {
-  return sourceSha256(
+  return sourceDigest(
+    "sha256",
     checkoutStockReservationSourceConsistentFunctionSources(rootDir),
   );
 }
