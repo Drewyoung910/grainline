@@ -459,7 +459,12 @@ BEGIN
       ('grainline_checkout_reservation_prune_batch', 'integer', 'f9c2d62ce2a82657928afa6399db53e2', true, 'v', 'u'),
       ('grainline_checkout_reservation_resume', 'text, text', 'f25581ea5cbc7a5390988a8853b21150', true, 's', 's'),
       ('grainline_checkout_reservation_export', 'text', '0b0426052ab9a9a06e4b75de995c632f', true, 's', 's'),
-      ('grainline_checkout_reservation_account_scrub', 'text', '204cb76e973d4a392daacbbe371648eb', true, 'v', 'u')
+      ('grainline_checkout_reservation_account_scrub', 'text', '204cb76e973d4a392daacbbe371648eb', true, 'v', 'u'),
+      ('grainline_checkout_reservation_seller_witness', 'text', '60e43ce6f6dc495d98afbbc4757060d3', false, 's', 'r'),
+      ('grainline_checkout_reservation_listing_witness', 'text', 'eba60a39a068b734befca3a200733614', false, 's', 'r'),
+      ('grainline_checkout_reservation_variant_source_valid', 'text, text[], integer', 'e0159bfb56a09f6319e8a1e94a934bbf', false, 's', 'r'),
+      ('grainline_checkout_reservation_create_cart_consistent', 'text, text, text, text, text, jsonb', '27d3c17ed664dfe961c6f0fd22b53041', true, 'v', 'u'),
+      ('grainline_checkout_reservation_create_single_consistent', 'text, text, integer, text[], text, jsonb', '3bf7188f3b5fb160821cd1d11c48f900', true, 'v', 'u')
   )
   SELECT pg_catalog.count(*)::integer
     INTO accepted_function_count
@@ -473,7 +478,14 @@ BEGIN
     JOIN pg_catalog.pg_language AS language
       ON language.oid = procedure.prolang
    WHERE namespace.nspname = 'public'
-     AND language.lanname = 'plpgsql'
+     AND language.lanname = CASE
+       WHEN expected.name IN (
+         'grainline_checkout_reservation_seller_witness',
+         'grainline_checkout_reservation_listing_witness',
+         'grainline_checkout_reservation_variant_source_valid'
+       ) THEN 'sql'
+       ELSE 'plpgsql'
+     END
      AND procedure.prokind = 'f'
      AND procedure.proowner = reservation_owner
      AND procedure.prosecdef
@@ -505,7 +517,7 @@ BEGIN
              )
            )
      );
-  IF actual_function_count <> 20 OR accepted_function_count <> 20 THEN
+  IF actual_function_count <> 25 OR accepted_function_count <> 25 THEN
     RAISE EXCEPTION
       'CheckoutStockReservation activation function catalog drifted: actual %, accepted %',
       actual_function_count,
@@ -519,9 +531,18 @@ ALTER TABLE public."CheckoutStockReservation" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public."CheckoutStockReservation"
   FROM PUBLIC, grainline_app_runtime;
 
+-- Every current application path uses the source-consistent one-statement
+-- successors. Keep the legacy functions installed for database-first rollback,
+-- but retire their runtime execution authority after predecessor drain.
+REVOKE EXECUTE ON FUNCTION
+  public.grainline_checkout_reservation_create_cart(text, text, text, text, text),
+  public.grainline_checkout_reservation_create_single(text, text, integer, text)
+  FROM PUBLIC, grainline_app_runtime;
+
 DO $grainline_checkout_reservation_activation_postflight$
 DECLARE
   accepted_table_count integer;
+  retired_creation_count integer;
 BEGIN
   SELECT pg_catalog.count(*)::integer
     INTO accepted_table_count
@@ -577,6 +598,45 @@ BEGIN
   IF accepted_table_count <> 1 THEN
     RAISE EXCEPTION
       'CheckoutStockReservation activation postflight did not reach exact policyless state';
+  END IF;
+
+  WITH expected(name, argument_types) AS (
+    VALUES
+      ('grainline_checkout_reservation_create_cart', 'text, text, text, text, text'),
+      ('grainline_checkout_reservation_create_single', 'text, text, integer, text')
+  )
+  SELECT pg_catalog.count(*)::integer
+    INTO retired_creation_count
+    FROM expected
+    JOIN pg_catalog.pg_proc AS procedure
+      ON procedure.proname = expected.name
+     AND pg_catalog.oidvectortypes(procedure.proargtypes) =
+         expected.argument_types
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND procedure.proowner = (
+       SELECT role.oid
+         FROM pg_catalog.pg_roles AS role
+        WHERE role.rolname = current_user
+     )
+     AND NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime', procedure.oid, 'EXECUTE'
+     )
+     AND NOT EXISTS (
+       SELECT 1
+         FROM pg_catalog.aclexplode(
+           COALESCE(
+             procedure.proacl,
+             pg_catalog.acldefault('f', procedure.proowner)
+           )
+         ) AS acl
+        WHERE acl.grantee = 0
+          AND acl.privilege_type = 'EXECUTE'
+     );
+  IF retired_creation_count <> 2 THEN
+    RAISE EXCEPTION
+      'CheckoutStockReservation legacy creation authority was not retired';
   END IF;
 END
 $grainline_checkout_reservation_activation_postflight$;

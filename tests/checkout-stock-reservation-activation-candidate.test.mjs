@@ -27,6 +27,7 @@ function copyCandidateInputs() {
     CHECKOUT_STOCK_RESERVATION_ACTIVATION_DRAFT,
     CHECKOUT_STOCK_RESERVATION_ACTIVATION_ROLLBACK_DRAFT,
     "prisma/migrations/20260810190000_prepare_checkout_stock_reservation_authority/migration.sql",
+    "prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency/migration.sql",
   ]) {
     const destination = path.join(root, relativePath);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
@@ -64,6 +65,10 @@ test("activation candidate is exact, policyless and production-inert", () => {
   assert.match(
     candidate.migration,
     /REVOKE ALL ON TABLE public\."CheckoutStockReservation"/,
+  );
+  assert.match(
+    candidate.migration,
+    /REVOKE EXECUTE ON FUNCTION[\s\S]*grainline_checkout_reservation_create_cart[\s\S]*grainline_checkout_reservation_create_single[\s\S]*FROM PUBLIC, grainline_app_runtime/,
   );
   assert.doesNotMatch(candidate.migration, /DRAFT ONLY/);
   assert.doesNotMatch(candidate.migration, /\bCREATE\s+POLICY\b/i);

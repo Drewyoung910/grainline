@@ -3,11 +3,13 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
+  CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS,
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_RETIRED_CREATION_FUNCTION_NAMES,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import {
-  checkoutStockReservationFunctionSourceMd5,
-  checkoutStockReservationFunctionSourceSha256,
+  checkoutStockReservationSourceConsistentFunctionSourceMd5,
+  checkoutStockReservationSourceConsistentFunctionSourceSha256,
 } from "../scripts/checkout-stock-reservation-function-source-catalog.mjs";
 
 const activation = fs.readFileSync(
@@ -43,6 +45,10 @@ test("activation is one policyless ENABLE boundary with bounded locks", () => {
     activation,
     /REVOKE ALL ON TABLE public\."CheckoutStockReservation"\s+FROM PUBLIC, grainline_app_runtime/,
   );
+  assert.match(
+    activation,
+    /REVOKE EXECUTE ON FUNCTION[\s\S]*grainline_checkout_reservation_create_cart[\s\S]*grainline_checkout_reservation_create_single[\s\S]*FROM PUBLIC, grainline_app_runtime/,
+  );
 });
 
 test("activation re-attests exact role, catalog, data and ACL predecessors", () => {
@@ -60,8 +66,8 @@ test("activation re-attests exact role, catalog, data and ACL predecessors", () 
     /FROM unnest\(index_row\.indkey\) WITH ORDINALITY/,
     /actual_trigger_count <> 1 OR normalize_trigger_count <> 1/,
     /grainline_checkout_reservation_items_valid/,
-    /actual_function_count <> 20/,
-    /accepted_function_count <> 20/,
+    /actual_function_count <> 25/,
+    /accepted_function_count <> 25/,
     /oidvectortypes\(procedure\.proargtypes\)/,
     /procedure\.proconfig = ARRAY\['search_path=pg_catalog'\]::text\[\]/,
   ]) {
@@ -80,11 +86,11 @@ test("activation re-attests exact role, catalog, data and ACL predecessors", () 
 });
 
 test("activation pins every fixed function to its promoted source", () => {
-  const md5 = checkoutStockReservationFunctionSourceMd5();
-  const sha256 = checkoutStockReservationFunctionSourceSha256();
-  assert.equal(Object.keys(md5).length, 20);
-  assert.equal(Object.keys(sha256).length, 20);
-  assert.equal(CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length, 20);
+  const md5 = checkoutStockReservationSourceConsistentFunctionSourceMd5();
+  const sha256 = checkoutStockReservationSourceConsistentFunctionSourceSha256();
+  assert.equal(Object.keys(md5).length, 25);
+  assert.equal(Object.keys(sha256).length, 25);
+  assert.equal(CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length, 25);
 
   for (const entry of CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS) {
     const signature = `${entry.name}(${entry.argumentTypes})`;
@@ -96,6 +102,33 @@ test("activation pins every fixed function to its promoted source", () => {
       `activation source catalog is missing ${signature}`,
     );
   }
+});
+
+test("activation retires legacy creation execution without dropping rollback functions", () => {
+  assert.equal(
+    CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS.filter(
+      (entry) => entry.runtimeExecute,
+    ).length,
+    16,
+  );
+  assert.equal(
+    CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS.filter(
+      (entry) => !entry.runtimeExecute,
+    ).length,
+    9,
+  );
+  assert.deepEqual(
+    CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS
+      .filter((entry) => (
+        CHECKOUT_STOCK_RESERVATION_RETIRED_CREATION_FUNCTION_NAMES.includes(
+          entry.name,
+        )
+      ))
+      .map((entry) => entry.runtimeExecute),
+    [false, false],
+  );
+  assert.doesNotMatch(activation, /DROP FUNCTION/);
+  assert.match(activation, /retired_creation_count <> 2/);
 });
 
 test("rollback is database-first and restores only compatible CRUD", () => {
@@ -110,6 +143,14 @@ test("rollback is database-first and restores only compatible CRUD", () => {
   );
   assert.doesNotMatch(rollback, /CREATE POLICY|DROP FUNCTION|DROP TABLE/);
   assert.doesNotMatch(rollback, /has_any_column_privilege/);
+  assert.match(
+    rollback,
+    /rollback requires retired legacy creation authority/,
+  );
+  assert.match(
+    rollback,
+    /rollback restored retired creation authority/,
+  );
 });
 
 test("runtime provisioning converges clean predecessor and activated states", () => {

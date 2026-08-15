@@ -304,8 +304,8 @@ describe("durable checkout stock reservation guardrails", () => {
 
   it("exposes only fixed reservation operations through the application authority module", () => {
     for (const operation of [
-      "createCartCheckoutStockReservation",
-      "createSingleCheckoutStockReservation",
+      "createConsistentCartCheckoutStockReservation",
+      "createConsistentSingleCheckoutStockReservation",
       "bindCheckoutStockReservationSession",
       "completeCheckoutStockReservation",
       "abortCheckoutStockReservation",
@@ -322,6 +322,14 @@ describe("durable checkout stock reservation guardrails", () => {
     ]) {
       assert.match(authorityClient, new RegExp(`export async function ${operation}\\(`));
     }
+    assert.doesNotMatch(
+      authorityClient,
+      /export async function create(?:Cart|Single)CheckoutStockReservation\(/,
+    );
+    assert.doesNotMatch(
+      authorityClient,
+      /FROM public\.grainline_checkout_reservation_create_(?:cart|single)\(/,
+    );
     assert.doesNotMatch(authorityClient, /reservedItems:\s*input|checkoutLockKey:\s*input/);
   });
 });

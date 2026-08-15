@@ -21,6 +21,7 @@ LOCK TABLE public."CheckoutStockReservation" IN ACCESS EXCLUSIVE MODE;
 DO $grainline_checkout_reservation_activation_rollback_preflight$
 DECLARE
   accepted_table_count integer;
+  retired_creation_count integer;
 BEGIN
   SELECT pg_catalog.count(*)::integer
     INTO accepted_table_count
@@ -77,6 +78,29 @@ BEGIN
     RAISE EXCEPTION
       'CheckoutStockReservation activation rollback predecessor drifted';
   END IF;
+
+  WITH expected(name, argument_types) AS (
+    VALUES
+      ('grainline_checkout_reservation_create_cart', 'text, text, text, text, text'),
+      ('grainline_checkout_reservation_create_single', 'text, text, integer, text')
+  )
+  SELECT pg_catalog.count(*)::integer
+    INTO retired_creation_count
+    FROM expected
+    JOIN pg_catalog.pg_proc AS procedure
+      ON procedure.proname = expected.name
+     AND pg_catalog.oidvectortypes(procedure.proargtypes) =
+         expected.argument_types
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime', procedure.oid, 'EXECUTE'
+     );
+  IF retired_creation_count <> 2 THEN
+    RAISE EXCEPTION
+      'CheckoutStockReservation rollback requires retired legacy creation authority';
+  END IF;
 END
 $grainline_checkout_reservation_activation_rollback_preflight$;
 
@@ -90,6 +114,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 DO $grainline_checkout_reservation_activation_rollback_postflight$
 DECLARE
   restored_table_count integer;
+  retired_creation_count integer;
 BEGIN
   SELECT pg_catalog.count(*)::integer
     INTO restored_table_count
@@ -152,6 +177,29 @@ BEGIN
   IF restored_table_count <> 1 THEN
     RAISE EXCEPTION
       'CheckoutStockReservation activation rollback did not restore compatible CRUD';
+  END IF;
+
+  WITH expected(name, argument_types) AS (
+    VALUES
+      ('grainline_checkout_reservation_create_cart', 'text, text, text, text, text'),
+      ('grainline_checkout_reservation_create_single', 'text, text, integer, text')
+  )
+  SELECT pg_catalog.count(*)::integer
+    INTO retired_creation_count
+    FROM expected
+    JOIN pg_catalog.pg_proc AS procedure
+      ON procedure.proname = expected.name
+     AND pg_catalog.oidvectortypes(procedure.proargtypes) =
+         expected.argument_types
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime', procedure.oid, 'EXECUTE'
+     );
+  IF retired_creation_count <> 2 THEN
+    RAISE EXCEPTION
+      'CheckoutStockReservation rollback restored retired creation authority';
   END IF;
 END
 $grainline_checkout_reservation_activation_rollback_postflight$;

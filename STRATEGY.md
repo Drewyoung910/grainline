@@ -309,6 +309,28 @@ green health. RLS stays off and direct grants stay temporarily compatible
 until the separate policyless ENABLE plus direct-grant revocation release.
 FORCE remains later and separate.
 
+### CheckoutStockReservation activation refresh boundary (2026-08-15)
+
+All application-compatibility gates for this service ledger are now complete,
+so the active work is the separate policyless Phase-A release. Keep the model
+service-only: zero row policies and zero ordinary-runtime/PUBLIC table or
+column authority, with access only through the exact activated
+16-runtime/9-private function partition. The two legacy creation functions stay
+installed for rollback but lose runtime EXECUTE so callers cannot bypass the
+source-consistent successors. Do not add buyer or seller policies that
+would expose Stripe identifiers, payload hashes, repair state or checkout
+locks. Keep FORCE as a later posture-only release.
+
+The earlier production-inert activation scaffold predated the
+source-consistency successor and pinned only 20 functions. The refreshed
+scaffold must pin all 25 exact functions, distinguish the three SQL witness
+helpers from PL/pgSQL functions, preserve database-first rollback, and prove
+direct denial plus fixed-operation success in disposable PostgreSQL and again
+through the actual pooled runtime after activation. The read-only candidate
+builder may report exact proposed bytes but must not create a deploy-discoverable
+Prisma migration. Promotion, workflow wiring, production application and FORCE
+remain separate reviewed boundaries.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

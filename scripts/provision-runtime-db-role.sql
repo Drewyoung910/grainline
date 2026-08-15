@@ -1378,6 +1378,10 @@ $grainline_reservation_provisioning_abort$;
 \if :checkout_stock_reservation_rls_active
 REVOKE ALL ON TABLE public."CheckoutStockReservation"
   FROM PUBLIC, :"runtime_role";
+REVOKE EXECUTE ON FUNCTION
+  public.grainline_checkout_reservation_create_cart(text, text, text, text, text),
+  public.grainline_checkout_reservation_create_single(text, text, integer, text)
+  FROM PUBLIC, :"runtime_role";
 \endif
 \unset checkout_stock_reservation_rls_active
 

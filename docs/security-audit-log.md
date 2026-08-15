@@ -1545,3 +1545,31 @@ Open work:
 - No migration, deployment, RLS/grant, alias, environment-variable or provider
   configuration change occurred. CheckoutStockReservation RLS remains off;
   policyless ENABLE/direct-grant revocation and FORCE remain separate.
+
+## CheckoutStockReservation activation refresh (2026-08-15)
+
+- `CSR-A33`: the earlier draft-only activation package pinned the original
+  20-function authority catalog. Production's accepted source-consistency
+  successor has 25 exact functions, so the stale preflight would fail closed
+  and could not activate the real predecessor. The refreshed package pins all
+  18 runtime operations and seven private helpers, including the two
+  source-consistent creation functions and three SQL witness helpers. After
+  verifying that predecessor, Phase A retires runtime EXECUTE on the two unused
+  legacy creation functions, producing a 16-runtime/9-private activated
+  partition without dropping the rollback functions.
+- `CSR-A34`: the transplanted PostgreSQL proof duplicated indexes already in
+  the current synthetic predecessor, omitted the source-consistency successor
+  from tamper fixtures and could inherit PGlite's internal bootstrap identity
+  after `RESET ROLE`. The proof now uses the exact current indexes, applies both
+  predecessor migrations and explicitly restores the `ci` owner identity
+  before the owner-bound activation transaction.
+- `CSR-A35`: the application authority module still exposed two unused callers
+  for the legacy creation functions even though both checkout routes use the
+  source-consistent successors. The refresh removes those exports and reverses
+  the guardrail so deployable source cannot call either retired function.
+- The candidate remains production-inert and read-only. It proposes policyless
+  ENABLE with zero policies, revokes direct runtime/PUBLIC table and column
+  authority, preserves database-first compatible rollback and cannot create a
+  Prisma migration directory. FORCE remains separate.
+- No production query, migration, deployment, RLS/grant change, cleanup or
+  provider mutation occurred during this refresh.

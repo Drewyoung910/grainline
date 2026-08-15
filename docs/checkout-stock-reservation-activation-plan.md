@@ -1,11 +1,12 @@
 # CheckoutStockReservation policyless activation plan
 
-Status: isolated stacked design after compatible-authority PR #191. The PR is
-unmerged and production remains unchanged. This plan and its draft SQL do not
-authorize a merge, deployment, production migration, RLS/grant change, cleanup
-or provider mutation.
+Status: refreshed isolated Phase-A design after the compatible authority,
+source-consistency application, authenticated production smoke and exact
+predecessor drain completed. Production still has RLS off and compatible direct
+runtime CRUD. This plan and its draft SQL do not authorize a merge, deployment,
+production migration, RLS/grant change, cleanup or provider mutation.
 
-Date: 2026-08-10
+Date: 2026-08-15
 
 ## Decision
 
@@ -15,14 +16,16 @@ that buyers, sellers or staff should query directly. Phase A therefore uses:
 - `ENABLE ROW LEVEL SECURITY`, without `FORCE`;
 - zero policies;
 - zero ordinary-runtime or PUBLIC table/column privileges;
-- runtime `EXECUTE` only on the 15 reviewed reservation operations and the
-  source-bound three-argument webhook-begin overload;
-- owner-private trigger, validation, restore and source-binding helpers.
+- runtime `EXECUTE` only on the exact 16 reviewed operations, including both
+  database-derived source-consistent creation statements;
+- nine owner-private functions: the seven trigger, validation, restoration,
+  source-binding and source-witness helpers plus the two retired legacy
+  creation functions.
 
 This is intentionally different from recipient-owned tables such as
-Notification. Adding buyer/seller row policies would expose internal checkout
-locks, payload hashes, repair state and Stripe session identifiers while also
-failing to authorize the cross-user webhook/repair operations safely.
+Notification. Buyer or seller row policies would expose internal checkout
+locks, payload hashes, repair state and Stripe session identifiers while still
+failing to authorize cross-user webhook and repair operations safely.
 
 ## Exact predecessor gates
 
@@ -37,92 +40,104 @@ The activation draft refuses to run unless all of these remain exact:
 4. The five non-primary validated checks, exact nine-index definitions and the
    sole reviewed normalization trigger exist; extra or name-only catalog
    lookalikes are rejected.
-5. All rows satisfy the same lifecycle, actor, item, restoration and repair
+5. Every row satisfies the lifecycle, actor, item, restoration and repair
    invariants enforced by the normalization trigger.
-6. The complete 20-function authority catalog has exact signatures, owner,
-   PL/pgSQL/security/search-path/volatility/parallel attributes, source MD5s
-   and runtime/PUBLIC ACLs.
+6. The complete 25-function source-consistent catalog has exact signatures,
+   owner, language, security mode, search path, volatility, parallel safety,
+   source MD5 and runtime/PUBLIC ACLs.
 
-The migration uses bounded statement/lock timeouts, one advisory transaction
-lock and an ACCESS EXCLUSIVE table lock so a conflicting deploy fails and can
-be retried instead of partially changing authority.
+The migration uses bounded statement and lock timeouts, one advisory
+transaction lock and an ACCESS EXCLUSIVE table lock. A conflicting operation
+therefore fails and can be retried instead of partially changing authority.
+
+## Completed compatibility gates
+
+The prerequisites are now evidence-backed rather than prospective:
+
+- compatible authority migration and pooled-runtime proof passed;
+- the source-consistency successor is live with the exact 18-runtime/7-private
+  catalog;
+- two fresh provider slots passed without weaker performance thresholds;
+- the compatible application is deployed;
+- authenticated production checkout smoke passed and cleaned its fixtures;
+- the only current-credential predecessor deployment was removed, and every
+  older embedded runtime password is proven rejected.
+
+The exact evidence is retained in
+`docs/checkout-stock-reservation-source-consistency-release.md`,
+`docs/checkout-stock-reservation-app-deployment-audit.md`,
+`docs/checkout-stock-reservation-production-smoke.md`, and
+`docs/checkout-stock-reservation-predecessor-drain.md`.
 
 ## Compatibility and rollback
 
-The compatible application must deploy first and predecessor versions must
-drain before Phase A. The activation removes direct table authority, so an old
-instance that still uses Prisma reservation delegates would fail immediately.
-The database-first rollback disables RLS and restores only SELECT, INSERT,
-UPDATE and DELETE to the runtime role before any application rollback.
+Phase A removes direct table authority, so rollback remains database-first:
+disable RLS and restore only SELECT, INSERT, UPDATE and DELETE to the runtime
+role before rolling the application back. It deliberately does not restore
+EXECUTE on the two retired creation functions; the accepted rollback
+application already uses their source-consistent successors. Runtime-role
+provisioning accepts exactly two stable states:
 
-Runtime-role provisioning accepts exactly two stable states:
+- clean compatible predecessor: RLS and FORCE off, zero policies;
+- policyless activated state: RLS on, zero policies, FORCE either off or later
+  on.
 
-- clean compatible predecessor: RLS/FORCE off and zero policies;
-- policyless activated state: RLS on (with FORCE either off or, later, on) and
-  zero policies.
+It refuses partial posture and revokes the broad table grant again inside the
+provisioning transaction whenever activation is present.
 
-It refuses partial posture and, in the activated state, revokes the broad
-table grant again inside the provisioning transaction.
+## Proof and remaining release sequence
 
-## Proof and release sequence
-
-1. Merge compatible-authority PR #191 only after exact-head CI.
-2. Run the compatible production migration and pooled-runtime postflight.
-3. Deploy the fixed-operation application and exercise creation, bind,
-   completion, restore, repair, resume, export and deletion paths.
-4. Prove predecessor deployments drained and rerun the aggregate-only legacy
-   inspection.
-5. Promote the byte-pinned Phase-A migration in its own PR and CI proof.
-6. Apply Phase A, converge grants, and run pooled-runtime direct-denial plus
-   fixed-operation proofs.
-7. Prepare and execute FORCE as a separate posture-only release.
+1. Finish refreshing and hard-reviewing the production-inert activation draft,
+   rollback, catalog, global grant disposition and pooled-runtime postflight.
+2. Promote the exact byte-pinned Phase-A migration in its own release PR; CI
+   must apply it to disposable PostgreSQL and prove activation, denial, fixed
+   operations, rollback, restoration and tamper cases.
+3. Wire only that exact migration to the guarded production workflow.
+4. Apply Phase A, converge grants, verify migration/global audit, then run the
+   separate actual pooled-runtime read-only/direct-denial postflight.
+5. Prepare and execute FORCE as a separate posture-only release.
 
 No activation step is wired to the production migration workflow at this
 checkpoint.
 
-The draft is packaged by the read-only candidate builder
-`scripts/build-checkout-stock-reservation-activation-candidate.mjs`. The
-builder pins the activation draft, rollback draft and all promoted function
-sources; produces the exact proposed migration bytes only in memory; and
-rejects policies, FORCE, row mutations, function changes or grant expansion.
-It exposes only `--verify`, cannot create a Prisma migration directory, and is
-not wired to CI or the production migration workflow. Current pins are:
+## Read-only candidate package
+
+The candidate builder
+`scripts/build-checkout-stock-reservation-activation-candidate.mjs` pins the
+activation draft, rollback draft and all promoted function sources; constructs
+the proposed migration only in memory; and rejects policies, FORCE, row
+mutations, function changes or grant expansion. It exposes only `--verify` and
+cannot create a Prisma migration directory or execute a database change.
+
+Current pins:
 
 - activation draft SHA-256:
-  `5cb684828519b86244c9abb7eff86d47ac9b9dc969843fafb57f243d110ceea7`;
+  `4581b79d759b8c8e3e6be9e34471514c4f4be4f93fe73887b4469ac18420bae1`;
 - rollback draft SHA-256:
-  `48234ae984845e5bce6aef3463d6b2b30a4ebd763721806b8f40cf58b4acf0cd`;
+  `4ff20bc7eaeb8def9c8c9ef83dad204afd146a4d75c01363b91cbfdf5d1c75d1`;
 - deterministic proposed migration SHA-256:
-  `5d82078eaccc8face126587de7610834d4d578ddf27d78d9f4a3fa31b07127c0`.
+  `7940be1969c89c8bbf5818164a56afb7e8bf7925bd8a26231d8ac865fac7c519`.
 
 No directory named
-`prisma/migrations/20260810220000_enable_checkout_stock_reservation_rls`
+`prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls`
 exists at this checkpoint. Promotion remains a separate reviewed release.
 
-## Isolated proof checkpoint
+## Proof shape
 
-Disposable PostgreSQL now executes the complete boundary from the exact
-compatible authority predecessor: policyless ENABLE, direct runtime table
-denial, successful fixed-operation read, private-helper denial, and
-database-first rollback restoring only SELECT/INSERT/UPDATE/DELETE. Six
-fail-closed tamper cases prove no partial activation on explicit column ACLs,
-invalid lifecycle rows, extra triggers, same-named index or constraint
-lookalikes, and leaked private-helper EXECUTE. Static and engine-focused tests
-pass 41/41.
+Disposable PostgreSQL executes the full boundary from the exact current
+source-consistent predecessor: policyless ENABLE, direct runtime denial,
+successful fixed-operation read, private-helper denial, and database-first
+rollback restoring only compatible CRUD. Fail-closed tamper cases prove no
+partial activation on explicit column ACLs, invalid lifecycle rows, extra
+triggers, same-named index or constraint lookalikes, and leaked private-helper
+EXECUTE.
 
-That proof exposed and closed three pre-release defects recorded as CSR-A23
-through CSR-A25: table authority being misread as a column ACL, invalid PUBLIC
-role-name privilege inquiry, and name-only trigger/index/constraint catalog
-checks. The activation remains draft-only and production-inert.
-
-The production postflight is also scaffolded as
-`scripts/checkout-stock-reservation-activation-production-postflight.mjs` and
-`npm run ops:checkout-stock-reservation-activation-postflight`. It accepts only
-the reviewed pooled production runtime identity, rejects owner or aliased
-database URLs, binds exact main-CI/migration run IDs and a clean release commit,
-and runs in an engine-attested repeatable-read read-only transaction. It checks
-the exact policyless table posture and 20-function source/owner/mode/ACL
-catalog, proves direct table and private-helper denial, proves fixed export
-execution and reaches the read-only fence through a fixed write function. Its
-secret-free evidence is fresh-create mode 0600. This scaffold is not wired to
-any production workflow and has not connected to production.
+The production postflight scaffold accepts only the reviewed pooled production
+runtime identity, rejects owner or aliased database URLs, binds exact main-CI
+and migration run IDs plus a clean release commit, and runs in an
+engine-attested repeatable-read read-only transaction. It checks the exact
+policyless table posture and 25-function source/owner/language/mode/ACL catalog,
+proves direct table and private-helper denial, proves fixed export execution and
+reaches the read-only fence through a fixed write operation. Its secret-free
+evidence is fresh-create mode 0600. The scaffold is not wired to a production
+workflow and has not connected to production.

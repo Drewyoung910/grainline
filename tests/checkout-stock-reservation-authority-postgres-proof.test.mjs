@@ -273,19 +273,6 @@ const SOURCE_SCHEMA = String.raw`
     TO grainline_app_runtime;
 `;
 
-const PREDECESSOR_INDEXES = String.raw`
-  CREATE INDEX "CheckoutStockReservation_checkoutLockKey_idx"
-    ON public."CheckoutStockReservation"("checkoutLockKey");
-  CREATE INDEX "CheckoutStockReservation_status_expiresAt_idx"
-    ON public."CheckoutStockReservation"(status, "expiresAt");
-  CREATE INDEX "CheckoutStockReservation_buyerId_createdAt_idx"
-    ON public."CheckoutStockReservation"("buyerId", "createdAt");
-  CREATE INDEX "CheckoutStockReservation_sellerId_createdAt_idx"
-    ON public."CheckoutStockReservation"("sellerId", "createdAt");
-  CREATE INDEX "CheckoutStockReservation_buyerId_checkoutGroupId_idx"
-    ON public."CheckoutStockReservation"("buyerId", "checkoutGroupId");
-`;
-
 function rows(result) {
   return result.rows;
 }
@@ -410,8 +397,8 @@ async function proveActivationPreflightRejection(tamperSql, expectedError) {
   });
   try {
     await predecessor.exec(SOURCE_SCHEMA);
-    await predecessor.exec(PREDECESSOR_INDEXES);
     await predecessor.exec(draft);
+    await predecessor.exec(sourceConsistencyMigration);
     await predecessor.exec(tamperSql);
     await assert.rejects(predecessor.exec(activation), expectedError);
     await predecessor.exec("ROLLBACK");
@@ -1281,7 +1268,26 @@ describe("CheckoutStockReservation fixed authority in disposable PostgreSQL", ()
   });
 
   it("activates policyless runtime authority and rolls back database-first", async () => {
-    await db.exec(PREDECESSOR_INDEXES);
+    // PGlite RESET ROLE returns to its internal bootstrap superuser even when
+    // the proof connection was opened with username=ci. Re-enter the exact
+    // migration-owner identity before exercising the owner-bound activation.
+    await db.exec("SET ROLE ci");
+    const predecessor = rows(await db.query(`
+      SELECT
+        CURRENT_USER AS current_user_name,
+        pg_catalog.pg_get_userbyid(class.relowner) AS owner_name,
+        class.relrowsecurity AS enabled,
+        class.relforcerowsecurity AS forced
+      FROM pg_catalog.pg_class AS class
+      WHERE class.oid =
+            'public."CheckoutStockReservation"'::pg_catalog.regclass
+    `));
+    assert.deepEqual(predecessor, [{
+      current_user_name: "ci",
+      owner_name: "ci",
+      enabled: false,
+      forced: false,
+    }]);
     await db.exec(activation);
 
     const activated = rows(await db.query(`
@@ -1579,7 +1585,7 @@ describe("CheckoutStockReservation activation preflight in disposable PostgreSQL
         GRANT EXECUTE ON FUNCTION
           public.grainline_checkout_reservation_restore_items(jsonb)
           TO grainline_app_runtime;
-      `, /activation function catalog drifted: actual 20, accepted 19/);
+      `, /activation function catalog drifted: actual 25, accepted 24/);
     });
   });
 });

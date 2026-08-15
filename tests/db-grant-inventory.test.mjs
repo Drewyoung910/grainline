@@ -17,6 +17,7 @@ import {
   CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/case-invariant-catalog.mjs";
 import {
+  CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
@@ -936,6 +937,16 @@ describe("database grant inventory guardrails", () => {
       ),
       [],
     );
+    for (const functionName of
+      CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES) {
+      assert.equal(
+        runtimePrivateFunctionNames(reservationActivatedInventory).includes(
+          functionName,
+        ),
+        true,
+        `${functionName} must be runtime-private after reservation activation`,
+      );
+    }
     assert.deepEqual(
       policylessServiceRlsTableNames(reservationActivatedInventory).slice(-2),
       [STRIPE_WEBHOOK_EVENT_TABLE, CHECKOUT_STOCK_RESERVATION_TABLE],
@@ -2242,6 +2253,10 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :checkout_stock_reservation_rls_active[\s\S]*REVOKE ALL ON TABLE public\."CheckoutStockReservation"/,
+    );
+    assert.match(
+      provision,
+      /\\if :checkout_stock_reservation_rls_active[\s\S]*REVOKE EXECUTE ON FUNCTION[\s\S]*grainline_checkout_reservation_create_cart[\s\S]*grainline_checkout_reservation_create_single/,
     );
     assert.match(
       provision,

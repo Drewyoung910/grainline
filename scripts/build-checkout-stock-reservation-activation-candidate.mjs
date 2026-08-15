@@ -9,21 +9,21 @@ import {
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 import {
-  checkoutStockReservationFunctionSourceMd5,
+  checkoutStockReservationSourceConsistentFunctionSourceMd5,
 } from "./checkout-stock-reservation-function-source-catalog.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION =
-  "20260810220000_enable_checkout_stock_reservation_rls";
+  "20260815060000_enable_checkout_stock_reservation_rls";
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_DRAFT =
   "docs/rls-drafts/checkout-stock-reservation-activation.sql";
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_DRAFT_SHA256 =
-  "5cb684828519b86244c9abb7eff86d47ac9b9dc969843fafb57f243d110ceea7";
+  "4581b79d759b8c8e3e6be9e34471514c4f4be4f93fe73887b4469ac18420bae1";
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_CANDIDATE_SHA256 =
-  "5d82078eaccc8face126587de7610834d4d578ddf27d78d9f4a3fa31b07127c0";
+  "7940be1969c89c8bbf5818164a56afb7e8bf7925bd8a26231d8ac865fac7c519";
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_ROLLBACK_DRAFT =
   "docs/rls-drafts/checkout-stock-reservation-activation-rollback.sql";
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_ROLLBACK_DRAFT_SHA256 =
-  "48234ae984845e5bce6aef3463d6b2b30a4ebd763721806b8f40cf58b4acf0cd";
+  "4ff20bc7eaeb8def9c8c9ef83dad204afd146a4d75c01363b91cbfdf5d1c75d1";
 
 const DRAFT_HEADER =
   "-- DRAFT ONLY. Do not apply to any persistent database.";
@@ -98,8 +98,8 @@ export function buildCheckoutStockReservationActivationCandidate(
       migration,
       /^REVOKE ALL ON TABLE public\."CheckoutStockReservation"$/gm,
     ) !== 1
-    || count(migration, /actual_function_count <> 20/g) !== 1
-    || count(migration, /accepted_function_count <> 20/g) !== 1
+    || count(migration, /actual_function_count <> 25/g) !== 1
+    || count(migration, /accepted_function_count <> 25/g) !== 1
     || count(migration, /actual_constraint_count <> 5/g) !== 1
     || count(migration, /accepted_constraint_count <> 5/g) !== 1
     || count(migration, /actual_index_count <> 9/g) !== 1
@@ -107,6 +107,7 @@ export function buildCheckoutStockReservationActivationCandidate(
     || count(migration, /actual_trigger_count <> 1/g) !== 1
     || count(migration, /normalize_trigger_count <> 1/g) !== 1
     || count(migration, /accepted_table_count <> 1/g) !== 1
+    || count(migration, /retired_creation_count <> 2/g) !== 1
   ) {
     throw new Error(
       "CheckoutStockReservation activation catalog or transaction count drifted",
@@ -114,7 +115,9 @@ export function buildCheckoutStockReservationActivationCandidate(
   }
 
   const compactMigration = migration.replace(/\s+/g, " ");
-  const sourceMd5 = checkoutStockReservationFunctionSourceMd5(rootDirectory);
+  const sourceMd5 = checkoutStockReservationSourceConsistentFunctionSourceMd5(
+    rootDirectory,
+  );
   for (const entry of CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS) {
     const signature = `${entry.name}(${entry.argumentTypes})`;
     const expectedRow = `('${entry.name}', '${entry.argumentTypes}', '${sourceMd5[signature]}', ${entry.runtimeExecute}, '${entry.volatility}', '${entry.parallelSafety}')`;
@@ -161,7 +164,7 @@ function main() {
     rollbackDraftSha256: candidate.rollbackDraftSha256,
     protectedTables: 1,
     runtimeFunctions: 16,
-    privateFunctions: 4,
+    privateFunctions: 9,
     rlsEnabled: true,
     rlsForced: false,
     policyCount: 0,

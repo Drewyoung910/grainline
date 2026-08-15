@@ -25,6 +25,7 @@ import {
   CASE_INVARIANT_PRIVATE_FUNCTION_NAMES,
 } from "./case-invariant-catalog.mjs";
 import {
+  CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 
@@ -262,14 +263,22 @@ export function checkoutStockReservationRlsForceExpected(inventory) {
 }
 
 export function runtimePrivateFunctionNames(inventory) {
-  if (!directUploadRlsActivationExpected(inventory)) {
+  const directUploadActivated = directUploadRlsActivationExpected(inventory);
+  const reservationActivated =
+    checkoutStockReservationRlsActivationExpected(inventory);
+  if (!directUploadActivated && !reservationActivated) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
   return sortedUnique([
     ...RUNTIME_PRIVATE_FUNCTIONS,
-    ...DIRECT_UPLOAD_ACTIVATION_FUNCTIONS
-      .filter((entry) => !entry.runtimeExecute)
-      .map((entry) => entry.name),
+    ...(directUploadActivated
+      ? DIRECT_UPLOAD_ACTIVATION_FUNCTIONS
+        .filter((entry) => !entry.runtimeExecute)
+        .map((entry) => entry.name)
+      : []),
+    ...(reservationActivated
+      ? CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
   ]);
 }
 

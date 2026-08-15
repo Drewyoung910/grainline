@@ -93,13 +93,17 @@ deployment can authenticate with the current runtime credential.
 
 The stacked activation design remains policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
-retaining only the exact source-consistent fixed-operation catalog. Its global
-grant-audit disposition, database-first rollback, direct-denial proof and actual
-pooled-runtime read-only postflight are prepared as production-inert release
-artifacts. The byte-pinned candidate builder only reports deterministic proposed
-migration bytes and hashes; it cannot create a Prisma migration directory or
-execute a database change. Exact source-consistency bytes, evidence hashes and
-rollback limits remain in
+retaining only the exact source-consistent fixed-operation catalog. It verifies
+the live 18-runtime/7-private predecessor, then retires EXECUTE on the two
+unused legacy creation functions for a 16-runtime/9-private activated
+partition. The functions remain installed for rollback, but the accepted
+rollback application uses their source-consistent successors. The global
+grant-audit disposition, database-first rollback, direct-denial proof and
+actual pooled-runtime read-only postflight are prepared as production-inert
+release artifacts. The byte-pinned candidate builder only reports deterministic
+proposed migration bytes and hashes; it cannot create a Prisma migration
+directory or execute a database change. Exact source-consistency bytes,
+evidence hashes and rollback limits remain in
 `docs/checkout-stock-reservation-source-consistency-release.md`,
 `docs/checkout-stock-reservation-production-smoke.md`, and
 `docs/checkout-stock-reservation-predecessor-drain.md`.

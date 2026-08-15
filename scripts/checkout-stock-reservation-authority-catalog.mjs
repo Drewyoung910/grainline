@@ -43,6 +43,28 @@ export const CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS =
 export const CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS =
   CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS;
 
+export const CHECKOUT_STOCK_RESERVATION_RETIRED_CREATION_FUNCTION_NAMES =
+  Object.freeze([
+    "grainline_checkout_reservation_create_cart",
+    "grainline_checkout_reservation_create_single",
+  ]);
+
+const RETIRED_CREATION_FUNCTION_NAME_SET = new Set(
+  CHECKOUT_STOCK_RESERVATION_RETIRED_CREATION_FUNCTION_NAMES,
+);
+
+// Phase A runs only after every predecessor deployment has drained. The two
+// original creation functions remain installed for reversible compatibility,
+// but their runtime EXECUTE grants are retired so callers cannot bypass the
+// source-consistent one-statement successors.
+export const CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS = Object.freeze(
+  CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS.map((entry) => (
+    RETIRED_CREATION_FUNCTION_NAME_SET.has(entry.name)
+      ? Object.freeze({ ...entry, runtimeExecute: false })
+      : entry
+  )),
+);
+
 export const CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES = Object.freeze(
   CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENT_FUNCTIONS
     .filter((entry) => !entry.runtimeExecute)
@@ -54,3 +76,17 @@ export const CHECKOUT_STOCK_RESERVATION_RUNTIME_FUNCTION_SIGNATURES = Object.fre
     .filter((entry) => entry.runtimeExecute)
     .map((entry) => `public."${entry.name}"(${entry.argumentTypes})`),
 );
+
+export const CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES =
+  Object.freeze(
+    CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS
+      .filter((entry) => !entry.runtimeExecute)
+      .map((entry) => entry.name),
+  );
+
+export const CHECKOUT_STOCK_RESERVATION_ACTIVATED_RUNTIME_FUNCTION_SIGNATURES =
+  Object.freeze(
+    CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS
+      .filter((entry) => entry.runtimeExecute)
+      .map((entry) => `public."${entry.name}"(${entry.argumentTypes})`),
+  );

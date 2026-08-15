@@ -25,10 +25,10 @@ import {
   postgresChannelBindingClientOptions,
 } from "./postgres-url-safety.mjs";
 import {
-  CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS,
+  CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 import {
-  checkoutStockReservationFunctionSourceSha256,
+  checkoutStockReservationSourceConsistentFunctionSourceSha256,
 } from "./checkout-stock-reservation-function-source-catalog.mjs";
 
 const { Client } = pg;
@@ -293,10 +293,10 @@ export async function verifyCheckoutStockReservationActivatedCatalog(
     public_column_authority: false,
   }]);
 
-  const names = CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map(
+  const names = CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS.map(
     (entry) => entry.name,
   );
-  const identityArguments = CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map(
+  const identityArguments = CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS.map(
     (entry) => entry.argumentTypes,
   );
   const functions = await client.query(`
@@ -382,22 +382,23 @@ export async function verifyCheckoutStockReservationActivatedCatalog(
   `, [names, identityArguments]);
   assert.equal(
     functions.rows.length,
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+    CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS.length,
   );
   const expectedBySignature = new Map(
-    CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.map((entry) => [
+    CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS.map((entry) => [
       `${entry.name}(${entry.argumentTypes})`,
       entry,
     ]),
   );
-  const sourceHashes = checkoutStockReservationFunctionSourceSha256();
+  const sourceHashes =
+    checkoutStockReservationSourceConsistentFunctionSourceSha256();
   for (const row of functions.rows) {
     const signature = `${row.function_name}(${row.identity_arguments})`;
     const expected = expectedBySignature.get(signature);
     assert.ok(expected, signature);
     assert.equal(row.owner_name, migrationRole, signature);
     assert.equal(row.function_kind, "f", signature);
-    assert.equal(row.language_name, "plpgsql", signature);
+    assert.equal(row.language_name, expected.language ?? "plpgsql", signature);
     assert.equal(row.security_definer, true, signature);
     assert.equal(row.leakproof, false, signature);
     assert.equal(row.volatility, expected.volatility, signature);
@@ -406,7 +407,11 @@ export async function verifyCheckoutStockReservationActivatedCatalog(
     assert.equal(row.runtime_execute, expected.runtimeExecute, signature);
     assert.equal(row.public_execute, false, signature);
     assert.equal(row.invalid_acl_count, 0, signature);
-    assert.equal(row.actual_function_count, 20, signature);
+    assert.equal(
+      row.actual_function_count,
+      CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS.length,
+      signature,
+    );
     assert.equal(
       sha256(row.function_source),
       sourceHashes[signature],
@@ -497,7 +502,7 @@ export async function runCheckoutStockReservationActivationPostflight(config) {
         migrationRunId: config.migrationRunId,
       }),
       proof: Object.freeze({
-        functionCount: CHECKOUT_STOCK_RESERVATION_AUTHORITY_FUNCTIONS.length,
+        functionCount: CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS.length,
         policyCount: 0,
         postflightReadOnly: true,
         publicAuthority: false,
@@ -509,7 +514,7 @@ export async function runCheckoutStockReservationActivationPostflight(config) {
           "actual_pooled_runtime_role_identity",
           "policyless_enable_no_force_table_posture",
           "zero_public_and_runtime_table_or_column_authority",
-          "exact_twenty_function_source_mode_owner_and_acl_catalog",
+          "exact_twenty_five_function_source_mode_owner_and_acl_catalog",
           "direct_table_read_denied",
           "fixed_export_succeeds",
           "private_helper_execution_denied",

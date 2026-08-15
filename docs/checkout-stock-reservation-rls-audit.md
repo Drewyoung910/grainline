@@ -360,7 +360,7 @@ one to prove the migration fails closed. The redundant new status constraint
 has been removed; the three genuinely additive checks remain. This was caught
 before merge or production.
 
-### CSR-A23: the first activation column-ACL check rejected required table CRUD
+### CSR-A27: the first activation column-ACL check rejected required table CRUD
 
 The first Phase-A draft used `has_any_column_privilege` to reject explicit
 runtime column grants while also requiring the compatible predecessor's direct
@@ -373,7 +373,7 @@ directly for PUBLIC/runtime column ACL entries. Disposable PostgreSQL proves a
 clean predecessor activates and rolls back, while a real explicit column grant
 still aborts without partially changing RLS or grants.
 
-### CSR-A24: PUBLIC is not a role name for privilege inquiry functions
+### CSR-A28: PUBLIC is not a role name for privilege inquiry functions
 
 The first activation function audit called
 `has_function_privilege('PUBLIC', oid, 'EXECUTE')`. `PUBLIC` is a pseudo-role
@@ -386,7 +386,7 @@ The redundant call is removed. The exact function ACL audit already uses
 PUBLIC representation. A static class guard prevents the invalid inquiry from
 returning.
 
-### CSR-A25: name-only trigger, constraint and index checks were insufficient
+### CSR-A29: name-only trigger, constraint and index checks were insufficient
 
 The initial activation draft counted the expected trigger and catalog object
 names, but did not reject an extra trigger or prove that a same-named CHECK or
@@ -401,7 +401,7 @@ active-lock predicate. Disposable PostgreSQL tamper tests add an extra trigger
 and replace an index and constraint with same-named lookalikes; every variant
 aborts atomically.
 
-### CSR-A26: the global grant audit needed an explicit reservation activation disposition
+### CSR-A30: the global grant audit needed an explicit reservation activation disposition
 
 The first isolated activation proof changed the table to an intentionally
 policyless service ledger, but the site-wide live grant audit still derived
@@ -415,7 +415,7 @@ Phase-A migration is present, expects FORCE only after the later FORCE
 migration is present, and still rejects every other zero-policy table. Unit
 coverage proves the compatible, ENABLE and FORCE dispositions separately.
 
-### CSR-A27: owner-session SET ROLE is not actual pooled-runtime identity proof
+### CSR-A31: owner-session SET ROLE is not actual pooled-runtime identity proof
 
 Disposable PostgreSQL can execute catalog and authority checks after
 `SET LOCAL ROLE grainline_app_runtime`, but `SESSION_USER` remains the owner
@@ -429,7 +429,7 @@ complete restricted-role posture and no owner membership. It also runs inside
 an engine-attested repeatable-read read-only transaction and writes only
 sanitized mode-0600 evidence.
 
-### CSR-A28: activation packaging must not create a deploy-discoverable migration early
+### CSR-A32: activation packaging must not create a deploy-discoverable migration early
 
 The compatible preparation still has deployment, drain and inspection gates.
 Creating the activation directory under `prisma/migrations` now would let a
@@ -688,3 +688,52 @@ made-to-order restore claim. CheckoutStockReservation RLS remains off and
 direct table grants remain intact. The later exact-ID predecessor drain passed
 with zero shared-credential predecessors; policyless ENABLE plus direct-grant
 revocation is the next separate gate.
+
+### CSR-A33: the earlier activation scaffold omitted the source-consistency successor
+
+The first production-inert activation scaffold was built before the applied
+source-consistency migration and pinned only the original 20-function catalog.
+Production now has 25 reviewed functions: 18 runtime operations and seven
+private helpers, including two source-consistent creation functions and three
+SQL witness helpers. Promoting the stale scaffold would have failed closed on
+its exact catalog count rather than weakening production, but it could not
+activate the current predecessor.
+
+The refreshed draft pins all 25 exact signatures, source MD5s, languages,
+security modes, search paths, volatility/parallel attributes and ACLs. The
+read-only candidate builder derives its source pins from both applied
+preparation migrations and reports the new deterministic proposal without
+creating a Prisma migration directory. Because the deployed application uses
+only the source-consistent successors, Phase A also retires runtime EXECUTE on
+the two original creation functions. They remain installed for rollback, but
+the activated partition narrows from the live 18-runtime/7-private predecessor
+to 16 runtime functions and nine private functions.
+
+### CSR-A34: the transplanted activation proof did not model the current predecessor
+
+The earlier proof scaffold recreated five indexes that the current synthetic
+predecessor schema already creates, so PostgreSQL stopped on duplicate-relation
+error before reaching the activation. Its tamper fixtures also applied only the
+base authority migration and therefore exercised 20 functions rather than the
+current 25. Separately, PGlite's `RESET ROLE` returns to its internal bootstrap
+superuser, so a later owner-bound activation test could run under `postgres`
+instead of the table-owning `ci` role.
+
+The proof now uses the existing exact indexes, applies the source-consistency
+successor in every fresh predecessor fixture and explicitly re-enters the `ci`
+migration-owner identity before owner-bound activation. These were isolated
+test-harness defects; no production database or application state changed.
+
+### CSR-A35: the application authority module retained unused legacy creation callers
+
+Both deployed checkout routes use the source-consistent creation functions, but
+the shared authority module still exported unused callers for the original cart
+and single creation functions. Revoking database EXECUTE would have made those
+exports fail closed, yet retaining them was an unnecessary future regression
+path and an old guardrail test incorrectly required their presence.
+
+The activation refresh removes both legacy application exports and reverses the
+guardrail: only the source-consistent creation callers may be exposed, and the
+module must contain no SQL call to either original creation function. The two
+database functions remain installed solely for database-first rollback; their
+runtime EXECUTE authority stays retired after activation.
