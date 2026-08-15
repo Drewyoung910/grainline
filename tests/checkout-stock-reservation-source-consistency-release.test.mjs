@@ -17,6 +17,9 @@ import {
 import {
   validateCurrentSavedSearchRlsDeployShape,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
+import {
+  createSealedCheckoutStockReservationSourceConsistencyRoot,
+} from "./helpers/sealed-checkout-stock-reservation-authority-root.mjs";
 
 test("source-consistency migration is an exact wrapper around provider-proven bytes", () => {
   const candidate = buildCheckoutStockReservationSourceConsistencyCandidate();
@@ -49,7 +52,9 @@ test("source-consistency migration is an exact wrapper around provider-proven by
   assert.doesNotMatch(candidate.migration, /ON TABLE public\."CheckoutStockReservation"/iu);
 });
 
-test("source-consistency release has a distinct byte-pinned migration phase", () => {
+test("source-consistency release has a distinct byte-pinned migration phase", (t) => {
+  const sealedRoot = createSealedCheckoutStockReservationSourceConsistencyRoot();
+  t.after(() => fs.rmSync(sealedRoot, { recursive: true, force: true }));
   const verified = verifyCheckoutStockReservationSourceConsistency();
   assert.equal(
     verified.phase,
@@ -63,6 +68,7 @@ test("source-consistency release has a distinct byte-pinned migration phase", ()
   assert.deepEqual(
     validateCurrentSavedSearchRlsDeployShape({
       phase: CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_PHASE,
+      rootDirectory: sealedRoot,
     }),
     {
       phase: CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_PHASE,

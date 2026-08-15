@@ -82,22 +82,13 @@ test("activation candidate is exact, policyless and production-inert", () => {
   );
 });
 
-test("candidate builder has no filesystem staging or production execution mode", () => {
+test("candidate builder remains read-only after separate promotion", () => {
   assert.doesNotMatch(
     builderSource,
     /\b(?:mkdirSync|writeFileSync|unlinkSync|rmdirSync)\b/,
   );
   assert.match(builderSource, /mode !== "--verify"/);
-  assert.equal(
-    fs.existsSync(
-      path.join(
-        "prisma",
-        "migrations",
-        CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION,
-      ),
-    ),
-    false,
-  );
+  assert.doesNotMatch(builderSource, /--promote/);
 });
 
 test("candidate builder fails closed on activation or rollback byte drift", () => {

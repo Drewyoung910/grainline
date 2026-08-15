@@ -82,6 +82,17 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify CheckoutStockReservation activation migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-activation-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify CheckoutStockReservation activation release
+        run: npm run audit:rls-checkout-stock-reservation-activation-release
+      - name: Isolate CheckoutStockReservation activation until source consistency passes
+        run: >-
+          mv
+          prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls
+          "$RUNNER_TEMP/checkout-stock-reservation-activation-release"
       - name: Verify CheckoutStockReservation source-consistency migration tree
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed
@@ -391,6 +402,25 @@ jobs:
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove promoted CheckoutStockReservation source consistency
         run: npm run audit:rls-checkout-stock-reservation-authority-postgres
+      - name: Restore CheckoutStockReservation activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-activation-release"
+          prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls
+      - name: Re-prove the activation predecessor before application
+        run: npm run audit:rls-checkout-stock-reservation-authority-postgres
+      - name: Apply CheckoutStockReservation policyless activation
+        run: npx prisma migrate deploy
+      - name: Converge activated reservation runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify CheckoutStockReservation activation migration status
+        run: npx prisma migrate status
+      - name: Audit activated reservation grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove CheckoutStockReservation activation through the actual runtime login
+        run: npm run audit:rls-checkout-stock-reservation-activation-postflight-postgres
+        env:
+          CHECKOUT_STOCK_RESERVATION_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

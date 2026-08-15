@@ -70,15 +70,19 @@ Completed CheckoutStockReservation source-consistency postflight:
   canonical health. The restart marker is absent. CheckoutStockReservation RLS
   remains off and direct grants remain intact pending the separate policyless
   ENABLE/grant-revocation release.
-- The Phase-A activation package is still production-inert. Its read-only
-  candidate command is
+- The Phase-A activation package remains production-inert but its exact
+  byte-pinned migration is now promoted only in the isolated release. The
+  read-only candidate command is
   `npm run audit:rls-checkout-stock-reservation-activation-candidate`; it must
   report migration name
   `20260815060000_enable_checkout_stock_reservation_rls`, 16 runtime functions,
   nine private functions, RLS enabled, FORCE false, zero policies, zero row
-  changes and `migrationDirectoryCreated=false`. Do not create that Prisma
-  migration directory or wire a production phase until the refreshed
-  disposable PostgreSQL and exact-catalog review is complete.
+  changes and `migrationDirectoryCreated=false`. The separate promoted release
+  verifier is
+  `npm run audit:rls-checkout-stock-reservation-activation-release`; CI applies
+  the migration only to disposable PostgreSQL and proves an actual direct
+  runtime login. Do not wire a production phase until that exact-head release
+  is merged and separately reviewed.
 - After a future Phase-A migration succeeds, the separate actual-runtime
   postflight is `npm run ops:checkout-stock-reservation-activation-postflight`.
   It must receive only the pooled production runtime URL plus the exact clean

@@ -331,6 +331,15 @@ builder may report exact proposed bytes but must not create a deploy-discoverabl
 Prisma migration. Promotion, workflow wiring, production application and FORCE
 remain separate reviewed boundaries.
 
+The refreshed candidate is now promoted into the exact isolated
+`20260815060000_enable_checkout_stock_reservation_rls` migration. Its release
+CI isolates the migration while replaying all predecessors, then applies it to
+disposable PostgreSQL, converges grants, runs the global audit, and proves the
+activated boundary through a direct runtime login. This is packaging and CI
+evidence only: the Production Migrations workflow deliberately remains pinned
+to source consistency. Production application, pooled-runtime postflight and
+FORCE remain separate releases.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

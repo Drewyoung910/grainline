@@ -144,19 +144,18 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       .find((line) => line.startsWith("| `CheckoutStockReservation`"));
 
     assert.ok(row);
-    assert.match(row, /`COMPATIBLE_PREPARATION_LIVE`/);
+    assert.match(row, /`ACTIVATION_RELEASE_ISOLATED`/);
     assert.match(
       row,
       /checkout-stock-reservation-source-consistency-release\.md/,
     );
     assert.doesNotMatch(row, /RLS_LIVE/);
-    assert.match(row, /source-locking PostgreSQL statement/);
-    assert.match(row, /dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw/);
-    assert.match(row, /authenticated checkout smoke passed/);
-    assert.match(row, /RLS remains off/);
+    assert.match(row, /source consistency/);
+    assert.match(row, /authenticated smoke/);
+    assert.match(row, /Production RLS remains off/);
     assert.match(row, /checkout-stock-reservation-activation-plan\.md/);
-    assert.match(row, /read-only byte-pinned candidate builder/);
-    assert.match(row, /cannot create a migration/);
+    assert.match(row, /checkout-stock-reservation-activation-release\.md/);
+    assert.match(row, /not the Production Migrations workflow/);
     assert.match(strategy, /CheckoutStockReservation source-consistency boundary/);
     assert.match(strategy, /Two fresh provider slots passed/);
   });

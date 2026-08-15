@@ -1333,7 +1333,8 @@ describe("database grant inventory guardrails", () => {
         + (conversationMessageAuthorityPrepared ? 25 : 0)
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
-        + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length,
+        + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
+        + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -1435,6 +1436,7 @@ describe("database grant inventory guardrails", () => {
         "CaseResolutionClaim",
         "CaseSellerRefundApplication",
         "CaseStripeDisputeApplication",
+        "CheckoutStockReservation",
         "Conversation",
         "DirectUpload",
         "DirectUploadReference",

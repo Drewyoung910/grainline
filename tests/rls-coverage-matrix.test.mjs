@@ -45,6 +45,7 @@ describe("site-wide RLS coverage matrix", () => {
       "PLANNED_RLS",
       "COMPATIBLE_CANDIDATE",
       "COMPATIBLE_PREPARATION_LIVE",
+      "ACTIVATION_RELEASE_ISOLATED",
       "BLOCKED_DESIGN",
       "ALTERNATIVE_REVIEW",
     ]);
