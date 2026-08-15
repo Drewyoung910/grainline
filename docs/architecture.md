@@ -73,7 +73,7 @@ are live. Do not add the runtime URL to the owner-only GitHub Production
 migration environment; owner migration and actual-runtime proof remain
 separate credential boundaries.
 
-`CheckoutStockReservation` is the next service-ledger boundary. Its compatible
+`CheckoutStockReservation` is the active service-ledger boundary. Its compatible
 authority and additive source-consistency migrations, compatible application,
 authenticated production checkout smoke, and shared-credential predecessor
 deployment drain are complete. Direct table grants remain temporarily
@@ -90,6 +90,13 @@ provider slots passed without weaker thresholds or residue. Exact main
 scope proof green. The pooled-runtime postflight, application deployment,
 authenticated smoke and exact-ID predecessor drain are accepted; no superseded
 deployment can authenticate with the current runtime credential.
+
+The exact policyless Phase-A migration is promoted in an isolated release and
+CI now replays the full predecessor before applying it to disposable PostgreSQL,
+auditing the activated catalog and proving the boundary through a direct
+runtime login. The production migration workflow is intentionally not wired to
+that migration yet, so this packaging does not change the live RLS/grant
+posture.
 
 The stacked activation design remains policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

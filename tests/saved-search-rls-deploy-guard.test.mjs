@@ -29,6 +29,8 @@ import {
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
   CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION,
   CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION_TREE_SHA256,
+  CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION,
+  CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION_TREE_SHA256,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
   CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
@@ -205,6 +207,8 @@ const REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY =
   "checkout-stock-reservation-authority-reviewed";
 const REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY =
   "checkout-stock-reservation-source-consistency-reviewed";
+const REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION =
+  "checkout-stock-reservation-activation-reviewed";
 const CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH =
   "agent/checkout-stock-reservation-provider-proof-20260813";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINES = Object.freeze([
@@ -323,6 +327,8 @@ function validate(
         CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION_TREE_SHA256,
       [REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY]:
         CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION_TREE_SHA256,
+      [REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION]:
+        CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -359,6 +365,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
     CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
     CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION,
+    CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION,
     CONVERSATION_MESSAGE_INVARIANTS_MIGRATION,
     CONVERSATION_MESSAGE_BODY_SEARCH_INDEX_MIGRATION,
     CONVERSATION_MESSAGE_LEGACY_CLEANUP_MIGRATION,
@@ -572,6 +579,10 @@ const REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS = [
   ...REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
   CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATIONS = [
+  ...REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS,
+  CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -656,6 +667,8 @@ function migrationsFor(phase) {
       REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATIONS,
     [REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY]:
       REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS,
+    [REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION]:
+      REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATIONS,
   }[phase];
 }
 
@@ -886,6 +899,9 @@ describe("SavedSearch RLS production deploy guard", () => {
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_AUTHORITY_MIGRATION));
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_PUBLIC_REFERENCES_MIGRATION));
     assert.ok(currentMigrations.includes(DIRECT_UPLOAD_LEGACY_REPAIR_MIGRATION));
+    assert.ok(
+      currentMigrations.includes(CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION),
+    );
     assert.ok(currentMigrations.includes(CASE_STAFF_RESOLUTION_AUTHORITY_MIGRATION));
     assert.ok(
       currentMigrations.includes(
@@ -1154,12 +1170,19 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /remain the latest migration/,
     );
-    assert.equal(
-      validate(
+    assert.throws(
+      () => validate(
         REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
         currentMigrations,
+      ),
+      /remain the latest migration/,
+    );
+    assert.equal(
+      validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION,
+        currentMigrations,
       ).phase,
-      REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
+      REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION,
     );
   });
 
@@ -2561,6 +2584,37 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact policyless reservation activation after source consistency", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION,
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION,
+        hasStripeWebhookEventForceMigration: true,
+        hasCheckoutStockReservationAuthorityMigration: true,
+        hasCheckoutStockReservationSourceConsistencyMigration: true,
+        hasCheckoutStockReservationActivationMigration: true,
+      },
+    );
+    for (const migration of [
+      STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
+      CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
+      CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION,
+      CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION,
+          REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATIONS
+            .filter((name) => name !== migration),
+        ),
+        /requires the completed StripeWebhookEvent FORCE and CheckoutStockReservation authority\/source-consistency boundaries plus the reviewed policyless CheckoutStockReservation activation migration/,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2605,6 +2659,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_STRIPE_WEBHOOK_EVENT_FORCE,
     REVIEWED_CHECKOUT_STOCK_RESERVATION_AUTHORITY,
     REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY,
+    REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -2698,7 +2753,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     );
   });
 
-  it("runs the current reservation source-consistency guard before CI migrations", () => {
+  it("runs the current reservation activation guard before CI migrations", () => {
     const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
     const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
@@ -2706,10 +2761,28 @@ describe("SavedSearch RLS production deploy guard", () => {
       packageJson.scripts?.["verify:rls-release-artifact"],
       "node scripts/verify-saved-search-rls-release-artifact.mjs",
     );
-    assert.match(
-      workflow,
-      /Verify CheckoutStockReservation source-consistency migration tree[\s\S]{0,320}SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed[\s\S]{0,180}npm run verify:rls-release-artifact[\s\S]{0,320}Verify CheckoutStockReservation source-consistency release[\s\S]{0,260}npm run audit:rls-checkout-stock-reservation-source-consistency-release[\s\S]{0,520}Isolate CheckoutStockReservation source consistency until authority passes[\s\S]{0,520}Verify sealed CheckoutStockReservation authority predecessor[\s\S]{0,260}checkout-stock-reservation-authority-reviewed[\s\S]*Isolate CheckoutStockReservation authority until webhook FORCE passes[\s\S]*Apply compatible migrations to CI Postgres/,
-    );
+    const orderedSteps = [
+      "Verify CheckoutStockReservation activation migration tree",
+      "SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-activation-reviewed",
+      "Verify CheckoutStockReservation activation release",
+      "npm run audit:rls-checkout-stock-reservation-activation-release",
+      "Isolate CheckoutStockReservation activation until source consistency passes",
+      "Verify CheckoutStockReservation source-consistency migration tree",
+      "SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed",
+      "Verify CheckoutStockReservation source-consistency release",
+      "npm run audit:rls-checkout-stock-reservation-source-consistency-release",
+      "Isolate CheckoutStockReservation source consistency until authority passes",
+      "Verify sealed CheckoutStockReservation authority predecessor",
+      "SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed",
+      "Isolate CheckoutStockReservation authority until webhook FORCE passes",
+      "Apply compatible migrations to CI Postgres",
+    ];
+    let previousIndex = -1;
+    for (const step of orderedSteps) {
+      const index = workflow.indexOf(step);
+      assert.ok(index > previousIndex, `${step} must follow the prior release gate`);
+      previousIndex = index;
+    }
   });
 
   it("fails closed for missing, empty, or unknown phase values", () => {
@@ -3117,6 +3190,18 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /review or retire the temporary SavedSearch deploy guard/,
     );
+    const laterCheckoutStockReservationActivationMigration =
+      "20260815060001_unreviewed_after_checkout_stock_reservation_activation";
+    assert.throws(
+      () => validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION,
+        [
+          ...REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATIONS,
+          laterCheckoutStockReservationActivationMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
   });
 
   it("pins the exact reviewed migration inventory and SQL contents", () => {
@@ -3411,6 +3496,13 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATIONS,
       ),
       CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATIONS,
+      ),
+      CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

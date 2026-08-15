@@ -1573,3 +1573,26 @@ Open work:
   Prisma migration directory. FORCE remains separate.
 - No production query, migration, deployment, RLS/grant change, cleanup or
   provider mutation occurred during this refresh.
+
+## CheckoutStockReservation activation promotion (2026-08-15)
+
+- The prerequisite activation-refresh PR #217 merged as exact main
+  `865a2de0d5a5e1225e85da9bdb431df9f030e90f`; exact-main CI
+  `31868509324` passed. Vercel created only the expected failed Preview and no
+  Production deployment.
+- Promoted only the exact deterministic candidate as migration
+  `20260815060000_enable_checkout_stock_reservation_rls`; promoted SHA-256 is
+  `7940be1969c89c8bbf5818164a56afb7e8bf7925bd8a26231d8ac865fac7c519`
+  and migration-tree SHA-256 is
+  `b014ea6ccc6ec6107e06897269ed607e6a8930c770fea3914e4b6b8b42b502f3`.
+- Added a distinct fail-closed deploy-guard phase and release verifier. CI
+  isolates the new migration while historical predecessors replay, restores
+  it only after the source-consistency catalog is proven, applies it to
+  disposable PostgreSQL, converges exact grants and runs the global audit.
+- Added an actual direct-login `grainline_app_runtime` proof in an
+  engine-attested repeatable-read read-only transaction. It checks exact
+  identity/catalog, direct-table and private-helper denial, fixed export, and
+  SQLSTATE `25006` at the fixed-write fence.
+- Production workflow wiring remains intentionally absent. No production
+  query, migration, deployment, RLS/grant change, cleanup or provider mutation
+  occurred during promotion.
