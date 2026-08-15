@@ -347,9 +347,12 @@ evidence SHA-256 is
 `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0` and
 records no production mutation. FORCE remains the sole separate database
 boundary for this table. Its byte-pinned posture-only migration, rollback and
-disposable proofs are prepared in isolation, but production wiring and any
-dispatch remain separate reviewed work; retain
-`docs/checkout-stock-reservation-force-release.md`.
+disposable proofs passed exact-head CI in draft PR #221. Restart-safe guarded
+production wiring is also prepared on a separate stacked branch, but both
+merges, exact-main CI, any dispatch and the actual pooled-runtime FORCE
+postflight remain separate reviewed work; retain
+`docs/checkout-stock-reservation-force-release.md` and
+`docs/checkout-stock-reservation-force-production-wiring.md`.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

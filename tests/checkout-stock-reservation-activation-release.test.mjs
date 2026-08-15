@@ -148,11 +148,11 @@ test("production workflow byte-pins and restart-proves only the reviewed activat
     "Restore the reviewed CheckoutStockReservation activation",
   );
   const restartScope = production.indexOf(
-    "Inspect exact CheckoutStockReservation activation restart scope read-only",
+    "Inspect exact CheckoutStockReservation FORCE restart scope read-only",
   );
   const apply = production.indexOf("Apply production migrations");
   const afterScope = production.indexOf(
-    "Prove exact CheckoutStockReservation activation production scope",
+    "Prove exact CheckoutStockReservation FORCE production scope",
   );
 
   assert.ok(verifyTree >= 0);
@@ -174,13 +174,26 @@ test("production workflow byte-pins and restart-proves only the reviewed activat
   );
   assert.match(
     production,
-    /CHECKOUT_STOCK_RESERVATION_ACTIVATION_SCOPE_STAGE: restart/u,
+    /CHECKOUT_STOCK_RESERVATION_FORCE_SCOPE_STAGE: restart/u,
   );
   assert.match(
     production,
-    /CHECKOUT_STOCK_RESERVATION_ACTIVATION_SCOPE_STAGE: after/u,
+    /CHECKOUT_STOCK_RESERVATION_FORCE_SCOPE_STAGE: after/u,
   );
-  assert.doesNotMatch(production, /force_checkout_stock_reservation_rls/iu);
+  const isolateForce = production.indexOf(
+    "Isolate the reviewed CheckoutStockReservation FORCE release",
+  );
+  const restoreForce = production.indexOf(
+    "Restore the reviewed CheckoutStockReservation FORCE release",
+  );
+  assert.ok(isolateForce >= 0 && isolateForce < isolateActivation);
+  assert.ok(restoreActivation < restoreForce);
+  assert.ok(
+    restoreForce
+      < production.indexOf(
+        "Inspect exact CheckoutStockReservation FORCE restart scope read-only",
+      ),
+  );
 });
 
 test("production wiring record pins completed Phase A and keeps FORCE separate", () => {

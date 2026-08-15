@@ -165,7 +165,7 @@ test("disposable FORCE and rollback proofs reject remote or wrong-role URLs", ()
   );
 });
 
-test("CI proves FORCE after Phase A while production wiring remains separate", () => {
+test("CI proves FORCE after Phase A and production wiring preserves the same order", () => {
   const verifyForce = ci.indexOf(
     "Verify CheckoutStockReservation FORCE migration tree",
   );
@@ -195,7 +195,33 @@ test("CI proves FORCE after Phase A while production wiring remains separate", (
     ci,
     /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-force-reviewed/,
   );
-  assert.doesNotMatch(production, /force_checkout_stock_reservation_rls/iu);
+  const productionVerify = production.indexOf(
+    "Verify exact CheckoutStockReservation FORCE migration tree",
+  );
+  const productionIsolate = production.indexOf(
+    "Isolate the reviewed CheckoutStockReservation FORCE release",
+  );
+  const productionRestore = production.indexOf(
+    "Restore the reviewed CheckoutStockReservation FORCE release",
+  );
+  const productionRestart = production.indexOf(
+    "Inspect exact CheckoutStockReservation FORCE restart scope read-only",
+  );
+  const productionApply = production.indexOf("Apply production migrations");
+  const productionAfter = production.indexOf(
+    "Prove exact CheckoutStockReservation FORCE production scope",
+  );
+  assert.ok(productionVerify >= 0 && productionVerify < productionIsolate);
+  assert.ok(productionIsolate < productionRestore);
+  assert.ok(productionRestore < productionRestart);
+  assert.ok(productionRestart < productionApply);
+  assert.ok(productionApply < productionAfter);
+  assert.match(production, /checkout-stock-reservation-force-reviewed/u);
+  assert.match(production, /20260815060001_force_checkout_stock_reservation_rls/u);
+  assert.match(
+    production,
+    /audit:rls-checkout-stock-reservation-force-production-scope/u,
+  );
 });
 
 test("release record preserves the production Phase-A boundary", () => {

@@ -1674,3 +1674,27 @@ Open work:
 - Production remains at Phase A. The production scope, guarded workflow and
   actual pooled-runtime postflight are intentionally deferred to a separate
   reviewed boundary.
+
+## CheckoutStockReservation FORCE guarded-wiring preparation (2026-08-15)
+
+- FORCE release draft PR #221 pins exact head
+  `a0eadb74707652e3883bde36d9c44be3a430a737`; exact-head CI run
+  `31907436947` passed all 133 steps, including the canonical clean install and
+  production build.
+- Added a FORCE-specific read-only production-scope verifier that recursively
+  seals the accepted migration ledger through Phase A plus the one exact FORCE
+  successor. Restart accepts only a complete activated state with no FORCE row
+  or one complete force-hardened state.
+- Added unit and disposable-PostgreSQL coverage for both accepted restart
+  states and fail-closed rejection of a zero-step FORCE row.
+- Local validation passed 358 focused tests and the full suite with 3,106
+  passed, seven intentional skips and zero failures; TypeScript, lint and diff
+  checks passed.
+- Wired the exact migration into the guarded workflow on an isolated successor
+  branch: FORCE is verified and isolated before predecessor verification,
+  restored last, restart-proven before Prisma, and after-proven following
+  migration status and the global grant/RLS audit.
+- Production remains unchanged at policyless Phase A. The release and wiring
+  are unmerged; no workflow was dispatched and no application/provider state
+  changed. Retain
+  `docs/checkout-stock-reservation-force-production-wiring.md`.

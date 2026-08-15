@@ -1,12 +1,15 @@
 # CheckoutStockReservation FORCE RLS release
 
-Status: isolated, production-inert release candidate. Production remains at
+Status: isolated, production-inert release candidate in draft PR #221 at exact
+head `a0eadb74707652e3883bde36d9c44be3a430a737`; exact-head GitHub CI run
+`31907436947` passed all 133 steps. Production remains at
 accepted policyless Phase A from exact main
 `405d6dff327bee76aced17f3876f8f18f29e05db`, CI `31894742120`, guarded
 migration run `31903152300`, and pooled-runtime evidence SHA-256
 `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`.
-This FORCE candidate has not been merged, wired into Production Migrations,
-dispatched or applied.
+This FORCE candidate has not been merged, dispatched or applied. Its exact
+guarded workflow wiring is separately prepared in isolation and documented in
+`docs/checkout-stock-reservation-force-production-wiring.md`.
 
 Date: 2026-08-15
 
@@ -85,8 +88,10 @@ restores and re-verifies FORCE in `finally`.
 
 ## Remaining production boundary
 
-Before any production dispatch, add a separate restart-safe production scope,
-wire only this exact migration into the guarded main-only workflow, pass
-same-commit main CI, and review an actual pooled-runtime FORCE postflight.
-Nothing in this candidate authorizes a merge, workflow dispatch, migration,
-deployment, cleanup, credential change or provider mutation.
+The separate restart-safe production scope and guarded main-only wiring are
+now prepared but remain unmerged and undispatched. They still require review,
+merge sequencing after this release, exact-main CI and a separate production
+dispatch decision. After any successful application, review and run the actual
+pooled-runtime FORCE postflight. Nothing in this candidate authorizes a merge,
+workflow dispatch, migration, deployment, cleanup, credential change or
+provider mutation.

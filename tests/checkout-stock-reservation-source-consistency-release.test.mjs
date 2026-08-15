@@ -185,16 +185,19 @@ test("production wiring preserves source consistency as the sealed activation pr
   const restoreActivation = workflow.indexOf(
     "Restore the reviewed CheckoutStockReservation activation",
   );
+  const restoreForce = workflow.indexOf(
+    "Restore the reviewed CheckoutStockReservation FORCE release",
+  );
   const restartScope = workflow.indexOf(
-    "Inspect exact CheckoutStockReservation activation restart scope read-only",
+    "Inspect exact CheckoutStockReservation FORCE restart scope read-only",
   );
   const apply = workflow.indexOf("Apply production migrations");
   const converge = workflow.indexOf(
-    "Converge exact activated CheckoutStockReservation runtime grants",
+    "Converge exact FORCE-hardened CheckoutStockReservation runtime grants",
   );
   const status = workflow.indexOf("Verify production migration status");
   const finalScope = workflow.indexOf(
-    "Prove exact CheckoutStockReservation activation production scope",
+    "Prove exact CheckoutStockReservation FORCE production scope",
   );
   assert.ok(isolateActivation >= 0);
   assert.ok(isolateActivation < verifySource);
@@ -202,7 +205,8 @@ test("production wiring preserves source consistency as the sealed activation pr
   assert.ok(isolateSource < verifyAuthority);
   assert.ok(verifyAuthority < restoreSource);
   assert.ok(restoreSource < restoreActivation);
-  assert.ok(restoreActivation < restartScope);
+  assert.ok(restoreActivation < restoreForce);
+  assert.ok(restoreForce < restartScope);
   assert.ok(restartScope < apply);
   assert.ok(apply < converge);
   assert.ok(converge < status);
