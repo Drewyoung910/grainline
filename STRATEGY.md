@@ -358,6 +358,17 @@ logic, actor, route, job and provider-side-effect audit. Retain
 `docs/checkout-stock-reservation-force-release.md` and
 `docs/checkout-stock-reservation-force-production-wiring.md`.
 
+The fresh next-table audit is now `docs/seller-payout-event-pre-rls-audit.md`.
+`SellerPayoutEvent` is the smallest independent remaining service ledger and is
+the next bounded release. The audit permits compatible preparation only. It
+found that the mutable payout projection lacks Stripe event time, so distinct
+out-of-order events can currently overwrite newer evidence; event ordering,
+active-lease/source binding, explicit unknown-account results, bounded seller
+projections, a fresh aggregate inspection and a linked-seller signed test-mode
+proof all precede activation. `OrderPaymentEvent`, shipping quotes, Order and
+OrderItem remain separate releases, and live-mode Connect signed delivery
+remains a separate launch/provider gate.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

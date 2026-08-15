@@ -113,6 +113,17 @@ records no production mutation. The next Order/payment/shipping work must begin
 with a fresh domain audit of the remaining Order, OrderItem, quote, payment and
 payout surfaces rather than extending this reservation authority implicitly.
 
+That fresh audit selected `SellerPayoutEvent` as the next bounded table. The
+current system has one signed-provider write family, a seller banner and seller
+account export, but the mutable projection lacks durable Stripe event ordering.
+The compatible successor must bind an active webhook generation and immutable
+payout source, derive the seller from the unique Stripe-account mapping, store
+provider event time, expose only bounded seller projections and report unknown
+account mappings explicitly. RLS activation remains blocked until the
+converted app, linked-seller signed test-mode proof, Notification source path
+and predecessor drain pass. See
+`docs/seller-payout-event-pre-rls-audit.md`.
+
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
 retaining only the exact source-consistent fixed-operation catalog. It verifies

@@ -230,6 +230,42 @@ models.
 | `UserReport` | `reporterId`/`reportedId`; admin resolution | High | Admin workflow design first |
 | `AdminAuditLog` | Admin-only | High | Do not RLS until admin bypass model is mature |
 
+## Required Domain Audit Before RLS Design
+
+Every new RLS activation table or tightly coupled group starts with a separate
+product, functionality, authority and scalability audit. Complete it before
+writing policies, fixed functions, grants or migrations. RLS must protect the
+intended system; it must not silently preserve a broken workflow or make an
+accidental authority model harder to change.
+
+The audit must:
+
+- inventory all direct and indirect reads and writes, including pages, API
+  routes, server actions, background jobs, webhooks, admin/support tools,
+  account export/deletion, retention and repair paths, notifications, provider
+  effects and legacy representations;
+- describe intended buyer, seller, staff, service and maintenance behavior
+  independently of the current implementation, then derive an explicit
+  operation-by-principal authority matrix from that intended behavior;
+- review the domain state machine, invariants, concurrency, idempotency,
+  ambiguous-provider recovery, privacy, observability, expected scale,
+  pagination and long-term maintainability;
+- exercise representative happy paths and failure paths before activation so
+  existing defects are not misdiagnosed later as policy regressions;
+- classify every finding as `BLOCKS_RLS_DESIGN`, `FIX_BEFORE_ACTIVATION`, or
+  `DEFERRED_PRODUCT_WORK`, with rationale. Authority ambiguity, unsafe data
+  invariants, incompatible old/new behavior and defects that prevent proving
+  the protected workflow block progress. Unrelated product improvements may be
+  deferred only when their future authority needs and closure criteria are
+  recorded; and
+- record the result in a group-specific durable audit, update this plan and the
+  coverage matrix when scope or ordering changes, and state an explicit
+  go/no-go decision before implementation begins.
+
+If implementation already started before this gate was completed, stop at the
+next non-production boundary and backfill the audit. Passing database denial
+proofs does not substitute for this domain review.
+
 ## Required Tests Before Any RLS Migration
 
 - A direct database test connects through the runtime-role `DATABASE_URL`, not
