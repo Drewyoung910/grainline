@@ -22,6 +22,12 @@ import {
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
+const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
+  "grainline_seller_payout_event_apply",
+  "grainline_seller_payout_export_page",
+  "grainline_seller_payout_latest_failure",
+];
+
 const {
   ALLOW_LOOPBACK_CI_FLAG,
   REQUIRED_FUNCTION_PRIVILEGES,
@@ -1300,6 +1306,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_item_seller_key_complete",
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
+      ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
       "grainline_stripe_webhook_fail",
@@ -1334,6 +1341,7 @@ describe("database grant inventory guardrails", () => {
         + (caseRlsActivationExpected(inventory) ? 3 : 0)
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
+        + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(

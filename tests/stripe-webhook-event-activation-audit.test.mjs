@@ -119,6 +119,7 @@ test("all remaining script-level direct access is explicitly classified", () => 
     "scripts/checkout-stock-reservation-production-smoke.mjs",
     "scripts/order-payment-shipping-compatible-production-postflight.mjs",
     "scripts/order-payment-shipping-legacy-inspect.mjs",
+    "scripts/seller-payout-event-authority-postgres-proof.mjs",
     "scripts/stripe-connect-signed-payout-proof.mjs",
     "scripts/stripe-webhook-event-activation-postflight-postgres-proof.mjs",
     "scripts/stripe-webhook-event-activation-postgres-proof.mjs",

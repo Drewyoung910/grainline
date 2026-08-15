@@ -21,6 +21,14 @@ RLS remains defense in depth. Clerk authentication, route and action
 authorization, visibility rules, ownership predicates, and safe provider
 callbacks remain mandatory after a policy is enabled.
 
+Before any table or group advances from planning into policy, fixed-function,
+grant or migration design, it must satisfy the separate domain-audit gate in
+`docs/rls-feasibility-plan.md` and link a durable group audit. A target
+disposition by itself is not approval to implement RLS. Findings must be
+classified as `BLOCKS_RLS_DESIGN`, `FIX_BEFORE_ACTIVATION`, or
+`DEFERRED_PRODUCT_WORK`; only the last category may remain open at activation
+when its future authority implications and closure criteria are recorded.
+
 ## Status Vocabulary
 
 - `RLS_LIVE_PHASE_A`: production RLS is enabled with retained proof. A later
@@ -67,7 +75,7 @@ completed alternative.
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
 | `OrderShippingRateQuote` | `BLOCKED_DESIGN` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Parent-order participant rules and service re-quote cleanup path |
 | `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Payment and dispute ledger; buyer, relevant seller, staff and Stripe | Decide user-visible projection versus service-only fields and immutable webhook writes |
-| `SellerPayoutEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Seller payout status and failure data; seller, staff and Stripe | Seller ownership through profile plus webhook-only mutation and support access |
+| `SellerPayoutEvent` | `PLANNED_RLS` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | The fresh domain audit is complete in `docs/seller-payout-event-pre-rls-audit.md`. Next: aggregate-only legacy inspection, compatible provider-event ordering/source-bound writer, seller projections, linked-seller signed test proof, predecessor drain, then separate policyless ENABLE and FORCE releases |
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
@@ -224,9 +232,10 @@ preclude a later reviewed policy or grant migration.
    CheckoutStockReservation compatible authority, source-consistency
    successor, app deployment/smoke, predecessor drain, policyless Phase A,
    posture-only FORCE and both actual pooled-runtime proofs are complete. Then
-   continue the remaining Order,
-   OrderItem, quote, payment, payout and reservation tables as separately
-   reviewed activations. Keep Connect v2 plus live-mode provider topology and
+   begin `SellerPayoutEvent` as the next separately reviewed service-ledger
+   activation under `docs/seller-payout-event-pre-rls-audit.md`; keep Order,
+   OrderItem, quote and payment as later separate audits. Keep Connect v2 plus
+   live-mode provider topology and
    signed delivery as distinct mandatory launch gates; the v2 route shares the
    fixed lease functions and does not reopen the Phase-A database boundary.
 7. Continue the remaining matrix groups separately. Order/payment/shipping

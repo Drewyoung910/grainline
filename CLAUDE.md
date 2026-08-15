@@ -60,6 +60,30 @@ These rules exist to survive context compaction and multi-agent handoffs. Read t
 - Prefer defense-in-depth changes that reduce blast radius without creating launch risk: ownership checks, idempotency, bounded inputs, retention, privacy-safe logs, webhook replay handling, and explicit tests.
 - RLS is a separate architecture project, not a drive-by patch. If pursued, design it table-by-table with Prisma behavior tests and rollback instructions.
 
+### Pre-RLS domain audit gate
+
+- Before a new table or tightly coupled group enters policy, function, grant,
+  or migration design, complete a separate product, functionality, authority,
+  and scalability audit of that current domain. Database denial proofs do not
+  substitute for proving that the protected workflow itself is correct.
+- Inventory direct and indirect reads/writes across pages, routes, actions,
+  webhooks, cron and repair jobs, staff/support tools, exports, deletion,
+  retention, provider effects, notifications, and legacy representations.
+  State the intended behavior first, then derive an operation-by-principal
+  authority matrix rather than treating current code as the specification.
+- Review state machines, invariants, concurrency, idempotency, ambiguous
+  provider outcomes, recovery, privacy, observability, pagination, expected
+  scale, and maintainability. Exercise representative happy and failure paths
+  before activation so existing defects are not mislabeled as RLS regressions.
+- Classify every finding as `BLOCKS_RLS_DESIGN`, `FIX_BEFORE_ACTIVATION`, or
+  `DEFERRED_PRODUCT_WORK`. Only `DEFERRED_PRODUCT_WORK` may remain open when
+  starting an activation, and only when its future authority requirements and
+  closure criteria are durable.
+- Save a group-specific audit, update the coverage matrix and `STRATEGY.md`,
+  and record an explicit go/no-go decision before implementation proceeds. If
+  implementation started first, stop at the next non-production boundary and
+  backfill this audit before continuing.
+
 ## Design System
 
 Visual standards for all UI work on this codebase. Do not deviate without explicit instruction.

@@ -82,6 +82,11 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Isolate SellerPayoutEvent authority until all sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260815210000_prepare_seller_payout_event_authority
+          "$RUNNER_TEMP/seller-payout-event-authority-release"
       - name: Verify CheckoutStockReservation FORCE migration tree
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-force-reviewed
@@ -453,6 +458,25 @@ jobs:
           CHECKOUT_STOCK_RESERVATION_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Re-audit restored CheckoutStockReservation FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore SellerPayoutEvent compatible authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-payout-event-authority-release"
+          prisma/migrations/20260815210000_prepare_seller_payout_event_authority
+      - name: Verify SellerPayoutEvent compatible authority release
+        run: npm run audit:rls-seller-payout-event-authority-release
+      - name: Apply SellerPayoutEvent compatible authority
+        run: npx prisma migrate deploy
+      - name: Converge compatible SellerPayoutEvent runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify SellerPayoutEvent authority migration status
+        run: npx prisma migrate status
+      - name: Audit compatible SellerPayoutEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove SellerPayoutEvent authority in real PostgreSQL
+        run: npm run audit:rls-seller-payout-event-authority-postgres
+        env:
+          SELLER_PAYOUT_EVENT_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

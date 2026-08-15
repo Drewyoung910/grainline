@@ -2,12 +2,13 @@
 
 Status: mixed implementation ledger. StripeWebhookEvent operations 1-3 and
 34-36 are live behind policyless FORCE RLS. CheckoutStockReservation operations
-4-9 and its bounded export/scrub projections have compatible fixed authority
-and source-consistency functions live while RLS remains off and predecessor
-direct grants remain temporarily available. Remaining Order, OrderItem,
-shipping-quote, payment and payout families are design contracts only until
-their own audited releases. This document does not authorize SQL, a migration,
-an EXECUTE grant, application deployment or production mutation.
+4-9 and its bounded export/scrub projections are live behind policyless FORCE
+RLS. SellerPayoutEvent operation 11 plus its latest/export projections now have
+an isolated compatible candidate, but are not merged, applied or deployed and
+predecessor table CRUD remains. Remaining Order, OrderItem, shipping-quote and
+payment families are design contracts only until their own audited releases.
+This document does not authorize SQL, a migration, an EXECUTE grant,
+application deployment or production mutation.
 
 ## Global contract
 
@@ -108,7 +109,11 @@ ownership.
     identity, permits only the reviewed event taxonomy and is append-only.
 11. `grainline_seller_payout_event_apply(...)` requires the active webhook
     generation, derives SellerProfile from the Stripe account mapping and
-    permits only a monotonic payout transition for one payout ID.
+    permits only a monotonic payout transition for one payout ID. The
+    2026-08-15 compatible candidate adds an advisory lock for the no-row-yet
+    first-write race, exact replay validation, stale-event rejection and
+    equal-time ambiguity refusal. It is not live; see
+    `docs/seller-payout-event-compatible-authority-release.md`.
 12. `grainline_seller_deauthorization_flag_orders(...)` requires the webhook
     generation and uses the durable Order seller key in a bounded batch; it
     never reconstructs historical ownership through Listing.
@@ -183,6 +188,12 @@ finalizer transaction and preserve the existing Case authority functions.
     `grainline_seller_payout_export_page(...)` and
     `grainline_buyer_reservation_export_page(...)` return only the matching
     actor's bounded retained facts with stable cursors.
+
+The isolated SellerPayoutEvent candidate implements only its own latest-failure
+and keyset-paged export projections. Their actor is mapped through
+`SellerProfile.userId`, their limit is database-clamped and the latest banner
+uses provider event time with a compatibility-only legacy timestamp fallback.
+They are not application-connected or production-live.
 33. `grainline_seller_order_analytics(...)` and
     `grainline_public_order_metrics(...)` return dedicated aggregate-only
     projections with fixed periods and caps; no arbitrary predicate or raw row

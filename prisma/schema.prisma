@@ -751,20 +751,24 @@ model OrderPaymentEvent {
 }
 
 model SellerPayoutEvent {
-  id              String        @id @default(cuid())
-  sellerProfileId String
-  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Restrict)
-  stripePayoutId  String        @unique @db.VarChar(255)
-  status          String        @db.VarChar(100)
-  amountCents     Int?
-  currency        String        @default("usd") @db.VarChar(3)
-  failureCode     String?       @db.VarChar(100)
-  failureMessage  String?       @db.VarChar(1000)
-  stripeEventId   String?       @db.VarChar(255)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                        String        @id @default(cuid())
+  sellerProfileId           String
+  sellerProfile             SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Restrict)
+  stripePayoutId            String        @unique @db.VarChar(255)
+  status                    String        @db.VarChar(100)
+  amountCents               Int?
+  currency                  String        @default("usd") @db.VarChar(3)
+  failureCode               String?       @db.VarChar(100)
+  failureMessage            String?       @db.VarChar(1000)
+  stripeEventId             String?       @unique @db.VarChar(255)
+  // Signed Stripe event ordering for the mutable latest-state projection.
+  // Nullable only during the compatible predecessor deployment window.
+  stripeEventCreatedSeconds BigInt?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
 
   @@index([sellerProfileId, createdAt])
+  @@index([sellerProfileId, stripeEventCreatedSeconds(sort: Desc), id(sort: Desc)], map: "SellerPayoutEvent_seller_event_time_idx")
   @@index([status, createdAt])
 }
 

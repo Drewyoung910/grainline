@@ -213,6 +213,8 @@ const REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION =
   "checkout-stock-reservation-activation-reviewed";
 const REVIEWED_CHECKOUT_STOCK_RESERVATION_FORCE =
   "checkout-stock-reservation-force-reviewed";
+const SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION =
+  "20260815210000_prepare_seller_payout_event_authority";
 const CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH =
   "agent/checkout-stock-reservation-provider-proof-20260813";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINES = Object.freeze([
@@ -409,6 +411,11 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     DIRECT_UPLOAD_ACTIVATION_MIGRATION,
     CASE_ACTIVATION_MIGRATION,
     CASE_FORCE_MIGRATION,
+    // The SellerPayoutEvent successor has its own byte-pinned verifier. These
+    // arrays model immutable historical releases, so it must not become an
+    // input to their latest-migration checks merely because it is present in
+    // the current checkout.
+    SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -1197,10 +1204,14 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /remain the latest migration/,
     );
-    assert.equal(
-      validate(REVIEWED_CHECKOUT_STOCK_RESERVATION_FORCE, currentMigrations)
-        .phase,
-      REVIEWED_CHECKOUT_STOCK_RESERVATION_FORCE,
+    assert.throws(
+      () => validate(
+        REVIEWED_CHECKOUT_STOCK_RESERVATION_FORCE,
+        currentMigrations,
+      ),
+      new RegExp(
+        `remain the latest migration[\\s\\S]*${SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION}`,
+      ),
     );
   });
 
