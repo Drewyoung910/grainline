@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## Purpose And Scope
 
@@ -9,7 +9,9 @@ database isolation program. Snapshot scope: 64 Prisma models.
 
 `SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`, and
-`StripeWebhookEvent` are the ten tables in this snapshot with production RLS.
+`StripeWebhookEvent` are FORCE-hardened; `CheckoutStockReservation` is at
+accepted Phase A. These are the eleven tables in this snapshot with production
+RLS.
 Every other row is **not active RLS** and remains work to design, prove, and
 promote.
 The target column is a planning disposition, not a claim that the control is
@@ -70,7 +72,7 @@ completed alternative.
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
-| `CheckoutStockReservation` | `ACTIVATION_PRODUCTION_WIRING_ISOLATED` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | Compatible authority/source consistency, app deployment, authenticated smoke and exact predecessor drain are live and accepted. Production RLS remains off with temporary compatible direct CRUD. The exact policyless Phase-A migration `20260815060000_enable_checkout_stock_reservation_rls` is merged, byte-pinned to SHA-256 `7940be1969c89c8bbf5818164a56afb7e8bf7925bd8a26231d8ac865fac7c519`, and passed exact-main CI `31892857440`. Restart-safe activation scope and guarded workflow wiring exist only on an isolated production-wiring branch; they are unmerged and undispatched. The migration verifies the live 18-runtime/7-private predecessor, retires only two unused legacy creation grants, and yields a 16-runtime/9-private zero-policy, zero-direct-table-authority partition with FORCE still off. Next: exact-head wiring CI/review and merge, separate guarded production dispatch plus pooled-runtime postflight, then separate FORCE. Exact evidence remains in `docs/checkout-stock-reservation-source-consistency-release.md`, `docs/checkout-stock-reservation-production-smoke.md`, `docs/checkout-stock-reservation-predecessor-drain.md`, `docs/checkout-stock-reservation-activation-plan.md`, `docs/checkout-stock-reservation-activation-release.md`, and `docs/checkout-stock-reservation-activation-production-wiring.md` |
+| `CheckoutStockReservation` | `RLS_LIVE_PHASE_A` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | Policyless ENABLE, zero policies, zero direct runtime/PUBLIC table or column authority, and the exact 16-runtime/9-private fixed-operation partition are live. Exact main `405d6dff327bee76aced17f3876f8f18f29e05db`, CI `31894742120`, guarded migration run `31903152300`, and the separate pooled-runtime read-only postflight are accepted. Evidence SHA-256 is `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`; FORCE remains the next separate posture-only release. Retain `docs/checkout-stock-reservation-activation-plan.md`, `docs/checkout-stock-reservation-activation-release.md`, and `docs/checkout-stock-reservation-activation-production-wiring.md` |
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
@@ -221,11 +223,9 @@ preclude a later reviewed policy or grant migration.
 6. Continue the Order/payment/shipping program: StripeWebhookEvent policyless
    FORCE and its recovered actual pooled-runtime postflight are complete.
    CheckoutStockReservation compatible authority, source-consistency
-   successor, pooled-runtime proof, app deployment/smoke and predecessor drain
-   are complete. Its exact policyless ENABLE/direct-grant revocation migration
-   is merged and exact-main CI passed; restart-safe production wiring is only
-   on an isolated unmerged branch. Keep workflow merge/dispatch,
-   application/postflight and FORCE as separate boundaries. Then
+   successor, app deployment/smoke, predecessor drain, policyless Phase A and
+   the actual pooled-runtime activation proof are complete. FORCE remains its
+   separate posture-only boundary. Then
    continue the remaining Order,
    OrderItem, quote, payment, payout and reservation tables as separately
    reviewed activations. Keep Connect v2 plus live-mode provider topology and

@@ -1,10 +1,12 @@
 # CheckoutStockReservation Phase-A production wiring
 
-Status: isolated, production-inert workflow wiring. The exact activation is
-wired only on branch
-`agent/checkout-stock-reservation-activation-production-wiring-20260815`.
-It is not merged or dispatched. Production still has CheckoutStockReservation
-RLS off and the compatible predecessor table grants intact.
+Status: completed production Phase-A activation. PR #219 merged exact head
+`6dec4f84afea9e817a29247f9f57cf5646cc5b8b` as main
+`405d6dff327bee76aced17f3876f8f18f29e05db`; exact-main CI
+`31894742120` passed. Guarded Production Migrations run `31903152300`
+applied only the reviewed activation, and the separate actual pooled-runtime
+postflight passed read-only. CheckoutStockReservation now has policyless RLS
+enabled, FORCE off, and zero ordinary-runtime/PUBLIC table or column authority.
 
 Date: 2026-08-15
 
@@ -27,9 +29,15 @@ No Production deployment followed that merge. The observed newer Vercel
 entries were Preview failures; the existing Production deployment was not
 replaced.
 
+Production-wiring PR #219 then merged exact head
+`6dec4f84afea9e817a29247f9f57cf5646cc5b8b` as main
+`405d6dff327bee76aced17f3876f8f18f29e05db`; exact-main CI
+`31894742120` passed the full database, type, lint, test, dependency and
+production-build gates.
+
 ## Exact guarded workflow order
 
-The isolated Production Migrations workflow now:
+The guarded Production Migrations workflow:
 
 1. verifies the exact dispatched main source and owner/runtime role boundary;
 2. verifies the activation migration-tree phase and exact release bytes;
@@ -67,14 +75,25 @@ activation row; that state requires a separate reviewed recovery.
   rollback but lose runtime execution;
 - zero row-data mutation.
 
-## Remaining separate boundaries
+## Production result and remaining boundary
 
-1. Complete exact-head CI and review this isolated workflow branch.
-2. Merge the wiring without dispatching it.
-3. Separately authorize and dispatch the exact main commit after same-commit CI.
-4. After a successful guarded migration, run the separate actual pooled-runtime
-   read-only/direct-denial postflight and retain sanitized mode-`0600` evidence.
-5. Prepare and execute FORCE as a separate posture-only release.
+- Guarded run `31903152300`, bound to exact main
+  `405d6dff327bee76aced17f3876f8f18f29e05db` and CI `31894742120`, applied
+  only `20260815060000_enable_checkout_stock_reservation_rls`. The read-only
+  restart scope, migration status, exact grant convergence, global grant/RLS
+  audit and applied activation scope all passed.
+- The separate actual pooled-runtime postflight ran from a clean checkout of
+  that exact main commit in an engine-attested repeatable-read/read-only
+  transaction. It proved the restricted role identity, exact 25-function
+  source/mode/owner/ACL catalog, direct table denial, fixed export success,
+  private-helper denial and SQLSTATE `25006` fixed-write fence. It persisted no
+  database change.
+- Sanitized mode-`0600` evidence SHA-256 is
+  `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`;
+  it records `productionChangedByPostflight=false` and contains no connection
+  string or row data.
+- No application deployment or provider change accompanied activation.
 
-This record does not authorize a merge, workflow dispatch, migration,
-deployment, FORCE, cleanup, credential change or provider mutation.
+The remaining database boundary is the separately designed and reviewed FORCE
+posture release. This record does not authorize FORCE, deployment, cleanup,
+credential change or provider mutation.

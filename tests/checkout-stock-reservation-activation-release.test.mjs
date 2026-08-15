@@ -177,7 +177,7 @@ test("production workflow byte-pins and restart-proves only the reviewed activat
   assert.doesNotMatch(production, /force_checkout_stock_reservation_rls/iu);
 });
 
-test("production wiring record keeps production and later boundaries explicit", () => {
+test("production wiring record pins completed Phase A and keeps FORCE separate", () => {
   assert.match(
     productionWiring,
     /5817dea6725f7f2eb7fde3da1f546aa75dd449b1/u,
@@ -191,11 +191,20 @@ test("production wiring record keeps production and later boundaries explicit", 
     productionWiring,
     /7940be1969c89c8bbf5818164a56afb7e8bf7925bd8a26231d8ac865fac7c519/u,
   );
-  assert.match(productionWiring, /unmerged and undispatched|not merged or dispatched/u);
+  assert.match(
+    productionWiring,
+    /405d6dff327bee76aced17f3876f8f18f29e05db/u,
+  );
+  assert.match(productionWiring, /31894742120/u);
+  assert.match(productionWiring, /31903152300/u);
+  assert.match(
+    productionWiring,
+    /899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0/u,
+  );
   assert.match(productionWiring, /zero-step failed\s+activation row/u);
   assert.match(productionWiring, /separate actual pooled-runtime/u);
-  assert.match(productionWiring, /FORCE as a separate posture-only release/u);
-  assert.match(productionWiring, /does not authorize a merge, workflow dispatch/u);
+  assert.match(productionWiring, /remaining database boundary.*FORCE/su);
+  assert.match(productionWiring, /does not authorize FORCE, deployment/u);
 });
 
 test("runtime postflight proof accepts only a loopback direct runtime login", () => {

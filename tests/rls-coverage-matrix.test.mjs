@@ -65,6 +65,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(liveRows.map((row) => row.model), [
       "Conversation",
       "Message",
+      "CheckoutStockReservation",
       "Case",
       "CaseMessage",
       "CaseMessageAttachment",
@@ -79,6 +80,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
+        ["CheckoutStockReservation", "RLS_LIVE_PHASE_A"],
         ["Case", "RLS_LIVE_FORCE"],
         ["CaseMessage", "RLS_LIVE_FORCE"],
         ["CaseMessageAttachment", "RLS_LIVE_FORCE"],
@@ -89,7 +91,7 @@ describe("site-wide RLS coverage matrix", () => {
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
-    assert.match(matrix, /ten tables in this snapshot with production RLS/);
+    assert.match(matrix, /eleven tables in this snapshot with production\s+RLS/);
     assert.match(
       matrix,
       /Pooled-runtime and cleanup-role acceptance passed read-only/,
@@ -98,6 +100,10 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(architecture, /all ten tables are `FORCE ROW LEVEL SECURITY`/);
+    assert.match(
+      architecture,
+      /CheckoutStockReservation` is the eleventh production-RLS\s+table.*Phase A/s,
+    );
     assert.match(architecture, /Order\/payment\/shipping is the active/);
     assert.doesNotMatch(architecture, /Case-family RLS is still off/);
   });

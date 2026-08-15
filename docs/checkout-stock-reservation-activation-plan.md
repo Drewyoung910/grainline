@@ -1,10 +1,11 @@
 # CheckoutStockReservation policyless activation plan
 
-Status: refreshed Phase-A migration release is merged and exact-main CI passed.
-Production still has RLS off and compatible direct runtime CRUD. Exact
-restart-safe guarded production wiring is now prepared only on an isolated
-unmerged branch; this work does not authorize a production migration,
-deployment, RLS/grant change, cleanup or provider mutation.
+Status: Phase A is live and accepted in production. Policyless RLS is enabled,
+FORCE remains off, and ordinary-runtime/PUBLIC table and column authority is
+zero. Exact main `405d6dff327bee76aced17f3876f8f18f29e05db`, CI
+`31894742120`, guarded migration run `31903152300`, and the separate
+pooled-runtime read-only postflight are retained. FORCE remains a separate
+posture-only release.
 
 Date: 2026-08-15
 
@@ -88,15 +89,14 @@ provisioning transaction whenever activation is present.
 ## Proof and remaining release sequence
 
 1. The promoted Phase-A migration release and exact-main CI are complete.
-2. Complete exact-head CI and review of the separate guarded production wiring.
-3. Merge the wiring without dispatching it.
-4. Apply Phase A, converge grants, verify migration/global audit, then run the
-   separate actual pooled-runtime read-only/direct-denial postflight.
+2. Restart-safe guarded production wiring is merged and exact-main CI passed.
+3. Guarded production Phase A, exact grant convergence, migration/global audit
+   and applied-ledger proof passed.
+4. The actual pooled-runtime read-only/direct-denial postflight passed with
+   sanitized mode-`0600` evidence and no production mutation.
 5. Prepare and execute FORCE as a separate posture-only release.
 
-Activation is wired to the production migration workflow only on the isolated
-branch at this checkpoint; main and production remain unchanged. Exact
-promoted-release and wiring details live in
+Exact promoted-release and production evidence details live in
 `docs/checkout-stock-reservation-activation-release.md` and
 `docs/checkout-stock-reservation-activation-production-wiring.md`.
 

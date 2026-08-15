@@ -182,7 +182,8 @@ credential recovery; its recovered pooled-runtime postflight was the
 prerequisite for reservation authority. The compatible reservation migration
 and fixed-operation application are now live. The shared-credential predecessor
 deployment drain later completed with zero predecessors. Direct table grants
-remain only as temporary activation compatibility; reservation RLS remains off.
+were then retired by the accepted policyless Phase-A activation. Reservation
+RLS is now enabled with FORCE still pending as a separate release.
 
 The production path is deliberately dedicated rather than reopening the
 single-purpose Stripe FORCE runner. It requires successful same-commit main CI
@@ -311,8 +312,9 @@ FORCE remains later and separate.
 
 ### CheckoutStockReservation activation refresh boundary (2026-08-15)
 
-All application-compatibility gates for this service ledger are now complete,
-so the active work is the separate policyless Phase-A release. Keep the model
+All application-compatibility gates and the policyless Phase-A release for this
+service ledger are now complete, so the remaining database work is the separate
+FORCE posture release. Keep the model
 service-only: zero row policies and zero ordinary-runtime/PUBLIC table or
 column authority, with access only through the exact activated
 16-runtime/9-private function partition. The two legacy creation functions stay
@@ -331,17 +333,20 @@ builder may report exact proposed bytes but must not create a deploy-discoverabl
 Prisma migration. Promotion, workflow wiring, production application and FORCE
 remain separate reviewed boundaries.
 
-The refreshed candidate is promoted and merged as the exact
+The refreshed candidate was promoted and merged as the exact
 `20260815060000_enable_checkout_stock_reservation_rls` migration. Release PR
 #218 merged exact head `1dbab12dfe52867f1df5ca8689db2e3f0ae89933` as main
 `5817dea6725f7f2eb7fde3da1f546aa75dd449b1`; exact-main CI
-`31892857440` passed. Restart-safe production wiring now exists only on an
-isolated unmerged branch. It byte-pins activation, preserves the nested
-source-consistency/authority predecessor proofs, accepts only an exact
-source-consistent or fully activated read-only ledger state on restart, and
-requires the exact applied activation afterward. This remains production-inert:
-workflow merge/dispatch, production application, pooled-runtime postflight and
-FORCE remain separate releases.
+`31892857440` passed. Production-wiring PR #219 then merged exact head
+`6dec4f84afea9e817a29247f9f57cf5646cc5b8b` as main
+`405d6dff327bee76aced17f3876f8f18f29e05db`; exact-main CI
+`31894742120` passed. Guarded run `31903152300` applied only Phase A and passed
+restart scope, grant convergence, migration/global audit and applied scope.
+The separate actual pooled-runtime read-only proof also passed; sanitized
+evidence SHA-256 is
+`899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0` and
+records no production mutation. FORCE remains the sole separate database
+boundary for this table.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

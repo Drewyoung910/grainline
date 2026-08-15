@@ -70,12 +70,13 @@ Completed CheckoutStockReservation source-consistency postflight:
   canonical health. The restart marker is absent. CheckoutStockReservation RLS
   remains off and direct grants remain intact pending the separate policyless
   ENABLE/grant-revocation release.
-- The Phase-A activation package remains production-inert. Its exact
-  byte-pinned migration is merged on main after exact-main CI `31892857440`.
-  Restart-safe Production Migrations wiring exists only on the isolated branch
-  documented in
-  `docs/checkout-stock-reservation-activation-production-wiring.md`; do not
-  dispatch it or infer live RLS from its presence. The
+- CheckoutStockReservation Phase A is live from exact main
+  `405d6dff327bee76aced17f3876f8f18f29e05db`, CI `31894742120`, and guarded
+  Production Migrations run `31903152300`. That run applied only
+  `20260815060000_enable_checkout_stock_reservation_rls`, converged the exact
+  activated grants, and passed migration status, global grant/RLS audit and
+  activation scope. Policyless RLS is enabled, FORCE is off, and direct
+  ordinary-runtime/PUBLIC table and column authority is zero. The
   read-only candidate command is
   `npm run audit:rls-checkout-stock-reservation-activation-candidate`; it must
   report migration name
@@ -90,13 +91,17 @@ Completed CheckoutStockReservation source-consistency postflight:
   its `restart` mode must run before Prisma and accept only the exact
   source-consistent or fully activated ledger state, while `after` must require
   the one exact completed activation row.
-- After a future Phase-A migration succeeds, the separate actual-runtime
-  postflight is `npm run ops:checkout-stock-reservation-activation-postflight`.
-  It must receive only the pooled production runtime URL plus the exact clean
-  main commit, same-commit CI run, guarded migration run and a fresh private
-  evidence path. Owner/direct or aliased database URLs are forbidden. The
-  postflight is engine read-only and does not replace the guarded migration,
-  global grant audit or later separate FORCE release.
+- The separate actual-runtime postflight
+  `npm run ops:checkout-stock-reservation-activation-postflight` passed from a
+  clean checkout of exact main `405d6dff327bee76aced17f3876f8f18f29e05db`,
+  bound to CI `31894742120` and migration run `31903152300`. PostgreSQL attested
+  the pooled restricted identity and repeatable-read/read-only transaction;
+  exact catalog, direct denial, fixed export, private-helper denial and the
+  fixed-write read-only fence all passed. Sanitized mode-`0600` evidence
+  SHA-256 is
+  `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0` and
+  records `productionChangedByPostflight=false`. Do not rerun it with owner,
+  direct or aliased URLs. FORCE remains a later separate release.
 
 Current Conversation/Message production boundary:
 
