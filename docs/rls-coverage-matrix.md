@@ -8,10 +8,9 @@ This is the schema-complete disposition ledger for Grainline's site-wide
 database isolation program. Snapshot scope: 64 Prisma models.
 
 `SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`,
-`DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`, and
-`StripeWebhookEvent` are FORCE-hardened; `CheckoutStockReservation` is at
-accepted Phase A. These are the eleven tables in this snapshot with production
-RLS.
+`DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
+`StripeWebhookEvent`, and `CheckoutStockReservation` are FORCE-hardened. These
+are the eleven tables in this snapshot with production RLS.
 Every other row is **not active RLS** and remains work to design, prove, and
 promote.
 The target column is a planning disposition, not a claim that the control is
@@ -72,7 +71,7 @@ completed alternative.
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
-| `CheckoutStockReservation` | `RLS_LIVE_PHASE_A` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | Policyless ENABLE, zero policies, zero direct runtime/PUBLIC table or column authority, and the exact 16-runtime/9-private fixed-operation partition are live. Exact main `405d6dff327bee76aced17f3876f8f18f29e05db`, CI `31894742120`, guarded migration run `31903152300`, and the separate pooled-runtime read-only postflight are accepted. Evidence SHA-256 is `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`; FORCE remains the next separate posture-only release. Retain `docs/checkout-stock-reservation-activation-plan.md`, `docs/checkout-stock-reservation-activation-release.md`, `docs/checkout-stock-reservation-activation-production-wiring.md`, `docs/checkout-stock-reservation-force-release.md`, and `docs/checkout-stock-reservation-force-production-wiring.md` |
+| `CheckoutStockReservation` | `RLS_LIVE_FORCE` | Order, payment and shipping | Reservation payload and buyer or seller identifiers; checkout, Stripe and expiry repair | Policyless ENABLE plus FORCE, zero policies, zero direct runtime/PUBLIC table or column authority, and the exact 16-runtime/9-private fixed-operation partition are live. Exact main `7c033eac8b18f2c7b6837dc8caafa5d3eda47f76`, CI `31911640477`, guarded migration run `31912265711`, and the separate pooled-runtime FORCE postflight are accepted. FORCE evidence SHA-256 is `4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51`. Retain `docs/checkout-stock-reservation-activation-plan.md`, `docs/checkout-stock-reservation-activation-release.md`, `docs/checkout-stock-reservation-activation-production-wiring.md`, `docs/checkout-stock-reservation-force-release.md`, and `docs/checkout-stock-reservation-force-production-wiring.md` |
 | `ListingVariantGroup` | `BLOCKED_DESIGN` | Catalog public-private split | Public listing options with seller writes | Parent listing visibility and ownership policy |
 | `ListingVariantOption` | `BLOCKED_DESIGN` | Catalog public-private split | Public option price and stock data with seller writes | Parent group and listing visibility plus ownership policy |
 | `SiteConfig` | `ALTERNATIVE_REVIEW` | Reference and configuration | Singleton operational configuration; public-runtime readers and staff or deployment writers | Make ordinary runtime read-only and choose audited administrative mutation path |
@@ -223,9 +222,8 @@ preclude a later reviewed policy or grant migration.
 6. Continue the Order/payment/shipping program: StripeWebhookEvent policyless
    FORCE and its recovered actual pooled-runtime postflight are complete.
    CheckoutStockReservation compatible authority, source-consistency
-   successor, app deployment/smoke, predecessor drain, policyless Phase A and
-   the actual pooled-runtime activation proof are complete. FORCE remains its
-   separate posture-only boundary. Then
+   successor, app deployment/smoke, predecessor drain, policyless Phase A,
+   posture-only FORCE and both actual pooled-runtime proofs are complete. Then
    continue the remaining Order,
    OrderItem, quote, payment, payout and reservation tables as separately
    reviewed activations. Keep Connect v2 plus live-mode provider topology and

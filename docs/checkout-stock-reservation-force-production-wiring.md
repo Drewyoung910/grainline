@@ -1,17 +1,15 @@
 # CheckoutStockReservation FORCE production wiring
 
-Status: isolated and production-inert. The exact FORCE release is draft PR
-#221 at `a0eadb74707652e3883bde36d9c44be3a430a737`; exact-head GitHub CI run
-`31907436947` passed all 133 steps, including the disposable PostgreSQL FORCE,
-rollback, runtime-denial, full-suite and production-build gates. The guarded
-wiring is draft PR #222 at exact head
-`5af7d4801dc36d3f63b7168b3790d92b1a4cd0b8`; its exact-head CI run
-`31908557122` also passed all 133 steps. Neither release nor wiring has been
-merged, dispatched or applied. The distinct pooled-runtime postflight is draft
-PR #223 at implementation checkpoint
-`d0ee090c091476d078e41304d9e86876484dfef4`; exact-head CI run
-`31909599657` passed all 133 steps. Production remains at accepted policyless
-Phase A with FORCE off.
+Status: complete and accepted in production. PRs #221, #222 and #223 merged in
+dependency order. Final exact main
+`7c033eac8b18f2c7b6837dc8caafa5d3eda47f76` passed exact-main CI
+`31911640477`. Guarded Production Migrations run `31912265711` applied only
+`20260815060001_force_checkout_stock_reservation_rls`, converged the reviewed
+grants, and passed migration status, the global grant/RLS audit and exact FORCE
+scope proof. The separate actual pooled-runtime postflight then passed from the
+same clean commit and recorded `productionChangedByPostflight=false`.
+Sanitized mode-`0600` evidence SHA-256 is
+`4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51`.
 
 Date: 2026-08-15
 
@@ -78,15 +76,15 @@ No operator can select a different migration from this workflow. Migration
 tree and release verification fail before the production connection reaches
 Prisma if any byte or predecessor changes.
 
-## Remaining boundaries
+## Accepted production boundary
 
-This wiring does not authorize merging PR #221 or its successor, dispatching
-Production Migrations, deploying, changing grants or provider variables, or
-claiming FORCE is live. After any separately approved production application,
-the actual pooled `grainline_app_runtime` postflight must run read-only from
-the exact successful main commit and retain sanitized mode-`0600` evidence.
+FORCE is live and accepted for `CheckoutStockReservation`. This release did
+not deploy application code, change provider variables, enable a policy, alter
+rows, or broaden runtime authority. The actual pooled
+`grainline_app_runtime` proof is complete and retained separately from the
+migration-owner workflow.
 
-That final operator is prepared separately as
+The final operator is retained as
 `scripts/checkout-stock-reservation-force-production-postflight.mjs`. It must
 be invoked only after a successful exact-main FORCE migration with:
 
@@ -108,8 +106,7 @@ ENABLE plus FORCE, zero direct ordinary-runtime/PUBLIC authority, the exact
 success, and SQLSTATE `25006` at the fixed-write fence. It writes only a fresh,
 sanitized mode-`0600` evidence file and cannot activate or alter RLS.
 
-The complete stacked merge order is documentation PR #220, FORCE release PR
-#221, guarded-wiring PR #222, then postflight PR #223. Retarget each successor
-only after its predecessor merges; do not squash or skip #220 because it is the
-durable Phase-A production record on which the later release documentation is
-based.
+The completed stacked merge order was documentation PR #220, FORCE release PR
+#221, guarded-wiring PR #222, then postflight PR #223. Preserve those commits,
+the exact workflow run and the external evidence file as the durable audit
+chain. Do not rerun the postflight with an owner, direct or aliased URL.

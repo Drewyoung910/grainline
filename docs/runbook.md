@@ -101,28 +101,32 @@ Completed CheckoutStockReservation source-consistency postflight:
   SHA-256 is
   `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0` and
   records `productionChangedByPostflight=false`. Do not rerun it with owner,
-  direct or aliased URLs. FORCE remains a later separate release.
-- The FORCE release is prepared in draft PR #221 at exact head
-  `a0eadb74707652e3883bde36d9c44be3a430a737`; CI `31907436947` passed all
-  133 steps. The production-inert scope command is
+  direct or aliased URLs. The completed FORCE release is recorded next.
+- The FORCE release is accepted from final exact main
+  `7c033eac8b18f2c7b6837dc8caafa5d3eda47f76`, CI `31911640477`, and guarded
+  Production Migrations run `31912265711`. That run applied only
+  `20260815060001_force_checkout_stock_reservation_rls`, converged the reviewed
+  grants, and passed migration status, the global grant/RLS audit and exact
+  FORCE after-scope. The production-scope command is
   `npm run audit:rls-checkout-stock-reservation-force-production-scope`.
   `restart` accepts only the complete activated ledger with no FORCE row or
   the complete force-hardened ledger with one exact applied FORCE row; `after`
-  requires the latter. Guarded-wiring draft PR #222 exact head
-  `5af7d4801dc36d3f63b7168b3790d92b1a4cd0b8` passed exact-head CI
-  `31908557122`; it remains isolated and undispatched. Retain
+  requires the latter. Retain
   `docs/checkout-stock-reservation-force-production-wiring.md`.
-- After a separately reviewed FORCE migration succeeds, run the distinct
-  pooled-runtime proof only from the exact clean main release with:
+- The distinct pooled-runtime FORCE proof passed from that exact clean main
+  release, bound to CI `31911640477` and migration run `31912265711`, using:
   `CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_CONFIRM=verify-production-checkout-stock-reservation-force-runtime-read-only CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_RELEASE_COMMIT=<exact-force-main> CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-main-ci> CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_MIGRATION_RUN_ID=<successful-force-migration-run> CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_EVIDENCE_PATH="checkout-stock-reservation-force-production-postflight-<exact-force-main>.json" npm run ops:checkout-stock-reservation-force-postflight`.
   Keep only the actual pooled production `DATABASE_URL`; owner/direct and
   aliased PostgreSQL URLs are rejected. The operator is engine-attested
   repeatable-read/read-only, requires exact FORCE catalog and runtime denial,
   and writes only fresh sanitized mode-`0600` evidence. It does not activate
-  FORCE or mutate the database. Postflight draft PR #223 implementation
-  checkpoint `d0ee090c091476d078e41304d9e86876484dfef4` passed exact-head CI
-  `31909599657` (all 133 steps). Preserve stacked order #220 -> #221 -> #222 ->
-  #223 before any exact-main release decision.
+  FORCE or mutate the database. PostgreSQL attested the pooled
+  `grainline_app_runtime` identity, exact ENABLE plus FORCE catalog, direct
+  table and private-helper denial, fixed export success and SQLSTATE `25006` at
+  the fixed-write read-only fence. Evidence SHA-256 is
+  `4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51` and
+  records `productionChangedByPostflight=false`. Preserve stacked order #220
+  -> #221 -> #222 -> #223 and do not rerun with owner/direct/aliased URLs.
 
 Current Conversation/Message production boundary:
 
