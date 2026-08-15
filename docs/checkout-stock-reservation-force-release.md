@@ -1,15 +1,12 @@
 # CheckoutStockReservation FORCE RLS release
 
-Status: isolated, production-inert release candidate in draft PR #221 at exact
-head `a0eadb74707652e3883bde36d9c44be3a430a737`; exact-head GitHub CI run
-`31907436947` passed all 133 steps. Production remains at
-accepted policyless Phase A from exact main
-`405d6dff327bee76aced17f3876f8f18f29e05db`, CI `31894742120`, guarded
-migration run `31903152300`, and pooled-runtime evidence SHA-256
-`899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`.
-This FORCE candidate has not been merged, dispatched or applied. Its exact
-guarded workflow wiring is separately prepared in isolation and documented in
-`docs/checkout-stock-reservation-force-production-wiring.md`.
+Status: complete and accepted in production. The exact release chain ended at
+main `7c033eac8b18f2c7b6837dc8caafa5d3eda47f76`; exact-main CI
+`31911640477` passed. Guarded migration run `31912265711` applied only the
+posture-only FORCE migration and passed restart scope, grant convergence,
+migration status, global audit and exact after-scope proof. The distinct actual
+pooled-runtime postflight passed read-only with evidence SHA-256
+`4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51`.
 
 Date: 2026-08-15
 
@@ -86,15 +83,13 @@ success, private-helper denial and the fixed-write read-only fence behind
 FORCE. A separate owner proof runs the reviewed NO-FORCE rollback and always
 restores and re-verifies FORCE in `finally`.
 
-## Remaining production boundary
+## Production acceptance
 
-The separate restart-safe production scope and guarded main-only wiring are
-now prepared but remain unmerged and undispatched. They still require review,
-merge sequencing after this release, exact-main CI and a separate production
-dispatch decision. The distinct actual pooled-runtime FORCE postflight is also
-prepared in isolation and documented in
-`docs/checkout-stock-reservation-force-production-wiring.md`; it requires an
-exact successful main commit and migration run and cannot run before them.
-Nothing in this candidate authorizes a merge, workflow dispatch, migration,
-postflight execution, deployment, cleanup, credential change or provider
-mutation.
+The restart-safe production scope and guarded main-only wiring are complete.
+The migration-owner workflow and the actual pooled-runtime proof independently
+confirmed policyless ENABLE plus FORCE, zero direct ordinary-runtime/PUBLIC
+table or column authority, the exact 16-runtime/9-private function partition,
+direct-table denial and fixed-operation availability. No application deploy,
+cleanup, credential or provider mutation accompanied this release. Retain
+`docs/checkout-stock-reservation-force-production-wiring.md` and the sanitized
+mode-`0600` evidence outside the application repository.

@@ -1734,3 +1734,34 @@ Open work:
   postflight defect. It did surface and record the complete dependency order:
   Phase-A production-record PR #220, FORCE release #221, guarded wiring #222,
   then pooled-runtime postflight #223. None is merged by this checkpoint.
+
+## CheckoutStockReservation FORCE production completion (2026-08-15)
+
+- PRs #220 through #223 merged in their reviewed dependency order. Final exact
+  main `7c033eac8b18f2c7b6837dc8caafa5d3eda47f76` passed CI
+  `31911640477`.
+- Guarded Production Migrations run `31912265711` applied only
+  `20260815060001_force_checkout_stock_reservation_rls`. The protected workflow
+  verified the exact source and migration tree, recursively sealed all
+  predecessors, accepted only the exact restart state, converged reviewed
+  grants, and passed migration status, the global grant/RLS audit and exact
+  FORCE after-scope.
+- Production now has policyless ENABLE plus FORCE on
+  `public."CheckoutStockReservation"`, zero policies, zero direct
+  ordinary-runtime/PUBLIC table or column authority, and the exact
+  16-runtime/9-private fixed-function partition. No row, function, schema,
+  application deployment or provider state changed in the FORCE release.
+- The distinct actual pooled-runtime postflight ran from the clean exact main
+  commit inside an engine-attested repeatable-read/read-only transaction. It
+  proved the `grainline_app_runtime` identity, exact 25-function catalog,
+  direct-table denial, fixed export success, private-helper denial and
+  SQLSTATE `25006` at the fixed-write fence.
+- Sanitized mode-`0600` evidence is retained outside the application repository
+  with SHA-256
+  `4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51`.
+  It records `productionChangedByPostflight=false`; no database URL, secret or
+  row data is retained.
+- CheckoutStockReservation is complete through FORCE. The next
+  Order/payment/shipping boundary must start with the standard pre-RLS domain
+  audit rather than inheriting reservation assumptions. No deploy or provider
+  change accompanied this completion.

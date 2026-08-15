@@ -342,17 +342,19 @@ The refreshed candidate was promoted and merged as the exact
 `405d6dff327bee76aced17f3876f8f18f29e05db`; exact-main CI
 `31894742120` passed. Guarded run `31903152300` applied only Phase A and passed
 restart scope, grant convergence, migration/global audit and applied scope.
-The separate actual pooled-runtime read-only proof also passed; sanitized
-evidence SHA-256 is
+The separate actual pooled-runtime activation proof passed; sanitized evidence
+SHA-256 is
 `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0` and
-records no production mutation. FORCE remains the sole separate database
-boundary for this table. Its byte-pinned posture-only migration, rollback and
-disposable proofs passed exact-head CI in draft PR #221. Restart-safe guarded
-production wiring passed exact-head CI in draft PR #222, but both merges,
-exact-main CI and any dispatch remain separate reviewed work. The
-distinct pooled-runtime FORCE postflight operator is now prepared as another
-production-inert successor; it cannot run before an exact successful FORCE
-migration and it never substitutes for migration scope or owner proof. Retain
+records no production mutation. The separate FORCE boundary is now also
+complete from exact main `7c033eac8b18f2c7b6837dc8caafa5d3eda47f76`, CI
+`31911640477`, and guarded migration run `31912265711`. The owner workflow
+applied only the posture flag and passed grant convergence, migration/global
+audit and exact FORCE scope. The independent pooled-runtime FORCE postflight
+passed read-only; evidence SHA-256 is
+`4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51` and
+records no production mutation. CheckoutStockReservation is complete through
+FORCE; begin the next Order/payment/shipping table only after a fresh domain
+logic, actor, route, job and provider-side-effect audit. Retain
 `docs/checkout-stock-reservation-force-release.md` and
 `docs/checkout-stock-reservation-force-production-wiring.md`.
 

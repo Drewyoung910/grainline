@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -35,11 +35,10 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 
 Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
-`DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`, and
-`StripeWebhookEvent`; all ten tables are `FORCE ROW LEVEL SECURITY` hardened
-in production. `CheckoutStockReservation` is the eleventh production-RLS
-table and is intentionally at policyless Phase A with FORCE pending as a
-separate release. DirectUpload, StripeWebhookEvent, the Case family, and
+`DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
+`StripeWebhookEvent`, and `CheckoutStockReservation`; all eleven tables are
+`FORCE ROW LEVEL SECURITY` hardened in production. DirectUpload,
+StripeWebhookEvent, the Case family, and
 CheckoutStockReservation intentionally use
 policyless RLS with no direct ordinary-runtime table or column authority: all
 permitted behavior goes through reviewed fixed functions. DirectUpload's
@@ -76,7 +75,7 @@ are live. Do not add the runtime URL to the owner-only GitHub Production
 migration environment; owner migration and actual-runtime proof remain
 separate credential boundaries.
 
-`CheckoutStockReservation` is the current service-ledger boundary. Its compatible
+`CheckoutStockReservation` is a completed service-ledger boundary. Its compatible
 authority and additive source-consistency migrations, compatible application,
 authenticated production checkout smoke, shared-credential predecessor
 deployment drain, and policyless ENABLE/grant-revocation release are complete.
@@ -102,7 +101,19 @@ convergence plus migration/global audit and after-scope proof passed. The
 separate actual pooled-runtime postflight passed read-only; evidence SHA-256 is
 `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`.
 
-The stacked activation design remains policyless ENABLE first and FORCE later.
+The posture-only FORCE successor is also complete from exact main
+`7c033eac8b18f2c7b6837dc8caafa5d3eda47f76`, CI `31911640477`, and guarded
+migration run `31912265711`. The migration changed only the FORCE flag; grant
+convergence, migration status, the global grant/RLS audit and exact FORCE scope
+all passed. The distinct actual pooled-runtime proof passed inside an
+engine-attested repeatable-read/read-only transaction. Its sanitized evidence
+SHA-256 is
+`4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51` and
+records no production mutation. The next Order/payment/shipping work must begin
+with a fresh domain audit of the remaining Order, OrderItem, quote, payment and
+payout surfaces rather than extending this reservation authority implicitly.
+
+The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
 retaining only the exact source-consistent fixed-operation catalog. It verifies
 the live 18-runtime/7-private predecessor, then retires EXECUTE on the two

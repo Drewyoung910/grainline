@@ -144,21 +144,21 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       .find((line) => line.startsWith("| `CheckoutStockReservation`"));
 
     assert.ok(row);
-    assert.match(row, /`RLS_LIVE_PHASE_A`/);
-    assert.match(row, /Policyless ENABLE/);
+    assert.match(row, /`RLS_LIVE_FORCE`/);
+    assert.match(row, /Policyless ENABLE plus FORCE/);
     assert.match(row, /zero direct runtime\/PUBLIC table or column authority/);
-    assert.match(row, /405d6dff327bee76aced17f3876f8f18f29e05db/);
-    assert.match(row, /31894742120/);
-    assert.match(row, /31903152300/);
+    assert.match(row, /7c033eac8b18f2c7b6837dc8caafa5d3eda47f76/);
+    assert.match(row, /31911640477/);
+    assert.match(row, /31912265711/);
     assert.match(
       row,
-      /899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0/,
+      /4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51/,
     );
-    assert.match(row, /FORCE remains the next separate posture-only release/);
+    assert.match(row, /separate pooled-runtime FORCE postflight are accepted/);
     assert.match(row, /checkout-stock-reservation-activation-plan\.md/);
     assert.match(row, /checkout-stock-reservation-activation-release\.md/);
     assert.match(strategy, /CheckoutStockReservation source-consistency boundary/);
     assert.match(strategy, /Two fresh provider slots passed/);
-    assert.match(strategy, /31903152300/);
+    assert.match(strategy, /31912265711/);
   });
 });

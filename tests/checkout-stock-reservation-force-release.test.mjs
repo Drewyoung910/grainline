@@ -224,11 +224,19 @@ test("CI proves FORCE after Phase A and production wiring preserves the same ord
   );
 });
 
-test("release record preserves the production Phase-A boundary", () => {
-  assert.match(releaseDocument, /isolated, production-inert release candidate/);
-  assert.match(releaseDocument, /Production remains at[\s\S]*Phase A/);
+test("release record preserves the accepted production FORCE boundary", () => {
+  assert.match(releaseDocument, /complete and accepted in production/);
+  assert.match(
+    releaseDocument,
+    /7c033eac8b18f2c7b6837dc8caafa5d3eda47f76/,
+  );
+  assert.match(releaseDocument, /31912265711/);
+  assert.match(
+    releaseDocument,
+    /4534d58c6a7872d7fae6169e12db56aa62414a16a5e71cad3f4e163c83752d51/,
+  );
   assert.match(releaseDocument, /durable ownership-drift invariant/);
   assert.match(releaseDocument, /availability[\s\S]*tradeoff is intentional/);
-  assert.match(releaseDocument, /production scope/);
-  assert.match(releaseDocument, /Nothing in this candidate authorizes a merge/);
+  assert.match(releaseDocument, /Production acceptance/);
+  assert.match(releaseDocument, /No application deploy/);
 });

@@ -80,7 +80,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
-        ["CheckoutStockReservation", "RLS_LIVE_PHASE_A"],
+        ["CheckoutStockReservation", "RLS_LIVE_FORCE"],
         ["Case", "RLS_LIVE_FORCE"],
         ["CaseMessage", "RLS_LIVE_FORCE"],
         ["CaseMessageAttachment", "RLS_LIVE_FORCE"],
@@ -99,10 +99,10 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /Every\s+other row is \*\*not active\s+RLS\*\*/);
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
-    assert.match(architecture, /all ten tables are `FORCE ROW LEVEL SECURITY`/);
+    assert.match(architecture, /all eleven tables are\s+`FORCE ROW LEVEL SECURITY`/);
     assert.match(
       architecture,
-      /CheckoutStockReservation` is the eleventh production-RLS\s+table.*Phase A/s,
+      /CheckoutStockReservation` is a completed service-ledger boundary/,
     );
     assert.match(architecture, /Order\/payment\/shipping is the active/);
     assert.doesNotMatch(architecture, /Case-family RLS is still off/);
