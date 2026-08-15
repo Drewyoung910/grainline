@@ -253,7 +253,11 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.match(ci, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
   assert.match(
     production,
-    /checkout-stock-reservation-source-consistency-reviewed/,
+    /checkout-stock-reservation-activation-reviewed/,
+  );
+  assert.match(
+    production,
+    /Isolate the reviewed CheckoutStockReservation activation/,
   );
   assert.match(
     production,
@@ -261,9 +265,13 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   );
   assert.match(production, /audit:rls-stripe-webhook-event-force-sealed-prefix/);
   assert.ok(
-    production.indexOf(
-      "Isolate the reviewed CheckoutStockReservation source-consistency successor",
-    )
+    production.indexOf("Isolate the reviewed CheckoutStockReservation activation")
+      < production.indexOf(
+        "Isolate the reviewed CheckoutStockReservation source-consistency successor",
+      )
+      && production.indexOf(
+        "Isolate the reviewed CheckoutStockReservation source-consistency successor",
+      )
       < production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
       && production.indexOf("audit:rls-stripe-webhook-event-force-sealed-prefix")
       < production.indexOf("npx prisma migrate deploy"),
@@ -271,12 +279,12 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.ok(
     production.indexOf("npx prisma migrate deploy")
       < production.indexOf(
-        "Prove exact CheckoutStockReservation source-consistency production scope",
+        "Prove exact CheckoutStockReservation activation production scope",
       ),
   );
   assert.match(
     production,
-    /Prove exact CheckoutStockReservation source-consistency production scope[\s\S]{0,180}audit:rls-checkout-stock-reservation-source-consistency-production-scope/,
+    /Prove exact CheckoutStockReservation activation production scope[\s\S]{0,180}audit:rls-checkout-stock-reservation-activation-production-scope/,
   );
   assert.match(
     releaseDocument,

@@ -28,10 +28,6 @@ import {
 const { Client } = pg;
 const MIGRATION_ROLE = "neondb_owner";
 const MIGRATIONS_DIRECTORY = path.join("prisma", "migrations");
-export const RESERVATION_ACTIVATION_MIGRATION =
-  "20260810220000_enable_checkout_stock_reservation_rls";
-export const RESERVATION_FORCE_MIGRATION =
-  "20260811020000_force_checkout_stock_reservation_rls";
 export const SCHEMA_NUMERIC_GUARDS_MIGRATION =
   "20260523223000_schema_numeric_guards_and_indexes";
 export const SCHEMA_NUMERIC_GUARDS_HISTORICAL_LEDGER_SHA256 =

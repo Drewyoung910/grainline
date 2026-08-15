@@ -1,11 +1,10 @@
 # CheckoutStockReservation policyless activation plan
 
-Status: refreshed Phase-A design is now promoted into an isolated byte-pinned
-migration release and exercised only in CI/disposable PostgreSQL. Production
-still has RLS off and compatible direct runtime CRUD. The guarded production
-workflow remains pinned to the source-consistency predecessor; this release
-does not authorize a production migration, deployment, RLS/grant change,
-cleanup or provider mutation.
+Status: refreshed Phase-A migration release is merged and exact-main CI passed.
+Production still has RLS off and compatible direct runtime CRUD. Exact
+restart-safe guarded production wiring is now prepared only on an isolated
+unmerged branch; this work does not authorize a production migration,
+deployment, RLS/grant change, cleanup or provider mutation.
 
 Date: 2026-08-15
 
@@ -88,19 +87,18 @@ provisioning transaction whenever activation is present.
 
 ## Proof and remaining release sequence
 
-1. Complete exact-head CI and review of the promoted Phase-A migration release;
-   CI applies it only to disposable PostgreSQL and proves activation, denial,
-   fixed operations, rollback, restoration and tamper cases.
-2. Merge that release without changing production.
-3. Separately wire only that exact migration to the guarded production
-   workflow.
+1. The promoted Phase-A migration release and exact-main CI are complete.
+2. Complete exact-head CI and review of the separate guarded production wiring.
+3. Merge the wiring without dispatching it.
 4. Apply Phase A, converge grants, verify migration/global audit, then run the
    separate actual pooled-runtime read-only/direct-denial postflight.
 5. Prepare and execute FORCE as a separate posture-only release.
 
-No activation step is wired to the production migration workflow at this
-checkpoint. Exact promoted-release details live in
-`docs/checkout-stock-reservation-activation-release.md`.
+Activation is wired to the production migration workflow only on the isolated
+branch at this checkpoint; main and production remain unchanged. Exact
+promoted-release and wiring details live in
+`docs/checkout-stock-reservation-activation-release.md` and
+`docs/checkout-stock-reservation-activation-production-wiring.md`.
 
 ## Read-only candidate package
 

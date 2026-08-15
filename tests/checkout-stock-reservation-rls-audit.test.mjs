@@ -144,7 +144,7 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       .find((line) => line.startsWith("| `CheckoutStockReservation`"));
 
     assert.ok(row);
-    assert.match(row, /`ACTIVATION_RELEASE_ISOLATED`/);
+    assert.match(row, /`ACTIVATION_PRODUCTION_WIRING_ISOLATED`/);
     assert.match(
       row,
       /checkout-stock-reservation-source-consistency-release\.md/,
@@ -155,7 +155,7 @@ describe("CheckoutStockReservation RLS authority audit", () => {
     assert.match(row, /Production RLS remains off/);
     assert.match(row, /checkout-stock-reservation-activation-plan\.md/);
     assert.match(row, /checkout-stock-reservation-activation-release\.md/);
-    assert.match(row, /not the Production Migrations workflow/);
+    assert.match(row, /isolated production-wiring branch/);
     assert.match(strategy, /CheckoutStockReservation source-consistency boundary/);
     assert.match(strategy, /Two fresh provider slots passed/);
   });

@@ -331,13 +331,16 @@ builder may report exact proposed bytes but must not create a deploy-discoverabl
 Prisma migration. Promotion, workflow wiring, production application and FORCE
 remain separate reviewed boundaries.
 
-The refreshed candidate is now promoted into the exact isolated
-`20260815060000_enable_checkout_stock_reservation_rls` migration. Its release
-CI isolates the migration while replaying all predecessors, then applies it to
-disposable PostgreSQL, converges grants, runs the global audit, and proves the
-activated boundary through a direct runtime login. This is packaging and CI
-evidence only: the Production Migrations workflow deliberately remains pinned
-to source consistency. Production application, pooled-runtime postflight and
+The refreshed candidate is promoted and merged as the exact
+`20260815060000_enable_checkout_stock_reservation_rls` migration. Release PR
+#218 merged exact head `1dbab12dfe52867f1df5ca8689db2e3f0ae89933` as main
+`5817dea6725f7f2eb7fde3da1f546aa75dd449b1`; exact-main CI
+`31892857440` passed. Restart-safe production wiring now exists only on an
+isolated unmerged branch. It byte-pins activation, preserves the nested
+source-consistency/authority predecessor proofs, accepts only an exact
+source-consistent or fully activated read-only ledger state on restart, and
+requires the exact applied activation afterward. This remains production-inert:
+workflow merge/dispatch, production application, pooled-runtime postflight and
 FORCE remain separate releases.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)

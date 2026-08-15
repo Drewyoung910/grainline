@@ -29,6 +29,10 @@ const production = fs.readFileSync(
   ".github/workflows/production-migrations.yml",
   "utf8",
 );
+const productionWiring = fs.readFileSync(
+  "docs/checkout-stock-reservation-activation-production-wiring.md",
+  "utf8",
+);
 
 test("activation release exactly promotes the reviewed policyless candidate", () => {
   const candidate = buildCheckoutStockReservationActivationCandidate();
@@ -118,15 +122,80 @@ test("CI isolates predecessors, applies activation, audits it, and proves direct
   );
 });
 
-test("production workflow remains pinned to the predecessor until separately wired", () => {
-  assert.doesNotMatch(
-    production,
-    /checkout-stock-reservation-activation-reviewed/,
+test("production workflow byte-pins and restart-proves only the reviewed activation", () => {
+  const verifyTree = production.indexOf(
+    "Verify exact CheckoutStockReservation activation migration tree",
   );
-  assert.doesNotMatch(
-    production,
-    /20260815060000_enable_checkout_stock_reservation_rls/,
+  const verifyRelease = production.indexOf(
+    "Verify exact CheckoutStockReservation activation release",
   );
+  const isolateActivation = production.indexOf(
+    "Isolate the reviewed CheckoutStockReservation activation",
+  );
+  const verifySource = production.indexOf(
+    "Verify exact CheckoutStockReservation source-consistency migration tree",
+  );
+  const restoreSource = production.indexOf(
+    "Restore the reviewed CheckoutStockReservation source-consistency successor",
+  );
+  const restoreActivation = production.indexOf(
+    "Restore the reviewed CheckoutStockReservation activation",
+  );
+  const restartScope = production.indexOf(
+    "Inspect exact CheckoutStockReservation activation restart scope read-only",
+  );
+  const apply = production.indexOf("Apply production migrations");
+  const afterScope = production.indexOf(
+    "Prove exact CheckoutStockReservation activation production scope",
+  );
+
+  assert.ok(verifyTree >= 0);
+  assert.ok(verifyTree < verifyRelease);
+  assert.ok(verifyRelease < isolateActivation);
+  assert.ok(isolateActivation < verifySource);
+  assert.ok(verifySource < restoreSource);
+  assert.ok(restoreSource < restoreActivation);
+  assert.ok(restoreActivation < restartScope);
+  assert.ok(restartScope < apply);
+  assert.ok(apply < afterScope);
+  assert.match(
+    production,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-activation-reviewed/u,
+  );
+  assert.match(
+    production,
+    /20260815060000_enable_checkout_stock_reservation_rls/u,
+  );
+  assert.match(
+    production,
+    /CHECKOUT_STOCK_RESERVATION_ACTIVATION_SCOPE_STAGE: restart/u,
+  );
+  assert.match(
+    production,
+    /CHECKOUT_STOCK_RESERVATION_ACTIVATION_SCOPE_STAGE: after/u,
+  );
+  assert.doesNotMatch(production, /force_checkout_stock_reservation_rls/iu);
+});
+
+test("production wiring record keeps production and later boundaries explicit", () => {
+  assert.match(
+    productionWiring,
+    /5817dea6725f7f2eb7fde3da1f546aa75dd449b1/u,
+  );
+  assert.match(productionWiring, /31892857440/u);
+  assert.match(
+    productionWiring,
+    /20260815060000_enable_checkout_stock_reservation_rls/u,
+  );
+  assert.match(
+    productionWiring,
+    /7940be1969c89c8bbf5818164a56afb7e8bf7925bd8a26231d8ac865fac7c519/u,
+  );
+  assert.match(productionWiring, /unmerged and undispatched|not merged or dispatched/u);
+  assert.match(productionWiring, /zero-step failed\s+activation row/u);
+  assert.match(productionWiring, /separate actual pooled-runtime/u);
+  assert.match(productionWiring, /FORCE as a separate posture-only release/u);
+  assert.match(productionWiring, /does not authorize a merge, workflow dispatch/u);
 });
 
 test("runtime postflight proof accepts only a loopback direct runtime login", () => {

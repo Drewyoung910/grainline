@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 import {
-  RESERVATION_ACTIVATION_MIGRATION,
-  RESERVATION_FORCE_MIGRATION,
   SCHEMA_NUMERIC_GUARDS_CURRENT_SHA256,
   SCHEMA_NUMERIC_GUARDS_HISTORICAL_LEDGER_SHA256,
   SCHEMA_NUMERIC_GUARDS_MIGRATION,
@@ -17,6 +15,7 @@ import {
   LISTING_VARIANTS_REVIEWED_MIGRATION,
 } from "../scripts/direct-upload-activation-failure-inspect.mjs";
 import {
+  CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION,
   CHECKOUT_STOCK_RESERVATION_AUTHORITY_MIGRATION,
   STRIPE_WEBHOOK_EVENT_FORCE_MIGRATION,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
@@ -216,8 +215,8 @@ test("scope rejects missing, failed, duplicate, unknown, activation, and FORCE r
     )],
     [...accepted, accepted.at(-1)],
     [...accepted, rolledBack("20260811000000_unknown", "4".repeat(64))],
-    [...accepted, applied(RESERVATION_ACTIVATION_MIGRATION)],
-    [...accepted, applied(RESERVATION_FORCE_MIGRATION)],
+    [...accepted, applied(CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION)],
+    [...accepted, applied("20260815060001_force_checkout_stock_reservation_rls")],
   ]) assert.throws(() => assertReservationAuthorityProductionScope(rows, "after", catalog));
   assert.throws(() => assertReservationAuthorityProductionScope(accepted, "during", catalog));
 });

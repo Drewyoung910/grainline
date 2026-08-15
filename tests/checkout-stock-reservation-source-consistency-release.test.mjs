@@ -162,23 +162,47 @@ test("CI proves the successor before isolating it and then seals the predecessor
   assert.ok(proveSuccessor < applySuccessor);
 });
 
-test("production wiring verifies restart scope and converges grants before final audits", () => {
+test("production wiring preserves source consistency as the sealed activation predecessor", () => {
   const workflow = fs.readFileSync(
     ".github/workflows/production-migrations.yml",
     "utf8",
   );
+  const isolateActivation = workflow.indexOf(
+    "Isolate the reviewed CheckoutStockReservation activation",
+  );
+  const verifySource = workflow.indexOf(
+    "Verify exact CheckoutStockReservation source-consistency migration tree",
+  );
+  const isolateSource = workflow.indexOf(
+    "Isolate the reviewed CheckoutStockReservation source-consistency successor",
+  );
+  const verifyAuthority = workflow.indexOf(
+    "Verify exact CheckoutStockReservation authority migration tree after isolation",
+  );
+  const restoreSource = workflow.indexOf(
+    "Restore the reviewed CheckoutStockReservation source-consistency successor",
+  );
+  const restoreActivation = workflow.indexOf(
+    "Restore the reviewed CheckoutStockReservation activation",
+  );
   const restartScope = workflow.indexOf(
-    "Inspect exact CheckoutStockReservation source-consistency restart scope read-only",
+    "Inspect exact CheckoutStockReservation activation restart scope read-only",
   );
   const apply = workflow.indexOf("Apply production migrations");
   const converge = workflow.indexOf(
-    "Converge exact CheckoutStockReservation runtime function grants",
+    "Converge exact activated CheckoutStockReservation runtime grants",
   );
   const status = workflow.indexOf("Verify production migration status");
   const finalScope = workflow.indexOf(
-    "Prove exact CheckoutStockReservation source-consistency production scope",
+    "Prove exact CheckoutStockReservation activation production scope",
   );
-  assert.ok(restartScope >= 0);
+  assert.ok(isolateActivation >= 0);
+  assert.ok(isolateActivation < verifySource);
+  assert.ok(verifySource < isolateSource);
+  assert.ok(isolateSource < verifyAuthority);
+  assert.ok(verifyAuthority < restoreSource);
+  assert.ok(restoreSource < restoreActivation);
+  assert.ok(restoreActivation < restartScope);
   assert.ok(restartScope < apply);
   assert.ok(apply < converge);
   assert.ok(converge < status);
