@@ -102,6 +102,14 @@ Completed CheckoutStockReservation source-consistency postflight:
   `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0` and
   records `productionChangedByPostflight=false`. Do not rerun it with owner,
   direct or aliased URLs. FORCE remains a later separate release.
+- The FORCE release is prepared in draft PR #221 at exact head
+  `a0eadb74707652e3883bde36d9c44be3a430a737`; CI `31907436947` passed all
+  133 steps. The production-inert scope command is
+  `npm run audit:rls-checkout-stock-reservation-force-production-scope`.
+  `restart` accepts only the complete activated ledger with no FORCE row or
+  the complete force-hardened ledger with one exact applied FORCE row; `after`
+  requires the latter. The guarded wiring remains isolated and undispatched;
+  retain `docs/checkout-stock-reservation-force-production-wiring.md`.
 
 Current Conversation/Message production boundary:
 

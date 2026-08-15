@@ -206,6 +206,9 @@ describe("isolated production migration runner", () => {
     assert.doesNotMatch(jobEnvironment, /DIRECT_URL:\s*\$\{\{\s*secrets\./);
     assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     const orderedSteps = [
+      "Verify exact CheckoutStockReservation FORCE migration tree",
+      "Verify exact CheckoutStockReservation FORCE release",
+      "Isolate the reviewed CheckoutStockReservation FORCE release",
       "Verify exact CheckoutStockReservation activation migration tree",
       "Verify exact CheckoutStockReservation activation release",
       "Isolate the reviewed CheckoutStockReservation activation",
@@ -219,13 +222,14 @@ describe("isolated production migration runner", () => {
       "Verify DirectUpload activation proof equivalence",
       "Restore the reviewed CheckoutStockReservation source-consistency successor",
       "Restore the reviewed CheckoutStockReservation activation",
-      "Inspect exact CheckoutStockReservation activation restart scope read-only",
+      "Restore the reviewed CheckoutStockReservation FORCE release",
+      "Inspect exact CheckoutStockReservation FORCE restart scope read-only",
       "Generate Prisma client",
       "Apply production migrations",
-      "Converge exact activated CheckoutStockReservation runtime grants",
+      "Converge exact FORCE-hardened CheckoutStockReservation runtime grants",
       "Verify production migration status",
       "Audit final runtime grants and RLS catalog",
-      "Prove exact CheckoutStockReservation activation production scope",
+      "Prove exact CheckoutStockReservation FORCE production scope",
     ];
     const indexes = orderedSteps.map((step) => workflow.indexOf(step));
     assert.ok(indexes.every((index) => index >= 0));
@@ -236,13 +240,17 @@ describe("isolated production migration runner", () => {
     );
     assert.match(
       workflow,
+      /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-force-reviewed/u,
+    );
+    assert.match(
+      workflow,
       /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed/u,
     );
     assert.match(
       workflow,
       /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed/u,
     );
-    assert.doesNotMatch(workflow, /force_checkout_stock_reservation_rls/iu);
+    assert.match(workflow, /20260815060001_force_checkout_stock_reservation_rls/u);
     assert.equal(vercel.buildCommand, "npm run guard:runtime-db-env && npm run build");
     assert.doesNotMatch(vercel.buildCommand, /migrat/i);
     assert.match(runtimeSource, /requiredProductionEnv\("DATABASE_URL"\)/);
