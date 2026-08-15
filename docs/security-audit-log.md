@@ -1623,3 +1623,31 @@ Open work:
 - This is isolated workflow, test and documentation work only. It was not
   merged or dispatched; no production query, migration, deployment, RLS/grant
   change, FORCE, cleanup, credential or provider mutation occurred.
+
+## CheckoutStockReservation Phase-A production completion (2026-08-15)
+
+- Production-wiring PR #219 merged exact reviewed head
+  `6dec4f84afea9e817a29247f9f57cf5646cc5b8b` as main
+  `405d6dff327bee76aced17f3876f8f18f29e05db`; exact-main CI
+  `31894742120` passed the database, type, lint, test, dependency and build
+  gates.
+- Guarded Production Migrations run `31903152300` accepted only the exact
+  source-consistent restart state, applied only
+  `20260815060000_enable_checkout_stock_reservation_rls`, converged the
+  reviewed activated grants, and passed migration status, global grant/RLS
+  audit and exact applied-ledger scope.
+- Production now has policyless RLS enabled on
+  `public."CheckoutStockReservation"`, FORCE off, zero policies, zero direct
+  ordinary-runtime/PUBLIC table or column authority, 16 runtime-executable
+  fixed operations and nine owner-private functions. No row data changed.
+- The separate actual pooled-runtime postflight ran from the clean exact main
+  commit inside an engine-attested repeatable-read/read-only transaction. It
+  proved restricted identity, the exact 25-function source/mode/owner/ACL
+  catalog, direct-table denial, fixed export success, private-helper denial and
+  SQLSTATE `25006` at the fixed-write fence.
+- Sanitized mode-`0600` evidence SHA-256 is
+  `899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`;
+  it records `productionChangedByPostflight=false` and retains no URL, secret
+  or row data.
+- No application deployment or provider change accompanied Phase A. FORCE is
+  the next separate CheckoutStockReservation database boundary.

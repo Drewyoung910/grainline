@@ -144,19 +144,21 @@ describe("CheckoutStockReservation RLS authority audit", () => {
       .find((line) => line.startsWith("| `CheckoutStockReservation`"));
 
     assert.ok(row);
-    assert.match(row, /`ACTIVATION_PRODUCTION_WIRING_ISOLATED`/);
+    assert.match(row, /`RLS_LIVE_PHASE_A`/);
+    assert.match(row, /Policyless ENABLE/);
+    assert.match(row, /zero direct runtime\/PUBLIC table or column authority/);
+    assert.match(row, /405d6dff327bee76aced17f3876f8f18f29e05db/);
+    assert.match(row, /31894742120/);
+    assert.match(row, /31903152300/);
     assert.match(
       row,
-      /checkout-stock-reservation-source-consistency-release\.md/,
+      /899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0/,
     );
-    assert.doesNotMatch(row, /RLS_LIVE/);
-    assert.match(row, /source consistency/);
-    assert.match(row, /authenticated smoke/);
-    assert.match(row, /Production RLS remains off/);
+    assert.match(row, /FORCE remains the next separate posture-only release/);
     assert.match(row, /checkout-stock-reservation-activation-plan\.md/);
     assert.match(row, /checkout-stock-reservation-activation-release\.md/);
-    assert.match(row, /isolated production-wiring branch/);
     assert.match(strategy, /CheckoutStockReservation source-consistency boundary/);
     assert.match(strategy, /Two fresh provider slots passed/);
+    assert.match(strategy, /31903152300/);
   });
 });

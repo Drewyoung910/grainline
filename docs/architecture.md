@@ -37,7 +37,10 @@ Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`, and
 `StripeWebhookEvent`; all ten tables are `FORCE ROW LEVEL SECURITY` hardened
-in production. DirectUpload, StripeWebhookEvent, and the Case family intentionally use
+in production. `CheckoutStockReservation` is the eleventh production-RLS
+table and is intentionally at policyless Phase A with FORCE pending as a
+separate release. DirectUpload, StripeWebhookEvent, the Case family, and
+CheckoutStockReservation intentionally use
 policyless RLS with no direct ordinary-runtime table or column authority: all
 permitted behavior goes through reviewed fixed functions. DirectUpload's
 owner, pooled-runtime, and cleanup-role proofs are accepted; its dedicated
@@ -73,11 +76,11 @@ are live. Do not add the runtime URL to the owner-only GitHub Production
 migration environment; owner migration and actual-runtime proof remain
 separate credential boundaries.
 
-`CheckoutStockReservation` is the active service-ledger boundary. Its compatible
+`CheckoutStockReservation` is the current service-ledger boundary. Its compatible
 authority and additive source-consistency migrations, compatible application,
-authenticated production checkout smoke, and shared-credential predecessor
-deployment drain are complete. Direct table grants remain temporarily
-available only until the separate policyless ENABLE/grant-revocation release.
+authenticated production checkout smoke, shared-credential predecessor
+deployment drain, and policyless ENABLE/grant-revocation release are complete.
+Direct ordinary-runtime and PUBLIC table/column authority is now zero.
 Signed completion and restore bind an immutable Stripe source object plus
 claim generation; repair workers use monotonic claims; Redis checkout
 publication uses unique owner tokens. Each checkout path now calls one fixed
@@ -91,14 +94,13 @@ scope proof green. The pooled-runtime postflight, application deployment,
 authenticated smoke and exact-ID predecessor drain are accepted; no superseded
 deployment can authenticate with the current runtime credential.
 
-The exact policyless Phase-A migration is merged and passed exact-main CI,
-which replayed the full predecessor before applying it to disposable
-PostgreSQL, auditing the activated catalog and proving the boundary through a
-direct runtime login. Restart-safe production wiring exists only on an
-isolated unmerged branch. It byte-pins and isolates activation before proving
-the source-consistency and authority predecessors, then accepts only an exact
-source-consistent or fully activated read-only ledger state before applying.
-Main, production RLS and production grants remain unchanged by that wiring.
+The exact policyless Phase-A migration is live from exact main
+`405d6dff327bee76aced17f3876f8f18f29e05db`, CI `31894742120`, and guarded
+migration run `31903152300`. The restart-safe scope accepted the exact
+source-consistent predecessor, Prisma applied only the activation, and grant
+convergence plus migration/global audit and after-scope proof passed. The
+separate actual pooled-runtime postflight passed read-only; evidence SHA-256 is
+`899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`.
 
 The stacked activation design remains policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
@@ -108,8 +110,8 @@ unused legacy creation functions for a 16-runtime/9-private activated
 partition. The functions remain installed for rollback, but the accepted
 rollback application uses their source-consistent successors. The global
 grant-audit disposition, database-first rollback, direct-denial proof and
-actual pooled-runtime read-only postflight are prepared as production-inert
-release artifacts. The byte-pinned candidate builder only reports deterministic
+actual pooled-runtime read-only postflight are accepted production evidence.
+The byte-pinned candidate builder only reports deterministic
 proposed migration bytes and hashes; it cannot create a Prisma migration
 directory or execute a database change. Exact source-consistency bytes,
 evidence hashes and rollback limits remain in

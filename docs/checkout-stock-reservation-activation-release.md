@@ -1,10 +1,11 @@
 # CheckoutStockReservation policyless activation release
 
-Status: merged activation release with isolated production wiring in progress.
-The exact reviewed Phase-A migration is on main and passed exact-main
-CI/disposable PostgreSQL. It is wired to the guarded Production Migrations
-workflow only on a separate unmerged branch. Production RLS and grants are
-unchanged.
+Status: production Phase A and pooled-runtime proof complete. Exact main
+`405d6dff327bee76aced17f3876f8f18f29e05db`, CI `31894742120`, guarded
+migration run `31903152300`, and sanitized postflight evidence SHA-256
+`899679a14590200880e89d983fff70492632de458649316bd69cde9a0027ece0`
+are accepted. RLS is enabled without FORCE, with zero policies and zero direct
+ordinary-runtime/PUBLIC table or column authority.
 
 Date: 2026-08-15
 
@@ -84,14 +85,17 @@ show:
 - a fixed write reaches SQLSTATE `25006` at the read-only fence;
 - zero persisted proof residue.
 
-## Remaining release sequence
+## Completed production proof and remaining release
 
-1. Complete exact-head CI and review of the isolated production wiring.
-2. Merge the wiring without dispatching it.
-3. Separately dispatch only the exact same-main-CI-bound activation release.
-4. Apply Phase A, converge grants, verify migration/global audit, and run the
-   separate pooled-runtime production postflight.
-5. Prepare and execute FORCE as its own posture-only migration.
+Production-wiring PR #219 merged exact head
+`6dec4f84afea9e817a29247f9f57cf5646cc5b8b` as main
+`405d6dff327bee76aced17f3876f8f18f29e05db`; same-commit CI
+`31894742120` passed. Guarded run `31903152300` applied only the migration,
+converged grants, and passed migration status, global grant/RLS audit and exact
+ledger scope. The separate engine-read-only pooled-runtime postflight proved
+the real restricted identity, exact catalog and authority boundaries with
+`productionChangedByPostflight=false`.
 
-No step in this document authorizes a production migration, deployment,
-cleanup, provider mutation or FORCE activation.
+Prepare and execute FORCE only as its own posture-only migration and proof.
+Nothing in this document authorizes deployment, cleanup, provider mutation or
+FORCE activation.
