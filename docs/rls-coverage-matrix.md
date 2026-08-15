@@ -20,6 +20,13 @@ RLS remains defense in depth. Clerk authentication, route and action
 authorization, visibility rules, ownership predicates, and safe provider
 callbacks remain mandatory after a policy is enabled.
 
+Before any group advances from planning into policy or migration design, it
+must satisfy the separate domain-audit gate in `docs/rls-feasibility-plan.md`
+and link a durable group audit. A target disposition by itself is not approval
+to implement RLS. The audit must distinguish `BLOCKS_RLS_DESIGN`,
+`FIX_BEFORE_ACTIVATION`, and `DEFERRED_PRODUCT_WORK`; only the last category may
+remain open without blocking when its future authority implications are known.
+
 ## Status Vocabulary
 
 - `RLS_LIVE_PHASE_A`: production RLS is enabled with retained proof. A later
