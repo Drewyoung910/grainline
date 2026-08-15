@@ -348,9 +348,11 @@ evidence SHA-256 is
 records no production mutation. FORCE remains the sole separate database
 boundary for this table. Its byte-pinned posture-only migration, rollback and
 disposable proofs passed exact-head CI in draft PR #221. Restart-safe guarded
-production wiring is also prepared on a separate stacked branch, but both
-merges, exact-main CI, any dispatch and the actual pooled-runtime FORCE
-postflight remain separate reviewed work; retain
+production wiring passed exact-head CI in draft PR #222, but both merges,
+exact-main CI and any dispatch remain separate reviewed work. The
+distinct pooled-runtime FORCE postflight operator is now prepared as another
+production-inert successor; it cannot run before an exact successful FORCE
+migration and it never substitutes for migration scope or owner proof. Retain
 `docs/checkout-stock-reservation-force-release.md` and
 `docs/checkout-stock-reservation-force-production-wiring.md`.
 

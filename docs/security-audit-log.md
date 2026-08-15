@@ -1694,7 +1694,43 @@ Open work:
   branch: FORCE is verified and isolated before predecessor verification,
   restored last, restart-proven before Prisma, and after-proven following
   migration status and the global grant/RLS audit.
+- Guarded-wiring draft PR #222 pins exact head
+  `5af7d4801dc36d3f63b7168b3790d92b1a4cd0b8`; exact-head CI
+  `31908557122` passed all 133 steps, including the canonical clean install and
+  production build.
 - Production remains unchanged at policyless Phase A. The release and wiring
   are unmerged; no workflow was dispatched and no application/provider state
   changed. Retain
   `docs/checkout-stock-reservation-force-production-wiring.md`.
+
+## CheckoutStockReservation FORCE pooled-runtime postflight preparation (2026-08-15)
+
+- Prepared a distinct production-inert operator for the final actual-runtime
+  proof after a separately successful FORCE migration. It is not an activation
+  operator and cannot change RLS, grants, rows, migrations or provider state.
+- The operator requires the clean exact release commit, successful exact-main
+  CI and migration run identifiers, the actual pooled
+  `grainline_app_runtime` connection, and a fresh exact evidence filename. It
+  rejects owner/direct and aliased PostgreSQL URLs plus nondeterministic TLS or
+  session options.
+- PostgreSQL must attest repeatable-read/read-only transaction state and the
+  exact policyless ENABLE/FORCE table, owner, zero-authority and 25-function
+  catalog. Direct table read and private-helper execution must return `42501`,
+  fixed export must succeed, and a fixed write must reach SQLSTATE `25006`.
+- Evidence is exclusive, sanitized and mode `0600`; it retains only role and
+  target identity metadata, a URL digest, bound run IDs and aggregate proof
+  facts. Production remains unchanged at Phase A and the operator has not run.
+- Validation passed 55 focused activation/FORCE/workflow/PostgreSQL tests and
+  the complete repository suite with 3,111 passed, seven intentional skips and
+  zero failures. TypeScript, lint, syntax and diff checks passed; lint emitted
+  only the repository's existing jsx-ast-utils diagnostic.
+- Postflight draft PR #223 implementation checkpoint
+  `d0ee090c091476d078e41304d9e86876484dfef4` passed exact-head CI run
+  `31909599657`, all 133 steps including clean install, disposable PostgreSQL
+  authority/rollback proofs, the full test suite, dependency audit and
+  production build. The PR was restored to its intended #222 stacked base after
+  the canonical CI run.
+- Final Extra-High stack review found no SQL, authority, restart, rollback or
+  postflight defect. It did surface and record the complete dependency order:
+  Phase-A production-record PR #220, FORCE release #221, guarded wiring #222,
+  then pooled-runtime postflight #223. None is merged by this checkpoint.
