@@ -217,7 +217,9 @@ async function verifyCatalog(client) {
 
   const functions = await client.query(`
     SELECT
-      p.proname || '(' || pg_catalog.oidvectortypes(p.proargtypes) || ')' AS identity,
+      p.proname || '(' || pg_catalog.replace(
+        pg_catalog.oidvectortypes(p.proargtypes), ', ', ','
+      ) || ')' AS identity,
       p.prosecdef AS security_definer,
       p.proconfig AS config,
       pg_catalog.pg_get_userbyid(p.proowner) AS owner,

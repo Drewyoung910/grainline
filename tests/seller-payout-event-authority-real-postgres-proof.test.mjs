@@ -34,6 +34,7 @@ test("seller payout real-PostgreSQL proof refuses non-loopback or runtime creden
 
 test("seller payout real-PostgreSQL proof covers role, source, projection, race and cleanup", () => {
   assert.match(source, /CURRENT_USER AS current_user/);
+  assert.match(source, /pg_catalog\.replace\([\s\S]*oidvectortypes/);
   assert.match(source, /SET LOCAL ROLE \$\{RUNTIME_ROLE\}/);
   assert.match(source, /forged payout source/);
   assert.match(source, /ignored_unknown_account/);
