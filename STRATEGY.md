@@ -369,6 +369,14 @@ proof all precede activation. `OrderPaymentEvent`, shipping quotes, Order and
 OrderItem remain separate releases, and live-mode Connect signed delivery
 remains a separate launch/provider gate.
 
+The isolated compatible candidate is tracked in
+`docs/seller-payout-event-compatible-authority-release.md`. It is additive and
+keeps predecessor CRUD/RLS posture unchanged; it must pass full CI and a fresh
+aggregate production inspection before any production runner is prepared.
+Application conversion, linked-seller signed test-mode proof, predecessor drain,
+policyless ENABLE and FORCE remain separate boundaries. Do not reinterpret the
+candidate as permission to bundle the other four tables.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

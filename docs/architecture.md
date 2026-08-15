@@ -124,6 +124,15 @@ converted app, linked-seller signed test-mode proof, Notification source path
 and predecessor drain pass. See
 `docs/seller-payout-event-pre-rls-audit.md`.
 
+The additive SellerPayoutEvent authority candidate is documented separately in
+`docs/seller-payout-event-compatible-authority-release.md`. It introduces
+provider-event ordering, a source-bound writer and bounded seller projections
+while intentionally leaving RLS off and predecessor table grants intact. A
+transaction-scoped payout-identity advisory lock covers concurrent first
+writes, where a row lock cannot yet exist. The candidate is not production
+state and does not change the separate activation order for payment events,
+shipping quotes or Order/OrderItem.
+
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
 retaining only the exact source-consistent fixed-operation catalog. It verifies

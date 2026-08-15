@@ -656,3 +656,20 @@ sensitive-data group.
 Keep Extra High for schema, authority, concurrency, migration and production
 review. High is sufficient only for mechanical inventory and documentation
 once the security decisions above are pinned.
+
+### 2026-08-15 remaining-domain refresh
+
+CheckoutStockReservation is complete through policyless FORCE RLS and its
+actual pooled-runtime proof. A fresh direct-access inventory still finds five
+unfinished tables: Order, OrderItem, OrderShippingRateQuote,
+OrderPaymentEvent and SellerPayoutEvent. They remain separate releases.
+
+The required domain-first gate selected SellerPayoutEvent because it has only
+three direct consumers and no Order fulfillment, refund or Shippo state
+transition. The dedicated audit is
+`docs/seller-payout-event-pre-rls-audit.md`. Its isolated additive candidate is
+recorded in `docs/seller-payout-event-compatible-authority-release.md`; it is
+not merged, applied, deployed or activated. The candidate closes the discovered
+provider-ordering and first-insert race in database design, but production work
+still begins with a fresh aggregate-only inspection and stops on any legacy
+row requiring classification.
