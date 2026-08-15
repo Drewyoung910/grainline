@@ -180,9 +180,9 @@ evidence is the deliberate separation boundary.
 StripeWebhookEvent FORCE is accepted after the restart-safe database
 credential recovery; its recovered pooled-runtime postflight was the
 prerequisite for reservation authority. The compatible reservation migration
-and fixed-operation application are now live. Direct table grants remain only
-as temporary compatibility authority for predecessor deployments; reservation
-RLS remains off.
+and fixed-operation application are now live. The shared-credential predecessor
+deployment drain later completed with zero predecessors. Direct table grants
+remain only as temporary activation compatibility; reservation RLS remains off.
 
 The production path is deliberately dedicated rather than reopening the
 single-purpose Stripe FORCE runner. It requires successful same-commit main CI
@@ -300,15 +300,14 @@ genuine signed-expiry deliveries, then completed every bounded cleanup. The
 sanitized mode-`0600` evidence SHA-256 is
 `86b37f18cae8fadb8a126b548455201a7816c74f00731d13fa8a6bf2de8602db`.
 Paid completion remains a distinct accounting and durable side-effect
-decision and was not claimed. RLS stays off and predecessor direct grants stay
-compatible until the separate predecessor deployment drain completes. The
-provider audit found exactly one callable superseded deployment sharing the
-current runtime credential; every older deployment is fenced by the accepted
-prior-password rejection proof. A restart-safe exact-ID drain operator is now
-prepared and documented in
-`docs/checkout-stock-reservation-predecessor-drain.md`. It must remove only that
-one predecessor and preserve all canonical aliases before policyless ENABLE
-plus direct-grant revocation can begin.
+decision and was not claimed. The separate exact-ID predecessor drain is now
+complete: exact main `4ff40f22c70072406168c378cdb13860f9de317b`, CI
+`31858295911`, and sanitized evidence SHA-256
+`5f3b63675bdc84749b5f8fef25086bc42a5dddba5e87f5a46fa7bf6015322141`
+prove zero shared-credential predecessors, preserved canonical aliases and
+green health. RLS stays off and direct grants stay temporarily compatible
+until the separate policyless ENABLE plus direct-grant revocation release.
+FORCE remains later and separate.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

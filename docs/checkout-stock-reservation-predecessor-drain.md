@@ -1,9 +1,9 @@
 # CheckoutStockReservation predecessor deployment drain
 
-Status: the exact predecessor was removed on 2026-08-14, but final evidence
-remains pending after a fail-closed provider-message compatibility defect. RLS
-remains off and the predecessor direct table grants remain intact until this
-record is updated with accepted completion evidence.
+Status: complete. The exact predecessor is removed, final restart-safe evidence
+is accepted, all current aliases and health are preserved, and the private
+restart marker is absent. RLS remains off and direct table grants remain intact
+until the separate policyless ENABLE/grant-revocation release.
 
 ## Why elapsed time alone is insufficient
 
@@ -108,3 +108,23 @@ or edit that state by hand.
 Accepted drain evidence permits preparation of a separate policyless ENABLE
 plus predecessor direct-grant revocation release. It does not itself authorize
 that database change. FORCE remains a later posture-only release.
+
+## Accepted execution evidence (2026-08-14)
+
+- Initial exact main `05e652501485e2701720e1883906ec0a36bb75a0` / CI
+  `31845083086` removed only the authorized predecessor, then failed closed on
+  the provider diagnostic recorded above.
+- Corrected exact main `4ff40f22c70072406168c378cdb13860f9de317b` / CI
+  `31858295911` resumed only from that exact private state and completed all
+  post-removal audits.
+- Sanitized mode-`0600` evidence:
+  `checkout-stock-reservation-predecessor-drain-4ff40f22c70072406168c378cdb13860f9de317b.json`;
+  SHA-256
+  `5f3b63675bdc84749b5f8fef25086bc42a5dddba5e87f5a46fa7bf6015322141`.
+- Evidence records `sharedCredentialPredecessorsBefore=1`,
+  `sharedCredentialPredecessorsAfter=0`, `predecessorRemoved=true`,
+  `currentAliasesPreserved=true`, `canonicalHealthPassed=true`, and all
+  migration/RLS/grant/provider-configuration mutation flags false.
+- The restart file is absent. The current production deployment remains
+  `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`; canonical health returned exactly
+  `{ "ok": true }` after finalization.

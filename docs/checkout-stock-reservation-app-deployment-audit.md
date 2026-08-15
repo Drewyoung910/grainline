@@ -2,11 +2,11 @@
 
 Status: compatible application live in production; exact deployment, alias,
 health, unauthenticated route-boundary checks and the authenticated checkout
-smoke matrix passed. The predecessor deployment drain remains open, with the
-exact restart-safe operator and live inventory recorded in
+smoke matrix passed. The exact predecessor deployment drain also passed, with
+the restart-safe operator and accepted evidence recorded in
 `docs/checkout-stock-reservation-predecessor-drain.md`.
-CheckoutStockReservation RLS remains off and predecessor table grants remain
-compatible.
+CheckoutStockReservation RLS remains off and direct table grants remain
+temporarily compatible until the separate policyless activation release.
 
 This record covers the application/coexistence boundary after the additive
 CheckoutStockReservation source-consistency migration. The application-only
@@ -15,7 +15,8 @@ migration, RLS or grant change, cleanup, or any further provider-state change.
 
 ## Exact boundary
 
-- The canonical production alias was live-inspected on 2026-08-14 as READY on
+- Before the compatible application promotion, the canonical production alias
+  was live-inspected on 2026-08-14 as READY on
   Vercel deployment `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6`. The filtered provider
   metadata did not expose a Git SHA, so this record does not infer one from that
   response.
@@ -143,16 +144,21 @@ cleanup invariant passed; the sanitized mode-`0600` evidence SHA-256 is
 Paid completion remains a separate provider side-effect decision and was not
 claimed.
 
-The remaining coexistence boundary is predecessor deployment drain. After it
-passes, prepare policyless ENABLE plus direct-grant revocation as a separate
-database release; FORCE remains a later posture-only release.
+The predecessor coexistence boundary is complete. Exact main
+`4ff40f22c70072406168c378cdb13860f9de317b` and CI `31858295911` finalized
+the restart-safe drain after exact deployment
+`dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` was removed. Sanitized mode-`0600`
+evidence SHA-256 is
+`5f3b63675bdc84749b5f8fef25086bc42a5dddba5e87f5a46fa7bf6015322141`.
+Prepare policyless ENABLE plus direct-grant revocation as a separate database
+release; FORCE remains a later posture-only release.
 
-The provider audit found exactly one superseded READY deployment that shares
+The provider audit had found exactly one superseded READY deployment that shared
 the current pooled runtime credential: `dpl_C3N3Pud...`. All older deployments
 are fenced by the accepted prior-password rejection proof. The drain operator
-removes only that exact deployment after proving current aliases, source,
-maximum request duration, inventory and health; this preparation does not
-itself change production.
+removed only that exact deployment after proving current aliases, source,
+maximum request duration, inventory and health. Completion records zero
+shared-credential predecessors and preserved every canonical alias.
 
 Order, OrderItem, payment, payout and shipping activation remain separate.
 

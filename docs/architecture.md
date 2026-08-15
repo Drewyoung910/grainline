@@ -75,8 +75,9 @@ separate credential boundaries.
 
 `CheckoutStockReservation` is the next service-ledger boundary. Its compatible
 authority and additive source-consistency migrations, compatible application,
-and authenticated production checkout smoke are complete while direct table
-grants remain temporarily available to predecessor deployments.
+authenticated production checkout smoke, and shared-credential predecessor
+deployment drain are complete. Direct table grants remain temporarily
+available only until the separate policyless ENABLE/grant-revocation release.
 Signed completion and restore bind an immutable Stripe source object plus
 claim generation; repair workers use monotonic claims; Redis checkout
 publication uses unique owner tokens. The accepted next candidate closes the
@@ -88,9 +89,9 @@ provider slots passed without weaker thresholds or residue. Exact main
 `16239fce2956c6dc726c24ccd7a91d1ea35463bd` and production migration run
 `31814032227` applied the additive migration with the global audit and exact
 scope proof green; RLS remains off. The pooled-runtime postflight, application
-deployment and authenticated smoke are accepted. Exactly one superseded
-deployment still shares the current runtime credential; its exact-ID drain,
-policyless ENABLE with direct-grant revocation, and FORCE remain separate
+deployment, authenticated smoke and exact-ID predecessor drain are accepted.
+No superseded deployment can authenticate with the current runtime credential.
+Policyless ENABLE with direct-grant revocation and FORCE remain separate
 release boundaries. Exact bytes, evidence hashes and rollback limits are
 retained in `docs/checkout-stock-reservation-source-consistency-release.md`,
 `docs/checkout-stock-reservation-production-smoke.md`, and
