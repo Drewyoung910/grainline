@@ -119,7 +119,10 @@ Completed CheckoutStockReservation source-consistency postflight:
   aliased PostgreSQL URLs are rejected. The operator is engine-attested
   repeatable-read/read-only, requires exact FORCE catalog and runtime denial,
   and writes only fresh sanitized mode-`0600` evidence. It does not activate
-  FORCE or mutate the database.
+  FORCE or mutate the database. Postflight draft PR #223 implementation
+  checkpoint `d0ee090c091476d078e41304d9e86876484dfef4` passed exact-head CI
+  `31909599657` (all 133 steps). Preserve stacked order #220 -> #221 -> #222 ->
+  #223 before any exact-main release decision.
 
 Current Conversation/Message production boundary:
 

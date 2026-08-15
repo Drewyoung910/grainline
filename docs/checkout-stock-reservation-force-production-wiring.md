@@ -7,7 +7,10 @@ rollback, runtime-denial, full-suite and production-build gates. The guarded
 wiring is draft PR #222 at exact head
 `5af7d4801dc36d3f63b7168b3790d92b1a4cd0b8`; its exact-head CI run
 `31908557122` also passed all 133 steps. Neither release nor wiring has been
-merged, dispatched or applied. Production remains at accepted policyless
+merged, dispatched or applied. The distinct pooled-runtime postflight is draft
+PR #223 at implementation checkpoint
+`d0ee090c091476d078e41304d9e86876484dfef4`; exact-head CI run
+`31909599657` passed all 133 steps. Production remains at accepted policyless
 Phase A with FORCE off.
 
 Date: 2026-08-15
@@ -104,3 +107,9 @@ ENABLE plus FORCE, zero direct ordinary-runtime/PUBLIC authority, the exact
 25-function catalog, direct-table and private-helper denial, fixed export
 success, and SQLSTATE `25006` at the fixed-write fence. It writes only a fresh,
 sanitized mode-`0600` evidence file and cannot activate or alter RLS.
+
+The complete stacked merge order is documentation PR #220, FORCE release PR
+#221, guarded-wiring PR #222, then postflight PR #223. Retarget each successor
+only after its predecessor merges; do not squash or skip #220 because it is the
+durable Phase-A production record on which the later release documentation is
+based.
