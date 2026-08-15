@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
+  AUTHORIZED_RESTART_PREDECESSOR,
   CANONICAL_ALIASES,
   CONFIRMATION,
   CURRENT_DEPLOYMENT,
@@ -18,6 +19,7 @@ import {
   validateDeploymentInventory,
   validateHealth,
   validateInspectAbsentResult,
+  validateState,
 } from "../scripts/checkout-stock-reservation-predecessor-drain.mjs";
 
 const operatorCommit = "f".repeat(40);
@@ -150,8 +152,51 @@ test("deployment, alias, health and absence proofs all fail closed", () => {
   assert.equal(validateHealth(200, { ok: true }), true);
   assert.throws(() => validateHealth(200, { ok: true, extra: true }));
   assert.equal(validateInspectAbsentResult({ status: 1, stderr: "Error: Could not find Deployment" }), true);
+  assert.equal(validateInspectAbsentResult({
+    status: 1,
+    stderr: "Error: Can't find the deployment under the context",
+  }), true);
+  assert.equal(validateInspectAbsentResult({
+    status: 1,
+    stderr: "Error: Cannot find deployment",
+  }), true);
   assert.throws(() => validateInspectAbsentResult({ status: 0, stdout: "{}" }));
   assert.throws(() => validateInspectAbsentResult({ status: 1, stderr: "network unavailable" }));
+});
+
+test("restart state accepts only the current release or exact failed authorized predecessor", () => {
+  const base = {
+    schemaVersion: 1,
+    stage: "removal-authorized",
+    startedAt: "2026-08-15T01:51:38.478Z",
+    currentDeploymentId: CURRENT_DEPLOYMENT.id,
+    predecessorDeploymentId: PREDECESSOR_DEPLOYMENT.id,
+  };
+  const current = validateState({
+    ...base,
+    operatorCommit,
+    mainCiRunId: 12345,
+  }, { operatorCommit, mainCiRunId: 12345 });
+  assert.equal(current.restartedFrom, null);
+
+  const prior = validateState({
+    ...base,
+    operatorCommit: AUTHORIZED_RESTART_PREDECESSOR.operatorCommit,
+    mainCiRunId: AUTHORIZED_RESTART_PREDECESSOR.mainCiRunId,
+  }, { operatorCommit, mainCiRunId: 12345 });
+  assert.deepEqual(prior.restartedFrom, AUTHORIZED_RESTART_PREDECESSOR);
+
+  assert.throws(() => validateState({
+    ...base,
+    operatorCommit: AUTHORIZED_RESTART_PREDECESSOR.operatorCommit,
+    mainCiRunId: AUTHORIZED_RESTART_PREDECESSOR.mainCiRunId + 1,
+  }, { operatorCommit, mainCiRunId: 12345 }), /restart state drifted/);
+  assert.throws(() => validateState({
+    ...base,
+    stage: "predecessor-removed",
+    operatorCommit: AUTHORIZED_RESTART_PREDECESSOR.operatorCommit,
+    mainCiRunId: AUTHORIZED_RESTART_PREDECESSOR.mainCiRunId,
+  }, { operatorCommit, mainCiRunId: 12345 }), /restart state drifted/);
 });
 
 test("sanitized evidence records the drain without secrets or database mutations", () => {
@@ -159,6 +204,7 @@ test("sanitized evidence records the drain without secrets or database mutations
     config: { operatorCommit, mainCiRunId: 12345 },
     inventory: { elapsedSeconds: 900, sharedCredentialPredecessors: 1 },
     recovery: { sha256: "e".repeat(64) },
+    restart: AUTHORIZED_RESTART_PREDECESSOR,
     startedAt: "2026-08-14T00:00:00.000Z",
   });
   assert.equal(evidence.deploymentDrain.predecessorRemoved, true);
@@ -167,6 +213,7 @@ test("sanitized evidence records the drain without secrets or database mutations
   assert.equal(evidence.checkoutStockReservation.rlsChanged, false);
   assert.equal(evidence.checkoutStockReservation.grantsChanged, false);
   assert.equal(evidence.secretsRetained, false);
+  assert.deepEqual(evidence.restart, AUTHORIZED_RESTART_PREDECESSOR);
 });
 
 test("operator can only remove the exact predecessor and cannot mutate the database", () => {
