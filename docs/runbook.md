@@ -108,8 +108,18 @@ Completed CheckoutStockReservation source-consistency postflight:
   `npm run audit:rls-checkout-stock-reservation-force-production-scope`.
   `restart` accepts only the complete activated ledger with no FORCE row or
   the complete force-hardened ledger with one exact applied FORCE row; `after`
-  requires the latter. The guarded wiring remains isolated and undispatched;
-  retain `docs/checkout-stock-reservation-force-production-wiring.md`.
+  requires the latter. Guarded-wiring draft PR #222 exact head
+  `5af7d4801dc36d3f63b7168b3790d92b1a4cd0b8` passed exact-head CI
+  `31908557122`; it remains isolated and undispatched. Retain
+  `docs/checkout-stock-reservation-force-production-wiring.md`.
+- After a separately reviewed FORCE migration succeeds, run the distinct
+  pooled-runtime proof only from the exact clean main release with:
+  `CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_CONFIRM=verify-production-checkout-stock-reservation-force-runtime-read-only CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_RELEASE_COMMIT=<exact-force-main> CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-main-ci> CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_MIGRATION_RUN_ID=<successful-force-migration-run> CHECKOUT_STOCK_RESERVATION_FORCE_POSTFLIGHT_EVIDENCE_PATH="checkout-stock-reservation-force-production-postflight-<exact-force-main>.json" npm run ops:checkout-stock-reservation-force-postflight`.
+  Keep only the actual pooled production `DATABASE_URL`; owner/direct and
+  aliased PostgreSQL URLs are rejected. The operator is engine-attested
+  repeatable-read/read-only, requires exact FORCE catalog and runtime denial,
+  and writes only fresh sanitized mode-`0600` evidence. It does not activate
+  FORCE or mutate the database.
 
 Current Conversation/Message production boundary:
 

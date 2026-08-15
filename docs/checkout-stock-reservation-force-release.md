@@ -91,7 +91,10 @@ restores and re-verifies FORCE in `finally`.
 The separate restart-safe production scope and guarded main-only wiring are
 now prepared but remain unmerged and undispatched. They still require review,
 merge sequencing after this release, exact-main CI and a separate production
-dispatch decision. After any successful application, review and run the actual
-pooled-runtime FORCE postflight. Nothing in this candidate authorizes a merge,
-workflow dispatch, migration, deployment, cleanup, credential change or
-provider mutation.
+dispatch decision. The distinct actual pooled-runtime FORCE postflight is also
+prepared in isolation and documented in
+`docs/checkout-stock-reservation-force-production-wiring.md`; it requires an
+exact successful main commit and migration run and cannot run before them.
+Nothing in this candidate authorizes a merge, workflow dispatch, migration,
+postflight execution, deployment, cleanup, credential change or provider
+mutation.

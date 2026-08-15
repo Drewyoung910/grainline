@@ -123,7 +123,8 @@ and guarded workflow contract are in
 `docs/checkout-stock-reservation-activation-production-wiring.md`. The
 posture-only FORCE release and its restart-safe production wiring are in
 `docs/checkout-stock-reservation-force-release.md` and
-`docs/checkout-stock-reservation-force-production-wiring.md`.
+`docs/checkout-stock-reservation-force-production-wiring.md`; the latter also
+owns the distinct actual pooled-runtime FORCE postflight contract.
 
 ## Core Lifecycles
 
