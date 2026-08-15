@@ -1596,3 +1596,30 @@ Open work:
 - Production workflow wiring remains intentionally absent. No production
   query, migration, deployment, RLS/grant change, cleanup or provider mutation
   occurred during promotion.
+
+## CheckoutStockReservation activation production wiring (2026-08-15)
+
+- Release PR #218 merged exact reviewed head
+  `1dbab12dfe52867f1df5ca8689db2e3f0ae89933` as main
+  `5817dea6725f7f2eb7fde3da1f546aa75dd449b1`; exact-main CI run
+  `31892857440` passed. No Production deployment followed the merge.
+- `CSR-A36`: the generic Production Migrations workflow still ended at the
+  source-consistency preparation and had no activation-specific restart
+  classifier. The isolated correction verifies and removes the byte-pinned
+  activation before replaying the sealed source-consistency/authority prefix,
+  restores migrations in dependency order, and runs the activation scope
+  proof before Prisma and after the final global audit.
+- The scope proof reads `_prisma_migrations` only inside an engine-attested
+  `READ ONLY` transaction. It recursively retains the three reviewed
+  historical ledger exceptions, accepts only an exact source-consistent or
+  exact fully activated restart state, and rejects unknown, missing, duplicate,
+  partial, rolled-back or checksum-drifted activation rows.
+- Unit and disposable-PostgreSQL proofs cover both accepted restart states and
+  reject a zero-step failed activation row instead of implicitly resolving or
+  replaying it.
+- The review also removed stale, pre-release activation/FORCE placeholder names
+  from the older authority-only scope verifier. Its regression test now rejects
+  the actual byte-pinned activation successor explicitly.
+- This is isolated workflow, test and documentation work only. It was not
+  merged or dispatched; no production query, migration, deployment, RLS/grant
+  change, FORCE, cleanup, credential or provider mutation occurred.

@@ -1,9 +1,10 @@
 # CheckoutStockReservation policyless activation release
 
-Status: isolated release candidate. The exact reviewed Phase-A migration is
-promoted and exercised only in CI/disposable PostgreSQL. The guarded Production
-Migrations workflow is deliberately still pinned to the live
-source-consistency predecessor. Production RLS and grants are unchanged.
+Status: merged activation release with isolated production wiring in progress.
+The exact reviewed Phase-A migration is on main and passed exact-main
+CI/disposable PostgreSQL. It is wired to the guarded Production Migrations
+workflow only on a separate unmerged branch. Production RLS and grants are
+unchanged.
 
 Date: 2026-08-15
 
@@ -12,6 +13,12 @@ Prerequisite activation-refresh PR #217 merged as exact main
 `31868509324` passed. Its Vercel run was Preview-only and failed at the
 intentional missing-Preview-database boundary; no Production deployment was
 created.
+
+Activation release PR #218 subsequently merged exact reviewed head
+`1dbab12dfe52867f1df5ca8689db2e3f0ae89933` as main
+`5817dea6725f7f2eb7fde3da1f546aa75dd449b1`; exact-main CI run
+`31892857440` passed. The separate production-wiring design is retained in
+`docs/checkout-stock-reservation-activation-production-wiring.md`.
 
 ## Exact release boundary
 
@@ -79,10 +86,9 @@ show:
 
 ## Remaining release sequence
 
-1. Complete exact-head branch CI and review this production-inert release.
-2. Merge the migration and CI proof without running production migrations.
-3. In a separate release, wire only this exact migration to the guarded
-   Production Migrations workflow and prove restart scope.
+1. Complete exact-head CI and review of the isolated production wiring.
+2. Merge the wiring without dispatching it.
+3. Separately dispatch only the exact same-main-CI-bound activation release.
 4. Apply Phase A, converge grants, verify migration/global audit, and run the
    separate pooled-runtime production postflight.
 5. Prepare and execute FORCE as its own posture-only migration.

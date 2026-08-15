@@ -89,6 +89,7 @@
     "audit:rls-checkout-stock-reservation-activation-candidate": "node scripts/build-checkout-stock-reservation-activation-candidate.mjs --verify",
     "audit:rls-checkout-stock-reservation-activation-release": "node scripts/verify-checkout-stock-reservation-activation-release.mjs",
     "audit:rls-checkout-stock-reservation-activation-postflight-postgres": "node scripts/checkout-stock-reservation-activation-postflight-postgres-proof.mjs",
+    "audit:rls-checkout-stock-reservation-activation-production-scope": "node scripts/verify-checkout-stock-reservation-activation-production-scope.mjs",
     "ops:order-payment-shipping-legacy-inspect": "node scripts/order-payment-shipping-legacy-inspect.mjs",
     "ops:case-force-postflight": "node scripts/case-activation-production-postflight.mjs --post-force",
     "audit:rls-case-participant-resolution": "node scripts/case-participant-resolution-postgres-proof.mjs",

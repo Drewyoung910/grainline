@@ -91,12 +91,14 @@ scope proof green. The pooled-runtime postflight, application deployment,
 authenticated smoke and exact-ID predecessor drain are accepted; no superseded
 deployment can authenticate with the current runtime credential.
 
-The exact policyless Phase-A migration is promoted in an isolated release and
-CI now replays the full predecessor before applying it to disposable PostgreSQL,
-auditing the activated catalog and proving the boundary through a direct
-runtime login. The production migration workflow is intentionally not wired to
-that migration yet, so this packaging does not change the live RLS/grant
-posture.
+The exact policyless Phase-A migration is merged and passed exact-main CI,
+which replayed the full predecessor before applying it to disposable
+PostgreSQL, auditing the activated catalog and proving the boundary through a
+direct runtime login. Restart-safe production wiring exists only on an
+isolated unmerged branch. It byte-pins and isolates activation before proving
+the source-consistency and authority predecessors, then accepts only an exact
+source-consistent or fully activated read-only ledger state before applying.
+Main, production RLS and production grants remain unchanged by that wiring.
 
 The stacked activation design remains policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
@@ -113,7 +115,10 @@ directory or execute a database change. Exact source-consistency bytes,
 evidence hashes and rollback limits remain in
 `docs/checkout-stock-reservation-source-consistency-release.md`,
 `docs/checkout-stock-reservation-production-smoke.md`, and
-`docs/checkout-stock-reservation-predecessor-drain.md`.
+`docs/checkout-stock-reservation-predecessor-drain.md`. The activation release
+and guarded workflow contract are in
+`docs/checkout-stock-reservation-activation-release.md` and
+`docs/checkout-stock-reservation-activation-production-wiring.md`.
 
 ## Core Lifecycles
 

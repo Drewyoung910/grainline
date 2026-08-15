@@ -45,6 +45,17 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify exact CheckoutStockReservation activation migration tree
+        run: npm run verify:rls-release-artifact
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-activation-reviewed
+      - name: Verify exact CheckoutStockReservation activation release
+        run: npm run audit:rls-checkout-stock-reservation-activation-release
+      - name: Isolate the reviewed CheckoutStockReservation activation
+        run: >-
+          mv
+          prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls
+          "$RUNNER_TEMP/checkout-stock-reservation-activation-release"
       - name: Verify exact CheckoutStockReservation source-consistency migration tree
         run: npm run verify:rls-release-artifact
         env:
@@ -87,10 +98,15 @@ jobs:
           mv
           "$RUNNER_TEMP/checkout-stock-reservation-source-consistency-release"
           prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency
-      - name: Inspect exact CheckoutStockReservation source-consistency restart scope read-only
-        run: npm run audit:rls-checkout-stock-reservation-source-consistency-production-scope
+      - name: Restore the reviewed CheckoutStockReservation activation
+        run: >-
+          mv
+          "$RUNNER_TEMP/checkout-stock-reservation-activation-release"
+          prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls
+      - name: Inspect exact CheckoutStockReservation activation restart scope read-only
+        run: npm run audit:rls-checkout-stock-reservation-activation-production-scope
         env:
-          CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_SCOPE_STAGE: restart
+          CHECKOUT_STOCK_RESERVATION_ACTIVATION_SCOPE_STAGE: restart
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Generate Prisma client
         run: npx prisma generate
@@ -98,7 +114,7 @@ jobs:
         run: npx prisma migrate deploy
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Converge exact CheckoutStockReservation runtime function grants
+      - name: Converge exact activated CheckoutStockReservation runtime grants
         run: >-
           psql "$DIRECT_URL"
           -v runtime_role=grainline_app_runtime
@@ -115,8 +131,8 @@ jobs:
         run: npm run audit:db-grants -- --require-direct-url
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Prove exact CheckoutStockReservation source-consistency production scope
-        run: npm run audit:rls-checkout-stock-reservation-source-consistency-production-scope
+      - name: Prove exact CheckoutStockReservation activation production scope
+        run: npm run audit:rls-checkout-stock-reservation-activation-production-scope
         env:
-          CHECKOUT_STOCK_RESERVATION_SOURCE_CONSISTENCY_SCOPE_STAGE: after
+          CHECKOUT_STOCK_RESERVATION_ACTIVATION_SCOPE_STAGE: after
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

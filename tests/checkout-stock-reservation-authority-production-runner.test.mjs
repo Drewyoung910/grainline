@@ -43,20 +43,29 @@ test("dedicated runner proves before and after and applies only compatible tree"
   assert.doesNotMatch(workflow, /vercel|deploy application|Stripe endpoint/i);
 });
 
-test("generic runner isolates the source successor while proving the sealed authority predecessor", () => {
-  const isolate = generic.indexOf(
+test("generic runner nests activation, source, and authority release boundaries", () => {
+  const isolateActivation = generic.indexOf(
+    "Isolate the reviewed CheckoutStockReservation activation",
+  );
+  const isolateSource = generic.indexOf(
     "Isolate the reviewed CheckoutStockReservation source-consistency successor",
   );
   const predecessor = generic.indexOf(
     "Verify exact CheckoutStockReservation authority migration tree after isolation",
   );
-  const restore = generic.indexOf(
+  const restoreSource = generic.indexOf(
     "Restore the reviewed CheckoutStockReservation source-consistency successor",
   );
-  assert.ok(isolate >= 0);
-  assert.ok(predecessor > isolate);
-  assert.ok(restore > predecessor);
+  const restoreActivation = generic.indexOf(
+    "Restore the reviewed CheckoutStockReservation activation",
+  );
+  assert.ok(isolateActivation >= 0);
+  assert.ok(isolateSource > isolateActivation);
+  assert.ok(predecessor > isolateSource);
+  assert.ok(restoreSource > predecessor);
+  assert.ok(restoreActivation > restoreSource);
   assert.match(generic, /checkout-stock-reservation-authority-reviewed/);
+  assert.match(generic, /checkout-stock-reservation-activation-reviewed/);
 });
 
 test("production scope proof has an explicit package entrypoint", () => {
