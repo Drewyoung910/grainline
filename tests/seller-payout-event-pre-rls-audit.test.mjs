@@ -26,6 +26,10 @@ test("does not bless arrival-order payout mutation", () => {
   assert.match(audit, /older provider event cannot overwrite newer/);
   assert.match(audit, /equal-time different event is[\s\S]*rejected/);
   assert.match(audit, /cannot independently authenticate Clerk or a[\s\S]*Stripe signature/);
+  assert.match(
+    audit,
+    /already_applied` writer result[\s\S]*must not[\s\S]*`stale_ignored` or `ignored_unknown_account`/,
+  );
 });
 
 test("classifies activation gates and deferred product work explicitly", () => {

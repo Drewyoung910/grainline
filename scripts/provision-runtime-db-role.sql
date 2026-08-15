@@ -1236,6 +1236,50 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- SellerPayoutEvent compatible authority is optional until its additive
+-- migration lands. When present, converge only the three reviewed service
+-- functions without changing predecessor table CRUD or RLS posture.
+WITH seller_payout_event_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_payout_event_apply"(text, bigint, bigint, text, text, integer, text, text, text)'),
+    ('public."grainline_seller_payout_latest_failure"(text)'),
+    ('public."grainline_seller_payout_export_page"(text, integer, bigint, text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM seller_payout_event_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_payout_event_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_payout_event_apply"(text, bigint, bigint, text, text, integer, text, text, text)'),
+    ('public."grainline_seller_payout_latest_failure"(text)'),
+    ('public."grainline_seller_payout_export_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_payout_event_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH seller_payout_event_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_payout_event_apply"(text, bigint, bigint, text, text, integer, text, text, text)'),
+    ('public."grainline_seller_payout_latest_failure"(text)'),
+    ('public."grainline_seller_payout_export_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM seller_payout_event_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- CheckoutStockReservation compatible preparation keeps predecessor table
 -- grants while adding only the fixed lifecycle surface. The functions may be
 -- absent before that migration, so every convergence statement is catalog-

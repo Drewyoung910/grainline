@@ -175,6 +175,12 @@ defect. Each remaining path is classified:
   owner-authenticated, aggregate-only production predecessor inspector. It
   runs in an engine-attested repeatable-read read-only transaction and exports
   no rows or provider identifiers. It is not an ordinary runtime path.
+- `scripts/seller-payout-event-authority-postgres-proof.mjs` is the
+  loopback-only disposable PostgreSQL proof for the later SellerPayoutEvent
+  compatible-authority successor. It uses a synthetic owner plus restricted
+  runtime roles, deliberately reads the source lease table to validate fixed
+  function behavior, and removes every prefix-scoped fixture in `finally`. It
+  is neither ordinary application access nor a production inspection path.
 - `scripts/stripe-webhook-event-activation-postgres-proof.mjs` is the
   loopback-only activated-boundary proof. It uses owner catalog reads and
   deliberately attempts direct operations after `SET LOCAL ROLE` to prove

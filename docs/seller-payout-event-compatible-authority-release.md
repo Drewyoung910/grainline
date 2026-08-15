@@ -41,6 +41,29 @@ functions bind already-authenticated facts to narrow database transitions and
 remove generic table access at a later activation; they do not claim resistance
 to arbitrary application code execution holding the shared runtime credential.
 
+### Application conversion result handling
+
+The later application conversion must pass both the active webhook
+`claimGeneration` and Stripe `event.created` to the fixed writer. Its result
+actions are not interchangeable:
+
+- `inserted`, `updated`, `legacy_converged` and `already_applied` must all
+  attempt the source-bound payout notification;
+- `already_applied` must not short-circuit notification work, because the
+  payout projection commits before the current best-effort notification call.
+  A notification failure therefore leaves an applied payout row for a later
+  Stripe retry, while Notification's source identity provides deduplication;
+- `stale_ignored` must not emit a notification for stale evidence; and
+- `ignored_unknown_account` must not invent a recipient or payout owner, but
+  the route must retain bounded non-payload observability for the ignored
+  result.
+
+The notification call must use the returned payout row ID as `sourceId`.
+Notification's database function independently joins that row to
+`SellerProfile` and requires the derived seller user to match the requested
+recipient; the payout writer's returned seller ID is therefore convenient
+application data, not the notification authority boundary.
+
 ## Compatibility boundary
 
 The candidate is deliberately additive:

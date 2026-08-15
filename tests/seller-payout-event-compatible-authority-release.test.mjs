@@ -30,6 +30,22 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
   assert.match(release, /fresh protected aggregate-only production inspection/i);
   assert.match(release, /policyless ENABLE/i);
   assert.match(release, /posture-only FORCE/i);
+  assert.match(
+    release,
+    /inserted`, `updated`, `legacy_converged` and `already_applied` must all[\s\S]*source-bound payout notification/i,
+  );
+  assert.match(
+    release,
+    /already_applied` must not short-circuit notification work[\s\S]*payout projection commits before/i,
+  );
+  assert.match(
+    release,
+    /stale_ignored` must not emit[\s\S]*ignored_unknown_account` must not invent a recipient/i,
+  );
+  assert.match(
+    release,
+    /returned payout row ID as `sourceId`[\s\S]*independently joins that row to[\s\S]*SellerProfile/i,
+  );
 });
 
 test("SellerPayoutEvent compatible verifier accepts only the byte-pinned latest candidate", () => {

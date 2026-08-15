@@ -113,6 +113,10 @@ no row
   provider facts asserted by the application and validated for shape/range.
 - A notification failure may make Stripe retry after the payout row commits;
   payout upsert and notification source dedup must therefore remain idempotent.
+  In particular, the converted handler must retry notification creation for an
+  `already_applied` writer result rather than treating it as complete. It must
+  notify for `inserted`, `updated` and `legacy_converged` too, and must not
+  notify for `stale_ignored` or `ignored_unknown_account`.
 
 ## Findings and dispositions
 
