@@ -116,8 +116,12 @@ export function verifyCheckoutStockReservationForceRelease(
 }
 
 function main() {
-  const mode = process.argv[2];
-  if (mode !== undefined && mode !== "--allow-reviewed-successor") {
+  const modes = process.argv.slice(2);
+  const mode = modes[0];
+  if (
+    modes.length > 1
+    || (mode !== undefined && mode !== "--allow-reviewed-successor")
+  ) {
     throw new Error(
       "usage: verify-checkout-stock-reservation-force-release.mjs "
       + "[--allow-reviewed-successor]",

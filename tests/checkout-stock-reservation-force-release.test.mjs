@@ -118,6 +118,17 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
   });
   assert.equal(unknown.status, 1);
   assert.match(unknown.stderr, /usage: verify-checkout-stock-reservation-force-release/);
+
+  const trailing = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-successor", "--ignored"],
+    { encoding: "utf8" },
+  );
+  assert.equal(trailing.status, 1);
+  assert.match(
+    trailing.stderr,
+    /usage: verify-checkout-stock-reservation-force-release/,
+  );
 });
 
 test("FORCE preflight pins Phase A, role graph and complete function authority", () => {
