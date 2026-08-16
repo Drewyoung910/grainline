@@ -1,8 +1,12 @@
 # SellerPayoutEvent compatible application conversion
 
 Status: isolated application candidate only. The database authority candidate
-is merged into `main` but remains unapplied. These application changes are not
-merged or deployed, and direct table CRUD remains the production predecessor.
+is merged into `main` but remains unapplied. Its dedicated restart-safe
+production runner is also merged. Exact-main CI `31920947066` and the protected
+same-commit aggregate-only production inspection `31921239813` passed for
+`a4f7910e322a7d66ad4ec8d9a24c086e0c51143f`, again finding 0 payout rows and
+0 integrity anomalies. These application changes are not merged or deployed,
+and direct table CRUD remains the production predecessor.
 
 Prepared: 2026-08-15
 
@@ -59,18 +63,30 @@ with event-time/id cursors and rejects an oversized page or a cursor that does
 not advance. No source file under `src/` retains direct
 `prisma.sellerPayoutEvent` access in this candidate.
 
+## Refresh review
+
+The candidate was refreshed onto exact main after the runner and inspection
+landed. The review re-read the complete writer, projection parsers, both signed
+webhook call sites, seller banner and account export; repeated the exhaustive
+`src/` access search; and confirmed that notification retry uses the
+database-returned payout row while Notification independently validates the
+seller/source relationship. Local verification passed 3,152 tests with 7
+explicit skips, TypeScript and lint. Refreshed implementation head
+`786ea82e2ce18350d10fd2819456b41cc2306645` passed exact-head CI
+`31921714661`, including the real PostgreSQL authority/concurrency proof and
+production build.
+
 ## Remaining gates
 
-1. Confirm exact merged-main CI for the compatible database candidate.
-2. Run and review the protected aggregate-only production inspection; stop on
-   any legacy payout row requiring classification.
-3. Apply and prove only the compatible migration in production.
-4. Review, merge and deploy this application conversion while predecessor
+1. Apply and prove only the compatible migration in production through the
+   dedicated runner bound to CI `31920947066` and inspection `31921239813`.
+2. After that proof, re-verify the current PR head, then review, merge and
+   deploy this application conversion while predecessor
    table grants remain available; prove old/new coexistence.
-5. Run the linked-seller signed test-mode child/Preview proof and exact retry,
+3. Run the linked-seller signed test-mode child/Preview proof and exact retry,
    including one payout row and one source-bound notification.
-6. Drain predecessors and prove zero direct application table access.
-7. Activate policyless RLS and revoke direct table/column authority, then apply
+4. Drain predecessors and prove zero direct application table access.
+5. Activate policyless RLS and revoke direct table/column authority, then apply
    posture-only FORCE as a separate release.
 
 `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem` remain
