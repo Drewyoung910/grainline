@@ -48,10 +48,12 @@ describe("Notification order, payment, and fulfillment authority", () => {
     assert.match(webhook, /notificationPaymentSourceId: event\.id/);
     assert.match(webhook, /sourceId: notifySellerUserId\.notificationPaymentSourceId/);
     assert.match(webhook, /relatedUserId: notifySellerUserId\.buyerUserId \?\? undefined/);
-    assert.match(webhook, /processStripePayoutFailedEvent\(event\)/);
-    assert.match(payoutWebhook, /const payoutEvent = await prisma\.sellerPayoutEvent\.upsert/);
+    assert.match(webhook, /processStripePayoutFailedEvent\(event, claimGeneration\)/);
+    assert.match(payoutWebhook, /applySellerPayoutFailure\(\{/);
+    assert.match(payoutWebhook, /result\.action === "stale_ignored"/);
+    assert.doesNotMatch(payoutWebhook, /prisma\.sellerPayoutEvent/);
     assert.match(payoutWebhook, /sourceType: NOTIFICATION_SOURCE_TYPES\.STRIPE_PAYOUT_FAILURE/);
-    assert.match(payoutWebhook, /sourceId: payoutEvent\.id/);
+    assert.match(payoutWebhook, /sourceId: result\.payoutEventId/);
   });
 
   it("derives recipients, payloads, and event identity inside one narrow order wrapper", () => {

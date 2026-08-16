@@ -30,6 +30,7 @@ import { ownerCartExportRows } from "@/lib/cartOwnerAccess";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { exportOwnedDirectUploads } from "@/lib/directUploadLifecycle";
 import { exportParticipantCases } from "@/lib/caseAccountExportAuthority";
+import { exportSellerPayoutEvents } from "@/lib/sellerPayoutEventAuthority";
 
 export const runtime = "nodejs";
 
@@ -601,25 +602,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           select: { id: true, message: true, imageUrl: true, sentAt: true, recipientCount: true },
         })
       : [],
-    sellerProfile
-      ? prisma.sellerPayoutEvent.findMany({
-          where: { sellerProfileId: sellerProfile.id },
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            sellerProfileId: true,
-            stripePayoutId: true,
-            status: true,
-            amountCents: true,
-            currency: true,
-            failureCode: true,
-            failureMessage: true,
-            stripeEventId: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        })
-      : [],
+    sellerProfile ? exportSellerPayoutEvents(user.id) : [],
     exportOwnedDirectUploads(user.id),
     prisma.reviewVote.findMany({
       where: { userId: user.id },

@@ -1,8 +1,11 @@
 # SellerPayoutEvent compatible authority release
 
-Status: isolated candidate only. The migration, schema and proof harness are
-not merged, applied, deployed or wired to a production workflow. RLS remains
-off and predecessor runtime table CRUD remains intentionally available.
+Status: reviewed candidate merged into `main` at
+`e78c1ef28f88778f86947a8cb501af8dfb916b26`. Exact-main CI
+`31915878411` passed. The migration remains unapplied and is not wired to a
+production runner; no application deployment or provider change accompanied
+the merge. RLS remains off and predecessor runtime table CRUD remains
+intentionally available.
 
 Audited: 2026-08-15
 
@@ -18,7 +21,7 @@ Audited: 2026-08-15
   own bounded export page
 - private functions: none in this preparation
 
-This record pins a review candidate, not a production authorization. If the
+This record pins reviewed migration bytes, not a production authorization. If the
 migration bytes change, update the hash and repeat the full review and proofs.
 
 ## Authority and ordering contract
@@ -106,18 +109,18 @@ fast semantic guard, not a substitute for the real PostgreSQL CI proof.
 
 ## Remaining gates
 
-1. Pass the full repository suite and exact-head CI, including real PostgreSQL
-   migration application and the concurrency proof.
-2. Open and review a draft compatible-preparation PR; do not make it ready
-   merely because the isolated tests pass.
+1. Full repository and exact-main CI, including real PostgreSQL migration and
+   concurrency proof, passed in `31915878411`.
+2. The compatible candidate merged in PR #225; no migration or deployment ran.
 3. Run a fresh protected aggregate-only production inspection. Stop if any
    payout row, duplicate source, invalid scalar or missing provider time needs
    classification.
 4. Prepare a byte-pinned, restart-safe production migration runner only after
    the exact predecessor state is known. Applying this migration is a separate
    production boundary.
-5. Convert all three application consumers, deploy with predecessor grants
-   intact and prove old/new coexistence.
+5. Review the isolated three-consumer application conversion in
+   `docs/seller-payout-event-compatible-app-conversion.md`, then deploy it with
+   predecessor grants intact and prove old/new coexistence.
 6. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
    exactly one payout row, one source-bound notification and exact retry.
 7. Drain predecessors and prove zero direct application table access.

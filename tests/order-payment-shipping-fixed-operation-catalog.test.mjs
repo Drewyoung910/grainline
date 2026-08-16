@@ -12,7 +12,7 @@ test("Order fixed-operation catalog separates live service ledgers from designs"
   assert.match(catalog, /StripeWebhookEvent operations 1-3 and\s+34-36 are live/);
   assert.match(
     catalog,
-    /SellerPayoutEvent operation 11 plus its latest\/export projections now have\s+an isolated compatible candidate/,
+    /SellerPayoutEvent operation 11 plus its latest\/export projections now have\s+reviewed bytes merged into `main`/,
   );
   assert.match(
     catalog,

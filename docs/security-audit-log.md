@@ -1765,3 +1765,24 @@ Open work:
   Order/payment/shipping boundary must start with the standard pre-RLS domain
   audit rather than inheriting reservation assumptions. No deploy or provider
   change accompanied this completion.
+
+## SellerPayoutEvent compatible authority and app preparation (2026-08-15)
+
+- The domain-first audit selected `SellerPayoutEvent` as the next independent
+  Order/payment/shipping table and found the direct mutable upsert lacked
+  provider event ordering and no-row-yet race serialization.
+- PR #225 merged the exact additive authority migration and proof harness at
+  main `e78c1ef28f88778f86947a8cb501af8dfb916b26`; exact-main CI
+  `31915878411` passed. Migration bytes are SHA-256
+  `9aca2449c229d0c393e41e3b63c938b6ac80c3a3bbfcda5fc68198fbc94ec146`.
+- The migration is not applied or wired to a production runner. RLS remains
+  off and predecessor table CRUD remains available; no deploy or provider
+  change accompanied the merge.
+- A separate isolated app candidate converts the signed write, seller banner
+  and account export to the fixed writer/latest/export functions. It passes
+  the database-issued lease generation and provider event time, retries the
+  source-bound notification after `already_applied`, skips stale/unknown
+  results, and leaves no direct `prisma.sellerPayoutEvent` access under `src/`.
+- The next production boundary is the existing protected aggregate-only
+  inspection. Compatible migration application, app merge/deploy, signed
+  linked-seller proof, drain, policyless ENABLE and FORCE remain separate.

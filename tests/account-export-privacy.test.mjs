@@ -111,7 +111,6 @@ describe("account export privacy coverage", () => {
       "sellerFaq",
       "newsletterSubscriber",
       "sellerBroadcast",
-      "sellerPayoutEvent",
       "reviewVote",
     ]) {
       assert.match(route, new RegExp(`prisma\\.${model}`), `account export must query ${model}`);
@@ -120,6 +119,11 @@ describe("account export privacy coverage", () => {
       route,
       /exportCheckoutStockReservations\(user\.id\)/,
       "account export must query checkout reservations through its sanitized fixed operation",
+    );
+    assert.match(
+      route,
+      /exportSellerPayoutEvents\(user\.id\)/,
+      "account export must query payout events through its seller-scoped fixed operation",
     );
     assert.match(
       route,
@@ -382,28 +386,28 @@ describe("account export privacy coverage", () => {
     const schema = source("prisma/schema.prisma");
     const route = source("src/app/api/account/export/route.ts");
     const payload = source("src/lib/accountExportPayload.ts");
-    const payoutStart = route.indexOf("prisma.sellerPayoutEvent.findMany");
-    const payoutEnd = route.indexOf("prisma.reviewVote.findMany", payoutStart);
-    const payoutBlock = route.slice(payoutStart, payoutEnd);
+    const payoutAuthority = source("src/lib/sellerPayoutEventAuthority.ts");
 
     assert.match(schema, /model SellerPayoutEvent \{/);
     assert.match(schema, /sellerProfile\s+SellerProfile\s+@relation\(fields: \[sellerProfileId\], references: \[id\], onDelete: Restrict\)/);
-    assert.ok(payoutStart >= 0, "account export must query SellerPayoutEvent");
-    assert.match(payoutBlock, /where: \{ sellerProfileId: sellerProfile\.id \}/);
-    assert.match(payoutBlock, /orderBy: \{ createdAt: "desc" \}/);
+    assert.match(route, /sellerProfile \? exportSellerPayoutEvents\(user\.id\) : \[\]/);
+    assert.doesNotMatch(route, /prisma\.sellerPayoutEvent/);
+    assert.match(payoutAuthority, /grainline_seller_payout_export_page/);
+    assert.match(payoutAuthority, /const pageLimit = 500/);
     for (const field of [
-      "sellerProfileId",
-      "stripePayoutId",
+      "seller_profile_id",
+      "stripe_payout_id",
       "status",
-      "amountCents",
+      "amount_cents",
       "currency",
-      "failureCode",
-      "failureMessage",
-      "stripeEventId",
-      "createdAt",
-      "updatedAt",
+      "failure_code",
+      "failure_message",
+      "stripe_event_id",
+      "event_created_seconds",
+      "created_at",
+      "updated_at",
     ]) {
-      assert.match(payoutBlock, new RegExp(`${field}: true`), `account export must select ${field}`);
+      assert.match(payoutAuthority, new RegExp(`\\b${field}\\b`), `account export must select ${field}`);
     }
     assert.match(route, /sellerPayoutEvents,/);
     assert.match(payload, /sellerPayoutEvents: unknown\[\]/);

@@ -4,7 +4,7 @@ Status: mixed implementation ledger. StripeWebhookEvent operations 1-3 and
 34-36 are live behind policyless FORCE RLS. CheckoutStockReservation operations
 4-9 and its bounded export/scrub projections are live behind policyless FORCE
 RLS. SellerPayoutEvent operation 11 plus its latest/export projections now have
-an isolated compatible candidate, but are not merged, applied or deployed and
+reviewed bytes merged into `main`, but they are not applied or deployed and
 predecessor table CRUD remains. Remaining Order, OrderItem, shipping-quote and
 payment families are design contracts only until their own audited releases.
 This document does not authorize SQL, a migration, an EXECUTE grant,
@@ -189,7 +189,7 @@ finalizer transaction and preserve the existing Case authority functions.
     `grainline_buyer_reservation_export_page(...)` return only the matching
     actor's bounded retained facts with stable cursors.
 
-The isolated SellerPayoutEvent candidate implements only its own latest-failure
+The merged, unapplied SellerPayoutEvent candidate implements only its own latest-failure
 and keyset-paged export projections. Their actor is mapped through
 `SellerProfile.userId`, their limit is database-clamped and the latest banner
 uses provider event time with a compatibility-only legacy timestamp fallback.

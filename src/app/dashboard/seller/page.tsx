@@ -25,6 +25,7 @@ import { safeRateLimit, sellerProfileRatelimit } from "@/lib/ratelimit";
 import { revalidateFooterMetrosCache } from "@/lib/footerMetros";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { mirrorStripeChargesEnabled } from "@/lib/stripeWebhookMirror";
+import { latestSellerPayoutFailure } from "@/lib/sellerPayoutEventAuthority";
 
 const MAX_SELLER_SHIPPING_MONEY_CENTS = 500_000; // $5,000
 const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240;
@@ -201,15 +202,7 @@ export default async function SellerSettingsPage({
     prisma.follow.count({ where: { sellerProfileId: seller.id } }),
     prisma.listing.count({ where: { sellerId: seller.id, status: "DRAFT" } }),
     prisma.user.findUnique({ where: { id: me.id }, select: { notificationPreferences: true } }),
-    prisma.sellerPayoutEvent.findFirst({
-      where: {
-        sellerProfileId: seller.id,
-        status: "failed",
-        createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true, failureMessage: true, amountCents: true, currency: true },
-    }),
+    latestSellerPayoutFailure(me.id),
   ]);
 
   const stripeParams = await searchParams;

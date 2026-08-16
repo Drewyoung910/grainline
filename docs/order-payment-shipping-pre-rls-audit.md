@@ -51,11 +51,11 @@ conversion floor, not a claim that only 66 semantic operations exist. The
 next inventory pass must classify nested reads, fixed Case/Notification
 functions, cron and provider side effects as well.
 
-The isolated CheckoutStockReservation conversion now has zero direct
-reservation delegates under `src`; the table above intentionally retains the
-four-file production/predecessor baseline. Its semantic inventory remains
-larger than four and is pinned separately so indirection cannot disappear from
-the review merely because base-table CRUD has been removed.
+The isolated SellerPayoutEvent and completed CheckoutStockReservation
+conversions now have zero direct delegates under `src`; the table above
+intentionally retains their three-file and four-file production/predecessor
+baselines. Their semantic inventories remain pinned separately so indirection
+cannot disappear from review merely because base-table CRUD has been removed.
 
 Current operation families include:
 
