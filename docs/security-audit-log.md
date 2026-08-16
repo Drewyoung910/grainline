@@ -1781,7 +1781,10 @@ Open work:
   Only `20260815210000_prepare_seller_payout_event_authority` was applied. RLS
   remains off and predecessor table CRUD remains available; no deploy or
   provider change accompanied preparation.
-- A separate isolated app candidate converts the signed write, seller banner
+- PR #226 merged the app conversion at exact main
+  `99591a8f93c45f9324fb834fcbc1ea525867ace8`; exact-main CI `31925636570`
+  passed. Production still serves the predecessor application. The candidate
+  converts the signed write, seller banner
   and account export to the fixed writer/latest/export functions. It passes
   the database-issued lease generation and provider event time, retries the
   source-bound notification after `already_applied`, skips stale/unknown
@@ -1791,5 +1794,10 @@ Open work:
   webhook lease to finish. The payout path now uses a strict helper which
   reports and rethrows; an exact retry reaches `already_applied` and retries
   the source-deduped notification. Existing best-effort callers are unchanged.
-- App merge/deploy, signed linked-seller proof, drain, policyless ENABLE and
-  FORCE remain separate gates.
+- Exact-source deployment, the separately reviewed linked-seller production
+  proof, drain, policyless ENABLE and FORCE remain separate gates. The linked
+  proof design reuses the canonical test-mode endpoint and an existing eligible
+  test seller, removes only its exact payout/notification canary rows and
+  leaves the processed webhook lease under normal retention; it does not create
+  another provider topology. See
+  `docs/seller-payout-event-linked-production-proof.md`.

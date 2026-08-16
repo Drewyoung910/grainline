@@ -181,6 +181,14 @@ defect. Each remaining path is classified:
   runtime roles, deliberately reads the source lease table to validate fixed
   function behavior, and removes every prefix-scoped fixture in `finally`. It
   is neither ordinary application access nor a production inspection path.
+- `scripts/seller-payout-event-linked-production-proof.mjs` is the protected,
+  exact-release-bound linked-seller proof. It uses the owner only for a bounded
+  candidate query, exact source/projection relationship checks and exact
+  cleanup; uses the actual pooled runtime for the recipient-visible check; and
+  retains only the processed test-mode webhook lease. Its owner transactions
+  are engine-read-only except for the one source-locked cleanup transaction,
+  it exports only sanitized hashes, and it is neither ordinary application
+  access nor reusable table authority.
 - `scripts/stripe-webhook-event-activation-postgres-proof.mjs` is the
   loopback-only activated-boundary proof. It uses owner catalog reads and
   deliberately attempts direct operations after `SET LOCAL ROLE` to prove
