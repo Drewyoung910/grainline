@@ -599,14 +599,18 @@ export async function readSellerPayoutEventProductionSnapshot(connectionString) 
         ORDER BY column_name`,
     )).rows;
     const constraints = (await client.query(
-      `SELECT constraint.conname AS constraint_name,
-              constraint.contype AS constraint_type,
-              constraint.convalidated AS validated,
-              pg_catalog.pg_get_constraintdef(constraint.oid, true) AS definition
-         FROM pg_catalog.pg_constraint AS constraint
-        WHERE constraint.conrelid = 'public."SellerPayoutEvent"'::regclass
-          AND constraint.conname = ANY($1::text[])
-        ORDER BY constraint.conname`,
+      `SELECT constraint_metadata.conname AS constraint_name,
+              constraint_metadata.contype AS constraint_type,
+              constraint_metadata.convalidated AS validated,
+              pg_catalog.pg_get_constraintdef(
+                constraint_metadata.oid,
+                true
+              ) AS definition
+         FROM pg_catalog.pg_constraint AS constraint_metadata
+        WHERE constraint_metadata.conrelid =
+              'public."SellerPayoutEvent"'::regclass
+          AND constraint_metadata.conname = ANY($1::text[])
+        ORDER BY constraint_metadata.conname`,
       [REVIEWED_CONSTRAINTS],
     )).rows;
     const indexes = (await client.query(

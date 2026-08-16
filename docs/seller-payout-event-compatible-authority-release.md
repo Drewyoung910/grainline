@@ -154,6 +154,14 @@ three reviewed functions, while the restart and post-application scopes plus
 the global grant audit fail closed on any privilege drift. This keeps the
 production mutation limited to the compatible migration.
 
+Draft PR #228 exact-head CI run `31920453611` failed safely in the real
+PostgreSQL proof before application fixtures when the new catalog reader used
+the reserved word `constraint` as a relation alias. No production workflow ran
+and no production state changed. The correction renames only that catalog alias
+to `constraint_metadata`; the same real-PostgreSQL step remains mandatory so
+the corrected query must execute successfully rather than being accepted by a
+static or synthetic parser alone.
+
 ## Remaining gates
 
 1. Merge the byte-pinned, restart-safe production runner only after exact-head

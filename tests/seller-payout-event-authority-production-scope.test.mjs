@@ -370,6 +370,8 @@ test("scope reader is engine-attested repeatable-read and read-only", () => {
   assert.match(source, /transaction_read_only/);
   assert.match(source, /ROLLBACK/);
   assert.match(source, /oidvectortypes\(procedure\.proargtypes\)/);
+  assert.match(source, /pg_constraint AS constraint_metadata/);
+  assert.doesNotMatch(source, /pg_constraint AS constraint\b/);
   assert.doesNotMatch(source, /client\.query\(\s*`?(?:INSERT|UPDATE|DELETE|TRUNCATE)/i);
 });
 
