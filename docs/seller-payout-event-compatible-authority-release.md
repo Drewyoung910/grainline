@@ -1,9 +1,9 @@
 # SellerPayoutEvent compatible authority release
 
-Status: merged, inspected and still unapplied. The migration, schema and proof
-harness are on `main`, but the migration has not run in production and the
-converted application remains isolated in draft PR #226. RLS remains off and
-predecessor runtime table CRUD remains intentionally available.
+Status: compatible preparation accepted in production. The exact additive
+migration, schema and three fixed functions are live; the converted application
+remains isolated in draft PR #226. RLS remains off and predecessor runtime table
+CRUD remains intentionally available for old/new application coexistence.
 
 Audited: 2026-08-15
 
@@ -51,9 +51,11 @@ actions are not interchangeable:
 - `inserted`, `updated`, `legacy_converged` and `already_applied` must all
   attempt the source-bound payout notification;
 - `already_applied` must not short-circuit notification work, because the
-  payout projection commits before the current best-effort notification call.
-  A notification failure therefore leaves an applied payout row for a later
-  Stripe retry, while Notification's source identity provides deduplication;
+  payout projection commits before the converted handler's strict notification
+  call. That call must rethrow a transient notification failure so the webhook
+  lease remains retryable; a later exact Stripe retry sees the applied payout
+  row and retries the notification, while Notification's source identity
+  provides deduplication;
 - `stale_ignored` must not emit a notification for stale evidence; and
 - `ignored_unknown_account` must not invent a recipient or payout owner, but
   the route must retain bounded non-payload observability for the ignored
@@ -180,19 +182,33 @@ historical latest-migration check; arbitrary or unreviewed successors remain
 fail-closed. Actual CLI regression coverage proves strict rejection, exact
 reviewed-successor acceptance and unknown-argument rejection.
 
+PR #229 merged the correction at exact main
+`6bc89c58d7d83509f73206a2f9b4854e3bed476b`. Exact-main CI run
+`31923317475` passed. The required same-commit aggregate inspection then passed
+as run `31923608819`; its sanitized artifact SHA-256 is
+`ad6e18513ec461e70ad1f59468272f6c40b7a12113e5ddca5cdce5ed200ed8fe`.
+It again reported 2 orders, 3 order items, 12 Stripe webhook rows, zero payout
+rows and zero across every anomaly count, inside an engine-attested
+repeatable-read/read-only transaction with no retained identifiers or raw rows.
+
+Guarded production preparation run `31923767337` then applied only
+`20260815210000_prepare_seller_payout_event_authority`. The pre-application
+scope was exactly `predecessor`; Prisma reported only the reviewed migration
+applied and all 198 migrations current. The global audit passed for 64 tables,
+22 enums, 165 `grainline_*` functions and the four existing RLS tables. The
+read-only final scope was exactly `prepared`: three runtime functions exist,
+SellerPayoutEvent RLS remains disabled and not forced, and predecessor runtime
+table CRUD remains retained. No application deploy, data cleanup, provider
+change, RLS activation or predecessor-grant revocation occurred.
+
 ## Remaining gates
 
-1. Merge the narrow predecessor-verifier CLI wiring correction only after
-   exact-head CI and review. Then rerun the protected inspection from that
-   resulting exact main commit because the workflow binds same-commit evidence.
-2. Apply only `20260815210000_prepare_seller_payout_event_authority` through the
-   dedicated runner. Migration execution is a separate production boundary.
-3. Convert all three application consumers, deploy with predecessor grants
+1. Convert all three application consumers, deploy with predecessor grants
    intact and prove old/new coexistence.
-4. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
+2. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
    exactly one payout row, one source-bound notification and exact retry.
-5. Drain predecessors and prove zero direct application table access.
-6. Review and apply policyless ENABLE with table authority revoked, prove the
+3. Drain predecessors and prove zero direct application table access.
+4. Review and apply policyless ENABLE with table authority revoked, prove the
    owner and actual pooled runtime, then apply posture-only FORCE separately.
 
 `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem` remain
