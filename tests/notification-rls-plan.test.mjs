@@ -20,8 +20,8 @@ describe("Bucket B Notification RLS inventory", () => {
     let indirectCreateCount = 0;
     for (const file of files) {
       const source = fs.readFileSync(file, "utf8");
-      const calls = source.match(/createNotification\(\{/g) ?? [];
-      const callerCount = file === "src/lib/notifications.ts" ? calls.length - 1 : calls.length;
+      const calls = source.match(/createNotification(?:OrThrow)?\(\{/g) ?? [];
+      const callerCount = calls.length;
       const indirectCount = (source.match(/createNotification\(payload\)/g) ?? []).length;
       if (callerCount + indirectCount > 0) createCallers.push(file);
       objectLiteralCreateCount += callerCount;
@@ -53,7 +53,7 @@ describe("Bucket B Notification RLS inventory", () => {
     const plan = fs.readFileSync("docs/rls-bucket-b-notification-plan.md", "utf8");
     const strategy = fs.readFileSync("STRATEGY.md", "utf8");
     assert.match(plan, /Bucket B means `Notification` only/);
-    assert.match(plan, /52 direct `createNotification/);
+    assert.match(plan, /52 notification-helper calls/);
     assert.match(plan, /55 distinct emission paths/);
     assert.match(plan, /column-level `UPDATE \(read\)` only/);
     assert.match(plan, /Do not grant direct `INSERT` or `DELETE`/);
@@ -120,7 +120,8 @@ describe("Bucket B Notification RLS inventory", () => {
     const familyCounts = [5, 10, 2, 3, 13, 4, 3, 3, 3, 9];
 
     assert.equal(familyCounts.reduce((sum, count) => sum + count, 0), 55);
-    assert.match(inventory, /52 direct `createNotification` calls across 30 files/);
+    assert.match(inventory, /52 notification-helper calls across 30 files/);
+    assert.match(inventory, /payout path uses strict retryable `createNotificationOrThrow`/);
     assert.match(inventory, /55\s+distinct emission paths/);
     assert.match(inventory, /55 authority-bound paths/);
     assert.match(inventory, /0 source-less paths/);
@@ -251,7 +252,7 @@ describe("Bucket B Notification RLS inventory", () => {
       ban,
       fulfillment,
       sellerRefund,
-    ].reduce((count, source) => count + (source.match(/createNotification\(\{[\s\S]{0,700}?sourceType:/g) ?? []).length, 0);
+    ].reduce((count, source) => count + (source.match(/createNotification(?:OrThrow)?\(\{[\s\S]{0,700}?sourceType:/g) ?? []).length, 0);
     assert.equal(taggedCreationCount, 41);
   });
 

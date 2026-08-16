@@ -6,10 +6,12 @@ that activation.
 
 ## Count Contract
 
-The source has 52 direct `createNotification` calls across 30 files. Fifty-one pass
-object literals. The fulfillment route has the remaining direct call in a typed
-`notifyBuyer(..., payload)` wrapper, and that wrapper has three distinct payload
-construction paths. One dedicated back-in-stock claim call derives its
+The source has 52 notification-helper calls across 30 files. Fifty-one pass
+object literals: 50 use the existing best-effort `createNotification` helper and
+the payout path uses strict retryable `createNotificationOrThrow`. The
+fulfillment route has the remaining call in a typed `notifyBuyer(..., payload)`
+wrapper, and that wrapper has three distinct payload construction paths. One
+dedicated back-in-stock claim call derives its
 Notification write inside owner authority. The inventory therefore covers 55
 distinct emission paths:
 

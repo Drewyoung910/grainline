@@ -19,7 +19,7 @@ Audited: 2026-08-15
   own bounded export page
 - private functions: none in this preparation
 
-This record pins a review candidate, not a production authorization. If the
+This record pins reviewed migration bytes, not a production authorization. If the
 migration bytes change, update the hash and repeat the full review and proofs.
 
 ## Authority and ordering contract
@@ -203,8 +203,11 @@ change, RLS activation or predecessor-grant revocation occurred.
 
 ## Remaining gates
 
-1. Convert all three application consumers, deploy with predecessor grants
-   intact and prove old/new coexistence.
+1. Finish review and merge of the isolated three-consumer application
+   conversion, then deploy it with predecessor grants intact and prove old/new
+   coexistence. Its strict payout-notification helper must keep a transient
+   notification failure retryable while existing best-effort callers remain
+   unchanged.
 2. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
    exactly one payout row, one source-bound notification and exact retry.
 3. Drain predecessors and prove zero direct application table access.

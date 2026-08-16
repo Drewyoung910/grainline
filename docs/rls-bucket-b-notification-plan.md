@@ -892,9 +892,10 @@ Bucket B means `Notification` only. It does not include `StockNotification`,
 `Case`, or `CaseMessage`. Those retain separate coverage-matrix groups and
 production releases.
 
-The refreshed source snapshot contains 52 direct `createNotification` calls
-across 30 caller files: 51 object-literal calls plus the fulfillment route's
-typed wrapper call. That wrapper serves three distinct fulfillment payloads,
+The refreshed source snapshot contains 52 notification-helper calls across 30
+caller files: 50 best-effort object-literal calls, one strict retryable payout
+object-literal call, plus the fulfillment route's typed wrapper call. That
+wrapper serves three distinct fulfillment payloads,
 and back-in-stock uses one dedicated owner-backed claim, so the authority
 inventory contains 55 distinct emission paths. All 55 are currently
 authority-bound and none are source-less. This broad fanout surface is the main

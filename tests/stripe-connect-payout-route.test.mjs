@@ -63,10 +63,10 @@ describe("Stripe classic Connect payout webhook authority", () => {
   });
 
   it("shares one source-validating and payout-idempotent mutation handler", () => {
-    assert.match(route, /await processStripePayoutFailedEvent\(event\)/);
-    assert.match(platformRoute, /await processStripePayoutFailedEvent\(event\)/);
+    assert.match(route, /await processStripePayoutFailedEvent\(event, claimGeneration\)/);
+    assert.match(platformRoute, /await processStripePayoutFailedEvent\(event, claimGeneration\)/);
     assert.equal(
-      (platformRoute.match(/processStripePayoutFailedEvent\(event\)/g) ?? []).length,
+      (platformRoute.match(/processStripePayoutFailedEvent\(event, claimGeneration\)/g) ?? []).length,
       1,
     );
 
@@ -75,11 +75,16 @@ describe("Stripe classic Connect payout webhook authority", () => {
     assert.match(payoutHandler, /missing its connected account id/);
     assert.match(payoutHandler, /typeof payout\.id !== "string"/);
     assert.match(payoutHandler, /missing its payout id/);
-    assert.match(payoutHandler, /where: \{ stripeAccountId: accountId \}/);
-    assert.match(payoutHandler, /where: \{ stripePayoutId \}/);
-    assert.match(payoutHandler, /update: payoutEventData/);
+    assert.match(payoutHandler, /applySellerPayoutFailure\(\{/);
+    assert.match(payoutHandler, /claimGeneration,/);
+    assert.match(payoutHandler, /eventCreatedSeconds: BigInt\(event\.created\)/);
+    assert.doesNotMatch(payoutHandler, /prisma\.sellerPayoutEvent/);
+    assert.match(payoutHandler, /result\.action === "ignored_unknown_account"/);
+    assert.match(payoutHandler, /result\.action === "stale_ignored"/);
     assert.match(payoutHandler, /sourceType: NOTIFICATION_SOURCE_TYPES\.STRIPE_PAYOUT_FAILURE/);
-    assert.match(payoutHandler, /sourceId: payoutEvent\.id/);
+    assert.match(payoutHandler, /await createNotificationOrThrow\(/);
+    assert.doesNotMatch(payoutHandler, /await createNotification\(/);
+    assert.match(payoutHandler, /sourceId: result\.payoutEventId/);
   });
 
   it("registers the provider-authenticated route across every middleware bypass boundary", () => {

@@ -3,9 +3,10 @@
 Status: mixed implementation ledger. StripeWebhookEvent operations 1-3 and
 34-36 are live behind policyless FORCE RLS. CheckoutStockReservation operations
 4-9 and its bounded export/scrub projections are live behind policyless FORCE
-RLS. SellerPayoutEvent operation 11 plus its latest/export projections now have
-an isolated compatible candidate, but are not merged, applied or deployed and
-predecessor table CRUD remains. Remaining Order, OrderItem, shipping-quote and
+RLS. SellerPayoutEvent operation 11 plus its latest/export projections are live
+as compatible preparation with RLS off and predecessor table CRUD retained;
+their application conversion remains isolated and undeployed. Remaining Order,
+OrderItem, shipping-quote and
 payment families are design contracts only until their own audited releases.
 This document does not authorize SQL, a migration, an EXECUTE grant,
 application deployment or production mutation.
@@ -14,10 +15,10 @@ application deployment or production mutation.
 
 Every operation is a pinned-search-path, no-dynamic-SQL `SECURITY DEFINER`
 function owned by the migration owner. `PUBLIC` has no EXECUTE. The ordinary
-runtime role receives EXECUTE only after the matching application conversion
-is deployed and proved. Base tables remain directly accessible until their
-separate compatibility boundary; activation later revokes direct access and
-uses policyless ENABLE/FORCE RLS.
+runtime role receives only reviewed EXECUTE grants. Compatible preparation may
+install those grants before the matching application conversion while direct
+table access remains available for old/new coexistence. Activation later
+revokes direct access and uses policyless ENABLE/FORCE RLS.
 
 Actor IDs, signed-provider fields and bounded error text still originate in the
 application. Clerk, staff checks and Stripe signatures remain authentication
@@ -110,9 +111,10 @@ ownership.
 11. `grainline_seller_payout_event_apply(...)` requires the active webhook
     generation, derives SellerProfile from the Stripe account mapping and
     permits only a monotonic payout transition for one payout ID. The
-    2026-08-15 compatible candidate adds an advisory lock for the no-row-yet
+    2026-08-15 production-live compatible preparation adds an advisory lock for the no-row-yet
     first-write race, exact replay validation, stale-event rejection and
-    equal-time ambiguity refusal. It is not live; see
+    equal-time ambiguity refusal. RLS remains off and the app conversion remains
+    isolated; see
     `docs/seller-payout-event-compatible-authority-release.md`.
 12. `grainline_seller_deauthorization_flag_orders(...)` requires the webhook
     generation and uses the durable Order seller key in a bounded batch; it
@@ -189,11 +191,12 @@ finalizer transaction and preserve the existing Case authority functions.
     `grainline_buyer_reservation_export_page(...)` return only the matching
     actor's bounded retained facts with stable cursors.
 
-The isolated SellerPayoutEvent candidate implements only its own latest-failure
-and keyset-paged export projections. Their actor is mapped through
+The production-live compatible SellerPayoutEvent preparation implements only
+its own latest-failure and keyset-paged export projections. Their actor is mapped through
 `SellerProfile.userId`, their limit is database-clamped and the latest banner
 uses provider event time with a compatibility-only legacy timestamp fallback.
-They are not application-connected or production-live.
+The application conversion remains isolated and undeployed; RLS remains off
+and predecessor CRUD remains available.
 33. `grainline_seller_order_analytics(...)` and
     `grainline_public_order_metrics(...)` return dedicated aggregate-only
     projections with fixed periods and caps; no arbitrary predicate or raw row

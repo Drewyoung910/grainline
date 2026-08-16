@@ -97,16 +97,13 @@ const expected = {
     "src/lib/refundLedgerSql.ts",
     "src/lib/site-metrics-snapshot.ts",
   ],
-  SellerPayoutEvent: [
-    "src/app/api/account/export/route.ts",
-    "src/app/dashboard/seller/page.tsx",
-    "src/lib/stripePayoutWebhook.ts",
-  ],
+  SellerPayoutEvent: [],
   CheckoutStockReservation: [],
 };
 
 const baselineCounts = {
   ...Object.fromEntries(Object.entries(expected).map(([model, files]) => [model, files.length])),
+  SellerPayoutEvent: 3,
   CheckoutStockReservation: 4,
 };
 

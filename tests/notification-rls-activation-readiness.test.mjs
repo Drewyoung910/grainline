@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
+  collectNotificationEmissionPaths,
   EXPECTED_NOTIFICATION_EMISSION_PATHS,
   evaluateNotificationActivationReadiness,
   notificationActivationReadiness,
@@ -21,6 +22,17 @@ describe("Notification RLS activation completeness gate", () => {
     assert.equal(result.unresolvedCalls.length, 0);
     assert.equal(result.ready, true);
     assert.deepEqual(result.uncovered, []);
+  });
+
+  it("counts strict retryable notification helpers as reviewed emission paths", () => {
+    const result = collectNotificationEmissionPaths();
+    const payoutPaths = result.emissions.filter(
+      (emission) => emission.file === "src/lib/stripePayoutWebhook.ts",
+    );
+
+    assert.equal(payoutPaths.length, 1);
+    assert.equal(payoutPaths[0].sourceType, "NOTIFICATION_SOURCE_TYPES.STRIPE_PAYOUT_FAILURE");
+    assert.equal(payoutPaths[0].reviewedFamily, true);
   });
 
   it("cannot become ready through count drift or an unreviewed source constant", () => {

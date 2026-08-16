@@ -2591,7 +2591,7 @@ export async function POST(req: Request) {
 
     if (event.type === "payout.failed") {
       return processIdempotentEvent(async () => {
-        await processStripePayoutFailedEvent(event);
+        await processStripePayoutFailedEvent(event, claimGeneration);
         return NextResponse.json({ received: true });
       });
     }

@@ -51,11 +51,11 @@ conversion floor, not a claim that only 66 semantic operations exist. The
 next inventory pass must classify nested reads, fixed Case/Notification
 functions, cron and provider side effects as well.
 
-The isolated CheckoutStockReservation conversion now has zero direct
-reservation delegates under `src`; the table above intentionally retains the
-four-file production/predecessor baseline. Its semantic inventory remains
-larger than four and is pinned separately so indirection cannot disappear from
-the review merely because base-table CRUD has been removed.
+The isolated SellerPayoutEvent and completed CheckoutStockReservation
+conversions now have zero direct delegates under `src`; the table above
+intentionally retains their three-file and four-file production/predecessor
+baselines. Their semantic inventories remain pinned separately so indirection
+cannot disappear from review merely because base-table CRUD has been removed.
 
 Current operation families include:
 
@@ -667,10 +667,9 @@ OrderPaymentEvent and SellerPayoutEvent. They remain separate releases.
 The required domain-first gate selected SellerPayoutEvent because it has only
 three direct consumers and no Order fulfillment, refund or Shippo state
 transition. The dedicated audit is
-`docs/seller-payout-event-pre-rls-audit.md`. Its additive candidate is recorded
-in `docs/seller-payout-event-compatible-authority-release.md`; it is merged but
-remains unapplied, undeployed and unactivated. Protected aggregate inspection
-`31919078918` found zero payout rows and zero integrity anomalies, clearing only
-the compatible migration data gate. The dedicated restart-safe production
-runner, application conversion/deployment, linked-seller signed proof,
-predecessor drain and separate ENABLE/FORCE releases remain required.
+`docs/seller-payout-event-pre-rls-audit.md`. Compatible preparation is accepted
+in production from exact main
+`6bc89c58d7d83509f73206a2f9b4854e3bed476b`, CI `31923317475`, inspection
+`31923608819`, and guarded run `31923767337`; RLS remains off and predecessor
+CRUD remains retained. Application conversion/deployment, linked-seller signed
+proof, predecessor drain and separate ENABLE/FORCE releases remain required.

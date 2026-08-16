@@ -12,11 +12,12 @@ test("Order fixed-operation catalog separates live service ledgers from designs"
   assert.match(catalog, /StripeWebhookEvent operations 1-3 and\s+34-36 are live/);
   assert.match(
     catalog,
-    /SellerPayoutEvent operation 11 plus its latest\/export projections now have\s+an isolated compatible candidate/,
+    /SellerPayoutEvent operation 11 plus its latest\/export projections are live\s+as compatible preparation/,
   );
+  assert.match(catalog, /application conversion remains isolated and undeployed/);
   assert.match(
     catalog,
-    /Remaining Order, OrderItem, shipping-quote and\s+payment families are design contracts only/,
+    /Remaining Order,\s+OrderItem, shipping-quote and\s+payment families are design contracts only/,
   );
   assert.match(catalog, /does not authorize SQL, a migration,\s+an EXECUTE grant/);
   assert.match(catalog, /policyless ENABLE\/FORCE RLS/);

@@ -376,9 +376,13 @@ read-only inspection `31923608819` and guarded production run `31923767337`
 are accepted. Production now has the additive provider-event-time field,
 indexes and three fixed functions; SellerPayoutEvent RLS remains off and
 predecessor CRUD remains retained. The next boundary is the converted
-application deployment with old/new coexistence, followed by the linked-seller
-signed test-mode proof, predecessor drain, policyless ENABLE and FORCE as
-separate boundaries. Do not reinterpret the compatible preparation as
+application review, merge and deployment with old/new coexistence. That
+isolated conversion is tracked in
+`docs/seller-payout-event-compatible-app-conversion.md`; it replaces all three
+direct consumers and makes payout notification failures retryable without
+changing existing best-effort notification callers. The linked-seller signed
+test-mode proof, predecessor drain, policyless ENABLE and FORCE remain separate
+boundaries. Do not reinterpret the compatible preparation or app candidate as
 permission to bundle the other four tables.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)

@@ -180,7 +180,7 @@ export async function POST(req: Request) {
   const claimGeneration = reservation.claimGeneration;
 
   try {
-    await processStripePayoutFailedEvent(event);
+    await processStripePayoutFailedEvent(event, claimGeneration);
     await markStripeWebhookEventProcessed(event.id, claimGeneration);
     return NextResponse.json({ received: true });
   } catch (error) {
