@@ -24,12 +24,18 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
     SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256,
   );
   assert.match(release, new RegExp(digest));
-  assert.match(release, /isolated candidate only/i);
+  assert.match(release, /merged, inspected and still unapplied/i);
   assert.match(release, /RLS remains\s+off/i);
   assert.match(release, /predecessor runtime table CRUD remains/i);
-  assert.match(release, /fresh protected aggregate-only production inspection/i);
+  assert.match(release, /protected aggregate-only[\s\S]*inspection/i);
   assert.match(release, /policyless ENABLE/i);
   assert.match(release, /posture-only FORCE/i);
+  assert.match(release, /31919078918/);
+  assert.match(
+    release,
+    /2e01606f36d67787622d0a4a5efd725d5b9abdd209a29b52ce85bdb96d0075c7/,
+  );
+  assert.match(release, /0 SellerPayoutEvent rows/);
   assert.match(
     release,
     /inserted`, `updated`, `legacy_converged` and `already_applied` must all[\s\S]*source-bound payout notification/i,

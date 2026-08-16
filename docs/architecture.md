@@ -129,9 +129,14 @@ The additive SellerPayoutEvent authority candidate is documented separately in
 provider-event ordering, a source-bound writer and bounded seller projections
 while intentionally leaving RLS off and predecessor table grants intact. A
 transaction-scoped payout-identity advisory lock covers concurrent first
-writes, where a row lock cannot yet exist. The candidate is not production
-state and does not change the separate activation order for payment events,
-shipping quotes or Order/OrderItem.
+writes, where a row lock cannot yet exist. The candidate is merged but remains
+unapplied and is therefore not production database state. Protected inspection
+run `31919078918` from exact main
+`b0494b1ebe7399c1036ed1894c0c3b42cfeee87f` confirmed zero payout rows and zero
+integrity anomalies under an engine-attested repeatable-read/read-only
+transaction. The next boundary is the separately reviewed restart-safe
+compatible migration runner; this does not change the later separate activation
+order for payment events, shipping quotes or Order/OrderItem.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
