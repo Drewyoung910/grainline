@@ -51,9 +51,11 @@ actions are not interchangeable:
 - `inserted`, `updated`, `legacy_converged` and `already_applied` must all
   attempt the source-bound payout notification;
 - `already_applied` must not short-circuit notification work, because the
-  payout projection commits before the current best-effort notification call.
-  A notification failure therefore leaves an applied payout row for a later
-  Stripe retry, while Notification's source identity provides deduplication;
+  payout projection commits before the converted handler's strict notification
+  call. That call must rethrow a transient notification failure so the webhook
+  lease remains retryable; a later exact Stripe retry sees the applied payout
+  row and retries the notification, while Notification's source identity
+  provides deduplication;
 - `stale_ignored` must not emit a notification for stale evidence; and
 - `ignored_unknown_account` must not invent a recipient or payout owner, but
   the route must retain bounded non-payload observability for the ignored

@@ -57,7 +57,7 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
   );
   assert.match(
     release,
-    /already_applied` must not short-circuit notification work[\s\S]*payout projection commits before/i,
+    /already_applied` must not short-circuit notification work[\s\S]*strict notification[\s\S]*rethrow a transient notification failure[\s\S]*webhook[\s\S]*retryable/i,
   );
   assert.match(
     release,
