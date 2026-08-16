@@ -57,8 +57,9 @@ balance/history entries and are part of the explicit future execution boundary.
 The operator uses one mode-0600 local recovery record containing the raw IDs
 needed for exact cleanup. Sanitized evidence contains only SHA-256 digests.
 
-1. **Preflight** — require an exact clean reviewed main commit, successful
-   exact-main CI, the exact READY production deployment and canonical aliases,
+1. **Preflight** — require a clean checkout of the exact reviewed operator
+   commit, successful push CI for that exact commit on GitHub `main`, the exact
+   READY production deployment and canonical aliases,
    healthy `/api/health`, the expected Vercel project, the sensitive production
    Connect secret binding and provider stage 4 with only `payout.failed`.
 2. **Select** — in an engine-read-only owner transaction, find bounded active
@@ -88,6 +89,15 @@ needed for exact cleanup. Sanitized evidence contains only SHA-256 digests.
    the seller and processed webhook lease remain, provider stage is still 4,
    production health is good and no configuration changed. Only then write
    sanitized evidence and remove the recovery record.
+
+The operator commit and deployed application source are deliberately separate
+immutable bindings. Documentation may advance `main` after the compatible app
+is deployed: execution therefore binds the operator and successful exact-main
+CI to the current reviewed commit, while Vercel inspection independently binds
+deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h` to application source
+`e9239463a71860451191344b26dd20b45298f239`. A detached local checkout is
+accepted only when its HEAD is the exact successful-main-CI commit and it is
+clean; arbitrary feature-branch execution remains rejected.
 
 If any step fails after a provider object exists, preserve the mode-0600
 recovery record and stop. A rerun must resume from its exact recorded stage and

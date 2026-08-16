@@ -149,9 +149,16 @@ export function validateConfiguration(env = process.env) {
     throw new Error("linked payout proof confirmation is invalid");
   }
   const expectedCommit = required(env, "SELLER_PAYOUT_LINKED_PROOF_EXPECTED_COMMIT");
+  const deployedSourceCommit = required(
+    env,
+    "SELLER_PAYOUT_LINKED_PROOF_DEPLOYED_SOURCE_COMMIT",
+  );
   const mainCiRunId = positiveInteger(env, "SELLER_PAYOUT_LINKED_PROOF_CI_RUN_ID");
   const deploymentId = required(env, "SELLER_PAYOUT_LINKED_PROOF_DEPLOYMENT_ID");
   if (!COMMIT_PATTERN.test(expectedCommit)) throw new Error("expected commit is invalid");
+  if (!COMMIT_PATTERN.test(deployedSourceCommit)) {
+    throw new Error("deployed source commit is invalid");
+  }
   if (!DEPLOYMENT_PATTERN.test(deploymentId)) throw new Error("deployment ID is invalid");
   const evidencePath = path.resolve(required(env, "SELLER_PAYOUT_LINKED_PROOF_EVIDENCE_PATH"));
   if (
@@ -167,6 +174,7 @@ export function validateConfiguration(env = process.env) {
     env.SELLER_PAYOUT_LINKED_PROOF_STRIPE_CLI_PATH || "/opt/homebrew/bin/stripe",
   );
   return Object.freeze({
+    deployedSourceCommit,
     deploymentId,
     evidencePath,
     expectedCommit,
@@ -213,7 +221,7 @@ export function validateStripeSecret(localValues) {
 
 export function assertGitState(state, expectedCommit) {
   if (
-    state?.branch !== "main"
+    !new Set(["", "main"]).has(state?.branch)
     || state?.head !== expectedCommit
     || state?.status !== ""
     || !COMMIT_PATTERN.test(expectedCommit)
@@ -229,6 +237,8 @@ export function parseGitHubCiRun(raw, expectedCommit, expectedRunId) {
     || value?.conclusion !== "success"
     || value?.status !== "completed"
     || value?.workflowName !== "CI"
+    || value?.headBranch !== "main"
+    || value?.event !== "push"
   ) throw new Error("linked payout proof exact-main CI binding did not pass");
   return Object.freeze({ passed: true, runId: expectedRunId });
 }
@@ -358,6 +368,7 @@ export function assertState(value, config) {
     value?.phase !== "seller-payout-event-linked-production-proof-state"
     || !stages.has(value?.stage)
     || value?.commit !== config.expectedCommit
+    || value?.deployedSourceCommit !== config.deployedSourceCommit
     || Number(value?.ciRunId) !== config.mainCiRunId
     || value?.deploymentId !== config.deploymentId
     || !UUID_V4_PATTERN.test(String(value?.attemptId ?? ""))
@@ -416,7 +427,7 @@ function readGitState(cwd) {
 function verifyGitHubCi(config) {
   const raw = execFileSync("gh", [
     "run", "view", String(config.mainCiRunId), "--json",
-    "databaseId,headSha,conclusion,status,workflowName",
+    "databaseId,headSha,conclusion,status,workflowName,headBranch,event",
   ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   return parseGitHubCiRun(raw, config.expectedCommit, config.mainCiRunId);
 }
@@ -488,7 +499,7 @@ async function verifyDeployment(config) {
     || deployment?.target !== "production"
     || deployment?.readyState !== "READY"
     || (deployment?.meta?.githubCommitSha ?? deployment?.meta?.gitCommitSha)
-      !== config.expectedCommit
+      !== config.deployedSourceCommit
     || !Array.isArray(deployment?.alias)
     || REQUIRED_ALIASES.some((alias) => !deployment.alias.includes(alias))
   ) throw new Error("Vercel production deployment identity drifted");
@@ -843,6 +854,7 @@ function buildEvidence(config, state, delivery, cleanup, provider) {
     status: "passed",
     mode: "test",
     commit: config.expectedCommit,
+    deployedSourceCommit: config.deployedSourceCommit,
     ciRunId: config.mainCiRunId,
     deploymentId: config.deploymentId,
     providerStage: provider.stage,
@@ -887,6 +899,7 @@ function assertEvidence(value, config) {
     || value?.status !== "passed"
     || value?.mode !== "test"
     || value?.commit !== config.expectedCommit
+    || value?.deployedSourceCommit !== config.deployedSourceCommit
     || Number(value?.ciRunId) !== config.mainCiRunId
     || value?.deploymentId !== config.deploymentId
     || value?.providerStage !== 4
@@ -989,6 +1002,7 @@ export async function runSellerPayoutLinkedProductionProof({
         phase: "seller-payout-event-linked-production-proof-state",
         stage: "selected",
         commit: config.expectedCommit,
+        deployedSourceCommit: config.deployedSourceCommit,
         ciRunId: config.mainCiRunId,
         deploymentId: config.deploymentId,
         attemptId: randomUUID(),

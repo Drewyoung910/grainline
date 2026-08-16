@@ -18,9 +18,11 @@ import {
 } from "../scripts/seller-payout-event-linked-production-proof.mjs";
 
 const COMMIT = "a".repeat(40);
+const DEPLOYED_SOURCE_COMMIT = "b".repeat(40);
 const CI_RUN_ID = 31999999999;
 const DEPLOYMENT_ID = "dpl_LinkedPayoutProof123";
 const config = {
+  deployedSourceCommit: DEPLOYED_SOURCE_COMMIT,
   deploymentId: DEPLOYMENT_ID,
   expectedCommit: COMMIT,
   mainCiRunId: CI_RUN_ID,
@@ -30,6 +32,7 @@ function environment(overrides = {}) {
   return {
     SELLER_PAYOUT_LINKED_PROOF_CONFIRM: CONFIRMATION,
     SELLER_PAYOUT_LINKED_PROOF_EXPECTED_COMMIT: COMMIT,
+    SELLER_PAYOUT_LINKED_PROOF_DEPLOYED_SOURCE_COMMIT: DEPLOYED_SOURCE_COMMIT,
     SELLER_PAYOUT_LINKED_PROOF_CI_RUN_ID: String(CI_RUN_ID),
     SELLER_PAYOUT_LINKED_PROOF_DEPLOYMENT_ID: DEPLOYMENT_ID,
     SELLER_PAYOUT_LINKED_PROOF_EVIDENCE_PATH:
@@ -65,6 +68,7 @@ function state(stage, overrides = {}) {
     phase: "seller-payout-event-linked-production-proof-state",
     stage,
     commit: COMMIT,
+    deployedSourceCommit: DEPLOYED_SOURCE_COMMIT,
     ciRunId: CI_RUN_ID,
     deploymentId: DEPLOYMENT_ID,
     attemptId: "11111111-1111-4111-8111-111111111111",
@@ -96,6 +100,7 @@ describe("SellerPayoutEvent linked production operator", () => {
   it("requires an explicit exact release binding", () => {
     const parsed = validateConfiguration(environment());
     assert.equal(parsed.expectedCommit, COMMIT);
+    assert.equal(parsed.deployedSourceCommit, DEPLOYED_SOURCE_COMMIT);
     assert.equal(parsed.mainCiRunId, CI_RUN_ID);
     assert.equal(parsed.deploymentId, DEPLOYMENT_ID);
     assert.throws(
@@ -105,6 +110,12 @@ describe("SellerPayoutEvent linked production operator", () => {
     assert.throws(
       () => validateConfiguration(environment({ SELLER_PAYOUT_LINKED_PROOF_DEPLOYMENT_ID: "bad" })),
       /deployment ID is invalid/,
+    );
+    assert.throws(
+      () => validateConfiguration(environment({
+        SELLER_PAYOUT_LINKED_PROOF_DEPLOYED_SOURCE_COMMIT: "bad",
+      })),
+      /deployed source commit is invalid/,
     );
   });
 
@@ -137,6 +148,7 @@ describe("SellerPayoutEvent linked production operator", () => {
       /refuses any non-test Stripe secret/,
     );
     assertGitState({ branch: "main", head: COMMIT, status: "" }, COMMIT);
+    assertGitState({ branch: "", head: COMMIT, status: "" }, COMMIT);
     assert.throws(
       () => assertGitState({ branch: "feature", head: COMMIT, status: "" }, COMMIT),
       /exact clean reviewed main/,
@@ -145,11 +157,25 @@ describe("SellerPayoutEvent linked production operator", () => {
       databaseId: CI_RUN_ID,
       headSha: COMMIT,
       conclusion: "success",
+      event: "push",
+      headBranch: "main",
       status: "completed",
       workflowName: "CI",
     }, COMMIT, CI_RUN_ID);
     assert.throws(
       () => parseGitHubCiRun({ databaseId: CI_RUN_ID, headSha: COMMIT }, COMMIT, CI_RUN_ID),
+      /CI binding did not pass/,
+    );
+    assert.throws(
+      () => parseGitHubCiRun({
+        databaseId: CI_RUN_ID,
+        headSha: COMMIT,
+        conclusion: "success",
+        event: "pull_request",
+        headBranch: "feature",
+        status: "completed",
+        workflowName: "CI",
+      }, COMMIT, CI_RUN_ID),
       /CI binding did not pass/,
     );
   });
