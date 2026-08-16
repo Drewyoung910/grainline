@@ -10,8 +10,12 @@ const audit = readFileSync("docs/seller-payout-event-pre-rls-audit.md", "utf8");
 const matrix = readFileSync("docs/rls-coverage-matrix.md", "utf8");
 
 test("linked payout proof keeps its production boundary explicit", () => {
-  assert.match(plan, /reviewed design and isolated operator work only/i);
-  assert.match(plan, /Nothing in this[\s\S]*document authorizes[\s\S]*production deployment/);
+  assert.match(plan, /reviewed operator ready but not executed/i);
+  assert.match(plan, /e9239463a71860451191344b26dd20b45298f239/);
+  assert.match(plan, /31927548800/);
+  assert.match(plan, /dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h/);
+  assert.match(plan, /Nothing in this document[\s\S]*authorizes a provider mutation/);
+  assert.match(plan, /RLS activation or grant change/);
   assert.match(plan, /test-mode/);
   assert.match(plan, /no customer order, payment, refund or live-mode Stripe object/);
   assert.match(plan, /must still treat every existing seller\s+as non-disposable/);

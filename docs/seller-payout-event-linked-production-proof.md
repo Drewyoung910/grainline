@@ -1,8 +1,11 @@
 # SellerPayoutEvent linked-seller production proof
 
-Status: reviewed design and isolated operator work only. Nothing in this
-document authorizes a production deployment, provider mutation, database
-fixture, payout, notification, cleanup, RLS activation or grant change.
+Status: reviewed operator ready but not executed. The compatible application is
+live at exact source `e9239463a71860451191344b26dd20b45298f239`, CI
+`31927548800`, deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`; deployment and
+predecessor compatibility are accepted separately. Nothing in this document
+authorizes a provider mutation, database fixture, payout, notification,
+cleanup, RLS activation or grant change.
 
 Prepared: 2026-08-15
 

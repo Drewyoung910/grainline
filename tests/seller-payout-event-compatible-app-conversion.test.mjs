@@ -7,15 +7,22 @@ const plan = readFileSync(
   "utf8",
 );
 
-test("SellerPayoutEvent app conversion records the exact non-production boundary", () => {
-  assert.match(plan, /merged application candidate, not deployed/i);
+test("SellerPayoutEvent app conversion records the exact compatible production release", () => {
+  assert.match(plan, /compatible application deployed and verified/i);
   assert.match(plan, /PR #226 merged[\s\S]*99591a8f93c45f9324fb834fcbc1ea525867ace8/);
   assert.match(plan, /exact-main CI `31925636570`[\s\S]*passed/);
-  assert.match(plan, /Production still serves the predecessor application/);
+  assert.match(plan, /e9239463a71860451191344b26dd20b45298f239/);
+  assert.match(plan, /31927548800/);
+  assert.match(plan, /dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h/);
   assert.match(plan, /Compatible database preparation[\s\S]*accepted in production/i);
   assert.match(plan, /RLS remains\s+off[\s\S]*predecessor runtime table CRUD remains available/i);
-  assert.match(plan, /does not enable or FORCE RLS/);
-  assert.match(plan, /database prerequisite and[\s\S]*exact-main CI are proven/i);
+  assert.match(plan, /did not enable or FORCE RLS/);
+  assert.match(plan, /all four canonical aliases/);
+  assert.match(plan, /`\/api\/health` returned HTTP 200/);
+  assert.match(plan, /immediate predecessor deployment[\s\S]*remains `READY`/);
+  assert.match(plan, /engine-attested[\s\S]*repeatable-read\/read-only transactions/);
+  assert.match(plan, /all four[\s\S]*runtime CRUD privileges retained/);
+  assert.match(plan, /changed no production state/);
   assert.match(plan, /three audited `SellerPayoutEvent` application\s+consumers/);
 });
 

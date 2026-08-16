@@ -1,7 +1,7 @@
 # SellerPayoutEvent compatible application conversion
 
-Status: merged application candidate, not deployed. Compatible database preparation
-is accepted in production from exact main
+Status: compatible application deployed and verified with predecessor authority
+retained. Compatible database preparation is accepted in production from exact main
 `6bc89c58d7d83509f73206a2f9b4854e3bed476b`: exact-main CI `31923317475`, the
 engine-read-only inspection `31923608819`, and guarded migration run
 `31923767337` all passed. Only
@@ -9,8 +9,11 @@ engine-read-only inspection `31923608819`, and guarded migration run
 off and predecessor runtime table CRUD remains available. PR #226 merged the
 application conversion as exact main
 `99591a8f93c45f9324fb834fcbc1ea525867ace8`; exact-main CI `31925636570`
-passed. Production still serves the predecessor application, so this is not a
-deployment or drain claim.
+passed. Exact reviewed source
+`e9239463a71860451191344b26dd20b45298f239`, bound to exact-main CI
+`31927548800`, is live as production deployment
+`dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`. This is not a predecessor-drain, linked
+seller proof or RLS-activation claim.
 
 Prepared: 2026-08-15
 
@@ -26,10 +29,9 @@ consumers to the fixed functions introduced by
 | seller payout banner | direct latest-row query | actor-owned 30-day latest projection |
 | account export | unbounded direct table query | actor-owned 500-row keyset pages |
 
-The candidate does not enable or FORCE RLS, revoke table authority, run a
-migration or change Stripe/Vercel/provider state. Its database prerequisite and
-exact-main CI are proven, so the next boundary is an exact-source production
-deployment while predecessor CRUD remains available for coexistence.
+The release did not enable or FORCE RLS, revoke table authority, run a
+migration or change Stripe/provider configuration. Its database prerequisite,
+exact-main CI, production deployment and predecessor coexistence are proven.
 
 ## Write and notification contract
 
@@ -90,16 +92,36 @@ taught the Notification inventory about the strict helper without increasing
 the exact 55-path emission count. Exact-main CI `31925636570` passed after PR
 #226 merged at `99591a8f93c45f9324fb834fcbc1ea525867ace8`.
 
+## Accepted compatible production deployment
+
+The manual production deployment was created from a clean detached worktree at
+exact source `e9239463a71860451191344b26dd20b45298f239`, after exact-main CI
+`31927548800` passed. Vercel reports deployment
+`dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h` as `READY` with all four canonical aliases.
+`https://thegrainline.com/` returned HTTP 200 with that exact deployment marker,
+`/api/health` returned HTTP 200 and `{"ok":true}`, and `www.thegrainline.com`
+returned the expected 308 redirect to the canonical host.
+
+The immediate predecessor deployment
+`dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw` remains `READY`. A post-deploy owner catalog
+proof and separate pooled-runtime proof both ran inside engine-attested
+repeatable-read/read-only transactions. They proved the exact 198-migration
+prepared catalog, the three fixed functions, RLS and FORCE both off, all four
+predecessor runtime CRUD privileges retained, and actual pooled identity
+`grainline_app_runtime` on the reviewed production endpoint. Both proofs report
+that they changed no production state.
+
+No migration, linked-seller fixture/proof, RLS change, grant change, cleanup,
+provider variable change or Stripe mutation accompanied the deployment.
+
 ## Remaining gates
 
-1. Deploy exact reviewed main while predecessor table grants remain available;
-   prove the canonical aliases, health and old/new coexistence.
-2. Run the separately reviewed linked-seller signed test-mode production proof
+1. Run the separately reviewed linked-seller signed test-mode production proof
    and exact retry, including one payout row and one source-bound notification,
    then remove only those exact application fixture rows. See
    `docs/seller-payout-event-linked-production-proof.md`.
-3. Drain predecessors and prove zero direct application table access.
-4. Activate policyless RLS and revoke direct table/column authority, then apply
+2. Drain predecessors and prove zero direct application table access.
+3. Activate policyless RLS and revoke direct table/column authority, then apply
    posture-only FORCE as a separate release.
 
 `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem` remain
