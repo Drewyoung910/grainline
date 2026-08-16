@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
+import {
+  SELLER_PAYOUT_EVENT_AUTHORITY_FUNCTIONS,
+  assertSellerPayoutEventPreparedCatalog,
+  readSellerPayoutEventProductionSnapshot,
+  sellerPayoutEventAuthorityFunctionSourceSha256,
+} from "./verify-seller-payout-event-authority-production-scope.mjs";
 
 const { Client } = pg;
 const PROOF_ENV = "SELLER_PAYOUT_EVENT_AUTHORITY_PROOF_DATABASE_URL";
@@ -23,11 +30,9 @@ const ids = Object.freeze({
   concurrentPayout: `po_${PREFIX}_concurrent`,
 });
 
-const functionIdentities = Object.freeze([
-  "grainline_seller_payout_event_apply(text,bigint,bigint,text,text,integer,text,text,text)",
-  "grainline_seller_payout_latest_failure(text)",
-  "grainline_seller_payout_export_page(text,integer,bigint,text)",
-]);
+const functionIdentities = Object.freeze(
+  SELLER_PAYOUT_EVENT_AUTHORITY_FUNCTIONS.map((entry) => entry.identity),
+);
 
 function safeError(error) {
   return (error instanceof Error ? error.message : String(error))
@@ -221,7 +226,13 @@ async function verifyCatalog(client) {
         pg_catalog.oidvectortypes(p.proargtypes), ', ', ','
       ) || ')' AS identity,
       p.prosecdef AS security_definer,
+      p.prokind AS function_kind,
+      language.lanname AS language_name,
+      p.proleakproof AS leakproof,
+      p.provolatile AS volatility,
+      p.proparallel AS parallel,
       p.proconfig AS config,
+      p.prosrc AS function_source,
       pg_catalog.pg_get_userbyid(p.proowner) AS owner,
       pg_catalog.has_function_privilege($1, p.oid, 'EXECUTE') AS runtime_execute,
       EXISTS (
@@ -230,9 +241,30 @@ async function verifyCatalog(client) {
           COALESCE(p.proacl, pg_catalog.acldefault('f', p.proowner))
         ) AS acl
         WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
-      ) AS public_execute
+      ) AS public_execute,
+      (SELECT pg_catalog.count(*)::integer
+         FROM pg_catalog.aclexplode(
+           COALESCE(p.proacl, pg_catalog.acldefault('f', p.proowner))
+         ) AS acl
+        WHERE acl.privilege_type <> 'EXECUTE'
+           OR acl.grantee = 0
+           OR acl.grantee NOT IN (
+                p.proowner,
+                (SELECT role.oid
+                   FROM pg_catalog.pg_roles AS role
+                  WHERE role.rolname = $1)
+              )
+           OR (
+             acl.grantee = (
+               SELECT role.oid
+                 FROM pg_catalog.pg_roles AS role
+                WHERE role.rolname = $1
+             )
+             AND (acl.grantor <> p.proowner OR acl.is_grantable)
+           )) AS invalid_acl_count
     FROM pg_catalog.pg_proc AS p
     JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+    JOIN pg_catalog.pg_language AS language ON language.oid = p.prolang
     WHERE n.nspname = 'public'
       AND p.proname = ANY($2::text[])
     ORDER BY identity
@@ -241,12 +273,29 @@ async function verifyCatalog(client) {
     functions.rows.map((row) => row.identity),
     [...functionIdentities].sort(),
   );
+  const expectedByIdentity = new Map(
+    SELLER_PAYOUT_EVENT_AUTHORITY_FUNCTIONS.map((entry) => [entry.identity, entry]),
+  );
+  const sourceHashes = sellerPayoutEventAuthorityFunctionSourceSha256();
   for (const row of functions.rows) {
+    const expected = expectedByIdentity.get(row.identity);
+    assert.ok(expected, row.identity);
     assert.equal(row.security_definer, true, row.identity);
+    assert.equal(row.function_kind, "f", row.identity);
+    assert.equal(row.language_name, expected.language, row.identity);
+    assert.equal(row.leakproof, false, row.identity);
+    assert.equal(row.volatility, expected.volatility, row.identity);
+    assert.equal(row.parallel, expected.parallel, row.identity);
     assert.deepEqual(row.config, ["search_path=pg_catalog"], row.identity);
     assert.equal(row.owner, MIGRATION_ROLE, row.identity);
     assert.equal(row.runtime_execute, true, row.identity);
     assert.equal(row.public_execute, false, row.identity);
+    assert.equal(row.invalid_acl_count, 0, row.identity);
+    assert.equal(
+      createHash("sha256").update(row.function_source).digest("hex"),
+      sourceHashes[row.identity],
+      `${row.identity} source drifted`,
+    );
   }
 }
 
@@ -282,6 +331,13 @@ export async function runSellerPayoutEventAuthorityProof(env = process.env) {
   const now = Number(nowResult.rows[0].now_seconds);
   try {
     await verifyCatalog(admin);
+    assert.equal(
+      assertSellerPayoutEventPreparedCatalog(
+        (await readSellerPayoutEventProductionSnapshot(databaseUrl)).catalogState,
+        MIGRATION_ROLE,
+      ).runtimeFunctionCount,
+      functionIdentities.length,
+    );
     await seedFixtures(admin);
 
     await seedEvent(admin, `evt_${PREFIX}_forged`, `po_${PREFIX}_real`);

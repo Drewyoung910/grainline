@@ -24,7 +24,7 @@ const { Client } = pg;
 export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_CONFIRMATION =
   "inspect-prelaunch-order-payment-shipping-legacy-state";
 export const ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITE_CONFIRMATION =
-  "case-force-and-runtime-separation-postflights-passed";
+  "checkout-stock-reservation-force-and-runtime-separation-postflights-passed";
 
 export const REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET = Object.freeze({
   databaseName: "neondb",
@@ -42,6 +42,19 @@ export const ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES = Object.freeze([
   "OrderShippingRateQuote",
   "SellerPayoutEvent",
   "StripeWebhookEvent",
+]);
+
+export const ORDER_PAYMENT_SHIPPING_FORCE_TABLES = Object.freeze([
+  "CheckoutStockReservation",
+  "StripeWebhookEvent",
+]);
+
+export const ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES = Object.freeze([
+  "Order",
+  "OrderItem",
+  "OrderPaymentEvent",
+  "OrderShippingRateQuote",
+  "SellerPayoutEvent",
 ]);
 
 export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
@@ -269,6 +282,61 @@ export function normalizeOrderPaymentShippingLegacyCounts(row) {
   return Object.freeze(normalized);
 }
 
+export function normalizeOrderPaymentShippingInspectionPosture(rows) {
+  const expectedTables = [...ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES].sort();
+  const forceTables = new Set(ORDER_PAYMENT_SHIPPING_FORCE_TABLES);
+  const postureMatches = Array.isArray(rows)
+    && rows.length === expectedTables.length
+    && rows.every((row, index) => {
+      if (
+        row.table_name !== expectedTables[index]
+        || row.owner_name
+          !== REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole
+        || Number(row.policy_count) !== 0
+      ) return false;
+      if (forceTables.has(row.table_name)) {
+        return row.rls_enabled === true
+          && row.rls_forced === true
+          && row.runtime_can_select === false
+          && row.runtime_can_insert === false
+          && row.runtime_can_update === false
+          && row.runtime_can_delete === false;
+      }
+      return row.rls_enabled === false
+        && row.rls_forced === false
+        && row.runtime_can_select === true
+        && row.runtime_can_insert === true
+        && row.runtime_can_update === true
+        && row.runtime_can_delete === true;
+    });
+  if (!postureMatches) {
+    throw new Error(
+      "Order/payment/shipping inspection database posture is not the reviewed reservation/webhook FORCE plus remaining broad-CRUD predecessor",
+    );
+  }
+  return Object.freeze({
+    tables: expectedTables,
+    tableOwner: REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole,
+    policyCountPerTable: 0,
+    checkoutStockReservation: Object.freeze({
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    }),
+    stripeWebhookEvent: Object.freeze({
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    }),
+    remainingPredecessors: Object.freeze({
+      tables: ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES,
+      rlsEnabled: false,
+      rlsForced: false,
+      legacyRuntimeCrudRetained: true,
+    }),
+  });
+}
+
 async function readPosture(client) {
   const result = await client.query(
     `
@@ -315,50 +383,7 @@ async function readPosture(client) {
       [...ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES].sort(),
     ],
   );
-  const expectedTables = [...ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES].sort();
-  const postureMatches = result.rows.length === expectedTables.length
-    && result.rows.every((row, index) => {
-      if (
-        row.table_name !== expectedTables[index]
-        || row.owner_name
-          !== REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole
-        || Number(row.policy_count) !== 0
-      ) return false;
-      if (row.table_name === "StripeWebhookEvent") {
-        return row.rls_enabled === true
-          && row.rls_forced === true
-          && row.runtime_can_select === false
-          && row.runtime_can_insert === false
-          && row.runtime_can_update === false
-          && row.runtime_can_delete === false;
-      }
-      return row.rls_enabled === false
-        && row.rls_forced === false
-        && row.runtime_can_select === true
-        && row.runtime_can_insert === true
-        && row.runtime_can_update === true
-        && row.runtime_can_delete === true;
-    });
-  if (!postureMatches) {
-    throw new Error(
-      "Order/payment/shipping inspection database posture is not the reviewed Stripe FORCE plus broad-CRUD predecessor",
-    );
-  }
-  return Object.freeze({
-    tables: expectedTables,
-    tableOwner: REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole,
-    policyCountPerTable: 0,
-    checkoutStockReservation: Object.freeze({
-      rlsEnabled: false,
-      rlsForced: false,
-      legacyRuntimeCrudRetained: true,
-    }),
-    stripeWebhookEvent: Object.freeze({
-      rlsEnabled: true,
-      rlsForced: true,
-      runtimeCrudRetained: false,
-    }),
-  });
+  return normalizeOrderPaymentShippingInspectionPosture(result.rows);
 }
 
 export const RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS = Object.freeze([
@@ -942,6 +967,38 @@ export function writeOrderPaymentShippingLegacyInspectionEvidence(filePath, evid
   }
 }
 
+export function orderPaymentShippingLegacyInspectionFailureCode(error) {
+  const message = error instanceof Error ? error.message : "";
+  if (/database posture is not the reviewed/.test(message)) {
+    return "POSTURE_MISMATCH";
+  }
+  if (/transaction is not read-only/.test(message)) {
+    return "READ_ONLY_FENCE";
+  }
+  if (/DIRECT_URL does not match the protected Production digest/.test(message)) {
+    return "CREDENTIAL_DIGEST";
+  }
+  if (/DIRECT_URL is not the reviewed direct production owner target/.test(message)) {
+    return "DATABASE_TARGET";
+  }
+  if (/checkout is not the exact clean dispatched commit/.test(message)) {
+    return "GIT_STATE";
+  }
+  if (
+    /inspection returned (?:no count row|an unexpected count shape|invalid \w+)/
+      .test(message)
+  ) {
+    return "COUNT_SHAPE";
+  }
+  if (/nonzero rejected aggregate counts/.test(message)) {
+    return "DATA_GATE";
+  }
+  if (/evidence/.test(message)) {
+    return "EVIDENCE";
+  }
+  return "UNCLASSIFIED";
+}
+
 async function main() {
   try {
     const config = parseOrderPaymentShippingLegacyInspectionConfig(process.env);
@@ -976,9 +1033,9 @@ async function main() {
       status: evidence.status,
       transaction: evidence.transaction,
     })}\n`);
-  } catch {
+  } catch (error) {
     process.stderr.write(
-      "Order/payment/shipping legacy inspection failed closed.\n",
+      `Order/payment/shipping legacy inspection failed closed [${orderPaymentShippingLegacyInspectionFailureCode(error)}].\n`,
     );
     process.exitCode = 1;
   }

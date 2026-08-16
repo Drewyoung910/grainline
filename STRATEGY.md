@@ -369,15 +369,18 @@ proof all precede activation. `OrderPaymentEvent`, shipping quotes, Order and
 OrderItem remain separate releases, and live-mode Connect signed delivery
 remains a separate launch/provider gate.
 
-The reviewed compatible candidate is tracked in
-`docs/seller-payout-event-compatible-authority-release.md`. It is merged but
-unapplied, additive and keeps predecessor CRUD/RLS posture unchanged; exact-main
-CI passed and a fresh aggregate production inspection remains the next live
-gate before any production runner is prepared. The isolated application
-conversion is tracked in
-`docs/seller-payout-event-compatible-app-conversion.md`. Application deployment,
-linked-seller signed test-mode proof, predecessor drain, policyless ENABLE and
-FORCE remain separate boundaries. Do not reinterpret either candidate as
+The compatible candidate is tracked in
+`docs/seller-payout-event-compatible-authority-release.md`. It and the dedicated
+byte-pinned, restart-safe production runner are merged, but the additive
+migration remains unapplied and predecessor CRUD/RLS posture is unchanged.
+Exact-main CI `31920947066` and protected same-commit inspection `31921239813`
+passed for `a4f7910e322a7d66ad4ec8d9a24c086e0c51143f`; the inspection again found
+zero payout rows and zero integrity anomalies under an engine-enforced
+repeatable-read/read-only transaction. The isolated application conversion is
+tracked in `docs/seller-payout-event-compatible-app-conversion.md`. Applying the
+compatible migration, application deployment, linked-seller signed test-mode
+proof, predecessor drain, policyless ENABLE and FORCE remain separate
+boundaries. Do not reinterpret the clean inspection or either candidate as
 permission to bundle the other four tables.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)

@@ -129,11 +129,16 @@ The additive SellerPayoutEvent authority candidate is documented separately in
 provider-event ordering, a source-bound writer and bounded seller projections
 while intentionally leaving RLS off and predecessor table grants intact. A
 transaction-scoped payout-identity advisory lock covers concurrent first
-writes, where a row lock cannot yet exist. Its reviewed bytes are merged into
-`main` but remain unapplied and undeployed. The isolated app conversion is
-documented in `docs/seller-payout-event-compatible-app-conversion.md`; it
-removes all three direct application consumers but cannot deploy before the
-compatible migration. Neither candidate changes the separate activation order
+writes, where a row lock cannot yet exist. The candidate and its separately
+reviewed restart-safe production runner are merged, but the migration remains
+unapplied and is therefore not production database state. Exact-main CI
+`31920947066` and protected inspection `31921239813` from
+`a4f7910e322a7d66ad4ec8d9a24c086e0c51143f` confirmed zero payout rows and
+zero integrity anomalies under an engine-attested repeatable-read/read-only
+transaction. The isolated app conversion is documented in
+`docs/seller-payout-event-compatible-app-conversion.md`; it removes all three
+direct application consumers but cannot deploy before the compatible
+migration. These candidates do not change the later separate activation order
 for payment events, shipping quotes or Order/OrderItem.
 
 The completed activation design used policyless ENABLE first and FORCE later.

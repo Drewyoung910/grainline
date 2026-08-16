@@ -667,9 +667,10 @@ OrderPaymentEvent and SellerPayoutEvent. They remain separate releases.
 The required domain-first gate selected SellerPayoutEvent because it has only
 three direct consumers and no Order fulfillment, refund or Shippo state
 transition. The dedicated audit is
-`docs/seller-payout-event-pre-rls-audit.md`. Its isolated additive candidate is
-recorded in `docs/seller-payout-event-compatible-authority-release.md`; it is
-not merged, applied, deployed or activated. The candidate closes the discovered
-provider-ordering and first-insert race in database design, but production work
-still begins with a fresh aggregate-only inspection and stops on any legacy
-row requiring classification.
+`docs/seller-payout-event-pre-rls-audit.md`. Its additive candidate is recorded
+in `docs/seller-payout-event-compatible-authority-release.md`; it is merged but
+remains unapplied, undeployed and unactivated. Protected aggregate inspection
+`31919078918` found zero payout rows and zero integrity anomalies, clearing only
+the compatible migration data gate. The dedicated restart-safe production
+runner, application conversion/deployment, linked-seller signed proof,
+predecessor drain and separate ENABLE/FORCE releases remain required.

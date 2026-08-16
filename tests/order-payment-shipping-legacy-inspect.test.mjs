@@ -5,14 +5,18 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
+  ORDER_PAYMENT_SHIPPING_FORCE_TABLES,
   ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES,
   ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS,
   ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_CONFIRMATION,
   ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
   ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITE_CONFIRMATION,
+  ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES,
   RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS,
   assertOrderPaymentShippingLegacyInspectionGitState,
   normalizeOrderPaymentShippingLegacyCounts,
+  normalizeOrderPaymentShippingInspectionPosture,
+  orderPaymentShippingLegacyInspectionFailureCode,
   parseOrderPaymentShippingLegacyInspectionConfig,
   reservationAuthorityInspectionDecision,
   writeOrderPaymentShippingLegacyInspectionEvidence,
@@ -61,6 +65,30 @@ function countRow(value = "0") {
   return Object.fromEntries(
     ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.map((field) => [field, value]),
   );
+}
+
+function postureRows() {
+  const forceTables = new Set(ORDER_PAYMENT_SHIPPING_FORCE_TABLES);
+  return [...ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES].sort().map((table) => {
+    const forced = forceTables.has(table);
+    return {
+      table_name: table,
+      owner_name: "neondb_owner",
+      rls_enabled: forced,
+      rls_forced: forced,
+      policy_count: "0",
+      runtime_can_select: !forced,
+      runtime_can_insert: !forced,
+      runtime_can_update: !forced,
+      runtime_can_delete: !forced,
+    };
+  });
+}
+
+function postureRowsWith(tableName, changes) {
+  return postureRows().map((row) => row.table_name === tableName
+    ? { ...row, ...changes }
+    : row);
 }
 
 describe("Order/payment/shipping aggregate-only legacy inspection", () => {
@@ -216,18 +244,97 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     );
   });
 
-  it("requires live Stripe FORCE and reservation predecessor CRUD", () => {
+  it("requires live reservation/webhook FORCE and exact remaining predecessor CRUD", () => {
     const script = fs.readFileSync(
       "scripts/order-payment-shipping-legacy-inspect.mjs",
       "utf8",
     );
-    assert.match(script, /row\.table_name === "StripeWebhookEvent"/);
-    assert.match(script, /row\.rls_enabled === true/);
-    assert.match(script, /row\.rls_forced === true/);
-    assert.match(script, /row\.runtime_can_select === false/);
-    assert.match(script, /checkoutStockReservation:[\s\S]*legacyRuntimeCrudRetained: true/);
+    const posture = normalizeOrderPaymentShippingInspectionPosture(postureRows());
+    assert.deepEqual([...ORDER_PAYMENT_SHIPPING_FORCE_TABLES], [
+      "CheckoutStockReservation",
+      "StripeWebhookEvent",
+    ]);
+    assert.deepEqual([...ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES], [
+      "Order",
+      "OrderItem",
+      "OrderPaymentEvent",
+      "OrderShippingRateQuote",
+      "SellerPayoutEvent",
+    ]);
+    assert.deepEqual(posture.checkoutStockReservation, {
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    });
+    assert.deepEqual(posture.stripeWebhookEvent, {
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    });
+    assert.deepEqual(posture.remainingPredecessors, {
+      tables: ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES,
+      rlsEnabled: false,
+      rlsForced: false,
+      legacyRuntimeCrudRetained: true,
+    });
+    for (const drift of [
+      postureRows().slice(1),
+      postureRowsWith("CheckoutStockReservation", {
+        rls_enabled: false,
+        rls_forced: false,
+        runtime_can_select: true,
+        runtime_can_insert: true,
+        runtime_can_update: true,
+        runtime_can_delete: true,
+      }),
+      postureRowsWith("SellerPayoutEvent", {
+        rls_enabled: true,
+        rls_forced: true,
+        runtime_can_select: false,
+        runtime_can_insert: false,
+        runtime_can_update: false,
+        runtime_can_delete: false,
+      }),
+      postureRowsWith("Order", { policy_count: "1" }),
+      postureRowsWith("OrderItem", {
+        owner_name: "grainline_app_runtime",
+      }),
+    ]) {
+      assert.throws(
+        () => normalizeOrderPaymentShippingInspectionPosture(drift),
+        /database posture is not the reviewed/,
+      );
+    }
+    assert.match(script, /forceTables\.has\(row\.table_name\)/);
     assert.match(script, /reservation authority candidate has nonzero rejected aggregate counts/);
     assert.match(script, /status: result\.reservationAuthorityCandidate\.accepted[\s\S]*\? "passed"[\s\S]*: "blocked"/);
+  });
+
+  it("reports only bounded failure classes", () => {
+    assert.equal(
+      orderPaymentShippingLegacyInspectionFailureCode(
+        new Error("Order/payment/shipping inspection database posture is not the reviewed state"),
+      ),
+      "POSTURE_MISMATCH",
+    );
+    assert.equal(
+      orderPaymentShippingLegacyInspectionFailureCode(
+        new Error("DIRECT_URL does not match the protected Production digest"),
+      ),
+      "CREDENTIAL_DIGEST",
+    );
+    assert.equal(
+      orderPaymentShippingLegacyInspectionFailureCode(
+        new Error("secret-bearing unrecognized database failure"),
+      ),
+      "UNCLASSIFIED",
+    );
+    const script = fs.readFileSync(
+      "scripts/order-payment-shipping-legacy-inspect.mjs",
+      "utf8",
+    );
+    assert.match(script, /failed closed \[\$\{orderPaymentShippingLegacyInspectionFailureCode\(error\)\}\]/);
+    assert.doesNotMatch(script, /process\.stderr\.write\([^)]*error\.message/);
   });
 
   it("compares application timestamps only to their causal predecessor", () => {
@@ -319,7 +426,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(workflow, /persist-credentials: false/);
     assert.match(
       workflow,
-      /ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED: case-force-and-runtime-separation-postflights-passed/,
+      /ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED: checkout-stock-reservation-force-and-runtime-separation-postflights-passed/,
     );
     assert.match(
       workflow,
