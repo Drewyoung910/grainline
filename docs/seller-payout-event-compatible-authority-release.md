@@ -1,10 +1,9 @@
 # SellerPayoutEvent compatible authority release
 
-Status: merged, inspected and still unapplied. The migration, schema and proof
-harness plus the dedicated production runner are on `main`, but the migration
-has not run in production and the converted application remains isolated in
-draft PR #226. RLS remains off and predecessor runtime table CRUD remains
-intentionally available.
+Status: compatible preparation accepted in production. The exact additive
+migration, schema and three fixed functions are live; the converted application
+remains isolated in draft PR #226. RLS remains off and predecessor runtime table
+CRUD remains intentionally available for old/new application coexistence.
 
 Audited: 2026-08-15
 
@@ -52,9 +51,11 @@ actions are not interchangeable:
 - `inserted`, `updated`, `legacy_converged` and `already_applied` must all
   attempt the source-bound payout notification;
 - `already_applied` must not short-circuit notification work, because the
-  payout projection commits before the current best-effort notification call.
-  A notification failure therefore leaves an applied payout row for a later
-  Stripe retry, while Notification's source identity provides deduplication;
+  payout projection commits before the converted handler's strict notification
+  call. That call must rethrow a transient notification failure so the webhook
+  lease remains retryable; a later exact Stripe retry sees the applied payout
+  row and retries the notification, while Notification's source identity
+  provides deduplication;
 - `stale_ignored` must not emit a notification for stale evidence; and
 - `ignored_unknown_account` must not invent a recipient or payout owner, but
   the route must retain bounded non-payload observability for the ignored
@@ -163,27 +164,54 @@ to `constraint_metadata`; the same real-PostgreSQL step remains mandatory so
 the corrected query must execute successfully rather than being accepted by a
 static or synthetic parser alone.
 
-The corrected runner merged at exact main
-`a4f7910e322a7d66ad4ec8d9a24c086e0c51143f`. Exact-main CI
-`31920947066` passed, including the exact catalog/source-hash checks and real
-PostgreSQL authority/concurrency proof. The required refreshed production
-inspection then passed as run `31921239813` from that same commit. Its sanitized
-artifact SHA-256 is
-`e72bd3472e1909bf4622f4be07ea7aba44370d38658fa923161806594c1f26f1`;
-it retained no rows or identifiers and again reported 0 SellerPayoutEvent rows
-and 0 integrity anomalies.
+The first production preparation dispatch, run `31922754634` from exact main
+`a4f7910e322a7d66ad4ec8d9a24c086e0c51143f`, failed safely at the sealed
+CheckoutStockReservation FORCE predecessor check. It stopped before the
+production-scope reader, Prisma generation, migration deployment, status,
+global grant/RLS audit and post-application proof; therefore it made no
+database, application or provider change. The underlying FORCE verifier already
+byte-verified this exact SellerPayoutEvent successor when called through its
+reviewed-successor API, but its CLI always selected strict historical mode.
+
+The correction exposes only the existing `--allow-reviewed-successor` mode and
+uses it through a dedicated sealed-prefix package command in this production
+runner. The original command remains strict and continues to reject any later
+migration. The allowed mode still verifies the exact successor name and bytes
+through the SellerPayoutEvent release verifier before omitting it from the
+historical latest-migration check; arbitrary or unreviewed successors remain
+fail-closed. Actual CLI regression coverage proves strict rejection, exact
+reviewed-successor acceptance and unknown-argument rejection.
+
+PR #229 merged the correction at exact main
+`6bc89c58d7d83509f73206a2f9b4854e3bed476b`. Exact-main CI run
+`31923317475` passed. The required same-commit aggregate inspection then passed
+as run `31923608819`; its sanitized artifact SHA-256 is
+`ad6e18513ec461e70ad1f59468272f6c40b7a12113e5ddca5cdce5ed200ed8fe`.
+It again reported 2 orders, 3 order items, 12 Stripe webhook rows, zero payout
+rows and zero across every anomaly count, inside an engine-attested
+repeatable-read/read-only transaction with no retained identifiers or raw rows.
+
+Guarded production preparation run `31923767337` then applied only
+`20260815210000_prepare_seller_payout_event_authority`. The pre-application
+scope was exactly `predecessor`; Prisma reported only the reviewed migration
+applied and all 198 migrations current. The global audit passed for 64 tables,
+22 enums, 165 `grainline_*` functions and the four existing RLS tables. The
+read-only final scope was exactly `prepared`: three runtime functions exist,
+SellerPayoutEvent RLS remains disabled and not forced, and predecessor runtime
+table CRUD remains retained. No application deploy, data cleanup, provider
+change, RLS activation or predecessor-grant revocation occurred.
 
 ## Remaining gates
 
-1. Apply only `20260815210000_prepare_seller_payout_event_authority` through the
-   dedicated runner bound to main CI `31920947066` and inspection
-   `31921239813`. Migration execution is a separate production boundary.
-2. Finish review of the isolated three-consumer application conversion, deploy
-   it with predecessor grants intact and prove old/new coexistence.
-3. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
+1. Finish review and merge of the isolated three-consumer application
+   conversion, then deploy it with predecessor grants intact and prove old/new
+   coexistence. Its strict payout-notification helper must keep a transient
+   notification failure retryable while existing best-effort callers remain
+   unchanged.
+2. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
    exactly one payout row, one source-bound notification and exact retry.
-4. Drain predecessors and prove zero direct application table access.
-5. Review and apply policyless ENABLE with table authority revoked, prove the
+3. Drain predecessors and prove zero direct application table access.
+4. Review and apply policyless ENABLE with table authority revoked, prove the
    owner and actual pooled runtime, then apply posture-only FORCE separately.
 
 `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem` remain

@@ -369,18 +369,20 @@ proof all precede activation. `OrderPaymentEvent`, shipping quotes, Order and
 OrderItem remain separate releases, and live-mode Connect signed delivery
 remains a separate launch/provider gate.
 
-The compatible candidate is tracked in
-`docs/seller-payout-event-compatible-authority-release.md`. It and the dedicated
-byte-pinned, restart-safe production runner are merged, but the additive
-migration remains unapplied and predecessor CRUD/RLS posture is unchanged.
-Exact-main CI `31920947066` and protected same-commit inspection `31921239813`
-passed for `a4f7910e322a7d66ad4ec8d9a24c086e0c51143f`; the inspection again found
-zero payout rows and zero integrity anomalies under an engine-enforced
-repeatable-read/read-only transaction. The isolated application conversion is
-tracked in `docs/seller-payout-event-compatible-app-conversion.md`. Applying the
-compatible migration, application deployment, linked-seller signed test-mode
-proof, predecessor drain, policyless ENABLE and FORCE remain separate
-boundaries. Do not reinterpret the clean inspection or either candidate as
+The compatible release is tracked in
+`docs/seller-payout-event-compatible-authority-release.md`. Exact main
+`6bc89c58d7d83509f73206a2f9b4854e3bed476b`, CI `31923317475`, same-commit
+read-only inspection `31923608819` and guarded production run `31923767337`
+are accepted. Production now has the additive provider-event-time field,
+indexes and three fixed functions; SellerPayoutEvent RLS remains off and
+predecessor CRUD remains retained. The next boundary is the converted
+application review, merge and deployment with old/new coexistence. That
+isolated conversion is tracked in
+`docs/seller-payout-event-compatible-app-conversion.md`; it replaces all three
+direct consumers and makes payout notification failures retryable without
+changing existing best-effort notification callers. The linked-seller signed
+test-mode proof, predecessor drain, policyless ENABLE and FORCE remain separate
+boundaries. Do not reinterpret the compatible preparation or app candidate as
 permission to bundle the other four tables.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)

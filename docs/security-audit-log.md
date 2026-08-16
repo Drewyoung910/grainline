@@ -1775,14 +1775,21 @@ Open work:
   main `e78c1ef28f88778f86947a8cb501af8dfb916b26`; exact-main CI
   `31915878411` passed. Migration bytes are SHA-256
   `9aca2449c229d0c393e41e3b63c938b6ac80c3a3bbfcda5fc68198fbc94ec146`.
-- The migration is not applied or wired to a production runner. RLS remains
-  off and predecessor table CRUD remains available; no deploy or provider
-  change accompanied the merge.
+- Compatible preparation is accepted in production from exact main
+  `6bc89c58d7d83509f73206a2f9b4854e3bed476b`: CI `31923317475`, read-only
+  inspection `31923608819`, and guarded migration run `31923767337` passed.
+  Only `20260815210000_prepare_seller_payout_event_authority` was applied. RLS
+  remains off and predecessor table CRUD remains available; no deploy or
+  provider change accompanied preparation.
 - A separate isolated app candidate converts the signed write, seller banner
   and account export to the fixed writer/latest/export functions. It passes
   the database-issued lease generation and provider event time, retries the
   source-bound notification after `already_applied`, skips stale/unknown
   results, and leaves no direct `prisma.sellerPayoutEvent` access under `src/`.
-- The next production boundary is the existing protected aggregate-only
-  inspection. Compatible migration application, app merge/deploy, signed
-  linked-seller proof, drain, policyless ENABLE and FORCE remain separate.
+- Review found that the shared best-effort notification helper would swallow a
+  payout notification failure after the payout row committed, allowing the
+  webhook lease to finish. The payout path now uses a strict helper which
+  reports and rethrows; an exact retry reaches `already_applied` and retries
+  the source-deduped notification. Existing best-effort callers are unchanged.
+- App merge/deploy, signed linked-seller proof, drain, policyless ENABLE and
+  FORCE remain separate gates.

@@ -124,22 +124,22 @@ converted app, linked-seller signed test-mode proof, Notification source path
 and predecessor drain pass. See
 `docs/seller-payout-event-pre-rls-audit.md`.
 
-The additive SellerPayoutEvent authority candidate is documented separately in
+The additive SellerPayoutEvent authority preparation is documented separately in
 `docs/seller-payout-event-compatible-authority-release.md`. It introduces
 provider-event ordering, a source-bound writer and bounded seller projections
 while intentionally leaving RLS off and predecessor table grants intact. A
 transaction-scoped payout-identity advisory lock covers concurrent first
-writes, where a row lock cannot yet exist. The candidate and its separately
-reviewed restart-safe production runner are merged, but the migration remains
-unapplied and is therefore not production database state. Exact-main CI
-`31920947066` and protected inspection `31921239813` from
-`a4f7910e322a7d66ad4ec8d9a24c086e0c51143f` confirmed zero payout rows and
-zero integrity anomalies under an engine-attested repeatable-read/read-only
-transaction. The isolated app conversion is documented in
+writes, where a row lock cannot yet exist. Compatible preparation is accepted
+in production from exact main
+`6bc89c58d7d83509f73206a2f9b4854e3bed476b`: exact-main CI `31923317475`,
+protected read-only inspection `31923608819`, and guarded migration run
+`31923767337` all passed. Only the additive migration was applied; RLS remains
+off and predecessor table CRUD remains available. The isolated app conversion is documented in
 `docs/seller-payout-event-compatible-app-conversion.md`; it removes all three
-direct application consumers but cannot deploy before the compatible
-migration. These candidates do not change the later separate activation order
-for payment events, shipping quotes or Order/OrderItem.
+direct application consumers and gives this payout path strict, retryable
+notification semantics without changing existing best-effort callers. It is
+not merged or deployed. These releases do not change the later separate
+activation order for payment events, shipping quotes or Order/OrderItem.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

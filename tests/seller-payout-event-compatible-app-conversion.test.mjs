@@ -9,15 +9,18 @@ const plan = readFileSync(
 
 test("SellerPayoutEvent app conversion records the exact non-production boundary", () => {
   assert.match(plan, /isolated application candidate only/i);
-  assert.match(plan, /database authority candidate[\s\S]*merged into `main` but remains unapplied/i);
+  assert.match(plan, /Compatible database preparation[\s\S]*accepted in production/i);
+  assert.match(plan, /RLS remains\s+off[\s\S]*predecessor runtime table CRUD remains available/i);
   assert.match(plan, /does not enable or FORCE RLS/);
-  assert.match(plan, /must not be[\s\S]*deployed before the compatible migration/i);
+  assert.match(plan, /database\s+prerequisite is proven live/i);
   assert.match(plan, /three audited `SellerPayoutEvent` application\s+consumers/);
 });
 
 test("SellerPayoutEvent app conversion pins notification retry and projection semantics", () => {
   assert.match(plan, /`inserted`, `updated`, `legacy_converged` and `already_applied`/);
   assert.match(plan, /`already_applied` retries notification/);
+  assert.match(plan, /strict helper which reports\s+and rethrows/);
+  assert.match(plan, /existing best-effort callers remain unchanged/);
   assert.match(plan, /`stale_ignored` emits no notification/);
   assert.match(plan, /identifier-free warning telemetry/);
   assert.match(plan, /database-clamped 500-row keyset projection/);
@@ -25,8 +28,8 @@ test("SellerPayoutEvent app conversion pins notification retry and projection se
 });
 
 test("SellerPayoutEvent app conversion preserves separate rollout gates", () => {
-  assert.match(plan, /aggregate-only production inspection/);
-  assert.match(plan, /Apply and prove only the compatible migration/);
+  assert.match(plan, /engine-read-only inspection `31923608819`/);
+  assert.doesNotMatch(plan, /Apply and prove only the compatible migration/);
   assert.match(plan, /linked-seller signed test-mode child\/Preview proof/);
   assert.match(plan, /Drain predecessors/);
   assert.match(plan, /policyless RLS/);

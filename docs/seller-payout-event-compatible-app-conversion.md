@@ -1,12 +1,13 @@
 # SellerPayoutEvent compatible application conversion
 
-Status: isolated application candidate only. The database authority candidate
-is merged into `main` but remains unapplied. Its dedicated restart-safe
-production runner is also merged. Exact-main CI `31920947066` and the protected
-same-commit aggregate-only production inspection `31921239813` passed for
-`a4f7910e322a7d66ad4ec8d9a24c086e0c51143f`, again finding 0 payout rows and
-0 integrity anomalies. These application changes are not merged or deployed,
-and direct table CRUD remains the production predecessor.
+Status: isolated application candidate only. Compatible database preparation
+is accepted in production from exact main
+`6bc89c58d7d83509f73206a2f9b4854e3bed476b`: exact-main CI `31923317475`, the
+engine-read-only inspection `31923608819`, and guarded migration run
+`31923767337` all passed. Only
+`20260815210000_prepare_seller_payout_event_authority` was applied. RLS remains
+off, predecessor runtime table CRUD remains available, and these application
+changes are not merged or deployed.
 
 Prepared: 2026-08-15
 
@@ -23,8 +24,9 @@ consumers to the fixed functions introduced by
 | account export | unbounded direct table query | actor-owned 500-row keyset pages |
 
 The candidate does not enable or FORCE RLS, revoke table authority, run a
-migration, deploy code, or change Stripe/Vercel/provider state. It must not be
-deployed before the compatible migration is successfully applied and proven.
+migration, deploy code, or change Stripe/Vercel/provider state. Its database
+prerequisite is proven live, so the next boundary is exact-head review and
+deployment while predecessor CRUD remains available for coexistence.
 
 ## Write and notification contract
 
@@ -39,7 +41,7 @@ The result handling is deliberately asymmetric:
 - `inserted`, `updated`, `legacy_converged` and `already_applied` attempt the
   source-bound notification;
 - `already_applied` retries notification because the payout projection and
-  the current best-effort notification are separate commits;
+  the strict notification call are separate commits;
 - `stale_ignored` emits no notification; and
 - `ignored_unknown_account` emits no notification and records only bounded,
   identifier-free warning telemetry.
@@ -69,28 +71,29 @@ not advance. No source file under `src/` retains direct
 
 ## Refresh review
 
-The candidate was refreshed onto exact main after the runner and inspection
-landed. The review re-read the complete writer, projection parsers, both signed
-webhook call sites, seller banner and account export; repeated the exhaustive
-`src/` access search; and confirmed that notification retry uses the
-database-returned payout row while Notification independently validates the
-seller/source relationship. Local verification passed 3,152 tests with 7
-explicit skips, TypeScript and lint. Refreshed implementation head
-`786ea82e2ce18350d10fd2819456b41cc2306645` passed exact-head CI
-`31921714661`, including the real PostgreSQL authority/concurrency proof and
-production build.
+The review re-read the complete writer, projection parsers, both signed webhook
+call sites, seller banner and account export, and repeated the exhaustive
+`src/` access search. It found one real cross-commit defect: the shared
+best-effort notification helper swallowed a payout-notification failure after
+the payout row committed, allowing the webhook lease to finish and permanently
+lose that notification. The payout path now uses a strict helper which reports
+and rethrows; existing best-effort callers remain unchanged. An exact retry
+reaches `already_applied` and retries the source-deduped notification.
+
+The pre-merge implementation checkpoint `14473b0f2ef6494b27c5b9f3e2ad8d957a668124`
+passed focused notification/authority coverage, TypeScript, lint and the full
+local suite before current-main reconciliation. Exact reconciled-head CI is
+still required before merge.
 
 ## Remaining gates
 
-1. Apply and prove only the compatible migration in production through the
-   dedicated runner bound to CI `31920947066` and inspection `31921239813`.
-2. After that proof, re-verify the current PR head, then review, merge and
-   deploy this application conversion while predecessor
+1. Re-verify the current PR head, then review, merge and deploy this
+   application conversion while predecessor
    table grants remain available; prove old/new coexistence.
-3. Run the linked-seller signed test-mode child/Preview proof and exact retry,
+2. Run the linked-seller signed test-mode child/Preview proof and exact retry,
    including one payout row and one source-bound notification.
-4. Drain predecessors and prove zero direct application table access.
-5. Activate policyless RLS and revoke direct table/column authority, then apply
+3. Drain predecessors and prove zero direct application table access.
+4. Activate policyless RLS and revoke direct table/column authority, then apply
    posture-only FORCE as a separate release.
 
 `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem` remain

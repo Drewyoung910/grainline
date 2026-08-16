@@ -24,9 +24,9 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
     SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256,
   );
   assert.match(release, new RegExp(digest));
-  assert.match(release, /merged, inspected and still unapplied/i);
+  assert.match(release, /compatible preparation accepted in production/i);
   assert.match(release, /RLS remains\s+off/i);
-  assert.match(release, /predecessor runtime table CRUD remains/i);
+  assert.match(release, /predecessor runtime table\s+CRUD remains/i);
   assert.match(release, /protected aggregate-only[\s\S]*inspection/i);
   assert.match(release, /policyless ENABLE/i);
   assert.match(release, /posture-only FORCE/i);
@@ -35,6 +35,21 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
     release,
     /2e01606f36d67787622d0a4a5efd725d5b9abdd209a29b52ce85bdb96d0075c7/,
   );
+  assert.match(release, /31923317475/);
+  assert.match(release, /31923608819/);
+  assert.match(release, /31923767337/);
+  assert.match(
+    release,
+    /ad6e18513ec461e70ad1f59468272f6c40b7a12113e5ddca5cdce5ed200ed8fe/,
+  );
+  assert.match(
+    release,
+    /final scope was exactly `prepared`[\s\S]*three runtime functions/i,
+  );
+  assert.match(
+    release,
+    /No application deploy[\s\S]*RLS activation[\s\S]*grant revocation occurred/i,
+  );
   assert.match(release, /0 SellerPayoutEvent rows/);
   assert.match(
     release,
@@ -42,7 +57,7 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
   );
   assert.match(
     release,
-    /already_applied` must not short-circuit notification work[\s\S]*payout projection commits before/i,
+    /already_applied` must not short-circuit notification work[\s\S]*strict notification[\s\S]*rethrow a transient notification failure[\s\S]*webhook[\s\S]*retryable/i,
   );
   assert.match(
     release,
