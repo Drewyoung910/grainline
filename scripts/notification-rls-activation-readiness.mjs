@@ -158,7 +158,7 @@ export function collectNotificationEmissionPaths({
     );
     const visit = (node) => {
       if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-        if (node.expression.text === "createNotification") {
+        if (["createNotification", "createNotificationOrThrow"].includes(node.expression.text)) {
           const argument = node.arguments[0];
           if (argument && ts.isObjectLiteralExpression(argument)) {
             emissions.push(emissionFromObject(
@@ -172,7 +172,7 @@ export function collectNotificationEmissionPaths({
           } else if (!(file === "src/app/api/orders/[id]/fulfillment/route.ts"
             && argument?.getText(sourceFile) === "payload")) {
             const position = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
-            unresolvedCalls.push(`${file}:${position.line + 1}:createNotification`);
+            unresolvedCalls.push(`${file}:${position.line + 1}:${node.expression.text}`);
           }
         }
         if (node.expression.text === "claimBackInStockNotification") {
