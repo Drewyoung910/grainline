@@ -82,6 +82,8 @@ describe("Stripe classic Connect payout webhook authority", () => {
     assert.match(payoutHandler, /result\.action === "ignored_unknown_account"/);
     assert.match(payoutHandler, /result\.action === "stale_ignored"/);
     assert.match(payoutHandler, /sourceType: NOTIFICATION_SOURCE_TYPES\.STRIPE_PAYOUT_FAILURE/);
+    assert.match(payoutHandler, /await createNotificationOrThrow\(/);
+    assert.doesNotMatch(payoutHandler, /await createNotification\(/);
     assert.match(payoutHandler, /sourceId: result\.payoutEventId/);
   });
 

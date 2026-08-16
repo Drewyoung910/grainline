@@ -126,6 +126,7 @@ describe("SellerPayoutEvent application authority", () => {
   it("removes all direct application table access and binds each consumer", () => {
     const authority = source("src/lib/sellerPayoutEventAuthority.ts");
     const handler = source("src/lib/stripePayoutWebhook.ts");
+    const notifications = source("src/lib/notifications.ts");
     const connect = source("src/app/api/stripe/webhook/connect/route.ts");
     const platform = source("src/app/api/stripe/webhook/route.ts");
     const dashboard = source("src/app/dashboard/seller/page.tsx");
@@ -140,6 +141,20 @@ describe("SellerPayoutEvent application authority", () => {
     assert.match(handler, /result\.action === "ignored_unknown_account"/);
     assert.match(handler, /result\.action === "stale_ignored"/);
     assert.match(handler, /sourceId: result\.payoutEventId/);
+    assert.match(handler, /await createNotificationOrThrow\(/);
+    assert.doesNotMatch(handler, /await createNotification\(/);
+    assert.match(
+      notifications,
+      /if \(failureMode === "throw"\) throw error/,
+    );
+    assert.match(
+      notifications,
+      /createNotification\(input: CreateNotificationInput\)[\s\S]*"swallow"/,
+    );
+    assert.match(
+      notifications,
+      /createNotificationOrThrow\(input: CreateNotificationInput\)[\s\S]*"throw"/,
+    );
     assert.match(dashboard, /latestSellerPayoutFailure\(me\.id\)/);
     assert.match(accountExport, /exportSellerPayoutEvents\(user\.id\)/);
 

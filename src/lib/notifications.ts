@@ -65,15 +65,18 @@ type CreateNotificationInput = {
   dedupScope?: string;
 } & NotificationSourceFields & NotificationRelatedUserFields;
 
-export async function createNotification({
-  userId,
-  type,
-  link,
-  dedupScope,
-  sourceType,
-  sourceId,
-  relatedUserId,
-}: CreateNotificationInput) {
+async function createNotificationWithFailureMode(
+  {
+    userId,
+    type,
+    link,
+    dedupScope,
+    sourceType,
+    sourceId,
+    relatedUserId,
+  }: CreateNotificationInput,
+  failureMode: "swallow" | "throw",
+) {
   try {
     const notificationSourceType = sourceType
       ? limitNotificationText(sourceType, 80)
@@ -95,6 +98,21 @@ export async function createNotification({
       tags: { source: "create_notification", notificationType: type },
       extra: notificationTelemetryExtra({ userId, link, dedupScope }),
     });
-    // Never let notification failures break the main flow
+    if (failureMode === "throw") throw error;
+    // Existing callers intentionally keep notification delivery best-effort.
   }
+}
+
+export async function createNotification(input: CreateNotificationInput) {
+  return createNotificationWithFailureMode(input, "swallow");
+}
+
+/**
+ * Creates one source-validated notification and preserves failure semantics
+ * for callers whose durable operation is expected to retry. Exact source
+ * deduplication still returns null without throwing when the notification was
+ * already created by an earlier attempt.
+ */
+export async function createNotificationOrThrow(input: CreateNotificationInput) {
+  return createNotificationWithFailureMode(input, "throw");
 }

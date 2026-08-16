@@ -48,7 +48,11 @@ The notification receives the payout row ID and seller user ID returned by the
 database. Notification's own source function independently derives and checks
 that recipient from `SellerPayoutEvent` and `SellerProfile`, so the return value
 does not replace its authority proof. Notification source deduplication keeps
-the retry path idempotent.
+the retry path idempotent. This path uses the strict notification helper rather
+than the site's usual best-effort helper: a transient notification failure is
+reported and rethrown, the current webhook lease is failed, and an exact Stripe
+retry reaches the writer's `already_applied` result before retrying the deduped
+notification. Existing best-effort notification callers remain unchanged.
 
 ## Projection and parser contract
 

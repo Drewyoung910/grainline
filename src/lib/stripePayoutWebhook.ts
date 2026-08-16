@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import type Stripe from "stripe";
-import { createNotification } from "@/lib/notifications";
+import { createNotificationOrThrow } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { applySellerPayoutFailure } from "@/lib/sellerPayoutEventAuthority";
 import { payoutFailureState } from "@/lib/stripeWebhookState";
@@ -57,7 +57,7 @@ export async function processStripePayoutFailedEvent(
     throw new Error("Seller payout authority returned an incomplete notification source.");
   }
 
-  await createNotification({
+  await createNotificationOrThrow({
     userId: result.sellerUserId,
     ...payoutFailure.notification,
     sourceType: NOTIFICATION_SOURCE_TYPES.STRIPE_PAYOUT_FAILURE,
