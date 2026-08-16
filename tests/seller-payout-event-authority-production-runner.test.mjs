@@ -46,7 +46,11 @@ test("runner proves exact restart and after scopes around one compatible migrati
   );
   assert.match(
     workflow,
-    /audit:rls-checkout-stock-reservation-force-release/,
+    /audit:rls-checkout-stock-reservation-force-sealed-prefix/,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /run: npm run audit:rls-checkout-stock-reservation-force-release(?:\s|$)/,
   );
   assert.doesNotMatch(workflow, /provision-runtime-db-role/);
 });

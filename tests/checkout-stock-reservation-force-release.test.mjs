@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import test from "node:test";
 
@@ -85,6 +86,48 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.doesNotMatch(
     migration,
     /\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b/i,
+  );
+});
+
+test("FORCE verifier CLI keeps strict history and exposes only the reviewed successor mode", () => {
+  const script = "scripts/verify-checkout-stock-reservation-force-release.mjs";
+  const strict = spawnSync(process.execPath, [script], {
+    encoding: "utf8",
+  });
+  assert.equal(strict.status, 1);
+  assert.match(
+    strict.stderr,
+    /requires 20260815060001_force_checkout_stock_reservation_rls to remain the latest migration/,
+  );
+
+  const sealedPrefix = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-successor"],
+    { encoding: "utf8" },
+  );
+  assert.equal(sealedPrefix.status, 0, sealedPrefix.stderr);
+  const release = JSON.parse(sealedPrefix.stdout);
+  assert.equal(release.guard.sealedPrefix, true);
+  assert.equal(
+    release.guard.reviewedSuccessorMigration,
+    "20260815210000_prepare_seller_payout_event_authority",
+  );
+
+  const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {
+    encoding: "utf8",
+  });
+  assert.equal(unknown.status, 1);
+  assert.match(unknown.stderr, /usage: verify-checkout-stock-reservation-force-release/);
+
+  const trailing = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-successor", "--ignored"],
+    { encoding: "utf8" },
+  );
+  assert.equal(trailing.status, 1);
+  assert.match(
+    trailing.stderr,
+    /usage: verify-checkout-stock-reservation-force-release/,
   );
 });
 
@@ -177,6 +220,15 @@ test("disposable FORCE and rollback proofs reject remote or wrong-role URLs", ()
 });
 
 test("CI proves FORCE after Phase A and production wiring preserves the same order", () => {
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  assert.equal(
+    pkg.scripts["audit:rls-checkout-stock-reservation-force-release"],
+    "node scripts/verify-checkout-stock-reservation-force-release.mjs",
+  );
+  assert.equal(
+    pkg.scripts["audit:rls-checkout-stock-reservation-force-sealed-prefix"],
+    "node scripts/verify-checkout-stock-reservation-force-release.mjs --allow-reviewed-successor",
+  );
   const verifyForce = ci.indexOf(
     "Verify CheckoutStockReservation FORCE migration tree",
   );

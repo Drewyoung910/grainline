@@ -122,7 +122,7 @@ jobs:
       - name: Verify exact compatible SellerPayoutEvent release
         run: npm run audit:rls-seller-payout-event-authority-release
       - name: Verify sealed CheckoutStockReservation FORCE predecessor
-        run: npm run audit:rls-checkout-stock-reservation-force-release
+        run: npm run audit:rls-checkout-stock-reservation-force-sealed-prefix
       - name: Inspect exact SellerPayoutEvent restart scope read-only
         id: scope
         shell: bash
