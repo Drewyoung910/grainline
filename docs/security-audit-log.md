@@ -1801,3 +1801,25 @@ Open work:
   leaves the processed webhook lease under normal retention; it does not create
   another provider topology. See
   `docs/seller-payout-event-linked-production-proof.md`.
+
+## SellerPayoutEvent compatible application production deployment (2026-08-16)
+
+- Exact reviewed source `e9239463a71860451191344b26dd20b45298f239`
+  passed exact-main CI `31927548800` and was manually deployed to Vercel
+  Production as `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`.
+- Vercel reported `READY` and all four canonical aliases. The canonical root
+  returned HTTP 200 with the exact deployment marker, `/api/health` returned
+  HTTP 200 with `{"ok":true}`, and `www.thegrainline.com` returned the expected
+  308 redirect. Immediate predecessor
+  `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw` remained `READY`.
+- An owner catalog proof and separate actual pooled-runtime proof ran only in
+  engine-attested repeatable-read/read-only transactions. They accepted the
+  exact 198-migration prepared catalog, all three fixed functions, RLS/FORCE
+  both off, all four predecessor runtime CRUD privileges, and pooled role
+  `grainline_app_runtime` on the reviewed production endpoint. Both reported
+  `productionChangedByProof=false`.
+- No migration, linked-seller proof, database fixture, RLS/grant change,
+  cleanup, Stripe mutation or provider-configuration change accompanied the
+  deployment. The next independent gate is the already-reviewed linked-seller
+  signed test-mode production proof; predecessor drain and ENABLE/FORCE remain
+  later separate releases.
