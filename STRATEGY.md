@@ -369,17 +369,16 @@ proof all precede activation. `OrderPaymentEvent`, shipping quotes, Order and
 OrderItem remain separate releases, and live-mode Connect signed delivery
 remains a separate launch/provider gate.
 
-The compatible candidate is tracked in
-`docs/seller-payout-event-compatible-authority-release.md`. It is merged but
-unapplied, remains additive and keeps predecessor CRUD/RLS posture unchanged.
-Protected aggregate inspection `31919078918` from exact main
-`b0494b1ebe7399c1036ed1894c0c3b42cfeee87f` found zero payout rows and zero
-integrity anomalies under an engine-enforced repeatable-read/read-only
-transaction. This clears only the compatible migration data gate. The next
-boundary is a dedicated byte-pinned, restart-safe production runner bound to
-same-commit CI plus inspection evidence. Application conversion, linked-seller
-signed test-mode proof, predecessor drain, policyless ENABLE and FORCE remain
-separate boundaries. Do not reinterpret the clean inspection or candidate as
+The compatible release is tracked in
+`docs/seller-payout-event-compatible-authority-release.md`. Exact main
+`6bc89c58d7d83509f73206a2f9b4854e3bed476b`, CI `31923317475`, same-commit
+read-only inspection `31923608819` and guarded production run `31923767337`
+are accepted. Production now has the additive provider-event-time field,
+indexes and three fixed functions; SellerPayoutEvent RLS remains off and
+predecessor CRUD remains retained. The next boundary is the converted
+application deployment with old/new coexistence, followed by the linked-seller
+signed test-mode proof, predecessor drain, policyless ENABLE and FORCE as
+separate boundaries. Do not reinterpret the compatible preparation as
 permission to bundle the other four tables.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
