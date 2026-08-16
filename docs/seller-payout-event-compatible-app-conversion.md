@@ -1,13 +1,16 @@
 # SellerPayoutEvent compatible application conversion
 
-Status: isolated application candidate only. Compatible database preparation
+Status: merged application candidate, not deployed. Compatible database preparation
 is accepted in production from exact main
 `6bc89c58d7d83509f73206a2f9b4854e3bed476b`: exact-main CI `31923317475`, the
 engine-read-only inspection `31923608819`, and guarded migration run
 `31923767337` all passed. Only
 `20260815210000_prepare_seller_payout_event_authority` was applied. RLS remains
-off, predecessor runtime table CRUD remains available, and these application
-changes are not merged or deployed.
+off and predecessor runtime table CRUD remains available. PR #226 merged the
+application conversion as exact main
+`99591a8f93c45f9324fb834fcbc1ea525867ace8`; exact-main CI `31925636570`
+passed. Production still serves the predecessor application, so this is not a
+deployment or drain claim.
 
 Prepared: 2026-08-15
 
@@ -24,8 +27,8 @@ consumers to the fixed functions introduced by
 | account export | unbounded direct table query | actor-owned 500-row keyset pages |
 
 The candidate does not enable or FORCE RLS, revoke table authority, run a
-migration, deploy code, or change Stripe/Vercel/provider state. Its database
-prerequisite is proven live, so the next boundary is exact-head review and
+migration or change Stripe/Vercel/provider state. Its database prerequisite and
+exact-main CI are proven, so the next boundary is an exact-source production
 deployment while predecessor CRUD remains available for coexistence.
 
 ## Write and notification contract
@@ -82,16 +85,19 @@ reaches `already_applied` and retries the source-deduped notification.
 
 The pre-merge implementation checkpoint `14473b0f2ef6494b27c5b9f3e2ad8d957a668124`
 passed focused notification/authority coverage, TypeScript, lint and the full
-local suite before current-main reconciliation. Exact reconciled-head CI is
-still required before merge.
+local suite before current-main reconciliation. The final reconciliation also
+taught the Notification inventory about the strict helper without increasing
+the exact 55-path emission count. Exact-main CI `31925636570` passed after PR
+#226 merged at `99591a8f93c45f9324fb834fcbc1ea525867ace8`.
 
 ## Remaining gates
 
-1. Re-verify the current PR head, then review, merge and deploy this
-   application conversion while predecessor
-   table grants remain available; prove old/new coexistence.
-2. Run the linked-seller signed test-mode child/Preview proof and exact retry,
-   including one payout row and one source-bound notification.
+1. Deploy exact reviewed main while predecessor table grants remain available;
+   prove the canonical aliases, health and old/new coexistence.
+2. Run the separately reviewed linked-seller signed test-mode production proof
+   and exact retry, including one payout row and one source-bound notification,
+   then remove only those exact application fixture rows. See
+   `docs/seller-payout-event-linked-production-proof.md`.
 3. Drain predecessors and prove zero direct application table access.
 4. Activate policyless RLS and revoke direct table/column authority, then apply
    posture-only FORCE as a separate release.

@@ -195,8 +195,10 @@ The production-live compatible SellerPayoutEvent preparation implements only
 its own latest-failure and keyset-paged export projections. Their actor is mapped through
 `SellerProfile.userId`, their limit is database-clamped and the latest banner
 uses provider event time with a compatibility-only legacy timestamp fallback.
-The application conversion remains isolated and undeployed; RLS remains off
-and predecessor CRUD remains available.
+The application conversion merged in PR #226 at exact main
+`99591a8f93c45f9324fb834fcbc1ea525867ace8` and exact-main CI `31925636570`
+passed. It remains undeployed; RLS remains off and predecessor CRUD remains
+available.
 33. `grainline_seller_order_analytics(...)` and
     `grainline_public_order_metrics(...)` return dedicated aggregate-only
     projections with fixed periods and caps; no arbitrary predicate or raw row

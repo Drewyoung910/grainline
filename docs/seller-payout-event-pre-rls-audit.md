@@ -174,11 +174,16 @@ payloads. It must not guess ownership from a caller-supplied seller ID.
 
 The retained signed payout proof correctly used an unlinked disposable account
 and therefore proved one processed webhook lease with zero seller/payout rows.
-Before activation, a disposable child/Preview proof must bind a synthetic
-seller to a disposable Stripe test account, deliver and exactly retry one real
-failed payout, prove one unchanged payout row plus one notification, and clean
-all fixtures/provider state. This is distinct from production live-mode
-readiness.
+Before activation, a separately reviewed linked-seller proof must deliver and
+exactly retry one real test-mode failed payout, prove one unchanged payout row
+plus one notification, and clean its exact application fixture rows. The
+accepted production-proof design uses the existing canonical test endpoint and
+one already-linked eligible test seller because that proves the deployed route,
+pooled runtime and fixed functions without creating a second provider/Preview
+topology. It retains the authenticated webhook lease under normal retention and
+must not alter the seller or Stripe account. See
+`docs/seller-payout-event-linked-production-proof.md`. This remains distinct
+from production live-mode readiness.
 
 ### SPE-A09 — live-mode Stripe proof remains a launch gate (`DEFERRED_PRODUCT_WORK`)
 
@@ -227,8 +232,9 @@ Required sequence:
    fixed writer, latest projection and paged export projection with RLS off.
 3. Convert the three direct consumers, deploy while predecessor grants remain,
    and prove old/new coexistence.
-4. Pass the linked-seller signed test-mode child/Preview proof and exact retry;
-   verify the Notification cross-table source path.
+4. Pass the separately reviewed linked-seller signed test-mode production proof
+   and exact retry; verify the Notification cross-table source path and exact
+   application-row cleanup.
 5. Drain predecessor deployments and prove zero direct application access.
 6. Activate policyless RLS and revoke ordinary-runtime/PUBLIC table and column
    authority; run owner plus actual pooled-runtime proofs.
