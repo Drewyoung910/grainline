@@ -75,7 +75,7 @@ completed alternative.
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
 | `OrderShippingRateQuote` | `BLOCKED_DESIGN` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Parent-order participant rules and service re-quote cleanup path |
 | `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Payment and dispute ledger; buyer, relevant seller, staff and Stripe | Decide user-visible projection versus service-only fields and immutable webhook writes |
-| `SellerPayoutEvent` | `PLANNED_RLS` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | The fresh domain audit is complete in `docs/seller-payout-event-pre-rls-audit.md`. Next: aggregate-only legacy inspection, compatible provider-event ordering/source-bound writer, seller projections, linked-seller signed test proof, predecessor drain, then separate policyless ENABLE and FORCE releases |
+| `SellerPayoutEvent` | `PLANNED_RLS` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Domain audit and the zero-row/zero-anomaly protected inspection are complete. The source-bound provider-ordering migration is merged but unapplied; next is its same-commit, restart-safe compatible production runner, followed by converted-app deployment, linked-seller signed test proof, predecessor drain and separate policyless ENABLE/FORCE releases. See `docs/seller-payout-event-compatible-authority-release.md` |
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
@@ -232,8 +232,12 @@ preclude a later reviewed policy or grant migration.
    CheckoutStockReservation compatible authority, source-consistency
    successor, app deployment/smoke, predecessor drain, policyless Phase A,
    posture-only FORCE and both actual pooled-runtime proofs are complete. Then
-   begin `SellerPayoutEvent` as the next separately reviewed service-ledger
-   activation under `docs/seller-payout-event-pre-rls-audit.md`; keep Order,
+   continue `SellerPayoutEvent` as the next separately reviewed service-ledger
+   activation. Its domain audit, compatible candidate and zero-row/zero-anomaly
+   production inspection are complete; apply only the compatible preparation
+   through its dedicated restart-safe runner before merging/deploying the
+   converted app. See `docs/seller-payout-event-pre-rls-audit.md` and
+   `docs/seller-payout-event-compatible-authority-release.md`; keep Order,
    OrderItem, quote and payment as later separate audits. Keep Connect v2 plus
    live-mode provider topology and
    signed delivery as distinct mandatory launch gates; the v2 route shares the

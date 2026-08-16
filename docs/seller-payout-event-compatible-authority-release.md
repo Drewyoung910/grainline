@@ -1,8 +1,9 @@
 # SellerPayoutEvent compatible authority release
 
-Status: isolated candidate only. The migration, schema and proof harness are
-not merged, applied, deployed or wired to a production workflow. RLS remains
-off and predecessor runtime table CRUD remains intentionally available.
+Status: merged, inspected and still unapplied. The migration, schema and proof
+harness are on `main`, but the migration has not run in production and the
+converted application remains isolated in draft PR #226. RLS remains off and
+predecessor runtime table CRUD remains intentionally available.
 
 Audited: 2026-08-15
 
@@ -104,24 +105,76 @@ newer provider event. All fixtures are prefix-scoped and removed in `finally`.
 PGlite additionally proves the exact migration on a minimal schema. It is a
 fast semantic guard, not a substitute for the real PostgreSQL CI proof.
 
+## Accepted production inspection and runner boundary
+
+The first protected production inspection, run `31918034914` from exact main
+`e78c1ef28f88778f86947a8cb501af8dfb916b26`, failed before reading aggregates
+because its catalog guard still classified the already-completed
+CheckoutStockReservation table as an RLS-off predecessor. The transaction was
+engine-enforced read-only, emitted no evidence file and changed nothing. The
+bounded root-cause record is
+`docs/order-payment-shipping-inspection-force-posture-correction.md`.
+
+PR #227 corrected only that stale posture contract. Exact-head CI
+`31918538038` and exact-main CI `31918834834` passed at merge commit
+`b0494b1ebe7399c1036ed1894c0c3b42cfeee87f`. The protected aggregate-only
+inspection then passed as run `31919078918` from that same exact main commit in
+an engine-attested repeatable-read/read-only transaction. The sanitized
+artifact SHA-256 is
+`2e01606f36d67787622d0a4a5efd725d5b9abdd209a29b52ce85bdb96d0075c7`.
+
+The accepted evidence contains no addresses, credentials, object/provider
+IDs, raw rows, snapshots or user IDs. It reports:
+
+- 2 orders and 3 order items;
+- 0 SellerPayoutEvent rows, payment-event rows, shipping quotes and active
+  checkout reservations;
+- 12 retained StripeWebhookEvent rows;
+- 0 across every invalid, duplicate, missing-source, mutation, coherence,
+  stale-reservation and stale-webhook aggregate; and
+- the exact current posture: CheckoutStockReservation and StripeWebhookEvent
+  policyless FORCE with no runtime table CRUD, while Order, OrderItem,
+  OrderPaymentEvent, OrderShippingRateQuote and SellerPayoutEvent remain RLS-off
+  compatible predecessors with runtime CRUD retained.
+
+This clears the legacy-data gate for the additive SellerPayoutEvent authority
+migration. It does not apply that migration or authorize application merge,
+deployment, RLS activation or provider changes.
+
+The dedicated production runner is deliberately separate from the generic
+migration path. It must bind one exact successful main CI run and one successful
+same-commit protected inspection, accept only the exact known migration ledger
+and the exact predecessor/prepared restart states, and inspect the table,
+nullable provider-time column, validated constraints, indexes, function
+owners/languages/modes/search paths/source hashes/ACLs and unchanged broad
+table CRUD before and after. Its scope probes run in an engine-attested
+repeatable-read/read-only transaction. The runner does not invoke the
+repository-wide grant reconciler: the byte-sealed migration grants only the
+three reviewed functions, while the restart and post-application scopes plus
+the global grant audit fail closed on any privilege drift. This keeps the
+production mutation limited to the compatible migration.
+
+Draft PR #228 exact-head CI run `31920453611` failed safely in the real
+PostgreSQL proof before application fixtures when the new catalog reader used
+the reserved word `constraint` as a relation alias. No production workflow ran
+and no production state changed. The correction renames only that catalog alias
+to `constraint_metadata`; the same real-PostgreSQL step remains mandatory so
+the corrected query must execute successfully rather than being accepted by a
+static or synthetic parser alone.
+
 ## Remaining gates
 
-1. Pass the full repository suite and exact-head CI, including real PostgreSQL
-   migration application and the concurrency proof.
-2. Open and review a draft compatible-preparation PR; do not make it ready
-   merely because the isolated tests pass.
-3. Run a fresh protected aggregate-only production inspection. Stop if any
-   payout row, duplicate source, invalid scalar or missing provider time needs
-   classification.
-4. Prepare a byte-pinned, restart-safe production migration runner only after
-   the exact predecessor state is known. Applying this migration is a separate
-   production boundary.
-5. Convert all three application consumers, deploy with predecessor grants
+1. Merge the byte-pinned, restart-safe production runner only after exact-head
+   CI and review. Then rerun the protected inspection from that resulting exact
+   main commit because the workflow binds same-commit evidence.
+2. Apply only `20260815210000_prepare_seller_payout_event_authority` through the
+   dedicated runner. Migration execution is a separate production boundary.
+3. Convert all three application consumers, deploy with predecessor grants
    intact and prove old/new coexistence.
-6. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
+4. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
    exactly one payout row, one source-bound notification and exact retry.
-7. Drain predecessors and prove zero direct application table access.
-8. Review and apply policyless ENABLE with table authority revoked, prove the
+5. Drain predecessors and prove zero direct application table access.
+6. Review and apply policyless ENABLE with table authority revoked, prove the
    owner and actual pooled runtime, then apply posture-only FORCE separately.
 
 `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem` remain
