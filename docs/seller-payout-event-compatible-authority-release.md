@@ -162,11 +162,29 @@ to `constraint_metadata`; the same real-PostgreSQL step remains mandatory so
 the corrected query must execute successfully rather than being accepted by a
 static or synthetic parser alone.
 
+The first production preparation dispatch, run `31922754634` from exact main
+`a4f7910e322a7d66ad4ec8d9a24c086e0c51143f`, failed safely at the sealed
+CheckoutStockReservation FORCE predecessor check. It stopped before the
+production-scope reader, Prisma generation, migration deployment, status,
+global grant/RLS audit and post-application proof; therefore it made no
+database, application or provider change. The underlying FORCE verifier already
+byte-verified this exact SellerPayoutEvent successor when called through its
+reviewed-successor API, but its CLI always selected strict historical mode.
+
+The correction exposes only the existing `--allow-reviewed-successor` mode and
+uses it through a dedicated sealed-prefix package command in this production
+runner. The original command remains strict and continues to reject any later
+migration. The allowed mode still verifies the exact successor name and bytes
+through the SellerPayoutEvent release verifier before omitting it from the
+historical latest-migration check; arbitrary or unreviewed successors remain
+fail-closed. Actual CLI regression coverage proves strict rejection, exact
+reviewed-successor acceptance and unknown-argument rejection.
+
 ## Remaining gates
 
-1. Merge the byte-pinned, restart-safe production runner only after exact-head
-   CI and review. Then rerun the protected inspection from that resulting exact
-   main commit because the workflow binds same-commit evidence.
+1. Merge the narrow predecessor-verifier CLI wiring correction only after
+   exact-head CI and review. Then rerun the protected inspection from that
+   resulting exact main commit because the workflow binds same-commit evidence.
 2. Apply only `20260815210000_prepare_seller_payout_event_authority` through the
    dedicated runner. Migration execution is a separate production boundary.
 3. Convert all three application consumers, deploy with predecessor grants

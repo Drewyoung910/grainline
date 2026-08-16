@@ -93,6 +93,7 @@
     "audit:rls-checkout-stock-reservation-activation-production-scope": "node scripts/verify-checkout-stock-reservation-activation-production-scope.mjs",
     "audit:rls-checkout-stock-reservation-force-candidate": "node scripts/build-checkout-stock-reservation-force-candidate.mjs --verify",
     "audit:rls-checkout-stock-reservation-force-release": "node scripts/verify-checkout-stock-reservation-force-release.mjs",
+    "audit:rls-checkout-stock-reservation-force-sealed-prefix": "node scripts/verify-checkout-stock-reservation-force-release.mjs --allow-reviewed-successor",
     "audit:rls-checkout-stock-reservation-force-postgres": "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/checkout-stock-reservation-force-postgres-proof.mjs",
     "audit:rls-checkout-stock-reservation-force-rollback": "node scripts/checkout-stock-reservation-force-rollback-proof.mjs",
     "audit:rls-checkout-stock-reservation-force-production-scope": "node scripts/verify-checkout-stock-reservation-force-production-scope.mjs",

@@ -116,8 +116,17 @@ export function verifyCheckoutStockReservationForceRelease(
 }
 
 function main() {
+  const mode = process.argv[2];
+  if (mode !== undefined && mode !== "--allow-reviewed-successor") {
+    throw new Error(
+      "usage: verify-checkout-stock-reservation-force-release.mjs "
+      + "[--allow-reviewed-successor]",
+    );
+  }
   process.stdout.write(`${JSON.stringify(
-    verifyCheckoutStockReservationForceRelease(),
+    verifyCheckoutStockReservationForceRelease(undefined, {
+      allowReviewedSuccessor: mode === "--allow-reviewed-successor",
+    }),
     null,
     2,
   )}\n`);
