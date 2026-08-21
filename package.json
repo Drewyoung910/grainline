@@ -214,6 +214,7 @@
   },
   "overrides": {
     "@prisma/dev": "0.24.16",
+    "deepmerge-ts": "8.0.2",
     "js-cookie": "3.0.7",
     "postcss": "8.5.23",
     "sharp": "$sharp",
