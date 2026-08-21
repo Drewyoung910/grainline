@@ -243,6 +243,33 @@ export function parseGitHubCiRun(raw, expectedCommit, expectedRunId) {
   return Object.freeze({ passed: true, runId: expectedRunId });
 }
 
+export function parseVercelDeployment(raw, config) {
+  let value = raw;
+  if (typeof raw === "string") {
+    const jsonStart = raw.indexOf("{");
+    if (jsonStart < 0) throw new Error("Vercel production deployment response was not JSON");
+    try {
+      value = JSON.parse(raw.slice(jsonStart));
+    } catch {
+      throw new Error("Vercel production deployment response was not valid JSON");
+    }
+  }
+  const aliases = value?.alias ?? value?.aliases;
+  if (
+    value?.id !== config.deploymentId
+    || value?.target !== "production"
+    || value?.readyState !== "READY"
+    || value?.meta?.gitCommitSha !== config.deployedSourceCommit
+    || !Array.isArray(aliases)
+    || REQUIRED_ALIASES.some((alias) => !aliases.includes(alias))
+  ) throw new Error("Vercel production deployment identity drifted");
+  return Object.freeze({
+    aliases: Object.freeze([...aliases]),
+    deployedSourceCommit: value.meta.gitCommitSha,
+    deploymentId: value.id,
+  });
+}
+
 export function assertSelectedSeller(candidate) {
   if (
     !candidate
@@ -483,26 +510,16 @@ async function boundedText(response, maxBytes) {
 }
 
 async function verifyDeployment(config) {
-  const inspectRaw = command("npx", [
-    "--yes", `vercel@${VERCEL_CLI_VERSION}`, "inspect", config.deploymentId,
-    "--json", "--cwd", config.vercelProjectDirectory, "--no-color",
+  const deploymentRaw = command("npx", [
+    "--yes", `vercel@${VERCEL_CLI_VERSION}`, "api",
+    `/v13/deployments/${config.deploymentId}`,
+    "--raw", "--cwd", config.vercelProjectDirectory, "--no-color",
   ], {
     cwd: config.vercelProjectDirectory,
     env: childEnvironment(process.env.VERCEL_TOKEN ? { VERCEL_TOKEN: process.env.VERCEL_TOKEN } : {}),
-    label: "Vercel production deployment inspection",
+    label: "Vercel production deployment API lookup",
   });
-  const jsonStart = inspectRaw.indexOf("{");
-  if (jsonStart < 0) throw new Error("Vercel deployment inspection returned no JSON");
-  const deployment = JSON.parse(inspectRaw.slice(jsonStart));
-  if (
-    deployment?.id !== config.deploymentId
-    || deployment?.target !== "production"
-    || deployment?.readyState !== "READY"
-    || (deployment?.meta?.githubCommitSha ?? deployment?.meta?.gitCommitSha)
-      !== config.deployedSourceCommit
-    || !Array.isArray(deployment?.alias)
-    || REQUIRED_ALIASES.some((alias) => !deployment.alias.includes(alias))
-  ) throw new Error("Vercel production deployment identity drifted");
+  parseVercelDeployment(deploymentRaw, config);
   const health = await fetch(`${PRODUCTION_ORIGIN}/api/health`, {
     cache: "no-store", redirect: "error", signal: AbortSignal.timeout(30_000),
   });
