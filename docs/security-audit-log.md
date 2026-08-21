@@ -1823,3 +1823,25 @@ Open work:
   deployment. The next independent gate is the already-reviewed linked-seller
   signed test-mode production proof; predecessor drain and ENABLE/FORCE remain
   later separate releases.
+
+## SellerPayoutEvent linked proof verifier correction (2026-08-21)
+
+- Exact-main proof release `bbc4abdb97498823f255e013bf90b5a859c42fc0`
+  passed CI `31957863843` and remained bound to deployed source
+  `e9239463a71860451191344b26dd20b45298f239` and deployment
+  `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`.
+- The first authorized operator attempt stopped at the deployment-identity
+  preflight before opening a database connection, selecting a seller or making
+  any Stripe call. No recovery or evidence file was created, and no Stripe,
+  database, Vercel or provider state changed.
+- Root cause was an output-contract drift in pinned Vercel CLI `inspect --json`:
+  it returned plural `aliases` and omitted `meta.gitCommitSha`. Weakening the
+  source check was rejected. The verifier now reads the same deployment through
+  Vercel's authenticated read-only `/v13/deployments/{id}` API and still
+  requires the exact deployment ID, production target, READY state, deployed
+  Git commit and every canonical alias.
+- Unit coverage accepts both API alias field spellings only when exact commit
+  metadata is present and rejects missing/wrong commit metadata, a missing
+  canonical alias, a non-READY deployment and a non-production target. The
+  linked proof requires a new exact-main commit and successful CI binding before
+  it can be re-authorized and retried.

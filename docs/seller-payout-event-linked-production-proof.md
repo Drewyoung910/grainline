@@ -1,6 +1,12 @@
 # SellerPayoutEvent linked-seller production proof
 
-Status: reviewed operator ready but not executed. The compatible application is
+Status: reviewed operator preflight attempted and failed closed before any
+Stripe or database mutation on 2026-08-21. Pinned Vercel CLI `inspect --json`
+returned `aliases` and omitted commit metadata, while the operator expected
+singular `alias` plus `meta.gitCommitSha`. The replacement reader uses the
+authenticated read-only `/v13/deployments/{id}` API, requires the exact source
+commit and every canonical alias, and has fail-closed response-shape coverage.
+The compatible application is
 live at exact source `e9239463a71860451191344b26dd20b45298f239`, CI
 `31927548800`, deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`; deployment and
 predecessor compatibility are accepted separately. Nothing in this document

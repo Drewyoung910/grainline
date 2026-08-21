@@ -10,7 +10,12 @@ const audit = readFileSync("docs/seller-payout-event-pre-rls-audit.md", "utf8");
 const matrix = readFileSync("docs/rls-coverage-matrix.md", "utf8");
 
 test("linked payout proof keeps its production boundary explicit", () => {
-  assert.match(plan, /reviewed operator ready but not executed/i);
+  assert.match(
+    plan,
+    /attempted and failed closed before any\s+Stripe or database mutation on 2026-08-21/i,
+  );
+  assert.match(plan, /authenticated read-only `\/v13\/deployments\/\{id\}` API/);
+  assert.match(plan, /requires the exact source\s+commit and every canonical alias/);
   assert.match(plan, /e9239463a71860451191344b26dd20b45298f239/);
   assert.match(plan, /31927548800/);
   assert.match(plan, /dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h/);

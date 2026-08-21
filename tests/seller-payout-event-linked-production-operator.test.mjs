@@ -13,6 +13,7 @@ import {
   hasRequiredPayoutFailureBank,
   parseDatabaseUrls,
   parseGitHubCiRun,
+  parseVercelDeployment,
   validateConfiguration,
   validateStripeSecret,
 } from "../scripts/seller-payout-event-linked-production-proof.mjs";
@@ -178,6 +179,50 @@ describe("SellerPayoutEvent linked production operator", () => {
       }, COMMIT, CI_RUN_ID),
       /CI binding did not pass/,
     );
+  });
+
+  it("binds the exact Vercel API deployment source and canonical aliases", () => {
+    const deployment = {
+      alias: [
+        "thegrainline.com",
+        "www.thegrainline.com",
+        "grainline.vercel.app",
+      ],
+      id: DEPLOYMENT_ID,
+      meta: { gitCommitSha: DEPLOYED_SOURCE_COMMIT },
+      readyState: "READY",
+      target: "production",
+    };
+    assert.equal(
+      parseVercelDeployment(deployment, config).deployedSourceCommit,
+      DEPLOYED_SOURCE_COMMIT,
+    );
+    parseVercelDeployment({
+      ...deployment,
+      alias: undefined,
+      aliases: deployment.alias,
+    }, config);
+    parseVercelDeployment(`Vercel CLI\n${JSON.stringify(deployment)}`, config);
+    assert.throws(
+      () => parseVercelDeployment("Vercel CLI returned no document", config),
+      /response was not JSON/,
+    );
+    assert.throws(
+      () => parseVercelDeployment("Vercel CLI\n{invalid", config),
+      /response was not valid JSON/,
+    );
+    for (const drift of [
+      { ...deployment, meta: {} },
+      { ...deployment, meta: { gitCommitSha: "c".repeat(40) } },
+      { ...deployment, alias: deployment.alias.slice(1) },
+      { ...deployment, readyState: "BUILDING" },
+      { ...deployment, target: "preview" },
+    ]) {
+      assert.throws(
+        () => parseVercelDeployment(drift, config),
+        /deployment identity drifted/,
+      );
+    }
   });
 
   it("requires a live eligible linked seller without trusting a row alone", () => {
