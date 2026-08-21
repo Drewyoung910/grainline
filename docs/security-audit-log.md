@@ -1823,3 +1823,18 @@ Open work:
   deployment. The next independent gate is the already-reviewed linked-seller
   signed test-mode production proof; predecessor drain and ENABLE/FORCE remain
   later separate releases.
+
+## Prisma configuration dependency advisory (2026-08-21)
+
+- A newly published high-severity advisory, `GHSA-ggr8-5vv4-36mx`, affects
+  Prisma CLI configuration's transitive `deepmerge-ts@7.1.5` through stack
+  exhaustion on recursive object graphs. The repository's full dependency
+  audit correctly failed closed even though the path is build/config tooling.
+- Prisma `7.9.1` still pins the affected release, and `npm audit fix --force`
+  proposed an unsafe Prisma 6 downgrade. The narrow resolution keeps the
+  aligned Prisma `7.9.0` packages unchanged and overrides only
+  `deepmerge-ts` to patched `8.0.2`.
+- Dependency guardrails pin the override and resolved lockfile version. The
+  acceptance gate requires zero audit findings, a clean install, successful
+  Prisma config/schema load and client generation, full tests, TypeScript,
+  lint and a production build before merge.
