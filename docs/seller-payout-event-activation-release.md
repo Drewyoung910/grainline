@@ -154,6 +154,14 @@ dependency audit; and the production build. This is candidate evidence only:
 the branch remains unmerged and production remains in the compatible
 predecessor posture.
 
+Postflight-hardening checkpoint
+`d5fa351247fcf28c736a760974f50f1718427281` then passed exact-head CI run
+`32591448929` in 6m44s. The new disposable-PostgreSQL step authenticated
+directly as the restricted runtime role and passed the production postflight's
+catalog, direct-denial, fixed-read and SQL read-only-fence path before the
+database-first rollback/restoration. The full type, lint, test, dependency and
+production-build gates also passed. No production postflight or mutation ran.
+
 ## Accepted predecessor evidence
 
 The activation depends on, but does not repeat or broaden, these accepted
@@ -178,12 +186,10 @@ requires the exact three fixed-operation consumers with zero direct
 
 Before production activation:
 
-1. the new postflight scaffold and its cross-audit contracts must pass on a
-   fresh exact candidate head;
-2. the isolated branch must merge as one explicitly reviewed exact head;
-3. production migration wiring must be separately authorized, reviewed and
+1. the isolated branch must merge as one explicitly reviewed exact head;
+2. production migration wiring must be separately authorized, reviewed and
    bound to the exact successful main CI run; and
-4. the later actual pooled-runtime production postflight must run read-only and
+3. the later actual pooled-runtime production postflight must run read-only and
    retain sanitized mode-`0600` evidence.
 
 FORCE is deliberately absent. It will be a separate posture-only migration

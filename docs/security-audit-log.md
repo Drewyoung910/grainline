@@ -2031,9 +2031,10 @@ Open work:
   disposable PostgreSQL before rollback/restoration.
 - After this hardening, the focused release/postflight/cross-audit suite passed
   19/19; TypeScript and lint passed; and the full local repository suite passed
-  3,213 tests with seven documented skips and zero failures. A fresh exact-head
-  CI run, including the new real PostgreSQL postflight step and production
-  build, remains required before merge.
+  3,213 tests with seven documented skips and zero failures. Exact hardening
+  head `d5fa351247fcf28c736a760974f50f1718427281` then passed CI
+  `32591448929` in 6m44s, including the new direct-runtime PostgreSQL postflight
+  and production build.
 - The postflight has not run. The activation branch remains unmerged;
   production migration wiring, migration execution and FORCE remain separate
   unauthorized boundaries. Production state is unchanged by this checkpoint.
