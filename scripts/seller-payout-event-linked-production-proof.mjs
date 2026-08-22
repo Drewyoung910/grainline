@@ -27,11 +27,18 @@ import {
   readProviderState,
 } from "./stripe-connect-provider-cutover.mjs";
 import { assertSensitiveProductionVariable } from "./stripe-connect-webhook-bootstrap.mjs";
+import {
+  assertCanaryAccount,
+  buildCanaryAccountLinkParams,
+  buildCanaryAccountParams,
+} from "./stripe-connect-signed-payout-proof.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
 
 export const CONFIRMATION = "reviewed-linked-seller-payout-production-proof";
+export const CANARY_PREPARATION_CONFIRMATION = "prepare-disposable-linked-seller-payout-canary";
+export const CANARY_ABORT_CONFIRMATION = "abort-disposable-linked-seller-payout-canary";
 export const PRODUCTION_ORIGIN = "https://thegrainline.com";
 export const CONNECT_URL = `${PRODUCTION_ORIGIN}/api/stripe/webhook/connect`;
 export const REQUIRED_ALIASES = Object.freeze([
@@ -62,9 +69,13 @@ const DEPLOYMENT_PATTERN = /^dpl_[A-Za-z0-9]+$/;
 const ID_PATTERN = /^[A-Za-z0-9_-]{2,255}$/;
 const UUID_V4_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const STRIPE_SECRET_PATTERN = /\b(?:sk_(?:live|test)_[A-Za-z0-9_]+|whsec_[A-Za-z0-9_]+)\b/g;
-const STRIPE_OBJECT_PATTERN = /\b(?:acct|ch|evt|po|we)_[A-Za-z0-9_]+\b/g;
+const STRIPE_OBJECT_PATTERN = /\b(?:acct|ba|ch|ed|evt|pi|po|re|seti|tr|we)_[A-Za-z0-9_]+\b/g;
 const DATABASE_URL_PATTERN = /postgres(?:ql)?:\/\/[^\s"']+/gi;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
+const CANARY_ID_PATTERN = /\b(?:spu|sps)_[a-f0-9]{32}\b/g;
+const CANARY_CLERK_PATTERN = /\bseller_payout_canary_[a-f0-9]{32}\b/g;
+const CANARY_EMAIL_PATTERN = /\bseller-payout-canary-[a-f0-9]{32}@example\.invalid\b/g;
+const CONNECT_ONBOARDING_URL_PATTERN = /https:\/\/connect\.stripe\.com\/setup\/[^\s"']+/gi;
 const EXPECTED_PROJECT = Object.freeze({
   orgId: "team_wvQeQHZGwCSwinC1uB7xbpjr",
   projectId: "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp",
@@ -89,12 +100,16 @@ function sha256(value) {
   return createHash("sha256").update(String(value)).digest("hex");
 }
 
-function redact(value) {
+export function redact(value) {
   return String(value ?? "")
     .replace(DATABASE_URL_PATTERN, "[redacted-database-url]")
     .replace(STRIPE_SECRET_PATTERN, "[redacted-stripe-secret]")
     .replace(STRIPE_OBJECT_PATTERN, "[redacted-stripe-object]")
-    .replace(BEARER_PATTERN, "Bearer [redacted-token]");
+    .replace(BEARER_PATTERN, "Bearer [redacted-token]")
+    .replace(CANARY_ID_PATTERN, "[redacted-canary-id]")
+    .replace(CANARY_CLERK_PATTERN, "[redacted-canary-clerk-id]")
+    .replace(CANARY_EMAIL_PATTERN, "[redacted-canary-email]")
+    .replace(CONNECT_ONBOARDING_URL_PATTERN, "[redacted-onboarding-url]");
 }
 
 function safeError(error) {
@@ -145,7 +160,16 @@ function readPrivateEnvironment(filePath, label) {
 }
 
 export function validateConfiguration(env = process.env) {
-  if (env.SELLER_PAYOUT_LINKED_PROOF_CONFIRM !== CONFIRMATION) {
+  const mode = env.SELLER_PAYOUT_LINKED_PROOF_MODE || "prove";
+  if (!new Set(["prepare-canary", "prove", "abort-canary"]).has(mode)) {
+    throw new Error("linked payout proof mode is invalid");
+  }
+  const confirmation = mode === "prepare-canary"
+    ? CANARY_PREPARATION_CONFIRMATION
+    : mode === "abort-canary"
+      ? CANARY_ABORT_CONFIRMATION
+      : CONFIRMATION;
+  if (env.SELLER_PAYOUT_LINKED_PROOF_CONFIRM !== confirmation) {
     throw new Error("linked payout proof confirmation is invalid");
   }
   const expectedCommit = required(env, "SELLER_PAYOUT_LINKED_PROOF_EXPECTED_COMMIT");
@@ -170,6 +194,13 @@ export function validateConfiguration(env = process.env) {
   const vercelProjectDirectory = path.resolve(
     required(env, "SELLER_PAYOUT_LINKED_PROOF_VERCEL_PROJECT_DIRECTORY"),
   );
+  const rawCanaryPath = required(env, "SELLER_PAYOUT_LINKED_PROOF_CANARY_PATH");
+  const canaryPath = path.resolve(rawCanaryPath);
+  if (
+    path.dirname(canaryPath) !== EVIDENCE_DIRECTORY
+    || path.basename(canaryPath)
+      !== `seller-payout-event-linked-canary-${expectedCommit}.json`
+  ) throw new Error("linked payout canary path is not the fresh reviewed path");
   const stripeCliPath = path.resolve(
     env.SELLER_PAYOUT_LINKED_PROOF_STRIPE_CLI_PATH || "/opt/homebrew/bin/stripe",
   );
@@ -179,6 +210,8 @@ export function validateConfiguration(env = process.env) {
     evidencePath,
     expectedCommit,
     mainCiRunId,
+    mode,
+    canaryPath,
     statePath: STATE_PATH,
     stripeCliPath,
     vercelProjectDirectory,
@@ -270,19 +303,90 @@ export function parseVercelDeployment(raw, config) {
   });
 }
 
-export function assertSelectedSeller(candidate) {
+function disposableCanaryProviderConfig(config) {
+  return Object.freeze({
+    preparationCommit: config.expectedCommit,
+    preparationCiRunId: config.mainCiRunId,
+    deploymentId: config.deploymentId,
+  });
+}
+
+export function assertDisposableCanaryState(value, config) {
+  const stages = new Set(["reserved", "account-created", "onboarding-required", "prepared"]);
   if (
-    !candidate
-    || !ID_PATTERN.test(String(candidate.sellerId ?? ""))
-    || !ID_PATTERN.test(String(candidate.userId ?? ""))
-    || !/^acct_[A-Za-z0-9_]+$/.test(String(candidate.stripeAccountId ?? ""))
-    || candidate.databaseEligible !== true
-    || candidate.stripeChargesEnabled !== true
-    || candidate.stripePayoutsEnabled !== true
-    || candidate.stripeFailureBankReady !== true
-    || candidate.stripeDeleted !== false
-  ) throw new Error("linked payout proof seller is not exactly eligible");
-  return Object.freeze({ ...candidate });
+    value?.phase !== "seller-payout-event-linked-disposable-canary"
+    || !stages.has(value?.stage)
+    || value?.commit !== config.expectedCommit
+    || value?.deployedSourceCommit !== config.deployedSourceCommit
+    || Number(value?.ciRunId) !== config.mainCiRunId
+    || value?.deploymentId !== config.deploymentId
+    || !UUID_V4_PATTERN.test(String(value?.attemptId ?? ""))
+    || !Number.isSafeInteger(value?.createdSeconds)
+    || value.createdSeconds <= 0
+  ) throw new Error("linked payout disposable canary state drifted");
+  if (value.stage !== "reserved") {
+    if (!/^acct_[A-Za-z0-9_]+$/.test(String(value?.stripeAccountId ?? ""))) {
+      throw new Error("linked payout disposable canary account drifted");
+    }
+    if (!/^[a-f0-9]{64}$/.test(String(value?.marker ?? ""))) {
+      throw new Error("linked payout disposable canary marker drifted");
+    }
+  }
+  if (value.stage === "onboarding-required") {
+    let link;
+    try {
+      link = new URL(value.accountLinkUrl);
+    } catch {
+      throw new Error("linked payout disposable canary onboarding link drifted");
+    }
+    if (
+      link.protocol !== "https:"
+      || link.hostname !== "connect.stripe.com"
+      || !link.pathname.startsWith("/setup/")
+      || !Number.isSafeInteger(value.accountLinkExpiresAt)
+      || value.accountLinkExpiresAt <= 0
+      || !Number.isSafeInteger(value.accountLinkGeneration)
+      || value.accountLinkGeneration <= 0
+    ) throw new Error("linked payout disposable canary onboarding link drifted");
+  } else if (
+    Object.hasOwn(value, "accountLinkUrl")
+    || Object.hasOwn(value, "accountLinkExpiresAt")
+    || Object.hasOwn(value, "accountLinkGeneration")
+  ) {
+    throw new Error("linked payout disposable canary retained an onboarding link");
+  }
+  return Object.freeze({ ...value });
+}
+
+function readDisposableCanary(config) {
+  if (!config.canaryPath || !existsSync(config.canaryPath)) {
+    throw new Error("linked payout disposable canary state does not exist");
+  }
+  return assertDisposableCanaryState(
+    readPrivateJson(config.canaryPath, "linked payout disposable canary"),
+    config,
+  );
+}
+
+function replaceDisposableCanary(config, value) {
+  const next = assertDisposableCanaryState(value, config);
+  if (existsSync(config.canaryPath)) replacePrivateJson(config.canaryPath, next);
+  else writePrivateJson(config.canaryPath, next);
+  return next;
+}
+
+function ensureDisposableCanaryReservation(config) {
+  if (existsSync(config.canaryPath)) return readDisposableCanary(config);
+  return replaceDisposableCanary(config, {
+    phase: "seller-payout-event-linked-disposable-canary",
+    stage: "reserved",
+    commit: config.expectedCommit,
+    deployedSourceCommit: config.deployedSourceCommit,
+    ciRunId: config.mainCiRunId,
+    deploymentId: config.deploymentId,
+    attemptId: randomUUID(),
+    createdSeconds: Math.floor(Date.now() / 1000),
+  });
 }
 
 export function hasRequiredPayoutFailureBank(externalAccounts) {
@@ -310,8 +414,61 @@ function exactString(value, label) {
   return value;
 }
 
+function resultCardinality(result) {
+  return Number.isSafeInteger(result?.rowCount) ? result.rowCount : result?.rows?.length;
+}
+
+function quoteIdentifier(value) {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+async function assertNoForeignKeyDependents(client, relation, id) {
+  const constraints = await client.query(`
+    SELECT
+      child_namespace.nspname AS "schemaName",
+      child.relname AS "tableName",
+      child_attribute.attname AS "columnName",
+      parent_attribute.attname AS "referencedColumn",
+      pg_catalog.cardinality(constraint_row.conkey)::integer AS "childColumnCount",
+      pg_catalog.cardinality(constraint_row.confkey)::integer AS "parentColumnCount"
+    FROM pg_catalog.pg_constraint AS constraint_row
+    JOIN pg_catalog.pg_class AS child
+      ON child.oid = constraint_row.conrelid
+    JOIN pg_catalog.pg_namespace AS child_namespace
+      ON child_namespace.oid = child.relnamespace
+    JOIN pg_catalog.pg_attribute AS child_attribute
+      ON child_attribute.attrelid = constraint_row.conrelid
+     AND child_attribute.attnum = constraint_row.conkey[1]
+    JOIN pg_catalog.pg_attribute AS parent_attribute
+      ON parent_attribute.attrelid = constraint_row.confrelid
+     AND parent_attribute.attnum = constraint_row.confkey[1]
+    WHERE constraint_row.contype = 'f'
+      AND constraint_row.confrelid = $1::pg_catalog.regclass
+    ORDER BY child_namespace.nspname, child.relname, constraint_row.conname
+  `, [relation]);
+  for (const constraint of constraints.rows) {
+    if (
+      constraint.childColumnCount !== 1
+      || constraint.parentColumnCount !== 1
+      || constraint.referencedColumn !== "id"
+      || typeof constraint.schemaName !== "string"
+      || typeof constraint.tableName !== "string"
+      || typeof constraint.columnName !== "string"
+    ) throw new Error("linked payout disposable cleanup foreign key shape drifted");
+    const dependent = await client.query(`
+      SELECT count(*)::integer AS count
+        FROM ${quoteIdentifier(constraint.schemaName)}.${quoteIdentifier(constraint.tableName)}
+       WHERE ${quoteIdentifier(constraint.columnName)} = $1
+    `, [id]);
+    if (dependent.rows[0]?.count !== 0) {
+      throw new Error("linked payout disposable cleanup found an unexpected dependent row");
+    }
+  }
+}
+
 export function assertDeliverySnapshot(snapshot, expected = {}) {
   const normalized = {
+    userCount: Number(snapshot?.userCount),
     sellerCount: Number(snapshot?.sellerCount),
     webhookCount: Number(snapshot?.webhookCount),
     payoutCount: Number(snapshot?.payoutCount),
@@ -329,7 +486,8 @@ export function assertDeliverySnapshot(snapshot, expected = {}) {
     runtimeNotificationCount: Number(snapshot?.runtimeNotificationCount),
   };
   if (
-    normalized.sellerCount !== 1
+    normalized.userCount !== 1
+    || normalized.sellerCount !== 1
     || normalized.webhookCount !== 1
     || normalized.payoutCount !== 1
     || normalized.notificationCount !== 1
@@ -364,6 +522,7 @@ export function assertReplayUnchanged(before, after) {
 
 export function assertCleanupSnapshot(snapshot) {
   const normalized = {
+    userCount: Number(snapshot?.userCount),
     sellerCount: Number(snapshot?.sellerCount),
     webhookCount: Number(snapshot?.webhookCount),
     webhookProcessed: snapshot?.webhookProcessed,
@@ -371,7 +530,8 @@ export function assertCleanupSnapshot(snapshot) {
     notificationCount: Number(snapshot?.notificationCount),
   };
   if (
-    normalized.sellerCount !== 1
+    normalized.userCount !== 0
+    || normalized.sellerCount !== 0
     || normalized.webhookCount !== 1
     || normalized.webhookProcessed !== true
     || normalized.payoutCount !== 0
@@ -382,6 +542,7 @@ export function assertCleanupSnapshot(snapshot) {
 
 export function assertState(value, config) {
   const stages = new Set([
+    "fixture-reserved",
     "selected",
     "charged",
     "payout-created",
@@ -389,6 +550,7 @@ export function assertState(value, config) {
     "delivered",
     "replayed",
     "cleanup-started",
+    "db-cleaned",
     "cleaned",
   ]);
   if (
@@ -401,10 +563,19 @@ export function assertState(value, config) {
     || !UUID_V4_PATTERN.test(String(value?.attemptId ?? ""))
     || !Number.isSafeInteger(value?.startedSeconds)
     || value.startedSeconds <= 0
+    || value?.disposableCanary !== true
+    || !/^[a-f0-9]{64}$/.test(String(value?.canaryMarker ?? ""))
     || !ID_PATTERN.test(String(value?.sellerId ?? ""))
     || !ID_PATTERN.test(String(value?.sellerUserId ?? ""))
     || !/^acct_[A-Za-z0-9_]+$/.test(String(value?.stripeAccountId ?? ""))
   ) throw new Error("linked payout proof recovery state drifted");
+  const identity = disposableDatabaseIdentity(value.attemptId);
+  if (
+    value.sellerId !== identity.sellerId
+    || value.sellerUserId !== identity.userId
+    || value.canaryClerkId !== identity.clerkId
+    || value.canaryEmail !== identity.email
+  ) throw new Error("linked payout disposable database identity drifted");
   const requiredByStage = {
     charged: ["chargeId"],
     "payout-created": ["chargeId", "payoutId"],
@@ -415,6 +586,7 @@ export function assertState(value, config) {
     cleaned: ["chargeId", "payoutId", "eventId", "eventCreated", "payoutEventId", "notificationId"],
   };
   const order = [
+    "fixture-reserved",
     "selected",
     "charged",
     "payout-created",
@@ -422,6 +594,7 @@ export function assertState(value, config) {
     "delivered",
     "replayed",
     "cleanup-started",
+    "db-cleaned",
     "cleaned",
   ];
   for (const stage of order.slice(1, order.indexOf(value.stage) + 1)) {
@@ -435,7 +608,23 @@ export function assertState(value, config) {
       || eventCreated < value.startedSeconds
     ) throw new Error("linked payout proof event timestamp drifted");
   }
+  if (value.stage === "cleaned" && value.disposableAccountRemoved !== true) {
+    throw new Error("linked payout disposable account cleanup was not recorded");
+  }
   return Object.freeze({ ...value });
+}
+
+export function disposableDatabaseIdentity(attemptId) {
+  if (!UUID_V4_PATTERN.test(String(attemptId ?? ""))) {
+    throw new Error("linked payout disposable attempt identity is invalid");
+  }
+  const suffix = attemptId.replaceAll("-", "");
+  return Object.freeze({
+    userId: `spu_${suffix}`,
+    sellerId: `sps_${suffix}`,
+    clerkId: `seller_payout_canary_${suffix}`,
+    email: `seller-payout-canary-${suffix}@example.invalid`,
+  });
 }
 
 function readGitState(cwd) {
@@ -556,49 +745,70 @@ async function verifyDatabaseIdentity(owner, runtime) {
   assert.deepEqual(runtimeIdentity.rows, [{ role: RUNTIME_ROLE, database: PRODUCTION_DATABASE_NAME }]);
 }
 
-async function selectSeller(owner, stripe) {
-  await owner.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+export async function createDisposableDatabaseFixture(owner, state) {
+  const identity = disposableDatabaseIdentity(state.attemptId);
+  await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
-    const readOnly = await owner.query("SELECT current_setting('transaction_read_only') AS value");
-    assert.deepEqual(readOnly.rows, [{ value: "on" }]);
-    const candidates = await owner.query(`
-      SELECT seller.id AS "sellerId", seller."userId", seller."stripeAccountId"
-        FROM public."SellerProfile" AS seller
-        JOIN public."User" AS account ON account.id = seller."userId"
-       WHERE seller."stripeAccountId" IS NOT NULL
-         AND seller."chargesEnabled" = true
-         AND seller."vacationMode" = false
-         AND account.banned = false
-         AND account."deletedAt" IS NULL
-       ORDER BY seller.id
-       LIMIT 5
-    `);
-    await owner.query("ROLLBACK");
-    for (const row of candidates.rows) {
-      try {
-        const account = await stripe.accounts.retrieve(row.stripeAccountId, {
-          expand: ["external_accounts"],
-        });
-        const externalAccounts = account?.external_accounts?.data ?? [];
-        const candidate = {
-          ...row,
-          databaseEligible: true,
-          stripeChargesEnabled: account?.charges_enabled === true,
-          stripeDeleted: account?.deleted === true,
-          stripeFailureBankReady: hasRequiredPayoutFailureBank(externalAccounts),
-          stripePayoutsEnabled: account?.payouts_enabled === true,
-        };
-        if (
-          candidate.stripeChargesEnabled
-          && candidate.stripePayoutsEnabled
-          && candidate.stripeFailureBankReady
-          && !candidate.stripeDeleted
-        ) return assertSelectedSeller(candidate);
-      } catch {
-        // Continue through the bounded candidate set without surfacing identifiers.
+    const existing = await owner.query(`
+      SELECT
+        (SELECT count(*)::integer FROM public."User"
+          WHERE id = $1 OR "clerkId" = $2 OR email = $3) AS "userCandidates",
+        (SELECT count(*)::integer FROM public."SellerProfile"
+          WHERE id = $4 OR "userId" = $1 OR "stripeAccountId" = $5) AS "sellerCandidates",
+        (SELECT count(*)::integer FROM public."User"
+          WHERE id = $1 AND "clerkId" = $2 AND email = $3
+            AND role = 'USER' AND "deletedAt" IS NULL AND banned = false) AS "exactUser",
+        (SELECT count(*)::integer FROM public."SellerProfile"
+          WHERE id = $4 AND "userId" = $1 AND "stripeAccountId" = $5
+            AND "displayName" = 'Grainline Provider Canary'
+            AND "displayNameNormalized" = 'grainline provider canary'
+            AND "chargesEnabled" = true AND "vacationMode" = true) AS "exactSeller"
+    `, [identity.userId, identity.clerkId, identity.email, identity.sellerId, state.stripeAccountId]);
+    const row = existing.rows[0];
+    const absent = Number(row?.userCandidates) === 0 && Number(row?.sellerCandidates) === 0;
+    const exact =
+      Number(row?.userCandidates) === 1
+      && Number(row?.sellerCandidates) === 1
+      && Number(row?.exactUser) === 1
+      && Number(row?.exactSeller) === 1;
+    if (absent) {
+      const insertedUser = await owner.query(`
+        INSERT INTO public."User" (id, "clerkId", email, name, role, "updatedAt")
+        VALUES ($1, $2, $3, 'Grainline Provider Canary', 'USER', CURRENT_TIMESTAMP)
+        RETURNING id
+      `, [identity.userId, identity.clerkId, identity.email]);
+      const insertedSeller = await owner.query(`
+        INSERT INTO public."SellerProfile" (
+          id, "userId", "displayName", "displayNameNormalized",
+          "stripeAccountId", "chargesEnabled", "vacationMode",
+          "stripeAccountVersion", "stripeControllerType", "updatedAt"
+        ) VALUES (
+          $1, $2, 'Grainline Provider Canary', 'grainline provider canary',
+          $3, true, true, 'v2', 'express', CURRENT_TIMESTAMP
+        )
+        RETURNING id
+      `, [identity.sellerId, identity.userId, state.stripeAccountId]);
+      if (resultCardinality(insertedUser) !== 1 || resultCardinality(insertedSeller) !== 1) {
+        throw new Error("linked payout disposable fixture insert cardinality drifted");
       }
+    } else if (!exact) {
+      throw new Error("linked payout disposable fixture identity collided");
     }
-    throw new Error("no eligible linked Stripe test-mode seller was available");
+    const verified = await owner.query(`
+      SELECT count(*)::integer AS count
+        FROM public."User" AS account
+        JOIN public."SellerProfile" AS seller ON seller."userId" = account.id
+       WHERE account.id = $1 AND account."clerkId" = $2 AND account.email = $3
+         AND account.role = 'USER' AND account."deletedAt" IS NULL AND account.banned = false
+         AND seller.id = $4 AND seller."stripeAccountId" = $5
+         AND seller."displayName" = 'Grainline Provider Canary'
+         AND seller."displayNameNormalized" = 'grainline provider canary'
+         AND seller."chargesEnabled" = true AND seller."vacationMode" = true
+    `, [identity.userId, identity.clerkId, identity.email, identity.sellerId, state.stripeAccountId]);
+    if (verified.rows[0]?.count !== 1) {
+      throw new Error("linked payout disposable fixture verification drifted");
+    }
+    await owner.query("COMMIT");
   } catch (error) {
     try { await owner.query("ROLLBACK"); } catch {}
     throw error;
@@ -610,6 +820,8 @@ async function ownerSnapshot(owner, state) {
   try {
     const result = await owner.query(`
       SELECT
+        (SELECT count(*)::integer FROM public."User"
+          WHERE id = $2 AND "clerkId" = $6 AND email = $7) AS "userCount",
         (SELECT count(*)::integer FROM public."SellerProfile"
           WHERE id = $1 AND "userId" = $2 AND "stripeAccountId" = $3) AS "sellerCount",
         (SELECT count(*)::integer FROM public."StripeWebhookEvent"
@@ -643,7 +855,15 @@ async function ownerSnapshot(owner, state) {
            AND notification."sourceType" = 'stripe_payout_failure'
            AND notification.type = 'PAYOUT_FAILED'
            AND notification."userId" = $2) AS "notificationDedupKey"
-    `, [state.sellerId, state.sellerUserId, state.stripeAccountId, state.eventId, state.payoutId]);
+    `, [
+      state.sellerId,
+      state.sellerUserId,
+      state.stripeAccountId,
+      state.eventId,
+      state.payoutId,
+      state.canaryClerkId,
+      state.canaryEmail,
+    ]);
     await owner.query("ROLLBACK");
     return result.rows[0];
   } catch (error) {
@@ -689,7 +909,7 @@ async function deliverySnapshot(owner, runtime, state) {
   return { ...ownerRow, ...runtimeRow };
 }
 
-async function cleanupExactRows(owner, state) {
+export async function cleanupExactRows(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
     const payout = await owner.query(`
@@ -715,7 +935,9 @@ async function cleanupExactRows(owner, state) {
       state.sellerUserId,
       state.stripeAccountId,
     ]);
-    if (payout.rowCount !== 1) throw new Error("exact payout cleanup source relationship drifted");
+    if (resultCardinality(payout) !== 1) {
+      throw new Error("exact payout cleanup source relationship drifted");
+    }
     const notification = await owner.query(`
       SELECT id, "userId", type, "sourceType", "sourceId", "relatedUserId"
        FROM public."Notification"
@@ -724,7 +946,7 @@ async function cleanupExactRows(owner, state) {
        FOR UPDATE
     `, [state.payoutEventId]);
     if (
-      notification.rowCount !== 1
+      resultCardinality(notification) !== 1
       || notification.rows[0]?.id !== state.notificationId
       || notification.rows[0]?.userId !== state.sellerUserId
       || notification.rows[0]?.type !== "PAYOUT_FAILED"
@@ -740,8 +962,43 @@ async function cleanupExactRows(owner, state) {
       `DELETE FROM public."SellerPayoutEvent" WHERE id = $1 RETURNING id`,
       [state.payoutEventId],
     );
-    if (deletedNotification.rowCount !== 1 || deletedPayout.rowCount !== 1) {
+    if (
+      resultCardinality(deletedNotification) !== 1
+      || resultCardinality(deletedPayout) !== 1
+    ) {
       throw new Error("exact payout cleanup cardinality drifted");
+    }
+    const seller = await owner.query(`
+      SELECT id
+        FROM public."SellerProfile"
+       WHERE id = $1 AND "userId" = $2 AND "stripeAccountId" = $3
+         AND "displayName" = 'Grainline Provider Canary'
+         AND "displayNameNormalized" = 'grainline provider canary'
+         AND "chargesEnabled" = true AND "vacationMode" = true
+       FOR UPDATE
+    `, [state.sellerId, state.sellerUserId, state.stripeAccountId]);
+    const account = await owner.query(`
+      SELECT id
+        FROM public."User"
+       WHERE id = $1 AND "clerkId" = $2 AND email = $3
+         AND role = 'USER' AND "deletedAt" IS NULL AND banned = false
+       FOR UPDATE
+    `, [state.sellerUserId, state.canaryClerkId, state.canaryEmail]);
+    if (resultCardinality(seller) !== 1 || resultCardinality(account) !== 1) {
+      throw new Error("linked payout disposable cleanup identity drifted");
+    }
+    await assertNoForeignKeyDependents(owner, 'public."SellerProfile"', state.sellerId);
+    const deletedSeller = await owner.query(
+      `DELETE FROM public."SellerProfile" WHERE id = $1 RETURNING id`,
+      [state.sellerId],
+    );
+    await assertNoForeignKeyDependents(owner, 'public."User"', state.sellerUserId);
+    const deletedUser = await owner.query(
+      `DELETE FROM public."User" WHERE id = $1 RETURNING id`,
+      [state.sellerUserId],
+    );
+    if (resultCardinality(deletedSeller) !== 1 || resultCardinality(deletedUser) !== 1) {
+      throw new Error("linked payout disposable cleanup cardinality drifted");
     }
     await owner.query("COMMIT");
   } catch (error) {
@@ -750,11 +1007,13 @@ async function cleanupExactRows(owner, state) {
   }
 }
 
-async function readCleanupSnapshot(owner, state) {
+export async function readCleanupSnapshot(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
   try {
     const result = await owner.query(`
       SELECT
+        (SELECT count(*)::integer FROM public."User"
+          WHERE id = $2 AND "clerkId" = $8 AND email = $9) AS "userCount",
         (SELECT count(*)::integer FROM public."SellerProfile"
           WHERE id = $1 AND "userId" = $2 AND "stripeAccountId" = $3) AS "sellerCount",
         (SELECT count(*)::integer FROM public."StripeWebhookEvent"
@@ -771,6 +1030,8 @@ async function readCleanupSnapshot(owner, state) {
       state.payoutId,
       state.payoutEventId,
       state.notificationId,
+      state.canaryClerkId,
+      state.canaryEmail,
     ]);
     await owner.query("ROLLBACK");
     return result.rows[0];
@@ -799,7 +1060,18 @@ function stripeDependencies(stripe, secretKey, config, attemptId) {
     listV2Destinations: () => listAll(stripe.v2.core.eventDestinations.list({
       include: ["webhook_endpoint.url"], limit: 100,
     })),
-    retrieveAccount: (id) => stripe.accounts.retrieve(id),
+    createCanaryAccount: () => stripe.accounts.create(
+      buildCanaryAccountParams(disposableCanaryProviderConfig(config)),
+      sourceOptions("disposable-account"),
+    ),
+    createOnboardingAccountLink: (accountId, generation) => stripe.accountLinks.create(
+      buildCanaryAccountLinkParams(accountId),
+      sourceOptions(`hosted-onboarding-${generation}`),
+    ),
+    retrieveAccount: (id) => stripe.accounts.retrieve(id, {
+      expand: ["external_accounts"],
+    }),
+    deleteAccount: (id) => stripe.accounts.del(id),
     createFundingCharge: (accountId) => stripe.charges.create({
       amount: FUNDING_CHARGE_CENTS,
       currency: "usd",
@@ -848,6 +1120,138 @@ function stripeDependencies(stripe, secretKey, config, attemptId) {
   };
 }
 
+export async function prepareDisposableCanary(config, stripeOps) {
+  const provider = await readProviderState(stripeOps);
+  if (provider.stage !== 4 || provider.connect.url !== CONNECT_URL) {
+    throw new Error("linked payout canary preparation requires exact provider stage 4");
+  }
+  let canary = ensureDisposableCanaryReservation(config);
+  let account;
+  if (canary.stage === "reserved") {
+    account = assertCanaryAccount(
+      await stripeOps.createCanaryAccount(),
+      disposableCanaryProviderConfig(config),
+    );
+    canary = replaceDisposableCanary(config, {
+      ...canary,
+      stage: "account-created",
+      stripeAccountId: account.id,
+      marker: account.metadata.grainline_provider_canary,
+    });
+  } else {
+    account = assertCanaryAccount(
+      await stripeOps.retrieveAccount(canary.stripeAccountId),
+      disposableCanaryProviderConfig(config),
+    );
+    if (account.metadata.grainline_provider_canary !== canary.marker) {
+      throw new Error("linked payout disposable canary marker changed");
+    }
+  }
+  if (account.charges_enabled === true && account.payouts_enabled === true) {
+    if (!hasRequiredPayoutFailureBank(account.external_accounts?.data ?? [])) {
+      throw new Error("linked payout disposable canary lost its failure bank");
+    }
+    const {
+      accountLinkExpiresAt: _expiresAt,
+      accountLinkGeneration: _generation,
+      accountLinkUrl: _linkUrl,
+      ...withoutLink
+    } = canary;
+    canary = replaceDisposableCanary(config, { ...withoutLink, stage: "prepared" });
+    return Object.freeze({
+      phase: "seller-payout-event-linked-disposable-canary",
+      status: "prepared",
+      commit: config.expectedCommit,
+      ciRunId: config.mainCiRunId,
+      deploymentId: config.deploymentId,
+      providerStage: provider.stage,
+      rawProviderIdsPersistedInOutput: false,
+      secretsPersistedInOutput: false,
+    });
+  }
+  const accountLinkGeneration = Number(canary.accountLinkGeneration ?? 0) + 1;
+  const accountLink = await stripeOps.createOnboardingAccountLink(
+    canary.stripeAccountId,
+    accountLinkGeneration,
+  );
+  let parsedLink;
+  try {
+    parsedLink = new URL(accountLink?.url);
+  } catch {
+    throw new Error("linked payout canary onboarding link was invalid");
+  }
+  if (
+    accountLink?.object !== "account_link"
+    || parsedLink.protocol !== "https:"
+    || parsedLink.hostname !== "connect.stripe.com"
+    || !parsedLink.pathname.startsWith("/setup/")
+    || !Number.isSafeInteger(accountLink.expires_at)
+    || accountLink.expires_at <= Math.floor(Date.now() / 1000)
+  ) throw new Error("linked payout canary onboarding link was outside the reviewed boundary");
+  replaceDisposableCanary(config, {
+    ...canary,
+    stage: "onboarding-required",
+    accountLinkUrl: accountLink.url,
+    accountLinkExpiresAt: accountLink.expires_at,
+    accountLinkGeneration,
+  });
+  return Object.freeze({
+    phase: "seller-payout-event-linked-disposable-canary",
+    status: "onboarding-required",
+    commit: config.expectedCommit,
+    ciRunId: config.mainCiRunId,
+    deploymentId: config.deploymentId,
+    providerStage: provider.stage,
+    rawProviderIdsPersistedInOutput: false,
+    secretsPersistedInOutput: false,
+  });
+}
+
+export async function abortDisposableCanary(config, stripeOps) {
+  if (existsSync(config.statePath)) {
+    throw new Error("linked payout proof recovery state blocks canary abort");
+  }
+  const provider = await readProviderState(stripeOps);
+  if (provider.stage !== 4 || provider.connect.url !== CONNECT_URL) {
+    throw new Error("linked payout canary abort requires exact provider stage 4");
+  }
+  if (!existsSync(config.canaryPath)) {
+    return Object.freeze({
+      phase: "seller-payout-event-linked-disposable-canary",
+      status: "already-absent",
+      commit: config.expectedCommit,
+      ciRunId: config.mainCiRunId,
+      deploymentId: config.deploymentId,
+    });
+  }
+  const canary = readDisposableCanary(config);
+  if (canary.stage !== "reserved") {
+    await deleteDisposableCanaryAccount(config, stripeOps, canary);
+  }
+  unlinkSync(config.canaryPath);
+  return Object.freeze({
+    phase: "seller-payout-event-linked-disposable-canary",
+    status: "aborted",
+    commit: config.expectedCommit,
+    ciRunId: config.mainCiRunId,
+    deploymentId: config.deploymentId,
+  });
+}
+
+async function deleteDisposableCanaryAccount(config, stripeOps, canary) {
+  const account = await stripeOps.retrieveAccount(canary.stripeAccountId);
+  if (account?.deleted === true && account?.id === canary.stripeAccountId) return true;
+  const verified = assertCanaryAccount(account, disposableCanaryProviderConfig(config));
+  if (verified.metadata.grainline_provider_canary !== canary.marker) {
+    throw new Error("linked payout disposable canary marker changed");
+  }
+  const deleted = await stripeOps.deleteAccount(canary.stripeAccountId);
+  if (deleted?.deleted !== true || deleted?.id !== canary.stripeAccountId) {
+    throw new Error("linked payout disposable canary deletion did not complete");
+  }
+  return true;
+}
+
 async function waitFor(read, accept, label, attempts = 40, delayMs = 1500) {
   let latest;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -893,6 +1297,8 @@ function buildEvidence(config, state, delivery, cleanup, provider) {
       webhookLeaseRetained: cleanup.webhookCount === 1,
       payoutFixtureRemoved: cleanup.payoutCount === 0,
       notificationFixtureRemoved: cleanup.notificationCount === 0,
+      temporarySellerFixtureRemoved: cleanup.sellerCount === 0,
+      temporaryUserFixtureRemoved: cleanup.userCount === 0,
       linkedDeliveryCount: delivery.payoutCount,
       linkedNotificationCount: delivery.notificationCount,
       exactRetryLeftAllIdentitiesUnchanged: true,
@@ -901,7 +1307,8 @@ function buildEvidence(config, state, delivery, cleanup, provider) {
     productionChangedByProof: true,
     productionChangeAfterCleanup: "one processed test-mode StripeWebhookEvent lease retained",
     providerConfigurationChanged: false,
-    sellerChanged: false,
+    existingSellerChanged: false,
+    disposableConnectedAccountRemoved: state.disposableAccountRemoved === true,
     liveMoneyMoved: false,
     rawIdentifiersPersistedInEvidence: false,
     secretsPersistedInEvidence: false,
@@ -935,6 +1342,8 @@ function assertEvidence(value, config) {
     || value?.database?.webhookLeaseRetained !== true
     || value?.database?.payoutFixtureRemoved !== true
     || value?.database?.notificationFixtureRemoved !== true
+    || value?.database?.temporarySellerFixtureRemoved !== true
+    || value?.database?.temporaryUserFixtureRemoved !== true
     || value?.database?.linkedDeliveryCount !== 1
     || value?.database?.linkedNotificationCount !== 1
     || value?.database?.exactRetryLeftAllIdentitiesUnchanged !== true
@@ -943,7 +1352,8 @@ function assertEvidence(value, config) {
     || value?.productionChangeAfterCleanup
       !== "one processed test-mode StripeWebhookEvent lease retained"
     || value?.providerConfigurationChanged !== false
-    || value?.sellerChanged !== false
+    || value?.existingSellerChanged !== false
+    || value?.disposableConnectedAccountRemoved !== true
     || value?.liveMoneyMoved !== false
     || value?.rawIdentifiersPersistedInEvidence !== false
     || value?.secretsPersistedInEvidence !== false
@@ -956,7 +1366,10 @@ export async function runSellerPayoutLinkedProductionProof({
   dependencies = {},
 } = {}) {
   const config = validateConfiguration(env);
-  if (existsSync(config.evidencePath)) {
+  if (config.mode === "prepare-canary" && existsSync(config.evidencePath)) {
+    throw new Error("completed linked payout evidence blocks a new disposable canary");
+  }
+  if (config.mode === "prove" && existsSync(config.evidencePath)) {
     const completed = assertEvidence(
       readPrivateJson(config.evidencePath, "linked payout evidence"),
       config,
@@ -980,6 +1393,15 @@ export async function runSellerPayoutLinkedProductionProof({
       ) throw new Error("completed evidence does not bind retained cleanup state");
       unlinkSync(config.statePath);
     }
+    if (existsSync(config.canaryPath)) {
+      const retainedCanary = readDisposableCanary(config);
+      if (
+        retainedCanary.stage !== "prepared"
+        || sha256(retainedCanary.stripeAccountId)
+          !== completed.stripe.connectedAccountIdSha256
+      ) throw new Error("completed evidence does not bind retained disposable canary");
+      unlinkSync(config.canaryPath);
+    }
     return completed;
   }
   const cwd = path.resolve(config.vercelProjectDirectory);
@@ -993,11 +1415,27 @@ export async function runSellerPayoutLinkedProductionProof({
 
   const localValues = dependencies.localValues
     ?? readPrivateEnvironment(LOCAL_ENV_PATH, "runtime environment");
+  const secretKey = validateStripeSecret(localValues);
+  const stripe = dependencies.stripe ?? new Stripe(secretKey, { apiVersion: STRIPE_API_VERSION });
+  if (config.mode === "prepare-canary") {
+    const canary = ensureDisposableCanaryReservation(config);
+    const stripeOps = dependencies.stripeOps
+      ?? stripeDependencies(stripe, secretKey, config, canary.attemptId);
+    return prepareDisposableCanary(config, stripeOps);
+  }
+  if (config.mode === "abort-canary") {
+    const canary = existsSync(config.canaryPath) ? readDisposableCanary(config) : null;
+    const stripeOps = dependencies.stripeOps
+      ?? stripeDependencies(stripe, secretKey, config, canary?.attemptId ?? randomUUID());
+    return abortDisposableCanary(config, stripeOps);
+  }
+  const canary = readDisposableCanary(config);
+  if (canary.stage !== "prepared") {
+    throw new Error("linked payout disposable canary is not prepared");
+  }
   const ownerValues = dependencies.ownerValues
     ?? readPrivateEnvironment(OWNER_ENV_PATH, "owner environment");
   const { ownerDatabaseUrl, runtimeDatabaseUrl } = parseDatabaseUrls(localValues, ownerValues);
-  const secretKey = validateStripeSecret(localValues);
-  const stripe = dependencies.stripe ?? new Stripe(secretKey, { apiVersion: STRIPE_API_VERSION });
   const owner = dependencies.owner ?? postgresClient(
     ownerDatabaseUrl,
     "grainline-seller-payout-linked-proof-owner",
@@ -1013,20 +1451,29 @@ export async function runSellerPayoutLinkedProductionProof({
     await verifyDatabaseIdentity(owner, runtime);
     if (existsSync(config.statePath)) {
       state = assertState(readPrivateJson(config.statePath, "linked payout recovery state"), config);
+      if (
+        state.attemptId !== canary.attemptId
+        || state.stripeAccountId !== canary.stripeAccountId
+        || state.canaryMarker !== canary.marker
+      ) throw new Error("linked payout recovery state does not bind disposable canary");
     } else {
-      const candidate = await (dependencies.selectSeller ?? selectSeller)(owner, stripe);
+      const identity = disposableDatabaseIdentity(canary.attemptId);
       state = assertState({
         phase: "seller-payout-event-linked-production-proof-state",
-        stage: "selected",
+        stage: "fixture-reserved",
         commit: config.expectedCommit,
         deployedSourceCommit: config.deployedSourceCommit,
         ciRunId: config.mainCiRunId,
         deploymentId: config.deploymentId,
-        attemptId: randomUUID(),
+        attemptId: canary.attemptId,
         startedSeconds: Math.floor(Date.now() / 1000) - 5,
-        sellerId: candidate.sellerId,
-        sellerUserId: candidate.userId,
-        stripeAccountId: candidate.stripeAccountId,
+        disposableCanary: true,
+        canaryMarker: canary.marker,
+        canaryClerkId: identity.clerkId,
+        canaryEmail: identity.email,
+        sellerId: identity.sellerId,
+        sellerUserId: identity.userId,
+        stripeAccountId: canary.stripeAccountId,
       }, config);
       writePrivateJson(config.statePath, state);
     }
@@ -1037,6 +1484,24 @@ export async function runSellerPayoutLinkedProductionProof({
       provider.stage !== 4
       || provider.connect.url !== CONNECT_URL
     ) throw new Error("linked payout proof requires exact provider stage 4");
+    if (!new Set(["db-cleaned", "cleaned"]).has(state.stage)) {
+      const canaryAccount = assertCanaryAccount(
+        await stripeOps.retrieveAccount(state.stripeAccountId),
+        disposableCanaryProviderConfig(config),
+      );
+      if (
+        canaryAccount.metadata.grainline_provider_canary !== state.canaryMarker
+        || canaryAccount.charges_enabled !== true
+        || canaryAccount.payouts_enabled !== true
+        || !hasRequiredPayoutFailureBank(canaryAccount.external_accounts?.data ?? [])
+      ) throw new Error("linked payout disposable canary readiness drifted");
+    }
+
+    if (state.stage === "fixture-reserved") {
+      await (dependencies.createDisposableDatabaseFixture
+        ?? createDisposableDatabaseFixture)(owner, state);
+      state = updateState(config, state, { stage: "selected" });
+    }
 
     if (state.stage === "selected") {
       const charge = await stripeOps.createFundingCharge(state.stripeAccountId);
@@ -1136,7 +1601,8 @@ export async function runSellerPayoutLinkedProductionProof({
     if (state.stage === "cleanup-started") {
       const beforeCleanup = await readCleanup(owner, state);
       const exactPending =
-        Number(beforeCleanup?.sellerCount) === 1
+        Number(beforeCleanup?.userCount) === 1
+        && Number(beforeCleanup?.sellerCount) === 1
         && Number(beforeCleanup?.webhookCount) === 1
         && beforeCleanup?.webhookProcessed === true
         && Number(beforeCleanup?.payoutCount) === 1
@@ -1147,7 +1613,14 @@ export async function runSellerPayoutLinkedProductionProof({
         assertCleanupSnapshot(beforeCleanup);
       }
       assertCleanupSnapshot(await readCleanup(owner, state));
-      state = updateState(config, state, { stage: "cleaned" });
+      state = updateState(config, state, { stage: "db-cleaned" });
+    }
+    if (state.stage === "db-cleaned") {
+      await deleteDisposableCanaryAccount(config, stripeOps, canary);
+      state = updateState(config, state, {
+        stage: "cleaned",
+        disposableAccountRemoved: true,
+      });
     }
     const cleanup = assertCleanupSnapshot(await readCleanup(owner, state));
     const finalProvider = await readProviderState(stripeOps);
@@ -1156,6 +1629,7 @@ export async function runSellerPayoutLinkedProductionProof({
     const evidence = assertEvidence(buildEvidence(config, state, delivered, cleanup, finalProvider), config);
     writePrivateJson(config.evidencePath, evidence);
     unlinkSync(config.statePath);
+    unlinkSync(config.canaryPath);
     return evidence;
   } finally {
     await Promise.allSettled([owner.end(), runtime.end()]);

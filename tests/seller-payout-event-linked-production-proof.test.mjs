@@ -12,10 +12,10 @@ const matrix = readFileSync("docs/rls-coverage-matrix.md", "utf8");
 test("linked payout proof keeps its production boundary explicit", () => {
   assert.match(
     plan,
-    /attempted and failed closed before any\s+Stripe or database mutation on 2026-08-21/i,
+    /failed closed before any Stripe or database mutation because no\s+existing linked test seller/i,
   );
-  assert.match(plan, /authenticated read-only `\/v13\/deployments\/\{id\}` API/);
-  assert.match(plan, /requires the exact source\s+commit and every canonical alias/);
+  assert.match(plan, /authenticated read-only\s+`\/v13\/deployments\/\{id\}` API/);
+  assert.match(plan, /requires the exact source\s+commit and every\s+canonical alias/);
   assert.match(plan, /e9239463a71860451191344b26dd20b45298f239/);
   assert.match(plan, /31927548800/);
   assert.match(plan, /dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h/);
@@ -23,11 +23,12 @@ test("linked payout proof keeps its production boundary explicit", () => {
   assert.match(plan, /RLS activation or grant change/);
   assert.match(plan, /test-mode/);
   assert.match(plan, /no customer order, payment, refund or live-mode Stripe object/);
-  assert.match(plan, /must still treat every existing seller\s+as non-disposable/);
-  assert.match(plan, /never changes the seller[\s\S]*account\s+configuration/i);
-  assert.match(plan, /default USD external[\s\S]*test bank ending `1116`/);
-  assert.match(plan, /stops before creating[\s\S]*charge or payout/);
-  assert.match(plan, /test-mode\s+balance\/history entries/);
+  assert.match(plan, /every existing seller remains non-disposable/);
+  assert.match(plan, /no longer contains an existing-seller selection path/);
+  assert.match(plan, /failure bank ending `1116`/);
+  assert.match(plan, /one\s+exact temporary User\/SellerProfile pair/);
+  assert.match(plan, /seller in vacation mode/);
+  assert.match(plan, /disposable connected account is deleted/);
 });
 
 test("linked payout proof binds source, projection, notification and exact retry", () => {
@@ -35,19 +36,21 @@ test("linked payout proof binds source, projection, notification and exact retry
   assert.match(plan, /fixed latest projection/);
   assert.match(plan, /lease generation and update time[\s\S]*remain unchanged/);
   assert.match(plan, /payout row identity[\s\S]*notification identity and dedup key/);
-  assert.match(plan, /processed `StripeWebhookEvent` lease remains/);
+  assert.match(plan, /processed\s+`StripeWebhookEvent` lease\s+remains/);
 });
 
 test("linked payout proof cleanup cannot become broad application cleanup", () => {
-  assert.match(plan, /delete only that notification and payout row, in that order/);
-  assert.match(plan, /Never delete or[\s\S]*rewrite the seller, webhook lease or any unrelated notification/);
-  assert.match(plan, /Roll back\s+on any count other than exactly one/);
-  assert.match(plan, /mode-0600 local recovery record/);
+  assert.match(plan, /delete only that notification, payout, temporary seller and\s+temporary user/);
+  assert.match(plan, /Never delete the webhook lease or any\s+unrelated row/);
+  assert.match(plan, /Roll back\s+on\s+any count other than exactly one/);
+  assert.match(plan, /mode-0600 provider-canary and database-proof\s+recovery records/);
   assert.match(plan, /may not create a second payout/);
+  assert.match(plan, /marker-bound disposable account/);
 });
 
 test("linked payout proof is the documented pre-activation successor", () => {
-  assert.match(audit, /existing canonical test endpoint[\s\S]*already-linked eligible test seller/);
+  assert.match(audit, /existing canonical test endpoint[\s\S]*release-bound disposable Express account/);
+  assert.match(audit, /never changes an existing seller or provider account/);
   assert.match(audit, /linked-seller signed test-mode production proof/);
   assert.match(matrix, /seller-payout-event-linked-production-proof\.md/);
   assert.match(plan, /policyless[\s\S]*ENABLE[\s\S]*FORCE remain separate releases/);

@@ -1860,3 +1860,46 @@ Open work:
   acceptance gate requires zero audit findings, a clean install, successful
   Prisma config/schema load and client generation, full tests, TypeScript,
   lint and a production build before merge.
+
+## SellerPayoutEvent disposable linked-seller correction (2026-08-21)
+
+- The Vercel deployment-reader correction merged at exact main
+  `c221b1871ee73bbce8f092daf49536c4381cf9de`; exact-main CI
+  `32537455244` passed. The authorized linked-seller proof rerun accepted the
+  exact source/deployment/provider preflight and then stopped before mutation
+  because no linked test seller met the complete failure-bank requirement. It
+  created no charge, payout, database fixture, notification, state file or
+  evidence file and changed no Stripe, database, Vercel or RLS state.
+- A separate aggregate-only diagnosis used an engine-enforced read-only
+  production database transaction plus Stripe GET operations. It found two
+  linked, retrievable Stripe test-mode sellers; both were Stripe-controlled
+  Express accounts with charges and payouts enabled, and neither had the
+  documented failure bank ending `1116`. No raw account, seller or user IDs
+  were retained. Changing a real seller's bank was rejected because a failed
+  payout disables the external account and would make the proof alter a real
+  seller's payout configuration.
+- The replacement design has no existing-seller selection path. It prepares
+  one release-bound disposable test-mode Express account through Stripe-hosted
+  onboarding, then creates one deterministic vacation-mode User/SellerProfile
+  pair immediately before delivery. The proof deletes the exact notification,
+  payout projection, temporary seller and temporary user transactionally, but
+  first catalog-scans every foreign key under parent-row locks and requires
+  zero remaining dependents so cascades cannot broaden cleanup. It then deletes
+  only the marker-bound Stripe account. The processed
+  `StripeWebhookEvent` lease remains as the sole production residue.
+- Provider preparation, proof and abort have separate confirmations. A
+  mode-0600 canary handoff is written before account creation; onboarding-link
+  generations and every provider mutation use restart-safe release-bound
+  identity. A separate mode-0600 database recovery record is written before
+  inserting the temporary rows. Abort is blocked after that database record
+  exists.
+- Focused tests include fail-closed configuration/state/provider cases and a
+  real disposable PostgreSQL proof of idempotent fixture creation, exact
+  relationship cleanup, retained webhook evidence, collision rejection and
+  rollback on an unexpected cascading dependent. The final source review also
+  caught that Prisma-managed `User.updatedAt` and `SellerProfile.updatedAt`
+  have no database default; both raw fixture inserts now set them explicitly,
+  and the disposable schema deliberately omits a default so the proof guards
+  that production shape.
+  Review/merge remains non-mutating; account preparation and the temporary
+  production database fixture require a new explicit execution boundary.
