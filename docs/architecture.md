@@ -142,12 +142,26 @@ retryable notification semantics without changing existing best-effort
 callers. The linked-seller signed test-mode proof is accepted from exact main
 `854233e3b8729da60c0da46ff8af492e53e48438` with exact retry stability and
 complete temporary-row/account cleanup. The next boundary is the exact-ID
-predecessor drain prepared in
-`docs/seller-payout-event-predecessor-drain.md`; its CI-enforced source proof
-finds the exact three fixed-authority consumers and zero direct table access.
-No predecessor removal is yet claimed. These releases do not change the later
-separate activation order for payment events, shipping quotes or
-Order/OrderItem.
+predecessor drain recorded in
+`docs/seller-payout-event-predecessor-drain.md`. Exact main
+`9947a9e485a686dc801befcdea285cddc5b3aff7`, CI `32583228592`, removed the sole
+current-credential predecessor and preserved the current deployment, all four
+canonical aliases and health; accepted evidence SHA-256 is
+`3bb83df87df2cf2571df53ef0021e73886eca5d57140e0e8bc929eac4e2b61b1`. Its
+CI-enforced source proof finds the exact three fixed-authority consumers and
+zero direct table access. The next separate boundary is policyless ENABLE plus
+direct-grant revocation. These releases do not change the later separate
+activation order for payment events, shipping quotes or Order/OrderItem.
+
+The isolated activation design is recorded in
+`docs/seller-payout-event-activation-release.md`. It uses policyless ENABLE,
+zero direct runtime/PUBLIC table or column authority, and retains only the
+three source-pinned fixed operations. Provider event time becomes required only
+after an exclusive-lock preflight proves every retained row has valid time and
+the converted application's current-credential predecessor is absent. The
+candidate and database-first rollback are byte-pinned and CI proves them with
+separate owner/runtime logins. Production wiring, production migration and the
+later posture-only FORCE release remain separate boundaries.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

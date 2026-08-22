@@ -429,6 +429,66 @@ REVOKE ALL ON TABLE public."StripeWebhookEvent"
 FROM :"runtime_role";
 \endif
 
+-- SellerPayoutEvent begins as a compatible CRUD table. Its separate
+-- policyless service-ledger activation enables RLS with zero policies and
+-- removes all direct runtime/PUBLIC authority. FORCE may be off initially or
+-- on after the later posture release. Refuse every partial posture so the
+-- broad grant above cannot reopen this retained payout ledger.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)::integer
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'SellerPayoutEvent'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND policy_count = 0) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'SellerPayoutEvent RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS seller_payout_event_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_seller_payout_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_seller_payout_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :seller_payout_event_rls_active
+REVOKE ALL ON TABLE public."SellerPayoutEvent"
+  FROM PUBLIC, :"runtime_role";
+\endif
+\unset seller_payout_event_rls_active
+
 -- Notification keeps ordinary CRUD until its reviewed recipient policies are
 -- installed. Once those exact policies exist, every provisioning rerun must
 -- converge back to SELECT plus column-only UPDATE(read). The surrounding

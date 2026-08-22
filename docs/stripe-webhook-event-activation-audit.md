@@ -175,6 +175,12 @@ defect. Each remaining path is classified:
   owner-authenticated, aggregate-only production predecessor inspector. It
   runs in an engine-attested repeatable-read read-only transaction and exports
   no rows or provider identifiers. It is not an ordinary runtime path.
+- `scripts/seller-payout-event-activation-postgres-proof.mjs` is the
+  loopback-only disposable PostgreSQL proof for the later policyless
+  SellerPayoutEvent activation. It uses separate synthetic owner and restricted
+  runtime logins to prove exact fixed-function behavior and direct table denial;
+  it cannot accept a provider or production endpoint and is not an application
+  runtime path.
 - `scripts/seller-payout-event-authority-postgres-proof.mjs` is the
   loopback-only disposable PostgreSQL proof for the later SellerPayoutEvent
   compatible-authority successor. It uses a synthetic owner plus restricted

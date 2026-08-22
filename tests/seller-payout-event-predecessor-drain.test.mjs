@@ -292,7 +292,7 @@ test("operator can remove only the exact predecessor and cannot mutate database 
   assert.match(source, /mode-0600 regular file/);
 });
 
-test("documentation and CI preserve the non-mutating predecessor boundary", () => {
+test("documentation and CI preserve the accepted predecessor boundary", () => {
   const doc = fs.readFileSync("docs/seller-payout-event-predecessor-drain.md", "utf8");
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
   const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
@@ -300,8 +300,10 @@ test("documentation and CI preserve the non-mutating predecessor boundary", () =
   const architecture = fs.readFileSync("docs/architecture.md", "utf8");
   const matrix = fs.readFileSync("docs/rls-coverage-matrix.md", "utf8");
 
-  assert.match(doc, /Status: prepared and locally proven only/);
-  assert.match(doc, /No deployment has been removed/);
+  assert.match(doc, /Status: completed in production on 2026-08-22/);
+  assert.match(doc, /9947a9e485a686dc801befcdea285cddc5b3aff7/);
+  assert.match(doc, /32583228592/);
+  assert.match(doc, /3bb83df87df2cf2571df53ef0021e73886eca5d57140e0e8bc929eac4e2b61b1/);
   assert.match(doc, /READY, BUILDING, QUEUED and\s+INITIALIZING/);
   assert.match(doc, /tracked source files/);
   assert.match(doc, /exact deployment removal is destructive/i);
@@ -314,7 +316,10 @@ test("documentation and CI preserve the non-mutating predecessor boundary", () =
     "node scripts/seller-payout-event-predecessor-drain.mjs",
   );
   assert.match(workflow, /Prove zero direct SellerPayoutEvent application access/);
-  assert.match(strategy, /non-mutating predecessor boundary is now prepared/);
-  assert.match(architecture, /No predecessor removal is yet claimed/);
-  assert.match(matrix, /Exact-ID restart-safe drain execution remains outstanding/);
+  assert.match(strategy, /permanently\s+removed only that predecessor/);
+  assert.match(architecture, /removed the sole\s+current-credential predecessor/);
+  assert.match(
+    matrix,
+    /Prepare policyless ENABLE plus\s+direct-grant revocation next/,
+  );
 });

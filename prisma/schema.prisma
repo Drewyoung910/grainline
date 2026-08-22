@@ -762,8 +762,8 @@ model SellerPayoutEvent {
   failureMessage            String?       @db.VarChar(1000)
   stripeEventId             String?       @unique @db.VarChar(255)
   // Signed Stripe event ordering for the mutable latest-state projection.
-  // Nullable only during the compatible predecessor deployment window.
-  stripeEventCreatedSeconds BigInt?
+  // Required after the policyless activation closes the compatibility window.
+  stripeEventCreatedSeconds BigInt
   createdAt                 DateTime      @default(now())
   updatedAt                 DateTime      @updatedAt
 
