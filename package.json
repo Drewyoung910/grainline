@@ -100,6 +100,8 @@
     "audit:rls-seller-payout-event-authority-release": "node scripts/verify-seller-payout-event-authority-release.mjs",
     "audit:rls-seller-payout-event-authority-production-scope": "node scripts/verify-seller-payout-event-authority-production-scope.mjs",
     "audit:rls-seller-payout-event-authority-postgres": "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/seller-payout-event-authority-postgres-proof.mjs",
+    "audit:rls-seller-payout-event-zero-direct-access": "node scripts/verify-seller-payout-event-zero-direct-access.mjs",
+    "ops:seller-payout-event-predecessor-drain": "node scripts/seller-payout-event-predecessor-drain.mjs",
     "ops:order-payment-shipping-legacy-inspect": "node scripts/order-payment-shipping-legacy-inspect.mjs",
     "ops:case-force-postflight": "node scripts/case-activation-production-postflight.mjs --post-force",
     "audit:rls-case-participant-resolution": "node scripts/case-participant-resolution-postgres-proof.mjs",

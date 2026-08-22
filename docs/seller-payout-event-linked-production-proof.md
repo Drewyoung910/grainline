@@ -177,4 +177,7 @@ Passing this proof closes the provider-authenticated linked write and
 notification gate only. Predecessor application deployments must still drain,
 the source tree must prove zero direct SellerPayoutEvent access, and policyless
 ENABLE plus direct-grant revocation and FORCE remain separate releases with
-their own owner and pooled-runtime proofs.
+their own owner and pooled-runtime proofs. The exact read-only inventory,
+static proof and restart-safe removal design are now prepared in
+`docs/seller-payout-event-predecessor-drain.md`; no deployment removal is
+claimed by this proof record.

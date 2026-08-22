@@ -1927,3 +1927,35 @@ Open work:
   The raw canary and database recovery files were removed after acceptance.
   The next separate boundary is predecessor drain and zero-direct-access
   proof, followed by separate policyless ENABLE and FORCE releases.
+
+## SellerPayoutEvent predecessor boundary prepared (2026-08-22)
+
+- A read-only Vercel inventory covering READY, BUILDING, QUEUED and
+  INITIALIZING Production states found the compatible deployment
+  `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h` first and exactly one READY deployment
+  between it and the accepted credential-recovery boundary:
+  `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`, source
+  `84a58f0fc818b502564ef6bcd974ff4af3cc4395`. Both exact inspections report
+  READY Production state and a 300-second maximum function timeout.
+- Older READY deployments predate the byte-verified credential recovery, whose
+  evidence proves superseded runtime and owner passwords reject. The one
+  post-recovery predecessor is conservatively classified as current-credential
+  even though no credential value is inspected or retained.
+- The new tracked-source verifier scans every JavaScript/TypeScript file under
+  `src/`, requires the exact webhook/dashboard/export authority consumers and
+  rejects direct Prisma delegate, computed delegate and raw quoted-table access.
+  It independently scanned the exact deployed source and later operator tree;
+  each has 723 files, the exact six source-reference files and zero direct
+  access matches. CI enforces the current tree and the drain pins the deployed
+  Git tree by exact source commit.
+- The restart-safe operator is exact-main/CI/evidence/inventory/alias/health/
+  timeout bound, writes mode-0600 state before mutation and can remove only
+  exact deployment `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`. It contains no database,
+  deployment creation, provider-configuration, credential, Stripe, migration,
+  RLS or grant mutation. Removal has not run and production is unchanged.
+- The operator refreshes the active-or-pending inventory immediately before
+  removal and fails if any newer production build appears, closing the
+  preflight-to-removal deployment race.
+- Exact removal remains a separate destructive execution boundary. Only
+  accepted drain evidence may unblock preparation of the policyless ENABLE and
+  direct-grant-revocation release; FORCE remains separate after that.

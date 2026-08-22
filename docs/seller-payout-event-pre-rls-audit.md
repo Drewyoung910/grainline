@@ -248,7 +248,11 @@ Required sequence:
 4. Complete: the separately reviewed linked-seller signed test-mode production
    proof and exact retry verified the Notification cross-table source path and
    exact application-row cleanup on 2026-08-22.
-5. Drain predecessor deployments and prove zero direct application access.
+5. Prepared: the tracked-source proof finds exactly three fixed-authority
+   consumers and zero direct access across 723 source files; the read-only
+   provider inventory identifies exactly one current-credential predecessor.
+   Execute the separately reviewed exact-ID restart-safe drain before
+   activation. See `docs/seller-payout-event-predecessor-drain.md`.
 6. Activate policyless RLS and revoke ordinary-runtime/PUBLIC table and column
    authority; run owner plus actual pooled-runtime proofs.
 7. Apply posture-only FORCE separately and repeat the proofs.

@@ -410,6 +410,18 @@ webhook lease. Sanitized evidence SHA-256 is
 Proceed next to the predecessor deployment drain and zero-direct-access proof;
 policyless ENABLE and posture-only FORCE remain later separate releases.
 
+The non-mutating predecessor boundary is now prepared in
+`docs/seller-payout-event-predecessor-drain.md`. A 2026-08-22 read-only Vercel
+inventory found exactly one READY current-credential predecessor:
+`dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`, source
+`84a58f0fc818b502564ef6bcd974ff4af3cc4395`. Older READY artifacts predate the
+accepted credential recovery and cannot authenticate with their superseded
+database password. The tracked-source proof scanned 723 application files,
+found the exact three reviewed fixed-authority consumers and zero direct table
+access, and is wired into CI. The restart-safe operator can remove only that
+exact predecessor after exact-main CI and a fresh read-only preflight; no
+removal, grant change or RLS activation is claimed yet.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
