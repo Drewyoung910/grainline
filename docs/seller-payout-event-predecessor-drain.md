@@ -1,9 +1,16 @@
 # SellerPayoutEvent predecessor deployment drain
 
-Status: prepared and locally proven only. The read-only provider inventory and
-tracked-source audit are accepted. No deployment has been removed by this
-release, no database or provider configuration has changed, RLS remains off,
-and predecessor table grants remain intact.
+Status: completed in production on 2026-08-22. Exact main
+`9947a9e485a686dc801befcdea285cddc5b3aff7` and CI `32583228592` passed the
+read-only preflight before exact deployment
+`dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw` was permanently removed. The restart-safe
+continuation then proved that deployment absent, preserved current deployment
+`dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`, all four canonical aliases and health, and
+wrote sanitized mode-`0600` evidence with SHA-256
+`3bb83df87df2cf2571df53ef0021e73886eca5d57140e0e8bc929eac4e2b61b1`.
+No database, provider configuration, credential, Stripe, migration, RLS or
+grant state changed; predecessor table grants remain intact pending the
+separate policyless activation.
 
 ## Why this boundary exists
 
@@ -105,25 +112,28 @@ or Vercel-configuration mutation. Exact deployment removal is destructive and
 remains a separate execution boundary; recreation would require redeploying
 the exact historical source.
 
-## Reviewed invocation shape
+## Accepted execution
 
-After this release merges and exact-main CI succeeds, run the read-only
-preflight from that exact clean main checkout:
+The read-only preflight and run used the following exact bindings:
 
 ```sh
 SELLER_PAYOUT_DRAIN_CONFIRM=reviewed-seller-payout-event-predecessor-drain \
-SELLER_PAYOUT_DRAIN_OPERATOR_COMMIT=<exact-main-commit> \
-SELLER_PAYOUT_DRAIN_MAIN_CI_RUN_ID=<same-commit-green-CI-run> \
-SELLER_PAYOUT_DRAIN_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/seller-payout-event-predecessor-drain-<exact-main-commit>.json \
+SELLER_PAYOUT_DRAIN_OPERATOR_COMMIT=9947a9e485a686dc801befcdea285cddc5b3aff7 \
+SELLER_PAYOUT_DRAIN_MAIN_CI_RUN_ID=32583228592 \
+SELLER_PAYOUT_DRAIN_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/seller-payout-event-predecessor-drain-9947a9e485a686dc801befcdea285cddc5b3aff7.json \
 npm run ops:seller-payout-event-predecessor-drain -- preflight
 ```
 
-Run mode uses the same exact bindings and must follow only after the read-only
-preflight passes. On failure, preserve the mode-`0600` restart state and stop;
-never delete or edit it manually.
+Run mode used the same exact bindings. The first invocation removed the exact
+predecessor and stopped before final evidence, leaving the mode-`0600` stage
+`removal-authorized` restart file. Exact-ID inspection then proved the target
+absent. The same restart-safe invocation resumed without another removal,
+reverified the current deployment, aliases and health, wrote accepted evidence
+and removed the restart file. This is accepted recovery behavior, not an
+unexplained partial success.
 
 ## Following boundary
 
-Accepted drain evidence will permit preparation—not execution—of the separate
+Accepted drain evidence permits preparation—not execution—of the separate
 policyless ENABLE plus direct-grant-revocation release. It does not activate
 RLS, change grants or authorize the later posture-only FORCE release.
