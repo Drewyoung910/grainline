@@ -70,7 +70,9 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
 });
 
 test("SellerPayoutEvent compatible verifier accepts only the byte-pinned latest candidate", () => {
-  const verified = verifySellerPayoutEventAuthorityRelease();
+  const verified = verifySellerPayoutEventAuthorityRelease(process.cwd(), {
+    allowReviewedActivationSuccessor: true,
+  });
   assert.equal(verified.migrationSha256, SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256);
   assert.equal(verified.rlsEnabled, false);
   assert.equal(verified.rlsForced, false);

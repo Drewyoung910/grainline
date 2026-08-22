@@ -318,5 +318,8 @@ test("documentation and CI preserve the accepted predecessor boundary", () => {
   assert.match(workflow, /Prove zero direct SellerPayoutEvent application access/);
   assert.match(strategy, /permanently\s+removed only that predecessor/);
   assert.match(architecture, /removed the sole\s+current-credential predecessor/);
-  assert.match(matrix, /Policyless ENABLE plus direct-grant revocation is next/);
+  assert.match(
+    matrix,
+    /Prepare policyless ENABLE plus\s+direct-grant revocation next/,
+  );
 });

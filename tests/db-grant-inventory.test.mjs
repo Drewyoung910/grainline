@@ -69,6 +69,7 @@ const {
   requiredRuntimeColumnPrivileges,
   requiredRuntimeTablePrivileges,
   runtimePrivateFunctionNames,
+  sellerPayoutEventRlsActivationExpected,
   stripeWebhookEventRlsActivationExpected,
   stripeWebhookEventRlsForceExpected,
   formatSavedSearchCatalogEvidence,
@@ -1342,7 +1343,8 @@ describe("database grant inventory guardrails", () => {
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
         + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
-        + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0),
+        + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
+        + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -1451,6 +1453,7 @@ describe("database grant inventory guardrails", () => {
         "Message",
         "Notification",
         "SavedSearch",
+        "SellerPayoutEvent",
         "StripeWebhookEvent",
       ],
     );
@@ -2211,7 +2214,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 14);
+    assert.equal(guardResultCount, 15);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,

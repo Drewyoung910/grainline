@@ -10,6 +10,8 @@ export const SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION =
   "20260815210000_prepare_seller_payout_event_authority";
 export const SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256 =
   "9aca2449c229d0c393e41e3b63c938b6ac80c3a3bbfcda5fc68198fbc94ec146";
+const SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION =
+  "20260822180000_enable_seller_payout_event_rls";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -17,6 +19,7 @@ function sha256(value) {
 
 export function verifySellerPayoutEventAuthorityRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedActivationSuccessor = false } = {},
 ) {
   const migrationDirectory = path.join(
     rootDirectory,
@@ -48,7 +51,9 @@ export function verifySellerPayoutEventAuthorityRelease(
   );
   assert.deepEqual(
     later,
-    [],
+    allowReviewedActivationSuccessor
+      ? [SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION]
+      : [],
     "SellerPayoutEvent compatible authority has an unreviewed successor",
   );
 

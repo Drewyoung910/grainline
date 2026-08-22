@@ -8,7 +8,8 @@ const sql = readFileSync(path, "utf8");
 const schema = readFileSync("prisma/schema.prisma", "utf8");
 
 test("prepares event ordering without activating SellerPayoutEvent RLS", () => {
-  assert.match(schema, /stripeEventCreatedSeconds\s+BigInt\?/);
+  assert.match(schema, /stripeEventCreatedSeconds\s+BigInt(?:\s|$)/);
+  assert.doesNotMatch(schema, /stripeEventCreatedSeconds\s+BigInt\?/);
   assert.match(schema, /stripeEventId\s+String\?\s+@unique/);
   assert.match(
     schema,

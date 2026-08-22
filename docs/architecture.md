@@ -153,6 +153,16 @@ zero direct table access. The next separate boundary is policyless ENABLE plus
 direct-grant revocation. These releases do not change the later separate
 activation order for payment events, shipping quotes or Order/OrderItem.
 
+The isolated activation design is recorded in
+`docs/seller-payout-event-activation-release.md`. It uses policyless ENABLE,
+zero direct runtime/PUBLIC table or column authority, and retains only the
+three source-pinned fixed operations. Provider event time becomes required only
+after an exclusive-lock preflight proves every retained row has valid time and
+the converted application's current-credential predecessor is absent. The
+candidate and database-first rollback are byte-pinned and CI proves them with
+separate owner/runtime logins. Production wiring, production migration and the
+later posture-only FORCE release remain separate boundaries.
+
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
 retaining only the exact source-consistent fixed-operation catalog. It verifies

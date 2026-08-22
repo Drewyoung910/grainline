@@ -19,6 +19,9 @@ import {
   SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
   verifySellerPayoutEventAuthorityRelease,
 } from "./verify-seller-payout-event-authority-release.mjs";
+import {
+  SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+} from "./stage-seller-payout-event-activation-migration.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE =
   "checkout-stock-reservation-activation-reviewed";
@@ -62,15 +65,26 @@ export function verifyCheckoutStockReservationActivationRelease(
       migrationDirectory,
       SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
     ));
+    const payoutActivationSuccessorExists = fs.existsSync(path.join(
+      migrationDirectory,
+      SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+    ));
     if (payoutSuccessorExists) {
-      verifySellerPayoutEventAuthorityRelease(rootDirectory);
+      verifySellerPayoutEventAuthorityRelease(rootDirectory, {
+        allowReviewedActivationSuccessor: payoutActivationSuccessorExists,
+      });
     }
     const successorGuard = validateCurrentSavedSearchRlsDeployShape({
       phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
       rootDirectory,
-      omittedReviewedMigrationNames: payoutSuccessorExists
-        ? [SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION]
-        : [],
+      omittedReviewedMigrationNames: [
+        ...(payoutSuccessorExists
+          ? [SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION]
+          : []),
+        ...(payoutActivationSuccessorExists
+          ? [SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION]
+          : []),
+      ],
     });
     guard = Object.freeze({
       phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,

@@ -1984,3 +1984,27 @@ Open work:
 - This evidence unblocks preparation only of the separate policyless ENABLE
   plus direct-grant-revocation release. It does not authorize that migration or
   the later posture-only FORCE release.
+
+## SellerPayoutEvent policyless activation candidate (2026-08-22)
+
+- The isolated candidate promotes only
+  `20260822180000_enable_seller_payout_event_rls`. Its migration SHA-256 is
+  `0347a8d930631b4fbed793eec4d119d1c56adcaa2802a89c61940ef6b62fb4bc`;
+  its database-first rollback SHA-256 is
+  `b311f9ae78a8d093d2b200f68acf17d1b4d6b2dd4d1eda342f701b0b4553a94a`.
+- The migration validates the owner/runtime roles and recursive membership
+  graph, compatible grants, zero policies, five constraints, six indexes,
+  retained row invariants and the exact source/owner/mode/ACL of all three
+  fixed functions before taking any posture action.
+- It then makes provider event time required, enables RLS with zero policies,
+  explicitly leaves FORCE off and revokes all direct runtime/PUBLIC table
+  authority. It creates no function or policy and performs no row DML.
+- CI isolates the successor while replaying every sealed predecessor, then
+  applies it to PostgreSQL 16, converges grants, runs the global audit and uses
+  separate owner/runtime logins for direct-denial, fixed-operation and rollback
+  proofs. The production ledger scope accepts only exact prepared/activated
+  restart states and preserves the three reviewed historical exceptions.
+- Focused static and contract suites pass locally. The exact-head real
+  PostgreSQL and full repository gates remain required. Production workflow
+  wiring, merge, migration execution, pooled-runtime production postflight and
+  FORCE are not authorized by this candidate and remain separate boundaries.

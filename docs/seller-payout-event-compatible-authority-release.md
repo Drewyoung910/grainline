@@ -1,9 +1,10 @@
 # SellerPayoutEvent compatible authority release
 
-Status: compatible preparation accepted in production. The exact additive
-migration, schema and three fixed functions are live; the converted application
-remains isolated in draft PR #226. RLS remains off and predecessor runtime table
-CRUD remains intentionally available for old/new application coexistence.
+Status: compatible preparation accepted in production; the converted
+application, linked-seller proof and current-credential predecessor drain are
+also accepted. The exact additive migration, schema and three fixed functions
+are live. RLS remains off and predecessor runtime table CRUD remains available
+until the separately reviewed policyless activation.
 
 Audited: 2026-08-15
 
@@ -203,16 +204,15 @@ change, RLS activation or predecessor-grant revocation occurred.
 
 ## Remaining gates
 
-1. Finish review and merge of the isolated three-consumer application
-   conversion, then deploy it with predecessor grants intact and prove old/new
-   coexistence. Its strict payout-notification helper must keep a transient
-   notification failure retryable while existing best-effort callers remain
-   unchanged.
-2. Pass the linked-seller signed Stripe test-mode child/Preview proof, including
-   exactly one payout row, one source-bound notification and exact retry.
-3. Drain predecessors and prove zero direct application table access.
-4. Review and apply policyless ENABLE with table authority revoked, prove the
-   owner and actual pooled runtime, then apply posture-only FORCE separately.
+1. Complete exact-head real PostgreSQL and full repository validation for the
+   isolated policyless activation in
+   `docs/seller-payout-event-activation-release.md`.
+2. Review and merge that exact candidate without applying it.
+3. Separately authorize and review production migration wiring, then apply only
+   policyless ENABLE plus direct table-authority revocation and run the actual
+   pooled-runtime read-only postflight.
+4. Prepare and apply the posture-only FORCE successor as a later independent
+   release.
 
 `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem` remain
 separate domain audits and activations. Nothing here authorizes their SQL or
