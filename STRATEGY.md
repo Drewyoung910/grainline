@@ -385,6 +385,19 @@ test-mode proof, predecessor drain, policyless ENABLE and FORCE remain separate
 boundaries. Do not reinterpret the compatible preparation or app candidate as
 permission to bundle the other four tables.
 
+The converted SellerPayoutEvent application is now live at exact source
+`e9239463a71860451191344b26dd20b45298f239`. The corrected linked-seller proof
+from main `c221b1871ee73bbce8f092daf49536c4381cf9de`, CI `32537455244`, stopped
+before mutation because neither retrievable linked Express seller had Stripe's
+payout-failure test bank. Do not change a real seller's external payout account
+to satisfy a rollout proof. The selected direction is one release-bound
+disposable test-mode Express account plus one deterministic, vacation-mode
+production User/SellerProfile canary. Remove the exact temporary rows and
+account after proving signed delivery and retry, and retain only the processed
+webhook lease. Preparation/proof is a new explicit mutation boundary after the
+tooling passes review and exact-main CI. Predecessor drain, policyless ENABLE
+and FORCE remain separate after that proof.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

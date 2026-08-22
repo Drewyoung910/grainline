@@ -1,12 +1,20 @@
 # SellerPayoutEvent linked-seller production proof
 
-Status: reviewed operator preflight attempted and failed closed before any
-Stripe or database mutation on 2026-08-21. Pinned Vercel CLI `inspect --json`
-returned `aliases` and omitted commit metadata, while the operator expected
-singular `alias` plus `meta.gitCommitSha`. The replacement reader uses the
-authenticated read-only `/v13/deployments/{id}` API, requires the exact source
-commit and every canonical alias, and has fail-closed response-shape coverage.
-The compatible application is
+Revised: 2026-08-21
+
+Status: the corrected proof was attempted from exact main
+`c221b1871ee73bbce8f092daf49536c4381cf9de`, CI `32537455244`, on
+2026-08-21 and failed closed before any Stripe or database mutation because no
+existing linked test seller met the complete failure-bank requirement. An
+aggregate-only engine-read-only follow-up found two retrievable linked sellers;
+both were Stripe-controlled Express accounts with charges and payouts enabled,
+and neither used the documented payout-failure bank ending `1116`. Changing
+either seller's payout account was rejected. The replacement candidate instead
+uses one release-bound disposable Express account plus one temporary hidden
+Grainline User/SellerProfile pair, and removes all of them after the proof.
+The corrected verifier uses Vercel's authenticated read-only
+`/v13/deployments/{id}` API and requires the exact source commit and every
+canonical alias. The compatible application is
 live at exact source `e9239463a71860451191344b26dd20b45298f239`, CI
 `31927548800`, deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`; deployment and
 predecessor compatibility are accepted separately. Nothing in this document
@@ -31,8 +39,13 @@ unchanged after an exact provider retry.
 
 ## Chosen topology
 
-Use the existing canonical test-mode Connect endpoint and one already-linked,
-eligible test-mode seller. Do not create a second webhook endpoint, move the
+Use the existing canonical test-mode Connect endpoint and create one
+release-bound disposable Stripe test-mode Express account. Complete that
+account through Stripe-hosted test onboarding with the documented
+`no_account` failure bank. Immediately before the signed event, create one
+exact temporary User/SellerProfile pair directly in production, link only that
+pair to the disposable account, and keep the seller in vacation mode so it is
+not publicly discoverable. Do not create a second webhook endpoint, move the
 canonical endpoint, install another signing secret, create a Vercel Preview or
 create a Neon child solely for this check.
 
@@ -40,61 +53,74 @@ This is narrower than the child/Preview alternative in the original audit:
 
 - signature, routing, application code, pooled runtime credentials and fixed
   PostgreSQL functions are proved in the real production topology;
-- no Stripe/Vercel/Neon topology or secret changes are required;
+- no webhook, Vercel, Neon topology or secret changes are required;
 - no customer order, payment, refund or live-mode Stripe object is created;
-- the exact payout projection and notification are removed after acceptance;
-  the processed `StripeWebhookEvent` lease remains under the normal retention
+- the exact payout projection, notification, temporary seller and temporary
+  user are removed after acceptance; the processed `StripeWebhookEvent` lease
+  remains under the normal retention
   contract as authenticated provider evidence; and
-- the test-mode charge and failed payout remain in Stripe's immutable provider
-  history, but do not move live money.
+- the disposable connected account is deleted after acceptance. Its test-mode
+  charge and failed payout may remain in Stripe's provider history, but do not
+  move live money.
 
-The site is pre-launch, but the operator must still treat every existing seller
-as non-disposable. It may select exactly one seller from a bounded candidate set
-only if the database row is active and the Stripe test-mode account is
-retrievable, charges-enabled and payouts-enabled, and its default USD external
-account is Stripe's documented payout-failure test bank ending `1116`. If no
-candidate meets that complete source shape, the operator stops before creating
-a charge or payout. It never changes the seller row or the Stripe account
-configuration. The reviewed test charge and failed payout do add test-mode
-balance/history entries and are part of the explicit future execution boundary.
+The site is pre-launch, but every existing seller remains non-disposable. The
+operator no longer contains an existing-seller selection path. The disposable
+account, temporary database identities, provider metadata marker, recovery
+state, commit, CI run and deployment are all mutually bound. A collision,
+partial fixture, unexpected relationship or missing cleanup object stops the
+run. The reviewed test charge, failed payout, temporary production rows and
+connected-account deletion are part of a new explicit execution boundary; code
+review or merge does not authorize them.
 
 ## Restart-safe stages
 
-The operator uses one mode-0600 local recovery record containing the raw IDs
-needed for exact cleanup. Sanitized evidence contains only SHA-256 digests.
+The operator uses separate mode-0600 provider-canary and database-proof
+recovery records containing the raw IDs needed for exact cleanup. Sanitized
+evidence contains only SHA-256 digests.
 
 1. **Preflight** — require a clean checkout of the exact reviewed operator
    commit, successful push CI for that exact commit on GitHub `main`, the exact
    READY production deployment and canonical aliases,
    healthy `/api/health`, the expected Vercel project, the sensitive production
    Connect secret binding and provider stage 4 with only `payout.failed`.
-2. **Select** — in an engine-read-only owner transaction, find bounded active
-   seller candidates and select one eligible Stripe test-mode account without
-   printing any identifier.
-3. **Prepare source** — atomically write the recovery record before each
-   provider mutation; create only a five-dollar test funding charge and a
-   one-dollar standard payout bearing a release-bound marker and idempotency
-   keys. Require settled available USD before creating the payout, require the
-   payout to fail with `no_account` and resolve exactly one fresh
-   `payout.failed` event.
-4. **Prove delivery** — wait for the canonical endpoint to process the event.
+2. **Prepare disposable provider source** — persist a mode-0600 reservation
+   before account creation. Create one marker-bound test-mode Express account
+   with the failure bank and use only a Stripe-hosted onboarding link. Persist
+   the raw account/link only in the private local handoff. Reruns use a
+   persisted link generation; abort may delete only the exact marker-bound
+   account and is blocked once the database proof state exists.
+3. **Create hidden database fixture** — persist a `fixture-reserved` recovery
+   state before mutation. In one serializable owner transaction, insert or
+   exactly revalidate one deterministic temporary User and one vacation-mode
+   SellerProfile linked to the disposable account. Any ID, Clerk ID, email or
+   Stripe-account collision fails closed.
+4. **Prepare signed source** — create only a five-dollar test funding charge
+   and a one-dollar standard payout bearing release-bound idempotency keys.
+   Require settled available USD before creating the payout, require the payout
+   to fail with `no_account` and resolve exactly one fresh `payout.failed`
+   event.
+5. **Prove delivery** — wait for the canonical endpoint to process the event.
    Through the actual pooled `grainline_app_runtime` credential, set the seller
    actor context and prove the fixed latest projection plus exactly one visible
    source-bound `PAYOUT_FAILED` notification. Through an engine-read-only owner
    transaction, prove one matching webhook lease, one matching payout row and
    their exact source relationship.
-5. **Prove retry** — resend only that event to only the canonical Connect
+6. **Prove retry** — resend only that event to only the canonical Connect
    endpoint. Require the lease generation and update time, payout row identity
    and update time, notification identity and dedup key all to remain unchanged.
-6. **Clean exact application rows** — in one owner transaction, lock and
-   revalidate the exact seller, payout, lease and notification relationship;
-   delete only that notification and payout row, in that order. Never delete or
-   rewrite the seller, webhook lease or any unrelated notification. Roll back
-   on any count other than exactly one.
-7. **Postflight** — prove the payout and notification fixture rows are absent,
-   the seller and processed webhook lease remain, provider stage is still 4,
-   production health is good and no configuration changed. Only then write
-   sanitized evidence and remove the recovery record.
+7. **Clean exact application rows** — in one owner transaction, lock and
+   revalidate the exact seller, user, payout, lease and notification
+   relationship; delete only that notification, payout, temporary seller and
+   temporary user, in that order. While the seller/user locks are held, inspect
+   every PostgreSQL foreign key and require zero remaining dependents before
+   either parent delete, so an `ON DELETE CASCADE` cannot silently broaden
+   cleanup. Never delete the webhook lease or any unrelated row. Roll back on
+   any count other than exactly one.
+8. **Clean provider and postflight** — after database cleanup is durably
+   recorded, delete only the exact marker-bound disposable account. Prove the
+   temporary rows and account are absent, the processed webhook lease remains,
+   provider stage is still 4, production health is good and no configuration
+   changed. Only then write sanitized evidence and remove both recovery files.
 
 The operator commit and deployed application source are deliberately separate
 immutable bindings. Documentation may advance `main` after the compatible app
@@ -127,8 +153,9 @@ URLs, credentials, raw provider IDs, user/seller IDs, email, payout failure
 message, notification body or row payloads.
 
 The operator must redact Stripe keys, signing secrets, bearer tokens, database
-URLs and provider object IDs from every surfaced error. The recovery record is
-not evidence and must never be committed or uploaded.
+URLs, provider object IDs, hosted-onboarding links and deterministic canary
+IDs/email from every surfaced error. The recovery records are not evidence and
+must never be committed or uploaded.
 
 ## Release boundary after proof
 

@@ -177,11 +177,14 @@ and therefore proved one processed webhook lease with zero seller/payout rows.
 Before activation, a separately reviewed linked-seller proof must deliver and
 exactly retry one real test-mode failed payout, prove one unchanged payout row
 plus one notification, and clean its exact application fixture rows. The
-accepted production-proof design uses the existing canonical test endpoint and
-one already-linked eligible test seller because that proves the deployed route,
-pooled runtime and fixed functions without creating a second provider/Preview
-topology. It retains the authenticated webhook lease under normal retention and
-must not alter the seller or Stripe account. See
+production proof must use the existing canonical test endpoint and one
+release-bound disposable Express account because the read-only eligibility
+check proved that neither existing linked seller has the failure test bank, and
+changing either real seller's payout account was rejected. The proof creates
+one deterministic vacation-mode User/SellerProfile fixture, proves the deployed
+route, pooled runtime and fixed functions, removes the exact temporary rows and
+disposable account, and retains only the authenticated webhook lease under
+normal retention. It never changes an existing seller or provider account. See
 `docs/seller-payout-event-linked-production-proof.md`. This remains distinct
 from production live-mode readiness.
 
