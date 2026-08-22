@@ -1,7 +1,9 @@
 # SellerPayoutEvent pre-RLS domain audit
 
-Status: audit complete; **GO for isolated compatible preparation only** and
-**NO-GO for RLS activation** until the gates in this document pass.
+Status: audit complete; compatible preparation, application conversion,
+linked-seller proof and predecessor drain are accepted. **GO for isolated
+policyless activation preparation only** and **NO-GO for production RLS
+activation** until that separate release and its proofs pass review.
 
 Audited: 2026-08-15
 
@@ -230,20 +232,21 @@ add a separately audited minimal projection with durable staff audit logging.
 
 ## Go/no-go and release sequence
 
-**GO now:** save this audit, then prepare an isolated additive schema/function
-candidate with RLS off and predecessor table grants unchanged.
+**GO now:** prepare the isolated policyless ENABLE plus direct-grant-revocation
+candidate and its owner, direct-runtime, rollback and release proofs.
 
-**NO-GO now:** do not activate RLS, revoke table grants, deploy the converted
-application, mutate production or change Stripe/Vercel configuration.
+**NO-GO now:** do not run the activation migration, revoke production grants,
+enable FORCE, deploy, mutate other production state or change Stripe/Vercel
+configuration.
 
 Required sequence:
 
-1. Run a fresh aggregate-only production inspection for payout row count,
+1. Complete: run a fresh aggregate-only production inspection for payout row count,
    missing/duplicate sources, status/currency/amount validity, mutation state
    and per-seller maximum; stop on any legacy row requiring classification.
-2. Apply the compatible nullable event-time field, validated safe invariants,
+2. Complete: apply the compatible nullable event-time field, validated safe invariants,
    fixed writer, latest projection and paged export projection with RLS off.
-3. Convert the three direct consumers, deploy while predecessor grants remain,
+3. Complete: convert the three direct consumers, deploy while predecessor grants remain,
    and prove old/new coexistence.
 4. Complete: the separately reviewed linked-seller signed test-mode production
    proof and exact retry verified the Notification cross-table source path and
