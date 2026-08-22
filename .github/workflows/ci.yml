@@ -477,6 +477,8 @@ jobs:
         run: npm run audit:rls-seller-payout-event-authority-postgres
         env:
           SELLER_PAYOUT_EVENT_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove zero direct SellerPayoutEvent application access
+        run: npm run audit:rls-seller-payout-event-zero-direct-access
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

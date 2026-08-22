@@ -134,12 +134,20 @@ in production from exact main
 `6bc89c58d7d83509f73206a2f9b4854e3bed476b`: exact-main CI `31923317475`,
 protected read-only inspection `31923608819`, and guarded migration run
 `31923767337` all passed. Only the additive migration was applied; RLS remains
-off and predecessor table CRUD remains available. The isolated app conversion is documented in
-`docs/seller-payout-event-compatible-app-conversion.md`; it removes all three
-direct application consumers and gives this payout path strict, retryable
-notification semantics without changing existing best-effort callers. It is
-not merged or deployed. These releases do not change the later separate
-activation order for payment events, shipping quotes or Order/OrderItem.
+off and predecessor table CRUD remains available. The application conversion
+documented in `docs/seller-payout-event-compatible-app-conversion.md` is live
+from exact source `e9239463a71860451191344b26dd20b45298f239`; it removes all
+three direct application consumers and gives this payout path strict,
+retryable notification semantics without changing existing best-effort
+callers. The linked-seller signed test-mode proof is accepted from exact main
+`854233e3b8729da60c0da46ff8af492e53e48438` with exact retry stability and
+complete temporary-row/account cleanup. The next boundary is the exact-ID
+predecessor drain prepared in
+`docs/seller-payout-event-predecessor-drain.md`; its CI-enforced source proof
+finds the exact three fixed-authority consumers and zero direct table access.
+No predecessor removal is yet claimed. These releases do not change the later
+separate activation order for payment events, shipping quotes or
+Order/OrderItem.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

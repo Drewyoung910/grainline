@@ -170,7 +170,7 @@ The fixed writer should return an explicit `ignored_unknown_account` action;
 the route should retain bounded observability without logging account or payout
 payloads. It must not guess ownership from a caller-supplied seller ID.
 
-### SPE-A08 — a linked-seller signed path is unproved (`FIX_BEFORE_ACTIVATION`)
+### SPE-A08 — linked-seller signed path (`VERIFIED_BEFORE_ACTIVATION`)
 
 The retained signed payout proof correctly used an unlinked disposable account
 and therefore proved one processed webhook lease with zero seller/payout rows.
@@ -187,6 +187,16 @@ disposable account, and retains only the authenticated webhook lease under
 normal retention. It never changes an existing seller or provider account. See
 `docs/seller-payout-event-linked-production-proof.md`. This remains distinct
 from production live-mode readiness.
+
+Closed on 2026-08-22 by exact main
+`854233e3b8729da60c0da46ff8af492e53e48438`, CI `32552336641`, deployed
+source `e9239463a71860451191344b26dd20b45298f239` and deployment
+`dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`. The proof observed exactly one linked
+payout row and one source-bound notification, proved exact retry identity
+stability, removed every temporary application row and the marker-bound test
+account, and retained only the authenticated test-mode webhook lease. Evidence
+SHA-256 is
+`8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907`.
 
 ### SPE-A09 — live-mode Stripe proof remains a launch gate (`DEFERRED_PRODUCT_WORK`)
 
@@ -235,10 +245,14 @@ Required sequence:
    fixed writer, latest projection and paged export projection with RLS off.
 3. Convert the three direct consumers, deploy while predecessor grants remain,
    and prove old/new coexistence.
-4. Pass the separately reviewed linked-seller signed test-mode production proof
-   and exact retry; verify the Notification cross-table source path and exact
-   application-row cleanup.
-5. Drain predecessor deployments and prove zero direct application access.
+4. Complete: the separately reviewed linked-seller signed test-mode production
+   proof and exact retry verified the Notification cross-table source path and
+   exact application-row cleanup on 2026-08-22.
+5. Prepared: the tracked-source proof finds exactly three fixed-authority
+   consumers and zero direct access across 723 source files; the read-only
+   provider inventory identifies exactly one current-credential predecessor.
+   Execute the separately reviewed exact-ID restart-safe drain before
+   activation. See `docs/seller-payout-event-predecessor-drain.md`.
 6. Activate policyless RLS and revoke ordinary-runtime/PUBLIC table and column
    authority; run owner plus actual pooled-runtime proofs.
 7. Apply posture-only FORCE separately and repeat the proofs.

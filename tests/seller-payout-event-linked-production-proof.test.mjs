@@ -10,22 +10,26 @@ const audit = readFileSync("docs/seller-payout-event-pre-rls-audit.md", "utf8");
 const matrix = readFileSync("docs/rls-coverage-matrix.md", "utf8");
 
 test("linked payout proof keeps its production boundary explicit", () => {
+  assert.match(plan, /Status: accepted/);
+  assert.match(plan, /854233e3b8729da60c0da46ff8af492e53e48438/);
+  assert.match(plan, /32552336641/);
+  assert.match(plan, /8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907/);
   assert.match(
     plan,
-    /failed closed before any Stripe or database mutation because no\s+existing linked test seller/i,
+    /failed closed\s+before any Stripe or database mutation because no\s+existing linked test seller/i,
   );
   assert.match(plan, /authenticated read-only\s+`\/v13\/deployments\/\{id\}` API/);
   assert.match(plan, /requires the exact source\s+commit and every\s+canonical alias/);
   assert.match(plan, /e9239463a71860451191344b26dd20b45298f239/);
   assert.match(plan, /31927548800/);
   assert.match(plan, /dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h/);
-  assert.match(plan, /Nothing in this document[\s\S]*authorizes a provider mutation/);
-  assert.match(plan, /RLS activation or grant change/);
+  assert.match(plan, /does not authorize those later migrations, grant changes/);
+  assert.match(plan, /RLS activation, FORCE, deployment or provider-configuration changes/);
   assert.match(plan, /test-mode/);
   assert.match(plan, /no customer order, payment, refund or live-mode Stripe object/);
   assert.match(plan, /every existing seller remains non-disposable/);
   assert.match(plan, /no longer contains an existing-seller selection path/);
-  assert.match(plan, /failure bank ending `1116`/);
+  assert.match(plan, /bank ending `1116`/);
   assert.match(plan, /one\s+exact temporary User\/SellerProfile pair/);
   assert.match(plan, /seller in vacation mode/);
   assert.match(plan, /disposable connected account is deleted/);
@@ -51,7 +55,7 @@ test("linked payout proof cleanup cannot become broad application cleanup", () =
 test("linked payout proof is the documented pre-activation successor", () => {
   assert.match(audit, /existing canonical test endpoint[\s\S]*release-bound disposable Express account/);
   assert.match(audit, /never changes an existing seller or provider account/);
-  assert.match(audit, /linked-seller signed test-mode production proof/);
+  assert.match(audit, /linked-seller signed test-mode production\s+proof/);
   assert.match(matrix, /seller-payout-event-linked-production-proof\.md/);
   assert.match(plan, /policyless[\s\S]*ENABLE[\s\S]*FORCE remain separate releases/);
 });
