@@ -1,25 +1,39 @@
 # SellerPayoutEvent linked-seller production proof
 
-Revised: 2026-08-21
+Revised: 2026-08-22
 
-Status: the corrected proof was attempted from exact main
-`c221b1871ee73bbce8f092daf49536c4381cf9de`, CI `32537455244`, on
-2026-08-21 and failed closed before any Stripe or database mutation because no
-existing linked test seller met the complete failure-bank requirement. An
-aggregate-only engine-read-only follow-up found two retrievable linked sellers;
-both were Stripe-controlled Express accounts with charges and payouts enabled,
-and neither used the documented payout-failure bank ending `1116`. Changing
-either seller's payout account was rejected. The replacement candidate instead
-uses one release-bound disposable Express account plus one temporary hidden
-Grainline User/SellerProfile pair, and removes all of them after the proof.
-The corrected verifier uses Vercel's authenticated read-only
-`/v13/deployments/{id}` API and requires the exact source commit and every
-canonical alias. The compatible application is
-live at exact source `e9239463a71860451191344b26dd20b45298f239`, CI
-`31927548800`, deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`; deployment and
-predecessor compatibility are accepted separately. Nothing in this document
-authorizes a provider mutation, database fixture, payout, notification,
-cleanup, RLS activation or grant change.
+Status: accepted. Exact main
+`854233e3b8729da60c0da46ff8af492e53e48438`, CI `32552336641`, deployed
+source `e9239463a71860451191344b26dd20b45298f239`, deployment-source CI
+`31927548800` and deployment
+`dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h` passed the restart-safe linked-seller proof
+on 2026-08-22. The release-bound disposable Express account completed
+Stripe-hosted test onboarding with the reviewed failure bank. The proof then
+created one hidden vacation-mode User/SellerProfile pair, one five-dollar test
+funding charge and one deliberately failed one-dollar test payout. The
+canonical signed route produced exactly one linked payout projection and one
+source-bound notification; the exact retry left every identity unchanged.
+Exact cleanup removed the notification, payout projection, temporary seller,
+temporary user and disposable connected account. Only the processed test-mode
+`StripeWebhookEvent` lease remains under normal retention. No existing seller,
+provider configuration, deployment, migration, grant or RLS state changed, and
+no live money moved. The verifier used Vercel's authenticated read-only
+`/v13/deployments/{id}` API and still requires the exact source commit and every
+canonical alias. Sanitized mode-0600 evidence SHA-256 is
+`8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907`;
+the raw canary and recovery files were removed after acceptance. The next
+separate boundary is predecessor deployment drain plus zero-direct-access
+proof, followed by separately reviewed policyless ENABLE and FORCE releases.
+This accepted proof does not authorize those later migrations, grant changes,
+RLS activation, FORCE, deployment or provider-configuration changes.
+
+Historical note: the preceding corrected attempt from exact main
+`c221b1871ee73bbce8f092daf49536c4381cf9de`, CI `32537455244`, failed closed
+before any Stripe or database mutation because no existing linked test seller
+met the complete failure-bank requirement. The read-only diagnosis found two
+eligible Express sellers, neither with the required bank ending `1116`.
+Changing either real seller was rejected, which led to the disposable design
+accepted above.
 
 Prepared: 2026-08-15
 

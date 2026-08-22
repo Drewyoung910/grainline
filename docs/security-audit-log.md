@@ -1903,3 +1903,27 @@ Open work:
   that production shape.
   Review/merge remains non-mutating; account preparation and the temporary
   production database fixture require a new explicit execution boundary.
+
+## SellerPayoutEvent linked-seller production proof accepted (2026-08-22)
+
+- Exact main `854233e3b8729da60c0da46ff8af492e53e48438`, CI `32552336641`,
+  deployed source `e9239463a71860451191344b26dd20b45298f239` and deployment
+  `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h` passed the restart-safe test-mode proof.
+- One release-bound disposable Express account completed Stripe-hosted test
+  onboarding. The proof created one hidden vacation-mode User/SellerProfile,
+  one five-dollar test funding charge and one deliberately failed one-dollar
+  payout, then observed exactly one linked payout projection and one
+  source-bound `PAYOUT_FAILED` notification through the deployed signed route.
+- Exact retry left the webhook lease generation and time, payout identity and
+  update time, notification identity and dedup key unchanged.
+- Catalog-fenced cleanup removed the exact notification, payout projection,
+  temporary seller and temporary user; the marker-bound disposable account was
+  deleted afterward. The processed test-mode `StripeWebhookEvent` lease is the
+  sole production residue under normal retention. No existing seller,
+  deployment, provider configuration, migration, grant or RLS state changed,
+  and no live money moved.
+- Sanitized mode-0600 evidence SHA-256 is
+  `8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907`.
+  The raw canary and database recovery files were removed after acceptance.
+  The next separate boundary is predecessor drain and zero-direct-access
+  proof, followed by separate policyless ENABLE and FORCE releases.

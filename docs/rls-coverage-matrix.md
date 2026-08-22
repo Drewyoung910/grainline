@@ -75,7 +75,7 @@ completed alternative.
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
 | `OrderShippingRateQuote` | `BLOCKED_DESIGN` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Parent-order participant rules and service re-quote cleanup path |
 | `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Payment and dispute ledger; buyer, relevant seller, staff and Stripe | Decide user-visible projection versus service-only fields and immutable webhook writes |
-| `SellerPayoutEvent` | `COMPATIBLE_PREPARATION_LIVE` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Domain audit, same-commit zero-row/zero-anomaly inspection and compatible production preparation are accepted. The three-consumer fixed-operation application is live from exact source `e9239463a71860451191344b26dd20b45298f239`, CI `31927548800`, deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`; canonical health, exact source marker and old/new coexistence passed. Three fixed runtime functions are live while RLS/FORCE remain off and predecessor CRUD remains retained. The first corrected linked-seller proof stopped before mutation because neither existing Express seller had the failure bank; the replacement uses a disposable Express account plus an exact vacation-mode User/SellerProfile canary and never alters an existing seller. Next is review/merge and separately authorized preparation/proof, then predecessor drain and separate policyless ENABLE/FORCE releases. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md` and `docs/seller-payout-event-linked-production-proof.md` |
+| `SellerPayoutEvent` | `COMPATIBLE_PREPARATION_LIVE` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Domain audit, same-commit zero-row/zero-anomaly inspection and compatible production preparation are accepted. The three-consumer fixed-operation application is live from exact source `e9239463a71860451191344b26dd20b45298f239`, CI `31927548800`, deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`; canonical health, exact source marker and old/new coexistence passed. Three fixed runtime functions are live while RLS/FORCE remain off and predecessor CRUD remains retained. The disposable linked-seller proof passed from exact main `854233e3b8729da60c0da46ff8af492e53e48438`, CI `32552336641`: one signed test-mode failure produced exactly one payout projection and one notification, exact retry was identity-stable, all temporary rows and the disposable account were removed, and only the processed webhook lease remains. Evidence SHA-256 is `8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907`. Next is predecessor drain and zero-direct-access proof, then separate policyless ENABLE/FORCE releases. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md` and `docs/seller-payout-event-linked-production-proof.md` |
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
@@ -235,11 +235,12 @@ preclude a later reviewed policy or grant migration.
    continue `SellerPayoutEvent` as the next separately reviewed service-ledger
    activation. Its domain audit, compatible candidate and zero-row/zero-anomaly
    production inspection and compatible production preparation are complete;
-   the converted app is deployed with predecessor CRUD retained. The first
-   corrected linked-seller proof stopped before mutation because no existing
-   seller had the required failure bank; review and merge the disposable
-   Express plus vacation-mode database-canary correction, then execute its
-   separately authorized preparation/proof before drain. See
+   the converted app is deployed with predecessor CRUD retained. The
+   disposable linked-seller proof is accepted from exact main
+   `854233e3b8729da60c0da46ff8af492e53e48438`, CI `32552336641`, with exact
+   retry stability, complete temporary-row/account cleanup and only the
+   processed test-mode webhook lease retained. Proceed to predecessor drain
+   and the zero-direct-access proof. See
    `docs/seller-payout-event-pre-rls-audit.md`,
    `docs/seller-payout-event-compatible-authority-release.md` and
    `docs/seller-payout-event-compatible-app-conversion.md`; keep Order,

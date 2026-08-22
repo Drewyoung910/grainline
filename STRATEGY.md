@@ -398,6 +398,18 @@ webhook lease. Preparation/proof is a new explicit mutation boundary after the
 tooling passes review and exact-main CI. Predecessor drain, policyless ENABLE
 and FORCE remain separate after that proof.
 
+That replacement proof is now accepted from exact main
+`854233e3b8729da60c0da46ff8af492e53e48438`, CI `32552336641`, deployed
+source `e9239463a71860451191344b26dd20b45298f239` and deployment
+`dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`. It proved one real signed test-mode
+`payout.failed` mapping to exactly one payout projection and one notification,
+proved exact retry stability, removed the temporary User, SellerProfile,
+payout, notification and disposable account, and retained only the processed
+webhook lease. Sanitized evidence SHA-256 is
+`8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907`.
+Proceed next to the predecessor deployment drain and zero-direct-access proof;
+policyless ENABLE and posture-only FORCE remain later separate releases.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
