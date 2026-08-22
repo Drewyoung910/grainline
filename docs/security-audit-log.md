@@ -2008,3 +2008,32 @@ Open work:
   PostgreSQL and full repository gates remain required. Production workflow
   wiring, merge, migration execution, pooled-runtime production postflight and
   FORCE are not authorized by this candidate and remain separate boundaries.
+
+## SellerPayoutEvent activation proof and postflight hardening (2026-08-22)
+
+- Exact isolated checkpoint
+  `38d9acb1cf07cd772cc1fa23cc29024ff9f9dc95` passed exact-head CI
+  `32590297568`, including real PostgreSQL 16 activation, separate restricted
+  runtime-login proof, database-first rollback/restoration, global grant/RLS
+  audit, full tests, TypeScript, lint, dependency audit and production build.
+- The reusable activated-catalog proof now requires the exact table and
+  function owner in addition to source, mode, pinned search path and ACL. This
+  closes acceptance of an otherwise matching function owned by an unreviewed
+  role.
+- A separate actual pooled-runtime production postflight is scaffolded. It is
+  exact-release/CI/migration bound, rejects privileged or aliased database
+  variables, uses no owner or `SET ROLE`, runs in an engine-attested
+  repeatable-read read-only transaction, proves catalog posture and direct
+  denial, exercises both fixed reads, and requires SQLSTATE `25006` from the
+  fixed writer's read-only fence. Evidence is fresh, sanitized and mode-`0600`.
+- CI exercises the same catalog, identity, denial, projection and read-only
+  fence path through a separate direct restricted-runtime login against
+  disposable PostgreSQL before rollback/restoration.
+- After this hardening, the focused release/postflight/cross-audit suite passed
+  19/19; TypeScript and lint passed; and the full local repository suite passed
+  3,213 tests with seven documented skips and zero failures. A fresh exact-head
+  CI run, including the new real PostgreSQL postflight step and production
+  build, remains required before merge.
+- The postflight has not run. The activation branch remains unmerged;
+  production migration wiring, migration execution and FORCE remain separate
+  unauthorized boundaries. Production state is unchanged by this checkpoint.

@@ -36,6 +36,10 @@ const proof = fs.readFileSync(
   "scripts/seller-payout-event-activation-postgres-proof.mjs",
   "utf8",
 );
+const productionPostflight = fs.readFileSync(
+  "scripts/seller-payout-event-activation-production-postflight.mjs",
+  "utf8",
+);
 const rollbackProof = fs.readFileSync(
   "scripts/seller-payout-event-activation-rollback-proof.mjs",
   "utf8",
@@ -191,6 +195,7 @@ test("engine proofs require separate loopback owner and runtime logins", () => {
     /is required/u,
   );
   assert.match(proof, /SESSION_USER AS session_user/u);
+  assert.match(proof, /owner_name, expectedOwner/u);
   assert.match(proof, /directTableOperationsDenied: 4/u);
   assert.match(proof, /unexpected_table_authority/u);
   assert.match(proof, /direct_column_acl/u);
@@ -241,6 +246,9 @@ test("CI proves the exact activation after its compatible authority", () => {
   const runtimeProof = ci.indexOf(
     "Prove SellerPayoutEvent policyless activation through separate logins",
   );
+  const postflightProof = ci.indexOf(
+    "Prove SellerPayoutEvent activation postflight through the actual runtime login",
+  );
   const rollbackProof = ci.indexOf(
     "Prove SellerPayoutEvent database-first rollback and restoration",
   );
@@ -251,7 +259,8 @@ test("CI proves the exact activation after its compatible authority", () => {
   assert.ok(restoreActivation > zeroDirectAccess);
   assert.ok(applyActivation > restoreActivation);
   assert.ok(runtimeProof > applyActivation);
-  assert.ok(rollbackProof > runtimeProof);
+  assert.ok(postflightProof > runtimeProof);
+  assert.ok(rollbackProof > postflightProof);
   assert.match(
     ci,
     /SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-activation-reviewed/u,
@@ -263,6 +272,17 @@ test("CI proves the exact activation after its compatible authority", () => {
   assert.match(
     ci,
     /SELLER_PAYOUT_EVENT_ACTIVATION_ROLLBACK_PROOF_RUNTIME_DATABASE_URL:[\s\S]*grainline_app_runtime/u,
+  );
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  assert.equal(
+    pkg.scripts[
+      "audit:rls-seller-payout-event-activation-postflight-postgres"
+    ],
+    "node scripts/seller-payout-event-activation-postflight-postgres-proof.mjs",
+  );
+  assert.equal(
+    pkg.scripts["ops:seller-payout-event-activation-postflight"],
+    "node scripts/seller-payout-event-activation-production-postflight.mjs",
   );
 });
 
@@ -282,4 +302,15 @@ test("release record preserves the unapplied policyless boundary", () => {
   assert.match(normalized, /OrderPaymentEvent/u);
   assert.match(normalized, /OrderShippingRateQuote/u);
   assert.match(normalized, /OrderItem/u);
+  assert.match(normalized, /actual runtime login without `SET ROLE`/u);
+  assert.match(normalized, /SQLSTATE `25006`/u);
+  assert.match(normalized, /has not been run/u);
+  assert.match(
+    productionPostflight,
+    /proveSellerPayoutEventActivatedCatalog\(client, MIGRATION_ROLE\)/u,
+  );
+  assert.match(
+    productionPostflight,
+    /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/u,
+  );
 });

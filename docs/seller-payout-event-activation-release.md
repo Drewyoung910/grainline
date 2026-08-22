@@ -123,6 +123,37 @@ rolled-back, zero-step or checksum-drifting activation rows fail closed. It
 retains the three known historical ledger exceptions rather than normalizing
 or rewriting production history.
 
+The separate production acceptance postflight is also prepared but has not
+been run. It accepts only the exact clean release commit, exact main-CI and
+migration-run bindings, the reviewed pooled `grainline_app_runtime` target and
+a fresh exact evidence path. It rejects privileged or aliased database URL
+variables, connects as the actual runtime login without `SET ROLE`, and opens
+an engine-attested repeatable-read read-only transaction. Inside that
+transaction it verifies the restricted identity, owner role, policyless ENABLE
+posture, exact function source/owner/mode/ACL catalog and zero unreviewed table
+or column authority. It then proves direct table read denial, zero-row results
+for both fixed recipient projections using an absent actor and SQLSTATE `25006`
+when the fixed writer reaches PostgreSQL's read-only fence. It rolls back and
+may write only a fresh, sanitized mode-`0600` evidence file containing a hash
+of the database URL rather than the URL or credential.
+
+CI applies the activation to disposable PostgreSQL and invokes the same
+catalog and runtime-identity helpers through a new connection authenticated
+directly as `grainline_app_runtime`. This real-engine postflight proof covers
+the read-only transaction, direct denial, fixed read projections and writer
+fence before the database-first rollback rehearsal restores the activation.
+
+## Exact-head CI result
+
+Isolated checkpoint `38d9acb1cf07cd772cc1fa23cc29024ff9f9dc95`
+passed exact-head CI run `32590297568`. That run completed the real PostgreSQL
+16 predecessor, activation, separate-login authority and database-first
+rollback/restoration proofs; migration status and the global grant/RLS audit;
+Prisma validation/generation; TypeScript; lint; the full repository suite;
+dependency audit; and the production build. This is candidate evidence only:
+the branch remains unmerged and production remains in the compatible
+predecessor posture.
+
 ## Accepted predecessor evidence
 
 The activation depends on, but does not repeat or broaden, these accepted
@@ -147,15 +178,12 @@ requires the exact three fixed-operation consumers with zero direct
 
 Before production activation:
 
-1. the real PostgreSQL CI activation and rollback proofs must pass from the
-   exact candidate head;
-2. full repository tests, Prisma validation/generation, TypeScript, lint,
-   dependency audit and production build must pass;
-3. the isolated branch must receive an Extra-High authority review and merge as
-   one exact head;
-4. production migration wiring must be separately authorized, reviewed and
+1. the new postflight scaffold and its cross-audit contracts must pass on a
+   fresh exact candidate head;
+2. the isolated branch must merge as one explicitly reviewed exact head;
+3. production migration wiring must be separately authorized, reviewed and
    bound to the exact successful main CI run; and
-5. the later actual pooled-runtime production postflight must run read-only and
+4. the later actual pooled-runtime production postflight must run read-only and
    retain sanitized mode-`0600` evidence.
 
 FORCE is deliberately absent. It will be a separate posture-only migration

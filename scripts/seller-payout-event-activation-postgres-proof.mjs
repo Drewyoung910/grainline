@@ -159,11 +159,15 @@ async function seedFixtures(owner) {
   ]);
 }
 
-export async function proveSellerPayoutEventActivatedCatalog(owner) {
+export async function proveSellerPayoutEventActivatedCatalog(
+  owner,
+  expectedOwner = OWNER_ROLE,
+) {
   const table = await owner.query(`
     SELECT
       class.relrowsecurity AS rls_enabled,
       class.relforcerowsecurity AS rls_forced,
+      pg_catalog.pg_get_userbyid(class.relowner) AS owner_name,
       (SELECT pg_catalog.count(*)::integer
          FROM pg_catalog.pg_policy AS policy
         WHERE policy.polrelid = class.oid) AS policy_count,
@@ -238,6 +242,7 @@ export async function proveSellerPayoutEventActivatedCatalog(owner) {
   assert.deepEqual(table.rows, [{
     rls_enabled: true,
     rls_forced: false,
+    owner_name: expectedOwner,
     policy_count: 0,
     runtime_table_authority: false,
     runtime_column_authority: false,
@@ -254,6 +259,7 @@ export async function proveSellerPayoutEventActivatedCatalog(owner) {
         pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
       ) || ')' AS identity,
       procedure.prosrc AS function_source,
+      pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
       procedure.prosecdef AS security_definer,
       procedure.proconfig AS config,
       procedure.provolatile AS volatility,
@@ -308,6 +314,7 @@ export async function proveSellerPayoutEventActivatedCatalog(owner) {
   for (const row of functions.rows) {
     const expected = expectedByIdentity.get(row.identity);
     assert.ok(expected, row.identity);
+    assert.equal(row.owner_name, expectedOwner, row.identity);
     assert.equal(row.security_definer, true, row.identity);
     assert.deepEqual(row.config, ["search_path=pg_catalog"], row.identity);
     assert.equal(row.volatility, expected.volatility, row.identity);

@@ -512,6 +512,10 @@ jobs:
         env:
           SELLER_PAYOUT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           SELLER_PAYOUT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove SellerPayoutEvent activation postflight through the actual runtime login
+        run: npm run audit:rls-seller-payout-event-activation-postflight-postgres
+        env:
+          SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Prove SellerPayoutEvent database-first rollback and restoration
         run: npm run audit:rls-seller-payout-event-activation-rollback
         env:
