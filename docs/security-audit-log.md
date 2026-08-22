@@ -2035,6 +2035,40 @@ Open work:
   head `d5fa351247fcf28c736a760974f50f1718427281` then passed CI
   `32591448929` in 6m44s, including the new direct-runtime PostgreSQL postflight
   and production build.
-- The postflight has not run. The activation branch remains unmerged;
-  production migration wiring, migration execution and FORCE remain separate
-  unauthorized boundaries. Production state is unchanged by this checkpoint.
+- The postflight has not run. The activation branch remains unmerged; guarded
+  production migration wiring is prepared on a separate stacked branch, while
+  its merge, migration execution and FORCE remain separate unauthorized
+  boundaries. Production state is unchanged by this checkpoint.
+
+## SellerPayoutEvent activation guarded-wiring preparation (2026-08-22)
+
+- Exact activation head `be061901523fb81edf88f59c0c8c86aa06457554`
+  passed exact-head CI `32591832748`, including the disposable PostgreSQL
+  separate-runtime postflight, all repository tests, dependency audit and
+  production build. The expected Vercel Preview runtime-database guard failed
+  closed; it is not a production deployment or application-test failure.
+- The guarded Production Migrations workflow now verifies and isolates only
+  `20260822180000_enable_seller_payout_event_rls`, verifies its sealed
+  compatible-authority predecessor and the full older release chain, then
+  restores every successor in dependency order with this activation last.
+- Before Prisma may write, the workflow uses the engine-read-only activation
+  scope in `restart` mode. It accepts only the exact fully prepared ledger or
+  the exact fully activated ledger. Unknown, duplicate, unfinished,
+  rolled-back, zero-step and checksum-drifting rows fail closed.
+- After migration deployment, the workflow converges the reviewed global
+  runtime grants, checks migration status, runs the global grant/RLS audit and
+  requires the exact activation `after` scope. No workflow input can select a
+  different migration.
+- Cross-release contracts retain every byte-sealed historical verifier while
+  recognizing SellerPayoutEvent activation as the new latest successor.
+  Detailed operator and restart semantics live in
+  `docs/seller-payout-event-activation-production-wiring.md`.
+- Local validation passed 45 focused release/workflow tests plus six
+  disposable-PostgreSQL activation-scope assertions; TypeScript and lint
+  passed, and the full repository suite passed 3,220 tests with seven
+  documented skips and zero failures. Lint emitted only the repository's
+  existing jsx-ast-utils TypeScript-expression diagnostic.
+- This is an isolated, production-inert source change. No workflow was
+  dispatched; no merge, migration, deployment, RLS/grant, credential, Stripe
+  or provider mutation occurred. Policyless activation, its actual pooled
+  runtime postflight and later FORCE remain separate boundaries.

@@ -160,8 +160,11 @@ three source-pinned fixed operations. Provider event time becomes required only
 after an exclusive-lock preflight proves every retained row has valid time and
 the converted application's current-credential predecessor is absent. The
 candidate and database-first rollback are byte-pinned and CI proves them with
-separate owner/runtime logins. Production wiring, production migration and the
-later posture-only FORCE release remain separate boundaries.
+separate owner/runtime logins. Restart-safe guarded production wiring is
+prepared separately in
+`docs/seller-payout-event-activation-production-wiring.md`; its merge,
+production migration, actual pooled-runtime acceptance postflight and the later
+posture-only FORCE release remain separate boundaries.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

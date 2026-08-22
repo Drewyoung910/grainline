@@ -583,6 +583,26 @@ StripeWebhookEvent RLS activation postflight:
   It rolls back and writes sanitized mode-0600 evidence; it must not change
   production.
 
+SellerPayoutEvent guarded policyless activation:
+
+- The only reviewed activation is
+  `20260822180000_enable_seller_payout_event_rls`, phase
+  `seller-payout-event-activation-reviewed`. Its exact bytes and complete
+  migration prefix are recorded in
+  `docs/seller-payout-event-activation-release.md`.
+- The guarded workflow must verify and isolate that migration, verify the
+  sealed compatible-authority predecessor and older release chain, restore all
+  successors in dependency order, and run
+  `audit:rls-seller-payout-event-activation-production-scope` with stage
+  `restart` before Prisma can write.
+- Restart accepts only the exact fully prepared or fully activated ledger. A
+  partial, unknown, duplicate, unfinished, rolled-back, zero-step or
+  checksum-drifting activation row must stop for separate inspection; never
+  resolve or rewrite it under the ordinary migration dispatch.
+- After `prisma migrate deploy`, require migration status, the global
+  grant/RLS audit and the same exact scope with stage `after`. See
+  `docs/seller-payout-event-activation-production-wiring.md`.
+
 SellerPayoutEvent RLS activation postflight:
 
 - Run only after the byte-pinned policyless activation migration succeeds from

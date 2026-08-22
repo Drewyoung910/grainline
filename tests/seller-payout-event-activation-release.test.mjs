@@ -46,8 +46,16 @@ const rollbackProof = fs.readFileSync(
 );
 const schema = fs.readFileSync("prisma/schema.prisma", "utf8");
 const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+const production = fs.readFileSync(
+  ".github/workflows/production-migrations.yml",
+  "utf8",
+);
 const releaseDocument = fs.readFileSync(
   "docs/seller-payout-event-activation-release.md",
+  "utf8",
+);
+const productionWiringDocument = fs.readFileSync(
+  "docs/seller-payout-event-activation-production-wiring.md",
   "utf8",
 );
 
@@ -286,6 +294,69 @@ test("CI proves the exact activation after its compatible authority", () => {
   );
 });
 
+test("guarded production wiring isolates predecessors and proves restart scope", () => {
+  const verifyActivation = production.indexOf(
+    "Verify exact SellerPayoutEvent activation migration tree",
+  );
+  const verifyRelease = production.indexOf(
+    "Verify exact SellerPayoutEvent activation release",
+  );
+  const isolateActivation = production.indexOf(
+    "Isolate the reviewed SellerPayoutEvent activation release",
+  );
+  const verifyAuthority = production.indexOf(
+    "Verify sealed SellerPayoutEvent authority predecessor",
+  );
+  const isolateReservationForce = production.indexOf(
+    "Isolate the reviewed CheckoutStockReservation FORCE release",
+  );
+  const restoreReservationForce = production.indexOf(
+    "Restore the reviewed CheckoutStockReservation FORCE release",
+  );
+  const restoreActivation = production.indexOf(
+    "Restore the reviewed SellerPayoutEvent activation release",
+  );
+  const restartScope = production.indexOf(
+    "Inspect exact SellerPayoutEvent activation restart scope read-only",
+  );
+  const apply = production.indexOf("Apply production migrations");
+  const converge = production.indexOf(
+    "Converge exact activated SellerPayoutEvent runtime grants",
+  );
+  const audit = production.indexOf(
+    "Audit final runtime grants and RLS catalog",
+  );
+  const afterScope = production.indexOf(
+    "Prove exact SellerPayoutEvent activation production scope",
+  );
+
+  assert.ok(verifyActivation >= 0 && verifyActivation < verifyRelease);
+  assert.ok(verifyRelease < isolateActivation);
+  assert.ok(isolateActivation < verifyAuthority);
+  assert.ok(verifyAuthority < isolateReservationForce);
+  assert.ok(isolateReservationForce < restoreReservationForce);
+  assert.ok(restoreReservationForce < restoreActivation);
+  assert.ok(restoreActivation < restartScope);
+  assert.ok(restartScope < apply && apply < converge);
+  assert.ok(converge < audit && audit < afterScope);
+  assert.match(
+    production,
+    /SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-activation-reviewed/u,
+  );
+  assert.match(
+    production,
+    /20260822180000_enable_seller_payout_event_rls/u,
+  );
+  assert.match(
+    production,
+    /SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: restart/u,
+  );
+  assert.match(
+    production,
+    /SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: after/u,
+  );
+});
+
 test("release record preserves the unapplied policyless boundary", () => {
   const normalized = releaseDocument.replace(/\s+/gu, " ");
   assert.match(normalized, /isolated, unapplied activation candidate/u);
@@ -297,7 +368,7 @@ test("release record preserves the unapplied policyless boundary", () => {
   assert.match(normalized, /FORCE is deliberately absent/u);
   assert.match(
     normalized,
-    /production migration wiring must be separately authorized/u,
+    /separately prepared production migration wiring/u,
   );
   assert.match(normalized, /OrderPaymentEvent/u);
   assert.match(normalized, /OrderShippingRateQuote/u);
@@ -313,4 +384,13 @@ test("release record preserves the unapplied policyless boundary", () => {
     productionPostflight,
     /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/u,
   );
+  const normalizedWiring = productionWiringDocument.replace(/\s+/gu, " ");
+  assert.match(normalizedWiring, /isolated, production-inert wiring candidate/u);
+  assert.match(
+    normalizedWiring,
+    /`restart` stage accepts exactly two complete states/u,
+  );
+  assert.match(normalizedWiring, /SellerPayoutEvent activation restored last/u);
+  assert.match(normalizedWiring, /No workflow input selects a migration/u);
+  assert.match(normalizedWiring, /FORCE remains a later, posture-only migration/u);
 });

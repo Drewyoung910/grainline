@@ -2,8 +2,11 @@
 
 Status: isolated, unapplied activation candidate. The predecessor deployment
 drain is accepted, the migration and rollback are byte-pinned, and CI proof is
-wired on the isolated branch. Nothing in this document authorizes a merge,
-production migration, deployment, provider change or later FORCE release.
+wired on the isolated branch. Restart-safe guarded production wiring is now
+prepared on a separate stacked branch and documented in
+`docs/seller-payout-event-activation-production-wiring.md`. Nothing in this
+document authorizes a merge, production migration, deployment, provider change
+or later FORCE release.
 
 Prepared: 2026-08-22
 
@@ -187,9 +190,11 @@ requires the exact three fixed-operation consumers with zero direct
 Before production activation:
 
 1. the isolated branch must merge as one explicitly reviewed exact head;
-2. production migration wiring must be separately authorized, reviewed and
-   bound to the exact successful main CI run; and
-3. the later actual pooled-runtime production postflight must run read-only and
+2. the separately prepared production migration wiring must be reviewed,
+   merged as its own exact head and bound to the exact successful main CI run;
+3. the guarded production migration must receive a separate exact-commit and
+   CI-bound dispatch decision; and
+4. the later actual pooled-runtime production postflight must run read-only and
    retain sanitized mode-`0600` evidence.
 
 FORCE is deliberately absent. It will be a separate posture-only migration
