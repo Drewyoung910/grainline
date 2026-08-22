@@ -407,10 +407,11 @@ proved exact retry stability, removed the temporary User, SellerProfile,
 payout, notification and disposable account, and retained only the processed
 webhook lease. Sanitized evidence SHA-256 is
 `8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907`.
-Proceed next to the predecessor deployment drain and zero-direct-access proof;
-policyless ENABLE and posture-only FORCE remain later separate releases.
+The predecessor deployment drain and zero-direct-access proof subsequently
+passed; policyless ENABLE and posture-only FORCE remain later separate
+releases.
 
-The non-mutating predecessor boundary is now prepared in
+The predecessor boundary is recorded in
 `docs/seller-payout-event-predecessor-drain.md`. A 2026-08-22 read-only Vercel
 inventory found exactly one READY current-credential predecessor:
 `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`, source
@@ -418,9 +419,13 @@ inventory found exactly one READY current-credential predecessor:
 accepted credential recovery and cannot authenticate with their superseded
 database password. The tracked-source proof scanned 723 application files,
 found the exact three reviewed fixed-authority consumers and zero direct table
-access, and is wired into CI. The restart-safe operator can remove only that
-exact predecessor after exact-main CI and a fresh read-only preflight; no
-removal, grant change or RLS activation is claimed yet.
+access, and is wired into CI. Exact main
+`9947a9e485a686dc801befcdea285cddc5b3aff7`, CI `32583228592`, permanently
+removed only that predecessor and preserved the current deployment, all four
+canonical aliases and health. Accepted sanitized evidence SHA-256 is
+`3bb83df87df2cf2571df53ef0021e73886eca5d57140e0e8bc929eac4e2b61b1`. No
+grant or RLS state changed. Prepare policyless ENABLE plus direct-grant
+revocation next; keep posture-only FORCE separate.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

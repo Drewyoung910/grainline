@@ -21,11 +21,12 @@ no live money moved. The verifier used Vercel's authenticated read-only
 `/v13/deployments/{id}` API and still requires the exact source commit and every
 canonical alias. Sanitized mode-0600 evidence SHA-256 is
 `8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907`;
-the raw canary and recovery files were removed after acceptance. The next
-separate boundary is predecessor deployment drain plus zero-direct-access
-proof, followed by separately reviewed policyless ENABLE and FORCE releases.
-This accepted proof does not authorize those later migrations, grant changes,
-RLS activation, FORCE, deployment or provider-configuration changes.
+the raw canary and recovery files were removed after acceptance. The separate
+predecessor deployment drain and zero-direct-access proof subsequently passed;
+the next boundary is the separately reviewed policyless ENABLE release,
+followed by FORCE. This accepted linked-seller proof does not itself authorize
+those later migrations, grant changes, RLS activation, FORCE, deployment or
+provider-configuration changes.
 
 Historical note: the preceding corrected attempt from exact main
 `c221b1871ee73bbce8f092daf49536c4381cf9de`, CI `32537455244`, failed closed
@@ -178,6 +179,7 @@ notification gate only. Predecessor application deployments must still drain,
 the source tree must prove zero direct SellerPayoutEvent access, and policyless
 ENABLE plus direct-grant revocation and FORCE remain separate releases with
 their own owner and pooled-runtime proofs. The exact read-only inventory,
-static proof and restart-safe removal design are now prepared in
-`docs/seller-payout-event-predecessor-drain.md`; no deployment removal is
-claimed by this proof record.
+static proof and restart-safe removal design are recorded in
+`docs/seller-payout-event-predecessor-drain.md`. That separate boundary later
+removed the sole current-credential predecessor; this linked-seller proof
+record does not claim the removal as part of its own execution.
