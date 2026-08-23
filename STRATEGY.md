@@ -425,7 +425,11 @@ removed only that predecessor and preserved the current deployment, all four
 canonical aliases and health. Accepted sanitized evidence SHA-256 is
 `3bb83df87df2cf2571df53ef0021e73886eca5d57140e0e8bc929eac4e2b61b1`. No
 grant or RLS state changed. Prepare policyless ENABLE plus direct-grant
-revocation next; keep posture-only FORCE separate.
+revocation next; keep posture-only FORCE separate. The isolated activation
+candidate now has byte-pinned migration/rollback bytes, a fail-closed ledger
+scope and separate-login PostgreSQL proofs. It remains unapplied; production
+wiring and migration execution require a separate authorization. Retain
+`docs/seller-payout-event-activation-release.md` as the release boundary.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

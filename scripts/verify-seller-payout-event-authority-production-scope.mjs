@@ -224,7 +224,11 @@ export function readSellerPayoutEventAuthorityMigrationCatalog(
   return Object.freeze(catalog);
 }
 
-function assertExactLedger(rows, catalog, stage) {
+export function assertSellerPayoutEventAuthorityLedgerScope(
+  rows,
+  stage,
+  catalog = readSellerPayoutEventAuthorityMigrationCatalog(),
+) {
   if (
     !Array.isArray(rows)
     || !Array.isArray(catalog)
@@ -475,7 +479,11 @@ export function assertSellerPayoutEventAuthorityProductionScope(
     throw new Error("payout scope stage must be before, after, or restart");
   }
   assertTablePosture(snapshot?.catalogState);
-  const migrationApplied = assertExactLedger(snapshot?.ledgerRows, catalog, stage);
+  const migrationApplied = assertSellerPayoutEventAuthorityLedgerScope(
+    snapshot?.ledgerRows,
+    stage,
+    catalog,
+  );
   if (migrationApplied) assertPreparedCatalog(snapshot.catalogState);
   else assertPredecessorCatalog(snapshot.catalogState);
   return Object.freeze({

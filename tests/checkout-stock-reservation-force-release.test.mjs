@@ -64,7 +64,7 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260815210000_prepare_seller_payout_event_authority",
+    "20260822180000_enable_seller_payout_event_rls",
   );
   assert.throws(
     () => verifyCheckoutStockReservationForceRelease(),
@@ -110,7 +110,7 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260815210000_prepare_seller_payout_event_authority",
+    "20260822180000_enable_seller_payout_event_rls",
   );
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {

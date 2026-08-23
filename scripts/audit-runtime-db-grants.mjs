@@ -45,6 +45,7 @@ export const CASE_ACTIVATION_TABLES = Object.freeze([
 ]);
 export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
+export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -262,6 +263,18 @@ export function checkoutStockReservationRlsForceExpected(inventory) {
     );
 }
 
+export function sellerPayoutEventRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(SELLER_PAYOUT_EVENT_TABLE)
+    && !policies.has(SELLER_PAYOUT_EVENT_TABLE);
+}
+
+export function sellerPayoutEventRlsForceExpected(inventory) {
+  return sellerPayoutEventRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(SELLER_PAYOUT_EVENT_TABLE);
+}
+
 export function runtimePrivateFunctionNames(inventory) {
   const directUploadActivated = directUploadRlsActivationExpected(inventory);
   const reservationActivated =
@@ -292,6 +305,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(checkoutStockReservationRlsActivationExpected(inventory)
       ? [CHECKOUT_STOCK_RESERVATION_TABLE]
+      : []),
+    ...(sellerPayoutEventRlsActivationExpected(inventory)
+      ? [SELLER_PAYOUT_EVENT_TABLE]
       : []),
   ];
 }
@@ -1110,6 +1126,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === CHECKOUT_STOCK_RESERVATION_TABLE
       && checkoutStockReservationRlsActivationExpected(inventory)
     )
+    || (
+      tableName === SELLER_PAYOUT_EVENT_TABLE
+      && sellerPayoutEventRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -1149,6 +1169,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
         ? stripeWebhookEventRlsForceExpected(inventory)
         : tableName === CHECKOUT_STOCK_RESERVATION_TABLE
           ? checkoutStockReservationRlsForceExpected(inventory)
+        : tableName === SELLER_PAYOUT_EVENT_TABLE
+          ? sellerPayoutEventRlsForceExpected(inventory)
         : true;
     if (!row) {
       issues.push(
@@ -1764,6 +1786,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       || (
         row.table_name === CHECKOUT_STOCK_RESERVATION_TABLE
         && checkoutStockReservationRlsActivationExpected(inventory)
+      )
+      || (
+        row.table_name === SELLER_PAYOUT_EVENT_TABLE
+        && sellerPayoutEventRlsActivationExpected(inventory)
       );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(

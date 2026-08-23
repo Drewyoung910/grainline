@@ -1984,3 +1984,57 @@ Open work:
 - This evidence unblocks preparation only of the separate policyless ENABLE
   plus direct-grant-revocation release. It does not authorize that migration or
   the later posture-only FORCE release.
+
+## SellerPayoutEvent policyless activation candidate (2026-08-22)
+
+- The isolated candidate promotes only
+  `20260822180000_enable_seller_payout_event_rls`. Its migration SHA-256 is
+  `0347a8d930631b4fbed793eec4d119d1c56adcaa2802a89c61940ef6b62fb4bc`;
+  its database-first rollback SHA-256 is
+  `b311f9ae78a8d093d2b200f68acf17d1b4d6b2dd4d1eda342f701b0b4553a94a`.
+- The migration validates the owner/runtime roles and recursive membership
+  graph, compatible grants, zero policies, five constraints, six indexes,
+  retained row invariants and the exact source/owner/mode/ACL of all three
+  fixed functions before taking any posture action.
+- It then makes provider event time required, enables RLS with zero policies,
+  explicitly leaves FORCE off and revokes all direct runtime/PUBLIC table
+  authority. It creates no function or policy and performs no row DML.
+- CI isolates the successor while replaying every sealed predecessor, then
+  applies it to PostgreSQL 16, converges grants, runs the global audit and uses
+  separate owner/runtime logins for direct-denial, fixed-operation and rollback
+  proofs. The production ledger scope accepts only exact prepared/activated
+  restart states and preserves the three reviewed historical exceptions.
+- Focused static and contract suites pass locally. The exact-head real
+  PostgreSQL and full repository gates remain required. Production workflow
+  wiring, merge, migration execution, pooled-runtime production postflight and
+  FORCE are not authorized by this candidate and remain separate boundaries.
+
+## SellerPayoutEvent activation proof and postflight hardening (2026-08-22)
+
+- Exact isolated checkpoint
+  `38d9acb1cf07cd772cc1fa23cc29024ff9f9dc95` passed exact-head CI
+  `32590297568`, including real PostgreSQL 16 activation, separate restricted
+  runtime-login proof, database-first rollback/restoration, global grant/RLS
+  audit, full tests, TypeScript, lint, dependency audit and production build.
+- The reusable activated-catalog proof now requires the exact table and
+  function owner in addition to source, mode, pinned search path and ACL. This
+  closes acceptance of an otherwise matching function owned by an unreviewed
+  role.
+- A separate actual pooled-runtime production postflight is scaffolded. It is
+  exact-release/CI/migration bound, rejects privileged or aliased database
+  variables, uses no owner or `SET ROLE`, runs in an engine-attested
+  repeatable-read read-only transaction, proves catalog posture and direct
+  denial, exercises both fixed reads, and requires SQLSTATE `25006` from the
+  fixed writer's read-only fence. Evidence is fresh, sanitized and mode-`0600`.
+- CI exercises the same catalog, identity, denial, projection and read-only
+  fence path through a separate direct restricted-runtime login against
+  disposable PostgreSQL before rollback/restoration.
+- After this hardening, the focused release/postflight/cross-audit suite passed
+  19/19; TypeScript and lint passed; and the full local repository suite passed
+  3,213 tests with seven documented skips and zero failures. Exact hardening
+  head `d5fa351247fcf28c736a760974f50f1718427281` then passed CI
+  `32591448929` in 6m44s, including the new direct-runtime PostgreSQL postflight
+  and production build.
+- The postflight has not run. The activation branch remains unmerged;
+  production migration wiring, migration execution and FORCE remain separate
+  unauthorized boundaries. Production state is unchanged by this checkpoint.

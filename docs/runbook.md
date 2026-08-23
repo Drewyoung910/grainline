@@ -583,6 +583,31 @@ StripeWebhookEvent RLS activation postflight:
   It rolls back and writes sanitized mode-0600 evidence; it must not change
   production.
 
+SellerPayoutEvent RLS activation postflight:
+
+- Run only after the byte-pinned policyless activation migration succeeds from
+  an exact main commit and that commit's full CI is green.
+- Use only the local pooled production `DATABASE_URL` for
+  `grainline_app_runtime`. Do not source an owner URL, add this runtime URL to
+  GitHub's owner-only Production environment, or simulate runtime through
+  owner `SET ROLE`.
+- Bind the exact release and workflow evidence with
+  `SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT`,
+  `SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID`, and
+  `SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID`.
+- Use a fresh ignored evidence path named exactly
+  `seller-payout-event-activation-production-postflight-<40-char-main>.json`
+  and confirmation
+  `verify-production-seller-payout-event-activation-runtime-read-only`.
+- Command:
+  `SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRM=verify-production-seller-payout-event-activation-runtime-read-only SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT=<40-char-main> SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-ci> SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID=<successful-production-migration> SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH="seller-payout-event-activation-production-postflight-<40-char-main>.json" npm run ops:seller-payout-event-activation-postflight`.
+- The script opens an engine-attested repeatable-read/read-only transaction,
+  verifies the actual restricted runtime identity, exact table and
+  source/owner/mode/ACL function catalog, zero PUBLIC/runtime direct authority,
+  direct SELECT denial, both fixed recipient projections, and the writer's
+  SQLSTATE `25006` read-only fence. It rolls back and writes sanitized
+  mode-`0600` evidence; it must not change production.
+
 StripeWebhookEvent FORCE postflight:
 
 - Run only after the separate byte-pinned FORCE migration succeeds from an

@@ -23,6 +23,9 @@ import {
   SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
   verifySellerPayoutEventAuthorityRelease,
 } from "./verify-seller-payout-event-authority-release.mjs";
+import {
+  SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+} from "./stage-seller-payout-event-activation-migration.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
   "checkout-stock-reservation-force-reviewed";
@@ -71,22 +74,38 @@ export function verifyCheckoutStockReservationForceRelease(
     "prisma/migrations",
     SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
   ));
+  const payoutActivationSuccessorExists = fs.existsSync(path.join(
+    rootDirectory,
+    "prisma/migrations",
+    SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+  ));
   if (allowReviewedSuccessor && payoutSuccessorExists) {
-    verifySellerPayoutEventAuthorityRelease(rootDirectory);
+    verifySellerPayoutEventAuthorityRelease(rootDirectory, {
+      allowReviewedActivationSuccessor: payoutActivationSuccessorExists,
+    });
   }
   const strictGuard = validateCurrentSavedSearchRlsDeployShape({
     phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
     rootDirectory,
     omittedReviewedMigrationNames:
-      allowReviewedSuccessor && payoutSuccessorExists
-        ? [SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION]
+      allowReviewedSuccessor
+        ? [
+            ...(payoutSuccessorExists
+              ? [SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION]
+              : []),
+            ...(payoutActivationSuccessorExists
+              ? [SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION]
+              : []),
+          ]
         : [],
   });
   const guard = allowReviewedSuccessor && payoutSuccessorExists
     ? Object.freeze({
         phase: strictGuard.phase,
         sealedPrefix: true,
-        reviewedSuccessorMigration: SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
+        reviewedSuccessorMigration: payoutActivationSuccessorExists
+          ? SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION
+          : SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
       })
     : strictGuard;
   const runtimeFunctions = CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS

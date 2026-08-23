@@ -82,6 +82,17 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify SellerPayoutEvent activation migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-activation-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify SellerPayoutEvent activation release
+        run: npm run audit:rls-seller-payout-event-activation-release
+      - name: Isolate SellerPayoutEvent activation until authority proofs pass
+        run: >-
+          mv
+          prisma/migrations/20260822180000_enable_seller_payout_event_rls
+          "$RUNNER_TEMP/seller-payout-event-activation-release"
       - name: Isolate SellerPayoutEvent authority until all sealed predecessors pass
         run: >-
           mv
@@ -479,6 +490,39 @@ jobs:
           SELLER_PAYOUT_EVENT_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove zero direct SellerPayoutEvent application access
         run: npm run audit:rls-seller-payout-event-zero-direct-access
+      - name: Restore SellerPayoutEvent activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-payout-event-activation-release"
+          prisma/migrations/20260822180000_enable_seller_payout_event_rls
+      - name: Re-prove the SellerPayoutEvent activation predecessor
+        run: npm run audit:rls-seller-payout-event-authority-postgres
+        env:
+          SELLER_PAYOUT_EVENT_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Apply SellerPayoutEvent policyless activation
+        run: npx prisma migrate deploy
+      - name: Converge activated SellerPayoutEvent runtime grants
+        run: psql "$DIRECT_URL" -v runtime_role=grainline_app_runtime -v migration_role=ci -f scripts/provision-runtime-db-role.sql
+      - name: Verify SellerPayoutEvent activation migration status
+        run: npx prisma migrate status
+      - name: Audit activated SellerPayoutEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove SellerPayoutEvent policyless activation through separate logins
+        run: npm run audit:rls-seller-payout-event-activation-postgres
+        env:
+          SELLER_PAYOUT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          SELLER_PAYOUT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove SellerPayoutEvent activation postflight through the actual runtime login
+        run: npm run audit:rls-seller-payout-event-activation-postflight-postgres
+        env:
+          SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove SellerPayoutEvent database-first rollback and restoration
+        run: npm run audit:rls-seller-payout-event-activation-rollback
+        env:
+          SELLER_PAYOUT_EVENT_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          SELLER_PAYOUT_EVENT_ACTIVATION_ROLLBACK_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Re-audit restored SellerPayoutEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:
