@@ -1,13 +1,17 @@
 # SellerPayoutEvent activation production wiring
 
-Status: isolated, production-inert wiring candidate refreshed through exact
-main `d9518f5545fac722f208d12fcdc48be41ec89d97`, after the
-SellerPayoutEvent activation package and Notification cross-release fixture
-correction merged and passed exact-main CI. Nothing in this document authorizes
-a merge, workflow dispatch, production migration, application deployment,
-FORCE release or provider change.
+Status: merged production wiring with a fail-closed predecessor-isolation
+correction pending. PR #242 merged exact head
+`962631d6c5379cd7c5c1ca8e39c628d041c7f5cb` as main
+`af56bf99c4eac4366b6bcecbabaabd84992f0e62`; exact-main CI
+`32611954204` passed. The first guarded dispatch, run `32659750056`, stopped
+before Prisma generation, migration deployment or any grant mutation because
+the older CheckoutStockReservation FORCE tree seal still saw the later
+SellerPayoutEvent authority migration. SellerPayoutEvent RLS remains unapplied.
+Nothing in this document authorizes a rerun, application deployment, FORCE
+release or provider change.
 
-Date: 2026-08-22
+Prepared: 2026-08-22. Corrected after fail-closed dispatch: 2026-08-23.
 
 ## Exact release bound by this wiring
 
@@ -57,13 +61,15 @@ The isolated workflow change:
 
 1. verifies the exact dispatched main commit and protected migration-owner
    identity;
-2. verifies and isolates the SellerPayoutEvent activation, then verifies its
-   compatible-authority predecessor;
+2. verifies and isolates the SellerPayoutEvent activation, verifies its
+   compatible-authority predecessor, and isolates that later predecessor from
+   every older migration-tree seal;
 3. recursively verifies and isolates the sealed CheckoutStockReservation
    FORCE, activation and source-consistency predecessors before checking the
    older authority chain;
-4. restores every successor in dependency order, with SellerPayoutEvent
-   activation restored last;
+4. restores every successor in dependency order: CheckoutStockReservation
+   source consistency, activation and FORCE, then SellerPayoutEvent authority,
+   with SellerPayoutEvent activation restored last;
 5. runs the read-only SellerPayoutEvent activation `restart` scope before
    Prisma can write;
 6. runs `prisma migrate deploy`, converges the reviewed global runtime grants,
@@ -77,14 +83,21 @@ ledger, role identity or release order differs from the reviewed state.
 
 ## Remaining boundaries
 
-The predecessor-drain record, activation package and Notification
-cross-release fixture correction are merged through exact main
-`d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785`
-and Notification FORCE proof `32610218792` passed. This refreshed wiring now
-requires its own exact-head review, merge and successful exact-main CI before
-any guarded workflow dispatch may be considered.
+The predecessor-drain record, activation package, Notification cross-release
+fixture correction and production wiring are merged through exact main
+`af56bf99c4eac4366b6bcecbabaabd84992f0e62`; exact-main CI `32611954204`
+passed. Guarded dispatch `32659750056` verified the exact source, owner-role
+boundary, activation release and SellerPayoutEvent authority release, then
+failed closed at the older CheckoutStockReservation FORCE tree seal. Steps
+for the read-only restart scope, Prisma generation/deploy, grant convergence,
+migration status, global grant/RLS audit and applied scope were all skipped.
+Production schema, rows, RLS and grants therefore remained unchanged.
 
-After a separately approved successful migration, run the actual pooled
+The isolated correction must pass exact-head review, merge and exact-main CI
+before a separately authorized rerun. It adds only the missing authority
+isolation/restoration pair and tests their exact paths and dependency order.
+
+After a separately approved successful rerun, run the actual pooled
 `grainline_app_runtime` postflight from the same clean main commit and bind it
 to that commit's successful CI and migration run. FORCE remains a later,
 posture-only migration after policyless activation and pooled-runtime evidence

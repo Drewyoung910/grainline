@@ -431,10 +431,15 @@ exact-main CI `32608753825` passed the complete PostgreSQL and application
 gates. The cross-release Notification payout-fixture correction subsequently
 merged at exact main `d9518f5545fac722f208d12fcdc48be41ec89d97`;
 exact-main CI `32610218785` and Notification FORCE proof `32610218792` passed.
-The activation remains unapplied. Restart-safe production wiring is prepared
-on a separate draft branch, while its exact-head merge, migration execution,
-the actual pooled-runtime postflight and later FORCE each remain separate
-boundaries. Retain `docs/seller-payout-event-activation-release.md` and
+The activation remains unapplied. Restart-safe production wiring merged at
+exact main `af56bf99c4eac4366b6bcecbabaabd84992f0e62`; CI `32611954204`
+passed. Its first authorized dispatch, `32659750056`, failed closed before
+Prisma generation or mutation because the workflow verified but did not
+isolate the later SellerPayoutEvent authority migration before invoking the
+strict CheckoutStockReservation FORCE tree seal. Correct that exact ordering,
+merge and re-prove it before a separately authorized rerun. The actual
+pooled-runtime postflight and later FORCE remain separate boundaries. Retain
+`docs/seller-payout-event-activation-release.md` and
 `docs/seller-payout-event-activation-production-wiring.md` as the release
 records.
 

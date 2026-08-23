@@ -1,12 +1,14 @@
 # SellerPayoutEvent policyless activation release
 
-Status: isolated, unapplied activation candidate. The predecessor deployment
-drain is accepted, the migration and rollback are byte-pinned, and CI proof is
-wired on the isolated branch. Restart-safe guarded production wiring is now
-prepared on a separate stacked branch and documented in
+Status: merged, unapplied activation candidate. The predecessor deployment
+drain is accepted and the migration, rollback and CI proof are byte-pinned.
+Restart-safe guarded production wiring merged, but its first dispatch failed
+closed before Prisma or any mutating step because the workflow had not hidden
+the later SellerPayoutEvent authority migration from an older predecessor
+tree seal. The narrow workflow-order correction is documented in
 `docs/seller-payout-event-activation-production-wiring.md`. Nothing in this
-document authorizes a merge, production migration, deployment, provider change
-or later FORCE release.
+document authorizes a rerun, deployment, provider change or later FORCE
+release.
 
 Prepared: 2026-08-22
 
@@ -202,12 +204,21 @@ requires the exact three fixed-operation consumers with zero direct
 
 Before production activation:
 
-1. the separately prepared production migration wiring must be reviewed,
-   merged as its own exact head and bound to the exact successful main CI run;
-2. the guarded production migration must receive a separate exact-commit and
-   CI-bound dispatch decision; and
+1. the predecessor-isolation correction must be reviewed, merged as its own
+   exact head and bound to the exact successful main CI run;
+2. the guarded production migration rerun must receive a separate exact-commit
+   and CI-bound dispatch decision; and
 3. the later actual pooled-runtime production postflight must run read-only and
    retain sanitized mode-`0600` evidence.
+
+PR #242 merged the guarded wiring at exact main
+`af56bf99c4eac4366b6bcecbabaabd84992f0e62`; CI `32611954204` passed.
+Authorized dispatch `32659750056` then stopped at the strict historical
+CheckoutStockReservation FORCE tree check because
+`20260815210000_prepare_seller_payout_event_authority` remained discoverable.
+The failure preceded the restart-scope reader, Prisma generation and deploy,
+grant convergence and every post-application check, so production remained in
+the compatible RLS-off posture.
 
 FORCE is deliberately absent. It will be a separate posture-only migration
 after policyless activation and pooled-runtime evidence are accepted. The

@@ -2103,3 +2103,35 @@ Open work:
   passed and exact-main Notification FORCE proof `32610218792` passed. This
   closes the cross-release fixture regression. SellerPayoutEvent production
   RLS/FORCE and grants remain unchanged because no migration was dispatched.
+
+## SellerPayoutEvent activation production isolation correction (2026-08-23)
+
+- Production-wiring PR #242 merged exact head
+  `962631d6c5379cd7c5c1ca8e39c628d041c7f5cb` as main
+  `af56bf99c4eac4366b6bcecbabaabd84992f0e62`; exact-main CI
+  `32611954204` passed.
+- Authorized guarded migration run `32659750056` passed the exact-source and
+  protected owner-role guard, verified the SellerPayoutEvent activation bytes,
+  isolated activation and verified the compatible authority release. It then
+  failed closed at the strict CheckoutStockReservation FORCE migration-tree
+  guard because the later
+  `20260815210000_prepare_seller_payout_event_authority` migration remained in
+  Prisma discovery.
+- The restart-scope reader, Prisma generation, `prisma migrate deploy`, grant
+  convergence, migration status, global grant/RLS audit and applied-scope proof
+  were all skipped. Production rows, schema, grants and RLS remained unchanged;
+  SellerPayoutEvent remains in its compatible RLS-off posture.
+- The isolated correction mirrors the already-proven CI release order: after
+  verifying the SellerPayoutEvent authority bytes it moves that migration out
+  before the older reservation seals, then restores reservation successors,
+  SellerPayoutEvent authority and finally SellerPayoutEvent activation in
+  dependency order. Exact-path and exact-order tests prevent a verification-only
+  step from being mistaken for filesystem isolation again.
+- Merge, exact-main CI and any production rerun remain separate gates. The
+  actual pooled-runtime postflight and later FORCE release remain later still.
+- Draft correction PR #244 exact-head CI `32660232917` passed the complete
+  disposable PostgreSQL release chain, TypeScript and lint, then reported one
+  stale release-document regex in the full suite: it still required wording
+  that production wiring was only prepared. The other 3,225 tests passed. The
+  follow-up changes only that assertion to require the now-true merged-wiring
+  and failed-dispatch record; it does not change workflow or production logic.
