@@ -2058,3 +2058,9 @@ Open work:
   migration has not run, SellerPayoutEvent production RLS/FORCE and grants are
   unchanged, the pooled-runtime postflight has not run, and draft production
   wiring remains a later merge boundary.
+- The correction's first full PR CI run `32609335900` passed the PostgreSQL,
+  TypeScript and lint gates, then stopped on the coverage-matrix status
+  allowlist after the record advanced from compatible-live to
+  merged-unapplied. The narrow follow-up registers that evidenced status while
+  retaining the separate assertion that only production-RLS rows count as
+  live; it does not change a release or security disposition.
