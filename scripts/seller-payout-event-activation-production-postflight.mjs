@@ -36,11 +36,50 @@ const { Client } = pg;
 const MIGRATION_ROLE = "neondb_owner";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
 const SAFE_POSITIVE_INTEGER = /^[1-9][0-9]{0,15}$/u;
-const EVIDENCE_PREFIX =
+const ACTIVATION_EVIDENCE_PREFIX =
   "seller-payout-event-activation-production-postflight-";
+const FORCE_EVIDENCE_PREFIX =
+  "seller-payout-event-force-production-postflight-";
+const POST_FORCE_FLAG = "--post-force";
 
 export const SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRMATION =
   "verify-production-seller-payout-event-activation-runtime-read-only";
+export const SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_CONFIRMATION =
+  "verify-production-seller-payout-event-force-runtime-read-only";
+
+export function parseSellerPayoutEventPostflightMode(argv = []) {
+  if (argv.length === 0) return false;
+  if (argv.length === 1 && argv[0] === POST_FORCE_FLAG) return true;
+  throw new Error(
+    "Usage: node scripts/seller-payout-event-activation-production-postflight.mjs [--post-force]",
+  );
+}
+
+function postflightContract(postForce) {
+  return postForce
+    ? Object.freeze({
+      confirmation: SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_CONFIRMATION,
+      confirmationKey: "SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_CONFIRM",
+      evidenceKey: "SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH",
+      evidencePrefix: FORCE_EVIDENCE_PREFIX,
+      mainCiKey: "SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID",
+      migrationRunKey: "SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID",
+      operation: "seller-payout-event-force-production-postflight",
+      releaseCommitKey: "SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT",
+      rlsForced: true,
+    })
+    : Object.freeze({
+      confirmation: SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRMATION,
+      confirmationKey: "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRM",
+      evidenceKey: "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH",
+      evidencePrefix: ACTIVATION_EVIDENCE_PREFIX,
+      mainCiKey: "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID",
+      migrationRunKey: "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID",
+      operation: "seller-payout-event-activation-production-postflight",
+      releaseCommitKey: "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT",
+      rlsForced: false,
+    });
+}
 
 function required(env, key) {
   const value = env?.[key];
@@ -79,39 +118,40 @@ export function parseSellerPayoutEventActivationPostflightConfig(
   env = process.env,
   {
     assertRuntimeDatabaseIsolation = assertVercelRuntimeDatabaseIsolation,
+    postForce = false,
   } = {},
 ) {
+  const contract = postflightContract(postForce);
   assertDeterministicPostgresEnvironment(
     env,
-    "SellerPayoutEvent activation production postflight",
+    `SellerPayoutEvent ${postForce ? "FORCE" : "activation"} production postflight`,
   );
-  if (
-    env.SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRM
-      !== SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRMATION
-  ) {
+  if (env[contract.confirmationKey] !== contract.confirmation) {
     throw new Error(
-      "SellerPayoutEvent activation postflight confirmation is invalid",
+      `SellerPayoutEvent ${postForce ? "FORCE" : "activation"} postflight confirmation is invalid`,
     );
   }
   const privilegedKeys = privilegedDatabaseEnvironmentKeys(env);
   if (privilegedKeys.length > 0) {
     throw new Error(
-      `SellerPayoutEvent activation postflight rejects privileged database keys: ${privilegedKeys.join(", ")}`,
+      `SellerPayoutEvent ${postForce ? "FORCE" : "activation"} postflight rejects privileged database keys: ${privilegedKeys.join(", ")}`,
     );
   }
   const unreviewedUrlKeys = unreviewedPostgresUrlEnvironmentKeys(env);
   if (unreviewedUrlKeys.length > 0) {
     throw new Error(
-      `SellerPayoutEvent activation postflight rejects aliased PostgreSQL URLs: ${unreviewedUrlKeys.join(", ")}`,
+      `SellerPayoutEvent ${postForce ? "FORCE" : "activation"} postflight rejects aliased PostgreSQL URLs: ${unreviewedUrlKeys.join(", ")}`,
     );
   }
 
   const releaseCommit = required(
     env,
-    "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT",
+    contract.releaseCommitKey,
   );
   if (!COMMIT_PATTERN.test(releaseCommit)) {
-    throw new Error("SellerPayoutEvent activation release commit is invalid");
+    throw new Error(
+      `SellerPayoutEvent ${postForce ? "FORCE" : "activation"} release commit is invalid`,
+    );
   }
   const databaseUrl = required(env, "DATABASE_URL");
   const runtimeIdentity = assertRuntimeDatabaseIsolation({
@@ -122,16 +162,14 @@ export function parseSellerPayoutEventActivationPostflightConfig(
     NODE_TLS_REJECT_UNAUTHORIZED: env.NODE_TLS_REJECT_UNAUTHORIZED,
     PGOPTIONS: env.PGOPTIONS,
   });
-  const evidencePath = path.resolve(required(
-    env,
-    "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH",
-  ));
+  const evidencePath = path.resolve(required(env, contract.evidenceKey));
   if (
-    path.basename(evidencePath) !== `${EVIDENCE_PREFIX}${releaseCommit}.json`
+    path.basename(evidencePath)
+      !== `${contract.evidencePrefix}${releaseCommit}.json`
     || existsSync(evidencePath)
   ) {
     throw new Error(
-      "SellerPayoutEvent activation evidence path is not fresh and exact",
+      `SellerPayoutEvent ${postForce ? "FORCE" : "activation"} evidence path is not fresh and exact`,
     );
   }
 
@@ -141,13 +179,15 @@ export function parseSellerPayoutEventActivationPostflightConfig(
     evidencePath,
     mainCiRunId: positiveInteger(
       env,
-      "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID",
+      contract.mainCiKey,
     ),
     migrationRunId: positiveInteger(
       env,
-      "SELLER_PAYOUT_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID",
+      contract.migrationRunKey,
     ),
+    operation: contract.operation,
     releaseCommit,
+    rlsForced: contract.rlsForced,
     runtimeIdentity,
   });
 }
@@ -238,7 +278,9 @@ export async function runSellerPayoutEventActivationPostflight(config) {
   );
   const client = new Client({
     connectionString: config.databaseUrl,
-    application_name: "grainline-seller-payout-event-activation-postflight",
+    application_name: config.rlsForced
+      ? "grainline-seller-payout-event-force-postflight"
+      : "grainline-seller-payout-event-activation-postflight",
     connectionTimeoutMillis: 10_000,
     statement_timeout: 30_000,
     query_timeout: 35_000,
@@ -262,7 +304,11 @@ export async function runSellerPayoutEventActivationPostflight(config) {
       client,
       config.runtimeIdentity,
     );
-    await proveSellerPayoutEventActivatedCatalog(client, MIGRATION_ROLE);
+    await proveSellerPayoutEventActivatedCatalog(
+      client,
+      MIGRATION_ROLE,
+      config.rlsForced,
+    );
     await expectSqlState(
       client,
       () => client.query(
@@ -314,7 +360,7 @@ export async function runSellerPayoutEventActivationPostflight(config) {
 
     const evidence = Object.freeze({
       schemaVersion: 1,
-      operation: "seller-payout-event-activation-production-postflight",
+      operation: config.operation,
       source: Object.freeze({ clean: git.clean, commit: git.head }),
       target: Object.freeze({
         databaseName: config.runtimeIdentity.databaseName,
@@ -333,12 +379,14 @@ export async function runSellerPayoutEventActivationPostflight(config) {
         postflightReadOnly: true,
         publicOrUnreviewedAuthority: false,
         rlsEnabled: true,
-        rlsForced: false,
+        rlsForced: config.rlsForced,
         runtimeTableOrColumnAuthority: false,
         checks: Object.freeze([
           "engine_attested_repeatable_read_read_only_transaction",
           "actual_pooled_runtime_role_identity",
-          "policyless_enable_no_force_table_posture",
+          config.rlsForced
+            ? "policyless_enable_force_table_posture"
+            : "policyless_enable_no_force_table_posture",
           "zero_unreviewed_runtime_or_public_table_or_column_authority",
           "exact_three_function_source_mode_owner_and_acl_catalog",
           "direct_table_read_denied",
@@ -376,13 +424,19 @@ export function writeSellerPayoutEventActivationPostflightEvidence(
   chmodSync(pathname, 0o600);
   const stat = lstatSync(pathname);
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o600) {
-    throw new Error("SellerPayoutEvent activation evidence is not mode 0600");
+    throw new Error("SellerPayoutEvent postflight evidence is not mode 0600");
   }
 }
 
 async function main() {
   try {
-    const config = parseSellerPayoutEventActivationPostflightConfig();
+    const postForce = parseSellerPayoutEventPostflightMode(
+      process.argv.slice(2),
+    );
+    const config = parseSellerPayoutEventActivationPostflightConfig(
+      process.env,
+      { postForce },
+    );
     const evidence = await runSellerPayoutEventActivationPostflight(config);
     process.stdout.write(`${JSON.stringify({
       status: evidence.status,
@@ -392,7 +446,7 @@ async function main() {
     })}\n`);
   } catch (error) {
     process.stderr.write(
-      `SellerPayoutEvent activation production postflight failed: ${safeError(error)}\n`,
+      `SellerPayoutEvent production postflight failed: ${safeError(error)}\n`,
     );
     process.exitCode = 1;
   }

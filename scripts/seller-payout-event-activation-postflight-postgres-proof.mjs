@@ -7,6 +7,7 @@ import {
   proveSellerPayoutEventActivatedCatalog,
 } from "./seller-payout-event-activation-postgres-proof.mjs";
 import {
+  parseSellerPayoutEventPostflightMode,
   verifySellerPayoutEventActivationRuntimeIdentity,
 } from "./seller-payout-event-activation-production-postflight.mjs";
 
@@ -56,6 +57,7 @@ async function expectedFailure(client, operation, code, label) {
 
 export async function runSellerPayoutEventActivationPostflightProof(
   env = process.env,
+  { postForce = false } = {},
 ) {
   const { databaseUrl } =
     parseSellerPayoutEventActivationPostflightProofConfig(env);
@@ -79,7 +81,11 @@ export async function runSellerPayoutEventActivationPostflightProof(
       { databaseName: DATABASE_NAME, runtimeRole: RUNTIME_ROLE },
       OWNER_ROLE,
     );
-    await proveSellerPayoutEventActivatedCatalog(client, OWNER_ROLE);
+    await proveSellerPayoutEventActivatedCatalog(
+      client,
+      OWNER_ROLE,
+      postForce,
+    );
     await expectedFailure(
       client,
       () => client.query(
@@ -130,6 +136,7 @@ export async function runSellerPayoutEventActivationPostflightProof(
       database: DATABASE_NAME,
       runtimeRole: RUNTIME_ROLE,
       directRuntimeLogin: true,
+      rlsForced: postForce,
       sourcePinnedFunctions: 3,
       postflightReadOnly: true,
       residue: 0,
@@ -143,16 +150,22 @@ export async function runSellerPayoutEventActivationPostflightProof(
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
+    const postForce = parseSellerPayoutEventPostflightMode(
+      process.argv.slice(2),
+    );
     process.stdout.write(
       `${JSON.stringify(
-        await runSellerPayoutEventActivationPostflightProof(),
+        await runSellerPayoutEventActivationPostflightProof(
+          process.env,
+          { postForce },
+        ),
         null,
         2,
       )}\n`,
     );
   } catch (error) {
     process.stderr.write(
-      `SellerPayoutEvent activation postflight PostgreSQL proof failed: ${
+      `SellerPayoutEvent postflight PostgreSQL proof failed: ${
         error instanceof Error ? error.message : "unknown error"
       }\n`,
     );

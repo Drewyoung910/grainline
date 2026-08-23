@@ -218,6 +218,10 @@ test("CI proves FORCE after Phase A and production wiring preserves the order", 
   assert.ok(productionRestart < productionApply && productionApply < productionAfter);
   assert.match(production, /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: restart/u);
   assert.match(production, /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after/u);
-  assert.match(releaseDocument, /isolated candidate only/u);
-  assert.match(releaseDocument, /production remains Phase A/iu);
+  assert.match(
+    releaseDocument,
+    /FORCE applied in production; final pooled-runtime acceptance pending/u,
+  );
+  assert.match(releaseDocument, /32672434812/u);
+  assert.match(releaseDocument, /Phase-A postflight[\s\S]*not reusable/u);
 });

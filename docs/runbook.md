@@ -641,9 +641,9 @@ SellerPayoutEvent RLS activation postflight:
   `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`;
   do not reuse it for the later FORCE proof.
 
-SellerPayoutEvent FORCE candidate:
+SellerPayoutEvent FORCE production closure:
 
-- The only reviewed candidate is
+- The reviewed migration is
   `20260823220000_force_seller_payout_event_rls`, phase
   `seller-payout-event-force-reviewed`. Exact draft, migration, rollback and
   tree hashes live in `docs/seller-payout-event-force-release.md`.
@@ -653,11 +653,25 @@ SellerPayoutEvent FORCE candidate:
 - The restart scope accepts only the exact Phase-A ledger or the exact applied
   FORCE successor. Every unknown, duplicate, unfinished, rolled-back,
   zero-step or checksum-drifting FORCE row fails closed.
-- After application require migration status, the global grant/RLS audit,
-  exact after-scope proof, a separate actual pooled-runtime read-only
-  postflight, and retained sanitized evidence. Never reuse the Phase-A
-  postflight evidence. Production remains Phase A until all of those steps
-  actually complete.
+- Exact main `0eb360b9878698f45288ac3c1649871de9a8a33c`, CI
+  `32672008187`, and guarded migration run `32672434812` applied only the FORCE
+  successor, converged grants, and passed migration status, the global
+  grant/RLS audit and exact after-scope proof. No deployment or provider state
+  changed.
+- The merged release omitted a distinct actual pooled-runtime FORCE postflight
+  command. Production is FORCE-hardened, but final acceptance is pending this
+  proof. Never reuse the accepted Phase-A evidence, which expects NO FORCE.
+- Run only from the exact clean main commit that contains the postflight
+  package and whose full CI passed. Use only the local pooled production
+  `DATABASE_URL` for `grainline_app_runtime`; reject owner, direct and aliased
+  PostgreSQL URLs.
+- Command:
+  `SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_CONFIRM=verify-production-seller-payout-event-force-runtime-read-only SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT=<exact-main-with-postflight-package> SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-exact-main-ci> SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID=32672434812 SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH="seller-payout-event-force-production-postflight-<exact-main-with-postflight-package>.json" npm run ops:seller-payout-event-force-postflight`.
+- The proof must attest repeatable-read/read-only, the actual restricted pooled
+  identity, policyless ENABLE plus FORCE, zero direct runtime/PUBLIC authority,
+  exact fixed-function catalog, direct read denial, both fixed projections and
+  the writer's SQLSTATE `25006` fence. Retain fresh sanitized mode-`0600`
+  evidence and only then mark `RLS_LIVE_FORCE`.
 
 StripeWebhookEvent FORCE postflight:
 

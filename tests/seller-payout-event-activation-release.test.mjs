@@ -402,7 +402,7 @@ test("release record preserves the accepted policyless Phase-A boundary", () => 
   assert.match(normalized, /productionChangedByPostflight=false/u);
   assert.match(
     productionPostflight,
-    /proveSellerPayoutEventActivatedCatalog\(client, MIGRATION_ROLE\)/u,
+    /proveSellerPayoutEventActivatedCatalog\([\s\S]*client,[\s\S]*MIGRATION_ROLE,[\s\S]*config\.rlsForced/u,
   );
   assert.match(
     productionPostflight,
