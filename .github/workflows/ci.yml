@@ -82,6 +82,17 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify SellerPayoutEvent FORCE migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-force-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify SellerPayoutEvent FORCE release
+        run: npm run audit:rls-seller-payout-event-force-release
+      - name: Isolate SellerPayoutEvent FORCE until Phase A passes
+        run: >-
+          mv
+          prisma/migrations/20260823220000_force_seller_payout_event_rls
+          "$RUNNER_TEMP/seller-payout-event-force-release"
       - name: Verify SellerPayoutEvent activation migration tree
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-activation-reviewed
@@ -522,6 +533,27 @@ jobs:
           SELLER_PAYOUT_EVENT_ACTIVATION_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           SELLER_PAYOUT_EVENT_ACTIVATION_ROLLBACK_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Re-audit restored SellerPayoutEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore SellerPayoutEvent FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-payout-event-force-release"
+          prisma/migrations/20260823220000_force_seller_payout_event_rls
+      - name: Apply SellerPayoutEvent FORCE hardening
+        run: npx prisma migrate deploy
+      - name: Verify SellerPayoutEvent FORCE migration status
+        run: npx prisma migrate status
+      - name: Audit FORCE-hardened SellerPayoutEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove FORCE-hardened SellerPayoutEvent authority
+        run: npm run audit:rls-seller-payout-event-force-postgres
+        env:
+          SELLER_PAYOUT_EVENT_FORCE_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove SellerPayoutEvent FORCE rollback and restoration
+        run: npm run audit:rls-seller-payout-event-force-rollback
+        env:
+          SELLER_PAYOUT_EVENT_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Re-audit restored SellerPayoutEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback

@@ -217,3 +217,7 @@ after this accepted policyless Phase A. The
 remaining `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem`
 domains stay separate audits and releases; this candidate does not authorize or
 bundle them.
+
+The isolated FORCE candidate is documented in
+`docs/seller-payout-event-force-release.md`. Its presence in a branch or pull
+request does not change this accepted production Phase-A record.

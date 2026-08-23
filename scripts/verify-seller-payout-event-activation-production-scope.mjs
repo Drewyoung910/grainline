@@ -53,9 +53,12 @@ export function parseSellerPayoutEventActivationScopeEnvironment(
 
 export function readSellerPayoutEventActivationMigrationCatalog(
   root = process.cwd(),
+  { allowReviewedForceSuccessor = false } = {},
 ) {
   const predecessor = readSellerPayoutEventAuthorityMigrationCatalog(root);
-  const release = verifySellerPayoutEventActivationRelease(root);
+  const release = verifySellerPayoutEventActivationRelease(root, {
+    allowReviewedForceSuccessor,
+  });
   const candidate = buildSellerPayoutEventActivationCandidate(root);
   if (
     release.migration !== SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION

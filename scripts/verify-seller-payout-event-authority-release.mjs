@@ -12,6 +12,8 @@ export const SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256 =
   "9aca2449c229d0c393e41e3b63c938b6ac80c3a3bbfcda5fc68198fbc94ec146";
 const SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION =
   "20260822180000_enable_seller_payout_event_rls";
+const SELLER_PAYOUT_EVENT_FORCE_MIGRATION =
+  "20260823220000_force_seller_payout_event_rls";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -19,8 +21,16 @@ function sha256(value) {
 
 export function verifySellerPayoutEventAuthorityRelease(
   rootDirectory = process.cwd(),
-  { allowReviewedActivationSuccessor = false } = {},
+  {
+    allowReviewedActivationSuccessor = false,
+    allowReviewedForceSuccessor = false,
+  } = {},
 ) {
+  if (allowReviewedForceSuccessor && !allowReviewedActivationSuccessor) {
+    throw new Error(
+      "SellerPayoutEvent FORCE successor requires the reviewed activation successor",
+    );
+  }
   const migrationDirectory = path.join(
     rootDirectory,
     "prisma/migrations",
@@ -51,9 +61,14 @@ export function verifySellerPayoutEventAuthorityRelease(
   );
   assert.deepEqual(
     later,
-    allowReviewedActivationSuccessor
-      ? [SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION]
-      : [],
+    allowReviewedForceSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+        ]
+      : allowReviewedActivationSuccessor
+        ? [SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION]
+        : [],
     "SellerPayoutEvent compatible authority has an unreviewed successor",
   );
 

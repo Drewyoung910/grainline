@@ -21,7 +21,10 @@ import {
   verifySellerPayoutEventActivationProductionScope,
 } from "../scripts/verify-seller-payout-event-activation-production-scope.mjs";
 
-const catalog = readSellerPayoutEventActivationMigrationCatalog();
+const catalog = readSellerPayoutEventActivationMigrationCatalog(
+  process.cwd(),
+  { allowReviewedForceSuccessor: true },
+);
 const activation = catalog.at(-1);
 
 const applied = (migration_name, checksum) => ({

@@ -26,6 +26,12 @@ import {
 import {
   SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
 } from "./stage-seller-payout-event-activation-migration.mjs";
+import {
+  SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+} from "./stage-seller-payout-event-force-migration.mjs";
+import {
+  verifySellerPayoutEventActivationRelease,
+} from "./verify-seller-payout-event-activation-release.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
   "checkout-stock-reservation-force-reviewed";
@@ -79,10 +85,19 @@ export function verifyCheckoutStockReservationForceRelease(
     "prisma/migrations",
     SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
   ));
+  const payoutForceSuccessorExists = fs.existsSync(path.join(
+    rootDirectory,
+    "prisma/migrations",
+    SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+  ));
   if (allowReviewedSuccessor && payoutSuccessorExists) {
-    verifySellerPayoutEventAuthorityRelease(rootDirectory, {
-      allowReviewedActivationSuccessor: payoutActivationSuccessorExists,
-    });
+    if (payoutActivationSuccessorExists) {
+      verifySellerPayoutEventActivationRelease(rootDirectory, {
+        allowReviewedForceSuccessor: payoutForceSuccessorExists,
+      });
+    } else {
+      verifySellerPayoutEventAuthorityRelease(rootDirectory);
+    }
   }
   const strictGuard = validateCurrentSavedSearchRlsDeployShape({
     phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
@@ -96,6 +111,9 @@ export function verifyCheckoutStockReservationForceRelease(
             ...(payoutActivationSuccessorExists
               ? [SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION]
               : []),
+            ...(payoutForceSuccessorExists
+              ? [SELLER_PAYOUT_EVENT_FORCE_MIGRATION]
+              : []),
           ]
         : [],
   });
@@ -103,7 +121,9 @@ export function verifyCheckoutStockReservationForceRelease(
     ? Object.freeze({
         phase: strictGuard.phase,
         sealedPrefix: true,
-        reviewedSuccessorMigration: payoutActivationSuccessorExists
+        reviewedSuccessorMigration: payoutForceSuccessorExists
+          ? SELLER_PAYOUT_EVENT_FORCE_MIGRATION
+          : payoutActivationSuccessorExists
           ? SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION
           : SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
       })
