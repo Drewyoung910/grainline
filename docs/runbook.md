@@ -591,10 +591,16 @@ SellerPayoutEvent guarded policyless activation:
   migration prefix are recorded in
   `docs/seller-payout-event-activation-release.md`.
 - The guarded workflow must verify and isolate that migration, verify the
-  sealed compatible-authority predecessor and older release chain, restore all
+  sealed compatible-authority predecessor, isolate that later authority
+  migration before invoking any older latest-migration seal, restore all
   successors in dependency order, and run
   `audit:rls-seller-payout-event-activation-production-scope` with stage
   `restart` before Prisma can write.
+- Preserve the exact restore order: CheckoutStockReservation source
+  consistency, activation and FORCE; SellerPayoutEvent authority; then
+  SellerPayoutEvent activation. Dispatch `32659750056` proved that verifying
+  the authority release without also hiding its migration makes the strict
+  CheckoutStockReservation FORCE tree guard fail closed before Prisma.
 - Restart accepts only the exact fully prepared or fully activated ledger. A
   partial, unknown, duplicate, unfinished, rolled-back, zero-step or
   checksum-drifting activation row must stop for separate inspection; never

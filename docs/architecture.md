@@ -160,11 +160,17 @@ three source-pinned fixed operations. Provider event time becomes required only
 after an exclusive-lock preflight proves every retained row has valid time and
 the converted application's current-credential predecessor is absent. The
 candidate and database-first rollback are byte-pinned and CI proves them with
-separate owner/runtime logins. Restart-safe guarded production wiring is
-prepared separately in
-`docs/seller-payout-event-activation-production-wiring.md`; its merge,
-production migration, actual pooled-runtime acceptance postflight and the later
-posture-only FORCE release remain separate boundaries.
+separate owner/runtime logins. Restart-safe guarded production wiring merged at
+exact main `af56bf99c4eac4366b6bcecbabaabd84992f0e62` with CI
+`32611954204`. Its first dispatch, `32659750056`, failed closed before Prisma
+because the later SellerPayoutEvent authority migration was not isolated from
+the older CheckoutStockReservation FORCE tree seal. The correction preserves
+the architectural dependency rule: every later migration is removed from
+Prisma discovery before a strict historical seal is invoked, then successors
+are restored oldest-to-newest. Production activation, the actual pooled-runtime
+acceptance postflight and the later posture-only FORCE release remain separate
+boundaries documented in
+`docs/seller-payout-event-activation-production-wiring.md`.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

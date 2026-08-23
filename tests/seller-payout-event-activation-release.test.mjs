@@ -307,11 +307,20 @@ test("guarded production wiring isolates predecessors and proves restart scope",
   const verifyAuthority = production.indexOf(
     "Verify sealed SellerPayoutEvent authority predecessor",
   );
+  const isolateAuthority = production.indexOf(
+    "Isolate the reviewed SellerPayoutEvent authority predecessor",
+  );
+  const verifyReservationForce = production.indexOf(
+    "Verify exact CheckoutStockReservation FORCE migration tree",
+  );
   const isolateReservationForce = production.indexOf(
     "Isolate the reviewed CheckoutStockReservation FORCE release",
   );
   const restoreReservationForce = production.indexOf(
     "Restore the reviewed CheckoutStockReservation FORCE release",
+  );
+  const restoreAuthority = production.indexOf(
+    "Restore the reviewed SellerPayoutEvent authority predecessor",
   );
   const restoreActivation = production.indexOf(
     "Restore the reviewed SellerPayoutEvent activation release",
@@ -333,9 +342,12 @@ test("guarded production wiring isolates predecessors and proves restart scope",
   assert.ok(verifyActivation >= 0 && verifyActivation < verifyRelease);
   assert.ok(verifyRelease < isolateActivation);
   assert.ok(isolateActivation < verifyAuthority);
-  assert.ok(verifyAuthority < isolateReservationForce);
+  assert.ok(verifyAuthority < isolateAuthority);
+  assert.ok(isolateAuthority < verifyReservationForce);
+  assert.ok(verifyReservationForce < isolateReservationForce);
   assert.ok(isolateReservationForce < restoreReservationForce);
-  assert.ok(restoreReservationForce < restoreActivation);
+  assert.ok(restoreReservationForce < restoreAuthority);
+  assert.ok(restoreAuthority < restoreActivation);
   assert.ok(restoreActivation < restartScope);
   assert.ok(restartScope < apply && apply < converge);
   assert.ok(converge < audit && audit < afterScope);
@@ -359,7 +371,7 @@ test("guarded production wiring isolates predecessors and proves restart scope",
 
 test("release record preserves the unapplied policyless boundary", () => {
   const normalized = releaseDocument.replace(/\s+/gu, " ");
-  assert.match(normalized, /isolated, unapplied activation candidate/u);
+  assert.match(normalized, /merged, unapplied activation candidate/u);
   assert.match(normalized, /exactly zero policies/u);
   assert.match(
     normalized,
@@ -385,12 +397,16 @@ test("release record preserves the unapplied policyless boundary", () => {
     /BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY/u,
   );
   const normalizedWiring = productionWiringDocument.replace(/\s+/gu, " ");
-  assert.match(normalizedWiring, /isolated, production-inert wiring candidate/u);
+  assert.match(
+    normalizedWiring,
+    /merged production wiring with a fail-closed predecessor-isolation correction pending/u,
+  );
   assert.match(
     normalizedWiring,
     /`restart` stage accepts exactly two complete states/u,
   );
   assert.match(normalizedWiring, /SellerPayoutEvent activation restored last/u);
+  assert.match(normalizedWiring, /32659750056/u);
   assert.match(normalizedWiring, /No workflow input selects a migration/u);
   assert.match(normalizedWiring, /FORCE remains a later, posture-only migration/u);
 });

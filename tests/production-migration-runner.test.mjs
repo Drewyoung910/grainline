@@ -210,6 +210,7 @@ describe("isolated production migration runner", () => {
       "Verify exact SellerPayoutEvent activation release",
       "Isolate the reviewed SellerPayoutEvent activation release",
       "Verify sealed SellerPayoutEvent authority predecessor",
+      "Isolate the reviewed SellerPayoutEvent authority predecessor",
       "Verify exact CheckoutStockReservation FORCE migration tree",
       "Verify exact CheckoutStockReservation FORCE release",
       "Isolate the reviewed CheckoutStockReservation FORCE release",
@@ -227,6 +228,7 @@ describe("isolated production migration runner", () => {
       "Restore the reviewed CheckoutStockReservation source-consistency successor",
       "Restore the reviewed CheckoutStockReservation activation",
       "Restore the reviewed CheckoutStockReservation FORCE release",
+      "Restore the reviewed SellerPayoutEvent authority predecessor",
       "Restore the reviewed SellerPayoutEvent activation release",
       "Inspect exact SellerPayoutEvent activation restart scope read-only",
       "Generate Prisma client",
@@ -239,6 +241,14 @@ describe("isolated production migration runner", () => {
     const indexes = orderedSteps.map((step) => workflow.indexOf(step));
     assert.ok(indexes.every((index) => index >= 0));
     assert.deepEqual(indexes, [...indexes].sort((left, right) => left - right));
+    assert.match(
+      workflow,
+      /Isolate the reviewed SellerPayoutEvent authority predecessor[\s\S]*?mv\s+prisma\/migrations\/20260815210000_prepare_seller_payout_event_authority\s+"\$RUNNER_TEMP\/seller-payout-event-authority-release"/u,
+    );
+    assert.match(
+      workflow,
+      /Restore the reviewed SellerPayoutEvent authority predecessor[\s\S]*?mv\s+"\$RUNNER_TEMP\/seller-payout-event-authority-release"\s+prisma\/migrations\/20260815210000_prepare_seller_payout_event_authority/u,
+    );
     assert.match(
       workflow,
       /SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-activation-reviewed/u,
