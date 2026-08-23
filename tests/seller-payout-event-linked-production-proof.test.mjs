@@ -23,8 +23,11 @@ test("linked payout proof keeps its production boundary explicit", () => {
   assert.match(plan, /e9239463a71860451191344b26dd20b45298f239/);
   assert.match(plan, /31927548800/);
   assert.match(plan, /dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h/);
-  assert.match(plan, /does not authorize those later migrations, grant changes/);
-  assert.match(plan, /RLS activation, FORCE, deployment or provider-configuration changes/);
+  assert.match(plan, /does not(?: itself)? authorize\s+those later migrations, grant changes/);
+  assert.match(
+    plan,
+    /RLS activation, FORCE, deployment or\s+provider-configuration changes/,
+  );
   assert.match(plan, /test-mode/);
   assert.match(plan, /no customer order, payment, refund or live-mode Stripe object/);
   assert.match(plan, /every existing seller remains non-disposable/);

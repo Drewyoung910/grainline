@@ -37,8 +37,8 @@ test("classifies activation gates and deferred product work explicitly", () => {
     "FIX_BEFORE_ACTIVATION",
     "DEFERRED_PRODUCT_WORK",
   ]) assert.match(audit, new RegExp(findingClass));
-  assert.match(audit, /GO for isolated compatible preparation only/);
-  assert.match(audit, /NO-GO for RLS activation/);
+  assert.match(audit, /GO for isolated\s+policyless activation preparation only/);
+  assert.match(audit, /NO-GO for production RLS\s+activation/);
   assert.match(audit, /linked-seller signed test-mode/);
   assert.match(audit, /live-mode Stripe proof remains a launch gate/);
   assert.match(audit, /staff payout tooling is intentionally absent/);

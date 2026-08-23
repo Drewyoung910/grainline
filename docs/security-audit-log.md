@@ -1959,3 +1959,28 @@ Open work:
 - Exact removal remains a separate destructive execution boundary. Only
   accepted drain evidence may unblock preparation of the policyless ENABLE and
   direct-grant-revocation release; FORCE remains separate after that.
+
+## SellerPayoutEvent predecessor drain completed (2026-08-22)
+
+- Exact main `9947a9e485a686dc801befcdea285cddc5b3aff7` and CI `32583228592`
+  passed the fresh read-only preflight with zero direct SellerPayoutEvent access
+  in both the deployed and operator trees and exactly one current-credential
+  predecessor.
+- The restart-safe operator permanently removed only deployment
+  `dpl_AGN7CU9du5Ln1EsUxHqJUopdDEsw`. Its first invocation stopped after the
+  removal and before evidence finalization, leaving the expected mode-`0600`
+  `removal-authorized` state. Exact inspection proved the target absent; the
+  same exact invocation resumed without another removal and completed the
+  post-removal proof.
+- Current deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h` remained READY on all
+  four canonical aliases and `https://thegrainline.com/api/health` remained
+  exactly `{ "ok": true }`. Shared-current-credential predecessors converged
+  from one to zero.
+- Sanitized mode-`0600` evidence SHA-256 is
+  `3bb83df87df2cf2571df53ef0021e73886eca5d57140e0e8bc929eac4e2b61b1`; the
+  restart state is absent. No deployment was created, and no database,
+  credential, Stripe, migration, RLS, grant or provider-configuration state
+  changed.
+- This evidence unblocks preparation only of the separate policyless ENABLE
+  plus direct-grant-revocation release. It does not authorize that migration or
+  the later posture-only FORCE release.
