@@ -441,15 +441,20 @@ policyless activation, converged grants, and passed migration status, global
 grant/RLS audit, and exact scope. The distinct pooled-runtime read-only
 postflight passed with sanitized evidence SHA-256
 `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de` and
-records no production mutation. SellerPayoutEvent Phase A is accepted. Prepare
-its posture-only FORCE successor as a separate release; an isolated,
-byte-pinned candidate now exists but is not merged or applied. Do not bundle the
-remaining Order/payment/shipping tables, each of which still requires its own
-fresh domain audit. Retain
+records no production mutation. SellerPayoutEvent Phase A is accepted. Its
+posture-only FORCE successor was applied from exact main
+`0eb360b9878698f45288ac3c1649871de9a8a33c`, CI `32672008187`, by guarded run
+`32672434812`; that run applied only the reviewed migration and passed
+migration status, the global audit and exact FORCE scope. The catalog is FORCE,
+but final acceptance remains pending the distinct actual pooled-runtime FORCE
+postflight and fresh retained evidence. Do not reuse Phase-A evidence. After
+that closure, begin the next remaining Order/payment/shipping table with its own
+fresh domain audit; do not bundle the tables. Retain
 `docs/seller-payout-event-activation-release.md` and
 `docs/seller-payout-event-activation-production-wiring.md` as the accepted
 Phase-A release records, and
-`docs/seller-payout-event-force-release.md` as candidate-only planning.
+`docs/seller-payout-event-force-release.md` as the FORCE execution and
+acceptance record.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

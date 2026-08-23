@@ -1,8 +1,9 @@
 # SellerPayoutEvent FORCE RLS release
 
-Status: isolated candidate only. Nothing in this document authorizes merge,
-production migration, deployment, provider mutation, or a claim that FORCE is
-live. Production remains Phase A.
+Status: FORCE applied in production; final pooled-runtime acceptance pending.
+Nothing in this document authorizes deployment or provider mutation. Do not
+claim the FORCE release fully accepted until the distinct actual pooled-runtime
+postflight passes and its sanitized evidence is retained.
 
 Date: 2026-08-23
 
@@ -70,10 +71,30 @@ The guarded production workflow accepts only the exact prepared or already
 FORCE-applied restart state, retains all three reviewed historical Prisma
 ledger exceptions, applies only the byte-pinned successor, converges grants,
 and runs migration status, the global grant/RLS audit and exact after-scope
-proof. Production execution remains a separate boundary after merge and
-exact-main CI.
+proof.
 
-## Candidate validation
+Exact main `0eb360b9878698f45288ac3c1649871de9a8a33c` passed CI run
+`32672008187`. Guarded Production Migrations run `32672434812` applied only
+`20260823220000_force_seller_payout_event_rls`, converged the reviewed grants,
+and passed migration status, the global grant/RLS audit and exact FORCE scope.
+No application deployment or provider state changed.
+
+The release review then found that the merged package lacked the separately
+invokable actual pooled-runtime FORCE postflight. The Phase-A postflight and
+its evidence are deliberately not reusable because they require `NO FORCE`.
+The production catalog is FORCE-hardened, but final acceptance remains withheld
+until the distinct command below lands on an exact main commit, that commit's
+CI passes, and the command succeeds through pooled `grainline_app_runtime`:
+
+`SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_CONFIRM=verify-production-seller-payout-event-force-runtime-read-only SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT=<exact-main-with-postflight-package> SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-exact-main-ci> SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID=32672434812 SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH="seller-payout-event-force-production-postflight-<exact-main-with-postflight-package>.json" npm run ops:seller-payout-event-force-postflight`
+
+That command is engine-enforced repeatable-read/read-only, rejects owner,
+direct and aliased database URLs, binds the exact clean source and migration
+run, requires policyless ENABLE plus FORCE, proves direct denial and the exact
+three-function catalog, and writes a fresh mode-`0600` artifact. It must not
+change production.
+
+## Validation
 
 Local validation on 2026-08-23 completed with:
 

@@ -2182,3 +2182,39 @@ Open work:
   `docs/seller-payout-event-force-release.md`.
 - Production remains at SellerPayoutEvent Phase A. Merge, exact-main CI and a
   guarded production migration remain separate boundaries.
+
+## SellerPayoutEvent FORCE applied; runtime acceptance pending (2026-08-23)
+
+- Phase-A production record PR #245 merged at
+  `f579693a0303cca955fa25307605585ed7bb8d22`; exact-main CI `32671503232`
+  passed. FORCE release PR #246 then merged at exact main
+  `0eb360b9878698f45288ac3c1649871de9a8a33c`; exact-main CI `32672008187`
+  passed the byte seals, disposable PostgreSQL owner/runtime FORCE proof,
+  rollback/restoration, full tests, TypeScript, lint, dependency audit and
+  production build.
+- Guarded Production Migrations run `32672434812` applied only
+  `20260823220000_force_seller_payout_event_rls`, converged the reviewed
+  grants, and passed migration status, the global grant/RLS audit and exact
+  FORCE scope. No deployment or provider state changed.
+- Immediate release-closure review found a real packaging gap: the runbook
+  required a separate actual pooled-runtime FORCE postflight, but the merged
+  package exposed only the Phase-A postflight, which correctly expects
+  `NO FORCE`. The production FORCE posture and owner-side proof remain sound;
+  final FORCE acceptance is withheld until a distinct runtime proof passes.
+- Isolated branch `agent/seller-payout-force-postflight-20260823` adds a
+  fail-closed `--post-force` mode, FORCE-only confirmation and environment
+  namespace, distinct fresh evidence filename, exact migration-run binding,
+  package command and regression coverage. It reuses the already-proven
+  read-only runtime path while requiring the catalog's FORCE bit. The accepted
+  Phase-A evidence cannot satisfy this contract. CI also invokes that exact
+  FORCE branch through a separate direct restricted-runtime login after FORCE
+  is applied in disposable PostgreSQL. Focused tests passed 7/7 before the
+  documentation pass. PR CI `32673349223` then passed every migration and
+  PostgreSQL proof—including the new direct-runtime FORCE postflight—plus
+  TypeScript and lint, before the full suite found two stale source/document
+  assertions: one required the old two-argument catalog call and one required
+  the FORCE release to remain candidate-only. No behavior or database proof
+  failed. Both contracts now assert the mode-aware call and exact applied-but-
+  pending-runtime-acceptance state; the expanded focused set passes 41/41.
+  Merge, replacement exact-head CI, live read-only proof and final evidence
+  retention remain separate gates.

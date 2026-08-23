@@ -26,12 +26,18 @@ test("SellerPayoutEvent Phase-A records retain the exact accepted evidence", () 
   }
 });
 
-test("SellerPayoutEvent remains Phase A until its separate FORCE release", () => {
-  assert.match(matrix, /`SellerPayoutEvent` \| `RLS_LIVE_PHASE_A`/u);
-  assert.match(architecture, /policyless Phase A \(`ENABLE`, explicitly `NO FORCE`\)/u);
+test("SellerPayoutEvent retains Phase A proof while FORCE acceptance is pending", () => {
+  assert.match(
+    matrix,
+    /`SellerPayoutEvent` \| `RLS_LIVE_FORCE_PENDING_POSTFLIGHT`/u,
+  );
+  assert.match(architecture, /SellerPayoutEvent Phase A remains accepted/u);
   assert.match(release, /Status: accepted production policyless Phase A/u);
   assert.match(wiring, /Status: accepted production Phase A/u);
-  assert.match(strategy, /Prepare[\s\S]*posture-only FORCE successor as a separate release/u);
+  assert.match(
+    strategy,
+    /posture-only FORCE successor was applied[\s\S]*final acceptance remains pending/u,
+  );
   assert.match(audit, /SellerPayoutEvent policyless Phase A accepted in production/u);
   assert.doesNotMatch(matrix, /`SellerPayoutEvent` \| `RLS_LIVE_FORCE`/u);
 });

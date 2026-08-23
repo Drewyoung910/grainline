@@ -37,11 +37,13 @@ Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, and `SellerPayoutEvent`.
-Twelve tables have production RLS: the first eleven are
-`FORCE ROW LEVEL SECURITY` hardened, while `SellerPayoutEvent` is accepted at
-policyless Phase A (`ENABLE`, explicitly `NO FORCE`) pending its separate
-posture-only FORCE release. The FORCE release now exists only as an isolated,
-byte-pinned candidate; it does not change the production count or posture.
+Twelve tables have production RLS and all twelve currently have
+`FORCE ROW LEVEL SECURITY` set in the production catalog. Eleven have complete
+retained FORCE acceptance. `SellerPayoutEvent` FORCE was applied by guarded run
+`32672434812`; its owner-side migration/global/scope proofs passed, while its
+distinct actual pooled-runtime FORCE postflight remains the final acceptance
+gate. Until that evidence is retained, its matrix state is
+`RLS_LIVE_FORCE_PENDING_POSTFLIGHT`, not completed `RLS_LIVE_FORCE`.
 DirectUpload,
 StripeWebhookEvent, the Case family, and
 CheckoutStockReservation intentionally use
@@ -177,8 +179,15 @@ scope. The separate actual pooled-runtime acceptance postflight passed inside
 an engine-attested repeatable-read/read-only transaction and records no
 production mutation. Its sanitized mode-`0600` evidence SHA-256 is
 `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`.
-SellerPayoutEvent Phase A is therefore accepted; only the separate
-posture-only FORCE release remains for this table. See
+SellerPayoutEvent Phase A remains accepted. Exact main
+`0eb360b9878698f45288ac3c1649871de9a8a33c` passed CI `32672008187`, and
+guarded run `32672434812` applied only the separate posture-only FORCE
+migration, converged grants, and passed migration status, the global audit and
+exact FORCE scope. The catalog is therefore FORCE-hardened. Final FORCE
+acceptance is deliberately withheld because the merged release lacked the
+distinct actual pooled-runtime FORCE postflight package. That package uses a
+separate `--post-force` mode, confirmation and evidence namespace; the accepted
+Phase-A artifact cannot be reused. See
 `docs/seller-payout-event-activation-production-wiring.md` and
 `docs/seller-payout-event-force-release.md`.
 

@@ -54,6 +54,8 @@ test("payout activation postflight accepts only the reviewed runtime contract", 
   );
   const parsed = parseWithReviewedIdentity(environment(directory));
   assert.equal(parsed.releaseCommit, RELEASE_COMMIT);
+  assert.equal(parsed.operation, "seller-payout-event-activation-production-postflight");
+  assert.equal(parsed.rlsForced, false);
   assert.equal(parsed.runtimeIdentity, REVIEWED_PRODUCTION_RUNTIME_IDENTITY);
 
   assert.throws(
