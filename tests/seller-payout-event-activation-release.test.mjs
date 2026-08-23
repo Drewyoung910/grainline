@@ -61,7 +61,9 @@ const productionWiringDocument = fs.readFileSync(
 
 test("release pins one policyless SellerPayoutEvent activation", () => {
   const candidate = buildSellerPayoutEventActivationCandidate();
-  const release = verifySellerPayoutEventActivationRelease();
+  const release = verifySellerPayoutEventActivationRelease(undefined, {
+    allowReviewedForceSuccessor: true,
+  });
   assert.equal(release.phase, SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE);
   assert.equal(release.draftSha256, SELLER_PAYOUT_EVENT_ACTIVATION_DRAFT_SHA256);
   assert.equal(release.migrationSha256, candidate.migrationSha256);
@@ -224,6 +226,7 @@ test("engine proofs require separate loopback owner and runtime logins", () => {
 test("compatible authority verifier accepts only the exact reviewed successor", () => {
   const result = verifySellerPayoutEventAuthorityRelease(process.cwd(), {
     allowReviewedActivationSuccessor: true,
+    allowReviewedForceSuccessor: true,
   });
   assert.equal(result.runtimeFunctions, 3);
   assert.throws(
@@ -325,18 +328,21 @@ test("guarded production wiring isolates predecessors and proves restart scope",
   const restoreActivation = production.indexOf(
     "Restore the reviewed SellerPayoutEvent activation release",
   );
+  const restoreForce = production.indexOf(
+    "Restore the reviewed SellerPayoutEvent FORCE release",
+  );
   const restartScope = production.indexOf(
-    "Inspect exact SellerPayoutEvent activation restart scope read-only",
+    "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
   );
   const apply = production.indexOf("Apply production migrations");
   const converge = production.indexOf(
-    "Converge exact activated SellerPayoutEvent runtime grants",
+    "Converge exact FORCE-hardened SellerPayoutEvent runtime grants",
   );
   const audit = production.indexOf(
     "Audit final runtime grants and RLS catalog",
   );
   const afterScope = production.indexOf(
-    "Prove exact SellerPayoutEvent activation production scope",
+    "Prove exact SellerPayoutEvent FORCE production scope",
   );
 
   assert.ok(verifyActivation >= 0 && verifyActivation < verifyRelease);
@@ -348,7 +354,7 @@ test("guarded production wiring isolates predecessors and proves restart scope",
   assert.ok(isolateReservationForce < restoreReservationForce);
   assert.ok(restoreReservationForce < restoreAuthority);
   assert.ok(restoreAuthority < restoreActivation);
-  assert.ok(restoreActivation < restartScope);
+  assert.ok(restoreActivation < restoreForce && restoreForce < restartScope);
   assert.ok(restartScope < apply && apply < converge);
   assert.ok(converge < audit && audit < afterScope);
   assert.match(
@@ -361,11 +367,11 @@ test("guarded production wiring isolates predecessors and proves restart scope",
   );
   assert.match(
     production,
-    /SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: restart/u,
+    /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: restart/u,
   );
   assert.match(
     production,
-    /SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: after/u,
+    /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after/u,
   );
 });
 

@@ -45,6 +45,17 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify exact SellerPayoutEvent FORCE migration tree
+        run: npm run verify:rls-release-artifact
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-force-reviewed
+      - name: Verify exact SellerPayoutEvent FORCE release
+        run: npm run audit:rls-seller-payout-event-force-release
+      - name: Isolate the reviewed SellerPayoutEvent FORCE release
+        run: >-
+          mv
+          prisma/migrations/20260823220000_force_seller_payout_event_rls
+          "$RUNNER_TEMP/seller-payout-event-force-release"
       - name: Verify exact SellerPayoutEvent activation migration tree
         run: npm run verify:rls-release-artifact
         env:
@@ -147,10 +158,15 @@ jobs:
           mv
           "$RUNNER_TEMP/seller-payout-event-activation-release"
           prisma/migrations/20260822180000_enable_seller_payout_event_rls
-      - name: Inspect exact SellerPayoutEvent activation restart scope read-only
-        run: npm run audit:rls-seller-payout-event-activation-production-scope
+      - name: Restore the reviewed SellerPayoutEvent FORCE release
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-payout-event-force-release"
+          prisma/migrations/20260823220000_force_seller_payout_event_rls
+      - name: Inspect exact SellerPayoutEvent FORCE restart scope read-only
+        run: npm run audit:rls-seller-payout-event-force-production-scope
         env:
-          SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: restart
+          SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: restart
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Generate Prisma client
         run: npx prisma generate
@@ -158,7 +174,7 @@ jobs:
         run: npx prisma migrate deploy
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Converge exact activated SellerPayoutEvent runtime grants
+      - name: Converge exact FORCE-hardened SellerPayoutEvent runtime grants
         run: >-
           psql "$DIRECT_URL"
           -v runtime_role=grainline_app_runtime
@@ -175,8 +191,8 @@ jobs:
         run: npm run audit:db-grants -- --require-direct-url
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Prove exact SellerPayoutEvent activation production scope
-        run: npm run audit:rls-seller-payout-event-activation-production-scope
+      - name: Prove exact SellerPayoutEvent FORCE production scope
+        run: npm run audit:rls-seller-payout-event-force-production-scope
         env:
-          SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: after
+          SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

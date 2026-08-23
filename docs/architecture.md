@@ -40,7 +40,9 @@ Grainline uses database-level Row Level Security for `SavedSearch`,
 Twelve tables have production RLS: the first eleven are
 `FORCE ROW LEVEL SECURITY` hardened, while `SellerPayoutEvent` is accepted at
 policyless Phase A (`ENABLE`, explicitly `NO FORCE`) pending its separate
-posture-only FORCE release. DirectUpload,
+posture-only FORCE release. The FORCE release now exists only as an isolated,
+byte-pinned candidate; it does not change the production count or posture.
+DirectUpload,
 StripeWebhookEvent, the Case family, and
 CheckoutStockReservation intentionally use
 policyless RLS with no direct ordinary-runtime table or column authority: all
@@ -177,7 +179,8 @@ production mutation. Its sanitized mode-`0600` evidence SHA-256 is
 `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`.
 SellerPayoutEvent Phase A is therefore accepted; only the separate
 posture-only FORCE release remains for this table. See
-`docs/seller-payout-event-activation-production-wiring.md`.
+`docs/seller-payout-event-activation-production-wiring.md` and
+`docs/seller-payout-event-force-release.md`.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

@@ -36,6 +36,8 @@ import {
   SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
   SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
   SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION_TREE_SHA256,
+  SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+  SELLER_PAYOUT_EVENT_FORCE_MIGRATION_TREE_SHA256,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION,
   CASE_RESOLUTION_CLAIM_PREPARATION_MIGRATION_TREE_SHA256,
   CASE_STRIPE_DISPUTE_AUTHORITY_MIGRATION,
@@ -218,6 +220,8 @@ const REVIEWED_CHECKOUT_STOCK_RESERVATION_FORCE =
   "checkout-stock-reservation-force-reviewed";
 const REVIEWED_SELLER_PAYOUT_EVENT_ACTIVATION =
   "seller-payout-event-activation-reviewed";
+const REVIEWED_SELLER_PAYOUT_EVENT_FORCE =
+  "seller-payout-event-force-reviewed";
 const CHECKOUT_STOCK_RESERVATION_PROVIDER_PROOF_BRANCH =
   "agent/checkout-stock-reservation-provider-proof-20260813";
 const PREVIEW_MIDDLEWARE_EXEMPTION_LINES = Object.freeze([
@@ -342,6 +346,8 @@ function validate(
         CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATION_TREE_SHA256,
       [REVIEWED_SELLER_PAYOUT_EVENT_ACTIVATION]:
         SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION_TREE_SHA256,
+      [REVIEWED_SELLER_PAYOUT_EVENT_FORCE]:
+        SELLER_PAYOUT_EVENT_FORCE_MIGRATION_TREE_SHA256,
     }[phase],
     middlewareSource = REVIEWED_PRODUCTION_MIDDLEWARE_SOURCE,
     prismaConfigSha256 = REVIEWED_PRISMA_CONFIG_SHA256,
@@ -422,6 +428,7 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     // the current checkout.
     SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
     SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+    SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [
@@ -612,6 +619,10 @@ const REVIEWED_SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATIONS = [
   SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
   SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
 ].sort((a, b) => a.localeCompare(b));
+const REVIEWED_SELLER_PAYOUT_EVENT_FORCE_MIGRATIONS = [
+  ...REVIEWED_SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATIONS,
+  SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+].sort((a, b) => a.localeCompare(b));
 
 function migrationsFor(phase) {
   return {
@@ -702,6 +713,8 @@ function migrationsFor(phase) {
       REVIEWED_CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATIONS,
     [REVIEWED_SELLER_PAYOUT_EVENT_ACTIVATION]:
       REVIEWED_SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATIONS,
+    [REVIEWED_SELLER_PAYOUT_EVENT_FORCE]:
+      REVIEWED_SELLER_PAYOUT_EVENT_FORCE_MIGRATIONS,
   }[phase];
 }
 
@@ -2719,6 +2732,37 @@ describe("SavedSearch RLS production deploy guard", () => {
     }
   });
 
+  it("allows only the exact posture-only SellerPayoutEvent FORCE successor", () => {
+    assert.deepEqual(
+      validate(
+        REVIEWED_SELLER_PAYOUT_EVENT_FORCE,
+        REVIEWED_SELLER_PAYOUT_EVENT_FORCE_MIGRATIONS,
+      ),
+      {
+        phase: REVIEWED_SELLER_PAYOUT_EVENT_FORCE,
+        hasCheckoutStockReservationForceMigration: true,
+        hasSellerPayoutEventAuthorityMigration: true,
+        hasSellerPayoutEventActivationMigration: true,
+        hasSellerPayoutEventForceMigration: true,
+      },
+    );
+    for (const migration of [
+      CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATION,
+      SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
+      SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+      SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+    ]) {
+      assert.throws(
+        () => validate(
+          REVIEWED_SELLER_PAYOUT_EVENT_FORCE,
+          REVIEWED_SELLER_PAYOUT_EVENT_FORCE_MIGRATIONS
+            .filter((name) => name !== migration),
+        ),
+        /requires the completed CheckoutStockReservation FORCE boundary, the compatible SellerPayoutEvent authority migration, policyless activation, and reviewed posture-only FORCE migration/u,
+      );
+    }
+  });
+
   for (const phase of [
     RELEASE_ZERO,
     REVIEWED_PHASE_A,
@@ -2766,6 +2810,7 @@ describe("SavedSearch RLS production deploy guard", () => {
     REVIEWED_CHECKOUT_STOCK_RESERVATION_ACTIVATION,
     REVIEWED_CHECKOUT_STOCK_RESERVATION_FORCE,
     REVIEWED_SELLER_PAYOUT_EVENT_ACTIVATION,
+    REVIEWED_SELLER_PAYOUT_EVENT_FORCE,
   ]) {
     it(`rejects ${phase} when the internal context-gate route remains`, () => {
       assert.throws(
@@ -3320,6 +3365,18 @@ describe("SavedSearch RLS production deploy guard", () => {
       ),
       /review or retire the temporary SavedSearch deploy guard/,
     );
+    const laterSellerPayoutEventForceMigration =
+      "20260823220001_unreviewed_after_seller_payout_event_force";
+    assert.throws(
+      () => validate(
+        REVIEWED_SELLER_PAYOUT_EVENT_FORCE,
+        [
+          ...REVIEWED_SELLER_PAYOUT_EVENT_FORCE_MIGRATIONS,
+          laterSellerPayoutEventForceMigration,
+        ],
+      ),
+      /review or retire the temporary SavedSearch deploy guard/,
+    );
   });
 
   it("pins the exact reviewed migration inventory and SQL contents", () => {
@@ -3628,6 +3685,20 @@ describe("SavedSearch RLS production deploy guard", () => {
         REVIEWED_CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATIONS,
       ),
       CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATIONS,
+      ),
+      SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION_TREE_SHA256,
+    );
+    assert.equal(
+      computeMigrationTreeSha256(
+        "prisma/migrations",
+        REVIEWED_SELLER_PAYOUT_EVENT_FORCE_MIGRATIONS,
+      ),
+      SELLER_PAYOUT_EVENT_FORCE_MIGRATION_TREE_SHA256,
     );
 
     assert.throws(

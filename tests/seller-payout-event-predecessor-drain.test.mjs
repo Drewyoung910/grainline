@@ -320,6 +320,6 @@ test("documentation and CI preserve the accepted predecessor boundary", () => {
   assert.match(architecture, /removed the sole\s+current-credential predecessor/);
   assert.match(
     matrix,
-    /Prepare the separate posture-only FORCE release next/,
+    /A separate posture-only FORCE candidate is isolated and unapplied/,
   );
 });

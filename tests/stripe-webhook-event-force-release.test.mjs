@@ -279,12 +279,12 @@ test("CI and production workflows isolate and prove FORCE after Phase A", () => 
   assert.ok(
     production.indexOf("npx prisma migrate deploy")
       < production.indexOf(
-        "Prove exact SellerPayoutEvent activation production scope",
+        "Prove exact SellerPayoutEvent FORCE production scope",
       ),
   );
   assert.match(
     production,
-    /Prove exact SellerPayoutEvent activation production scope[\s\S]{0,180}audit:rls-seller-payout-event-activation-production-scope/,
+    /Prove exact SellerPayoutEvent FORCE production scope[\s\S]{0,180}audit:rls-seller-payout-event-force-production-scope/,
   );
   assert.match(
     releaseDocument,

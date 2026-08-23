@@ -20,7 +20,9 @@ import {
   readSellerPayoutEventActivationMigrationCatalog,
 } from "../scripts/verify-seller-payout-event-activation-production-scope.mjs";
 
-const CATALOG = readSellerPayoutEventActivationMigrationCatalog();
+const CATALOG = readSellerPayoutEventActivationMigrationCatalog(process.cwd(), {
+  allowReviewedForceSuccessor: true,
+});
 
 async function createLedger() {
   const database = new PGlite();

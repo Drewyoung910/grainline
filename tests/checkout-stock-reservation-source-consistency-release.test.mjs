@@ -191,16 +191,19 @@ test("production wiring preserves source consistency as the sealed activation pr
   const restorePayoutActivation = workflow.indexOf(
     "Restore the reviewed SellerPayoutEvent activation release",
   );
+  const restorePayoutForce = workflow.indexOf(
+    "Restore the reviewed SellerPayoutEvent FORCE release",
+  );
   const restartScope = workflow.indexOf(
-    "Inspect exact SellerPayoutEvent activation restart scope read-only",
+    "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
   );
   const apply = workflow.indexOf("Apply production migrations");
   const converge = workflow.indexOf(
-    "Converge exact activated SellerPayoutEvent runtime grants",
+    "Converge exact FORCE-hardened SellerPayoutEvent runtime grants",
   );
   const status = workflow.indexOf("Verify production migration status");
   const finalScope = workflow.indexOf(
-    "Prove exact SellerPayoutEvent activation production scope",
+    "Prove exact SellerPayoutEvent FORCE production scope",
   );
   assert.ok(isolateActivation >= 0);
   assert.ok(isolateActivation < verifySource);
@@ -210,7 +213,8 @@ test("production wiring preserves source consistency as the sealed activation pr
   assert.ok(restoreSource < restoreActivation);
   assert.ok(restoreActivation < restoreForce);
   assert.ok(restoreForce < restorePayoutActivation);
-  assert.ok(restorePayoutActivation < restartScope);
+  assert.ok(restorePayoutActivation < restorePayoutForce);
+  assert.ok(restorePayoutForce < restartScope);
   assert.ok(restartScope < apply);
   assert.ok(apply < converge);
   assert.ok(converge < status);

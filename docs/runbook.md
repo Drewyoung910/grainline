@@ -641,6 +641,24 @@ SellerPayoutEvent RLS activation postflight:
   `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`;
   do not reuse it for the later FORCE proof.
 
+SellerPayoutEvent FORCE candidate:
+
+- The only reviewed candidate is
+  `20260823220000_force_seller_payout_event_rls`, phase
+  `seller-payout-event-force-reviewed`. Exact draft, migration, rollback and
+  tree hashes live in `docs/seller-payout-event-force-release.md`.
+- CI and Production Migrations must verify FORCE first, isolate it before all
+  historical SellerPayoutEvent and CheckoutStockReservation seals, then
+  restore it only after the complete Phase-A proof passes.
+- The restart scope accepts only the exact Phase-A ledger or the exact applied
+  FORCE successor. Every unknown, duplicate, unfinished, rolled-back,
+  zero-step or checksum-drifting FORCE row fails closed.
+- After application require migration status, the global grant/RLS audit,
+  exact after-scope proof, a separate actual pooled-runtime read-only
+  postflight, and retained sanitized evidence. Never reuse the Phase-A
+  postflight evidence. Production remains Phase A until all of those steps
+  actually complete.
+
 StripeWebhookEvent FORCE postflight:
 
 - Run only after the separate byte-pinned FORCE migration succeeds from an

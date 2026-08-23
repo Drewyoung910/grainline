@@ -2165,3 +2165,20 @@ Open work:
   FORCE successor remains a separate release with fresh proof. The remaining
   `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, and `OrderItem`
   domains remain separate audits and releases.
+
+## SellerPayoutEvent FORCE isolated candidate (2026-08-23)
+
+- Prepared one posture-only migration,
+  `20260823220000_force_seller_payout_event_rls`, from a byte-pinned draft.
+  It changes only `relforcerowsecurity`; no row, policy, grant, function,
+  application, deployment, credential or provider state is changed.
+- The migration revalidates the accepted Phase-A table and three-function
+  catalog, restricted role graph, owner identity and owner-session drain before
+  setting FORCE. It retains zero policies and zero direct runtime/PUBLIC table
+  or column authority.
+- Static release, historical sealed-prefix, restart-scope, direct-runtime and
+  database-first rollback/restoration proofs are wired on an isolated branch.
+  Exact hashes and the production sequence are retained in
+  `docs/seller-payout-event-force-release.md`.
+- Production remains at SellerPayoutEvent Phase A. Merge, exact-main CI and a
+  guarded production migration remain separate boundaries.

@@ -162,6 +162,7 @@ async function seedFixtures(owner) {
 export async function proveSellerPayoutEventActivatedCatalog(
   owner,
   expectedOwner = OWNER_ROLE,
+  expectedForced = false,
 ) {
   const table = await owner.query(`
     SELECT
@@ -241,7 +242,7 @@ export async function proveSellerPayoutEventActivatedCatalog(
   `, [RUNTIME_ROLE]);
   assert.deepEqual(table.rows, [{
     rls_enabled: true,
-    rls_forced: false,
+    rls_forced: expectedForced,
     owner_name: expectedOwner,
     policy_count: 0,
     runtime_table_authority: false,

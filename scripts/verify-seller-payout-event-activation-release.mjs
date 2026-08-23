@@ -14,6 +14,9 @@ import {
   buildSellerPayoutEventActivationCandidate,
 } from "./stage-seller-payout-event-activation-migration.mjs";
 import {
+  SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+} from "./stage-seller-payout-event-force-migration.mjs";
+import {
   verifySellerPayoutEventAuthorityRelease,
 } from "./verify-seller-payout-event-authority-release.mjs";
 
@@ -28,9 +31,11 @@ function sha256(value) {
 
 export function verifySellerPayoutEventActivationRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedForceSuccessor = false } = {},
 ) {
   verifySellerPayoutEventAuthorityRelease(rootDirectory, {
     allowReviewedActivationSuccessor: true,
+    allowReviewedForceSuccessor,
   });
   const candidate = buildSellerPayoutEventActivationCandidate(rootDirectory);
   const migrationDirectory = path.join(rootDirectory, "prisma/migrations");
@@ -93,6 +98,9 @@ export function verifySellerPayoutEventActivationRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE,
     rootDirectory,
+    omittedReviewedMigrationNames: allowReviewedForceSuccessor
+      ? [SELLER_PAYOUT_EVENT_FORCE_MIGRATION]
+      : [],
   });
   return Object.freeze({
     phase: SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE,
@@ -109,17 +117,41 @@ export function verifySellerPayoutEventActivationRelease(
     runtimeTablePrivileges: 0,
     providerEventTimeNotNull: true,
     rowDataChanged: false,
-    guard,
+    guard: allowReviewedForceSuccessor
+      ? Object.freeze({
+          phase: guard.phase,
+          sealedPrefix: true,
+          reviewedSuccessorMigration: SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+        })
+      : guard,
   });
+}
+
+function main() {
+  const modes = process.argv.slice(2);
+  const mode = modes[0];
+  if (
+    modes.length > 1
+    || (mode !== undefined && mode !== "--allow-reviewed-force-successor")
+  ) {
+    throw new Error(
+      "usage: verify-seller-payout-event-activation-release.mjs "
+      + "[--allow-reviewed-force-successor]",
+    );
+  }
+  process.stdout.write(`${JSON.stringify(
+    verifySellerPayoutEventActivationRelease(undefined, {
+      allowReviewedForceSuccessor:
+        mode === "--allow-reviewed-force-successor",
+    }),
+    null,
+    2,
+  )}\n`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    process.stdout.write(`${JSON.stringify(
-      verifySellerPayoutEventActivationRelease(),
-      null,
-      2,
-    )}\n`);
+    main();
   } catch (error) {
     process.stderr.write(
       `SellerPayoutEvent activation release verification failed closed: ${

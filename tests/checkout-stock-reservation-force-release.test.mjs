@@ -64,7 +64,7 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260822180000_enable_seller_payout_event_rls",
+    "20260823220000_force_seller_payout_event_rls",
   );
   assert.throws(
     () => verifyCheckoutStockReservationForceRelease(),
@@ -110,7 +110,7 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260822180000_enable_seller_payout_event_rls",
+    "20260823220000_force_seller_payout_event_rls",
   );
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {
@@ -268,14 +268,14 @@ test("CI proves FORCE after Phase A and production wiring preserves the same ord
     "Restore the reviewed CheckoutStockReservation FORCE release",
   );
   const successorRestore = production.indexOf(
-    "Restore the reviewed SellerPayoutEvent activation release",
+    "Restore the reviewed SellerPayoutEvent FORCE release",
   );
   const successorRestart = production.indexOf(
-    "Inspect exact SellerPayoutEvent activation restart scope read-only",
+    "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
   );
   const productionApply = production.indexOf("Apply production migrations");
   const successorAfter = production.indexOf(
-    "Prove exact SellerPayoutEvent activation production scope",
+    "Prove exact SellerPayoutEvent FORCE production scope",
   );
   assert.ok(productionVerify >= 0 && productionVerify < productionIsolate);
   assert.ok(productionIsolate < productionRestore);
@@ -287,7 +287,7 @@ test("CI proves FORCE after Phase A and production wiring preserves the same ord
   assert.match(production, /20260815060001_force_checkout_stock_reservation_rls/u);
   assert.match(
     production,
-    /audit:rls-seller-payout-event-activation-production-scope/u,
+    /audit:rls-seller-payout-event-force-production-scope/u,
   );
 });
 
