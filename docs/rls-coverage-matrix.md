@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-15
+Last updated: 2026-08-22
 
 ## Purpose And Scope
 
@@ -40,6 +40,10 @@ when its future authority implications and closure criteria are recorded.
 - `COMPATIBLE_PREPARATION_LIVE`: reviewed fixed-operation authority is live,
   while RLS remains off and predecessor direct grants are retained only for a
   separately drained compatibility window.
+- `ACTIVATION_RELEASE_MERGED_UNAPPLIED`: the reviewed activation migration and
+  proof package are merged and CI-proven, but production still has the prior
+  posture because the guarded migration and pooled-runtime postflight have not
+  run.
 - `PLANNED_RLS`: RLS is the expected target shape, but the table-specific
   actor and operation inventory, staging proof, rollback, and monitoring are
   not complete.
@@ -75,7 +79,7 @@ completed alternative.
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
 | `OrderShippingRateQuote` | `BLOCKED_DESIGN` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Parent-order participant rules and service re-quote cleanup path |
 | `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Payment and dispute ledger; buyer, relevant seller, staff and Stripe | Decide user-visible projection versus service-only fields and immutable webhook writes |
-| `SellerPayoutEvent` | `COMPATIBLE_PREPARATION_LIVE` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Domain audit, same-commit zero-row/zero-anomaly inspection and compatible production preparation are accepted. The three-consumer fixed-operation application is live from exact source `e9239463a71860451191344b26dd20b45298f239`, CI `31927548800`, deployment `dpl_7PRTnXtMrMNq83ZFPJNeqFtyXZ8h`; canonical health, exact source marker and old/new coexistence passed. Three fixed runtime functions are live while RLS/FORCE remain off and predecessor CRUD remains retained. The disposable linked-seller proof passed from exact main `854233e3b8729da60c0da46ff8af492e53e48438`, CI `32552336641`: one signed test-mode failure produced exactly one payout projection and one notification, exact retry was identity-stable, all temporary rows and the disposable account were removed, and only the processed webhook lease remains. Evidence SHA-256 is `8ff3c342bdc47ea5b8ebe9576c7a4de1253afa36e1a0a40798c0516cc55c3907`. Exact main `9947a9e485a686dc801befcdea285cddc5b3aff7`, CI `32583228592`, then removed the sole current-credential predecessor and preserved the current deployment, canonical aliases and health; drain evidence SHA-256 is `3bb83df87df2cf2571df53ef0021e73886eca5d57140e0e8bc929eac4e2b61b1`. The CI-enforced static proof finds the exact three fixed-authority consumers with zero direct table access across 723 tracked source files. An isolated byte-pinned policyless ENABLE plus direct-grant-revocation candidate now exists with restart-safe scope, separate-login activation/rollback proofs and a required provider-time invariant; restart-safe Production Migrations wiring is prepared on a separate stacked branch, but neither source package is merged or applied, workflow dispatch remains separately gated, and FORCE stays separate. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md`, `docs/seller-payout-event-linked-production-proof.md`, `docs/seller-payout-event-predecessor-drain.md`, `docs/seller-payout-event-activation-release.md` and `docs/seller-payout-event-activation-production-wiring.md` |
+| `SellerPayoutEvent` | `ACTIVATION_RELEASE_MERGED_UNAPPLIED` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Domain audit, compatible production preparation, converted app, signed linked-seller proof and exact predecessor drain are accepted. The live app uses exactly three fixed operations and has zero direct table access; production still has RLS/FORCE off and the compatible grants because the activation migration has not run. The byte-pinned policyless ENABLE plus direct-grant-revocation release merged at exact main `570aa8aa2690bcbd341ce08a9cabdcaaa8bcab3d`, and exact-main CI `32608753825` passed its PostgreSQL activation, restricted-runtime, rollback/restoration and full application gates. The stale Notification payout fixture was corrected at exact main `d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785` and Notification FORCE proof `32610218792` passed. Restart-safe production workflow wiring is prepared on a separate draft branch but remains unmerged; migration execution and pooled-runtime postflight remain separate, and FORCE stays later. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md`, `docs/seller-payout-event-linked-production-proof.md`, `docs/seller-payout-event-predecessor-drain.md`, `docs/seller-payout-event-activation-release.md` and `docs/seller-payout-event-activation-production-wiring.md` |
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
@@ -243,11 +247,15 @@ preclude a later reviewed policy or grant migration.
    CI-enforced and the exact-ID predecessor drain passed from exact main
    `9947a9e485a686dc801befcdea285cddc5b3aff7`, CI `32583228592`, preserving the
    current deployment, aliases and health. Prepare policyless ENABLE plus
-   direct-grant revocation next, with FORCE separate. The isolated activation
-   candidate is byte-pinned, restart-scoped and wired into real PostgreSQL CI.
-   Restart-safe Production Migrations wiring is prepared on a separate stacked
-   branch, but both branches remain unmerged and unapplied; workflow dispatch
-   and the actual pooled-runtime acceptance postflight stay separately gated.
+   direct-grant revocation next, with FORCE separate. The byte-pinned,
+   restart-scoped activation release is merged but unapplied; exact-main CI
+   `32608753825` passed. The stale Notification cross-release payout fixture
+   exposed by run `32608753821` was corrected at exact main
+   `d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785` and
+   Notification FORCE proof `32610218792` passed. Restart-safe Production
+   Migrations wiring is prepared on a separate draft branch, but remains
+   unmerged and unapplied; workflow dispatch and the actual pooled-runtime
+   acceptance postflight stay separately gated.
    See
    `docs/seller-payout-event-pre-rls-audit.md`,
    `docs/seller-payout-event-compatible-authority-release.md` and

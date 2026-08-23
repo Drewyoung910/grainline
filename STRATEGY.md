@@ -425,13 +425,16 @@ removed only that predecessor and preserved the current deployment, all four
 canonical aliases and health. Accepted sanitized evidence SHA-256 is
 `3bb83df87df2cf2571df53ef0021e73886eca5d57140e0e8bc929eac4e2b61b1`. No
 grant or RLS state changed. Prepare policyless ENABLE plus direct-grant
-revocation next; keep posture-only FORCE separate. The isolated activation
-candidate now has byte-pinned migration/rollback bytes, a fail-closed ledger
-scope and separate-login PostgreSQL proofs. It remains unapplied; production
-wiring is prepared on a separate stacked branch, while both exact-head merges,
-migration execution, the actual pooled-runtime postflight and later FORCE each
-remain separate boundaries. Retain
-`docs/seller-payout-event-activation-release.md` and
+revocation next; keep posture-only FORCE separate. The byte-pinned activation
+release merged at exact main `570aa8aa2690bcbd341ce08a9cabdcaaa8bcab3d` and
+exact-main CI `32608753825` passed the complete PostgreSQL and application
+gates. The cross-release Notification payout-fixture correction subsequently
+merged at exact main `d9518f5545fac722f208d12fcdc48be41ec89d97`;
+exact-main CI `32610218785` and Notification FORCE proof `32610218792` passed.
+The activation remains unapplied. Restart-safe production wiring is prepared
+on a separate draft branch, while its exact-head merge, migration execution,
+the actual pooled-runtime postflight and later FORCE each remain separate
+boundaries. Retain `docs/seller-payout-event-activation-release.md` and
 `docs/seller-payout-event-activation-production-wiring.md` as the release
 records.
 

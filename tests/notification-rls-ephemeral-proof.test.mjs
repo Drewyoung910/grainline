@@ -16,6 +16,19 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(proof, /persistentStagingChanged: false/);
   });
 
+  it("seeds the payout source with the promoted provider-event invariant", () => {
+    const payoutInsert = proof.match(
+      /INSERT INTO public\."SellerPayoutEvent" \([\s\S]*?\[fixture\.payoutEventId, fixture\.sellerProfileId\]/,
+    );
+    assert.ok(payoutInsert, "the Notification proof must retain its payout source fixture");
+    assert.match(payoutInsert[0], /"stripeEventCreatedSeconds"/);
+    assert.match(
+      payoutInsert[0],
+      /'evt_notification_proof_payout', 1700000000, pg_catalog\.clock_timestamp\(\)/,
+      "the payout source fixture must satisfy the post-activation NOT NULL provider time",
+    );
+  });
+
   it("proves catalog, grants, direct denial, every service family, and both lock orderings", () => {
     assert.match(proof, /relrowsecurity: true/);
     assert.match(proof, /relforcerowsecurity: true/);

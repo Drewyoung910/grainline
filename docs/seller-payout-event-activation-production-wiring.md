@@ -1,10 +1,11 @@
 # SellerPayoutEvent activation production wiring
 
-Status: isolated, production-inert wiring candidate stacked on the exact
-SellerPayoutEvent activation package at
-`be061901523fb81edf88f59c0c8c86aa06457554`. Nothing in this document
-authorizes a merge, workflow dispatch, production migration, application
-deployment, FORCE release or provider change.
+Status: isolated, production-inert wiring candidate refreshed through exact
+main `d9518f5545fac722f208d12fcdc48be41ec89d97`, after the
+SellerPayoutEvent activation package and Notification cross-release fixture
+correction merged and passed exact-main CI. Nothing in this document authorizes
+a merge, workflow dispatch, production migration, application deployment,
+FORCE release or provider change.
 
 Date: 2026-08-22
 
@@ -76,10 +77,12 @@ ledger, role identity or release order differs from the reviewed state.
 
 ## Remaining boundaries
 
-This wiring must remain stacked until the predecessor-drain record and
-activation package merge in dependency order. It then requires its own exact
-head merge and successful exact-main CI before any guarded workflow dispatch
-may be considered.
+The predecessor-drain record, activation package and Notification
+cross-release fixture correction are merged through exact main
+`d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785`
+and Notification FORCE proof `32610218792` passed. This refreshed wiring now
+requires its own exact-head review, merge and successful exact-main CI before
+any guarded workflow dispatch may be considered.
 
 After a separately approved successful migration, run the actual pooled
 `grainline_app_runtime` postflight from the same clean main commit and bind it

@@ -2035,10 +2035,10 @@ Open work:
   head `d5fa351247fcf28c736a760974f50f1718427281` then passed CI
   `32591448929` in 6m44s, including the new direct-runtime PostgreSQL postflight
   and production build.
-- The postflight has not run. The activation branch remains unmerged; guarded
-  production migration wiring is prepared on a separate stacked branch, while
-  its merge, migration execution and FORCE remain separate unauthorized
-  boundaries. Production state is unchanged by this checkpoint.
+- The postflight has not run. The activation release later merged, while
+  guarded production migration wiring remained on a separate stacked branch.
+  Migration execution and FORCE remained separate unauthorized boundaries;
+  production state was unchanged by this checkpoint.
 
 ## SellerPayoutEvent activation guarded-wiring preparation (2026-08-22)
 
@@ -2072,3 +2072,34 @@ Open work:
   dispatched; no merge, migration, deployment, RLS/grant, credential, Stripe
   or provider mutation occurred. Policyless activation, its actual pooled
   runtime postflight and later FORCE remain separate boundaries.
+
+## SellerPayoutEvent activation merge and Notification fixture correction (2026-08-22)
+
+- The predecessor-drain record merged at main
+  `9198e5b236b4599ecf01a3a32c1244561f64e9f9`; exact-main CI `32606760572`
+  passed. The policyless activation release then merged from exact head
+  `be061901523fb81edf88f59c0c8c86aa06457554` at main
+  `570aa8aa2690bcbd341ce08a9cabdcaaa8bcab3d`; exact-main CI `32608753825`
+  passed the complete PostgreSQL, runtime-authority, rollback/restoration and
+  application gates. Conversation/Message FORCE proof `32608753833` passed.
+- Notification FORCE proof `32608753821` stopped while creating its disposable
+  payout source because that historical fixture omitted the provider event
+  time made NOT NULL by the merged activation migration. PostgreSQL returned
+  `23502` before Notification authority assertions ran. The isolated correction
+  adds deterministic valid `stripeEventCreatedSeconds` to that source and a
+  focused regression assertion; it does not weaken the promoted invariant.
+- This is a cross-release CI-fixture compatibility correction. The activation
+  migration has not run, SellerPayoutEvent production RLS/FORCE and grants are
+  unchanged, the pooled-runtime postflight has not run, and draft production
+  wiring remains a later merge boundary.
+- The correction's first full PR CI run `32609335900` passed the PostgreSQL,
+  TypeScript and lint gates, then stopped on the coverage-matrix status
+  allowlist after the record advanced from compatible-live to
+  merged-unapplied. The narrow follow-up registers that evidenced status while
+  retaining the separate assertion that only production-RLS rows count as
+  live; it does not change a release or security disposition.
+- The corrected package merged at exact main
+  `d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785`
+  passed and exact-main Notification FORCE proof `32610218792` passed. This
+  closes the cross-release fixture regression. SellerPayoutEvent production
+  RLS/FORCE and grants remain unchanged because no migration was dispatched.
