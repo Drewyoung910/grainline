@@ -2135,3 +2135,33 @@ Open work:
   that production wiring was only prepared. The other 3,225 tests passed. The
   follow-up changes only that assertion to require the now-true merged-wiring
   and failed-dispatch record; it does not change workflow or production logic.
+
+## SellerPayoutEvent policyless Phase A accepted in production (2026-08-23)
+
+- The predecessor-isolation correction merged at exact main
+  `bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`; exact-main CI
+  `32663849012` passed the disposable PostgreSQL release chain, separate
+  restricted-runtime proof, database-first rollback/restoration, full tests,
+  TypeScript, lint, dependency audit, and production build.
+- Guarded Production Migrations run `32667518275` accepted the exact prepared
+  restart state, applied only
+  `20260822180000_enable_seller_payout_event_rls`, converged the reviewed
+  runtime grants, and passed migration status, the global grant/RLS audit, and
+  exact activated scope. The resulting production catalog is RLS enabled,
+  explicitly not forced, zero policies, zero direct runtime/PUBLIC table or
+  column authority, and exactly three reviewed fixed operations.
+- The separate actual pooled `grainline_app_runtime` postflight was bound to
+  the same exact main, CI, and migration run. PostgreSQL attested a
+  repeatable-read/read-only transaction; the proof confirmed the restricted
+  role identity and exact function catalog, denied direct table reads, allowed
+  both absent-actor fixed projections, and rejected the fixed writer at the
+  SQL read-only fence with `25006`. It reported
+  `productionChangedByPostflight=false`.
+- Sanitized mode-`0600` evidence SHA-256 is
+  `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`.
+  No deployment, FORCE change, provider configuration, credential change, or
+  other migration accompanied this acceptance.
+- SellerPayoutEvent is complete through policyless Phase A. Its posture-only
+  FORCE successor remains a separate release with fresh proof. The remaining
+  `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, and `OrderItem`
+  domains remain separate audits and releases.

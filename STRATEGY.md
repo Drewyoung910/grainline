@@ -431,14 +431,20 @@ exact-main CI `32608753825` passed the complete PostgreSQL and application
 gates. The cross-release Notification payout-fixture correction subsequently
 merged at exact main `d9518f5545fac722f208d12fcdc48be41ec89d97`;
 exact-main CI `32610218785` and Notification FORCE proof `32610218792` passed.
-The activation remains unapplied. Restart-safe production wiring merged at
-exact main `af56bf99c4eac4366b6bcecbabaabd84992f0e62`; CI `32611954204`
-passed. Its first authorized dispatch, `32659750056`, failed closed before
-Prisma generation or mutation because the workflow verified but did not
-isolate the later SellerPayoutEvent authority migration before invoking the
-strict CheckoutStockReservation FORCE tree seal. Correct that exact ordering,
-merge and re-prove it before a separately authorized rerun. The actual
-pooled-runtime postflight and later FORCE remain separate boundaries. Retain
+Restart-safe production wiring first failed closed in dispatch `32659750056`
+before Prisma generation or mutation because it verified but did not isolate
+the later SellerPayoutEvent authority migration before invoking the strict
+CheckoutStockReservation FORCE tree seal. The correction merged at exact main
+`bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`; exact-main CI `32663849012`
+passed. Guarded migration run `32667518275` applied only the reviewed
+policyless activation, converged grants, and passed migration status, global
+grant/RLS audit, and exact scope. The distinct pooled-runtime read-only
+postflight passed with sanitized evidence SHA-256
+`01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de` and
+records no production mutation. SellerPayoutEvent Phase A is accepted. Prepare
+its posture-only FORCE successor as a separate release; do not bundle the
+remaining Order/payment/shipping tables, each of which still requires its own
+fresh domain audit. Retain
 `docs/seller-payout-event-activation-release.md` and
 `docs/seller-payout-event-activation-production-wiring.md` as the release
 records.

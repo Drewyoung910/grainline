@@ -1,15 +1,16 @@
 # SellerPayoutEvent activation production wiring
 
-Status: merged production wiring with a fail-closed predecessor-isolation
-correction pending. PR #242 merged exact head
-`962631d6c5379cd7c5c1ca8e39c628d041c7f5cb` as main
-`af56bf99c4eac4366b6bcecbabaabd84992f0e62`; exact-main CI
-`32611954204` passed. The first guarded dispatch, run `32659750056`, stopped
-before Prisma generation, migration deployment or any grant mutation because
-the older CheckoutStockReservation FORCE tree seal still saw the later
-SellerPayoutEvent authority migration. SellerPayoutEvent RLS remains unapplied.
-Nothing in this document authorizes a rerun, application deployment, FORCE
-release or provider change.
+Status: accepted production Phase A. The initial guarded dispatch
+`32659750056` failed closed before Prisma or mutation on a missing predecessor
+isolation edge. The corrected workflow merged at exact main
+`bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`; exact-main CI `32663849012`
+passed. Guarded run `32667518275` applied only the reviewed activation and
+passed grant convergence, migration status, global grant/RLS audit, and exact
+activation scope. The separate actual pooled-runtime postflight passed
+read-only with sanitized evidence SHA-256
+`01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`.
+Nothing in this document authorizes application deployment, FORCE, another
+migration, or provider change.
 
 Prepared: 2026-08-22. Corrected after fail-closed dispatch: 2026-08-23.
 
@@ -81,27 +82,25 @@ No workflow input selects a migration. Byte-pinned release verification and
 the restart scope fail before Prisma writes if the source tree, migration
 ledger, role identity or release order differs from the reviewed state.
 
-## Remaining boundaries
+## Accepted production result and remaining boundary
 
-The predecessor-drain record, activation package, Notification cross-release
-fixture correction and production wiring are merged through exact main
-`af56bf99c4eac4366b6bcecbabaabd84992f0e62`; exact-main CI `32611954204`
-passed. Guarded dispatch `32659750056` verified the exact source, owner-role
-boundary, activation release and SellerPayoutEvent authority release, then
-failed closed at the older CheckoutStockReservation FORCE tree seal. Steps
-for the read-only restart scope, Prisma generation/deploy, grant convergence,
-migration status, global grant/RLS audit and applied scope were all skipped.
-Production schema, rows, RLS and grants therefore remained unchanged.
+The corrected exact main `bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`
+and CI `32663849012` retained the failed first dispatch as evidence, added the
+missing authority isolation/restoration pair, and proved the exact dependency
+order. Restart-safe guarded run `32667518275` accepted the prepared state,
+applied only `20260822180000_enable_seller_payout_event_rls`, converged the
+reviewed grants, and passed the migration ledger, global grant/RLS audit, and
+activated scope. The resulting catalog is `ENABLE`, explicit `NO FORCE`, zero
+policies, zero direct runtime/PUBLIC table or column authority, and exactly
+three reviewed fixed operations.
 
-The isolated correction must pass exact-head review, merge and exact-main CI
-before a separately authorized rerun. It adds only the missing authority
-isolation/restoration pair and tests their exact paths and dependency order.
-
-After a separately approved successful rerun, run the actual pooled
-`grainline_app_runtime` postflight from the same clean main commit and bind it
-to that commit's successful CI and migration run. FORCE remains a later,
-posture-only migration after policyless activation and pooled-runtime evidence
-are accepted.
+The separately executed actual pooled `grainline_app_runtime` postflight bound
+to the same main/CI/migration triple passed all nine engine-read-only checks
+and wrote sanitized mode-`0600` evidence SHA-256
+`01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`.
+It changed no production state. SellerPayoutEvent Phase A is accepted. FORCE
+remains a later, posture-only migration with a fresh, distinct pooled-runtime
+proof.
 
 This candidate does not deploy application code, change credentials, modify
 Stripe or Vercel configuration, enable Case evidence, clean data, or authorize

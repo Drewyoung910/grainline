@@ -633,6 +633,13 @@ SellerPayoutEvent RLS activation postflight:
   direct SELECT denial, both fixed recipient projections, and the writer's
   SQLSTATE `25006` read-only fence. It rolls back and writes sanitized
   mode-`0600` evidence; it must not change production.
+- Accepted 2026-08-23: exact main
+  `bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`, main CI `32663849012`, and
+  guarded migration run `32667518275` passed. The separate actual pooled
+  `grainline_app_runtime` postflight passed all nine checks and reported
+  `productionChangedByPostflight=false`. Retain evidence SHA-256
+  `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`;
+  do not reuse it for the later FORCE proof.
 
 StripeWebhookEvent FORCE postflight:
 

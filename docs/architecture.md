@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-15
+Last updated: 2026-08-23
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -36,8 +36,11 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
-`StripeWebhookEvent`, and `CheckoutStockReservation`; all eleven tables are
-`FORCE ROW LEVEL SECURITY` hardened in production. DirectUpload,
+`StripeWebhookEvent`, `CheckoutStockReservation`, and `SellerPayoutEvent`.
+Twelve tables have production RLS: the first eleven are
+`FORCE ROW LEVEL SECURITY` hardened, while `SellerPayoutEvent` is accepted at
+policyless Phase A (`ENABLE`, explicitly `NO FORCE`) pending its separate
+posture-only FORCE release. DirectUpload,
 StripeWebhookEvent, the Case family, and
 CheckoutStockReservation intentionally use
 policyless RLS with no direct ordinary-runtime table or column authority: all
@@ -160,16 +163,20 @@ three source-pinned fixed operations. Provider event time becomes required only
 after an exclusive-lock preflight proves every retained row has valid time and
 the converted application's current-credential predecessor is absent. The
 candidate and database-first rollback are byte-pinned and CI proves them with
-separate owner/runtime logins. Restart-safe guarded production wiring merged at
-exact main `af56bf99c4eac4366b6bcecbabaabd84992f0e62` with CI
-`32611954204`. Its first dispatch, `32659750056`, failed closed before Prisma
-because the later SellerPayoutEvent authority migration was not isolated from
-the older CheckoutStockReservation FORCE tree seal. The correction preserves
-the architectural dependency rule: every later migration is removed from
-Prisma discovery before a strict historical seal is invoked, then successors
-are restored oldest-to-newest. Production activation, the actual pooled-runtime
-acceptance postflight and the later posture-only FORCE release remain separate
-boundaries documented in
+separate owner/runtime logins. The first guarded production dispatch,
+`32659750056`, failed closed before Prisma because the later SellerPayoutEvent
+authority migration was not isolated from the older CheckoutStockReservation
+FORCE tree seal. The corrected dependency order merged at exact main
+`bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`; exact-main CI `32663849012`
+passed. Guarded migration run `32667518275` then applied only
+`20260822180000_enable_seller_payout_event_rls`, converged the reviewed grants,
+and passed migration status, the global grant/RLS audit, and exact activation
+scope. The separate actual pooled-runtime acceptance postflight passed inside
+an engine-attested repeatable-read/read-only transaction and records no
+production mutation. Its sanitized mode-`0600` evidence SHA-256 is
+`01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`.
+SellerPayoutEvent Phase A is therefore accepted; only the separate
+posture-only FORCE release remains for this table. See
 `docs/seller-payout-event-activation-production-wiring.md`.
 
 The completed activation design used policyless ENABLE first and FORCE later.
