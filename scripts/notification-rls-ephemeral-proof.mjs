@@ -667,10 +667,10 @@ async function seedFixturesInTransaction(owner) {
   await owner.query(
     `INSERT INTO public."SellerPayoutEvent" (
        id, "sellerProfileId", "stripePayoutId", status, "failureMessage",
-       "stripeEventId", "updatedAt"
+       "stripeEventId", "stripeEventCreatedSeconds", "updatedAt"
      ) VALUES (
        $1, $2, 'po_notification_proof', 'failed', 'Proof payout failure',
-       'evt_notification_proof_payout', pg_catalog.clock_timestamp()
+       'evt_notification_proof_payout', 1700000000, pg_catalog.clock_timestamp()
      )`,
     [fixture.payoutEventId, fixture.sellerProfileId],
   );

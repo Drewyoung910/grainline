@@ -2038,3 +2038,29 @@ Open work:
 - The postflight has not run. The activation branch remains unmerged;
   production migration wiring, migration execution and FORCE remain separate
   unauthorized boundaries. Production state is unchanged by this checkpoint.
+
+## SellerPayoutEvent activation merge and Notification fixture correction (2026-08-22)
+
+- The predecessor-drain record merged at main
+  `9198e5b236b4599ecf01a3a32c1244561f64e9f9`; exact-main CI `32606760572`
+  passed. The policyless activation release then merged from exact head
+  `be061901523fb81edf88f59c0c8c86aa06457554` at main
+  `570aa8aa2690bcbd341ce08a9cabdcaaa8bcab3d`; exact-main CI `32608753825`
+  passed the complete PostgreSQL, runtime-authority, rollback/restoration and
+  application gates. Conversation/Message FORCE proof `32608753833` passed.
+- Notification FORCE proof `32608753821` stopped while creating its disposable
+  payout source because that historical fixture omitted the provider event
+  time made NOT NULL by the merged activation migration. PostgreSQL returned
+  `23502` before Notification authority assertions ran. The isolated correction
+  adds deterministic valid `stripeEventCreatedSeconds` to that source and a
+  focused regression assertion; it does not weaken the promoted invariant.
+- This is a cross-release CI-fixture compatibility correction. The activation
+  migration has not run, SellerPayoutEvent production RLS/FORCE and grants are
+  unchanged, the pooled-runtime postflight has not run, and draft production
+  wiring remains a later merge boundary.
+- The correction's first full PR CI run `32609335900` passed the PostgreSQL,
+  TypeScript and lint gates, then stopped on the coverage-matrix status
+  allowlist after the record advanced from compatible-live to
+  merged-unapplied. The narrow follow-up registers that evidenced status while
+  retaining the separate assertion that only production-RLS rows count as
+  live; it does not change a release or security disposition.

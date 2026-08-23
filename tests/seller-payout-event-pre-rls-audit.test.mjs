@@ -45,7 +45,7 @@ test("classifies activation gates and deferred product work explicitly", () => {
 });
 
 test("selects a separate bounded table without bundling Order authority", () => {
-  assert.match(matrix, /`SellerPayoutEvent` \| `COMPATIBLE_PREPARATION_LIVE`/);
+  assert.match(matrix, /`SellerPayoutEvent` \| `ACTIVATION_RELEASE_MERGED_UNAPPLIED`/);
   assert.match(matrix, /seller-payout-event-pre-rls-audit\.md/);
   assert.match(strategy, /SellerPayoutEvent` is the smallest independent remaining service ledger/);
   assert.match(audit, /OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, and `OrderItem` remain[\s\S]*separate audited releases/);
