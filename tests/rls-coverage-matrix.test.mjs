@@ -66,6 +66,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(liveRows.map((row) => row.model), [
       "Conversation",
       "Message",
+      "SellerPayoutEvent",
       "CheckoutStockReservation",
       "Case",
       "CaseMessage",
@@ -81,6 +82,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
+        ["SellerPayoutEvent", "RLS_LIVE_PHASE_A"],
         ["CheckoutStockReservation", "RLS_LIVE_FORCE"],
         ["Case", "RLS_LIVE_FORCE"],
         ["CaseMessage", "RLS_LIVE_FORCE"],
@@ -92,7 +94,7 @@ describe("site-wide RLS coverage matrix", () => {
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
-    assert.match(matrix, /eleven tables in this snapshot with production\s+RLS/);
+    assert.match(matrix, /eleven of the twelve tables in this snapshot with production RLS/);
     assert.match(
       matrix,
       /Pooled-runtime and cleanup-role acceptance passed read-only/,
@@ -100,7 +102,8 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /Every\s+other row is \*\*not active\s+RLS\*\*/);
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
-    assert.match(architecture, /all eleven tables are\s+`FORCE ROW LEVEL SECURITY`/);
+    assert.match(architecture, /Twelve tables have production RLS:[\s\S]*first eleven are[\s\S]*`FORCE ROW LEVEL SECURITY`/);
+    assert.match(architecture, /`SellerPayoutEvent` is accepted at[\s\S]*policyless Phase A/);
     assert.match(
       architecture,
       /CheckoutStockReservation` is a completed service-ledger boundary/,

@@ -10,7 +10,10 @@ database isolation program. Snapshot scope: 64 Prisma models.
 `SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, and `CheckoutStockReservation` are FORCE-hardened. These
-are the eleven tables in this snapshot with production RLS.
+are eleven of the twelve tables in this snapshot with production RLS.
+`SellerPayoutEvent` is live at policyless Phase A with `ENABLE`, explicit
+`NO FORCE`, zero policies, zero direct runtime/PUBLIC table or column authority,
+and retained actual pooled-runtime proof.
 Every other row is **not active RLS** and remains work to design, prove, and
 promote.
 The target column is a planning disposition, not a claim that the control is
@@ -79,7 +82,7 @@ completed alternative.
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
 | `OrderShippingRateQuote` | `BLOCKED_DESIGN` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Parent-order participant rules and service re-quote cleanup path |
 | `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Payment and dispute ledger; buyer, relevant seller, staff and Stripe | Decide user-visible projection versus service-only fields and immutable webhook writes |
-| `SellerPayoutEvent` | `ACTIVATION_RELEASE_MERGED_UNAPPLIED` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Domain audit, compatible production preparation, converted app, signed linked-seller proof and exact predecessor drain are accepted. The live app uses exactly three fixed operations and has zero direct table access; production still has RLS/FORCE off and the compatible grants because the activation migration has not run. The byte-pinned policyless ENABLE plus direct-grant-revocation release merged at exact main `570aa8aa2690bcbd341ce08a9cabdcaaa8bcab3d`, and exact-main CI `32608753825` passed its PostgreSQL activation, restricted-runtime, rollback/restoration and full application gates. The stale Notification payout fixture was corrected at exact main `d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785` and Notification FORCE proof `32610218792` passed. Restart-safe workflow wiring merged at exact main `af56bf99c4eac4366b6bcecbabaabd84992f0e62` with CI `32611954204`; dispatch `32659750056` failed closed before Prisma because the later authority migration was not isolated from the older reservation FORCE tree seal. The narrow ordering correction, migration rerun and pooled-runtime postflight remain separate, and FORCE stays later. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md`, `docs/seller-payout-event-linked-production-proof.md`, `docs/seller-payout-event-predecessor-drain.md`, `docs/seller-payout-event-activation-release.md` and `docs/seller-payout-event-activation-production-wiring.md` |
+| `SellerPayoutEvent` | `RLS_LIVE_PHASE_A` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Policyless Phase A is accepted in production. Exact main `bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`, CI `32663849012`, guarded migration run `32667518275`, and the separate actual pooled-runtime postflight passed. RLS is enabled with explicit NO FORCE, zero policies, zero direct runtime/PUBLIC table or column authority, and exactly three source-bound fixed operations. Sanitized mode-0600 postflight evidence SHA-256 is `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`. The failed first dispatch `32659750056` remains retained as fail-closed ordering evidence. Prepare the separate posture-only FORCE release next; do not bundle `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, or `OrderItem`. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md`, `docs/seller-payout-event-linked-production-proof.md`, `docs/seller-payout-event-predecessor-drain.md`, `docs/seller-payout-event-activation-release.md` and `docs/seller-payout-event-activation-production-wiring.md` |
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
@@ -246,10 +249,9 @@ preclude a later reviewed policy or grant migration.
    processed test-mode webhook lease retained. The zero-direct-access proof is
    CI-enforced and the exact-ID predecessor drain passed from exact main
    `9947a9e485a686dc801befcdea285cddc5b3aff7`, CI `32583228592`, preserving the
-   current deployment, aliases and health. Prepare policyless ENABLE plus
-   direct-grant revocation next, with FORCE separate. The byte-pinned,
-   restart-scoped activation release is merged but unapplied; exact-main CI
-   `32608753825` passed. The stale Notification cross-release payout fixture
+   current deployment, aliases and health. The byte-pinned, restart-scoped
+   activation release passed exact-main CI `32608753825`. The stale
+   Notification cross-release payout fixture
    exposed by run `32608753821` was corrected at exact main
    `d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785` and
    Notification FORCE proof `32610218792` passed. Restart-safe Production
@@ -257,8 +259,16 @@ preclude a later reviewed policy or grant migration.
    `af56bf99c4eac4366b6bcecbabaabd84992f0e62`; CI `32611954204` passed.
    Dispatch `32659750056` failed closed before Prisma or mutation because the
    SellerPayoutEvent authority successor remained visible to the strict older
-   reservation FORCE tree seal. The isolated ordering correction, migration
-   rerun and actual pooled-runtime acceptance postflight stay separately gated.
+   reservation FORCE tree seal. The ordering correction merged at exact main
+   `bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`; exact-main CI `32663849012`
+   passed. Guarded migration run `32667518275` applied only the reviewed
+   activation, converged grants, and passed migration/global audit plus exact
+   scope. The separate actual pooled-runtime read-only postflight passed with
+   evidence SHA-256
+   `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`.
+   SellerPayoutEvent Phase A is complete; prepare its posture-only FORCE
+   successor next, then begin the next remaining table with its own fresh
+   domain audit.
    See
    `docs/seller-payout-event-pre-rls-audit.md`,
    `docs/seller-payout-event-compatible-authority-release.md` and

@@ -369,9 +369,14 @@ test("guarded production wiring isolates predecessors and proves restart scope",
   );
 });
 
-test("release record preserves the unapplied policyless boundary", () => {
+test("release record preserves the accepted policyless Phase-A boundary", () => {
   const normalized = releaseDocument.replace(/\s+/gu, " ");
-  assert.match(normalized, /merged, unapplied activation candidate/u);
+  assert.match(normalized, /accepted production policyless Phase A/u);
+  assert.match(normalized, /32667518275/u);
+  assert.match(
+    normalized,
+    /01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de/u,
+  );
   assert.match(normalized, /exactly zero policies/u);
   assert.match(
     normalized,
@@ -380,7 +385,7 @@ test("release record preserves the unapplied policyless boundary", () => {
   assert.match(normalized, /FORCE is deliberately absent/u);
   assert.match(
     normalized,
-    /Restart-safe guarded production wiring merged/u,
+    /corrected production order merged at exact main/u,
   );
   assert.match(normalized, /32659750056/u);
   assert.match(normalized, /OrderPaymentEvent/u);
@@ -388,7 +393,7 @@ test("release record preserves the unapplied policyless boundary", () => {
   assert.match(normalized, /OrderItem/u);
   assert.match(normalized, /actual runtime login without `SET ROLE`/u);
   assert.match(normalized, /SQLSTATE `25006`/u);
-  assert.match(normalized, /has not been run/u);
+  assert.match(normalized, /productionChangedByPostflight=false/u);
   assert.match(
     productionPostflight,
     /proveSellerPayoutEventActivatedCatalog\(client, MIGRATION_ROLE\)/u,
@@ -400,7 +405,7 @@ test("release record preserves the unapplied policyless boundary", () => {
   const normalizedWiring = productionWiringDocument.replace(/\s+/gu, " ");
   assert.match(
     normalizedWiring,
-    /merged production wiring with a fail-closed predecessor-isolation correction pending/u,
+    /accepted production Phase A/u,
   );
   assert.match(
     normalizedWiring,

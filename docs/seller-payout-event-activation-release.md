@@ -1,14 +1,11 @@
 # SellerPayoutEvent policyless activation release
 
-Status: merged, unapplied activation candidate. The predecessor deployment
-drain is accepted and the migration, rollback and CI proof are byte-pinned.
-Restart-safe guarded production wiring merged, but its first dispatch failed
-closed before Prisma or any mutating step because the workflow had not hidden
-the later SellerPayoutEvent authority migration from an older predecessor
-tree seal. The narrow workflow-order correction is documented in
-`docs/seller-payout-event-activation-production-wiring.md`. Nothing in this
-document authorizes a rerun, deployment, provider change or later FORCE
-release.
+Status: accepted production policyless Phase A. Exact main
+`bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`, CI `32663849012`, guarded
+migration run `32667518275`, and the separate actual pooled-runtime postflight
+passed. RLS is enabled with explicit `NO FORCE`, zero policies and zero direct
+runtime/PUBLIC table or column authority. Nothing in this document authorizes
+deployment, provider change, another migration, or the later FORCE release.
 
 Prepared: 2026-08-22
 
@@ -128,8 +125,8 @@ rolled-back, zero-step or checksum-drifting activation rows fail closed. It
 retains the three known historical ledger exceptions rather than normalizing
 or rewriting production history.
 
-The separate production acceptance postflight is also prepared but has not
-been run. It accepts only the exact clean release commit, exact main-CI and
+The separate production acceptance postflight accepts only the exact clean
+release commit, exact main-CI and
 migration-run bindings, the reviewed pooled `grainline_app_runtime` target and
 a fresh exact evidence path. It rejects privileged or aliased database URL
 variables, connects as the actual runtime login without `SET ROLE`, and opens
@@ -200,28 +197,23 @@ The tracked-source gate scans every application JavaScript/TypeScript file and
 requires the exact three fixed-operation consumers with zero direct
 `SellerPayoutEvent` access. It remains in CI after activation.
 
-## Remaining release boundaries
+## Accepted production activation and remaining boundary
 
-Before production activation:
+The first authorized dispatch `32659750056` stopped before Prisma or mutation
+at the strict historical CheckoutStockReservation FORCE tree check. The
+corrected production order merged at exact main
+`bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`; exact-main CI `32663849012`
+passed. Guarded migration run `32667518275` applied only this activation,
+converged the reviewed grants, and passed migration status, global grant/RLS
+audit, and exact activation scope. The separate actual pooled-runtime
+postflight passed all nine checks in an engine-attested
+repeatable-read/read-only transaction and wrote sanitized mode-`0600` evidence
+SHA-256
+`01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`.
+It reported `productionChangedByPostflight=false`.
 
-1. the predecessor-isolation correction must be reviewed, merged as its own
-   exact head and bound to the exact successful main CI run;
-2. the guarded production migration rerun must receive a separate exact-commit
-   and CI-bound dispatch decision; and
-3. the later actual pooled-runtime production postflight must run read-only and
-   retain sanitized mode-`0600` evidence.
-
-PR #242 merged the guarded wiring at exact main
-`af56bf99c4eac4366b6bcecbabaabd84992f0e62`; CI `32611954204` passed.
-Authorized dispatch `32659750056` then stopped at the strict historical
-CheckoutStockReservation FORCE tree check because
-`20260815210000_prepare_seller_payout_event_authority` remained discoverable.
-The failure preceded the restart-scope reader, Prisma generation and deploy,
-grant convergence and every post-application check, so production remained in
-the compatible RLS-off posture.
-
-FORCE is deliberately absent. It will be a separate posture-only migration
-after policyless activation and pooled-runtime evidence are accepted. The
+FORCE is deliberately absent. It is the next separate posture-only migration
+after this accepted policyless Phase A. The
 remaining `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem`
 domains stay separate audits and releases; this candidate does not authorize or
 bundle them.
