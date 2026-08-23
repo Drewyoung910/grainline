@@ -45,6 +45,19 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify exact SellerPayoutEvent activation migration tree
+        run: npm run verify:rls-release-artifact
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-activation-reviewed
+      - name: Verify exact SellerPayoutEvent activation release
+        run: npm run audit:rls-seller-payout-event-activation-release
+      - name: Isolate the reviewed SellerPayoutEvent activation release
+        run: >-
+          mv
+          prisma/migrations/20260822180000_enable_seller_payout_event_rls
+          "$RUNNER_TEMP/seller-payout-event-activation-release"
+      - name: Verify sealed SellerPayoutEvent authority predecessor
+        run: npm run audit:rls-seller-payout-event-authority-release
       - name: Verify exact CheckoutStockReservation FORCE migration tree
         run: npm run verify:rls-release-artifact
         env:
@@ -119,10 +132,15 @@ jobs:
           mv
           "$RUNNER_TEMP/checkout-stock-reservation-force-release"
           prisma/migrations/20260815060001_force_checkout_stock_reservation_rls
-      - name: Inspect exact CheckoutStockReservation FORCE restart scope read-only
-        run: npm run audit:rls-checkout-stock-reservation-force-production-scope
+      - name: Restore the reviewed SellerPayoutEvent activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/seller-payout-event-activation-release"
+          prisma/migrations/20260822180000_enable_seller_payout_event_rls
+      - name: Inspect exact SellerPayoutEvent activation restart scope read-only
+        run: npm run audit:rls-seller-payout-event-activation-production-scope
         env:
-          CHECKOUT_STOCK_RESERVATION_FORCE_SCOPE_STAGE: restart
+          SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: restart
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Generate Prisma client
         run: npx prisma generate
@@ -130,7 +148,7 @@ jobs:
         run: npx prisma migrate deploy
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Converge exact FORCE-hardened CheckoutStockReservation runtime grants
+      - name: Converge exact activated SellerPayoutEvent runtime grants
         run: >-
           psql "$DIRECT_URL"
           -v runtime_role=grainline_app_runtime
@@ -147,8 +165,8 @@ jobs:
         run: npm run audit:db-grants -- --require-direct-url
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Prove exact CheckoutStockReservation FORCE production scope
-        run: npm run audit:rls-checkout-stock-reservation-force-production-scope
+      - name: Prove exact SellerPayoutEvent activation production scope
+        run: npm run audit:rls-seller-payout-event-activation-production-scope
         env:
-          CHECKOUT_STOCK_RESERVATION_FORCE_SCOPE_STAGE: after
+          SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: after
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

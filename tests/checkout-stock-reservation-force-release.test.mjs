@@ -267,23 +267,27 @@ test("CI proves FORCE after Phase A and production wiring preserves the same ord
   const productionRestore = production.indexOf(
     "Restore the reviewed CheckoutStockReservation FORCE release",
   );
-  const productionRestart = production.indexOf(
-    "Inspect exact CheckoutStockReservation FORCE restart scope read-only",
+  const successorRestore = production.indexOf(
+    "Restore the reviewed SellerPayoutEvent activation release",
+  );
+  const successorRestart = production.indexOf(
+    "Inspect exact SellerPayoutEvent activation restart scope read-only",
   );
   const productionApply = production.indexOf("Apply production migrations");
-  const productionAfter = production.indexOf(
-    "Prove exact CheckoutStockReservation FORCE production scope",
+  const successorAfter = production.indexOf(
+    "Prove exact SellerPayoutEvent activation production scope",
   );
   assert.ok(productionVerify >= 0 && productionVerify < productionIsolate);
   assert.ok(productionIsolate < productionRestore);
-  assert.ok(productionRestore < productionRestart);
-  assert.ok(productionRestart < productionApply);
-  assert.ok(productionApply < productionAfter);
+  assert.ok(productionRestore < successorRestore);
+  assert.ok(successorRestore < successorRestart);
+  assert.ok(successorRestart < productionApply);
+  assert.ok(productionApply < successorAfter);
   assert.match(production, /checkout-stock-reservation-force-reviewed/u);
   assert.match(production, /20260815060001_force_checkout_stock_reservation_rls/u);
   assert.match(
     production,
-    /audit:rls-checkout-stock-reservation-force-production-scope/u,
+    /audit:rls-seller-payout-event-activation-production-scope/u,
   );
 });
 

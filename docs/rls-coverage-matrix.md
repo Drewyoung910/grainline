@@ -79,7 +79,7 @@ completed alternative.
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
 | `OrderShippingRateQuote` | `BLOCKED_DESIGN` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Parent-order participant rules and service re-quote cleanup path |
 | `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Payment and dispute ledger; buyer, relevant seller, staff and Stripe | Decide user-visible projection versus service-only fields and immutable webhook writes |
-| `SellerPayoutEvent` | `ACTIVATION_RELEASE_MERGED_UNAPPLIED` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Domain audit, compatible production preparation, converted app, signed linked-seller proof and exact predecessor drain are accepted. The live app uses exactly three fixed operations and has zero direct table access; production still has RLS/FORCE off and the compatible grants because the activation migration has not run. The byte-pinned policyless ENABLE plus direct-grant-revocation release merged at exact main `570aa8aa2690bcbd341ce08a9cabdcaaa8bcab3d`, and exact-main CI `32608753825` passed its PostgreSQL activation, restricted-runtime, rollback/restoration and full application gates. Notification FORCE proof `32608753821` exposed only a stale cross-release fixture missing required provider event time; its isolated correction is the next CI-only gate. Production workflow wiring remains separately reviewed and unmerged, migration execution and pooled-runtime postflight remain separate, and FORCE stays later. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md`, `docs/seller-payout-event-linked-production-proof.md`, `docs/seller-payout-event-predecessor-drain.md` and `docs/seller-payout-event-activation-release.md` |
+| `SellerPayoutEvent` | `ACTIVATION_RELEASE_MERGED_UNAPPLIED` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Domain audit, compatible production preparation, converted app, signed linked-seller proof and exact predecessor drain are accepted. The live app uses exactly three fixed operations and has zero direct table access; production still has RLS/FORCE off and the compatible grants because the activation migration has not run. The byte-pinned policyless ENABLE plus direct-grant-revocation release merged at exact main `570aa8aa2690bcbd341ce08a9cabdcaaa8bcab3d`, and exact-main CI `32608753825` passed its PostgreSQL activation, restricted-runtime, rollback/restoration and full application gates. The stale Notification payout fixture was corrected at exact main `d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785` and Notification FORCE proof `32610218792` passed. Restart-safe production workflow wiring is prepared on a separate draft branch but remains unmerged; migration execution and pooled-runtime postflight remain separate, and FORCE stays later. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md`, `docs/seller-payout-event-linked-production-proof.md`, `docs/seller-payout-event-predecessor-drain.md`, `docs/seller-payout-event-activation-release.md` and `docs/seller-payout-event-activation-production-wiring.md` |
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
@@ -249,15 +249,20 @@ preclude a later reviewed policy or grant migration.
    current deployment, aliases and health. Prepare policyless ENABLE plus
    direct-grant revocation next, with FORCE separate. The byte-pinned,
    restart-scoped activation release is merged but unapplied; exact-main CI
-   `32608753825` passed. A stale Notification cross-release payout fixture
-   exposed by run `32608753821` must be corrected before the separately gated
-   production wiring can merge or any migration can run.
+   `32608753825` passed. The stale Notification cross-release payout fixture
+   exposed by run `32608753821` was corrected at exact main
+   `d9518f5545fac722f208d12fcdc48be41ec89d97`; exact-main CI `32610218785` and
+   Notification FORCE proof `32610218792` passed. Restart-safe Production
+   Migrations wiring is prepared on a separate draft branch, but remains
+   unmerged and unapplied; workflow dispatch and the actual pooled-runtime
+   acceptance postflight stay separately gated.
    See
    `docs/seller-payout-event-pre-rls-audit.md`,
    `docs/seller-payout-event-compatible-authority-release.md` and
    `docs/seller-payout-event-compatible-app-conversion.md` plus
-   `docs/seller-payout-event-predecessor-drain.md` and
-   `docs/seller-payout-event-activation-release.md`; keep Order,
+   `docs/seller-payout-event-predecessor-drain.md`,
+   `docs/seller-payout-event-activation-release.md` and
+   `docs/seller-payout-event-activation-production-wiring.md`; keep Order,
    OrderItem, quote and payment as later separate audits. Keep Connect v2 plus
    live-mode provider topology and
    signed delivery as distinct mandatory launch gates; the v2 route shares the
