@@ -150,9 +150,8 @@ passed exact-head CI run `32590297568`. That run completed the real PostgreSQL
 16 predecessor, activation, separate-login authority and database-first
 rollback/restoration proofs; migration status and the global grant/RLS audit;
 Prisma validation/generation; TypeScript; lint; the full repository suite;
-dependency audit; and the production build. This is candidate evidence only:
-the branch remains unmerged and production remains in the compatible
-predecessor posture.
+dependency audit; and the production build. This was candidate evidence only;
+production remained in the compatible predecessor posture.
 
 Postflight-hardening checkpoint
 `d5fa351247fcf28c736a760974f50f1718427281` then passed exact-head CI run
@@ -161,6 +160,20 @@ directly as the restricted runtime role and passed the production postflight's
 catalog, direct-denial, fixed-read and SQL read-only-fence path before the
 database-first rollback/restoration. The full type, lint, test, dependency and
 production-build gates also passed. No production postflight or mutation ran.
+
+The complete activation package then merged from exact head
+`be061901523fb81edf88f59c0c8c86aa06457554` at main
+`570aa8aa2690bcbd341ce08a9cabdcaaa8bcab3d`. Exact-main CI `32608753825`
+passed the full PostgreSQL release chain, SellerPayoutEvent activation,
+separate restricted-runtime authority, database-first rollback/restoration,
+TypeScript, lint, full tests, dependency audit and production build.
+Conversation/Message FORCE proof `32608753833` also passed. Notification FORCE
+proof `32608753821` stopped before its authority assertions because its
+cross-release `SellerPayoutEvent` fixture omitted the newly required
+`stripeEventCreatedSeconds`; the isolated correction supplies a deterministic
+valid provider-event time and adds a regression assertion. This was a CI
+fixture compatibility defect, not a production migration or RLS failure. No
+production postflight or mutation ran.
 
 ## Accepted predecessor evidence
 
@@ -186,10 +199,12 @@ requires the exact three fixed-operation consumers with zero direct
 
 Before production activation:
 
-1. the isolated branch must merge as one explicitly reviewed exact head;
+1. the Notification cross-release fixture correction must pass its focused
+   proof and exact-main CI;
 2. production migration wiring must be separately authorized, reviewed and
    bound to the exact successful main CI run; and
-3. the later actual pooled-runtime production postflight must run read-only and
+3. migration execution remains a separate exact-main production boundary; and
+4. the later actual pooled-runtime production postflight must run read-only and
    retain sanitized mode-`0600` evidence.
 
 FORCE is deliberately absent. It will be a separate posture-only migration
