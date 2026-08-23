@@ -380,8 +380,9 @@ test("release record preserves the unapplied policyless boundary", () => {
   assert.match(normalized, /FORCE is deliberately absent/u);
   assert.match(
     normalized,
-    /separately prepared production migration wiring/u,
+    /Restart-safe guarded production wiring merged/u,
   );
+  assert.match(normalized, /32659750056/u);
   assert.match(normalized, /OrderPaymentEvent/u);
   assert.match(normalized, /OrderShippingRateQuote/u);
   assert.match(normalized, /OrderItem/u);

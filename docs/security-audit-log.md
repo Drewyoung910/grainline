@@ -2129,3 +2129,9 @@ Open work:
   step from being mistaken for filesystem isolation again.
 - Merge, exact-main CI and any production rerun remain separate gates. The
   actual pooled-runtime postflight and later FORCE release remain later still.
+- Draft correction PR #244 exact-head CI `32660232917` passed the complete
+  disposable PostgreSQL release chain, TypeScript and lint, then reported one
+  stale release-document regex in the full suite: it still required wording
+  that production wiring was only prepared. The other 3,225 tests passed. The
+  follow-up changes only that assertion to require the now-true merged-wiring
+  and failed-dispatch record; it does not change workflow or production logic.
