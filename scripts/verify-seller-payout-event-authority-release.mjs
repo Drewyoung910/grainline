@@ -13,6 +13,10 @@ import {
   ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
   verifyOrderRefundRecordAuthorityMigrationBytes,
 } from "./order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+  verifyOrderPaymentSignedAuthorityMigrationBytes,
+} from "./order-payment-signed-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION =
   "20260815210000_prepare_seller_payout_event_authority";
@@ -34,6 +38,7 @@ export function verifySellerPayoutEventAuthorityRelease(
     allowReviewedForceSuccessor = false,
     allowReviewedRefundClaimSuccessor = false,
     allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
   } = {},
 ) {
   if (allowReviewedForceSuccessor && !allowReviewedActivationSuccessor) {
@@ -57,11 +62,22 @@ export function verifySellerPayoutEventAuthorityRelease(
       "Order refund record successor requires the reviewed refund claim successor",
     );
   }
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
   if (allowReviewedRefundClaimSuccessor) {
     verifyOrderRefundClaimGenerationMigrationBytes(rootDirectory);
   }
   if (allowReviewedRefundRecordSuccessor) {
     verifyOrderRefundRecordAuthorityMigrationBytes(rootDirectory);
+  }
+  if (allowReviewedSignedAuthoritySuccessor) {
+    verifyOrderPaymentSignedAuthorityMigrationBytes(rootDirectory);
   }
   const migrationDirectory = path.join(
     rootDirectory,
@@ -93,7 +109,15 @@ export function verifySellerPayoutEventAuthorityRelease(
   );
   assert.deepEqual(
     later,
-    allowReviewedRefundRecordSuccessor
+    allowReviewedSignedAuthoritySuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+          ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundRecordSuccessor
       ? [
           SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
           SELLER_PAYOUT_EVENT_FORCE_MIGRATION,

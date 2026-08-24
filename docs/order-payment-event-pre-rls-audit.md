@@ -297,9 +297,14 @@ open event followed by an accepted `won` or `warning_closed` event can remain
 excluded forever. Those aggregates deliberately exclude lost/prevented/unknown
 outcomes as conversion signal; that distinct product rule must be preserved.
 
-Add a typed `stripeEventCreatedSeconds` column for signed events and one
-supporting latest-per-dispute index. Replace every latest-state predicate with
-the same canonical database expression. For equal provider seconds with
+Prepared disposition: the isolated compatible signed-authority candidate adds
+a nullable typed `stripeEventCreatedSeconds` column for signed events and one
+supporting latest-per-dispute index. Its signed dispute writer applies the
+newer state, retains older states without side effects, and treats any
+same-second difference in amount, currency, reason, status, or signed Stripe
+event type as a reconciliation conflict. Remaining non-webhook latest-state
+consumers must still use the same canonical database expression. For equal
+provider seconds with
 different state, do not use application arrival time as hidden authority: keep
 the ledger rows, refuse conflicting side effects and mark the Order for staff
 reconciliation unless a deterministic provider-confirmed state is obtained.
@@ -384,7 +389,10 @@ post-commit and idempotent; a missed call affects only the existing bounded
 
 ## Required fixed-operation catalog
 
-Names remain design contracts until reviewed SQL is written.
+Items 1 and 2 are implemented in the isolated, byte-pinned compatible
+candidate `20260824030000_prepare_order_payment_signed_authority`; they are not
+merged, deployed, production-applied or activation evidence. The remaining
+items are still design contracts until reviewed SQL is written.
 
 1. Signed refund append: requires active exact `charge.refunded` webhook
    generation/source, derives Order from the retained charge relationship,
@@ -427,10 +435,11 @@ There is no runtime-callable `write_payment_event`, `get_payment_event`,
    latest-dispute helper with focused business-logic regressions.
 3. Run the fresh aggregate-only production inspection; review counts before
    any validating migration.
-4. Promote the prepared refund-generation and fixed record/finalize authority
-   only through separately byte-pinned compatible releases, then add typed
-   ordering, evidence-based claim reconciliation, invariants and the remaining
-   fixed operations with RLS off and predecessor grants retained.
+4. Promote the prepared refund-generation, fixed record/finalize and signed
+   refund/dispute authorities only through separately byte-pinned compatible
+   releases, then add evidence-based claim reconciliation, remaining
+   invariants and remaining fixed operations with RLS off and predecessor
+   grants retained.
 5. Prove all functions, replay/collision cases, append immutability, claim ABA
    races, dispute reorderings, actor projections and rollback in disposable
    PostgreSQL using separate owner and restricted runtime roles.

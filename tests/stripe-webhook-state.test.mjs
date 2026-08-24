@@ -94,6 +94,10 @@ describe("Stripe webhook state helpers", () => {
 
   it("serializes charge refund and dispute webhook mutations by charge id", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
     const refundStart = source.indexOf('if (event.type === "charge.refunded")');
     const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
 
@@ -103,8 +107,12 @@ describe("Stripe webhook state helpers", () => {
     const refundBranch = source.slice(refundStart, disputeStart);
     const disputeBranch = source.slice(disputeStart);
 
-    assert.match(refundBranch, /await prisma\.\$transaction\(async \(tx\) => \{\s+await lockChargeMutation\(tx, charge\.id!\)/);
-    assert.match(disputeBranch, /await prisma\.\$transaction\(async \(tx\) => \{\s+await lockChargeMutation\(tx, chargeId\)/);
+    assert.match(refundBranch, /applySignedRefundWebhook\(tx, \{/);
+    assert.match(disputeBranch, /applySignedDisputeWebhook\(tx, \{/);
+    assert.equal(
+      (migration.match(/pg_catalog\.pg_advisory_xact_lock\(913337, pg_catalog\.hashtext\(p_charge_id\)\)/gu) ?? []).length,
+      2,
+    );
   });
 
   it("treats prevented Stripe disputes as closed across webhook helpers", () => {
@@ -136,6 +144,10 @@ describe("Stripe webhook state helpers", () => {
 
   it("keeps unmatched charge refund and dispute webhooks retryable", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
     const refundStart = source.indexOf('if (event.type === "charge.refunded")');
     const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
     const payoutStart = source.indexOf('if (event.type === "payout.failed")');
@@ -147,23 +159,12 @@ describe("Stripe webhook state helpers", () => {
     const refundBranch = source.slice(refundStart, disputeStart);
     const disputeBranch = source.slice(disputeStart, payoutStart);
 
-    assert.match(
-      refundBranch,
-      /if \(!existingOrder\) \{\s+throw new Error\("Stripe charge\.refunded webhook could not find a Grainline order for charge\."\);\s+\}/,
-    );
-    assert.ok(
-      refundBranch.indexOf("if (!existingOrder)") < refundBranch.indexOf("await recordOrderPaymentEvent"),
-      "refund webhook should fail before recording or marking the event processed",
-    );
-
-    assert.match(
-      disputeBranch,
-      /if \(!order\) \{\s+throw new Error\("Stripe dispute webhook could not find a Grainline order for charge\."\);\s+\}/,
-    );
-    assert.ok(
-      disputeBranch.indexOf("if (!order)") < disputeBranch.indexOf("await recordOrderPaymentEvent"),
-      "dispute webhook should fail before recording or marking the event processed",
-    );
+    assert.match(refundBranch, /await applySignedRefundWebhook\(tx,/);
+    assert.match(disputeBranch, /await applySignedDisputeWebhook\(tx,/);
+    assert.match(migration, /Signed refund Order source is invalid/);
+    assert.match(migration, /Signed dispute Order source is invalid/);
+    assert.doesNotMatch(refundBranch, /catch \(/);
+    assert.doesNotMatch(disputeBranch, /catch \(/);
   });
 
   it("orders dispute webhook side effects by Stripe event time", () => {
@@ -211,53 +212,51 @@ describe("Stripe webhook state helpers", () => {
 
   it("checks existing dispute event order before applying dispute side effects", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
     const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
     const payoutStart = source.indexOf('if (event.type === "payout.failed")');
     const disputeBranch = source.slice(disputeStart, payoutStart);
 
-    const latestQuery = disputeBranch.indexOf('FROM "OrderPaymentEvent" ope');
-    const sideEffectGate = disputeBranch.indexOf("const applyDisputeSideEffects = shouldApplyDisputeWebhookSideEffects");
-    const ledgerWrite = disputeBranch.indexOf("const disputeLedgerCreated = await recordOrderPaymentEvent");
-    const orderUpdate = disputeBranch.indexOf("await tx.order.update");
-    const caseAction = disputeBranch.indexOf("grainline_case_stripe_dispute_apply");
-    const notification = disputeBranch.indexOf('type: "PAYMENT_DISPUTE"');
+    const latestQuery = migration.indexOf('FROM public."OrderPaymentEvent" AS payment');
+    const setConflictQuery = migration.indexOf('FROM public."OrderPaymentEvent" AS equal_payment');
+    const ledgerWrite = migration.indexOf('INSERT INTO public."OrderPaymentEvent"', setConflictQuery);
+    const orderUpdate = migration.indexOf('UPDATE public."Order" AS orders', ledgerWrite);
+    const caseAction = migration.indexOf("grainline_case_stripe_dispute_apply(payment_event_id)", ledgerWrite);
 
-    assert.ok(latestQuery >= 0, "dispute webhook should read existing dispute ledgers");
-    assert.ok(sideEffectGate > latestQuery, "dispute side-effect gate should use the latest recorded event");
-    assert.ok(ledgerWrite > sideEffectGate, "dispute ledger should still be written after computing the side-effect gate");
-    assert.ok(orderUpdate > ledgerWrite, "order updates should happen after the ledger write");
-    assert.ok(caseAction > ledgerWrite, "case promotion should be guarded after the ledger write");
-    assert.match(disputeBranch, /const disputeSideEffectsApplied = disputeLedgerCreated && applyDisputeSideEffects/);
-    assert.match(disputeBranch, /if \(disputeSideEffectsApplied\) \{[\s\S]*await tx\.order\.update/);
-    assert.match(disputeBranch, /if \(disputeSideEffectsApplied && event\.type === "charge\.dispute\.created"/);
-    assert.match(
-      disputeBranch,
-      /const paymentEvent = await tx\.orderPaymentEvent\.findUnique\(\{[\s\S]*where: \{ stripeEventId: event\.id \},[\s\S]*select: \{ id: true, orderId: true \}/,
-    );
-    assert.match(
-      disputeBranch,
-      /FROM public\.grainline_case_stripe_dispute_apply\(\$\{paymentEvent\.id\}::text\)/,
-    );
-    assert.match(
-      disputeBranch,
-      /!caseResult\.caseId[\s\S]*caseResult\.orderId !== order\.id[\s\S]*!caseResult\.sellerUserId[\s\S]*!caseResult\.buyerUserId[\s\S]*caseResult\.paymentEventId !== paymentEvent\.id[\s\S]*caseResult\.action !== "create"[\s\S]*caseResult\.action !== "reopen"/,
-    );
+    assert.ok(latestQuery >= 0, "fixed dispute authority should read existing dispute ledgers");
+    assert.ok(setConflictQuery > latestQuery, "equal-second decisions should inspect the complete state set");
+    assert.ok(ledgerWrite > setConflictQuery, "dispute evidence should follow ordering classification");
+    assert.ok(orderUpdate > ledgerWrite, "Order effects should happen after evidence insertion");
+    assert.ok(caseAction > ledgerWrite, "Case promotion should be guarded after evidence insertion");
+    assert.match(migration, /result_action := 'stale_recorded'/);
+    assert.match(migration, /result_action := 'same_second_recorded'/);
+    assert.match(migration, /result_action := 'conflict_recorded'/);
+    assert.match(migration, /IF source_event\.type = 'charge\.dispute\.created'/);
     assert.doesNotMatch(disputeBranch, /tx\.case\.(?:create|update|updateMany|upsert|delete|deleteMany)\(/);
     assert.doesNotMatch(disputeBranch, /case:\s*\{\s*select:/);
-    assert.ok(notification > caseAction, "seller dispute notification should remain after guarded case promotion");
-    assert.match(disputeBranch, /notificationPaymentSourceId: event\.id/);
-    assert.match(disputeBranch, /return disputeCaseResult/);
+    assert.match(disputeBranch, /if \(result\.notificationAuthorized\)/);
+    assert.match(disputeBranch, /createNotificationOrThrow\([\s\S]*\}, tx\)/);
   });
 
   it("applies refund webhook order side effects only when the refund ledger is new", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
     const refundStart = source.indexOf('if (event.type === "charge.refunded")');
     const disputeStart = source.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
     const refundBranch = source.slice(refundStart, disputeStart);
 
-    assert.match(refundBranch, /const refundLedgerCreated = await recordOrderPaymentEvent/);
-    assert.match(refundBranch, /if \(refundLedgerCreated && refundLedger\.orderUpdate\) \{/);
-    assert.doesNotMatch(refundBranch, /if \(refundLedger\.orderUpdate\) \{/);
+    assert.match(refundBranch, /await applySignedRefundWebhook\(tx,/);
+    const replayReturn = migration.indexOf("'replay'::text");
+    const ledgerInsert = migration.indexOf('INSERT INTO public."OrderPaymentEvent"');
+    const orderUpdate = migration.indexOf('UPDATE public."Order" AS orders', ledgerInsert);
+    assert.ok(replayReturn >= 0 && replayReturn < ledgerInsert);
+    assert.ok(orderUpdate > ledgerInsert);
   });
 
   it("detects stale Stripe webhook events from the signed event timestamp", () => {
@@ -790,8 +789,13 @@ describe("Stripe webhook state helpers", () => {
 
   it("records signed Stripe event time on dispute ledger rows", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const migration = readFileSync(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+      "utf8",
+    );
 
-    assert.match(source, /chargeDisputeLedgerState\(\{\s*chargeId,\s*eventType: event\.type,\s*stripeEventCreated: event\.created,/s);
+    assert.match(source, /applySignedDisputeWebhook\(tx, \{[\s\S]*eventCreatedSeconds: event\.created,/);
+    assert.match(migration, /"stripeEventCreatedSeconds"[\s\S]*p_event_created_seconds/);
   });
 
   it("clears stale refund-lock timestamps when a Stripe dispute closes", () => {

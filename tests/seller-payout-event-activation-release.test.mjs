@@ -65,6 +65,7 @@ test("release pins one policyless SellerPayoutEvent activation", () => {
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   assert.equal(release.phase, SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE);
   assert.equal(release.draftSha256, SELLER_PAYOUT_EVENT_ACTIVATION_DRAFT_SHA256);
@@ -110,8 +111,11 @@ test("release pins one policyless SellerPayoutEvent activation", () => {
     migration,
     /\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b/iu,
   );
-  assert.match(schema, /stripeEventCreatedSeconds\s+BigInt\s*$/mu);
-  assert.doesNotMatch(schema, /stripeEventCreatedSeconds\s+BigInt\?/u);
+  const sellerPayoutModel = schema.match(
+    /model SellerPayoutEvent \{([\s\S]*?)\n\}/u,
+  )?.[1] ?? "";
+  assert.match(sellerPayoutModel, /stripeEventCreatedSeconds\s+BigInt\s*$/mu);
+  assert.doesNotMatch(sellerPayoutModel, /stripeEventCreatedSeconds\s+BigInt\?/u);
 });
 
 test("activation preflight pins owner, role graph, invariants and functions", () => {
@@ -231,6 +235,7 @@ test("compatible authority verifier accepts only the exact reviewed successor", 
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   assert.equal(result.runtimeFunctions, 3);
   assert.throws(

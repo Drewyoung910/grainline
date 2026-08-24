@@ -75,6 +75,7 @@ test("SellerPayoutEvent compatible verifier accepts only the byte-pinned latest 
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   assert.equal(verified.migrationSha256, SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256);
   assert.equal(verified.rlsEnabled, false);

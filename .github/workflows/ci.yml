@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order payment signed authority release
+        run: npm run audit:order-payment-signed-authority-release
+      - name: Isolate Order payment signed authority until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824030000_prepare_order_payment_signed_authority
+          "$RUNNER_TEMP/order-payment-signed-authority-release"
       - name: Verify Order refund record authority release
         run: npm run audit:order-refund-record-authority-release
       - name: Isolate Order refund record authority until sealed predecessors pass
@@ -606,6 +613,24 @@ jobs:
           tests/order-refund-record-authority.test.mjs
           tests/order-refund-record-authority-release.test.mjs
           tests/order-refund-record-authority-postgres.test.mjs
+      - name: Restore Order payment signed authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-signed-authority-release"
+          prisma/migrations/20260824030000_prepare_order_payment_signed_authority
+      - name: Apply Order payment signed authority preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order payment signed authority migration status
+        run: npx prisma migrate status
+      - name: Audit signed payment grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove signed Order payment authority in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-event-signed-authority-migration.test.mjs
+          tests/order-payment-event-signed-authority-postgres-proof.test.mjs
+          tests/order-payment-event-signed-webhook.test.mjs
+          tests/order-payment-signed-authority-release.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

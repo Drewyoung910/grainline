@@ -73,7 +73,9 @@ describe("schema retention guardrails", () => {
     const chargeMigration = source(
       "prisma/migrations/20260424194500_webhook_idempotency_retention_constraints/migration.sql",
     );
-    const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const signedAuthority = source(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+    );
 
     const paymentIntentLine = schema.match(/stripePaymentIntentId\s+String\?[^\n]*/)?.[0] ?? "";
     const chargeLine = schema.match(/stripeChargeId\s+String\?[^\n]*/)?.[0] ?? "";
@@ -83,8 +85,10 @@ describe("schema retention guardrails", () => {
     assert.doesNotMatch(chargeLine, /@unique/);
     assert.match(paymentIntentMigration, /"Order_stripePaymentIntentId_idx"[\s\S]*WHERE "stripePaymentIntentId" IS NOT NULL/);
     assert.match(chargeMigration, /"Order_stripeChargeId_idx"[\s\S]*WHERE "stripeChargeId" IS NOT NULL/);
-    assert.match(webhook, /order\.findFirst\(\{\s*where: \{ stripeChargeId: charge\.id \}/);
-    assert.match(webhook, /order\.findFirst\(\{\s*where: \{ stripeChargeId: chargeId \}/);
+    assert.equal(
+      (signedAuthority.match(/WHERE orders\."stripeChargeId" = p_charge_id/g) ?? []).length,
+      2,
+    );
   });
 
   it("archives dashboard blog posts instead of hard-deleting comment trees", () => {

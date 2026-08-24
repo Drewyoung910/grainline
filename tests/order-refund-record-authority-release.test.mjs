@@ -15,7 +15,9 @@ import {
 } from "../scripts/verify-order-refund-record-authority-release.mjs";
 
 test("release byte-pins the compatible fixed refund record authority", () => {
-  const release = verifyOrderRefundRecordAuthorityRelease();
+  const release = verifyOrderRefundRecordAuthorityRelease(process.cwd(), {
+    allowReviewedSignedAuthoritySuccessor: true,
+  });
   const releaseRecord = readFileSync(
     "docs/order-payment-event-refund-record-authority.md",
     "utf8",
@@ -37,6 +39,13 @@ test("release byte-pins the compatible fixed refund record authority", () => {
   assert.match(
     releaseRecord,
     new RegExp(`SHA-256\\s+\\n?\`${ORDER_REFUND_RECORD_AUTHORITY_MIGRATION_SHA256}\``),
+  );
+});
+
+test("refund record verifier fails closed unless the signed successor is explicit", () => {
+  assert.throws(
+    () => verifyOrderRefundRecordAuthorityRelease(),
+    /unreviewed successor/,
   );
 });
 

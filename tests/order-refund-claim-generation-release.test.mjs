@@ -17,6 +17,7 @@ import {
 test("release byte-pins one coexistence-safe refund claim successor", () => {
   const release = verifyOrderRefundClaimGenerationRelease(process.cwd(), {
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   assert.equal(release.phase, ORDER_REFUND_CLAIM_GENERATION_PHASE);
   assert.equal(release.migration, ORDER_REFUND_CLAIM_GENERATION_MIGRATION);

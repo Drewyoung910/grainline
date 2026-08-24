@@ -30,6 +30,9 @@ import {
 import {
   ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
 } from "./order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+} from "./order-payment-signed-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_FORCE_PHASE =
   "seller-payout-event-force-reviewed";
@@ -50,6 +53,7 @@ export function verifySellerPayoutEventForceRelease(
   {
     allowReviewedRefundClaimSuccessor = false,
     allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
   } = {},
 ) {
   if (
@@ -60,10 +64,19 @@ export function verifySellerPayoutEventForceRelease(
       "Order refund record successor requires the reviewed refund claim successor",
     );
   }
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
   const activation = verifySellerPayoutEventActivationRelease(rootDirectory, {
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor,
     allowReviewedRefundRecordSuccessor,
+    allowReviewedSignedAuthoritySuccessor,
   });
   const activationCandidate = buildSellerPayoutEventActivationCandidate(
     rootDirectory,
@@ -104,7 +117,13 @@ export function verifySellerPayoutEventForceRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_FORCE_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedRefundRecordSuccessor
+    omittedReviewedMigrationNames: allowReviewedSignedAuthoritySuccessor
+      ? [
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+          ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundRecordSuccessor
       ? [
           ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
           ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
@@ -133,7 +152,9 @@ export function verifySellerPayoutEventForceRelease(
       ? Object.freeze({
           phase: guard.phase,
           sealedPrefix: true,
-          reviewedSuccessorMigration: allowReviewedRefundRecordSuccessor
+          reviewedSuccessorMigration: allowReviewedSignedAuthoritySuccessor
+            ? ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION
+            : allowReviewedRefundRecordSuccessor
             ? ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
             : ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
         })

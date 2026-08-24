@@ -59,6 +59,7 @@ export function readReservationForceMigrationCatalog(root = process.cwd()) {
   const release = verifyCheckoutStockReservationForceRelease(root, {
     allowReviewedSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   if (
     release.migration !== CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATION

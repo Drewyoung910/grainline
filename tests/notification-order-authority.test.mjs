@@ -62,9 +62,9 @@ describe("Notification order, payment, and fulfillment authority", () => {
       (webhook.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_CHECKOUT/g) ?? []).length,
       2,
     );
-    assert.match(webhook, /notificationPaymentSourceId: event\.id/);
-    assert.match(webhook, /sourceId: notifySellerUserId\.notificationPaymentSourceId/);
-    assert.match(webhook, /relatedUserId: notifySellerUserId\.buyerUserId \?\? undefined/);
+    assert.match(webhook, /applySignedDisputeWebhook\(tx,/);
+    assert.match(webhook, /sourceId: event\.id/);
+    assert.match(webhook, /relatedUserId: result\.buyerUserId/);
     assert.match(webhook, /processStripePayoutFailedEvent\(event, claimGeneration\)/);
     assert.match(payoutWebhook, /applySellerPayoutFailure\(\{/);
     assert.match(payoutWebhook, /result\.action === "stale_ignored"/);

@@ -1390,6 +1390,47 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Signed platform refund/dispute authority is an additive compatibility
+-- boundary before OrderPaymentEvent RLS. Converge only its two source-bound
+-- functions when the reviewed successor migration is present.
+WITH order_payment_signed_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_signed_refund_apply"(text, bigint, text, bigint, integer, text, text, integer, text, bigint, text)'),
+    ('public."grainline_order_payment_signed_dispute_apply"(text, bigint, text, text, bigint, integer, text, text, text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_payment_signed_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_payment_signed_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_signed_refund_apply"(text, bigint, text, bigint, integer, text, text, integer, text, bigint, text)'),
+    ('public."grainline_order_payment_signed_dispute_apply"(text, bigint, text, text, bigint, integer, text, text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_payment_signed_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_payment_signed_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_signed_refund_apply"(text, bigint, text, bigint, integer, text, text, integer, text, bigint, text)'),
+    ('public."grainline_order_payment_signed_dispute_apply"(text, bigint, text, text, bigint, integer, text, text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_payment_signed_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- CheckoutStockReservation compatible preparation keeps predecessor table
 -- grants while adding only the fixed lifecycle surface. The functions may be
 -- absent before that migration, so every convergence statement is catalog-

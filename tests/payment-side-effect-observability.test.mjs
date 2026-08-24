@@ -704,18 +704,22 @@ describe("payment and fulfillment side-effect observability", () => {
   });
 
   it("preserves fresh refund locks when terminal Stripe dispute events arrive", () => {
-    const route = source("src/app/api/stripe/webhook/route.ts");
+    const signedAuthority = source(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+    );
 
-    assert.match(route, /sellerRefundLockedAt: true/);
-    assert.match(route, /order\.sellerRefundId === REFUND_LOCK_SENTINEL/);
-    assert.match(route, /Boolean\(order\.refundClaimId\)/);
-    assert.match(route, /!isStaleRefundLock\(/);
-    assert.match(route, /delete orderUpdate\.sellerRefundLockedAt/);
+    assert.match(signedAuthority, /orders\."sellerRefundId" = 'pending'/);
+    assert.match(signedAuthority, /orders\."refundClaimId" IS NULL/);
+    assert.match(signedAuthority, /orders\."sellerRefundLockedAt" < source_now - INTERVAL '15 minutes'/);
+    assert.match(signedAuthority, /THEN NULL\s+ELSE orders\."sellerRefundLockedAt"/);
   });
 
   it("serializes Stripe dispute Case promotion inside the fixed database operation", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
-    const authority = source(
+    const signedAuthority = source(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+    );
+    const caseAuthority = source(
       "prisma/migrations/20260729043000_prepare_case_stripe_dispute_authority/migration.sql",
     );
     const disputeBranch = route.slice(
@@ -723,13 +727,14 @@ describe("payment and fulfillment side-effect observability", () => {
       route.indexOf('if (event.type === "payout.failed")'),
     );
 
-    assert.match(disputeBranch, /grainline_case_stripe_dispute_apply\(\$\{paymentEvent\.id\}::text\)/);
+    assert.match(disputeBranch, /applySignedDisputeWebhook\(tx,/);
     assert.doesNotMatch(disputeBranch, /tx\.case\.(?:create|update|updateMany)\(/);
+    assert.match(signedAuthority, /grainline_case_stripe_dispute_apply\(payment_event_id\)/);
     assert.match(
-      authority,
+      caseAuthority,
       /FROM public\."Case" AS case_row\s+WHERE case_row\."orderId" = locked_order\.id\s+FOR UPDATE;/,
     );
-    assert.match(authority, /RAISE EXCEPTION 'Case Stripe dispute target disappeared'\s+USING ERRCODE = '40001'/);
+    assert.match(caseAuthority, /RAISE EXCEPTION 'Case Stripe dispute target disappeared'\s+USING ERRCODE = '40001'/);
   });
 
   it("deduplicates seller dispute notifications across webhook retries", () => {
@@ -741,7 +746,7 @@ describe("payment and fulfillment side-effect observability", () => {
       route.indexOf("});", disputeNotificationStart),
     );
 
-    assert.match(disputeNotification, /dedupScope: `stripe-dispute:\$\{dispute\.id \?\? event\.id\}:created`/);
+    assert.match(disputeNotification, /dedupScope: `stripe-dispute:\$\{disputeId\}:created`/);
   });
 
   it("fails paid checkout webhooks instead of creating partial or unrouted orders", () => {

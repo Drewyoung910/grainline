@@ -14,6 +14,10 @@ import {
   verifyOrderRefundRecordAuthorityMigrationBytes,
 } from "./order-refund-record-authority-catalog.mjs";
 import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+  verifyOrderPaymentSignedAuthorityMigrationBytes,
+} from "./order-payment-signed-authority-catalog.mjs";
+import {
   verifySellerPayoutEventForceRelease,
 } from "./verify-seller-payout-event-force-release.mjs";
 
@@ -22,11 +26,23 @@ export const ORDER_REFUND_CLAIM_GENERATION_PHASE =
 
 export function verifyOrderRefundClaimGenerationRelease(
   rootDirectory = process.cwd(),
-  { allowReviewedRefundRecordSuccessor = false } = {},
+  {
+    allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
+  } = {},
 ) {
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
   const predecessor = verifySellerPayoutEventForceRelease(rootDirectory, {
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor,
+    allowReviewedSignedAuthoritySuccessor,
   });
   const { migrationPath, migrationSha256 } =
     verifyOrderRefundClaimGenerationMigrationBytes(rootDirectory);
@@ -40,13 +56,21 @@ export function verifyOrderRefundClaimGenerationRelease(
     .filter((name) => name > ORDER_REFUND_CLAIM_GENERATION_MIGRATION);
   assert.deepEqual(
     laterMigrations,
-    allowReviewedRefundRecordSuccessor
+    allowReviewedSignedAuthoritySuccessor
+      ? [
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+          ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundRecordSuccessor
       ? [ORDER_REFUND_RECORD_AUTHORITY_MIGRATION]
       : [],
     "Order refund claim generation release has an unreviewed successor",
   );
   if (allowReviewedRefundRecordSuccessor) {
     verifyOrderRefundRecordAuthorityMigrationBytes(rootDirectory);
+  }
+  if (allowReviewedSignedAuthoritySuccessor) {
+    verifyOrderPaymentSignedAuthorityMigrationBytes(rootDirectory);
   }
   assert.match(migration, /SECURITY DEFINER/);
   assert.match(migration, /SET search_path = pg_catalog/);
@@ -73,13 +97,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     const mode = process.argv[2];
     assert.ok(
-      mode === undefined || mode === "--allow-reviewed-refund-record-successor",
+      mode === undefined
+        || mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
       "unsupported Order refund claim generation verifier mode",
     );
     process.stdout.write(`${JSON.stringify(
       verifyOrderRefundClaimGenerationRelease(process.cwd(), {
         allowReviewedRefundRecordSuccessor:
-          mode === "--allow-reviewed-refund-record-successor",
+          mode === "--allow-reviewed-refund-record-successor"
+          || mode === "--allow-reviewed-signed-authority-successor",
+        allowReviewedSignedAuthoritySuccessor:
+          mode === "--allow-reviewed-signed-authority-successor",
       }),
       null,
       2,

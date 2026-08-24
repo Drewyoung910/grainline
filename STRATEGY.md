@@ -479,20 +479,40 @@ self-service export boundary is recorded in
 `docs/order-payment-event-account-export.md`. Compatible authority design is
 now supported by the isolated generation-fenced acquisition work in
 `docs/order-payment-event-refund-claim-generation.md`, but that work is not
-live. A stacked compatible package now adds atomic, source-bound seller and
+live. A stacked compatible package adds atomic, source-bound seller and
 blocked-checkout provider record/finalize operations plus an exact
 later-webhook-generation handoff; see
 `docs/order-payment-event-refund-record-authority.md`. It is also not live and
 its stacked crash-safety refinement atomically reserves source-validated buyer
 notifications and deterministic seller-refund email-outbox work with the fixed
-record operation. It does not supply ambiguous provider-effect reconciliation, signed refund/dispute
-and staff families, projections or the remaining invariants. Activation remains
-blocked on those items, typed ordering and fresh data classification. Pin all
-26 semantic
+record operation. A further isolated compatible candidate implements the two
+source-bound signed platform-webhook families, a typed provider clock and
+equal-second dispute reconciliation; see
+`docs/order-payment-event-signed-authority-design.md`. Its migration hash and
+historical successor allowances are byte-sealed, its disposable PostgreSQL
+authority/concurrency proof passes, and the guarded Production Migrations
+workflow intentionally cannot dispatch it. It is not merged, deployed or
+production-applied. Activation remains blocked on ambiguous provider-effect
+reconciliation, staff families, actor projections, remaining invariants, fresh
+data classification, converted-deployment signed provider proof and
+predecessor drain. Pin all 26 semantic
 consumers, require a fresh aggregate-only
 production inspection, then use compatible schema/functions, converted app
 deployment, signed provider/concurrency proof, predecessor drain, policyless
 ENABLE and separate FORCE. Do not bundle shipping quotes, Order or OrderItem.
+
+The current isolated successor is the two-function signed platform-webhook
+authority in `docs/order-payment-event-signed-authority-design.md`. Keep signed
+`charge.refunded` and dispute application together because they share the
+active webhook generation, charge/Order lock order and typed provider clock.
+Do not bundle ambiguous local-refund reconciliation, staff Case refunds,
+participant projections, RLS or grants. Equal-provider-second conflicts retain
+evidence and mark reconciliation without Case, refund-lock or notification
+effects; event ID and application arrival time must never choose the winner.
+The isolated implementation satisfies that contract locally and remains a
+compatible candidate—not permission to skip deployment coexistence, signed
+Stripe delivery/retry, production inspection, grant convergence, Phase A or
+FORCE.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

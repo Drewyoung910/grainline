@@ -143,6 +143,9 @@ import {
 import {
   ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
 } from "../scripts/order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+} from "../scripts/order-payment-signed-authority-catalog.mjs";
 
 const RELEASE_ZERO = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
@@ -441,6 +444,9 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     // The fixed refund-record successor is independently byte-pinned. Keep it
     // outside every immutable historical guard fixture as well.
     ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+    // The signed payment-event authority successor is independently
+    // byte-pinned and stays outside immutable historical guard fixtures.
+    ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [

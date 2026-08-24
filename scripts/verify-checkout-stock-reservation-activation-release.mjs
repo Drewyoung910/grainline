@@ -35,6 +35,10 @@ import {
   ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
   verifyOrderRefundRecordAuthorityMigrationBytes,
 } from "./order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+  verifyOrderPaymentSignedAuthorityMigrationBytes,
+} from "./order-payment-signed-authority-catalog.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE =
   "checkout-stock-reservation-activation-reviewed";
@@ -46,6 +50,7 @@ export function verifyCheckoutStockReservationActivationRelease(
   {
     allowReviewedSuccessor = false,
     allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
   } = {},
 ) {
   if (allowReviewedRefundRecordSuccessor && !allowReviewedSuccessor) {
@@ -53,8 +58,19 @@ export function verifyCheckoutStockReservationActivationRelease(
       "Order refund record successor requires reviewed reservation successors",
     );
   }
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
   if (allowReviewedRefundRecordSuccessor) {
     verifyOrderRefundRecordAuthorityMigrationBytes(rootDirectory);
+  }
+  if (allowReviewedSignedAuthoritySuccessor) {
+    verifyOrderPaymentSignedAuthorityMigrationBytes(rootDirectory);
   }
   const candidate = verifyPromotedCheckoutStockReservationActivation(
     rootDirectory,
@@ -105,10 +121,15 @@ export function verifyCheckoutStockReservationActivationRelease(
       migrationDirectory,
       ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
     ));
+    const signedAuthoritySuccessorExists = fs.existsSync(path.join(
+      migrationDirectory,
+      ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+    ));
     if (payoutSuccessorExists) {
       if (refundClaimSuccessorExists) {
         verifyOrderRefundClaimGenerationRelease(rootDirectory, {
           allowReviewedRefundRecordSuccessor,
+          allowReviewedSignedAuthoritySuccessor,
         });
       } else {
         verifySellerPayoutEventAuthorityRelease(rootDirectory, {
@@ -135,6 +156,9 @@ export function verifyCheckoutStockReservationActivationRelease(
           : []),
         ...(allowReviewedRefundRecordSuccessor && refundRecordSuccessorExists
           ? [ORDER_REFUND_RECORD_AUTHORITY_MIGRATION]
+          : []),
+        ...(allowReviewedSignedAuthoritySuccessor && signedAuthoritySuccessorExists
+          ? [ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION]
           : []),
       ],
     });
@@ -179,17 +203,21 @@ function main() {
     mode !== undefined
     && mode !== "--allow-reviewed-successor"
     && mode !== "--allow-reviewed-refund-record-successor"
+    && mode !== "--allow-reviewed-signed-authority-successor"
   ) {
     throw new Error(
       "usage: verify-checkout-stock-reservation-activation-release.mjs "
-      + "[--allow-reviewed-successor|--allow-reviewed-refund-record-successor]",
+      + "[--allow-reviewed-successor|--allow-reviewed-refund-record-successor|--allow-reviewed-signed-authority-successor]",
     );
   }
   process.stdout.write(`${JSON.stringify(
     verifyCheckoutStockReservationActivationRelease(undefined, {
       allowReviewedSuccessor: mode !== undefined,
       allowReviewedRefundRecordSuccessor:
-        mode === "--allow-reviewed-refund-record-successor",
+        mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
+      allowReviewedSignedAuthoritySuccessor:
+        mode === "--allow-reviewed-signed-authority-successor",
     }),
     null,
     2,

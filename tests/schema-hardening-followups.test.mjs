@@ -33,13 +33,14 @@ describe("schema hardening follow-ups", () => {
 
   it("bounds order payment event descriptions in schema and webhook writes", () => {
     const schema = source("prisma/schema.prisma");
-    const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const signedAuthority = source(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+    );
     const migration = source("prisma/migrations/20260521150000_schema_hardening_text_and_custom_order/migration.sql");
 
     assert.match(schema, /description\s+String\?\s+@db\.VarChar\(5000\)/);
-    assert.match(webhook, /function paymentEventDescription\(value: string \| null \| undefined\)/);
-    assert.match(webhook, /truncateText\(sanitizeText\(value \?\? ""\), 5000\)/);
-    assert.match(webhook, /description: paymentEventDescription\(data\.description\)/);
+    assert.match(signedAuthority, /event_description := pg_catalog\.left\(/);
+    assert.match(signedAuthority, /Stripe dispute [\s\S]*5000/);
     assert.match(migration, /SET "description" = LEFT\("description", 5000\)/);
     assert.match(migration, /ALTER COLUMN "description" TYPE VARCHAR\(5000\)/);
   });
