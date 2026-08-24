@@ -86,8 +86,11 @@ test("Case resolution email uses the versioned retryable outbox", () => {
 });
 
 test("durable records keep the staff Case boundary and remaining gates explicit", () => {
-  assert.match(design, /isolated compatible application candidate/);
-  assert.match(design, /does\s+not add or replace a database function/);
+  assert.match(
+    design,
+    /compatible application candidate merged through exact main/,
+  );
+  assert.match(design, /does\s+not add or replace a\s+database function/);
   assert.match(design, /Stripe remains outside this transaction/);
   assert.match(design, /same\s+claim\/provider evidence may retry/);
   assert.match(design, /not `OrderPaymentEvent` RLS\s+activation evidence/);

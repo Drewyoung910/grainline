@@ -1,9 +1,9 @@
 # OrderPaymentEvent staff Case delivery boundary
 
-Status: isolated compatible application candidate on the stacked
-`agent/order-payment-event-case-refund-side-effects-20260824` branch. It does
-not add or replace a database function, change grants or RLS, call Stripe from
-PostgreSQL, deploy an application, or change production state.
+Status: compatible application candidate merged through exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`. It does not add or replace a
+database function, change grants or RLS, call Stripe from PostgreSQL, deploy an
+application, or change production state.
 
 Audited: 2026-08-24 after the evidence-bound refund-reconciliation and
 inactive-seller recovery candidates.

@@ -24,7 +24,7 @@ const { Client } = pg;
 export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_CONFIRMATION =
   "inspect-prelaunch-order-payment-shipping-legacy-state";
 export const ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITE_CONFIRMATION =
-  "checkout-stock-reservation-force-and-runtime-separation-postflights-passed";
+  "service-ledger-force-and-runtime-separation-postflights-passed";
 
 export const REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET = Object.freeze({
   databaseName: "neondb",
@@ -46,6 +46,7 @@ export const ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES = Object.freeze([
 
 export const ORDER_PAYMENT_SHIPPING_FORCE_TABLES = Object.freeze([
   "CheckoutStockReservation",
+  "SellerPayoutEvent",
   "StripeWebhookEvent",
 ]);
 
@@ -54,7 +55,6 @@ export const ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES = Object.freeze([
   "OrderItem",
   "OrderPaymentEvent",
   "OrderShippingRateQuote",
-  "SellerPayoutEvent",
 ]);
 
 export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
@@ -338,7 +338,7 @@ export function normalizeOrderPaymentShippingInspectionPosture(rows) {
     });
   if (!postureMatches) {
     throw new Error(
-      "Order/payment/shipping inspection database posture is not the reviewed reservation/webhook FORCE plus remaining broad-CRUD predecessor",
+      "Order/payment/shipping inspection database posture is not the reviewed service-ledger FORCE plus remaining broad-CRUD predecessor",
     );
   }
   return Object.freeze({
@@ -351,6 +351,11 @@ export function normalizeOrderPaymentShippingInspectionPosture(rows) {
       runtimeCrudRetained: false,
     }),
     stripeWebhookEvent: Object.freeze({
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    }),
+    sellerPayoutEvent: Object.freeze({
       rlsEnabled: true,
       rlsForced: true,
       runtimeCrudRetained: false,

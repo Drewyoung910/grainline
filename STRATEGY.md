@@ -566,6 +566,14 @@ Corrected exact head `dd790d40f1c7212c31a0953a8386213c686ded31` passed full CI
 run `32770970002`, including the predecessor-schema aggregate proof. This is
 accepted inspection packaging only; production classification remains a
 separate protected read-only gate after the stacked predecessors merge.
+The stack subsequently merged through exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`, whose full CI run `32772585632`
+passed. Protected inspection run `32773408735` then failed closed before counts
+with `POSTURE_MISMATCH`: the fence still treated the already FORCE-hardened
+`SellerPayoutEvent` as a predecessor. The successor must require all three
+completed service ledgers to remain policyless FORCE/no-CRUD while preserving
+the four remaining Order/payment/shipping predecessors. The failed run produced
+no evidence and made no production change.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

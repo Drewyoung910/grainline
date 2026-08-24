@@ -287,7 +287,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     );
   });
 
-  it("requires live reservation/webhook FORCE and exact remaining predecessor CRUD", () => {
+  it("requires completed service-ledger FORCE and exact remaining predecessor CRUD", () => {
     const script = fs.readFileSync(
       "scripts/order-payment-shipping-legacy-inspect.mjs",
       "utf8",
@@ -296,7 +296,11 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       normalizeOrderPaymentShippingInspectionPosture(postureRows());
     assert.deepEqual(
       [...ORDER_PAYMENT_SHIPPING_FORCE_TABLES],
-      ["CheckoutStockReservation", "StripeWebhookEvent"],
+      [
+        "CheckoutStockReservation",
+        "SellerPayoutEvent",
+        "StripeWebhookEvent",
+      ],
     );
     assert.deepEqual(
       [...ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES],
@@ -305,7 +309,6 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
         "OrderItem",
         "OrderPaymentEvent",
         "OrderShippingRateQuote",
-        "SellerPayoutEvent",
       ],
     );
     assert.deepEqual(posture.checkoutStockReservation, {
@@ -314,6 +317,11 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       runtimeCrudRetained: false,
     });
     assert.deepEqual(posture.stripeWebhookEvent, {
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    });
+    assert.deepEqual(posture.sellerPayoutEvent, {
       rlsEnabled: true,
       rlsForced: true,
       runtimeCrudRetained: false,
@@ -335,12 +343,12 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
         runtime_can_delete: true,
       }),
       postureRowsWith("SellerPayoutEvent", {
-        rls_enabled: true,
-        rls_forced: true,
-        runtime_can_select: false,
-        runtime_can_insert: false,
-        runtime_can_update: false,
-        runtime_can_delete: false,
+        rls_enabled: false,
+        rls_forced: false,
+        runtime_can_select: true,
+        runtime_can_insert: true,
+        runtime_can_update: true,
+        runtime_can_delete: true,
       }),
       postureRowsWith("Order", { policy_count: "1" }),
       postureRowsWith("OrderItem", {
@@ -489,7 +497,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(workflow, /persist-credentials: false/);
     assert.match(
       workflow,
-      /ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED: checkout-stock-reservation-force-and-runtime-separation-postflights-passed/,
+      /ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED: service-ledger-force-and-runtime-separation-postflights-passed/,
     );
     assert.match(
       workflow,

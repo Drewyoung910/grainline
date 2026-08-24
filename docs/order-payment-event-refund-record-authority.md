@@ -1,6 +1,7 @@
 # Order refund record authority preparation
 
-Status: isolated compatible preparation; not merged, deployed or applied to
+Status: compatible preparation merged through exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`; not deployed or applied to
 production. `OrderPaymentEvent` RLS remains off and predecessor table grants
 remain unchanged.
 
