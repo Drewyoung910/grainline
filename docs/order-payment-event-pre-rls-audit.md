@@ -52,6 +52,11 @@ seller cancellation/refunds and staff Case partial refunds remain distinct.
 The second is recorded in `docs/order-payment-event-dispute-state.md`: all
 current-state consumers share the latest-per-dispute row selection while the
 typed provider-time/equal-second reconciliation remains a schema prerequisite.
+The third is recorded in `docs/order-payment-event-account-export.md`: buyer
+and seller self-service exports retain distinct refund-only financial
+projections and exclude the private Stripe service ledger. The later RLS
+conversion still replaces these compatible nested reads with actor-bound,
+keyset-paged database functions.
 
 ## Product and evidence contract
 
