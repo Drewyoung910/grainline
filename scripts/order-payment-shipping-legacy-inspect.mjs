@@ -90,6 +90,18 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
   "payment_unknown_type_count",
   "payment_mutated_count",
   "payment_currency_mismatch_count",
+  "payment_blank_event_identity_count",
+  "payment_incomplete_object_identity_count",
+  "payment_blank_optional_text_count",
+  "payment_unknown_source_family_count",
+  "payment_signed_source_shape_count",
+  "payment_local_source_shape_count",
+  "payment_refund_source_shape_count",
+  "payment_dispute_source_shape_count",
+  "payment_object_cross_order_count",
+  "payment_signed_ordering_missing_count",
+  "payment_local_ordering_present_count",
+  "payment_same_second_dispute_conflict_count",
   "refund_amount_exceeds_order_count",
   "refund_marker_coherence_count",
   "payout_negative_amount_count",
@@ -126,15 +138,17 @@ function required(env, name) {
   return value;
 }
 
-export function parseOrderPaymentShippingLegacyInspectionConfig(env = process.env) {
+export function parseOrderPaymentShippingLegacyInspectionConfig(
+  env = process.env,
+) {
   assertDeterministicPostgresEnvironment(
     env,
     "Order/payment/shipping legacy inspection",
   );
   if (
-    env.GITHUB_ACTIONS !== "true"
-    || env.GITHUB_EVENT_NAME !== "workflow_dispatch"
-    || env.GITHUB_REF !== REVIEWED_MAIN_REF
+    env.GITHUB_ACTIONS !== "true" ||
+    env.GITHUB_EVENT_NAME !== "workflow_dispatch" ||
+    env.GITHUB_REF !== REVIEWED_MAIN_REF
   ) {
     throw new Error(
       "Order/payment/shipping legacy inspection requires a manual main-branch GitHub Actions dispatch",
@@ -145,24 +159,24 @@ export function parseOrderPaymentShippingLegacyInspectionConfig(env = process.en
     "ORDER_PAYMENT_SHIPPING_LEGACY_INSPECT_RELEASE_COMMIT",
   );
   if (
-    !COMMIT_PATTERN.test(releaseCommit)
-    || releaseCommit !== required(env, "GITHUB_SHA")
+    !COMMIT_PATTERN.test(releaseCommit) ||
+    releaseCommit !== required(env, "GITHUB_SHA")
   ) {
     throw new Error(
       "Order/payment/shipping legacy inspection commit must match the dispatched main commit",
     );
   }
   if (
-    env.ORDER_PAYMENT_SHIPPING_LEGACY_INSPECT_CONFIRM
-      !== ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_CONFIRMATION
+    env.ORDER_PAYMENT_SHIPPING_LEGACY_INSPECT_CONFIRM !==
+    ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_CONFIRMATION
   ) {
     throw new Error(
       "Order/payment/shipping legacy inspection confirmation is not exact",
     );
   }
   if (
-    env.ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED
-      !== ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITE_CONFIRMATION
+    env.ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED !==
+    ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITE_CONFIRMATION
   ) {
     throw new Error(
       "Order/payment/shipping legacy inspection prerequisites are not explicitly confirmed",
@@ -189,24 +203,28 @@ export function parseOrderPaymentShippingLegacyInspectionConfig(env = process.en
     "PRODUCTION_MIGRATION_DIRECT_URL_SHA256",
   );
   if (
-    !SHA256_PATTERN.test(expectedDigest)
-    || directUrlSha256 !== expectedDigest
+    !SHA256_PATTERN.test(expectedDigest) ||
+    directUrlSha256 !== expectedDigest
   ) {
-    throw new Error("DIRECT_URL does not match the protected Production digest");
+    throw new Error(
+      "DIRECT_URL does not match the protected Production digest",
+    );
   }
 
   const identity = parseGuardedNeonDatabaseIdentity(directUrl, "DIRECT_URL");
   const target = REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET;
   if (
-    identity.isPooler
-    || identity.databaseName !== target.databaseName
-    || identity.endpointId !== target.endpointId
-    || identity.region !== target.region
-    || identity.username !== target.ownerRole
-    || required(env, "MIGRATION_DB_ROLE") !== target.ownerRole
-    || required(env, "RUNTIME_DB_ROLE") !== target.runtimeRole
+    identity.isPooler ||
+    identity.databaseName !== target.databaseName ||
+    identity.endpointId !== target.endpointId ||
+    identity.region !== target.region ||
+    identity.username !== target.ownerRole ||
+    required(env, "MIGRATION_DB_ROLE") !== target.ownerRole ||
+    required(env, "RUNTIME_DB_ROLE") !== target.runtimeRole
   ) {
-    throw new Error("DIRECT_URL is not the reviewed direct production owner target");
+    throw new Error(
+      "DIRECT_URL is not the reviewed direct production owner target",
+    );
   }
 
   const runnerTemp = path.resolve(required(env, "RUNNER_TEMP"));
@@ -235,11 +253,12 @@ export function parseOrderPaymentShippingLegacyInspectionConfig(env = process.en
 export function readOrderPaymentShippingLegacyInspectionGitState(
   cwd = process.cwd(),
 ) {
-  const run = (args) => execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  }).trim();
+  const run = (args) =>
+    execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
   return Object.freeze({
     head: run(["rev-parse", "HEAD"]),
     status: run(["status", "--porcelain=v1", "--untracked-files=all"]),
@@ -260,7 +279,9 @@ export function assertOrderPaymentShippingLegacyInspectionGitState(
 
 export function normalizeOrderPaymentShippingLegacyCounts(row) {
   if (!row || typeof row !== "object") {
-    throw new TypeError("Order/payment/shipping legacy inspection returned no count row");
+    throw new TypeError(
+      "Order/payment/shipping legacy inspection returned no count row",
+    );
   }
   const actualFields = Object.keys(row).sort();
   const expectedFields = [...ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS].sort();
@@ -285,29 +306,35 @@ export function normalizeOrderPaymentShippingLegacyCounts(row) {
 export function normalizeOrderPaymentShippingInspectionPosture(rows) {
   const expectedTables = [...ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES].sort();
   const forceTables = new Set(ORDER_PAYMENT_SHIPPING_FORCE_TABLES);
-  const postureMatches = Array.isArray(rows)
-    && rows.length === expectedTables.length
-    && rows.every((row, index) => {
+  const postureMatches =
+    Array.isArray(rows) &&
+    rows.length === expectedTables.length &&
+    rows.every((row, index) => {
       if (
-        row.table_name !== expectedTables[index]
-        || row.owner_name
-          !== REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole
-        || Number(row.policy_count) !== 0
-      ) return false;
+        row.table_name !== expectedTables[index] ||
+        row.owner_name !==
+          REVIEWED_ORDER_PAYMENT_SHIPPING_INSPECTION_TARGET.ownerRole ||
+        Number(row.policy_count) !== 0
+      )
+        return false;
       if (forceTables.has(row.table_name)) {
-        return row.rls_enabled === true
-          && row.rls_forced === true
-          && row.runtime_can_select === false
-          && row.runtime_can_insert === false
-          && row.runtime_can_update === false
-          && row.runtime_can_delete === false;
+        return (
+          row.rls_enabled === true &&
+          row.rls_forced === true &&
+          row.runtime_can_select === false &&
+          row.runtime_can_insert === false &&
+          row.runtime_can_update === false &&
+          row.runtime_can_delete === false
+        );
       }
-      return row.rls_enabled === false
-        && row.rls_forced === false
-        && row.runtime_can_select === true
-        && row.runtime_can_insert === true
-        && row.runtime_can_update === true
-        && row.runtime_can_delete === true;
+      return (
+        row.rls_enabled === false &&
+        row.rls_forced === false &&
+        row.runtime_can_select === true &&
+        row.runtime_can_insert === true &&
+        row.runtime_can_update === true &&
+        row.runtime_can_delete === true
+      );
     });
   if (!postureMatches) {
     throw new Error(
@@ -440,6 +467,63 @@ export const STRIPE_WEBHOOK_STATE_INVALID_PREDICATE = `
   OR ("processedAt" IS NOT NULL AND "lastError" IS NOT NULL)
 `;
 
+export const ORDER_PAYMENT_EVENT_SIGNED_SOURCE_INVALID_PREDICATE = `
+  event."stripeEventCreatedSeconds" IS NULL
+  OR pg_catalog.jsonb_typeof(event.metadata) IS DISTINCT FROM 'object'
+  OR (
+    event."eventType" = 'REFUND'
+    AND event.metadata->>'stripeEventType' IS DISTINCT FROM 'charge.refunded'
+  )
+  OR (
+    event."eventType" = 'DISPUTE'
+    AND (
+      event.metadata->>'stripeEventType' IS NULL
+      OR event.metadata->>'stripeEventType' NOT IN (
+        'charge.dispute.created',
+        'charge.dispute.updated',
+        'charge.dispute.closed',
+        'charge.dispute.funds_withdrawn',
+        'charge.dispute.funds_reinstated'
+      )
+    )
+  )
+`;
+
+export const ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE = `
+  event."stripeEventCreatedSeconds" IS NOT NULL
+  OR event."eventType" IS DISTINCT FROM 'REFUND'
+  OR event."stripeObjectType" IS DISTINCT FROM 'refund'
+  OR pg_catalog.jsonb_typeof(event.metadata) IS DISTINCT FROM 'object'
+  OR event.metadata->>'localAction' NOT IN (
+    'SELLER_REFUND_RECORDED',
+    'BLOCKED_CHECKOUT_REFUND_RECORDED',
+    'CASE_REFUND_RECORDED'
+  )
+  OR event."stripeEventId" IS DISTINCT FROM CASE event.metadata->>'localAction'
+    WHEN 'SELLER_REFUND_RECORDED'
+      THEN 'local:seller_refund_recorded:' || event."stripeObjectId"
+    WHEN 'BLOCKED_CHECKOUT_REFUND_RECORDED'
+      THEN 'local:blocked_checkout_refund_recorded:' || event."stripeObjectId"
+    WHEN 'CASE_REFUND_RECORDED'
+      THEN 'local:case_refund_recorded:' || event."stripeObjectId"
+    ELSE NULL
+  END
+`;
+
+export const ORDER_PAYMENT_EVENT_REFUND_SOURCE_INVALID_PREDICATE = `
+  event."stripeObjectType" IS DISTINCT FROM 'refund'
+  OR event."stripeObjectId" IS NULL
+  OR event."amountCents" IS NULL
+`;
+
+export const ORDER_PAYMENT_EVENT_DISPUTE_SOURCE_INVALID_PREDICATE = `
+  event."stripeObjectType" IS DISTINCT FROM 'dispute'
+  OR event."stripeObjectId" IS NULL
+  OR event."amountCents" IS NULL
+  OR event."stripeEventCreatedSeconds" IS NULL
+  OR event.status IS NULL
+`;
+
 export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
   WITH order_seller_counts AS (
     SELECT
@@ -474,6 +558,37 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       pg_catalog.sum(refund_amount)::bigint AS refund_total
     FROM refund_sources
     GROUP BY order_id
+  ), payment_object_order_counts AS (
+    SELECT
+      event."stripeObjectType" AS object_type,
+      event."stripeObjectId" AS object_id,
+      pg_catalog.count(DISTINCT event."orderId")::integer AS order_count
+    FROM public."OrderPaymentEvent" AS event
+    WHERE event."stripeObjectType" IS NOT NULL
+      AND pg_catalog.btrim(event."stripeObjectType") <> ''
+      AND event."stripeObjectId" IS NOT NULL
+      AND pg_catalog.btrim(event."stripeObjectId") <> ''
+    GROUP BY event."stripeObjectType", event."stripeObjectId"
+  ), payment_dispute_same_second_counts AS (
+    SELECT
+      event."orderId" AS order_id,
+      event."stripeObjectId" AS object_id,
+      event."stripeEventCreatedSeconds" AS event_second,
+      pg_catalog.count(DISTINCT (
+        event."amountCents",
+        event.currency,
+        event.status,
+        event.reason,
+        event.metadata->>'stripeEventType'
+      ))::integer AS canonical_state_count
+    FROM public."OrderPaymentEvent" AS event
+    WHERE event."eventType" = 'DISPUTE'
+      AND event."stripeObjectId" IS NOT NULL
+      AND event."stripeEventCreatedSeconds" IS NOT NULL
+    GROUP BY
+      event."orderId",
+      event."stripeObjectId",
+      event."stripeEventCreatedSeconds"
   )
   SELECT
     (SELECT pg_catalog.count(*) FROM public."Order") AS order_count,
@@ -700,6 +815,78 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     ) AS payment_currency_mismatch_count,
     (
       SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent"
+      WHERE pg_catalog.btrim("stripeEventId") = ''
+    ) AS payment_blank_event_identity_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent"
+      WHERE "stripeObjectId" IS NULL
+        OR pg_catalog.btrim("stripeObjectId") = ''
+        OR "stripeObjectType" IS NULL
+        OR pg_catalog.btrim("stripeObjectType") = ''
+    ) AS payment_incomplete_object_identity_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent"
+      WHERE (status IS NOT NULL AND pg_catalog.btrim(status) = '')
+        OR (reason IS NOT NULL AND pg_catalog.btrim(reason) = '')
+        OR (description IS NOT NULL AND pg_catalog.btrim(description) = '')
+    ) AS payment_blank_optional_text_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent"
+      WHERE "stripeEventId" NOT LIKE 'evt\\_%' ESCAPE '\\'
+        AND "stripeEventId" NOT LIKE 'local:%'
+    ) AS payment_unknown_source_family_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent" AS event
+      WHERE event."stripeEventId" LIKE 'evt\\_%' ESCAPE '\\'
+        AND (${ORDER_PAYMENT_EVENT_SIGNED_SOURCE_INVALID_PREDICATE})
+    ) AS payment_signed_source_shape_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent" AS event
+      WHERE event."stripeEventId" LIKE 'local:%'
+        AND (${ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE})
+    ) AS payment_local_source_shape_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent" AS event
+      WHERE event."eventType" = 'REFUND'
+        AND (${ORDER_PAYMENT_EVENT_REFUND_SOURCE_INVALID_PREDICATE})
+    ) AS payment_refund_source_shape_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent" AS event
+      WHERE event."eventType" = 'DISPUTE'
+        AND (${ORDER_PAYMENT_EVENT_DISPUTE_SOURCE_INVALID_PREDICATE})
+    ) AS payment_dispute_source_shape_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM payment_object_order_counts
+      WHERE order_count > 1
+    ) AS payment_object_cross_order_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent"
+      WHERE "stripeEventId" LIKE 'evt\\_%' ESCAPE '\\'
+        AND "stripeEventCreatedSeconds" IS NULL
+    ) AS payment_signed_ordering_missing_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."OrderPaymentEvent"
+      WHERE "stripeEventId" LIKE 'local:%'
+        AND "stripeEventCreatedSeconds" IS NOT NULL
+    ) AS payment_local_ordering_present_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM payment_dispute_same_second_counts
+      WHERE canonical_state_count > 1
+    ) AS payment_same_second_dispute_conflict_count,
+    (
+      SELECT pg_catalog.count(*)
       FROM public."Order" AS orders
       JOIN refund_totals AS refunds ON refunds.order_id = orders.id
       WHERE refunds.refund_total > (
@@ -881,7 +1068,9 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
 `;
 
 async function readCounts(client) {
-  const result = await client.query(ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL);
+  const result = await client.query(
+    ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+  );
   if (result.rows.length !== 1) {
     throw new Error(
       "Order/payment/shipping legacy inspection did not return exactly one aggregate row",
@@ -903,13 +1092,17 @@ export async function runOrderPaymentShippingLegacyInspection(config) {
   await client.connect();
   let transactionOpen = false;
   try {
-    await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await client.query(
+      "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+    );
     transactionOpen = true;
     const transaction = await client.query(
       `SELECT pg_catalog.current_setting('transaction_read_only') AS read_only`,
     );
     if (transaction.rows[0]?.read_only !== "on") {
-      throw new Error("Order/payment/shipping legacy inspection transaction is not read-only");
+      throw new Error(
+        "Order/payment/shipping legacy inspection transaction is not read-only",
+      );
     }
     const posture = await readPosture(client);
     const counts = await readCounts(client);
@@ -931,7 +1124,10 @@ export async function runOrderPaymentShippingLegacyInspection(config) {
       }),
       reservationAuthorityCandidate:
         reservationAuthorityInspectionDecision(counts),
-      transaction: Object.freeze({ isolation: "repeatable read", readOnly: true }),
+      transaction: Object.freeze({
+        isolation: "repeatable read",
+        readOnly: true,
+      }),
     });
   } catch (error) {
     if (transactionOpen) await client.query("ROLLBACK").catch(() => {});
@@ -941,11 +1137,15 @@ export async function runOrderPaymentShippingLegacyInspection(config) {
   }
 }
 
-export function writeOrderPaymentShippingLegacyInspectionEvidence(filePath, evidence) {
+export function writeOrderPaymentShippingLegacyInspectionEvidence(
+  filePath,
+  evidence,
+) {
   const serialized = `${JSON.stringify(evidence, null, 2)}\n`;
   if (
-    /postgres(?:ql)?:\/\/|DIRECT_URL|password|buyerEmail|shipTo|quotedTo|stripe(?:Session|Charge|PaymentIntent|Transfer|Payout|Event)Id|listingSnapshot|reservedItems/i
-      .test(serialized)
+    /postgres(?:ql)?:\/\/|DIRECT_URL|password|buyerEmail|shipTo|quotedTo|stripe(?:Session|Charge|PaymentIntent|Transfer|Payout|Event)Id|listingSnapshot|reservedItems/i.test(
+      serialized,
+    )
   ) {
     throw new Error(
       "Order/payment/shipping legacy inspection evidence contains forbidden data",
@@ -975,18 +1175,25 @@ export function orderPaymentShippingLegacyInspectionFailureCode(error) {
   if (/transaction is not read-only/.test(message)) {
     return "READ_ONLY_FENCE";
   }
-  if (/DIRECT_URL does not match the protected Production digest/.test(message)) {
+  if (
+    /DIRECT_URL does not match the protected Production digest/.test(message)
+  ) {
     return "CREDENTIAL_DIGEST";
   }
-  if (/DIRECT_URL is not the reviewed direct production owner target/.test(message)) {
+  if (
+    /DIRECT_URL is not the reviewed direct production owner target/.test(
+      message,
+    )
+  ) {
     return "DATABASE_TARGET";
   }
   if (/checkout is not the exact clean dispatched commit/.test(message)) {
     return "GIT_STATE";
   }
   if (
-    /inspection returned (?:no count row|an unexpected count shape|invalid \w+)/
-      .test(message)
+    /inspection returned (?:no count row|an unexpected count shape|invalid \w+)/.test(
+      message,
+    )
   ) {
     return "COUNT_SHAPE";
   }
@@ -1024,15 +1231,17 @@ async function main() {
         "reservation authority candidate has nonzero rejected aggregate counts",
       );
     }
-    process.stdout.write(`${JSON.stringify({
-      counts: evidence.counts,
-      evidenceWritten: true,
-      posture: evidence.posture,
-      releaseCommit: evidence.releaseCommit,
-      retained: evidence.retained,
-      status: evidence.status,
-      transaction: evidence.transaction,
-    })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({
+        counts: evidence.counts,
+        evidenceWritten: true,
+        posture: evidence.posture,
+        releaseCommit: evidence.releaseCommit,
+        retained: evidence.retained,
+        status: evidence.status,
+        transaction: evidence.transaction,
+      })}\n`,
+    );
   } catch (error) {
     process.stderr.write(
       `Order/payment/shipping legacy inspection failed closed [${orderPaymentShippingLegacyInspectionFailureCode(error)}].\n`,
@@ -1041,6 +1250,9 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await main();
 }

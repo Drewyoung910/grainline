@@ -11,6 +11,7 @@ import {
   ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_CONFIRMATION,
   ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
   ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITE_CONFIRMATION,
+  ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE,
   ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES,
   RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS,
   assertOrderPaymentShippingLegacyInspectionGitState,
@@ -32,7 +33,9 @@ const workflow = fs.readFileSync(
 const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
 function tempDirectory() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "order-payment-shipping-inspect-"));
+  return fs.mkdtempSync(
+    path.join(os.tmpdir(), "order-payment-shipping-inspect-"),
+  );
 }
 
 function environment(directory, overrides = {}) {
@@ -86,9 +89,9 @@ function postureRows() {
 }
 
 function postureRowsWith(tableName, changes) {
-  return postureRows().map((row) => row.table_name === tableName
-    ? { ...row, ...changes }
-    : row);
+  return postureRows().map((row) =>
+    row.table_name === tableName ? { ...row, ...changes } : row,
+  );
 }
 
 describe("Order/payment/shipping aggregate-only legacy inspection", () => {
@@ -117,7 +120,9 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       { PRODUCTION_MIGRATION_DIRECT_URL_SHA256: "0".repeat(64) },
       { DATABASE_URL: "present" },
       { GRANT_AUDIT_DATABASE_URL: "present" },
-      { ORDER_PAYMENT_SHIPPING_LEGACY_INSPECT_EVIDENCE_PATH: "/tmp/wrong.json" },
+      {
+        ORDER_PAYMENT_SHIPPING_LEGACY_INSPECT_EVIDENCE_PATH: "/tmp/wrong.json",
+      },
     ];
     for (const drift of cases) {
       const directory = tempDirectory();
@@ -125,7 +130,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
         assert.throws(() =>
           parseOrderPaymentShippingLegacyInspectionConfig(
             environment(directory, drift),
-          )
+          ),
         );
       } finally {
         fs.rmSync(directory, { recursive: true, force: true });
@@ -145,18 +150,18 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       assertOrderPaymentShippingLegacyInspectionGitState(
         { head: COMMIT, status: " M file" },
         COMMIT,
-      )
+      ),
     );
     assert.throws(() =>
       assertOrderPaymentShippingLegacyInspectionGitState(
         { head: "d".repeat(40), status: "" },
         COMMIT,
-      )
+      ),
     );
   });
 
   it("normalizes only the exact nonnegative aggregate shape", () => {
-    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 54);
+    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 66);
     const normalized = normalizeOrderPaymentShippingLegacyCounts(countRow("2"));
     assert.equal(
       Object.keys(normalized).length,
@@ -167,13 +172,13 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       normalizeOrderPaymentShippingLegacyCounts({
         ...countRow(),
         extra: "0",
-      })
+      }),
     );
     assert.throws(() =>
       normalizeOrderPaymentShippingLegacyCounts({
         ...countRow(),
         order_count: "-1",
-      })
+      }),
     );
   });
 
@@ -189,11 +194,17 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
         { accepted: false, rejectedFields: [field] },
       );
     }
-    assert.match(workflow, /Upload sanitized aggregate evidence\s*\n\s*if: always\(\)/);
+    assert.match(
+      workflow,
+      /Upload sanitized aggregate evidence\s*\n\s*if: always\(\)/,
+    );
   });
 
   it("keeps one aggregate SELECT and covers every reviewed table", () => {
-    assert.match(ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL, /^\s*WITH[\s\S]*\bSELECT\b/);
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /^\s*WITH[\s\S]*\bSELECT\b/,
+    );
     assert.doesNotMatch(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|CREATE|GRANT|REVOKE)\b/i,
@@ -211,6 +222,18 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       "quote_invalid_rate_member_count",
       "duplicate_live_quote_order_count",
       "payment_currency_mismatch_count",
+      "payment_blank_event_identity_count",
+      "payment_incomplete_object_identity_count",
+      "payment_blank_optional_text_count",
+      "payment_unknown_source_family_count",
+      "payment_signed_source_shape_count",
+      "payment_local_source_shape_count",
+      "payment_refund_source_shape_count",
+      "payment_dispute_source_shape_count",
+      "payment_object_cross_order_count",
+      "payment_signed_ordering_missing_count",
+      "payment_local_ordering_present_count",
+      "payment_same_second_dispute_conflict_count",
       "refund_amount_exceeds_order_count",
       "refund_marker_coherence_count",
       "payout_mutated_count",
@@ -220,8 +243,19 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       "webhook_blank_identity_count",
       "webhook_stale_processing_count",
     ]) {
-      assert.match(ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL, new RegExp(`\\b${field}\\b`));
+      assert.match(
+        ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+        new RegExp(`\\b${field}\\b`),
+      );
     }
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /pg_catalog\.count\(DISTINCT \([\s\S]*metadata->>'stripeEventType'[\s\S]*canonical_state_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE,
+      /'local:seller_refund_recorded:' \|\| event\."stripeObjectId"[\s\S]*'local:blocked_checkout_refund_recorded:' \|\| event\."stripeObjectId"[\s\S]*'local:case_refund_recorded:' \|\| event\."stripeObjectId"/,
+    );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
       /"payloadHash" <> 'deleted'[\s\S]*"payloadHash" !~ '\^\[A-Za-z0-9_-\]\{32\}\$'/,
@@ -249,18 +283,22 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       "scripts/order-payment-shipping-legacy-inspect.mjs",
       "utf8",
     );
-    const posture = normalizeOrderPaymentShippingInspectionPosture(postureRows());
-    assert.deepEqual([...ORDER_PAYMENT_SHIPPING_FORCE_TABLES], [
-      "CheckoutStockReservation",
-      "StripeWebhookEvent",
-    ]);
-    assert.deepEqual([...ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES], [
-      "Order",
-      "OrderItem",
-      "OrderPaymentEvent",
-      "OrderShippingRateQuote",
-      "SellerPayoutEvent",
-    ]);
+    const posture =
+      normalizeOrderPaymentShippingInspectionPosture(postureRows());
+    assert.deepEqual(
+      [...ORDER_PAYMENT_SHIPPING_FORCE_TABLES],
+      ["CheckoutStockReservation", "StripeWebhookEvent"],
+    );
+    assert.deepEqual(
+      [...ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES],
+      [
+        "Order",
+        "OrderItem",
+        "OrderPaymentEvent",
+        "OrderShippingRateQuote",
+        "SellerPayoutEvent",
+      ],
+    );
     assert.deepEqual(posture.checkoutStockReservation, {
       rlsEnabled: true,
       rlsForced: true,
@@ -306,14 +344,22 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       );
     }
     assert.match(script, /forceTables\.has\(row\.table_name\)/);
-    assert.match(script, /reservation authority candidate has nonzero rejected aggregate counts/);
-    assert.match(script, /status: result\.reservationAuthorityCandidate\.accepted[\s\S]*\? "passed"[\s\S]*: "blocked"/);
+    assert.match(
+      script,
+      /reservation authority candidate has nonzero rejected aggregate counts/,
+    );
+    assert.match(
+      script,
+      /status: result\.reservationAuthorityCandidate\.accepted[\s\S]*\? "passed"[\s\S]*: "blocked"/,
+    );
   });
 
   it("reports only bounded failure classes", () => {
     assert.equal(
       orderPaymentShippingLegacyInspectionFailureCode(
-        new Error("Order/payment/shipping inspection database posture is not the reviewed state"),
+        new Error(
+          "Order/payment/shipping inspection database posture is not the reviewed state",
+        ),
       ),
       "POSTURE_MISMATCH",
     );
@@ -333,7 +379,10 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       "scripts/order-payment-shipping-legacy-inspect.mjs",
       "utf8",
     );
-    assert.match(script, /failed closed \[\$\{orderPaymentShippingLegacyInspectionFailureCode\(error\)\}\]/);
+    assert.match(
+      script,
+      /failed closed \[\$\{orderPaymentShippingLegacyInspectionFailureCode\(error\)\}\]/,
+    );
     assert.doesNotMatch(script, /process\.stderr\.write\([^)]*error\.message/);
   });
 
@@ -390,7 +439,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
         writeOrderPaymentShippingLegacyInspectionEvidence(
           path.join(directory, "bad.json"),
           { buyerEmail: "private@example.com" },
-        )
+        ),
       );
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
@@ -402,17 +451,22 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       "scripts/order-payment-shipping-legacy-inspect.mjs",
       "utf8",
     );
-    assert.match(source, /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/);
+    assert.match(
+      source,
+      /BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/,
+    );
     assert.match(source, /transaction_read_only/);
     assert.match(source, /ROLLBACK/);
     assert.match(source, /rawRows: false/);
     const begin = source.indexOf(
-      'client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")',
+      "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
     );
     const posture = source.indexOf("readPosture(client)", begin);
     const counts = source.indexOf("readCounts(client)", posture);
     const rollback = source.indexOf('client.query("ROLLBACK")', counts);
-    assert.ok(begin >= 0 && begin < posture && posture < counts && counts < rollback);
+    assert.ok(
+      begin >= 0 && begin < posture && posture < counts && counts < rollback,
+    );
   });
 
   it("wires only a protected aggregate-only production inspection", () => {

@@ -550,6 +550,14 @@ the request then attempts the exact durable job and the worker owns retry. See
 preparation, not deployment or RLS evidence. The remaining staff gate is real
 provider/replay integration proof, not another generic refund writer.
 
+The next isolated OrderPaymentEvent invariant pass starts by extending the
+existing protected production inspection from the historical 54-count shape to
+66 aggregate-only fields. It classifies signed/local source families, provider
+clock shape, cross-Order object reuse and same-second dispute conflicts before
+any legacy validation or immutable trigger is written. See
+`docs/order-payment-event-invariant-inspection.md`; preparation is not a
+dispatch, migration, cleanup or activation authorization.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
@@ -1840,6 +1848,7 @@ Do not market these as fully implemented until the workflows exist in code and h
 ### `/why-grainline` and `/why-sell-on-grainline` SHIPPED (2026-05-12)
 
 Both landing pages are live.
+
 - `/why-grainline` (buyer) lives in `src/app/why-grainline/page.tsx`. Sections: hero, handmade-trust problem with two-column comparison, four trust-mechanism cards, badge ladder (Founding/Guild Member/Guild Master with live counts), American-made stat bar with map link, buyer protection step-by-step, espresso final CTA.
 - `/why-sell-on-grainline` (seller) lives in `src/app/why-sell-on-grainline/page.tsx`. Sections: hero, four-platform fee comparison table (Grainline/Etsy/Faire/Amazon Handmade), Etsy take-rate trap deep dive, Founding Maker scarcity counter, what-we-dont-do, what-you-get six-card grid, risk reversal, espresso final CTA. CTA links use Clerk auth state to send signed-in users straight to `/dashboard` and signed-out users to `/sign-up?redirect_url=/dashboard`.
 
@@ -1852,6 +1861,7 @@ Revisit when: catalog hits ~75 listings (refresh stats and screenshots), Etsy fe
 Post to: r/EtsySellers, r/woodworking, r/SmallBusiness. NOT r/Etsy main (mods nuke competitor posts).
 
 Each post should:
+
 - Open with "I'm not selling anything" disclaimer.
 - Lead with the Etsy fee math problem (specific numbers, including Offsite Ads on shipping).
 - Ask for the first 10 sellers + critics + collaborators, not for signups.
@@ -1896,6 +1906,7 @@ New seller signs up with a referral code, gets 0% Grainline fee for first 3 mont
 Referrer earns 1% of every sale the referee makes for 12 months, paid by Grainline (not deducted from referee). Powerful but expensive on P&L. Hold until margin allows.
 
 **Explicitly skip:**
+
 - Cash signing bonuses (gameable).
 - Per-listing payouts (rewards stuffing the catalog with junk).
 - Buyer-side referee discounts (wrong audience, won't move the needle at this stage).
@@ -1907,6 +1918,7 @@ A "paste Etsy URL" import flow. Public Etsy listing pages render server-side, so
 Build this only after 5 sellers are confirmed interested. Otherwise it's a feature without a market.
 
 Tech notes:
+
 - Etsy's robots.txt allows public listing page fetches.
 - Photos need to be re-downloaded and uploaded to R2 (don't hot-link).
 - Categorize via existing AI review pipeline.
@@ -1915,14 +1927,17 @@ Tech notes:
 ## LLM-search positioning
 
 ### Current state (right move for next 12 months)
+
 - robots.txt blocks GPTBot, ClaudeBot, CCBot, Google-Extended, anthropic-ai for training scraping. This is intentional and stays.
 - llms.txt published at root for canonical-pitch consumption.
 - Sitemap with rich Product / LocalBusiness / Article / Service JSON-LD. Already shipped.
 
 ### Revisit at ~500 listings
+
 At catalog density, consider allowing AI bots for browse-tool / on-demand fetch (not training). The mechanism: keep the broad disallow but add specific allows for AI browse-tool user agents that respect non-training intent. OpenAI's `ChatGPT-User`, Anthropic's `Claude-User`, Google's `Google-Extended-User` (these are the live-browse agents, separate from training agents).
 
 ### Long term (3+ years)
+
 LLMs will increasingly act as buyer intent resolvers. Marketplaces will compete to be the system the LLM calls via tool-use to fulfill an order. Grainline's existing Stripe Checkout API is already shaped correctly to be a backend for this. Direction: keep API endpoints clean and well-documented in case OpenAI Operator / Anthropic Computer Use / similar emerges as a buyer channel.
 
 ## Things explicitly NOT to do right now

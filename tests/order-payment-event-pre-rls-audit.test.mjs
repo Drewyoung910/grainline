@@ -5,6 +5,10 @@ import { describe, it } from "node:test";
 
 const AUDIT_PATH = "docs/order-payment-event-pre-rls-audit.md";
 const audit = fs.readFileSync(AUDIT_PATH, "utf8");
+const invariantInspection = fs.readFileSync(
+  "docs/order-payment-event-invariant-inspection.md",
+  "utf8",
+);
 
 function sourceFiles(root = "src") {
   const files = [];
@@ -89,5 +93,16 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
     assert.match(audit, /predecessor\s+deployment drain/);
     assert.match(audit, /posture-only FORCE separately/);
     assert.match(audit, /Provider proof is required for this table/);
+  });
+
+  it("records the additive inspection boundary without rewriting history", () => {
+    assert.match(invariantInspection, /exactly 66 aggregate fields/);
+    assert.match(invariantInspection, /prior 54-count evidence remains historically accurate/);
+    assert.match(
+      invariantInspection,
+      /counts and retain\s+no row, Order, user, provider-object or event identity/,
+    );
+    assert.match(invariantInspection, /not permission to delete, rewrite\s+or weaken a constraint/);
+    assert.match(invariantInspection, /does not:[\s\S]*change `OrderPaymentEvent` grants or RLS/);
   });
 });
