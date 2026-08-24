@@ -55,7 +55,6 @@ import {
 } from "@/lib/refundLockState";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
-import { localRefundEvidenceEventId } from "@/lib/localRefundEvidence";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import {
@@ -90,10 +89,10 @@ import {
 } from "@/lib/orderRefundClaimAuthority";
 import {
   orderRefundProviderEvidence,
-  recordBlockedCheckoutOrderRefund,
   type OrderRefundProviderEvidence,
   type OrderRefundRecordResult,
 } from "@/lib/orderRefundRecordAuthority";
+import { finalizeBlockedCheckoutOrderRefund } from "@/lib/orderRefundFinalization";
 
 
 export const runtime = "nodejs";
@@ -942,7 +941,6 @@ export async function POST(req: Request) {
       return processIdempotentEvent(async () => {
       let existingBlockedCheckoutRetry: {
         id: string;
-        buyerId: string | null;
         retryReason: string;
         sellerUserIds: string[];
       } | null = null;
@@ -952,7 +950,6 @@ export async function POST(req: Request) {
         where: { stripeSessionId: sessionId },
         select: {
           id: true,
-          buyerId: true,
           sellerRefundId: true,
           sellerRefundLockedAt: true,
           refundClaimId: true,
@@ -979,7 +976,6 @@ export async function POST(req: Request) {
         if (retryReason) {
           existingBlockedCheckoutRetry = {
             id: already.id,
-            buyerId: already.buyerId,
             retryReason,
             sellerUserIds: [
               ...new Set(already.items.map((item) => item.listing.seller.userId).filter(Boolean)),
@@ -1125,7 +1121,6 @@ export async function POST(req: Request) {
         orderId: string;
         reason: string;
         sellerUserIds: string[];
-        buyerUserId: string | null;
       }) {
         const reviewPrefix = blockedCheckoutReviewPrefix(input.reason);
         const { logSecurityEvent } = await import("@/lib/security");
@@ -1281,7 +1276,7 @@ export async function POST(req: Request) {
             }
 
             refundProviderEvidence = orderRefundProviderEvidence(refund);
-            refundRecordResult = await recordBlockedCheckoutOrderRefund({
+            refundRecordResult = await finalizeBlockedCheckoutOrderRefund({
               orderId: input.orderId,
               claim: refundClaim,
               evidence: refundProviderEvidence,
@@ -1308,7 +1303,7 @@ export async function POST(req: Request) {
                 throw refundError;
               }
               try {
-                refundRecordResult = await recordBlockedCheckoutOrderRefund({
+                refundRecordResult = await finalizeBlockedCheckoutOrderRefund({
                   orderId: input.orderId,
                   claim: refundClaim,
                   evidence: refundProviderEvidence,
@@ -1363,32 +1358,6 @@ export async function POST(req: Request) {
               "Blocked checkout refund completed without durable refund authority.",
             );
           }
-          if (input.buyerUserId) {
-            try {
-              await createNotification({
-                userId: input.buyerUserId,
-                type: "NEW_ORDER",
-                title: "Payment refunded",
-                body: "This payment was refunded because the checkout was no longer eligible to complete.",
-                link: `/dashboard/orders/${input.orderId}`,
-                sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
-                sourceId: localRefundEvidenceEventId(
-                  "BLOCKED_CHECKOUT_REFUND_RECORDED",
-                  refundId,
-                ),
-              });
-            } catch (notificationError) {
-              Sentry.captureException(notificationError, {
-                level: "warning",
-                tags: { source: "stripe_webhook_blocked_checkout_refund_notification" },
-                extra: {
-                  stripeSessionId: sessionId,
-                  orderId: input.orderId,
-                  buyerUserId: input.buyerUserId,
-                },
-              });
-            }
-          }
         } catch (refundError) {
           if (refundId || retryBlockedCheckoutRefund) {
             throw refundError;
@@ -1413,7 +1382,6 @@ export async function POST(req: Request) {
           orderId: existingBlockedCheckoutRetry.id,
           reason: existingBlockedCheckoutRetry.retryReason,
           sellerUserIds: existingBlockedCheckoutRetry.sellerUserIds,
-          buyerUserId: existingBlockedCheckoutRetry.buyerId,
         });
         return NextResponse.json({ ok: true });
       }
@@ -1854,7 +1822,6 @@ export async function POST(req: Request) {
             id: order.id,
             invalidReason: cartInvalidState.reason,
             invalidSellerUserIds: cartInvalidState.sellerUserIds,
-            buyerUserId: cartInvalidState.buyerUserId,
             listingSearchCacheInvalidationNeeded: stockVisibilityChanged,
           };
         });
@@ -1872,7 +1839,6 @@ export async function POST(req: Request) {
             orderId: createdCartOrder.id,
             reason: createdCartOrder.invalidReason,
             sellerUserIds: createdCartOrder.invalidSellerUserIds,
-            buyerUserId: createdCartOrder.buyerUserId,
           });
           return NextResponse.json({ ok: true });
         }
@@ -2178,7 +2144,6 @@ export async function POST(req: Request) {
             id: order.id,
             invalidReason: singleInvalidState.reason,
             invalidSellerUserIds: singleInvalidState.sellerUserIds,
-            buyerUserId: singleInvalidState.buyerUserId,
             listingSearchCacheInvalidationNeeded,
           };
         });
@@ -2196,7 +2161,6 @@ export async function POST(req: Request) {
             orderId: createdSingleOrder.id,
             reason: createdSingleOrder.invalidReason,
             sellerUserIds: createdSingleOrder.invalidSellerUserIds,
-            buyerUserId: createdSingleOrder.buyerUserId,
           });
           return NextResponse.json({ ok: true });
         }

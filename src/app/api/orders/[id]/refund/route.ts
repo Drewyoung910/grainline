@@ -6,12 +6,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { sendRefundIssued } from "@/lib/email";
 import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
-import { localRefundEvidenceEventId } from "@/lib/localRefundEvidence";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
-import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { formatCurrencyCents } from "@/lib/money";
 import {
   rateLimitResponse,
   refundRatelimit,
@@ -50,10 +45,10 @@ import {
 } from "@/lib/orderRefundClaimAuthority";
 import {
   orderRefundProviderEvidence,
-  recordSellerOrderRefund,
   type OrderRefundProviderEvidence,
   type OrderRefundRecordResult,
 } from "@/lib/orderRefundRecordAuthority";
+import { finalizeSellerOrderRefund } from "@/lib/orderRefundFinalization";
 
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
@@ -244,12 +239,6 @@ export async function POST(
     if (refundAmountCents == null) {
       throw new TypeError("Full seller refund amount could not be derived from the order");
     }
-    const refundAmountDisplay = formatCurrencyCents(
-      refundAmountCents,
-      order.currency,
-    );
-    const refundNotificationBody = `Your maker issued a refund of ${refundAmountDisplay} for your order.`;
-
     const refundClaim = await claimSellerOrderRefund({
       actorUserId: me.id,
       orderId,
@@ -333,7 +322,7 @@ export async function POST(
       }
       const providerEvidence = orderRefundProviderEvidence(refund);
       refundProviderEvidence = providerEvidence;
-      refundRecordResult = await recordSellerOrderRefund({
+      refundRecordResult = await finalizeSellerOrderRefund({
         actorUserId: me.id,
         orderId,
         claim: refundClaim,
@@ -353,7 +342,7 @@ export async function POST(
           throw err;
         }
         try {
-          refundRecordResult = await recordSellerOrderRefund({
+          refundRecordResult = await finalizeSellerOrderRefund({
             actorUserId: me.id,
             orderId,
             claim: refundClaim,
@@ -404,60 +393,6 @@ export async function POST(
     if (!refundId || !refundRecordResult) {
       throw new Error("Seller refund completed without durable refund authority");
     }
-    const refundAuthoritySourceId = localRefundEvidenceEventId(
-      "SELLER_REFUND_RECORDED",
-      refundId,
-    );
-
-    // In-app notification for the buyer
-    if (order.buyerId) {
-      try {
-        await createNotification({
-          userId: order.buyerId,
-          type: "REFUND_ISSUED",
-          title: "Refund from maker",
-          body: refundNotificationBody,
-          link: `/dashboard/orders/${orderId}`,
-          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
-          sourceId: refundAuthoritySourceId,
-          relatedUserId: me.id,
-        });
-      } catch (error) {
-        Sentry.captureException(error, {
-          level: "warning",
-          tags: { source: "seller_refund_notification" },
-          extra: { orderId, buyerId: order.buyerId, refundAmountCents },
-        });
-      }
-    }
-
-    try {
-      const refundEmailAllowed = order.buyerId
-        ? await shouldSendEmail(order.buyerId, "EMAIL_REFUND_ISSUED")
-        : false;
-      const buyerUser =
-        order.buyerId && refundEmailAllowed
-          ? await prisma.user.findUnique({
-              where: { id: order.buyerId },
-              select: { name: true, email: true },
-            })
-          : null;
-      if (buyerUser?.email) {
-        await sendRefundIssued({
-          buyer: { name: buyerUser.name, email: buyerUser.email },
-          refundAmountCents,
-          currency: order.currency,
-          orderId,
-        });
-      }
-    } catch (error) {
-      Sentry.captureException(error, {
-        level: "warning",
-        tags: { source: "seller_refund_email" },
-        extra: { orderId, buyerId: order.buyerId ?? null, refundAmountCents },
-      });
-    }
-
     return privateJson({
       ok: true,
       refundId: refundId!,

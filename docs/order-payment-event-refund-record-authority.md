@@ -35,6 +35,41 @@ falls back to a broad partial "orphan" transaction that can separate Order,
 payment, stock, Case and audit state. Exact replays return the existing result
 without restoring stock or writing evidence again.
 
+## Crash-safe participant delivery refinement
+
+The stacked
+`agent/order-payment-event-refund-side-effects-20260823` refinement closes the
+remaining application transaction gap. Seller finalization now runs the fixed
+record operation, source-validated buyer Notification function and a
+deterministic `refund_issued` EmailOutbox reservation through one Prisma
+transaction. Blocked-checkout finalization runs its fixed record operation and
+source-validated buyer Notification through the same transaction. Recipient,
+refund amount, currency and source identity come from the validated claim and
+record result rather than the earlier route snapshot.
+
+The provider refund still happens before the database transaction because
+PostgreSQL cannot perform or authenticate the Stripe request. If Notification
+or outbox reservation fails, the complete local transaction rolls back and the
+same provider evidence can retry through the generation-fenced finalizer. Once
+it commits, a request crash cannot lose the participant evidence: the existing
+request path attempts the exact committed outbox job immediately, while the
+email-outbox cron recovers a missed or retryable send. Both recheck current
+account, preference, suppression and quota state and use the same provider
+idempotency key, so delivery never requires another refund. Exact replay
+deduplicates both Notification and outbox identity.
+
+The outbox reservation uses Prisma `createMany(..., skipDuplicates: true)` and
+then reads the exact dedup row. This intentionally maps PostgreSQL replay to
+`ON CONFLICT DO NOTHING`: catching a `P2002` after a normal insert and then
+querying would leave the enclosing transaction aborted and make the supposedly
+restart-safe replay fail.
+
+Search and homepage tag invalidation remains an idempotent post-commit action.
+A process exit can therefore retain only the existing bounded cache staleness
+(five minutes for featured makers and at most one hour for popular listing
+tags); it cannot lose durable refund, stock, Case, notification or email-queue
+state.
+
 ## Restart-safe blocked-checkout handoff
 
 A failed Stripe webhook attempt clears its lease. A later signed retry owns a

@@ -27,7 +27,7 @@ function orderedIndex(text, needles) {
 
 test("seller refund route uses only the source-bound Case operation", () => {
   assert.doesNotMatch(route, /(?:prisma|tx)\.case\./);
-  assert.match(route, /recordSellerOrderRefund\(\{/);
+  assert.match(route, /finalizeSellerOrderRefund\(\{/);
   assert.doesNotMatch(route, /grainline_case_seller_refund_apply/);
   assert.match(helper, /grainline_seller_refund_record/);
   assert.match(migration, /FROM public\.grainline_case_seller_refund_apply\(/);

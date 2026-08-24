@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { NotificationType } from "@prisma/client";
+import type { NotificationType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { DbUserContextTransactionClient } from "@/lib/dbUserContext";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 
+export type NotificationServiceClient = Pick<Prisma.TransactionClient, "$queryRaw">;
 type ContextualNotificationServiceClient = Pick<DbUserContextTransactionClient, "$queryRaw">;
 
 export type NotificationServiceCreateInput = {
@@ -15,14 +16,17 @@ export type NotificationServiceCreateInput = {
   relatedUserId: string | null;
 };
 
-export async function createNotificationServiceRow({
-  notificationId,
-  userId,
-  type,
-  sourceType,
-  sourceId,
-  relatedUserId,
-}: NotificationServiceCreateInput): Promise<string | null> {
+export async function createNotificationServiceRow(
+  {
+    notificationId,
+    userId,
+    type,
+    sourceType,
+    sourceId,
+    relatedUserId,
+  }: NotificationServiceCreateInput,
+  client: NotificationServiceClient = prisma,
+): Promise<string | null> {
   if (sourceId === null) {
     throw new Error("notification create family is not implemented for a source-less event");
   }
@@ -57,7 +61,7 @@ export async function createNotificationServiceRow({
   }
   let rows: Array<{ id: string | null }>;
   if (socialSource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_social_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -68,7 +72,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (caseSource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_case_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -79,7 +83,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (commissionSource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_commission_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -90,7 +94,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (verificationSource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_verification_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -101,7 +105,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (moderationSource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_moderation_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -112,7 +116,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (accountWarningSource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_account_warning(
           ${notificationId}::text,
           ${userId}::text,
@@ -123,7 +127,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (orderSource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_order_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -134,7 +138,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (inventorySource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_inventory_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -145,7 +149,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else if (messageSource) {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_message_event(
           ${notificationId}::text,
           ${userId}::text,
@@ -156,7 +160,7 @@ export async function createNotificationServiceRow({
         ) AS id
       `;
   } else {
-    rows = await prisma.$queryRaw<Array<{ id: string | null }>>`
+    rows = await client.$queryRaw<Array<{ id: string | null }>>`
         SELECT public.grainline_notification_create_source_fanout(
           ${notificationId}::text,
           ${userId}::text,

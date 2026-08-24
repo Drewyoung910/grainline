@@ -9,7 +9,10 @@ import {
 import { isEmailNotificationEnabled } from "@/lib/notificationEmailPreferences";
 import { emailPreferenceLookupFailureAllowsSend } from "./notificationPreferenceState.ts";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { createNotificationServiceRow } from "@/lib/notificationServiceAccess";
+import {
+  createNotificationServiceRow,
+  type NotificationServiceClient,
+} from "@/lib/notificationServiceAccess";
 import type {
   NotificationRelatedUserFields,
   NotificationSourceFields,
@@ -76,6 +79,7 @@ async function createNotificationWithFailureMode(
     relatedUserId,
   }: CreateNotificationInput,
   failureMode: "swallow" | "throw",
+  client?: NotificationServiceClient,
 ) {
   try {
     const notificationSourceType = sourceType
@@ -91,7 +95,7 @@ async function createNotificationWithFailureMode(
       sourceType: notificationSourceType ?? null,
       sourceId: notificationSourceId ?? null,
       relatedUserId: relatedUserId ?? null,
-    });
+    }, client);
     return notificationId ? { id: notificationId } : null;
   } catch (error) {
     Sentry.captureException(error, {
@@ -103,8 +107,11 @@ async function createNotificationWithFailureMode(
   }
 }
 
-export async function createNotification(input: CreateNotificationInput) {
-  return createNotificationWithFailureMode(input, "swallow");
+export async function createNotification(
+  input: CreateNotificationInput,
+  client?: NotificationServiceClient,
+) {
+  return createNotificationWithFailureMode(input, "swallow", client);
 }
 
 /**
@@ -113,6 +120,9 @@ export async function createNotification(input: CreateNotificationInput) {
  * deduplication still returns null without throwing when the notification was
  * already created by an earlier attempt.
  */
-export async function createNotificationOrThrow(input: CreateNotificationInput) {
-  return createNotificationWithFailureMode(input, "throw");
+export async function createNotificationOrThrow(
+  input: CreateNotificationInput,
+  client?: NotificationServiceClient,
+) {
+  return createNotificationWithFailureMode(input, "throw", client);
 }

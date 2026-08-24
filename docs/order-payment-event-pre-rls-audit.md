@@ -25,7 +25,7 @@ idempotency keys; the staff Case refund path already has a private provider
 claim; disputed-order side effects use signed provider event time; and the
 Order/refund transitions share row locks. That is a sound foundation.
 
-Activation is nevertheless not ready. The audit found five load-bearing
+Activation is nevertheless not ready. The audit found six load-bearing
 issues:
 
 1. buyer and seller account exports expose the full provider ledger, including
@@ -39,7 +39,12 @@ issues:
 5. seller self-service partial refunds have no coherent residual-order model:
    the UI calls the operation cancellation, while every successful partial
    refund permanently blocks fulfillment/review/metrics and optional stock
-   restoration does not rewrite purchased items or prove the retained balance.
+   restoration does not rewrite purchased items or prove the retained balance;
+   and
+6. seller and blocked-checkout refund notifications, plus seller refund email,
+   were attempted only after the financial transaction committed. A process
+   exit in that window could permanently omit participant delivery because a
+   safe retry must not issue the provider refund again.
 
 Fix these in a compatible application/schema sequence before activation. Do
 not compensate with a permissive policy, a generic DEFINER append function or
@@ -71,7 +76,10 @@ The fifth compatible correction is recorded in
 blocked-checkout successful full refunds now use source-bound fixed
 record/finalize operations that atomically co-write Order, payment, stock,
 Case and audit evidence, plus a restart-safe exact webhook-generation handoff.
-It is also isolated preparation only. Ambiguous provider reconciliation,
+The stacked crash-safety refinement moves source-validated in-app notification
+creation and deterministic seller-refund email-outbox reservation into the
+same application database transaction as that fixed finalizer. It is also
+isolated preparation only. Ambiguous provider reconciliation,
 signed refund/dispute writers, remaining invariants/projections, live proof and
 activation remain open.
 
@@ -351,6 +359,29 @@ execute these functions under their real owner/runtime ACL split and prove
 their intended source paths still work while direct runtime reads/writes fail.
 Do not grant table SELECT back to make an old proof pass.
 
+### OPE-A11 - refund participant delivery had a post-commit crash gap
+
+The fixed refund record operation made financial, stock, Case and audit state
+atomic, but the converted application initially created the source-bound
+Notification and sent seller-refund email only after that operation committed.
+If the process exited after commit, a safe replay could not revisit those side
+effects because the Order correctly reported an existing refund. The prior
+best-effort catches also turned Notification or email failure into a successful
+HTTP response, removing automatic webhook retry pressure.
+
+Keep the provider call outside PostgreSQL, then run the fixed record operation,
+source-validated Notification function and deterministic refund EmailOutbox
+reservation through one Prisma database transaction. The email worker—not the
+request lifetime—is the delivery guarantee. The request attempts the exact
+committed job immediately for existing UX, while the scheduled worker recovers
+a missed or retryable send; both re-check recipient lifecycle, preference,
+suppression and quota state before sending. Exact refund replays
+reuse source and outbox deduplication and cannot mint duplicate participant
+effects. Blocked checkout has no email contract, but its buyer Notification is
+part of the same transaction. Public listing/search cache invalidation remains
+post-commit and idempotent; a missed call affects only the existing bounded
+5-to-60-minute cache TTL, not durable money, inventory or participant evidence.
+
 ## Required fixed-operation catalog
 
 Names remain design contracts until reviewed SQL is written.
@@ -378,7 +409,9 @@ Names remain design contracts until reviewed SQL is written.
 8. Buyer and seller payment-history export pages with distinct safe columns.
 9. Live staff payment timeline projection with fixed role check and limit.
 10. Source-specific transition predicates for fulfillment, label, delivery,
-    review, ban/listing lifecycle and post-payment side effects.
+    review, ban/listing lifecycle and post-payment side effects. Local refund
+    participant notification and email-outbox reservation commit with the
+    exact fixed refund record transaction.
 11. Fixed quality/site/homepage/recent-sales aggregate facts; no arbitrary
     event predicate or event-ID enumeration.
 

@@ -10,6 +10,7 @@ describe("Notification order, payment, and fulfillment authority", () => {
   const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
   const refund = source("src/app/api/orders/[id]/refund/route.ts");
   const webhook = source("src/app/api/stripe/webhook/route.ts");
+  const refundFinalization = source("src/lib/orderRefundFinalization.ts");
   const payoutWebhook = source("src/lib/stripePayoutWebhook.ts");
   const refundAuthority = source(
     "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
@@ -34,16 +35,26 @@ describe("Notification order, payment, and fulfillment authority", () => {
   });
 
   it("binds seller and blocked-checkout refunds to their existing payment ledgers", () => {
-    assert.match(refund, /recordSellerOrderRefund\(\{/);
+    assert.match(refund, /finalizeSellerOrderRefund\(\{/);
     assert.doesNotMatch(refund, /recordLocalRefundEvidence/);
     assert.match(refundAuthority, /'notificationBody',[\s\S]{0,260}'Your maker issued a refund of '/);
     assert.match(refundAuthority, /'localAction', 'SELLER_REFUND_RECORDED'/);
     assert.match(refundAuthority, /'localAction', 'BLOCKED_CHECKOUT_REFUND_RECORDED'/);
-    assert.match(refund, /sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_PAYMENT/);
-    assert.match(refund, /sourceId: refundAuthoritySourceId/);
-    assert.match(refund, /relatedUserId: me\.id/);
-    assert.match(webhook, /"BLOCKED_CHECKOUT_REFUND_RECORDED",[\s\S]{0,80}refundId/);
-    assert.match(webhook, /sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_PAYMENT/);
+    assert.match(refundFinalization, /recordSellerOrderRefund\(input, tx\)/);
+    assert.match(refundFinalization, /recordBlockedCheckoutOrderRefund\(input, tx\)/);
+    assert.equal(
+      (refundFinalization.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_PAYMENT/g) ?? []).length,
+      3,
+    );
+    assert.match(refundFinalization, /sourceId,[\s\S]*relatedUserId: input\.actorUserId/);
+    assert.match(refundFinalization, /BLOCKED_CHECKOUT_REFUND_ACTION,[\s\S]*result\.refundId/);
+    assert.doesNotMatch(
+      refundFinalization.slice(
+        refundFinalization.indexOf("export async function finalizeBlockedCheckoutOrderRefund"),
+      ),
+      /relatedUserId:/,
+    );
+    assert.match(webhook, /finalizeBlockedCheckoutOrderRefund\(\{/);
   });
 
   it("binds checkout, dispute, and payout notifications to provider-backed evidence", () => {

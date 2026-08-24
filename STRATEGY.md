@@ -461,11 +461,12 @@ acceptance record.
 
 The fresh next-table audit is now
 `docs/order-payment-event-pre-rls-audit.md`. `OrderPaymentEvent` remains the
-next bounded release. The audit identified five domain gaps: raw
+next bounded release. The audit identified six domain gaps: raw
 payment-provider metadata in buyer/seller exports; seller and blocked-checkout
 refund ABA claims; inconsistent latest-dispute predicates; missing
 append-only/taxonomy/currency/event-time invariants; and ambiguous seller
-self-service partial-refund semantics. Use the launch-safe constraint:
+self-service partial-refund semantics; plus a post-commit crash gap in refund
+participant notification/email delivery. Use the launch-safe constraint:
 seller self-service supports full cancellation/refund, while partial refunds
 remain staff Case operations until a residual line-item fulfillment model is
 designed. The compatible application correction and future feature gate are
@@ -482,7 +483,9 @@ live. A stacked compatible package now adds atomic, source-bound seller and
 blocked-checkout provider record/finalize operations plus an exact
 later-webhook-generation handoff; see
 `docs/order-payment-event-refund-record-authority.md`. It is also not live and
-does not supply ambiguous provider-effect reconciliation, signed refund/dispute
+its stacked crash-safety refinement atomically reserves source-validated buyer
+notifications and deterministic seller-refund email-outbox work with the fixed
+record operation. It does not supply ambiguous provider-effect reconciliation, signed refund/dispute
 and staff families, projections or the remaining invariants. Activation remains
 blocked on those items, typed ordering and fresh data classification. Pin all
 26 semantic

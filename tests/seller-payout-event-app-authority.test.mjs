@@ -149,11 +149,11 @@ describe("SellerPayoutEvent application authority", () => {
     );
     assert.match(
       notifications,
-      /createNotification\(input: CreateNotificationInput\)[\s\S]*"swallow"/,
+      /createNotification\(\s*input: CreateNotificationInput,[\s\S]{0,180}"swallow"/,
     );
     assert.match(
       notifications,
-      /createNotificationOrThrow\(input: CreateNotificationInput\)[\s\S]*"throw"/,
+      /createNotificationOrThrow\(\s*input: CreateNotificationInput,[\s\S]{0,180}"throw"/,
     );
     assert.match(dashboard, /latestSellerPayoutFailure\(me\.id\)/);
     assert.match(accountExport, /exportSellerPayoutEvents\(user\.id\)/);
