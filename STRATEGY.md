@@ -613,6 +613,15 @@ repair, enumerate or rehydrate it. This classification unblocks continued
 OrderPaymentEvent invariant/RLS work; Order, OrderItem and
 OrderShippingRateQuote remain separate release boundaries.
 
+The next isolated compatible-production candidate binds the five already
+sealed refund/payment authority migrations to exact-main CI and a fresh
+aggregate inspection. Its engine-read-only verifier accepts only the six exact
+applied-prefix states from clean predecessor through fully prepared, compares
+the live function bodies and catalog, refuses any later migration directory,
+and preserves `OrderPaymentEvent` RLS-off broad predecessor CRUD. It is not an
+activation runner. See
+`docs/order-payment-event-compatible-production-preparation.md`.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

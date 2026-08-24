@@ -209,8 +209,9 @@ from one atomic fixed record/finalize operation. A failed webhook retry may
 hand an existing claim only to a later active generation for the identical
 event, Checkout Session, Order, amount and idempotency scope. See
 `docs/order-payment-event-refund-claim-generation.md` and
-`docs/order-payment-event-refund-record-authority.md`; both remain isolated
-preparation, not production database state.
+`docs/order-payment-event-refund-record-authority.md`. The compatible stack is
+merged and byte-pinned but remains absent from the production database and
+deployed application.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,
@@ -240,7 +241,7 @@ candidate adds the typed provider clock and source-bound refund/dispute
 operations; equal-second differences, including signed event-type differences,
 retain evidence and mark staff reconciliation without Case or Notification
 effects. It is byte-pinned and passes disposable PostgreSQL authority and
-concurrency proof, but is not merged, deployed, production-applied or RLS
+concurrency proof. It is merged but not deployed, production-applied or RLS
 activation evidence. See
 `docs/order-payment-event-signed-authority-design.md`. Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
@@ -254,9 +255,12 @@ blocked-checkout full refunds. The exact active tuple fences success, orphan
 and ambiguous writes; stale-lock cleanup, signed `charge.refunded` handling and
 terminal dispute handling cannot detach it by elapsed time. The real migration
 runs in disposable PostgreSQL and is byte-pinned after the SellerPayoutEvent
-FORCE predecessor. It is not merged, deployed, production-applied or an RLS
-activation. `Order` retains predecessor direct runtime CRUD, and atomic fixed
-provider record/finalize plus evidence-based reconciliation remain required.
+FORCE predecessor. It is merged but not deployed, production-applied or an RLS
+activation. The restart-safe compatible runner checks every applied prefix,
+live function-body hash and catalog boundary before applying the missing suffix;
+see `docs/order-payment-event-compatible-production-preparation.md`. `Order`
+and `OrderPaymentEvent` retain predecessor direct runtime CRUD throughout this
+preparation.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
