@@ -82,6 +82,16 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
   "shipping_state_invalid_count",
   "fulfillment_timestamp_order_count",
   "label_state_coherence_count",
+  "label_negative_cost_count",
+  "label_purchased_missing_transaction_count",
+  "label_purchased_missing_url_count",
+  "label_purchased_missing_timestamp_count",
+  "label_purchased_nonshipping_method_count",
+  "label_purchased_invalid_fulfillment_count",
+  "label_unpurchased_with_transaction_count",
+  "label_unpurchased_with_url_count",
+  "label_unpurchased_with_timestamp_count",
+  "label_unpurchased_with_cost_count",
   "label_clawback_state_coherence_count",
   "quote_invalid_shape_count",
   "quote_invalid_rate_member_count",
@@ -463,6 +473,73 @@ export const ORDER_PICKUP_STATE_INVALID_PREDICATE = `
   )
 `;
 
+export const ORDER_LABEL_STATE_INVALID_PREDICATE = `
+  "labelCostCents" < 0
+  OR (
+    "labelStatus" = 'PURCHASED'
+    AND (
+      "shippoTransactionId" IS NULL
+      OR "labelUrl" IS NULL
+      OR "labelPurchasedAt" IS NULL
+      OR "fulfillmentMethod" IS DISTINCT FROM 'SHIPPING'::public."FulfillmentMethod"
+      OR "fulfillmentStatus" NOT IN ('SHIPPED', 'DELIVERED')
+    )
+  )
+  OR (
+    "labelStatus" IS NULL
+    AND (
+      "shippoTransactionId" IS NOT NULL
+      OR "labelUrl" IS NOT NULL
+      OR "labelPurchasedAt" IS NOT NULL
+      OR "labelCostCents" IS NOT NULL
+    )
+  )
+`;
+
+// This exact aggregate projection refines the broad label-state count without
+// retaining Order IDs, provider IDs, URLs, timestamps, costs or raw rows.
+export const ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION = `
+  pg_catalog.count(*) FILTER (
+    WHERE "labelCostCents" < 0
+  ) AS label_negative_cost_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" = 'PURCHASED'
+      AND "shippoTransactionId" IS NULL
+  ) AS label_purchased_missing_transaction_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" = 'PURCHASED'
+      AND "labelUrl" IS NULL
+  ) AS label_purchased_missing_url_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" = 'PURCHASED'
+      AND "labelPurchasedAt" IS NULL
+  ) AS label_purchased_missing_timestamp_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" = 'PURCHASED'
+      AND "fulfillmentMethod" IS DISTINCT FROM 'SHIPPING'::public."FulfillmentMethod"
+  ) AS label_purchased_nonshipping_method_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" = 'PURCHASED'
+      AND "fulfillmentStatus" NOT IN ('SHIPPED', 'DELIVERED')
+  ) AS label_purchased_invalid_fulfillment_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" IS NULL
+      AND "shippoTransactionId" IS NOT NULL
+  ) AS label_unpurchased_with_transaction_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" IS NULL
+      AND "labelUrl" IS NOT NULL
+  ) AS label_unpurchased_with_url_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" IS NULL
+      AND "labelPurchasedAt" IS NOT NULL
+  ) AS label_unpurchased_with_timestamp_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" IS NULL
+      AND "labelCostCents" IS NOT NULL
+  ) AS label_unpurchased_with_cost_count
+`;
+
 export const STRIPE_WEBHOOK_STATE_INVALID_PREDICATE = `
   ("processedAt" IS NOT NULL AND "processingStartedAt" IS NULL)
   OR (
@@ -605,6 +682,10 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       event."orderId",
       event."stripeObjectId",
       (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION})
+  ), label_state_classification AS (
+    SELECT
+      ${ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION}
+    FROM public."Order"
   )
   SELECT
     (SELECT pg_catalog.count(*) FROM public."Order") AS order_count,
@@ -716,27 +797,18 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     (
       SELECT pg_catalog.count(*)
       FROM public."Order"
-      WHERE "labelCostCents" < 0
-        OR (
-          "labelStatus" = 'PURCHASED'
-          AND (
-            "shippoTransactionId" IS NULL
-            OR "labelUrl" IS NULL
-            OR "labelPurchasedAt" IS NULL
-            OR "fulfillmentMethod" IS DISTINCT FROM 'SHIPPING'::public."FulfillmentMethod"
-            OR "fulfillmentStatus" NOT IN ('SHIPPED', 'DELIVERED')
-          )
-        )
-        OR (
-          "labelStatus" IS NULL
-          AND (
-            "shippoTransactionId" IS NOT NULL
-            OR "labelUrl" IS NOT NULL
-            OR "labelPurchasedAt" IS NOT NULL
-            OR "labelCostCents" IS NOT NULL
-          )
-        )
+      WHERE ${ORDER_LABEL_STATE_INVALID_PREDICATE}
     ) AS label_state_coherence_count,
+    (SELECT label_negative_cost_count FROM label_state_classification) AS label_negative_cost_count,
+    (SELECT label_purchased_missing_transaction_count FROM label_state_classification) AS label_purchased_missing_transaction_count,
+    (SELECT label_purchased_missing_url_count FROM label_state_classification) AS label_purchased_missing_url_count,
+    (SELECT label_purchased_missing_timestamp_count FROM label_state_classification) AS label_purchased_missing_timestamp_count,
+    (SELECT label_purchased_nonshipping_method_count FROM label_state_classification) AS label_purchased_nonshipping_method_count,
+    (SELECT label_purchased_invalid_fulfillment_count FROM label_state_classification) AS label_purchased_invalid_fulfillment_count,
+    (SELECT label_unpurchased_with_transaction_count FROM label_state_classification) AS label_unpurchased_with_transaction_count,
+    (SELECT label_unpurchased_with_url_count FROM label_state_classification) AS label_unpurchased_with_url_count,
+    (SELECT label_unpurchased_with_timestamp_count FROM label_state_classification) AS label_unpurchased_with_timestamp_count,
+    (SELECT label_unpurchased_with_cost_count FROM label_state_classification) AS label_unpurchased_with_cost_count,
     (
       SELECT pg_catalog.count(*)
       FROM public."Order"

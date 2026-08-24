@@ -706,3 +706,21 @@ RLS-off, zero-policy broad-CRUD predecessors for this inspection only. Any
 other combination fails before counts. A fresh exact-main CI pass and separate
 protected read-only dispatch remain required; do not treat the failed run as
 legacy-data evidence.
+
+PR #262 corrected that fence and merged at exact main
+`bc64516c6463118012c643806a3f398f2584092c`; exact-main CI `32782625503`
+passed. Protected production inspection `32783261534` then passed inside an
+engine-enforced repeatable-read read-only transaction. Sanitized evidence
+SHA-256 `2a4e2819efa40acae014521aff141408cef66d468d0f4935c093415416dbbe30`
+retains no raw row or private/provider identity. It reports 2 Orders, 3
+OrderItems and 13 StripeWebhookEvents; zero payment events, payout events,
+reservations and quotes; and zero for every refund, dispute, replay, amount,
+currency, source-family, privacy, collision, reservation and quote defect.
+
+The sole nonzero defect is `label_state_coherence_count = 1`. That finding is
+scoped to the future Order release and does not block the separately empty
+OrderPaymentEvent release. It is not cleanup permission. The additive
+aggregate-only successor expands the 66-field accepted baseline to 76 fields
+with ten overlapping label-state subtype counts and preserves the no-row,
+no-identifier evidence boundary. The historical 66-field evidence remains
+accepted and unchanged.

@@ -69,6 +69,18 @@ describe("Order/payment/shipping legacy inspection PostgreSQL proof", () => {
     assert.match(proof, /cross_order_object_detected: 1/);
     assert.match(proof, /same_second_dispute_conflict_detected: 1/);
     assert.match(proof, /paymentEventSemanticsAccepted: true/);
+    assert.match(proof, /labelStateSemanticsAccepted: true/);
+    assert.match(proof, /invalid_label_states: 3/);
+    assert.match(proof, /label_negative_cost_count: "1"/);
+    assert.match(proof, /label_purchased_missing_transaction_count: "1"/);
+    assert.match(proof, /label_purchased_missing_url_count: "1"/);
+    assert.match(proof, /label_purchased_missing_timestamp_count: "1"/);
+    assert.match(proof, /label_purchased_nonshipping_method_count: "1"/);
+    assert.match(proof, /label_purchased_invalid_fulfillment_count: "1"/);
+    assert.match(proof, /label_unpurchased_with_transaction_count: "1"/);
+    assert.match(proof, /label_unpurchased_with_url_count: "1"/);
+    assert.match(proof, /label_unpurchased_with_timestamp_count: "1"/);
+    assert.match(proof, /label_unpurchased_with_cost_count: "1"/);
     assert.match(proof, /timestampSemanticsAccepted: true/);
     assert.match(proof, /await client\.query\("ROLLBACK"\)/);
     assert.match(proof, /productionChanged: false/);
