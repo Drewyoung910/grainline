@@ -1,4 +1,5 @@
-import { Prisma, type EmailOutbox } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import type { EmailOutbox } from "@prisma/client";
 import * as Sentry from "@sentry/nextjs";
 import { prisma } from "@/lib/db";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -35,6 +36,7 @@ export const EMAIL_OUTBOX_TEMPLATE_NAMES = [
   "followed_maker_new_listing",
   "order_confirmed_buyer",
   "order_confirmed_seller",
+  "refund_issued",
   "seller_broadcast",
   "welcome",
 ] as const;
@@ -62,9 +64,7 @@ export type EnqueueEmailOutboxResult = {
   created: boolean;
 };
 
-function isUniqueError(error: unknown) {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
-}
+type EmailOutboxClient = Pick<typeof prisma, "emailOutbox">;
 
 function normalizeTemplateVersion(version: number | undefined) {
   if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
@@ -153,7 +153,10 @@ async function skipEmailOutboxJob(id: string, lastError: string) {
   });
 }
 
-export async function enqueueEmailOutboxOnce(email: QueuedEmail): Promise<EnqueueEmailOutboxResult> {
+export async function enqueueEmailOutboxOnce(
+  email: QueuedEmail,
+  client: EmailOutboxClient = prisma,
+): Promise<EnqueueEmailOutboxResult> {
   const recipient = normalizeEmailAddress(email.to);
   if (!recipient) return { job: null, created: false };
   if (email.preferenceKey && !isValidEmailPreferenceKey(email.preferenceKey)) {
@@ -166,34 +169,203 @@ export async function enqueueEmailOutboxOnce(email: QueuedEmail): Promise<Enqueu
   }
   const dedupKey = emailOutboxDedupKey(email.dedupKey);
 
+  // PostgreSQL marks a transaction failed after a uniqueness error. Use the
+  // provider's ON CONFLICT path so an exact replay can read the retained row
+  // without aborting a caller-owned transaction.
+  const inserted = await client.emailOutbox.createMany({
+    data: {
+      id: randomUUID(),
+      recipientEmail: recipient,
+      userId: email.userId,
+      preferenceKey: email.preferenceKey,
+      templateName: email.templateName,
+      templateVersion: normalizeTemplateVersion(email.templateVersion),
+      sourceType: email.sourceType ? truncateText(email.sourceType, 80) : undefined,
+      sourceId: email.sourceId ? truncateText(email.sourceId, 191) : undefined,
+      subject: email.subject.slice(0, 300),
+      html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
+      dedupKey,
+    },
+    skipDuplicates: true,
+  });
+  const job = await client.emailOutbox.findUnique({ where: { dedupKey } });
+  if (!job) {
+    throw new Error("Email outbox insert completed without a durable row");
+  }
+  return { job, created: inserted.count === 1 };
+}
+
+export async function enqueueEmailOutbox(
+  email: QueuedEmail,
+  client: EmailOutboxClient = prisma,
+) {
+  const { job } = await enqueueEmailOutboxOnce(email, client);
+  return job;
+}
+
+type EmailOutboxProcessResult = "sent" | "failed" | "skipped" | "capped" | "unclaimed";
+
+async function processEmailOutboxJob(
+  job: EmailOutbox,
+  staleProcessingCutoff: Date,
+): Promise<EmailOutboxProcessResult> {
+  const claimed = await prisma.emailOutbox.updateMany({
+    where: {
+      id: job.id,
+      OR: [
+        {
+          status: { in: ["PENDING", "FAILED"] },
+          nextAttemptAt: { lte: new Date() },
+        },
+        {
+          status: "PROCESSING",
+          updatedAt: { lt: staleProcessingCutoff },
+        },
+      ],
+    },
+    data: {
+      status: "PROCESSING",
+      attempts: { increment: 1 },
+      nextAttemptAt: null,
+      lastError: null,
+    },
+  });
+  if (claimed.count !== 1) return "unclaimed";
+
+  const claimedJob = await prisma.emailOutbox.findUnique({
+    where: { id: job.id },
+    select: { attempts: true },
+  });
+  const attempts = claimedJob?.attempts ?? job.attempts + 1;
   try {
-    const job = await prisma.emailOutbox.create({
+    const inactiveReason = await inactiveQueuedEmailRecipientReason(job);
+    if (inactiveReason) {
+      await skipEmailOutboxJob(job.id, inactiveReason);
+      return "skipped";
+    }
+
+    if (job.userId && job.preferenceKey && !isValidEmailPreferenceKey(job.preferenceKey)) {
+      await skipEmailOutboxJob(job.id, `Invalid email preference key: ${job.preferenceKey}`);
+      return "skipped";
+    }
+
+    if (job.userId && job.preferenceKey && !(await shouldSendEmail(job.userId, job.preferenceKey))) {
+      await skipEmailOutboxJob(job.id, "Email preference disabled before send");
+      return "skipped";
+    }
+
+    if (await isEmailDeliverySuppressed(job.recipientEmail)) {
+      await skipEmailOutboxJob(job.id, "Recipient email is suppressed after a bounce, complaint, or account deletion");
+      return "skipped";
+    }
+
+    const quotaCheckedAt = new Date();
+    const recipientQuota = await reserveRecipientDailySendAllowance(job.recipientEmail, 1, quotaCheckedAt);
+    if (recipientQuota.allowed < 1) {
+      const deferral = emailOutboxQuotaDeferralState({
+        counterAvailable: recipientQuota.counterAvailable,
+        resetAt: recipientQuota.resetAt,
+        attempts,
+        now: quotaCheckedAt,
+      });
+      await prisma.emailOutbox.update({
+        where: { id: job.id },
+        data: {
+          status: "PENDING",
+          attempts: deferral.attempts,
+          nextAttemptAt: deferral.nextAttemptAt,
+          lastError: recipientQuota.counterAvailable
+            ? `Daily per-recipient email outbox send cap reached (${recipientQuota.limit}/recipient/day)`
+            : "Daily per-recipient email outbox send cap unavailable",
+        },
+      });
+      Sentry.captureMessage(recipientQuota.counterAvailable
+        ? "Email outbox recipient daily send cap reached"
+        : "Email outbox recipient daily send cap unavailable", {
+        level: "warning",
+        tags: { source: "email_outbox_recipient_quota" },
+        extra: {
+          emailOutboxId: job.id,
+          limit: recipientQuota.limit,
+          nextAttemptAt: deferral.nextAttemptAt.toISOString(),
+          resetAt: recipientQuota.resetAt.toISOString(),
+          counterAvailable: recipientQuota.counterAvailable,
+        },
+      });
+      return "capped";
+    }
+
+    const quota = await reserveDailySendAllowance(1, quotaCheckedAt);
+    if (quota.allowed < 1) {
+      await rollbackRecipientDailySendAllowance(job.recipientEmail, recipientQuota.allowed, quotaCheckedAt);
+      const deferral = emailOutboxQuotaDeferralState({
+        counterAvailable: quota.counterAvailable,
+        resetAt: quota.resetAt,
+        attempts,
+        now: quotaCheckedAt,
+      });
+      await prisma.emailOutbox.update({
+        where: { id: job.id },
+        data: {
+          status: "PENDING",
+          attempts: deferral.attempts,
+          nextAttemptAt: deferral.nextAttemptAt,
+          lastError: quota.counterAvailable
+            ? `${deferral.lastError} (${quota.limit}/day)`
+            : deferral.lastError,
+        },
+      });
+      Sentry.captureMessage(quota.counterAvailable
+        ? "Email outbox daily send cap reached"
+        : "Email outbox daily send cap unavailable", {
+        level: "warning",
+        tags: { source: "email_outbox_daily_quota" },
+        extra: {
+          emailOutboxId: job.id,
+          limit: quota.limit,
+          nextAttemptAt: deferral.nextAttemptAt.toISOString(),
+          resetAt: quota.resetAt.toISOString(),
+          counterAvailable: quota.counterAvailable,
+        },
+      });
+      return "capped";
+    }
+
+    await sendRenderedEmail(
+      { to: job.recipientEmail, subject: job.subject, html: job.html },
+      { throwOnFailure: true, idempotencyKey: job.dedupKey },
+    );
+    await prisma.emailOutbox.update({
+      where: { id: job.id },
+      data: { status: "SENT", sentAt: new Date(), nextAttemptAt: null, lastError: null },
+    });
+    return "sent";
+  } catch (error) {
+    const failureState = emailOutboxFailureState(attempts);
+    await prisma.emailOutbox.update({
+      where: { id: job.id },
       data: {
-        recipientEmail: recipient,
-        userId: email.userId,
-        preferenceKey: email.preferenceKey,
-        templateName: email.templateName,
-        templateVersion: normalizeTemplateVersion(email.templateVersion),
-        sourceType: email.sourceType ? truncateText(email.sourceType, 80) : undefined,
-        sourceId: email.sourceId ? truncateText(email.sourceId, 191) : undefined,
-        subject: email.subject.slice(0, 300),
-        html: truncateText(email.html, EMAIL_OUTBOX_HTML_MAX_CHARS),
-        dedupKey,
+        status: failureState.status,
+        nextAttemptAt: failureState.nextAttemptAt,
+        lastError: sanitizeEmailOutboxError(error),
       },
     });
-    return { job, created: true };
-  } catch (error) {
-    if (isUniqueError(error)) {
-      const job = await prisma.emailOutbox.findUnique({ where: { dedupKey } });
-      return { job, created: false };
-    }
-    throw error;
+    Sentry.captureException(error, {
+      tags: { source: "email_outbox", status: failureState.terminal ? "dead" : "retry" },
+      extra: { emailOutboxId: job.id, attempts },
+    });
+    return "failed";
   }
 }
 
-export async function enqueueEmailOutbox(email: QueuedEmail) {
-  const { job } = await enqueueEmailOutboxOnce(email);
-  return job;
+/**
+ * Attempts one exact durable job immediately. A process exit before this call
+ * or a retryable send failure leaves the same row for the scheduled batch.
+ */
+export async function processEmailOutboxJobById(id: string) {
+  const job = await prisma.emailOutbox.findUnique({ where: { id } });
+  if (!job) return "missing" as const;
+  return processEmailOutboxJob(job, emailOutboxProcessingStaleCutoff(new Date()));
 }
 
 export async function processEmailOutboxBatch({
@@ -222,169 +394,16 @@ export async function processEmailOutboxBatch({
     take,
   });
 
-  let sent = 0;
-  let failed = 0;
-  let skipped = 0;
-  let capped = 0;
+  const results = await mapWithConcurrency(jobs, concurrency, (job) =>
+    processEmailOutboxJob(job, staleProcessingCutoff),
+  );
 
-  await mapWithConcurrency(jobs, concurrency, async (job) => {
-    const claimed = await prisma.emailOutbox.updateMany({
-      where: {
-        id: job.id,
-        OR: [
-          {
-            status: { in: ["PENDING", "FAILED"] },
-            nextAttemptAt: { lte: new Date() },
-          },
-          {
-            status: "PROCESSING",
-            updatedAt: { lt: staleProcessingCutoff },
-          },
-        ],
-      },
-      data: {
-        status: "PROCESSING",
-        attempts: { increment: 1 },
-        nextAttemptAt: null,
-        lastError: null,
-      },
-    });
-    if (claimed.count !== 1) {
-      skipped += 1;
-      return;
-    }
-
-    const claimedJob = await prisma.emailOutbox.findUnique({
-      where: { id: job.id },
-      select: { attempts: true },
-    });
-    const attempts = claimedJob?.attempts ?? job.attempts + 1;
-    try {
-      const inactiveReason = await inactiveQueuedEmailRecipientReason(job);
-      if (inactiveReason) {
-        await skipEmailOutboxJob(job.id, inactiveReason);
-        skipped += 1;
-        return;
-      }
-
-      if (job.userId && job.preferenceKey && !isValidEmailPreferenceKey(job.preferenceKey)) {
-        await skipEmailOutboxJob(job.id, `Invalid email preference key: ${job.preferenceKey}`);
-        skipped += 1;
-        return;
-      }
-
-      if (job.userId && job.preferenceKey && !(await shouldSendEmail(job.userId, job.preferenceKey))) {
-        await skipEmailOutboxJob(job.id, "Email preference disabled before send");
-        skipped += 1;
-        return;
-      }
-
-      if (await isEmailDeliverySuppressed(job.recipientEmail)) {
-        await skipEmailOutboxJob(job.id, "Recipient email is suppressed after a bounce, complaint, or account deletion");
-        skipped += 1;
-        return;
-      }
-
-      const quotaCheckedAt = new Date();
-      const recipientQuota = await reserveRecipientDailySendAllowance(job.recipientEmail, 1, quotaCheckedAt);
-      if (recipientQuota.allowed < 1) {
-        const deferral = emailOutboxQuotaDeferralState({
-          counterAvailable: recipientQuota.counterAvailable,
-          resetAt: recipientQuota.resetAt,
-          attempts,
-          now: quotaCheckedAt,
-        });
-        await prisma.emailOutbox.update({
-          where: { id: job.id },
-          data: {
-            status: "PENDING",
-            attempts: deferral.attempts,
-            nextAttemptAt: deferral.nextAttemptAt,
-            lastError: recipientQuota.counterAvailable
-              ? `Daily per-recipient email outbox send cap reached (${recipientQuota.limit}/recipient/day)`
-              : "Daily per-recipient email outbox send cap unavailable",
-          },
-        });
-        capped += 1;
-        Sentry.captureMessage(recipientQuota.counterAvailable
-          ? "Email outbox recipient daily send cap reached"
-          : "Email outbox recipient daily send cap unavailable", {
-          level: "warning",
-          tags: { source: "email_outbox_recipient_quota" },
-          extra: {
-            emailOutboxId: job.id,
-            limit: recipientQuota.limit,
-            nextAttemptAt: deferral.nextAttemptAt.toISOString(),
-            resetAt: recipientQuota.resetAt.toISOString(),
-            counterAvailable: recipientQuota.counterAvailable,
-          },
-        });
-        return;
-      }
-
-      const quota = await reserveDailySendAllowance(1, quotaCheckedAt);
-      if (quota.allowed < 1) {
-        await rollbackRecipientDailySendAllowance(job.recipientEmail, recipientQuota.allowed, quotaCheckedAt);
-        const deferral = emailOutboxQuotaDeferralState({
-          counterAvailable: quota.counterAvailable,
-          resetAt: quota.resetAt,
-          attempts,
-          now: quotaCheckedAt,
-        });
-        await prisma.emailOutbox.update({
-          where: { id: job.id },
-          data: {
-            status: "PENDING",
-            attempts: deferral.attempts,
-            nextAttemptAt: deferral.nextAttemptAt,
-            lastError: quota.counterAvailable
-              ? `${deferral.lastError} (${quota.limit}/day)`
-              : deferral.lastError,
-          },
-        });
-        capped += 1;
-        Sentry.captureMessage(quota.counterAvailable
-          ? "Email outbox daily send cap reached"
-          : "Email outbox daily send cap unavailable", {
-          level: "warning",
-          tags: { source: "email_outbox_daily_quota" },
-          extra: {
-            emailOutboxId: job.id,
-            limit: quota.limit,
-            nextAttemptAt: deferral.nextAttemptAt.toISOString(),
-            resetAt: quota.resetAt.toISOString(),
-            counterAvailable: quota.counterAvailable,
-          },
-        });
-        return;
-      }
-
-      await sendRenderedEmail(
-        { to: job.recipientEmail, subject: job.subject, html: job.html },
-        { throwOnFailure: true, idempotencyKey: job.dedupKey },
-      );
-      await prisma.emailOutbox.update({
-        where: { id: job.id },
-        data: { status: "SENT", sentAt: new Date(), nextAttemptAt: null, lastError: null },
-      });
-      sent += 1;
-    } catch (error) {
-      const failureState = emailOutboxFailureState(attempts);
-      failed += 1;
-      await prisma.emailOutbox.update({
-        where: { id: job.id },
-        data: {
-          status: failureState.status,
-          nextAttemptAt: failureState.nextAttemptAt,
-          lastError: sanitizeEmailOutboxError(error),
-        },
-      });
-      Sentry.captureException(error, {
-        tags: { source: "email_outbox", status: failureState.terminal ? "dead" : "retry" },
-        extra: { emailOutboxId: job.id, attempts },
-      });
-    }
-  });
-
-  return { picked: jobs.length, sent, failed, skipped, capped };
+  return {
+    picked: jobs.length,
+    sent: results.filter((result) => result.status === "fulfilled" && result.value === "sent").length,
+    failed: results.filter((result) => result.status === "fulfilled" && result.value === "failed").length,
+    skipped: results.filter((result) => result.status === "fulfilled"
+      && (result.value === "skipped" || result.value === "unclaimed")).length,
+    capped: results.filter((result) => result.status === "fulfilled" && result.value === "capped").length,
+  };
 }

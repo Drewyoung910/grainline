@@ -18,14 +18,18 @@ describe("currency formatting drift guardrails", () => {
 
   it("uses shared currency formatting for refund and guild money copy", () => {
     const sellerRefund = source("src/app/api/orders/[id]/refund/route.ts");
+    const refundFinalization = source("src/lib/orderRefundFinalization.ts");
+    const email = source("src/lib/email.ts");
     const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
     const caseResolutionCopy = source("src/lib/caseResolutionCopy.ts");
     const guildMetrics = source("src/app/api/cron/guild-metrics/route.ts");
     const followerFanout = source("src/lib/followerListingNotifications.ts");
     const threadMessages = source("src/components/ThreadMessages.tsx");
 
-    assert.match(sellerRefund, /import \{ formatCurrencyCents \} from "@\/lib\/money"/);
-    assert.match(sellerRefund, /const refundAmountDisplay = formatCurrencyCents\(\s*refundAmountCents,\s*order\.currency,\s*\)/s);
+    assert.match(email, /import \{ DEFAULT_CURRENCY, formatCurrencyCents \} from "@\/lib\/money"/);
+    assert.match(email, /renderRefundIssuedEmail/);
+    assert.match(email, /fmtCents\(refundAmountCents, currency\)/);
+    assert.match(refundFinalization, /renderRefundIssuedEmail\(/);
     assert.doesNotMatch(sellerRefund, /refundAmountCents \/ 100|refund of \$\$\{/);
 
     assert.match(

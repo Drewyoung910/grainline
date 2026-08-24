@@ -22,6 +22,10 @@ const recordHelper = readFileSync(
   "src/lib/orderRefundRecordAuthority.ts",
   "utf8",
 );
+const finalizationHelper = readFileSync(
+  "src/lib/orderRefundFinalization.ts",
+  "utf8",
+);
 
 test("adds three pinned source-bound runtime entrypoints without changing RLS or table grants", () => {
   for (const name of [
@@ -131,11 +135,23 @@ test("record functions bind the active claim and derive durable payment, stock, 
 
 test("application paths use one typed fixed finalizer for the initial write and exact retry", () => {
   assert.equal(
-    (sellerRoute.match(/recordSellerOrderRefund\(/gu) ?? []).length,
+    (sellerRoute.match(/finalizeSellerOrderRefund\(/gu) ?? []).length,
     2,
   );
   assert.equal(
-    (webhookRoute.match(/recordBlockedCheckoutOrderRefund\(/gu) ?? []).length,
+    (webhookRoute.match(/finalizeBlockedCheckoutOrderRefund\(/gu) ?? []).length,
+    2,
+  );
+  assert.equal(
+    (finalizationHelper.match(/recordSellerOrderRefund\(input, tx\)/gu) ?? []).length,
+    1,
+  );
+  assert.equal(
+    (finalizationHelper.match(/recordBlockedCheckoutOrderRefund\(input, tx\)/gu) ?? []).length,
+    1,
+  );
+  assert.equal(
+    (finalizationHelper.match(/prisma\.\$transaction\(async \(tx\) =>/gu) ?? []).length,
     2,
   );
   assert.match(sellerRoute, /orderRefundProviderEvidence\(refund\)/);

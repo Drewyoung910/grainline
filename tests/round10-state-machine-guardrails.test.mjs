@@ -169,7 +169,7 @@ describe("Round 10 state-machine guardrails", () => {
       /locked_case\."escalateUnlocksAt" > transition_at/,
     );
     assert.doesNotMatch(escalate, /verifyCronRequest|id === "all"/);
-    assert.match(refund, /recordSellerOrderRefund/);
+    assert.match(refund, /finalizeSellerOrderRefund/);
     assert.match(refundAuthority, /grainline_case_seller_refund_apply/);
     assert.doesNotMatch(refund, /(?:prisma|tx)\.case\.(?:findUnique|updateMany)\(/);
     assert.match(webhook, /grainline_case_stripe_dispute_apply\(\$\{paymentEvent\.id\}::text\)/);

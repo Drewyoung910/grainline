@@ -695,12 +695,12 @@ export async function sendVerificationRejected(opts: {
   await send(seller.email, "Update on your Guild Member application", baseTemplate("Verification Update", body));
 }
 
-export async function sendRefundIssued(opts: {
+export function renderRefundIssuedEmail(opts: {
   buyer: { name?: string | null; email: string };
   refundAmountCents: number;
   currency?: string | null;
   orderId: string;
-}) {
+}): RenderedEmail {
   const { buyer, refundAmountCents, currency, orderId } = opts;
   const name = buyer.name || "there";
   const orderUrl = `${APP_URL}/dashboard/orders/${orderId}`;
@@ -712,7 +712,16 @@ export async function sendRefundIssued(opts: {
     ${btn("View order", orderUrl)}
   `;
 
-  await send(buyer.email, `Your refund has been issued${orderSubjectSuffix(orderId)}`, baseTemplate("Refund Issued", body));
+  return {
+    to: buyer.email,
+    subject: `Your refund has been issued${orderSubjectSuffix(orderId)}`,
+    html: baseTemplate("Refund Issued", body),
+  };
+}
+
+export async function sendRefundIssued(opts: Parameters<typeof renderRefundIssuedEmail>[0]) {
+  const rendered = renderRefundIssuedEmail(opts);
+  await send(rendered.to, rendered.subject, rendered.html);
 }
 
 // ─── Lifecycle emails ─────────────────────────────────────────────────────────

@@ -169,6 +169,7 @@ describe("Bucket B Notification RLS inventory", () => {
     const ban = fs.readFileSync("src/lib/ban.ts", "utf8");
     const fulfillment = fs.readFileSync("src/app/api/orders/[id]/fulfillment/route.ts", "utf8");
     const sellerRefund = fs.readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
+    const refundFinalization = fs.readFileSync("src/lib/orderRefundFinalization.ts", "utf8");
 
     assert.match(sources, /BLOG_COMMENT: "blog_comment"/);
     assert.match(sources, /CASE: "case"/);
@@ -252,6 +253,7 @@ describe("Bucket B Notification RLS inventory", () => {
       ban,
       fulfillment,
       sellerRefund,
+      refundFinalization,
     ].reduce((count, source) => count + (source.match(/createNotification(?:OrThrow)?\(\{[\s\S]{0,700}?sourceType:/g) ?? []).length, 0);
     assert.equal(taggedCreationCount, 41);
   });
@@ -282,14 +284,17 @@ describe("Bucket B Notification RLS inventory", () => {
     );
     assert.match(migration, /deliberately outside\s+-- prisma\/migrations/);
     assert.match(notifications, /NotificationRelatedUserFields/);
-    assert.match(notifications, /relatedUserId: relatedUserId \?\? null,\s*\}\);/);
+    assert.match(notifications, /relatedUserId: relatedUserId \?\? null,\s*\}, client\);/);
     assert.match(preparationVerifier, /20260722051500_prepare_notification_rls/);
     assert.match(preparationVerifier, /executable body drifted from disposable proof/);
     assert.match(preparationVerifier, /activation migration must remain absent/);
 
     const relatedUserAssignments = files.reduce((count, file) => {
       const source = fs.readFileSync(file, "utf8");
-      if (file === "src/lib/notifications.ts" || !source.includes("createNotification({")) {
+      if (
+        file === "src/lib/notifications.ts"
+        || !/createNotification(?:OrThrow)?\(\{/.test(source)
+      ) {
         return count;
       }
       return count + (source.match(/relatedUserId\s*:/g) ?? []).length;

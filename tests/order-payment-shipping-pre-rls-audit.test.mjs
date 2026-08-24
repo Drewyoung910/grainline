@@ -95,9 +95,9 @@ const expected = {
   ],
   OrderPaymentEvent: [
     "src/app/api/orders/[id]/label/route.ts",
-    "src/app/api/orders/[id]/refund/route.ts",
     "src/app/api/stripe/webhook/route.ts",
     "src/lib/localRefundEvidence.ts",
+    "src/lib/orderRefundFinalization.ts",
     "src/lib/orderRefundRecordAuthority.ts",
     "src/lib/quality-score.ts",
     "src/lib/refundLedgerSql.ts",

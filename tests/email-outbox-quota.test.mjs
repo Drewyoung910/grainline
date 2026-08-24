@@ -182,8 +182,14 @@ describe("email outbox daily quota", () => {
     assert.match(outbox, /recipientDailySendAllowanceScript/);
     assert.match(outbox, /recipientDailySendAllowanceRollbackScript/);
     assert.match(outbox, /hashEmailForTelemetry\(recipientEmail\) \?\? "unknown"/);
-    assert.match(outbox, /reserveRecipientDailySendAllowance\(job\.recipientEmail, 1, quotaCheckedAt\)[\s\S]*reserveDailySendAllowance\(1, quotaCheckedAt\)/);
-    assert.match(outbox, /if \(quota\.allowed < 1\) \{\s*await rollbackRecipientDailySendAllowance\(job\.recipientEmail, recipientQuota\.allowed, quotaCheckedAt\)/);
+    assert.match(
+      outbox,
+      /reserveRecipientDailySendAllowance\(\s*job\.recipientEmail,\s*1,\s*quotaCheckedAt,?\s*\)[\s\S]*reserveDailySendAllowance\(1, quotaCheckedAt\)/,
+    );
+    assert.match(
+      outbox,
+      /if \(quota\.allowed < 1\) \{\s*await rollbackRecipientDailySendAllowance\(\s*job\.recipientEmail,\s*recipientQuota\.allowed,\s*quotaCheckedAt,?\s*\)/,
+    );
     assert.match(outbox, /email_outbox_recipient_quota/);
     assert.match(outbox, /email_outbox_recipient_quota_rollback/);
     assert.match(outbox, /Daily per-recipient email outbox send cap reached/);

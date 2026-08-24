@@ -17,12 +17,16 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
-  it("captures seller-refund buyer notification and email failures", () => {
+  it("makes seller-refund buyer notification and email reservation transactional", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
+    const finalization = source("src/lib/orderRefundFinalization.ts");
 
-    assert.match(route, /source: "seller_refund_notification"/);
-    assert.match(route, /source: "seller_refund_email"/);
-    assert.match(route, /refundAmountCents/);
+    assert.match(route, /finalizeSellerOrderRefund\(\{/);
+    assert.match(finalization, /recordSellerOrderRefund\(input, tx\)/);
+    assert.match(finalization, /createNotificationOrThrow\(\{/);
+    assert.match(finalization, /enqueueEmailOutboxOnce\(\s*\{/);
+    assert.match(finalization, /preferenceKey: "EMAIL_REFUND_ISSUED"/);
+    assert.doesNotMatch(route, /seller_refund_notification|seller_refund_email/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
@@ -62,7 +66,7 @@ describe("payment and fulfillment side-effect observability", () => {
     );
 
     assert.match(route, /claimSellerOrderRefund\(\{/);
-    assert.match(route, /recordSellerOrderRefund\(\{/);
+    assert.match(route, /finalizeSellerOrderRefund\(\{/);
     assert.match(route, /\.\.\.activeOrderRefundClaimWhere\(refundClaim\)/);
     assert.match(authority, /orders\."refundClaimGeneration" = p_claim_generation/);
     assert.match(authority, /"refundClaimProviderAuthorizedAt" IS NULL/);
@@ -108,7 +112,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(sellerRoute, /source: "seller_refund_finalize_retry"/);
     assert.match(sellerRoute, /source: "seller_refund_finalize_retry_failed"/);
     assert.ok(
-      (sellerRoute.match(/recordSellerOrderRefund\(\{/g) ?? []).length >= 2,
+      (sellerRoute.match(/finalizeSellerOrderRefund\(\{/g) ?? []).length >= 2,
       "seller provider evidence must retry through the same fixed finalizer",
     );
     assert.doesNotMatch(sellerRoute, /orphanRecovery|orphanRecord|recordLocalRefundEvidence/);
@@ -320,8 +324,8 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(helper, /export \{ localRefundEvidenceEventId \}/);
     assert.match(helperCore, /localRefundEvidenceEventId\(action, refundId\)/);
 
-    assert.match(sellerRoute, /recordSellerOrderRefund\(\{/);
-    assert.match(webhookRoute, /recordBlockedCheckoutOrderRefund\(\{/);
+    assert.match(sellerRoute, /finalizeSellerOrderRefund\(\{/);
+    assert.match(webhookRoute, /finalizeBlockedCheckoutOrderRefund\(\{/);
     assert.doesNotMatch(sellerRoute, /recordLocalRefundEvidence/);
     assert.doesNotMatch(webhookRoute, /recordLocalRefundEvidence/);
     for (const action of [
@@ -423,7 +427,7 @@ describe("payment and fulfillment side-effect observability", () => {
       /if \(refundParsed\.type === "PARTIAL"\)[\s\S]*Seller partial refunds require Grainline staff review/,
     );
     assert.match(route, /const type = "FULL" as const/);
-    assert.match(route, /recordSellerOrderRefund\(\{/);
+    assert.match(route, /finalizeSellerOrderRefund\(\{/);
     assert.doesNotMatch(route, /(?:prisma|tx)\.listing\.(?:update|updateMany)/);
     assert.match(
       source("prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql"),
@@ -553,7 +557,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(existingOrderBranch, /reviewNote: true/);
     assert.match(existingOrderBranch, /blockingRefundLedgerWhere\(\)/);
     assert.match(existingOrderBranch, /const retryReason = blockedCheckoutRefundRetryReason\(already\)/);
-    assert.match(existingOrderBranch, /buyerId: already\.buyerId/);
+    assert.doesNotMatch(existingOrderBranch, /buyerId: already\.buyerId/);
     assert.match(existingOrderBranch, /sellerUserIds: \[/);
     assert.match(existingOrderBranch, /blockedCheckoutRefundStillInProgress\(already\)/);
     assert.match(existingOrderBranch, /throw new Error\("Blocked checkout automatic refund is still in progress\."\)/);
@@ -581,7 +585,7 @@ describe("payment and fulfillment side-effect observability", () => {
       route.indexOf("if (existingBlockedCheckoutRetry)"),
     );
     assert.doesNotMatch(blockedRefundHelper, /input\.lineItems/);
-    assert.match(blockedRefundHelper, /recordBlockedCheckoutOrderRefund\(/);
+    assert.match(blockedRefundHelper, /finalizeBlockedCheckoutOrderRefund\(/);
     assert.match(existingRetryBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
     assert.match(route, /reviewNote: cartInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(cartInvalidState\.reason\)/);
     assert.match(route, /reviewNote: singleInvalidState\.reason[\s\S]*blockedCheckoutReviewPrefix\(singleInvalidState\.reason\)/);
@@ -616,7 +620,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /sessionId,[\s\S]*orderId: input\.orderId/);
     assert.match(route, /createMarketplaceRefund\(\{/);
     assert.match(route, /idempotencyKeyBase: refundClaim\.idempotencyScope/);
-    assert.match(route, /recordBlockedCheckoutOrderRefund\(\{/);
+    assert.match(route, /finalizeBlockedCheckoutOrderRefund\(\{/);
     assert.match(
       route,
       /Blocked checkout refund completed without a primary refund identifier/,
@@ -648,26 +652,19 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("keeps blocked-checkout refund recovery retryable until local state is durable", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
-    const notificationSource = 'source: "stripe_webhook_blocked_checkout_refund_notification"';
+    const finalization = source("src/lib/orderRefundFinalization.ts");
     const retrySource = 'source: "stripe_webhook_blocked_checkout_finalize_retry"';
     const retryFailedSource = 'source: "stripe_webhook_blocked_checkout_finalize_retry_failed"';
     const lockReleaseSource = 'source: "stripe_webhook_blocked_checkout_refund_ambiguous_record_failed"';
 
-    const notificationStart = route.indexOf(notificationSource);
     const retryStart = route.indexOf(retrySource);
-    assert.ok(notificationStart > 0, "blocked-checkout refund notification failures should be observable");
     assert.ok(retryStart > 0, "blocked-checkout fixed finalization retries should be observable");
-
-    const notificationBlock = route.slice(
-      route.lastIndexOf("if (input.buyerUserId)", notificationStart),
-      route.indexOf("} catch (refundError) {", notificationStart),
-    );
-    assert.match(notificationBlock, /try \{[\s\S]*await createNotification\(\{/);
-    assert.match(notificationBlock, /catch \(notificationError\)/);
+    assert.match(finalization, /recordBlockedCheckoutOrderRefund\(input, tx\)[\s\S]*createNotificationOrThrow\(\{/);
+    assert.doesNotMatch(route, /stripe_webhook_blocked_checkout_refund_notification/);
 
     assert.match(route, new RegExp(retryFailedSource.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.ok(
-      (route.match(/recordBlockedCheckoutOrderRefund\(\{/g) ?? []).length >= 2,
+      (route.match(/finalizeBlockedCheckoutOrderRefund\(\{/g) ?? []).length >= 2,
       "blocked-checkout provider evidence must retry through the same fixed finalizer",
     );
     assert.doesNotMatch(route, /orphanRecovery|orphanRecord|recordLocalRefundEvidence/);

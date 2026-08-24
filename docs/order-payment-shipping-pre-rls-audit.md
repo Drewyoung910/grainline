@@ -418,7 +418,7 @@ or migration yet.
 | Stripe delivery reservation | `src/lib/stripeWebhookEvents.ts` | begin/reclaim, complete and fail transitions; no direct table read/delete |
 | Seller-scoped checkout Order + items | `src/app/api/stripe/webhook/route.ts` | one transaction deriving durable seller, buyer, listing, totals, snapshot, provider replay source and reservation completion |
 | Stripe refund/dispute evidence | `src/app/api/stripe/webhook/route.ts`, `src/lib/localRefundEvidence.ts`, `src/lib/refundLedgerSql.ts` | append-only payment evidence plus separately locked Order/Case application |
-| Seller refund | `src/app/api/orders/[id]/refund/route.ts`, `src/lib/refundLocks.ts` | seller-authorized refund claim and exact provider finalizers; stale-claim release is an operator/cron transition |
+| Seller refund | `src/app/api/orders/[id]/refund/route.ts`, `src/lib/orderRefundFinalization.ts`, `src/lib/refundLocks.ts` | seller-authorized refund claim and exact provider finalizers; source-bound participant notification plus email-outbox reservation commit with the refund record; stale-claim release is an operator/cron transition |
 | Fulfillment and buyer delivery | `src/app/api/orders/[id]/fulfillment/route.ts`, `src/app/api/orders/[id]/confirm-delivery/route.ts` | seller/buyer-specific monotonic transitions under the Order lock |
 | Shippo quote and label purchase | `src/app/api/orders/[id]/label/route.ts` | seller-authorized quote replacement and label claim/finalize operations with bounded provider snapshots |
 | Label clawback retry | `src/lib/labelClawbackRetry.ts` | bounded batch claim plus generation-checked success/failure finalizers |
@@ -487,7 +487,8 @@ Service, safety and aggregate consumers:
   `src/lib/audit.ts` and `src/lib/listingSoftDelete.ts`;
 - shared lock/refund/label helpers: `src/lib/caseLifecycleLocks.ts`,
   `src/lib/refundLocks.ts`, `src/lib/localRefundEvidence.ts`,
-  `src/lib/refundLedgerSql.ts` and `src/lib/labelClawbackRetry.ts`;
+  `src/lib/refundLedgerSql.ts`, `src/lib/orderRefundFinalization.ts` and
+  `src/lib/labelClawbackRetry.ts`;
 - public and staff-safe aggregates: `src/lib/homepageStats.ts`,
   `src/lib/metrics.ts`, `src/lib/publicSellerStats.ts`,
   `src/lib/quality-score.ts` and `src/lib/site-metrics-snapshot.ts`; and

@@ -69,7 +69,7 @@ describe("seller analytics refund guardrails", () => {
     assert.match(helper, /eventType: "REFUND"/);
     assert.match(helper, /amountCents/);
 
-    assert.match(sellerRefundRoute, /recordSellerOrderRefund\(\{/);
+    assert.match(sellerRefundRoute, /finalizeSellerOrderRefund\(\{/);
     assert.match(sellerRefundAuthority, /"sellerRefundAmountCents" = refund_amount/);
     assert.match(sellerRefundAuthority, /'SELLER_REFUND_RECORDED'/);
     assert.match(sellerRefundAuthority, /"amountCents"[\s\S]*refund_amount/);
