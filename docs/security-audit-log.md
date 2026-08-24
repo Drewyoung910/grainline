@@ -2328,3 +2328,11 @@ Open work:
 - Draft PR #258 tracks the pushed stacked recovery branch. It remains draft;
   exact-head CI and the loopback PostgreSQL proof are required before any
   merge decision. No production action is authorized by that checkpoint.
+- Exact-head CI run `32712132534` applied the complete sealed migration chain
+  and reached the new runtime-role recovery proof. The recovery, stock restore
+  and durable event metadata all completed, but the proof expected camelCase
+  JavaScript keys from three unquoted PostgreSQL aliases; node-postgres
+  correctly returned the lowercase/snake-case identifiers. The proof now
+  double-quotes those evidence aliases and its static contract pins the exact
+  driver shape. Migration and application bytes did not change. Replacement
+  exact-head CI remains required.

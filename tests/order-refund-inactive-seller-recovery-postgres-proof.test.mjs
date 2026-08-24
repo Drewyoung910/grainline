@@ -42,6 +42,9 @@ test("real PostgreSQL proof uses runtime role, rollback, and zero-residue checks
   assert.match(proof, /CONFIRMED_PROVIDER_EFFECT/);
   assert.match(proof, /lacks exact ADMIN reconciliation/);
   assert.match(proof, /FOR SHARE OF reconciliation, administrator/);
+  assert.match(proof, /AS "listingStatus"/);
+  assert.match(proof, /AS "eventClaimId"/);
+  assert.match(proof, /AS "eventSourceId"/);
   assert.match(proof, /await client\.query\("ROLLBACK"\)/);
   assert.match(proof, /residue\.rows\[0\]\.count, 0/);
 });

@@ -287,9 +287,9 @@ export async function runOrderRefundInactiveSellerRecoveryProof(
         orders."sellerRefundId",
         orders."refundClaimId",
         listing."stockQuantity",
-        listing.status::text AS listing_status,
-        payment_event.metadata->>'refundClaimId' AS event_claim_id,
-        payment_event.metadata->>'refundClaimSourceId' AS event_source_id
+        listing.status::text AS "listingStatus",
+        payment_event.metadata->>'refundClaimId' AS "eventClaimId",
+        payment_event.metadata->>'refundClaimSourceId' AS "eventSourceId"
       FROM public."Order" AS orders
       JOIN public."OrderItem" AS item ON item."orderId" = orders.id
       JOIN public."Listing" AS listing ON listing.id = item."listingId"
