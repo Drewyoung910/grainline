@@ -2325,3 +2325,6 @@ Open work:
   schema validation, deterministic migration regeneration and
   `git diff --check`. The real PostgreSQL runtime-role proof remains CI-only
   because this workstation has no local PostgreSQL or Docker service.
+- Draft PR #258 tracks the pushed stacked recovery branch. It remains draft;
+  exact-head CI and the loopback PostgreSQL proof are required before any
+  merge decision. No production action is authorized by that checkpoint.
