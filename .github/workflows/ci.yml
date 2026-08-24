@@ -680,6 +680,10 @@ jobs:
         run: npx prisma migrate status
       - name: Audit inactive-seller recovery grants and retained RLS posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove restart-safe OrderPaymentEvent compatible production scope in PostgreSQL 16
+        run: npm run audit:order-payment-compatible-production-scope-postgres
+        env:
+          ORDER_PAYMENT_EVENT_COMPATIBLE_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove inactive-seller refund recovery through the runtime role
         run: npm run audit:order-refund-inactive-seller-recovery-postgres
         env:

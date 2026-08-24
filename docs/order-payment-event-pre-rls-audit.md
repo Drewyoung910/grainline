@@ -96,6 +96,14 @@ source-validated participant Notifications and the deterministic
 separate compatible release boundary but is merged to main only; no database
 authority or production state changed.
 
+The isolated compatible production runner is specified in
+`docs/order-payment-event-compatible-production-preparation.md`. It binds the
+five sealed migrations to exact-main CI plus a fresh aggregate-only production
+inspection, accepts only an exact applied prefix, compares the live function
+bodies and catalog in an engine-read-only transaction, and preserves
+`OrderPaymentEvent` RLS-off predecessor CRUD. The runner is preparation only:
+it is not merged or dispatched and authorizes no deployment or activation.
+
 ## Product and evidence contract
 
 ### What the table is

@@ -2446,3 +2446,21 @@ Open work:
   `label_purchased_missing_reference_unexplained_count = 0`. Close the finding
   as an intentional account-deletion privacy transform. No cleanup, row
   enumeration or provider-reference rehydration is authorized or required.
+
+## OrderPaymentEvent compatible production runner isolated (2026-08-24)
+
+- Added a protected, main-only workflow for the five byte-sealed compatible
+  refund/payment authority migrations. It requires exact-main push CI, a fresh
+  exact-main aggregate-only inspection and the exact confirmation string.
+- The restart verifier accepts only a valid exact-checksum applied prefix,
+  refuses failed/duplicate/gapped/unknown target state and refuses any migration
+  successor after `20260824050000_prepare_order_refund_inactive_seller_recovery`.
+- Its engine-enforced repeatable-read/read-only catalog proof requires
+  `OrderPaymentEvent` to remain RLS-off with exact predecessor runtime CRUD,
+  verifies staged columns, requires the private reconciliation table to remain
+  policyless FORCE/no-CRUD, and hashes every reviewed live function body against
+  the applicable migration prefix. The final replaced seller/Case functions are
+  therefore checked by body, not merely by signature.
+- CI runs the same catalog reader against PostgreSQL 16 after the full five-step
+  compatible stack. The candidate is isolated only: no workflow dispatch,
+  migration, deployment, grant, RLS, provider or production change occurred.

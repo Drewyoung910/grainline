@@ -1,0 +1,206 @@
+name: OrderPaymentEvent Compatible Production Preparation
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full CI run for the exact main commit
+        required: true
+        type: string
+      inspection_run_id:
+        description: Successful aggregate-only inspection for the exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-payment-event-compatible-authority
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Apply compatible OrderPaymentEvent authority stack only
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify exact main CI and fresh aggregate inspection
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_CONFIRMATION: ${{ inputs.confirmation }}
+          REVIEWED_INSPECTION_RUN_ID: ${{ inputs.inspection_run_id }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        with:
+          script: |
+            const parseRunId = (name) => {
+              const value = process.env[name];
+              if (!/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+                throw new Error(`${name} is not one positive run id`);
+              }
+              const parsed = Number(value);
+              if (!Number.isSafeInteger(parsed)) {
+                throw new Error(`${name} is not a safe run id`);
+              }
+              return parsed;
+            };
+            const releaseCommit = process.env.REVIEWED_RELEASE_COMMIT;
+            const mainCiRunId = parseRunId('REVIEWED_MAIN_CI_RUN_ID');
+            const inspectionRunId = parseRunId('REVIEWED_INSPECTION_RUN_ID');
+            if (
+              releaseCommit !== context.sha
+              || !/^[0-9a-f]{40}$/.test(releaseCommit ?? '')
+              || process.env.REVIEWED_CONFIRMATION
+                !== 'apply-reviewed-order-payment-event-compatible-authority'
+              || mainCiRunId === inspectionRunId
+            ) {
+              throw new Error('OrderPaymentEvent compatible production bindings drifted');
+            }
+            const expected = [
+              { id: mainCiRunId, name: 'CI', event: 'push' },
+              {
+                id: inspectionRunId,
+                name: 'Order Payment Shipping Legacy Inspection',
+                event: 'workflow_dispatch',
+              },
+            ];
+            for (const reviewed of expected) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: reviewed.id,
+              });
+              if (
+                run.id !== reviewed.id
+                || run.name !== reviewed.name
+                || run.event !== reviewed.event
+                || run.head_branch !== 'main'
+                || run.head_sha !== releaseCommit
+                || run.status !== 'completed'
+                || run.conclusion !== 'success'
+              ) {
+                throw new Error(`Reviewed workflow run ${reviewed.id} drifted`);
+              }
+            }
+      - name: Verify exact source, owner connection, and role posture
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Refuse an unreviewed migration successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery"
+      - name: Isolate all compatible OrderPaymentEvent releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv prisma/migrations/20260824010000_prepare_order_refund_claim_generation "$RUNNER_TEMP/order-refund-claim-generation-release"
+          mv prisma/migrations/20260824020000_prepare_order_refund_record_authority "$RUNNER_TEMP/order-refund-record-authority-release"
+          mv prisma/migrations/20260824030000_prepare_order_payment_signed_authority "$RUNNER_TEMP/order-payment-signed-authority-release"
+          mv prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority "$RUNNER_TEMP/order-refund-reconciliation-authority-release"
+          mv prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release"
+      - name: Verify sealed SellerPayoutEvent FORCE predecessor
+        run: npm run audit:rls-seller-payout-event-force-sealed-prefix
+      - name: Restore and verify refund claim generation release
+        run: |
+          mv "$RUNNER_TEMP/order-refund-claim-generation-release" prisma/migrations/20260824010000_prepare_order_refund_claim_generation
+          npm run audit:order-refund-claim-generation-release
+      - name: Restore and verify refund record authority release
+        run: |
+          mv "$RUNNER_TEMP/order-refund-record-authority-release" prisma/migrations/20260824020000_prepare_order_refund_record_authority
+          npm run audit:order-refund-record-authority-release
+      - name: Restore and verify signed payment authority release
+        run: |
+          mv "$RUNNER_TEMP/order-payment-signed-authority-release" prisma/migrations/20260824030000_prepare_order_payment_signed_authority
+          npm run audit:order-payment-signed-authority-release
+      - name: Restore and verify refund reconciliation authority release
+        run: |
+          mv "$RUNNER_TEMP/order-refund-reconciliation-authority-release" prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority
+          npm run audit:order-refund-reconciliation-authority-release
+      - name: Restore and verify inactive-seller recovery release
+        run: |
+          mv "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release" prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery
+          npm run audit:order-refund-inactive-seller-recovery-release
+      - name: Inspect exact restart scope read-only
+        id: scope
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_COMPATIBLE_SCOPE_STAGE: restart
+        run: |
+          set -euo pipefail
+          scope_json="$(node scripts/verify-order-payment-event-compatible-production-scope.mjs)"
+          printf '%s\n' "$scope_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            const states = new Set([
+              "predecessor",
+              "claim-prepared",
+              "record-prepared",
+              "signed-prepared",
+              "reconciliation-prepared",
+              "prepared",
+            ]);
+            if (!states.has(value.state)) {
+              throw new Error("invalid OrderPaymentEvent compatible restart state");
+            }
+            process.stdout.write(`state=${value.state}\n`);
+          ' "$scope_json" >> "$GITHUB_OUTPUT"
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Apply compatible OrderPaymentEvent authority stack
+        if: steps.scope.outputs.state != 'prepared'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Converge compatible runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          -v runtime_role=grainline_app_runtime
+          -v migration_role=neondb_owner
+          -f scripts/provision-runtime-db-role.sql
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
+      - name: Verify production migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Audit compatible runtime grants and global RLS catalog
+        run: npm run audit:db-grants -- --require-direct-url
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Prove exact compatible post-application scope read-only
+        run: npm run audit:order-payment-compatible-production-scope
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_COMPATIBLE_SCOPE_STAGE: after

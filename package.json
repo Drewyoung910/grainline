@@ -119,6 +119,8 @@
     "audit:order-refund-reconciliation-authority-postgres": "node scripts/order-refund-reconciliation-authority-postgres-proof.mjs",
     "audit:order-refund-inactive-seller-recovery-release": "node scripts/verify-order-refund-inactive-seller-recovery-release.mjs",
     "audit:order-refund-inactive-seller-recovery-postgres": "node scripts/order-refund-inactive-seller-recovery-postgres-proof.mjs",
+    "audit:order-payment-compatible-production-scope": "node scripts/verify-order-payment-event-compatible-production-scope.mjs",
+    "audit:order-payment-compatible-production-scope-postgres": "node scripts/order-payment-event-compatible-production-scope-postgres-proof.mjs",
     "audit:rls-seller-payout-event-force-production-scope": "node scripts/verify-seller-payout-event-force-production-scope.mjs",
     "audit:rls-seller-payout-event-force-postgres": "node --test tests/postgres-special-form-qualification.test.mjs && node scripts/seller-payout-event-force-postgres-proof.mjs",
     "audit:rls-seller-payout-event-force-rollback": "node scripts/seller-payout-event-force-rollback-proof.mjs",
