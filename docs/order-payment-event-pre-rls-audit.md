@@ -168,17 +168,17 @@ bounded maintenance operation; RLS activation does not silently add one.
 
 ## Actor and operation matrix
 
-| Actor | Required read | Required mutation | Database destination |
-|---|---|---|---|
-| Buyer | Refund outcome for buyer-owned Orders; buyer-safe export page | None | Actor-bound bounded outcome/export projections |
-| Seller | Refund outcome for durably seller-owned Orders; seller-safe export page | Full-refund claim followed by exact provider record/finalize | Seller-bound claim/finalizer plus bounded projections |
-| Staff | Latest bounded operational timeline and selected accounting facts | Staff refund remains through the existing Case claim/provider-record/finalize family | Live staff-role projection; no generic table writer |
-| Signed Stripe webhook | No enumerating read | Append one exact refund or dispute observation and apply reviewed Order/Case side effects | Active webhook-generation/source-bound family writer |
-| Blocked-checkout webhook | Existing refund outcome for exact checkout Order | Claim, provider record and finalize exact automatic full refund | Session/event-bound refund claim family |
-| Fulfillment/label/delivery/review | Boolean/refund outcome inside one exact Order transition | None on this table | Source-specific transition functions; no general status oracle |
-| Notification/Case DEFINER functions | Exact source row already named by durable evidence | Existing source-bound side effects | Retain owner-private dependency; never grant generic runtime access |
-| Analytics/quality jobs | Aggregate qualifying-sale facts only | None | Fixed aggregate projection with no event IDs or raw rows |
-| Account deletion/retention | Financial evidence remains; Order PII is separately scrubbed | No payment-event deletion | Existing retained-record boundary |
+| Actor                               | Required read                                                           | Required mutation                                                                         | Database destination                                                |
+| ----------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Buyer                               | Refund outcome for buyer-owned Orders; buyer-safe export page           | None                                                                                      | Actor-bound bounded outcome/export projections                      |
+| Seller                              | Refund outcome for durably seller-owned Orders; seller-safe export page | Full-refund claim followed by exact provider record/finalize                              | Seller-bound claim/finalizer plus bounded projections               |
+| Staff                               | Latest bounded operational timeline and selected accounting facts       | Staff refund remains through the existing Case claim/provider-record/finalize family      | Live staff-role projection; no generic table writer                 |
+| Signed Stripe webhook               | No enumerating read                                                     | Append one exact refund or dispute observation and apply reviewed Order/Case side effects | Active webhook-generation/source-bound family writer                |
+| Blocked-checkout webhook            | Existing refund outcome for exact checkout Order                        | Claim, provider record and finalize exact automatic full refund                           | Session/event-bound refund claim family                             |
+| Fulfillment/label/delivery/review   | Boolean/refund outcome inside one exact Order transition                | None on this table                                                                        | Source-specific transition functions; no general status oracle      |
+| Notification/Case DEFINER functions | Exact source row already named by durable evidence                      | Existing source-bound side effects                                                        | Retain owner-private dependency; never grant generic runtime access |
+| Analytics/quality jobs              | Aggregate qualifying-sale facts only                                    | None                                                                                      | Fixed aggregate projection with no event IDs or raw rows            |
+| Account deletion/retention          | Financial evidence remains; Order PII is separately scrubbed            | No payment-event deletion                                                                 | Existing retained-record boundary                                   |
 
 Clerk, staff-role checks and Stripe signature verification remain application
 authentication boundaries. PostgreSQL cannot independently authenticate a
@@ -371,6 +371,25 @@ engine-enforced read-only inspection before compatible invariant validation and
 again before activation if rows can change. It must expose counts only and
 classify taxonomy, currency, amounts, mutation, source-family shapes, replay
 collisions, event ordering, refund totals and maximum events per Order.
+
+Prepared disposition: the isolated successor extends the existing protected,
+engine-read-only inspection from its historical 54-field shape to 66 aggregate
+counts. The 12 new counts classify source-family identity, signed/local clock
+shape, refund/dispute shape, cross-Order provider-object collisions and
+same-second dispute conflicts without retaining identifiers or rows. See
+`docs/order-payment-event-invariant-inspection.md`. It has not been merged or
+dispatched, and its results must be reviewed before invariant validation.
+The first exact-head CI run, `32770581896`, failed before later gates because
+the query compiled only against the prepared provider-time column while CI was
+still proving the predecessor schema. The corrected query uses a fail-closed
+row projection and is explicitly dual-schema; the failed run touched no
+production state and is not acceptance evidence.
+
+Corrected exact head `dd790d40f1c7212c31a0953a8386213c686ded31` passed full
+CI run `32770970002` on 2026-08-24, including the aggregate inspection proof
+against the predecessor schema and the later restored migration/proof stack.
+This does not replace the fresh aggregate-only production inspection required
+before invariant validation, and no production or provider state changed.
 
 ### OPE-A10 - existing owner-private consumers are release dependencies
 

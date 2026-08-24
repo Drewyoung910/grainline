@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import {
-  parseOrderPaymentShippingLegacyInspectionProofConfig,
-} from "../scripts/order-payment-shipping-legacy-inspection-postgres-proof.mjs";
+import { parseOrderPaymentShippingLegacyInspectionProofConfig } from "../scripts/order-payment-shipping-legacy-inspection-postgres-proof.mjs";
 
 const proof = readFileSync(
   "scripts/order-payment-shipping-legacy-inspection-postgres-proof.mjs",
@@ -55,8 +53,22 @@ describe("Order/payment/shipping legacy inspection PostgreSQL proof", () => {
     assert.match(proof, /transaction_read_only/);
     assert.match(proof, /normalizeOrderPaymentShippingLegacyCounts/);
     assert.match(proof, /ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE/);
+    assert.match(proof, /ORDER_PAYMENT_EVENT_SIGNED_SOURCE_INVALID_PREDICATE/);
+    assert.match(proof, /ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE/);
+    assert.match(proof, /ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION/);
+    assert.match(proof, /ORDER_PAYMENT_EVENT_REFUND_SOURCE_INVALID_PREDICATE/);
+    assert.match(proof, /ORDER_PAYMENT_EVENT_DISPUTE_SOURCE_INVALID_PREDICATE/);
     assert.match(proof, /ORDER_PICKUP_STATE_INVALID_PREDICATE/);
     assert.match(proof, /STRIPE_WEBHOOK_STATE_INVALID_PREDICATE/);
+    assert.match(proof, /valid_signed_rejected: 0/);
+    assert.match(proof, /invalid_signed_rejected: 2/);
+    assert.match(proof, /valid_local_rejected: 0/);
+    assert.match(proof, /invalid_local_rejected: 2/);
+    assert.match(proof, /valid_dispute_rejected: 0/);
+    assert.match(proof, /invalid_dispute_rejected: 1/);
+    assert.match(proof, /cross_order_object_detected: 1/);
+    assert.match(proof, /same_second_dispute_conflict_detected: 1/);
+    assert.match(proof, /paymentEventSemanticsAccepted: true/);
     assert.match(proof, /timestampSemanticsAccepted: true/);
     assert.match(proof, /await client\.query\("ROLLBACK"\)/);
     assert.match(proof, /productionChanged: false/);
