@@ -30,11 +30,15 @@ describe("account export privacy coverage", () => {
     assert.doesNotMatch(route, /prisma\.message\.(?:find|count|create|update|delete)/);
   });
 
-  it("exports owned listing photo originals and full order event ledgers", () => {
+  it("exports owned listing photo originals and only actor-safe refund history", () => {
     const route = source("src/app/api/account/export/route.ts");
 
     assert.match(route, /photos: \{ orderBy: \{ sortOrder: "asc" \}, select: \{ url: true, originalUrl: true/);
-    for (const orderBlock of orderExportBlocks(route)) {
+    const [buyerOrderBlock, sellerOrderBlock] = orderExportBlocks(route);
+    for (const [orderBlock, selector] of [
+      [buyerOrderBlock, "BUYER_ACCOUNT_PAYMENT_HISTORY_SELECT"],
+      [sellerOrderBlock, "SELLER_ACCOUNT_PAYMENT_HISTORY_SELECT"],
+    ]) {
       const paymentStart = orderBlock.indexOf("paymentEvents: {");
       const shippingQuoteStart = orderBlock.indexOf("shippingRateQuotes: {");
       const paymentBlock = orderBlock.slice(paymentStart, shippingQuoteStart);
@@ -42,24 +46,12 @@ describe("account export privacy coverage", () => {
 
       assert.ok(paymentStart >= 0, "order export must include payment events");
       assert.ok(shippingQuoteStart >= 0, "order export must include shipping rate quotes");
-      for (const field of [
-        "id",
-        "orderId",
-        "stripeEventId",
-        "stripeObjectId",
-        "stripeObjectType",
-        "eventType",
-        "amountCents",
-        "currency",
-        "status",
-        "reason",
-        "description",
-        "metadata",
-        "createdAt",
-        "updatedAt",
-      ]) {
-        assert.match(paymentBlock, new RegExp(`${field}: true`), `payment event export must select ${field}`);
-      }
+      assert.match(paymentBlock, /where: ACCOUNT_PAYMENT_HISTORY_WHERE/);
+      assert.match(paymentBlock, new RegExp(`select: ${selector}`));
+      assert.doesNotMatch(
+        paymentBlock,
+        /(?:stripeEventId|stripeObjectId|stripeObjectType|description|metadata|updatedAt): true/,
+      );
       for (const field of ["id", "orderId", "shipmentId", "rates", "expiresAt", "createdAt", "updatedAt"]) {
         assert.match(shippingQuoteBlock, new RegExp(`${field}: true`), `shipping quote export must select ${field}`);
       }

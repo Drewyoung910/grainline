@@ -212,7 +212,10 @@ seller application boundary and the required future partial-refund feature
 model are recorded in `docs/order-payment-event-refund-contract.md`. Current
 Stripe dispute consumers share the latest-per-dispute SQL family documented in
 `docs/order-payment-event-dispute-state.md`; the typed signed-event clock and
-equal-second reconciliation remain activation prerequisites.
+equal-second reconciliation remain activation prerequisites. Self-service
+account exports use the distinct refund-only buyer/seller projections recorded
+in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
+fields remain private service evidence.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

@@ -473,8 +473,10 @@ recorded in `docs/order-payment-event-refund-contract.md`; it must deploy and
 pass route smoke before payment-ledger authority conversion. Canonical
 latest-per-dispute application semantics and the remaining typed event-time
 gate are recorded in `docs/order-payment-event-dispute-state.md`. Those two
-application corrections remain prepared, not live. Compatible authority design
-is still blocked on safe exports, generation-fenced refund claims, typed
+application corrections remain prepared, not live. The distinct refund-only
+self-service export boundary is recorded in
+`docs/order-payment-event-account-export.md`. Compatible authority design is
+still blocked on generation-fenced refund claims, typed
 ordering/invariants and fresh data classification. Pin all 26 semantic
 consumers, require a fresh aggregate-only
 production inspection, then use compatible schema/functions, converted app
