@@ -8,7 +8,7 @@ Prepared: 2026-08-23 on
 `agent/order-payment-event-refund-finalization-20260823`, stacked on the
 generation-fenced claim checkpoint in PR #253. The exact prepared migration is
 `20260824020000_prepare_order_refund_record_authority`, SHA-256
-`7be7ad48d3ee05c919fbe4143b533b0ba81aad4693b724e624e85c145adbeed3`.
+`6db32ff72d074dc4e0332ddec762f3118b5b09aed63122c257ecb979c2b61fd7`.
 
 ## Decision
 

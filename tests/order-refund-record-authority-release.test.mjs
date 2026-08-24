@@ -16,6 +16,10 @@ import {
 
 test("release byte-pins the compatible fixed refund record authority", () => {
   const release = verifyOrderRefundRecordAuthorityRelease();
+  const releaseRecord = readFileSync(
+    "docs/order-payment-event-refund-record-authority.md",
+    "utf8",
+  );
   assert.equal(release.phase, ORDER_REFUND_RECORD_AUTHORITY_PHASE);
   assert.equal(release.migration, ORDER_REFUND_RECORD_AUTHORITY_MIGRATION);
   assert.equal(
@@ -30,6 +34,10 @@ test("release byte-pins the compatible fixed refund record authority", () => {
   assert.equal(release.rlsChanged, false);
   assert.equal(release.runtimeTablePrivilegesChanged, false);
   assert.equal(release.productionTouched, false);
+  assert.match(
+    releaseRecord,
+    new RegExp(`SHA-256\\s+\\n?\`${ORDER_REFUND_RECORD_AUTHORITY_MIGRATION_SHA256}\``),
+  );
 });
 
 test("record migration byte verifier rejects a near match", () => {
