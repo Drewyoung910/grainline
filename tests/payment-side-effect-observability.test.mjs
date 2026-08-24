@@ -30,13 +30,20 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
-  it("keeps case resolution responses from being masked by notification or email failures", () => {
+  it("makes Case-resolution notifications and email reservation transactional", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const finalization = source("src/lib/caseStaffResolutionFinalization.ts");
 
-    assert.match(route, /source: "case_resolved_notification"/);
-    assert.match(route, /source: "case_resolved_email"/);
-    assert.match(route, /notificationError/);
-    assert.match(route, /buyerId: finalized\.buyerUserId/);
+    assert.match(route, /finalizeCaseStaffResolutionWithSideEffects\(/);
+    assert.match(finalization, /finalizeCaseStaffResolution\([\s\S]*tx,/);
+    assert.equal(
+      (finalization.match(/createNotificationOrThrow\(\{/g) ?? []).length,
+      2,
+    );
+    assert.match(finalization, /enqueueEmailOutboxOnce\(\s*\{/);
+    assert.match(finalization, /dedupKey: `case-resolution:\$\{result\.claimId\}`/);
+    assert.match(finalization, /templateName: "case_resolved"/);
+    assert.doesNotMatch(route, /case_resolved_notification|case_resolved_email/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
@@ -258,7 +265,9 @@ describe("payment and fulfillment side-effect observability", () => {
     ).replace(/\s+/g, " ");
     const prepareStart = route.indexOf("await prepareCaseStaffResolution(");
     const stripeStart = route.indexOf("await createMarketplaceRefund(");
-    const finalizeStart = route.indexOf("await finalizeCaseStaffResolution(");
+    const finalizeStart = route.indexOf(
+      "await finalizeCaseStaffResolutionWithSideEffects(",
+    );
 
     assert.ok(prepareStart >= 0 && stripeStart > prepareStart);
     assert.ok(finalizeStart > stripeStart);

@@ -278,6 +278,14 @@ run inside PostgreSQL:
    `providerResult`, Case target, payment-event target, refund amount, stock
    target or resolution choice at finalization.
 
+The isolated OrderPaymentEvent staff-delivery successor leaves those database
+operations unchanged and wraps finalization with both source-validating
+Notification calls and one deterministic buyer EmailOutbox reservation in the
+same application transaction. This closes the process-exit gap between a
+durable Case/refund result and durable participant delivery without granting a
+generic Case, Notification or payment writer. See
+`docs/order-payment-event-case-refund-delivery.md`.
+
 For a refund, prepare commits the claim as `PROVIDER_PENDING` before returning
 the Stripe idempotency scope. The lifecycle is `PROVIDER_PENDING` →
 `PROVIDER_RECORDED` → `FINALIZED`, with a fail-closed

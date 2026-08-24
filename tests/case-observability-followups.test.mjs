@@ -66,16 +66,26 @@ describe("case route observability follow-ups", () => {
     assert.doesNotMatch(page, /deadline\.toLocaleString/);
   });
 
-  it("co-commits case resolution history and staff audit before notification side effects", () => {
+  it("co-commits case resolution history, staff audit, and participant delivery records", () => {
     const route = source("src/app/api/cases/[id]/resolve/route.ts");
+    const finalization = source(
+      "src/lib/caseStaffResolutionFinalization.ts",
+    );
     const authority = source(
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
     );
-    const finalize = route.indexOf("await finalizeCaseStaffResolution");
-    const sellerNotification = route.indexOf("source: \"case_seller_resolution_notification\"");
+    const finalize = finalization.indexOf("await finalizeCaseStaffResolution(");
+    const sellerNotification = finalization.indexOf(
+      "sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE",
+    );
+    const emailOutbox = finalization.indexOf(
+      "await enqueueEmailOutboxOnce(",
+    );
 
-    assert.match(route, /source: "case_resolved_email"/);
-    assert.match(route, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/);
+    assert.match(finalization, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(finalization, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE/);
+    assert.match(finalization, /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/);
+    assert.match(finalization, /dedupKey: `case-resolution:\$\{result\.claimId\}`/);
     assert.match(authority, /'STAFF'::public\."CaseMessageAuthorKind"/);
     assert.match(authority, /'RESOLVE_CASE'/);
     assert.match(authority, /INSERT INTO public\."CaseMessage"/);
@@ -83,11 +93,15 @@ describe("case route observability follow-ups", () => {
     assert.match(authority, /status = 'FINALIZED'/);
     assert.match(route, /source: "case_refund_provider_record_failed"/);
     assert.match(route, /source: "case_refund_ambiguous_record_failed"/);
+    assert.doesNotMatch(route, /source: "case_resolved_email"/);
+    assert.doesNotMatch(route, /source: "case_seller_resolution_notification"/);
     assert.doesNotMatch(route, /catch\s*\{\s*\/\* non-fatal \*\/\s*\}/);
     assert.doesNotMatch(route, /\.catch\(\(\) => \{\}\)/);
     assert.ok(
-      finalize >= 0 && sellerNotification > finalize,
-      "resolution message and audit must commit before seller notification",
+      finalize >= 0
+        && sellerNotification > finalize
+        && emailOutbox > sellerNotification,
+      "fixed Case authority must run before transactional participant delivery reservations",
     );
   });
 });

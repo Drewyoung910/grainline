@@ -85,7 +85,7 @@ describe("seller analytics refund guardrails", () => {
     );
     assert.match(
       caseResolveRoute,
-      /finalized = await finalizeCaseStaffResolution\(me\.id, prepared\)/,
+      /finalized = await finalizeCaseStaffResolutionWithSideEffects\(\s*me\.id,\s*prepared,?\s*\)/,
     );
     assert.match(
       caseResolveAuthority,

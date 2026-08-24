@@ -270,7 +270,10 @@ describe("Case and Order lifecycle lock protocol", () => {
       ["staff prepare", "await prepareCaseStaffResolution("],
       ["staff provider", "await createMarketplaceRefund("],
       ["staff provider record", "await recordCaseStaffResolutionProvider("],
-      ["staff finalize", "await finalizeCaseStaffResolution("],
+      [
+        "staff finalize and durable delivery",
+        "await finalizeCaseStaffResolutionWithSideEffects(",
+      ],
     ]);
     assertOrdered(staffAuthority, [
       [

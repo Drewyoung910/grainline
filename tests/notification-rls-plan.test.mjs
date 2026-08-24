@@ -154,7 +154,10 @@ describe("Bucket B Notification RLS inventory", () => {
     const caseOpen = fs.readFileSync("src/app/api/cases/route.ts", "utf8");
     const caseMessages = fs.readFileSync("src/app/api/cases/[id]/messages/route.ts", "utf8");
     const caseMarkResolved = fs.readFileSync("src/app/api/cases/[id]/mark-resolved/route.ts", "utf8");
-    const caseResolve = fs.readFileSync("src/app/api/cases/[id]/resolve/route.ts", "utf8");
+    const caseResolve = fs.readFileSync(
+      "src/lib/caseStaffResolutionFinalization.ts",
+      "utf8",
+    );
     const caseAutoClose = fs.readFileSync("src/app/api/cron/case-auto-close/route.ts", "utf8");
     const commissionInterest = fs.readFileSync("src/app/api/commission/[id]/interest/route.ts", "utf8");
     const commissionStatus = fs.readFileSync("src/app/api/commission/[id]/route.ts", "utf8");
@@ -210,11 +213,11 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.doesNotMatch(caseMarkResolved, /logAdminActionOrThrow/);
     assert.match(
       caseResolve,
-      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: finalized\.caseId/,
+      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE,\s*sourceId: result\.caseId/,
     );
     assert.match(
       caseResolve,
-      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE,\s*sourceId: finalized\.resolutionMessageId/,
+      /sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE,\s*sourceId: result\.resolutionMessageId/,
     );
     assert.equal((caseAutoClose.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.CASE_SYSTEM_ACTION/g) ?? []).length, 6);
     assert.equal((caseAutoClose.match(/sourceId: row\.auditLogId/g) ?? []).length, 6);

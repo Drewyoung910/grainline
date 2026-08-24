@@ -554,7 +554,7 @@ export async function sendCaseMessage(opts: {
   await send(recipientEmail, `${safeSubject(sender)} sent a message in your case`, baseTemplate("New Case Message", body));
 }
 
-export async function sendCaseResolved(opts: {
+export function renderCaseResolvedEmail(opts: {
   orderId: string;
   buyer: { name?: string | null; email: string };
   resolution: string;
@@ -578,7 +578,17 @@ export async function sendCaseResolved(opts: {
     ${btn("View order", orderUrl)}
   `;
 
-  await send(buyer.email, `${resolutionCopy.emailSubject}${orderSubjectSuffix(orderId)}`, baseTemplate(resolutionCopy.emailHeading, body));
+  return {
+    to: buyer.email,
+    subject: `${resolutionCopy.emailSubject}${orderSubjectSuffix(orderId)}`,
+    html: baseTemplate(resolutionCopy.emailHeading, body),
+  };
+}
+
+export async function sendCaseResolved(
+  opts: Parameters<typeof renderCaseResolvedEmail>[0],
+) {
+  await sendRenderedEmail(renderCaseResolvedEmail(opts));
 }
 
 export async function sendCustomOrderRequest(opts: {

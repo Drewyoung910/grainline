@@ -31,6 +31,7 @@ export const EMAIL_OUTBOX_HTML_MAX_CHARS = 200_000;
 export const EMAIL_OUTBOX_TEMPLATE_VERSION = 1;
 export const EMAIL_OUTBOX_TEMPLATE_NAMES = [
   "back_in_stock",
+  "case_resolved",
   "first_listing_congrats",
   "first_sale_congrats",
   "followed_maker_new_listing",
