@@ -459,6 +459,20 @@ Phase-A release records, and
 `docs/seller-payout-event-force-release.md` as the FORCE execution and
 acceptance record.
 
+The fresh next-table audit is now
+`docs/order-payment-event-pre-rls-audit.md`. `OrderPaymentEvent` remains the
+next bounded release, but compatible design is blocked until five domain gaps
+are closed: raw payment-provider metadata in buyer/seller exports; seller and
+blocked-checkout refund ABA claims; inconsistent latest-dispute predicates;
+missing append-only/taxonomy/currency/event-time invariants; and ambiguous
+seller self-service partial-refund semantics. Use the launch-safe constraint:
+seller self-service supports full cancellation/refund, while partial refunds
+remain staff Case operations until a residual line-item fulfillment model is
+designed. Pin all 26 semantic consumers, require a fresh aggregate-only
+production inspection, then use compatible schema/functions, converted app
+deployment, signed provider/concurrency proof, predecessor drain, policyless
+ENABLE and separate FORCE. Do not bundle shipping quotes, Order or OrderItem.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
