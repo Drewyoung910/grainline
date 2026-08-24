@@ -468,7 +468,10 @@ missing append-only/taxonomy/currency/event-time invariants; and ambiguous
 seller self-service partial-refund semantics. Use the launch-safe constraint:
 seller self-service supports full cancellation/refund, while partial refunds
 remain staff Case operations until a residual line-item fulfillment model is
-designed. Pin all 26 semantic consumers, require a fresh aggregate-only
+designed. The compatible application correction and future feature gate are
+recorded in `docs/order-payment-event-refund-contract.md`; it must deploy and
+pass route smoke before payment-ledger authority conversion. Pin all 26
+semantic consumers, require a fresh aggregate-only
 production inspection, then use compatible schema/functions, converted app
 deployment, signed provider/concurrency proof, predecessor drain, policyless
 ENABLE and separate FORCE. Do not bundle shipping quotes, Order or OrderItem.

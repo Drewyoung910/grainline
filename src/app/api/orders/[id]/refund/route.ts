@@ -40,12 +40,9 @@ import {
   blockingRefundOrDisputeLedgerWhere,
   orderHasPurchasedLabel,
   orderHasRefundLedger,
-  partialRefundExceedsOrderTotal,
-  partialRefundInputError,
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
   refundMayRestoreStock,
-  requestedRefundStockRestoreQuantities,
   refundStockRestoreQuantities,
   sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
@@ -128,26 +125,24 @@ export async function POST(
       throw e;
     }
 
-    const type: "FULL" | "PARTIAL" =
-      refundParsed.type === "PARTIAL" ? "PARTIAL" : "FULL";
-    const amountCents: number | null = refundParsed.amountCents ?? null;
+    if (refundParsed.type === "PARTIAL") {
+      return privateJson(
+        {
+          error:
+            "Seller partial refunds require Grainline staff review. Issue a full refund or contact support.",
+        },
+        { status: HTTP_STATUS.BAD_REQUEST },
+      );
+    }
+
+    const type = "FULL" as const;
     const requestedStockRestores = refundParsed.restoreStock ?? [];
 
     if (type === "FULL" && requestedStockRestores.length > 0) {
       return privateJson(
         {
           error:
-            "Full refunds restore eligible stock automatically. Use restoreStock only for partial refunds.",
-        },
-        { status: HTTP_STATUS.BAD_REQUEST },
-      );
-    }
-
-    if (partialRefundInputError(type, amountCents)) {
-      return privateJson(
-        {
-          error:
-            "amountCents is required and must be positive for PARTIAL refunds.",
+            "Full refunds restore eligible stock automatically. Do not provide restoreStock.",
         },
         { status: HTTP_STATUS.BAD_REQUEST },
       );
@@ -192,28 +187,6 @@ export async function POST(
     if (!allItemsBelongToSeller)
       return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
     const myItems = order.items;
-
-    let partialStockRestores: Array<{ listingId: string; quantity: number }> =
-      [];
-    if (type === "PARTIAL" && requestedStockRestores.length > 0) {
-      if (!refundMayRestoreStock(order)) {
-        return privateJson(
-          {
-            error:
-              "Stock cannot be restored after this order has shipped or been picked up.",
-          },
-          { status: HTTP_STATUS.BAD_REQUEST },
-        );
-      }
-      const restoreValidation = requestedRefundStockRestoreQuantities(
-        myItems,
-        requestedStockRestores,
-      );
-      if (!restoreValidation.ok) {
-        return privateJson({ error: restoreValidation.error }, { status: HTTP_STATUS.BAD_REQUEST });
-      }
-      partialStockRestores = restoreValidation.restores;
-    }
 
     const staleLocksReleased = await releaseStaleRefundLocks(orderId);
     const orderForRefundState = {
@@ -276,22 +249,10 @@ export async function POST(
     const refundAmountCents = refundAmountForResolution(
       type,
       order,
-      amountCents,
+      null,
     );
     if (refundAmountCents == null) {
-      return privateJson(
-        {
-          error:
-            "amountCents is required and must be positive for PARTIAL refunds.",
-        },
-        { status: HTTP_STATUS.BAD_REQUEST },
-      );
-    }
-    if (partialRefundExceedsOrderTotal(type, amountCents, order)) {
-      return privateJson(
-        { error: "Refund amount exceeds order total." },
-        { status: HTTP_STATUS.BAD_REQUEST },
-      );
+      throw new TypeError("Full seller refund amount could not be derived from the order");
     }
     const refundAmountDisplay = formatCurrencyCents(
       refundAmountCents,
@@ -365,9 +326,9 @@ export async function POST(
       refundAccountingEvidence = refund.accountingEvidence;
 
       const stockRestores =
-        type === "FULL" && refundMayRestoreStock(order)
+        refundMayRestoreStock(order)
           ? refundStockRestoreQuantities(myItems)
-          : partialStockRestores;
+          : [];
       const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
 
       const refundSummary =

@@ -22,7 +22,7 @@ import {
 } from "@/lib/caseMessagingState";
 import { caseEscalationAvailable } from "@/lib/caseActionState";
 import { publicListingPath } from "@/lib/publicPaths";
-import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger, refundMayRestoreStock } from "@/lib/refundRouteState";
+import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger } from "@/lib/refundRouteState";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { isRecordedRefundId } from "@/lib/refundLockState";
@@ -179,21 +179,6 @@ export default async function SellerOrderDetailPage({
   const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const now = new Date();
   const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
-  const restorableRefundItems = Array.from(
-    myItems.reduce((items, item) => {
-      if (item.listing.listingType !== "IN_STOCK" || item.quantity <= 0) return items;
-      const existing = items.get(item.listingId);
-      items.set(item.listingId, {
-        listingId: item.listingId,
-        title: item.listing.title,
-        quantity: (existing?.quantity ?? 0) + item.quantity,
-      });
-      return items;
-    }, new Map<string, { listingId: string; title: string; quantity: number }>())
-      .values(),
-  );
-  const canRestoreRefundStock = refundMayRestoreStock(order);
-
   const refundCents =
     (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
     activeCase?.refundAmountCents ??
@@ -658,8 +643,6 @@ export default async function SellerOrderDetailPage({
           orderTotalCents={orderTotal}
           alreadyRefundedId={null}
           alreadyRefundedCents={null}
-          restorableItems={restorableRefundItems}
-          canRestoreStock={canRestoreRefundStock}
         />
       )}
       {order.sellerRefundId && (

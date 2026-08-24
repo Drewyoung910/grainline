@@ -50,7 +50,7 @@ describe("seller analytics refund guardrails", () => {
     assert.match(homepageStats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
   });
 
-  it("keeps first-party partial refunds visible to Guild sales filters", () => {
+  it("keeps seller and staff Case refunds visible to Guild sales filters", () => {
     const helper = source("src/lib/localRefundEvidenceCore.ts");
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseResolveRoute = source("src/app/api/cases/[id]/resolve/route.ts");
@@ -67,6 +67,11 @@ describe("seller analytics refund guardrails", () => {
     assert.match(sellerRefundRoute, /sellerRefundAmountCents: refundAmountCents/);
     assert.match(sellerRefundRoute, /action: "SELLER_REFUND_RECORDED"/);
     assert.match(sellerRefundRoute, /amountCents: refundAmountCents/);
+    assert.match(
+      sellerRefundRoute,
+      /if \(refundParsed\.type === "PARTIAL"\)[\s\S]*Seller partial refunds require Grainline staff review/,
+    );
+    assert.match(caseResolveRoute, /resolution: z\.enum\(\["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"\]\)/);
 
     assert.match(
       caseResolveRoute,

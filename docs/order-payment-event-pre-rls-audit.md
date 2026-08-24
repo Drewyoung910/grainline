@@ -45,6 +45,11 @@ Fix these in a compatible application/schema sequence before activation. Do
 not compensate with a permissive policy, a generic DEFINER append function or
 participant base-table SELECT.
 
+The first compatible application correction is recorded in
+`docs/order-payment-event-refund-contract.md`: seller self-service partial
+refunds are removed from the UI and rejected before side effects, while full
+seller cancellation/refunds and staff Case partial refunds remain distinct.
+
 ## Product and evidence contract
 
 ### What the table is

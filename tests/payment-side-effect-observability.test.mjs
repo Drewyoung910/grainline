@@ -392,7 +392,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(route, /id:\s*\{\s*in: Prisma\.sql/);
   });
 
-  it("allows seller partial refunds to restore only explicitly requested purchased stock", () => {
+  it("limits seller self-service to full cancellation refunds", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
     const panel = source("src/components/SellerRefundPanel.tsx");
     const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
@@ -400,21 +400,17 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /restoreStock:\s*z\s*\.array/);
     assert.match(
       route,
-      /requestedRefundStockRestoreQuantities\(\s*myItems,\s*requestedStockRestores,\s*\)/,
+      /if \(refundParsed\.type === "PARTIAL"\)[\s\S]*Seller partial refunds require Grainline staff review/,
     );
-    assert.match(route, /Full refunds restore eligible stock automatically/);
+    assert.match(route, /const type = "FULL" as const/);
     assert.match(
       route,
-      /Stock cannot be restored after this order has shipped or been picked up/,
+      /refundMayRestoreStock\(order\)[\s\S]*\? refundStockRestoreQuantities\(myItems\)[\s\S]*: \[\]/,
     );
-    assert.match(route, /: partialStockRestores/);
-    assert.match(panel, /Restore inventory \(optional\)/);
-    assert.match(
-      panel,
-      /restoreStock\.push\(\{ listingId: item\.listingId, quantity \}\)/,
-    );
-    assert.match(salesPage, /restorableRefundItems/);
-    assert.match(salesPage, /canRestoreStock=\{canRestoreRefundStock\}/);
+    assert.match(panel, /JSON\.stringify\(\{ type: "FULL" \}\)/);
+    assert.match(panel, /Partial refunds require Grainline staff review/);
+    assert.doesNotMatch(panel, /Partial Refund|partialAmount|restoreQuantities/);
+    assert.doesNotMatch(salesPage, /restorableRefundItems|canRestoreRefundStock/);
   });
 
   it("allows staff case partial refunds to restore only explicitly requested purchased stock", () => {
