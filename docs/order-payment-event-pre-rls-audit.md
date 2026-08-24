@@ -424,6 +424,24 @@ ID, provider ID, URL, timestamp, cost or raw row. Classification is not cleanup
 authorization, and the Order finding remains tracked for the separate Order
 release.
 
+PR #263 exact head `ca02809a793b1455f27cdbe67ba25fca45484f65`
+merged at exact main `3bd0a0f7a11074a323c0d6facdcc08d2aeadc0e1`;
+exact-main CI `32784976638` passed. Protected read-only run `32785532138`
+accepted the 76-field successor with sanitized artifact SHA-256
+`a4c7d40ac292d1fa4c8e43ad95b47630ac40be9ef7b5553f56e0523894cd0bff`.
+The only nonzero label subtypes were one PURCHASED row missing both
+`shippoTransactionId` and `labelUrl`; timestamp, cost, method, fulfillment and
+clawback classifications were clean. Every OrderPaymentEvent count remains
+zero, so this does not block its invariant/RLS work.
+
+Static lifecycle review found that buyer and seller account deletion
+intentionally erase those two provider/download fields while retaining
+PURCHASED status and fulfillment history. Do not repair or rehydrate that
+privacy-redacted state. The isolated 78-field successor adds aggregate-only
+privacy-redacted versus unexplained missing-reference counts using
+`buyerDataPurgedAt` and the seller user's `deletedAt`; only a nonzero
+unexplained count may enter a separate Order repair design.
+
 ### OPE-A10 - existing owner-private consumers are release dependencies
 
 Case staff resolution inserts an exact payment row inside its generation-fenced

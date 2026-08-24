@@ -107,5 +107,12 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
     assert.match(invariantInspection, /does not:[\s\S]*change `OrderPaymentEvent` grants or RLS/);
     assert.match(invariantInspection, /label_state_coherence_count = 1/);
     assert.match(invariantInspection, /does not block the separately empty\s+OrderPaymentEvent invariant design/);
+    assert.match(invariantInspection, /32784976638/);
+    assert.match(invariantInspection, /32785532138/);
+    assert.match(invariantInspection, /a4c7d40ac292d1fa4c8e43ad95b47630ac40be9ef7b5553f56e0523894cd0bff/);
+    assert.match(invariantInspection, /exact\s+76-field query/);
+    assert.match(invariantInspection, /isolated 78-field successor/);
+    assert.match(invariantInspection, /account deletion intentionally produces that\s+shape/);
+    assert.match(invariantInspection, /privacy-redacted missing references/);
   });
 });

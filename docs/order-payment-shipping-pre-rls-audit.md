@@ -724,3 +724,19 @@ aggregate-only successor expands the 66-field accepted baseline to 76 fields
 with ten overlapping label-state subtype counts and preserves the no-row,
 no-identifier evidence boundary. The historical 66-field evidence remains
 accepted and unchanged.
+
+PR #263 exact head `ca02809a793b1455f27cdbe67ba25fca45484f65`
+merged at exact main `3bd0a0f7a11074a323c0d6facdcc08d2aeadc0e1`;
+full exact-main CI `32784976638` passed. Protected engine-read-only production
+inspection `32785532138` accepted the exact 76-field query. Sanitized artifact
+SHA-256 `a4c7d40ac292d1fa4c8e43ad95b47630ac40be9ef7b5553f56e0523894cd0bff`
+retains no private/provider identity or raw row and made no mutation.
+
+The broad count remains one. Exactly one PURCHASED row lacks both its Shippo
+transaction reference and label URL; no other label-state or clawback subtype
+is nonzero. Account deletion intentionally clears those two fields for a
+deleted buyer or seller while preserving PURCHASED and fulfillment history, so
+this shape is not automatically corrupt or repairable. The isolated 78-field
+successor adds two overlapping counts that distinguish deletion-marked privacy
+redaction from an unexplained missing reference. It does not enumerate the row
+or authorize restoration of erased provider data.

@@ -2398,3 +2398,34 @@ Open work:
   baseline to 76 aggregate-only fields with ten overlapping label-state
   subtypes. It retains no Order/provider identity or raw state and changes no
   production data.
+
+## Order label subtype and privacy-redaction classification (2026-08-24)
+
+- PR #263 exact head `ca02809a793b1455f27cdbe67ba25fca45484f65`
+  merged at exact main `3bd0a0f7a11074a323c0d6facdcc08d2aeadc0e1`.
+  Exact-main CI `32784976638` passed the complete PostgreSQL/release chain,
+  TypeScript, lint, 3,360 tests with seven intentional skips, security audit
+  and production build.
+- Protected inspection `32785532138` passed the exact 76-field query inside an
+  engine-enforced repeatable-read read-only transaction. Sanitized artifact
+  SHA-256
+  `a4c7d40ac292d1fa4c8e43ad95b47630ac40be9ef7b5553f56e0523894cd0bff`
+  retained no address, credential, Order/user/provider identity, raw row or
+  snapshot. No production mutation occurred.
+- Counts remain 2 Orders, 3 OrderItems and 13 StripeWebhookEvents, with zero
+  OrderPaymentEvents, SellerPayoutEvents, CheckoutStockReservations and
+  OrderShippingRateQuotes. All previously clean defect families remain zero.
+  `label_state_coherence_count = 1`; the only nonzero subtypes are
+  `label_purchased_missing_transaction_count = 1` and
+  `label_purchased_missing_url_count = 1`.
+- Static lifecycle audit corrected the initial repair interpretation:
+  `anonymizeUserAccount()` intentionally clears those exact two fields for
+  buyer- and seller-side account deletion while preserving PURCHASED status
+  and fulfillment history. Rehydrating them could violate the privacy action.
+- The isolated 78-field successor adds only aggregate privacy-redacted and
+  unexplained missing-reference counts, derived from `buyerDataPurgedAt` and
+  the seller user's `deletedAt`. It returns no identity and authorizes no
+  cleanup. Only an unexplained count belongs in a later Order repair review.
+- GitHub emitted a nonblocking runner warning that `actions/upload-artifact@v4`
+  targets deprecated Node.js 20 and is being forced to Node.js 24. Track the
+  action-runtime upgrade separately; it did not affect evidence acceptance.

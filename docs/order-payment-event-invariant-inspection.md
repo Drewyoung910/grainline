@@ -1,10 +1,13 @@
 # OrderPaymentEvent invariant inspection extension
 
-Status: the corrected 66-count inspector merged through exact main
-`bc64516c6463118012c643806a3f398f2584092c`. Exact-main CI `32782625503`
-passed and protected engine-read-only production inspection `32783261534`
-completed with sanitized evidence. The additive 76-count label classifier is
-an isolated successor and has not been merged or dispatched.
+Status: the additive 76-count label classifier merged through exact main
+`3bd0a0f7a11074a323c0d6facdcc08d2aeadc0e1`. Exact-main CI `32784976638`
+passed and protected engine-read-only production inspection `32785532138`
+completed with sanitized evidence. It narrowed the one broad label count to a
+PURCHASED Order missing its Shippo transaction reference and label URL. Static
+lifecycle review then found that account deletion intentionally produces that
+shape; the isolated 78-count successor distinguishes required privacy
+redaction from an unexplained missing reference before any repair decision.
 
 Audited: 2026-08-24 after the staff Case participant-delivery candidate.
 
@@ -110,3 +113,39 @@ null-status label retaining transaction, URL, timestamp or cost state. The
 successor retains no Order or provider identity and performs no mutation.
 Nonzero subtype counts remain classification only; cleanup requires a separate
 reviewed boundary.
+
+## Accepted 2026-08-24 label subtype classification
+
+PR #263 exact head `ca02809a793b1455f27cdbe67ba25fca45484f65`
+merged at exact main `3bd0a0f7a11074a323c0d6facdcc08d2aeadc0e1`.
+Exact-main CI `32784976638` passed the complete PostgreSQL authority chain,
+TypeScript, lint, 3,360 tests with seven intentional skips, dependency audit
+and production build. Protected inspection `32785532138` then ran the exact
+76-field query inside an engine-attested `REPEATABLE READ READ ONLY`
+transaction. Sanitized evidence SHA-256
+`a4c7d40ac292d1fa4c8e43ad95b47630ac40be9ef7b5553f56e0523894cd0bff`
+retains no address, credential, object/provider/user identity, raw row or
+snapshot and made no production mutation.
+
+The volume and non-label results are unchanged: 2 Orders, 3 OrderItems, 13
+StripeWebhookEvents; zero OrderPaymentEvents, SellerPayoutEvents,
+CheckoutStockReservations and OrderShippingRateQuotes; and zero payment,
+refund, dispute, replay, source, currency, amount, privacy, reservation, quote
+or label-clawback defects. The broad label count remains one. Its only nonzero
+subtypes are:
+
+- `label_purchased_missing_transaction_count = 1`; and
+- `label_purchased_missing_url_count = 1`.
+
+The same PURCHASED row has a purchase timestamp, nonnegative cost, SHIPPING
+method and valid SHIPPED/DELIVERED fulfillment posture. No null-status stale
+field subtype fired.
+
+This result is not yet a repair candidate. `anonymizeUserAccount()` deliberately
+clears `shippoTransactionId` and `labelUrl` for Orders belonging to a deleted
+buyer or seller while preserving PURCHASED status and fulfillment history.
+The 76-field query did not classify that intentional privacy boundary. The
+isolated 78-field successor adds only two overlapping aggregate counts:
+privacy-redacted missing references when `buyerDataPurgedAt` or the seller
+user's `deletedAt` is present, and unexplained missing references when neither
+marker exists. It retains no identity and remains classification-only.
