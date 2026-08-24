@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order refund inactive-seller recovery release
+        run: npm run audit:order-refund-inactive-seller-recovery-release
+      - name: Isolate Order refund inactive-seller recovery until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery
+          "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release"
       - name: Verify Order refund reconciliation authority release
         run: npm run audit:order-refund-reconciliation-authority-release
       - name: Isolate Order refund reconciliation until sealed predecessors pass
@@ -662,6 +669,26 @@ jobs:
           tests/order-refund-reconciliation-authority-postgres.test.mjs
           tests/order-refund-provider-reconciliation.test.mjs
           tests/order-refund-reconciliation-state.test.mjs
+      - name: Restore Order refund inactive-seller recovery release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release"
+          prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery
+      - name: Apply Order refund inactive-seller recovery preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order refund inactive-seller recovery migration status
+        run: npx prisma migrate status
+      - name: Audit inactive-seller recovery grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove inactive-seller refund recovery through the runtime role
+        run: npm run audit:order-refund-inactive-seller-recovery-postgres
+        env:
+          ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove inactive-seller recovery packaging and proof guardrails
+        run: >-
+          node --test
+          tests/order-refund-inactive-seller-recovery-release.test.mjs
+          tests/order-refund-inactive-seller-recovery-postgres-proof.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

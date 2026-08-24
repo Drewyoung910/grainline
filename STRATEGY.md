@@ -528,10 +528,15 @@ webhook correctly cleared its processing lease before staff inspection, but
 the original finalizer still required that lease. The isolated correction
 keeps the mutation core owner-private and adds an exact immutable-
 reconciliation wrapper that co-commits refund finalization with source-event
-completion. This closes the ambiguous provider-outcome design gap only. It is
+completion. A further byte-sealed successor closes the inactive-seller first-
+record edge without a new runtime operation: the existing seller and Case
+functions accept banned/deleted source history only when they derive the exact
+same-Order, same-claim, same-generation immutable reconciliation and a current
+ADMIN author. The caller supplies no reconciliation ID. This closes the
+ambiguous provider-outcome and inactive-seller local-record gaps only. It is
 not merged, deployed, production-applied or activation evidence. Keep the
-inactive-seller-after-provider-effect recovery edge, staff Case refund family,
-remaining invariants, actor projections/aggregates, fresh production
+staff Case refund family, remaining invariants, actor projections/aggregates,
+fresh production
 classification, converted provider proof, predecessor drain, policyless ENABLE
 and FORCE as explicit later gates. Do not bundle Order, OrderItem or shipping
 quotes.

@@ -2279,3 +2279,49 @@ Open work:
   or change migration bytes. Fresh exact-head CI remains required before the
   draft PR can leave review. No migration, deployment, grant, credential, or
   provider state changed while correcting this finding.
+
+## Order refund inactive-seller first-record recovery (2026-08-24)
+
+- Extra-High end-to-end review found a second pre-activation recovery gap. A
+  seller may acquire a generation-fenced refund claim and Stripe may accept the
+  refund, but the seller can become banned or soft-deleted before the atomic
+  local record/finalizer runs. The reconciliation action could correctly
+  classify the provider effect while `grainline_seller_refund_record` and its
+  Case side effect still rejected the historical seller posture. The provider
+  effect stayed fenced from duplication, but Order, payment, stock, Case and
+  participant-delivery records could remain incomplete.
+- The isolated successor
+  `20260824050000_prepare_order_refund_inactive_seller_recovery`, SHA-256
+  `e37d5ea925af5f4b82f90b1f1bcdeb9b14f5a4b34da7c228bdc94f8bfbbb9598`,
+  replaces only `grainline_seller_refund_record(text,text,bigint,text,text,text,integer)`
+  and `grainline_case_seller_refund_apply(text,text)`. It creates no function,
+  table, policy or grant family and changes no RLS posture. Existing signatures
+  and runtime-only execute remain exact.
+- The ordinary active-seller path is unchanged. An inactive first write passes
+  only when PostgreSQL derives an immutable reconciliation with the exact
+  Order, claim ID, generation, seller source, null source generation,
+  idempotency scope, an effect-preserving action and a still-current ADMIN
+  author. PostgreSQL holds shared locks on the immutable reconciliation and
+  ADMIN rows through finalization, preventing an administrator demotion, ban
+  or deletion from racing that decision. The Case function derives the same
+  tuple from the already-inserted local payment event. No reconciliation ID,
+  Order, seller, Case, buyer or source target is added to caller input.
+- Normal account deletion retains the User and SellerProfile identities while
+  setting banned/deleted state, so the historical seller relationship remains
+  provable. Missing source rows, unrelated reconciliation, no-effect release,
+  wrong claim/generation/scope, inactive administrator or forged payment-event
+  metadata fail closed. Exact committed refund replay remains available after
+  later account-state changes.
+- The deterministic builder pins the two sealed predecessor function sources
+  and emits fixed, non-dynamic SQL. Static release tests, byte verification and
+  proof-configuration tests pass locally. CI is staged to isolate the successor
+  until its four sealed predecessors pass, apply it to loopback PostgreSQL 16,
+  re-audit grants/RLS and run a runtime-role rollback proof covering denial,
+  exact recovery, Case boundary, stock restoration, replay and zero residue.
+  Exact-head CI has not yet run for this stacked branch. No production,
+  provider, credential, deployment, migration or RLS state changed.
+- Final local validation for the stacked successor passed 3,348 tests with
+  seven intentional environment-dependent skips, TypeScript, lint, Prisma
+  schema validation, deterministic migration regeneration and
+  `git diff --check`. The real PostgreSQL runtime-role proof remains CI-only
+  because this workstation has no local PostgreSQL or Docker service.

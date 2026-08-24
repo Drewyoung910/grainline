@@ -221,6 +221,13 @@ the event processed in the same database transaction. This split avoids both
 fabricating a signed lease for staff recovery and granting runtime direct core
 authority. Provider refund/reversal fields remain authenticated application
 evidence rather than database-cryptographic Stripe proof.
+The same reconciliation ledger is also the sole database-derived exception
+when a seller becomes banned or soft-deleted after Stripe authorization but
+before the first local seller-refund record. The existing seller-record and
+Case-apply function identities remain the boundary; callers cannot choose a
+reconciliation row or recovery target. The database holds shared locks on the
+immutable reconciliation and its current ADMIN author until the atomic
+finalizer commits, so an administrator posture change cannot race the gate.
 It also records the launch-safe refund contract: seller self-service supports
 full cancellation/refund, while partial refunds remain staff Case operations
 until the Order model can represent residual line-item fulfillment. Shipping

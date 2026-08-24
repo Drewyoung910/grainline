@@ -13,6 +13,10 @@ import {
   ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
   verifyOrderRefundReconciliationAuthorityMigrationBytes,
 } from "./order-refund-reconciliation-authority-catalog.mjs";
+import {
+  ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
+  verifyOrderRefundInactiveSellerRecoveryMigrationBytes,
+} from "./order-refund-inactive-seller-recovery-catalog.mjs";
 
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_PHASE =
   "order-refund-reconciliation-authority-prepared";
@@ -26,6 +30,17 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
   const { migrationPath, migrationSha256 } =
     verifyOrderRefundReconciliationAuthorityMigrationBytes(rootDirectory);
   const migration = fs.readFileSync(migrationPath, "utf8");
+  const successorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
+  );
+  const reviewedSuccessors = fs.existsSync(successorPath)
+    ? [ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION]
+    : [];
+  if (reviewedSuccessors.length === 1) {
+    verifyOrderRefundInactiveSellerRecoveryMigrationBytes(rootDirectory);
+  }
   const laterMigrations = fs.readdirSync(
     path.join(rootDirectory, "prisma/migrations"),
     { withFileTypes: true },
@@ -37,7 +52,7 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     );
   assert.deepEqual(
     laterMigrations,
-    [],
+    reviewedSuccessors,
     "Order refund reconciliation authority release has an unreviewed successor",
   );
   assert.equal(
@@ -96,6 +111,7 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     policyCount: 0,
     runtimeTablePrivileges: 0,
     orderPaymentEventRlsChanged: false,
+    reviewedSuccessors,
     productionTouched: false,
   });
 }

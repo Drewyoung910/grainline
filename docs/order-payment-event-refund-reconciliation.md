@@ -1,14 +1,19 @@
 # Order refund provider reconciliation preparation
 
-Status: isolated compatible preparation on
-`agent/order-payment-event-refund-reconciliation-20260824`; not merged,
-deployed or applied to production. `OrderPaymentEvent` RLS remains off,
-predecessor `Order`/`OrderPaymentEvent` grants remain unchanged and the guarded
-Production Migrations workflow is intentionally not wired.
+Status: the byte-sealed reconciliation checkpoint remains isolated on
+`agent/order-payment-event-refund-reconciliation-20260824`; its reviewed
+inactive-seller successor is stacked on
+`agent/order-payment-event-inactive-seller-recovery-20260824`. Neither branch
+is merged, deployed or applied to production. `OrderPaymentEvent` RLS remains
+off, predecessor `Order`/`OrderPaymentEvent` grants remain unchanged and no
+production workflow is wired for either migration.
 
 Prepared: 2026-08-24. The exact additive migration is
 `20260824040000_prepare_order_refund_reconciliation_authority`, SHA-256
 `cfd5d2827eb234fb9c1b7f990b63c3e6bcc2db0dd80038cfcfd163c81314d3d7`.
+The exact compatible inactive-seller successor is
+`20260824050000_prepare_order_refund_inactive_seller_recovery`, SHA-256
+`e37d5ea925af5f4b82f90b1f1bcdeb9b14f5a4b34da7c228bdc94f8bfbbb9598`.
 
 ## Decision
 
@@ -138,17 +143,28 @@ are enforced by the server action.
   auditor now gates only this named successor table on both its exact migration
   directory and `CREATE TABLE` marker. Missing-table denial remains strict once
   the migration is present, and a regression test proves both prefix states.
+- A second end-to-end review found that seller reconciliation could authorize
+  the correct provider outcome but still strand the first local record if the
+  seller became banned or soft-deleted between provider authorization and the
+  atomic database finalizer. Account deletion retains the User and
+  SellerProfile identities, so the source relationship remains provable. The
+  reviewed successor replaces only the existing seller-record and Case-apply
+  bodies. An inactive source is accepted only when the database itself finds
+  an immutable reconciliation with the same Order, claim ID, generation,
+  seller source, idempotency scope, one of the two effect-preserving actions
+  and a still-current ADMIN author. Both the immutable reconciliation row and
+  its ADMIN author are held with shared locks through finalization, so a role,
+  ban or deletion transition cannot race the authorization decision. The
+  caller supplies no reconciliation ID.
+  Active sellers and exact committed replays retain their existing behavior.
+  No new runtime function, provider call, table privilege or RLS change is
+  introduced.
 
 ## Residual gates and honest limits
 
 This checkpoint closes ambiguous seller/blocked-checkout provider outcomes; it
 does not complete `OrderPaymentEvent` RLS. In particular:
 
-- a seller who becomes banned/deleted after Stripe effect but before the first
-  local record can fail the existing seller-family finalizer. The claim stays
-  ambiguous and the provider effect is not duplicated, but activation still
-  needs a separately reviewed staff recovery family or an explicitly proven
-  source-history exception. Do not widen the seller finalizer casually;
 - staff Case refund authority remains its own family and is not bundled here;
 - append-only, taxonomy, currency, source and typed-time invariants still need
   their final catalog review;
@@ -182,6 +198,17 @@ pagination, retrieved-object validation, scan-snapshot digests, legacy untagged
 fail-close, duplicate/drift denial and exact retry behavior. Static contracts
 pin the session-bound Admin-PIN action, source callsites and unchanged
 production/RLS wiring.
+
+The inactive-seller successor adds a separate loopback-only PostgreSQL 16
+rollback proof. It first shows that a banned seller cannot make the first local
+record without reconciliation, then commits the exact ADMIN provider-effect
+classification, finalizes through `grainline_app_runtime`, reaches the
+source-validated Case boundary, restores stock once, proves exact replay and
+rolls back every fixture. Its catalog check requires the original two function
+signatures, runtime-only execute, pinned search path and the database-derived
+reconciliation clauses, including the shared reconciliation/ADMIN locks. This
+proof is wired for CI; it has not yet produced exact-head CI evidence for the
+stacked branch.
 
 Draft PR CI run `32702325266` passed the migration-aware grant inventory at
 the former failure point, then failed closed while replaying the historical
@@ -222,13 +249,13 @@ Docker is available locally.
 
 ## Next sequence
 
-1. Complete Extra-High authority/release review and merge only this isolated
-   compatible stack after exact-main CI.
+1. Complete Extra-High authority/release review and merge only the byte-sealed
+   reconciliation and inactive-seller-compatible stack after exact-head CI.
 2. Wire and run a separate aggregate-only production inspection and guarded
    compatible preparation; do not activate RLS in that run.
 3. Deploy the converted application and prove seller, blocked-checkout, signed
    refund/dispute and exact retry behavior while predecessor authority coexists.
-4. Close the inactive-seller staff-recovery edge, remaining staff family,
-   invariants and actor-safe projections/aggregates.
+4. Close the distinct staff Case refund family, remaining invariants and
+   actor-safe projections/aggregates.
 5. Drain predecessor deployments and revoke direct base-table authority.
 6. Release policyless ENABLE and FORCE with distinct pooled-runtime proofs.
