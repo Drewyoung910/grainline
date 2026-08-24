@@ -43,6 +43,14 @@ first extension referenced the not-yet-restored compatible column directly.
 No production data or state was touched. The dual-schema projection and its
 regression guard are the correction; the failed run is not acceptance evidence.
 
+Corrected exact head `dd790d40f1c7212c31a0953a8386213c686ded31` passed full
+CI run `32770970002` on 2026-08-24. The run proved the 66-count inspection
+against the intentionally isolated predecessor schema, then restored and
+proved the later signed-authority migration stack. TypeScript, lint, the full
+test suite, security audit and production build also passed. This is packaging
+and disposable-PostgreSQL acceptance only: the production inspection was not
+dispatched and no production or provider state changed.
+
 ## Decision boundary
 
 Nonzero counts are classification evidence, not permission to delete, rewrite

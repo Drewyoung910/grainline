@@ -562,6 +562,10 @@ assumed the separately staged provider-time column had already been restored.
 The corrected inspection is intentionally dual-schema: absent/null provider
 time classifies as missing, populated bigint values remain exact, and malformed
 values fail the cast. No production state was touched by the failed run.
+Corrected exact head `dd790d40f1c7212c31a0953a8386213c686ded31` passed full CI
+run `32770970002`, including the predecessor-schema aggregate proof. This is
+accepted inspection packaging only; production classification remains a
+separate protected read-only gate after the stacked predecessors merge.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

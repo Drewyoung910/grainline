@@ -385,6 +385,12 @@ still proving the predecessor schema. The corrected query uses a fail-closed
 row projection and is explicitly dual-schema; the failed run touched no
 production state and is not acceptance evidence.
 
+Corrected exact head `dd790d40f1c7212c31a0953a8386213c686ded31` passed full
+CI run `32770970002` on 2026-08-24, including the aggregate inspection proof
+against the predecessor schema and the later restored migration/proof stack.
+This does not replace the fresh aggregate-only production inspection required
+before invariant validation, and no production or provider state changed.
+
 ### OPE-A10 - existing owner-private consumers are release dependencies
 
 Case staff resolution inserts an exact payment row inside its generation-fenced
