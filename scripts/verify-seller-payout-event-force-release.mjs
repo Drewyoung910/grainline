@@ -24,6 +24,9 @@ import {
 import {
   verifySellerPayoutEventActivationRelease,
 } from "./verify-seller-payout-event-activation-release.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "./order-refund-claim-generation-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_FORCE_PHASE =
   "seller-payout-event-force-reviewed";
@@ -41,9 +44,11 @@ function migrationPrefix(rootDirectory, finalMigration) {
 
 export function verifySellerPayoutEventForceRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedRefundClaimSuccessor = false } = {},
 ) {
   const activation = verifySellerPayoutEventActivationRelease(rootDirectory, {
     allowReviewedForceSuccessor: true,
+    allowReviewedRefundClaimSuccessor,
   });
   const activationCandidate = buildSellerPayoutEventActivationCandidate(
     rootDirectory,
@@ -84,6 +89,9 @@ export function verifySellerPayoutEventForceRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_FORCE_PHASE,
     rootDirectory,
+    omittedReviewedMigrationNames: allowReviewedRefundClaimSuccessor
+      ? [ORDER_REFUND_CLAIM_GENERATION_MIGRATION]
+      : [],
   });
   return Object.freeze({
     phase: SELLER_PAYOUT_EVENT_FORCE_PHASE,
@@ -101,7 +109,13 @@ export function verifySellerPayoutEventForceRelease(
     policyCount: 0,
     runtimeTablePrivileges: 0,
     rowDataChanged: false,
-    guard,
+    guard: allowReviewedRefundClaimSuccessor
+      ? Object.freeze({
+          phase: guard.phase,
+          sealedPrefix: true,
+          reviewedSuccessorMigration: ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+        })
+      : guard,
   });
 }
 

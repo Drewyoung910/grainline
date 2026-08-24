@@ -23,7 +23,10 @@ import {
 
 const catalog = readSellerPayoutEventActivationMigrationCatalog(
   process.cwd(),
-  { allowReviewedForceSuccessor: true },
+  {
+    allowReviewedForceSuccessor: true,
+    allowReviewedRefundClaimSuccessor: true,
+  },
 );
 const activation = catalog.at(-1);
 

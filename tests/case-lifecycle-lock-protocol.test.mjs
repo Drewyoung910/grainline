@@ -110,13 +110,25 @@ describe("Case and Order lifecycle lock protocol", () => {
       ],
     ]);
     assertOrdered(refund, [
-      ["refund transaction", "const lockResult = await prisma.$transaction"],
-      ["refund Order lock", "await lockOrderForCaseLifecycle(tx, orderId)"],
-      [
-        "refund post-lock timestamp",
-        "const lockedAt = await databaseClockTimestamp(tx)",
-      ],
-      ["refund reservation", 'UPDATE "Order"'],
+      ["refund database claim", "const refundClaim = await claimSellerOrderRefund"],
+      ["refund provider call", "await createMarketplaceRefund"],
+    ]);
+    const refundFinalization = refund.slice(
+      refund.indexOf("const refundWrite = await prisma.$transaction"),
+    );
+    assert.match(
+      refundFinalization,
+      /activeOrderRefundClaimWhere\(refundClaim\)/,
+      "refund finalization must retain the exact generation predicate",
+    );
+    const refundClaimMigration = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
+    assertOrdered(refundClaimMigration, [
+      ["refund actor lock", 'FROM public."User" AS actor'],
+      ["refund seller lock", 'FROM public."SellerProfile" AS seller'],
+      ["refund Order lock", 'FROM public."Order" AS orders'],
+      ["refund provider authorization", '"refundClaimProviderAuthorizedAt" = transition_at'],
     ]);
   });
 

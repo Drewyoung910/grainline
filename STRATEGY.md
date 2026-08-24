@@ -476,8 +476,12 @@ gate are recorded in `docs/order-payment-event-dispute-state.md`. Those two
 application corrections remain prepared, not live. The distinct refund-only
 self-service export boundary is recorded in
 `docs/order-payment-event-account-export.md`. Compatible authority design is
-still blocked on generation-fenced refund claims, typed
-ordering/invariants and fresh data classification. Pin all 26 semantic
+now supported by the isolated generation-fenced acquisition work in
+`docs/order-payment-event-refund-claim-generation.md`, but that work is not
+live and does not yet provide the final atomic payment-event/provider
+record/finalize or evidence-based reconciliation families. Activation remains
+blocked on those finalizers, typed ordering/invariants and fresh data
+classification. Pin all 26 semantic
 consumers, require a fresh aggregate-only
 production inspection, then use compatible schema/functions, converted app
 deployment, signed provider/concurrency proof, predecessor drain, policyless

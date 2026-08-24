@@ -217,6 +217,17 @@ account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
 fields remain private service evidence.
 
+The OPE-A03 concurrency correction is prepared in
+`docs/order-payment-event-refund-claim-generation.md`. It adds an Order-owned,
+database-derived claim ID/generation/source/idempotency tuple for seller and
+blocked-checkout full refunds. The exact active tuple fences success, orphan
+and ambiguous writes; stale-lock cleanup, signed `charge.refunded` handling and
+terminal dispute handling cannot detach it by elapsed time. The real migration
+runs in disposable PostgreSQL and is byte-pinned after the SellerPayoutEvent
+FORCE predecessor. It is not merged, deployed, production-applied or an RLS
+activation. `Order` retains predecessor direct runtime CRUD, and atomic fixed
+provider record/finalize plus evidence-based reconciliation remain required.
+
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
 retaining only the exact source-consistent fixed-operation catalog. It verifies

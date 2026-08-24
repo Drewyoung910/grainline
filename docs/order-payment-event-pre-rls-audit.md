@@ -58,6 +58,14 @@ projections and exclude the private Stripe service ledger. The later RLS
 conversion still replaces these compatible nested reads with actor-bound,
 keyset-paged database functions.
 
+The fourth compatible correction is recorded in
+`docs/order-payment-event-refund-claim-generation.md`. Seller and
+blocked-checkout refunds now have an isolated, additive database-derived claim
+design with exact source/generation/idempotency binding and no elapsed-time
+release. It is prepared only: the migration and application conversion are not
+merged, deployed or applied to production, and the later fixed provider
+record/finalize catalog remains required before RLS activation.
+
 ## Product and evidence contract
 
 ### What the table is
@@ -245,6 +253,15 @@ must compare the exact generation. Ambiguous provider outcomes enter a durable
 reconciliation state. A bounded stale release may release only a proved
 no-provider-effect claim; elapsed time alone is not that proof.
 
+Prepared disposition: migration
+`20260824010000_prepare_order_refund_claim_generation` plus the converted
+seller and blocked-checkout routes establish the database-derived claim and
+exact-generation comparisons. The database tuple constraint prevents legacy
+code and signed refund handlers from detaching an active claim. This closes the
+ABA acquisition/finalization race in the compatible application, but it is not
+live and does not replace the later atomic payment-event/provider
+record/finalize functions or evidence-based reconciliation operation.
+
 ### OPE-A04 - generic duplicate skipping is not replay validation
 
 Both signed and local writers use `createMany(..., skipDuplicates: true)`.
@@ -368,8 +385,10 @@ There is no runtime-callable `write_payment_event`, `get_payment_event`,
    latest-dispute helper with focused business-logic regressions.
 3. Run the fresh aggregate-only production inspection; review counts before
    any validating migration.
-4. Add compatible typed ordering, claim ledgers, invariants and fixed
-   operations with RLS off and predecessor grants retained.
+4. Promote the prepared refund-generation claim only through a separately
+   byte-pinned compatible release, then add typed ordering, evidence-based
+   claim reconciliation, invariants and the remaining fixed operations with
+   RLS off and predecessor grants retained.
 5. Prove all functions, replay/collision cases, append immutability, claim ABA
    races, dispute reorderings, actor projections and rollback in disposable
    PostgreSQL using separate owner and restricted runtime roles.

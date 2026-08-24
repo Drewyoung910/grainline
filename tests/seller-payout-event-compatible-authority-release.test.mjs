@@ -73,6 +73,7 @@ test("SellerPayoutEvent compatible verifier accepts only the byte-pinned latest 
   const verified = verifySellerPayoutEventAuthorityRelease(process.cwd(), {
     allowReviewedActivationSuccessor: true,
     allowReviewedForceSuccessor: true,
+    allowReviewedRefundClaimSuccessor: true,
   });
   assert.equal(verified.migrationSha256, SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256);
   assert.equal(verified.rlsEnabled, false);

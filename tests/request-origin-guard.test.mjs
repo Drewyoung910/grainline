@@ -93,7 +93,7 @@ describe("request origin guard", () => {
       "await auth()",
       "readBoundedJson(req",
       "prisma.order.findUnique",
-      "UPDATE \"Order\"",
+      "claimSellerOrderRefund({",
       "createMarketplaceRefund({",
     ]);
     assertGuardBefore("src/app/api/orders/[id]/label/route.ts", [

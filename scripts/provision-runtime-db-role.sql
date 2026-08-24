@@ -1340,6 +1340,47 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Order refund generation claims are an additive compatibility fence before
+-- Order/OrderPaymentEvent RLS. When present, expose only the two source-bound
+-- claim functions and keep PUBLIC closed.
+WITH order_refund_claim_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_refund_claim"(text, text)'),
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_refund_claim_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_claim_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_refund_claim"(text, text)'),
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_claim_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_claim_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_refund_claim"(text, text)'),
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_claim_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- CheckoutStockReservation compatible preparation keeps predecessor table
 -- grants while adding only the fixed lifecycle surface. The functions may be
 -- absent before that migration, so every convergence statement is catalog-

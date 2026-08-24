@@ -25,6 +25,12 @@ import {
 import {
   SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
 } from "./stage-seller-payout-event-force-migration.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "./order-refund-claim-generation-catalog.mjs";
+import {
+  verifyOrderRefundClaimGenerationRelease,
+} from "./verify-order-refund-claim-generation-release.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE =
   "checkout-stock-reservation-activation-reviewed";
@@ -76,11 +82,19 @@ export function verifyCheckoutStockReservationActivationRelease(
       migrationDirectory,
       SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
     ));
+    const refundClaimSuccessorExists = fs.existsSync(path.join(
+      migrationDirectory,
+      ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+    ));
     if (payoutSuccessorExists) {
-      verifySellerPayoutEventAuthorityRelease(rootDirectory, {
-        allowReviewedActivationSuccessor: payoutActivationSuccessorExists,
-        allowReviewedForceSuccessor: payoutForceSuccessorExists,
-      });
+      if (refundClaimSuccessorExists) {
+        verifyOrderRefundClaimGenerationRelease(rootDirectory);
+      } else {
+        verifySellerPayoutEventAuthorityRelease(rootDirectory, {
+          allowReviewedActivationSuccessor: payoutActivationSuccessorExists,
+          allowReviewedForceSuccessor: payoutForceSuccessorExists,
+        });
+      }
     }
     const successorGuard = validateCurrentSavedSearchRlsDeployShape({
       phase: CHECKOUT_STOCK_RESERVATION_FORCE_PHASE,
@@ -94,6 +108,9 @@ export function verifyCheckoutStockReservationActivationRelease(
           : []),
         ...(payoutForceSuccessorExists
           ? [SELLER_PAYOUT_EVENT_FORCE_MIGRATION]
+          : []),
+        ...(refundClaimSuccessorExists
+          ? [ORDER_REFUND_CLAIM_GENERATION_MIGRATION]
           : []),
       ],
     });

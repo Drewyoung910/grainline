@@ -19,6 +19,9 @@ import {
 import {
   verifySellerPayoutEventAuthorityRelease,
 } from "./verify-seller-payout-event-authority-release.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "./order-refund-claim-generation-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE =
   "seller-payout-event-activation-reviewed";
@@ -31,11 +34,20 @@ function sha256(value) {
 
 export function verifySellerPayoutEventActivationRelease(
   rootDirectory = process.cwd(),
-  { allowReviewedForceSuccessor = false } = {},
+  {
+    allowReviewedForceSuccessor = false,
+    allowReviewedRefundClaimSuccessor = false,
+  } = {},
 ) {
+  if (allowReviewedRefundClaimSuccessor && !allowReviewedForceSuccessor) {
+    throw new Error(
+      "Order refund claim successor requires the reviewed SellerPayoutEvent FORCE successor",
+    );
+  }
   verifySellerPayoutEventAuthorityRelease(rootDirectory, {
     allowReviewedActivationSuccessor: true,
     allowReviewedForceSuccessor,
+    allowReviewedRefundClaimSuccessor,
   });
   const candidate = buildSellerPayoutEventActivationCandidate(rootDirectory);
   const migrationDirectory = path.join(rootDirectory, "prisma/migrations");
@@ -98,7 +110,12 @@ export function verifySellerPayoutEventActivationRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedForceSuccessor
+    omittedReviewedMigrationNames: allowReviewedRefundClaimSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+        ]
+      : allowReviewedForceSuccessor
       ? [SELLER_PAYOUT_EVENT_FORCE_MIGRATION]
       : [],
   });
@@ -121,7 +138,9 @@ export function verifySellerPayoutEventActivationRelease(
       ? Object.freeze({
           phase: guard.phase,
           sealedPrefix: true,
-          reviewedSuccessorMigration: SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          reviewedSuccessorMigration: allowReviewedRefundClaimSuccessor
+            ? ORDER_REFUND_CLAIM_GENERATION_MIGRATION
+            : SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
         })
       : guard,
   });
@@ -132,17 +151,24 @@ function main() {
   const mode = modes[0];
   if (
     modes.length > 1
-    || (mode !== undefined && mode !== "--allow-reviewed-force-successor")
+    || (
+      mode !== undefined
+      && mode !== "--allow-reviewed-force-successor"
+      && mode !== "--allow-reviewed-refund-claim-successor"
+    )
   ) {
     throw new Error(
       "usage: verify-seller-payout-event-activation-release.mjs "
-      + "[--allow-reviewed-force-successor]",
+      + "[--allow-reviewed-force-successor|--allow-reviewed-refund-claim-successor]",
     );
   }
   process.stdout.write(`${JSON.stringify(
     verifySellerPayoutEventActivationRelease(undefined, {
       allowReviewedForceSuccessor:
-        mode === "--allow-reviewed-force-successor",
+        mode === "--allow-reviewed-force-successor"
+        || mode === "--allow-reviewed-refund-claim-successor",
+      allowReviewedRefundClaimSuccessor:
+        mode === "--allow-reviewed-refund-claim-successor",
     }),
     null,
     2,

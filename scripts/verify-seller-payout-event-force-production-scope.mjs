@@ -55,9 +55,14 @@ export function readSellerPayoutEventForceMigrationCatalog(
 ) {
   const activationCatalog = readSellerPayoutEventActivationMigrationCatalog(
     root,
-    { allowReviewedForceSuccessor: true },
+    {
+      allowReviewedForceSuccessor: true,
+      allowReviewedRefundClaimSuccessor: true,
+    },
   );
-  const release = verifySellerPayoutEventForceRelease(root);
+  const release = verifySellerPayoutEventForceRelease(root, {
+    allowReviewedRefundClaimSuccessor: true,
+  });
   if (
     release.migration !== SELLER_PAYOUT_EVENT_FORCE_MIGRATION
     || release.migrationSha256 !== SELLER_PAYOUT_EVENT_FORCE_MIGRATION_SHA256
