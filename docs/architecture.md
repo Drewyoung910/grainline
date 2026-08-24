@@ -197,6 +197,18 @@ remains distinct and cannot be reused. See
 `docs/seller-payout-event-activation-production-wiring.md` and
 `docs/seller-payout-event-force-release.md`.
 
+The next domain-first boundary is `OrderPaymentEvent`; see
+`docs/order-payment-event-pre-rls-audit.md`. It remains a separately released,
+policyless service ledger rather than a participant-readable table. The audit
+pins 26 semantic application surfaces and requires sanitized buyer/seller
+projections, generation-fenced seller and blocked-checkout refund operations,
+canonical latest-per-dispute ordering, append-only/taxonomy invariants and a
+fresh production aggregate inspection before activation design can proceed.
+It also records the launch-safe refund contract: seller self-service supports
+full cancellation/refund, while partial refunds remain staff Case operations
+until the Order model can represent residual line-item fulfillment. Shipping
+quotes, Order and OrderItem remain later separate releases.
+
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
 retaining only the exact source-consistent fixed-operation catalog. It verifies
