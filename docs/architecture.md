@@ -207,7 +207,9 @@ fresh production aggregate inspection before activation design can proceed.
 It also records the launch-safe refund contract: seller self-service supports
 full cancellation/refund, while partial refunds remain staff Case operations
 until the Order model can represent residual line-item fulfillment. Shipping
-quotes, Order and OrderItem remain later separate releases.
+quotes, Order and OrderItem remain later separate releases. The compatible
+seller application boundary and the required future partial-refund feature
+model are recorded in `docs/order-payment-event-refund-contract.md`.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

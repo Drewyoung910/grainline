@@ -1,7 +1,8 @@
 // src/components/SellerRefundPanel.tsx
 "use client";
+
 import * as React from "react";
-import { DEFAULT_CURRENCY, formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
+import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { isAmbiguousRefundState, isRefundProcessingState } from "@/lib/refundLockState";
 
 type Props = {
@@ -10,25 +11,10 @@ type Props = {
   orderTotalCents: number;
   alreadyRefundedId: string | null;
   alreadyRefundedCents: number | null;
-  restorableItems?: RestorableRefundItem[];
-  canRestoreStock?: boolean;
-};
-
-type RestorableRefundItem = {
-  listingId: string;
-  title: string;
-  quantity: number;
 };
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return formatCurrencyCents(cents, currency);
-}
-
-function parseRestoreQuantity(value: string) {
-  if (!value.trim()) return 0;
-  const quantity = Number(value);
-  if (!Number.isInteger(quantity) || quantity < 0) return null;
-  return quantity;
 }
 
 export default function SellerRefundPanel({
@@ -37,13 +23,8 @@ export default function SellerRefundPanel({
   orderTotalCents,
   alreadyRefundedId,
   alreadyRefundedCents,
-  restorableItems = [],
-  canRestoreStock = false,
 }: Props) {
-  const effectiveMax = orderTotalCents;
-  const [mode, setMode] = React.useState<"idle" | "full" | "partial">("idle");
-  const [partialAmount, setPartialAmount] = React.useState("");
-  const [restoreQuantities, setRestoreQuantities] = React.useState<Record<string, string>>({});
+  const [confirming, setConfirming] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<{ refundAmountCents: number } | null>(null);
@@ -70,7 +51,7 @@ export default function SellerRefundPanel({
         {alreadyRefundedCents != null && (
           <div>Amount: {fmtMoney(alreadyRefundedCents, currency)}</div>
         )}
-        <div className="text-xs text-green-700 mt-1">Stripe refund ID: {alreadyRefundedId}</div>
+        <div className="mt-1 text-xs text-green-700">Stripe refund ID: {alreadyRefundedId}</div>
       </div>
     );
   }
@@ -84,79 +65,50 @@ export default function SellerRefundPanel({
     );
   }
 
-  async function submit(type: "FULL" | "PARTIAL") {
-    let amountCents: number | null = null;
-
-    if (type === "PARTIAL") {
-      amountCents = parseMoneyInputToCents(partialAmount);
-      if (amountCents === null || amountCents <= 0) {
-        setError("Enter a valid refund amount.");
-        return;
-      }
-      if (amountCents > effectiveMax) {
-        setError(`Refund amount cannot exceed ${fmtMoney(effectiveMax, currency)}.`);
-        return;
-      }
-    }
-
-    const restoreStock: Array<{ listingId: string; quantity: number }> = [];
-    if (type === "PARTIAL" && canRestoreStock) {
-      for (const item of restorableItems) {
-        const quantity = parseRestoreQuantity(restoreQuantities[item.listingId] ?? "");
-        if (quantity === null) {
-          setError("Restore quantities must be whole numbers.");
-          return;
-        }
-        if (quantity > item.quantity) {
-          setError(`You can restore up to ${item.quantity} for ${item.title}.`);
-          return;
-        }
-        if (quantity > 0) restoreStock.push({ listingId: item.listingId, quantity });
-      }
-    }
-
+  async function submitFullRefund() {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/orders/${orderId}/refund`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          type,
-          ...(amountCents != null ? { amountCents } : {}),
-          ...(restoreStock.length > 0 ? { restoreStock } : {}),
-        }),
+        body: JSON.stringify({ type: "FULL" }),
       });
       let data: Record<string, unknown> | null = null;
       try {
         data = await res.json();
       } catch {
-        // non-JSON response
+        // Non-JSON response.
       }
       if (!res.ok) {
-        const msg =
+        const message =
           (typeof data?.error === "string" && data.error) ||
           (typeof data?.message === "string" && data.message) ||
           `Refund failed (${res.status})`;
-        throw new Error(msg);
+        throw new Error(message);
       }
       setResult({ refundAmountCents: (data as Record<string, number>).refundAmountCents });
-      setMode("idle");
-      setRestoreQuantities({});
-    } catch (e) {
-      setError((e as Error).message || "Something went wrong. Please try again.");
+      setConfirming(false);
+    } catch (caught) {
+      setError((caught as Error).message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="card-section p-4 space-y-3">
+    <div className="card-section space-y-3 p-4">
       <div className="font-medium text-neutral-800">Cancel &amp; Refund Order</div>
 
       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-        This will immediately refund the buyer via Stripe. This action cannot be undone.
+        This cancels and refunds the entire order through Stripe. Eligible in-stock items are
+        returned to inventory automatically before handoff. This action cannot be undone.
       </div>
+
+      <p className="text-xs text-neutral-500">
+        Partial refunds require Grainline staff review so the remaining items, tax, shipping,
+        fulfillment, and inventory stay consistent.
+      </p>
 
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -164,122 +116,36 @@ export default function SellerRefundPanel({
         </div>
       )}
 
-      {mode === "idle" && (
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => { setMode("full"); setError(null); }}
-            className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
-          >
-            Full Refund ({fmtMoney(effectiveMax, currency)})
-          </button>
-          <button
-            onClick={() => { setMode("partial"); setError(null); }}
-            className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
-          >
-            Partial Refund…
-          </button>
-        </div>
-      )}
-
-      {mode === "full" && (
+      {!confirming ? (
+        <button
+          onClick={() => {
+            setConfirming(true);
+            setError(null);
+          }}
+          className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50"
+        >
+          Cancel &amp; Refund ({fmtMoney(orderTotalCents, currency)})
+        </button>
+      ) : (
         <div className="space-y-2">
           <p className="text-sm text-neutral-700">
-            Refund{" "}
-            <span className="font-medium">{fmtMoney(effectiveMax, currency)}</span> to the buyer?
+            Refund <span className="font-medium">{fmtMoney(orderTotalCents, currency)}</span> to
+            the buyer and cancel the order?
           </p>
-          {canRestoreStock && restorableItems.length > 0 && (
-            <p className="text-xs text-neutral-500">
-              Eligible in-stock items are returned to inventory automatically before handoff.
-            </p>
-          )}
           <div className="flex gap-2">
             <button
-              onClick={() => submit("FULL")}
+              onClick={submitFullRefund}
               disabled={loading}
               className="inline-flex min-h-[38px] items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
             >
               {loading ? "Processing…" : "Confirm Full Refund"}
             </button>
             <button
-              onClick={() => setMode("idle")}
+              onClick={() => setConfirming(false)}
               disabled={loading}
               className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
             >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {mode === "partial" && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-neutral-600">$</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              pattern={"\\d+(\\.\\d{1,2})?|\\.\\d{1,2}"}
-              value={partialAmount}
-              onChange={(e) => { setPartialAmount(e.target.value); setError(null); }}
-              placeholder="0.00"
-              className="w-28 rounded-md border border-neutral-200 bg-white px-3 py-2 text-base shadow-sm outline-none transition focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 sm:text-sm"
-            />
-            <span className="text-xs text-neutral-500">
-              max {fmtMoney(effectiveMax, currency)}
-            </span>
-          </div>
-          <p className="text-xs text-neutral-500">
-            Tax is refunded automatically by Stripe in proportion to the refund amount.
-          </p>
-          {canRestoreStock && restorableItems.length > 0 && (
-            <div className="rounded-md border border-neutral-200 bg-[#F7F5F0] p-3 text-sm">
-              <div className="font-medium text-neutral-800">Restore inventory (optional)</div>
-              <p className="mt-1 text-xs text-neutral-500">
-                Use only when the buyer is no longer receiving these in-stock items.
-              </p>
-              <div className="mt-3 space-y-2">
-                {restorableItems.map((item) => (
-                  <label key={item.listingId} className="flex items-center justify-between gap-3">
-                    <span className="min-w-0 flex-1 truncate text-neutral-700">
-                      {item.title}
-                      <span className="ml-1 text-xs text-neutral-500">(max {item.quantity})</span>
-                    </span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={item.quantity}
-                      step={1}
-                      value={restoreQuantities[item.listingId] ?? ""}
-                      onChange={(e) => {
-                        setRestoreQuantities((current) => ({
-                          ...current,
-                          [item.listingId]: e.target.value,
-                        }));
-                        setError(null);
-                      }}
-                      placeholder="0"
-                      className="w-20 rounded-md border border-neutral-200 bg-white px-2 py-1 text-sm"
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="flex gap-2">
-            <button
-              onClick={() => submit("PARTIAL")}
-              disabled={loading || !partialAmount}
-              className="inline-flex min-h-[38px] items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-            >
-              {loading ? "Processing…" : "Confirm Partial Refund"}
-            </button>
-            <button
-              onClick={() => setMode("idle")}
-              disabled={loading}
-              className="inline-flex min-h-[38px] items-center justify-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
-            >
-              Cancel
+              Keep Order
             </button>
           </div>
         </div>
