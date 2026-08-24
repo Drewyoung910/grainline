@@ -574,6 +574,19 @@ with `POSTURE_MISMATCH`: the fence still treated the already FORCE-hardened
 completed service ledgers to remain policyless FORCE/no-CRUD while preserving
 the four remaining Order/payment/shipping predecessors. The failed run produced
 no evidence and made no production change.
+PR #262 corrected only that posture fence and merged at exact main
+`bc64516c6463118012c643806a3f398f2584092c`; exact-main CI `32782625503`
+passed. Protected engine-read-only inspection `32783261534` accepted sanitized
+production evidence (SHA-256
+`2a4e2819efa40acae014521aff141408cef66d468d0f4935c093415416dbbe30`): 2
+Orders, 3 OrderItems, 13 StripeWebhookEvents, zero OrderPaymentEvents,
+SellerPayoutEvents, CheckoutStockReservations or OrderShippingRateQuotes, and
+zero payment/refund/dispute/replay/source/currency/amount defects. The one
+nonzero defect is an Order label-state coherence count. Keep it scoped to the
+separate Order release; it does not block continued OrderPaymentEvent design.
+The isolated 76-field successor classifies that finding with ten aggregate-only
+subtype counts before any separate repair decision. It retains no row or
+identity and authorizes no cleanup or production mutation.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

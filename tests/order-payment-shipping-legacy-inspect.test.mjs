@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
+  ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
+  ORDER_LABEL_STATE_INVALID_PREDICATE,
   ORDER_PAYMENT_SHIPPING_FORCE_TABLES,
   ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES,
   ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS,
@@ -162,7 +164,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
   });
 
   it("normalizes only the exact nonnegative aggregate shape", () => {
-    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 66);
+    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 76);
     const normalized = normalizeOrderPaymentShippingLegacyCounts(countRow("2"));
     assert.equal(
       Object.keys(normalized).length,
@@ -219,6 +221,16 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     }
     for (const field of [
       "label_state_coherence_count",
+      "label_negative_cost_count",
+      "label_purchased_missing_transaction_count",
+      "label_purchased_missing_url_count",
+      "label_purchased_missing_timestamp_count",
+      "label_purchased_nonshipping_method_count",
+      "label_purchased_invalid_fulfillment_count",
+      "label_unpurchased_with_transaction_count",
+      "label_unpurchased_with_url_count",
+      "label_unpurchased_with_timestamp_count",
+      "label_unpurchased_with_cost_count",
       "label_clawback_state_coherence_count",
       "quote_invalid_rate_member_count",
       "duplicate_live_quote_order_count",
@@ -260,6 +272,39 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(
       ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION,
       /pg_catalog\.to_jsonb\(event\)->>'stripeEventCreatedSeconds'/,
+    );
+    for (const clause of [
+      /"labelCostCents" < 0/,
+      /"labelStatus" = 'PURCHASED'[\s\S]*"shippoTransactionId" IS NULL/,
+      /"labelStatus" = 'PURCHASED'[\s\S]*"labelUrl" IS NULL/,
+      /"labelStatus" = 'PURCHASED'[\s\S]*"labelPurchasedAt" IS NULL/,
+      /"labelStatus" = 'PURCHASED'[\s\S]*"fulfillmentMethod" IS DISTINCT FROM 'SHIPPING'/,
+      /"labelStatus" = 'PURCHASED'[\s\S]*"fulfillmentStatus" NOT IN \('SHIPPED', 'DELIVERED'\)/,
+      /"labelStatus" IS NULL[\s\S]*"shippoTransactionId" IS NOT NULL/,
+      /"labelStatus" IS NULL[\s\S]*"labelUrl" IS NOT NULL/,
+      /"labelStatus" IS NULL[\s\S]*"labelPurchasedAt" IS NOT NULL/,
+      /"labelStatus" IS NULL[\s\S]*"labelCostCents" IS NOT NULL/,
+    ]) {
+      assert.match(ORDER_LABEL_STATE_INVALID_PREDICATE, clause);
+    }
+    for (const field of ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.filter(
+      (field) =>
+        field.startsWith("label_purchased_") ||
+        field.startsWith("label_unpurchased_") ||
+        field === "label_negative_cost_count",
+    )) {
+      assert.match(
+        ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
+        new RegExp(`\\b${field}\\b`),
+      );
+    }
+    assert.doesNotMatch(
+      ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
+      /\b(?:id|buyerId|sellerId|shippoTransactionId|labelUrl|labelPurchasedAt|labelCostCents)\s+AS\s+/i,
+    );
+    assert.doesNotMatch(
+      ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
+      /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|CREATE|GRANT|REVOKE)\b/i,
     );
     assert.doesNotMatch(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,

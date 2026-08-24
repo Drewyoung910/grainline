@@ -97,6 +97,7 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
 
   it("records the additive inspection boundary without rewriting history", () => {
     assert.match(invariantInspection, /exactly 66 aggregate fields/);
+    assert.match(invariantInspection, /extends the same single aggregate `SELECT` to exactly 76 fields/);
     assert.match(invariantInspection, /prior 54-count evidence remains historically accurate/);
     assert.match(
       invariantInspection,
@@ -104,5 +105,7 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
     );
     assert.match(invariantInspection, /not permission to delete, rewrite\s+or weaken a constraint/);
     assert.match(invariantInspection, /does not:[\s\S]*change `OrderPaymentEvent` grants or RLS/);
+    assert.match(invariantInspection, /label_state_coherence_count = 1/);
+    assert.match(invariantInspection, /does not block the separately empty\s+OrderPaymentEvent invariant design/);
   });
 });

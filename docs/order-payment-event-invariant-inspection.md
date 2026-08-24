@@ -1,9 +1,10 @@
 # OrderPaymentEvent invariant inspection extension
 
-Status: merged through exact main
-`d17b0384f2b90b128ba23852a0dedb004ce52739`. The first protected production
-dispatch failed closed on the stale posture fence before counts; it has not
-been deployed or used to change production state.
+Status: the corrected 66-count inspector merged through exact main
+`bc64516c6463118012c643806a3f398f2584092c`. Exact-main CI `32782625503`
+passed and protected engine-read-only production inspection `32783261534`
+completed with sanitized evidence. The additive 76-count label classifier is
+an isolated successor and has not been merged or dispatched.
 
 Audited: 2026-08-24 after the staff Case participant-delivery candidate.
 
@@ -79,3 +80,33 @@ legacy repair or validation. The inspection itself does not:
 
 The same inspection must be rerun immediately before activation if the table
 can change after the first successor snapshot.
+
+## Accepted 2026-08-24 production classification
+
+PR #262 corrected only the posture fence and merged at exact main
+`bc64516c6463118012c643806a3f398f2584092c`. Full exact-main CI
+`32782625503` passed. Protected run `32783261534` then executed the exact
+66-field query inside an engine-attested `REPEATABLE READ READ ONLY`
+transaction and produced sanitized evidence with SHA-256
+`2a4e2819efa40acae014521aff141408cef66d468d0f4935c093415416dbbe30`.
+It retained no address, credential, object/provider/user identity, row or
+snapshot.
+
+The accepted snapshot contained 2 Orders, 3 OrderItems and 13 already-hardened
+StripeWebhookEvents. It contained zero OrderPaymentEvents, SellerPayoutEvents,
+CheckoutStockReservations and OrderShippingRateQuotes. Every payment,
+reservation, quote, payout, refund, dispute, replay, amount, currency,
+privacy, source-family and collision defect count was zero. The only nonzero
+defect count was `label_state_coherence_count = 1`, an Order lifecycle finding
+that does not authorize repair and does not block the separately empty
+OrderPaymentEvent invariant design.
+
+The next additive successor retains the accepted historical 66-field evidence
+and extends the same single aggregate `SELECT` to exactly 76 fields. Ten
+overlapping counts classify whether the one Order finding is a negative label
+cost, a PURCHASED label missing its transaction, URL or timestamp, a
+PURCHASED label with non-shipping method or invalid fulfillment status, or a
+null-status label retaining transaction, URL, timestamp or cost state. The
+successor retains no Order or provider identity and performs no mutation.
+Nonzero subtype counts remain classification only; cleanup requires a separate
+reviewed boundary.

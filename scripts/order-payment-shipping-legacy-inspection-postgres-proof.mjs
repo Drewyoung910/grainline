@@ -5,6 +5,8 @@ import pg from "pg";
 
 import {
   ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE,
+  ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
+  ORDER_LABEL_STATE_INVALID_PREDICATE,
   ORDER_PAYMENT_EVENT_DISPUTE_SOURCE_INVALID_PREDICATE,
   ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE,
   ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION,
@@ -219,6 +221,73 @@ export async function runOrderPaymentShippingLegacyInspectionProof(
         invalid_order_timestamps: 2,
         invalid_pickup_states: 3,
         invalid_webhook_states: 3,
+      },
+    ]);
+    const labelStateSemantics = await client.query(`
+      WITH label_fixtures(
+        fixture_name,
+        "labelStatus",
+        "shippoTransactionId",
+        "labelUrl",
+        "labelPurchasedAt",
+        "labelCostCents",
+        "fulfillmentMethod",
+        "fulfillmentStatus"
+      ) AS (
+        VALUES
+          (
+            'valid_unpurchased', NULL::public."LabelStatus", NULL::text,
+            NULL::text, NULL::timestamp, NULL::integer,
+            'SHIPPING'::public."FulfillmentMethod",
+            'PENDING'::public."FulfillmentStatus"
+          ),
+          (
+            'valid_purchased', 'PURCHASED'::public."LabelStatus", 'txn_valid',
+            'https://example.invalid/label.pdf',
+            TIMESTAMP '2026-08-24 00:00:00', 100,
+            'SHIPPING'::public."FulfillmentMethod",
+            'SHIPPED'::public."FulfillmentStatus"
+          ),
+          (
+            'negative_cost', 'VOIDED'::public."LabelStatus", NULL::text,
+            NULL::text, NULL::timestamp, -1,
+            'SHIPPING'::public."FulfillmentMethod",
+            'PENDING'::public."FulfillmentStatus"
+          ),
+          (
+            'purchased_missing_fields', 'PURCHASED'::public."LabelStatus",
+            NULL::text, NULL::text, NULL::timestamp, 100,
+            'PICKUP'::public."FulfillmentMethod",
+            'PENDING'::public."FulfillmentStatus"
+          ),
+          (
+            'unpurchased_with_fields', NULL::public."LabelStatus", 'txn_stale',
+            'https://example.invalid/stale.pdf',
+            TIMESTAMP '2026-08-24 00:00:00', 100,
+            'SHIPPING'::public."FulfillmentMethod",
+            'PENDING'::public."FulfillmentStatus"
+          )
+      )
+      SELECT
+        pg_catalog.count(*) FILTER (
+          WHERE ${ORDER_LABEL_STATE_INVALID_PREDICATE}
+        )::integer AS invalid_label_states,
+        ${ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION}
+      FROM label_fixtures
+    `);
+    assert.deepEqual(labelStateSemantics.rows, [
+      {
+        invalid_label_states: 3,
+        label_negative_cost_count: "1",
+        label_purchased_invalid_fulfillment_count: "1",
+        label_purchased_missing_timestamp_count: "1",
+        label_purchased_missing_transaction_count: "1",
+        label_purchased_missing_url_count: "1",
+        label_purchased_nonshipping_method_count: "1",
+        label_unpurchased_with_cost_count: "1",
+        label_unpurchased_with_timestamp_count: "1",
+        label_unpurchased_with_transaction_count: "1",
+        label_unpurchased_with_url_count: "1",
       },
     ]);
     const paymentEventSemantics = await client.query(`
@@ -488,6 +557,7 @@ export async function runOrderPaymentShippingLegacyInspectionProof(
     queryExecuted: true,
     schemaAccepted: true,
     paymentEventSemanticsAccepted: true,
+    labelStateSemanticsAccepted: true,
     timestampSemanticsAccepted: true,
     zeroRowDatabase: Object.values(counts).every((value) => value === 0),
   });

@@ -2372,3 +2372,29 @@ Open work:
   required before another protected engine-read-only dispatch. No cleanup,
   invariant validation, migration, deployment, grant/RLS or provider change is
   authorized by this correction.
+
+## Order/payment/shipping production classification accepted (2026-08-24)
+
+- PR #262 exact head `6d0996a02250ea05aaaaff258532c8efcea21e3f`
+  corrected the stale completed-service-ledger posture only. It merged at exact
+  main `bc64516c6463118012c643806a3f398f2584092c`; full exact-main CI
+  `32782625503` passed.
+- Protected inspection run `32783261534` completed the exact 66-count query in
+  an engine-attested `REPEATABLE READ READ ONLY` transaction. Sanitized
+  artifact SHA-256
+  `2a4e2819efa40acae014521aff141408cef66d468d0f4935c093415416dbbe30`
+  retained no addresses, credentials, object/provider/user IDs, rows or
+  snapshots. The run made no production mutation.
+- The snapshot contained 2 Orders, 3 OrderItems and 13 StripeWebhookEvents,
+  with maximum 2 items per Order, 1 Order per buyer and 1 Order per current
+  seller. It contained zero payment events, payout events, reservations and
+  quotes. Apart from those volume/maxima fields, the only nonzero count was
+  `label_state_coherence_count = 1`; every payment/refund/dispute/replay,
+  source, amount, currency, privacy, collision, reservation and quote defect
+  count was zero. Fifty-nine of the 66 aggregate fields were zero.
+- The label finding belongs to the separate Order release and is not a reason
+  to stall the empty OrderPaymentEvent release. It is classification, not
+  cleanup authority. The isolated successor extends the accepted 66-field
+  baseline to 76 aggregate-only fields with ten overlapping label-state
+  subtypes. It retains no Order/provider identity or raw state and changes no
+  production data.

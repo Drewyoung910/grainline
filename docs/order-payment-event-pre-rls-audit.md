@@ -405,6 +405,25 @@ policyless FORCE/no-CRUD and retains only `Order`, `OrderItem`,
 `OrderPaymentEvent` and `OrderShippingRateQuote` as RLS-off predecessors. No
 production mutation occurred; the failed run is not inspection evidence.
 
+The corrected posture fence merged in PR #262 at exact main
+`bc64516c6463118012c643806a3f398f2584092c`; exact-main CI `32782625503`
+passed. Protected engine-read-only run `32783261534` accepted the current
+production snapshot. Its sanitized artifact SHA-256 is
+`2a4e2819efa40acae014521aff141408cef66d468d0f4935c093415416dbbe30`.
+It found zero `OrderPaymentEvent` rows and zero values for every payment-event,
+refund, dispute, replay, ordering, object-collision, currency and amount defect
+count. This permits the isolated invariant design to continue; it is not
+activation evidence and must be refreshed before activation if the table can
+change.
+
+The same snapshot found one `Order.label_state_coherence_count` defect among 2
+Orders and 3 OrderItems. That is an Order release finding, not an
+OrderPaymentEvent row or authority defect. A 76-field aggregate-only successor
+adds ten overlapping label-lifecycle subtype counts without retaining an Order
+ID, provider ID, URL, timestamp, cost or raw row. Classification is not cleanup
+authorization, and the Order finding remains tracked for the separate Order
+release.
+
 ### OPE-A10 - existing owner-private consumers are release dependencies
 
 Case staff resolution inserts an exact payment row inside its generation-fenced
