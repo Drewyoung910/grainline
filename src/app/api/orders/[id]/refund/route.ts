@@ -37,7 +37,6 @@ import {
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
-  blockingRefundOrDisputeLedgerWhere,
   orderHasPurchasedLabel,
   orderHasRefundLedger,
   refundAmountForResolution,
@@ -276,19 +275,28 @@ export async function POST(
       `;
     });
     if (lockResult === 0) {
-      const freshOrder = await prisma.order.findUnique({
-        where: { id: orderId },
-        select: {
-          sellerRefundId: true,
-          labelStatus: true,
-          paymentEvents: {
-            where: blockingRefundOrDisputeLedgerWhere(),
-            take: 2,
-            select: { eventType: true, status: true },
-          },
-        },
-      });
-      const conflict = refundLockAcquisitionConflictResponse(freshOrder);
+      const [freshOrder, [{ hasOpenDispute } = { hasOpenDispute: false }]] =
+        await Promise.all([
+          prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+              sellerRefundId: true,
+              labelStatus: true,
+              paymentEvents: {
+                where: blockingRefundLedgerWhere(),
+                take: 1,
+                select: { eventType: true, status: true },
+              },
+            },
+          }),
+          prisma.$queryRaw<Array<{ hasOpenDispute: boolean }>>`
+            SELECT ${latestOpenDisputeLedgerExistsSql(Prisma.sql`${orderId}`)} AS "hasOpenDispute"
+          `,
+        ]);
+      const conflict = refundLockAcquisitionConflictResponse(
+        freshOrder,
+        hasOpenDispute,
+      );
       return privateJson(
         { error: conflict.error },
         { status: conflict.status },

@@ -209,7 +209,10 @@ full cancellation/refund, while partial refunds remain staff Case operations
 until the Order model can represent residual line-item fulfillment. Shipping
 quotes, Order and OrderItem remain later separate releases. The compatible
 seller application boundary and the required future partial-refund feature
-model are recorded in `docs/order-payment-event-refund-contract.md`.
+model are recorded in `docs/order-payment-event-refund-contract.md`. Current
+Stripe dispute consumers share the latest-per-dispute SQL family documented in
+`docs/order-payment-event-dispute-state.md`; the typed signed-event clock and
+equal-second reconciliation remain activation prerequisites.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

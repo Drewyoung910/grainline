@@ -20,7 +20,8 @@ function sourceFiles(root = "src") {
 }
 
 function paymentSemanticFiles() {
-  const reference = /orderPaymentEvent|paymentEvents|OrderPaymentEvent/;
+  const reference =
+    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|latestConversionBlockingDisputeLedgerExistsSql/;
   return sourceFiles().filter((file) => reference.test(fs.readFileSync(file, "utf8")));
 }
 
