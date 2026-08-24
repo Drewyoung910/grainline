@@ -159,7 +159,16 @@ test("application paths use one typed fixed finalizer for the initial write and 
 test("provider evidence rejects ambiguous or terminally unsuccessful results", () => {
   assert.match(recordHelper, /value\.refundIds\.length !== 1/);
   assert.match(recordHelper, /value\.refundStatuses\.length !== 1/);
-  assert.match(recordHelper, /\["failed", "canceled", "cancelled"\]/);
+  assert.match(
+    recordHelper,
+    /\["pending", "requires_action", "succeeded"\]\.includes\(refundStatus\)/,
+  );
+  assert.equal(
+    (migration.match(
+      /p_refund_status NOT IN \('pending', 'requires_action', 'succeeded'\)/g,
+    ) ?? []).length,
+    2,
+  );
   assert.match(recordHelper, /\^re_\[A-Za-z0-9\]\+\$/);
   assert.match(recordHelper, /\^trr_\[A-Za-z0-9\]\+\$/);
   assert.match(

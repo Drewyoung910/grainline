@@ -445,6 +445,15 @@ test("refund record functions reject drift and expose only the reviewed runtime 
     await assert.rejects(
       database.query(`
         SELECT public.grainline_seller_refund_record(
+          'seller-user', $1, $2, 're_drift', 'provider_made_this_up',
+          'trr_drift', 1200
+        )
+      `, [claim.claimId, claim.claimGeneration]),
+      /provider evidence is invalid/,
+    );
+    await assert.rejects(
+      database.query(`
+        SELECT public.grainline_seller_refund_record(
           'seller-user', $1, $2, 're_drift', 'succeeded', NULL, 1
         )
       `, [claim.claimId, claim.claimGeneration]),
@@ -473,6 +482,35 @@ test("refund record functions reject drift and expose only the reviewed runtime 
         )
       `, [claim.claimId, Number(claim.claimGeneration) + 1]),
       /claim is no longer active/,
+    );
+
+    await seedOrder(database, {
+      id: "order-blocked-status",
+      sessionId: "cs_blocked_status",
+      transferId: null,
+    });
+    await database.exec(`
+      INSERT INTO public."StripeWebhookEvent" (
+        id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+      ) VALUES (
+        'evt_blocked_status', 'checkout.session.completed',
+        'cs_blocked_status', 1, CURRENT_TIMESTAMP
+      )
+    `);
+    const blockedStatusClaim = await blockedClaim(database, {
+      eventId: "evt_blocked_status",
+      eventGeneration: 1,
+      sessionId: "cs_blocked_status",
+      orderId: "order-blocked-status",
+    });
+    await assert.rejects(
+      database.query(`
+        SELECT public.grainline_blocked_checkout_refund_record(
+          'evt_blocked_status', 1, $1, $2, 're_blocked_status',
+          'SUCCEEDED', NULL, NULL
+        )
+      `, [blockedStatusClaim.claimId, blockedStatusClaim.claimGeneration]),
+      /provider evidence is invalid/,
     );
 
     const privileges = (await database.query(`

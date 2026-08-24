@@ -185,10 +185,7 @@ BEGIN
      OR pg_catalog.char_length(p_refund_id) > 220
      OR (
        p_refund_status IS NOT NULL
-       AND (
-         pg_catalog.char_length(pg_catalog.btrim(p_refund_status)) NOT BETWEEN 1 AND 100
-         OR pg_catalog.lower(p_refund_status) IN ('failed', 'canceled', 'cancelled')
-       )
+       AND p_refund_status NOT IN ('pending', 'requires_action', 'succeeded')
      )
      OR (
        p_transfer_reversal_id IS NOT NULL
@@ -739,10 +736,7 @@ BEGIN
      OR pg_catalog.char_length(p_refund_id) > 220
      OR (
        p_refund_status IS NOT NULL
-       AND (
-         pg_catalog.char_length(pg_catalog.btrim(p_refund_status)) NOT BETWEEN 1 AND 100
-         OR pg_catalog.lower(p_refund_status) IN ('failed', 'canceled', 'cancelled')
-       )
+       AND p_refund_status NOT IN ('pending', 'requires_action', 'succeeded')
      )
      OR (
        p_transfer_reversal_id IS NOT NULL

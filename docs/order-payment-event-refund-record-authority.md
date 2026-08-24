@@ -8,7 +8,7 @@ Prepared: 2026-08-23 on
 `agent/order-payment-event-refund-finalization-20260823`, stacked on the
 generation-fenced claim checkpoint in PR #253. The exact prepared migration is
 `20260824020000_prepare_order_refund_record_authority`, SHA-256
-`6db32ff72d074dc4e0332ddec762f3118b5b09aed63122c257ecb979c2b61fd7`.
+`f6ee5689d7235536cbf855dfc71cf349b1b144fde22a2f21d3e1ec289922efb1`.
 
 ## Decision
 
@@ -75,6 +75,10 @@ unexpected reversal evidence, require the expanded reversal ID and exact
 database-derived original seller-transfer amount whenever the Order proves a
 transfer must be reversed, and compare the canonical payload on replay. A
 one-cent short reversal therefore fails closed.
+The accepted provider status is also closed over Stripe's documented nullable
+refund-status contract: only `pending`, `requires_action`, `succeeded` or null
+may cross the application boundary. Unknown, case-drifted and terminal values
+fail before any evidence or Order transition is written.
 This is a materially smaller authority than direct table CRUD, but it is not a
 claim that PostgreSQL cryptographically verified Stripe. Signed-event/provider
 reconciliation remains an activation gate.

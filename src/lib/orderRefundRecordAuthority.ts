@@ -81,10 +81,10 @@ function validateProviderEvidence(value: {
     100,
   );
   if (
-    refundStatus
-    && ["failed", "canceled", "cancelled"].includes(refundStatus.toLowerCase())
+    refundStatus !== null
+    && !["pending", "requires_action", "succeeded"].includes(refundStatus)
   ) {
-    throw new TypeError("Order refund provider status is terminally unsuccessful");
+    throw new TypeError("Order refund provider status is invalid");
   }
 
   const accounting = requireRecord(
