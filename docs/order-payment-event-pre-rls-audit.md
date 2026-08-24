@@ -42,10 +42,11 @@ issues:
    refund permanently blocks fulfillment/review/metrics and optional stock
    restoration does not rewrite purchased items or prove the retained balance;
    and
-6. seller and blocked-checkout refund notifications, plus seller refund email,
-   were attempted only after the financial transaction committed. A process
-   exit in that window could permanently omit participant delivery because a
-   safe retry must not issue the provider refund again.
+6. seller, blocked-checkout and staff Case refund notifications, plus seller
+   and staff Case buyer email, were attempted only after the financial
+   transaction committed. A process exit in that window could permanently
+   omit participant delivery because a safe retry must not issue the provider
+   refund again.
 
 Fix these in a compatible application/schema sequence before activation. Do
 not compensate with a permissive policy, a generic DEFINER append function or
@@ -83,6 +84,13 @@ same application database transaction as that fixed finalizer. It is also
 isolated preparation only. Ambiguous provider reconciliation,
 signed refund/dispute writers, remaining invariants/projections, live proof and
 activation remain open.
+
+The next stacked application-only correction is recorded in
+`docs/order-payment-event-case-refund-delivery.md`. It keeps the existing
+generation-fenced staff Case functions, but commits finalization, both
+source-validated participant Notifications and the deterministic
+`case_resolved` EmailOutbox reservation in one transaction. It is isolated
+preparation only; no database authority or production state changes.
 
 ## Product and evidence contract
 
@@ -427,9 +435,9 @@ items are still design contracts until reviewed SQL is written.
 8. Buyer and seller payment-history export pages with distinct safe columns.
 9. Live staff payment timeline projection with fixed role check and limit.
 10. Source-specific transition predicates for fulfillment, label, delivery,
-    review, ban/listing lifecycle and post-payment side effects. Local refund
-    participant notification and email-outbox reservation commit with the
-    exact fixed refund record transaction.
+    review, ban/listing lifecycle and post-payment side effects. Local seller,
+    blocked-checkout and staff Case participant notification and email-outbox
+    reservation commit with their exact fixed finalization transaction.
 11. Fixed quality/site/homepage/recent-sales aggregate facts; no arbitrary
     event predicate or event-ID enumeration.
 

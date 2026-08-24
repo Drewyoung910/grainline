@@ -535,11 +535,20 @@ same-Order, same-claim, same-generation immutable reconciliation and a current
 ADMIN author. The caller supplies no reconciliation ID. This closes the
 ambiguous provider-outcome and inactive-seller local-record gaps only. It is
 not merged, deployed, production-applied or activation evidence. Keep the
-staff Case refund family, remaining invariants, actor projections/aggregates,
-fresh production
+staff Case provider/replay integration proof, remaining invariants, actor
+projections/aggregates, fresh production
 classification, converted provider proof, predecessor drain, policyless ENABLE
 and FORCE as explicit later gates. Do not bundle Order, OrderItem or shipping
 quotes.
+
+The following stacked application-only boundary closes the staff Case
+participant-delivery crash gap without changing the already source-bound Case
+database functions. Staff finalization, buyer and seller Notifications, and a
+claim-deduplicated `case_resolved` EmailOutbox reservation now commit together;
+the request then attempts the exact durable job and the worker owns retry. See
+`docs/order-payment-event-case-refund-delivery.md`. This is still isolated
+preparation, not deployment or RLS evidence. The remaining staff gate is real
+provider/replay integration proof, not another generic refund writer.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

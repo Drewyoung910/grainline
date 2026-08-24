@@ -134,7 +134,7 @@ describe("public cache invalidation guardrails", () => {
 
     assert.match(
       caseResolve,
-      /finalized = await finalizeCaseStaffResolution\(me\.id, prepared\)/,
+      /finalized = await finalizeCaseStaffResolutionWithSideEffects\(\s*me\.id,\s*prepared,?\s*\)/,
     );
     assert.match(
       caseResolve,

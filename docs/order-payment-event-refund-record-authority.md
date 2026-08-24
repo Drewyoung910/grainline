@@ -73,6 +73,14 @@ A process exit can therefore retain only the existing bounded cache staleness
 tags); it cannot lose durable refund, stock, Case, notification or email-queue
 state.
 
+The separate staff Case family uses its already-live Case claim/provider/
+finalize functions. Its stacked application correction is documented in
+`docs/order-payment-event-case-refund-delivery.md`: the existing fixed
+finalizer plus buyer/seller source-validated Notifications and one
+claim-deduplicated `case_resolved` EmailOutbox reservation now share a
+transaction. This does not change the seller or blocked-checkout SQL in this
+release.
+
 ## Restart-safe blocked-checkout handoff
 
 A failed Stripe webhook attempt clears its lease. A later signed retry owns a

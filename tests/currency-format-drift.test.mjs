@@ -20,7 +20,9 @@ describe("currency formatting drift guardrails", () => {
     const sellerRefund = source("src/app/api/orders/[id]/refund/route.ts");
     const refundFinalization = source("src/lib/orderRefundFinalization.ts");
     const email = source("src/lib/email.ts");
-    const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
+    const caseFinalization = source(
+      "src/lib/caseStaffResolutionFinalization.ts",
+    );
     const caseResolutionCopy = source("src/lib/caseResolutionCopy.ts");
     const guildMetrics = source("src/app/api/cron/guild-metrics/route.ts");
     const followerFanout = source("src/lib/followerListingNotifications.ts");
@@ -33,12 +35,12 @@ describe("currency formatting drift guardrails", () => {
     assert.doesNotMatch(sellerRefund, /refundAmountCents \/ 100|refund of \$\$\{/);
 
     assert.match(
-      caseResolve,
+      caseFinalization,
       /caseResolutionCopy,[\s\S]*caseResolutionSellerMessage/,
     );
     assert.match(
-      caseResolve,
-      /caseResolutionCopy\(\s*finalized\.resolution,\s*finalized\.refundAmountCents,\s*finalized\.currency,\s*\)/,
+      caseFinalization,
+      /caseResolutionCopy\(\s*result\.resolution,\s*result\.refundAmountCents,\s*result\.currency,\s*\)/,
     );
     assert.match(
       caseResolutionCopy,
@@ -48,7 +50,7 @@ describe("currency formatting drift guardrails", () => {
       caseResolutionCopy,
       /return formatCurrencyCents\(cents \?\? 0, currency\)/,
     );
-    assert.doesNotMatch(caseResolve, /refundAmountCents \/ 100|\(\$\$\{/);
+    assert.doesNotMatch(caseFinalization, /refundAmountCents \/ 100|\(\$\$\{/);
 
     assert.match(guildMetrics, /import \{ formatCurrencyCents \} from "@\/lib\/money"/);
     assert.match(guildMetrics, /formatCurrencyCents\(metrics\.totalSalesCents\)/);

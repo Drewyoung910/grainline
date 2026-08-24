@@ -10,6 +10,10 @@ const authority = readFileSync(
   "src/lib/caseStaffResolutionAuthority.ts",
   "utf8",
 );
+const finalization = readFileSync(
+  "src/lib/caseStaffResolutionFinalization.ts",
+  "utf8",
+);
 const migration = readFileSync(
   "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
   "utf8",
@@ -38,8 +42,10 @@ describe("Case staff-resolution application authority", () => {
       ["database prepare", "await prepareCaseStaffResolution("],
       ["Stripe call", "await createMarketplaceRefund("],
       ["provider record", "await recordCaseStaffResolutionProvider("],
-      ["database finalize", "await finalizeCaseStaffResolution("],
-      ["notification side effects", "await createNotification("],
+      [
+        "database finalize with durable side effects",
+        "await finalizeCaseStaffResolutionWithSideEffects(",
+      ],
     ]);
     assert.match(
       route,
@@ -89,9 +95,9 @@ describe("Case staff-resolution application authority", () => {
       route,
       /stockRestoreDecision:[\s\S]*resolution === "REFUND_PARTIAL"\s*\?\s*requestedStockRestores\s*:\s*\[\]/,
     );
-    assert.match(route, /userId: finalized\.buyerUserId/);
-    assert.match(route, /userId: finalized\.sellerUserId/);
-    assert.match(route, /sourceId: finalized\.resolutionMessageId/);
+    assert.match(finalization, /userId: result\.buyerUserId/);
+    assert.match(finalization, /userId: result\.sellerUserId/);
+    assert.match(finalization, /sourceId: result\.resolutionMessageId/);
     assert.match(
       route,
       /return privateJson\(\{\s*ok: true,\s*caseId: finalized\.caseId,\s*orderId: finalized\.orderId,\s*resolution: finalized\.resolution,\s*\}\)/,
@@ -107,6 +113,11 @@ describe("Case staff-resolution application authority", () => {
     assert.doesNotMatch(route, /(?:prisma|tx)\.case\.(?:create|update|updateMany)/);
     assert.doesNotMatch(route, /(?:prisma|tx)\.caseMessage\.create/);
     assert.doesNotMatch(route, /prisma\.\$transaction/);
+    assert.match(finalization, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(
+      finalization,
+      /finalizeCaseStaffResolution\([\s\S]*prepared,[\s\S]*tx,/,
+    );
   });
 
   it("calls exact fixed functions and rejects malformed database results", () => {

@@ -33,6 +33,7 @@ describe("email outbox template versioning", () => {
       ["src/app/api/listings/[id]/stock/route.ts", "back_in_stock"],
       ["src/app/api/seller/broadcast/route.ts", "seller_broadcast"],
       ["src/app/dashboard/listings/new/page.tsx", "first_listing_congrats"],
+      ["src/lib/caseStaffResolutionFinalization.ts", "case_resolved"],
       ["src/lib/followerListingNotifications.ts", "followed_maker_new_listing"],
     ];
 

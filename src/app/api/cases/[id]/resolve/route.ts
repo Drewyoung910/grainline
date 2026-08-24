@@ -1,25 +1,17 @@
 import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
-import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { sendCaseResolved } from "@/lib/email";
 import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
 import {
-  finalizeCaseStaffResolution,
   prepareCaseStaffResolution,
   recordAmbiguousCaseStaffResolutionProvider,
   recordCaseStaffResolutionProvider,
   type CaseStaffResolution,
 } from "@/lib/caseStaffResolutionAuthority";
-import {
-  caseResolutionCopy,
-  caseResolutionSellerMessage,
-} from "@/lib/caseResolutionCopy";
+import { finalizeCaseStaffResolutionWithSideEffects } from "@/lib/caseStaffResolutionFinalization";
 import { rateLimitResponse, refundRatelimit, safeRateLimit } from "@/lib/ratelimit";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
@@ -298,7 +290,10 @@ export async function POST(
 
     let finalized;
     try {
-      finalized = await finalizeCaseStaffResolution(me.id, prepared);
+      finalized = await finalizeCaseStaffResolutionWithSideEffects(
+        me.id,
+        prepared,
+      );
     } catch (error) {
       const response = authorityFailureResponse(error, "finalize");
       if (response) return response;
@@ -308,104 +303,6 @@ export async function POST(
     if (finalized.stockStatusRestoredCount > 0) {
       revalidateListingSearchCaches();
       revalidateFeaturedMakerCaches();
-    }
-
-    const sellerResolutionMessage = caseResolutionSellerMessage(
-      finalized.resolution,
-      finalized.refundAmountCents,
-      finalized.currency,
-    );
-    const resolutionCopy = caseResolutionCopy(
-      finalized.resolution,
-      finalized.refundAmountCents,
-      finalized.currency,
-    );
-
-    if (finalized.buyerUserId) {
-      try {
-        await createNotification({
-          userId: finalized.buyerUserId,
-          type: refunding ? "REFUND_ISSUED" : "CASE_RESOLVED",
-          title: resolutionCopy.notificationTitle,
-          body: resolutionCopy.body,
-          link: `/dashboard/orders/${finalized.orderId}`,
-          relatedUserId: me.id,
-          sourceType: NOTIFICATION_SOURCE_TYPES.CASE,
-          sourceId: finalized.caseId,
-        });
-      } catch (notificationError) {
-        Sentry.captureException(notificationError, {
-          level: "warning",
-          tags: { source: "case_resolved_notification" },
-          extra: {
-            caseId: finalized.caseId,
-            orderId: finalized.orderId,
-            buyerId: finalized.buyerUserId,
-            resolution: finalized.resolution,
-          },
-        });
-      }
-    }
-
-    try {
-      await createNotification({
-        userId: finalized.sellerUserId,
-        type: "CASE_MESSAGE",
-        title: "Grainline resolved a case",
-        body: sellerResolutionMessage,
-        link: `/dashboard/sales/${finalized.orderId}`,
-        relatedUserId: me.id,
-        sourceType: NOTIFICATION_SOURCE_TYPES.CASE_MESSAGE,
-        sourceId: finalized.resolutionMessageId,
-      });
-    } catch (notificationError) {
-      Sentry.captureException(notificationError, {
-        level: "warning",
-        tags: { source: "case_seller_resolution_notification" },
-        extra: {
-          caseId: finalized.caseId,
-          orderId: finalized.orderId,
-          sellerId: finalized.sellerUserId,
-          resolution: finalized.resolution,
-        },
-      });
-    }
-
-    try {
-      const emailPreferenceKey = refunding
-        ? "EMAIL_REFUND_ISSUED"
-        : "EMAIL_CASE_RESOLVED";
-      if (
-        finalized.buyerUserId
-        && await shouldSendEmail(
-          finalized.buyerUserId,
-          emailPreferenceKey,
-        )
-      ) {
-        const buyerUser = await prisma.user.findUnique({
-          where: { id: finalized.buyerUserId },
-          select: { name: true, email: true },
-        });
-        if (buyerUser?.email) {
-          await sendCaseResolved({
-            orderId: finalized.orderId,
-            buyer: { name: buyerUser.name, email: buyerUser.email },
-            resolution: finalized.resolution,
-            refundAmountCents: finalized.refundAmountCents,
-            currency: finalized.currency,
-          });
-        }
-      }
-    } catch (emailError) {
-      Sentry.captureException(emailError, {
-        level: "warning",
-        tags: { source: "case_resolved_email" },
-        extra: {
-          caseId: finalized.caseId,
-          orderId: finalized.orderId,
-          resolution: finalized.resolution,
-        },
-      });
     }
 
     return privateJson({

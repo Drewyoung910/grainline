@@ -79,25 +79,21 @@ describe("notification email preferences", () => {
   });
 
   it("uses the refund email preference for staff case refunds", () => {
-    const caseResolve = source("src/app/api/cases/[id]/resolve/route.ts");
-    const emailStart = caseResolve.indexOf("const emailPreferenceKey = refunding");
-    const emailBlock = caseResolve.slice(emailStart, caseResolve.indexOf("} catch (emailError)", emailStart));
+    const finalization = source(
+      "src/lib/caseStaffResolutionFinalization.ts",
+    );
 
     assert.match(
-      emailBlock,
-      /const emailPreferenceKey = refunding\s*\?\s*"EMAIL_REFUND_ISSUED"\s*:\s*"EMAIL_CASE_RESOLVED"/,
+      finalization,
+      /preferenceKey: refunding\s*\?\s*"EMAIL_REFUND_ISSUED"\s*:\s*"EMAIL_CASE_RESOLVED"/,
     );
     assert.match(
-      emailBlock,
-      /shouldSendEmail\(\s*finalized\.buyerUserId,\s*emailPreferenceKey,\s*\)/,
-    );
-    assert.ok(
-      emailBlock.indexOf("shouldSendEmail(")
-        < emailBlock.indexOf("await sendCaseResolved"),
+      finalization,
+      /await enqueueEmailOutboxOnce\([\s\S]*preferenceKey: refunding/,
     );
     assert.doesNotMatch(
-      emailBlock,
-      /shouldSendEmail\([^)]*"EMAIL_CASE_RESOLVED"/,
+      finalization,
+      /preferenceKey: "EMAIL_CASE_RESOLVED"/,
     );
   });
 

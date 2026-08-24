@@ -176,7 +176,7 @@ describe("order-state audit follow-up guardrails", () => {
     );
     assert.match(
       route,
-      /finalized = await finalizeCaseStaffResolution\(me\.id, prepared\)/,
+      /finalized = await finalizeCaseStaffResolutionWithSideEffects\(\s*me\.id,\s*prepared,?\s*\)/,
     );
     assert.doesNotMatch(route, /refundAmountCents: refundAmountCents \?\? null/);
     assert.doesNotMatch(route, /(?:prisma|tx)\.case\.update/);
