@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import {
+  ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION,
   ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
   ORDER_LABEL_STATE_INVALID_PREDICATE,
   ORDER_PAYMENT_SHIPPING_FORCE_TABLES,
@@ -164,7 +165,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
   });
 
   it("normalizes only the exact nonnegative aggregate shape", () => {
-    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 76);
+    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 78);
     const normalized = normalizeOrderPaymentShippingLegacyCounts(countRow("2"));
     assert.equal(
       Object.keys(normalized).length,
@@ -231,6 +232,8 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       "label_unpurchased_with_url_count",
       "label_unpurchased_with_timestamp_count",
       "label_unpurchased_with_cost_count",
+      "label_purchased_missing_reference_privacy_redacted_count",
+      "label_purchased_missing_reference_unexplained_count",
       "label_clawback_state_coherence_count",
       "quote_invalid_rate_member_count",
       "duplicate_live_quote_order_count",
@@ -289,7 +292,8 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     }
     for (const field of ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.filter(
       (field) =>
-        field.startsWith("label_purchased_") ||
+        (field.startsWith("label_purchased_") &&
+          !field.includes("missing_reference_")) ||
         field.startsWith("label_unpurchased_") ||
         field === "label_negative_cost_count",
     )) {
@@ -305,6 +309,35 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.doesNotMatch(
       ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
       /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|CREATE|GRANT|REVOKE)\b/i,
+    );
+    for (const field of [
+      "label_purchased_missing_reference_privacy_redacted_count",
+      "label_purchased_missing_reference_unexplained_count",
+    ]) {
+      assert.match(
+        ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION,
+        new RegExp(`\\b${field}\\b`),
+      );
+    }
+    assert.match(
+      ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION,
+      /"buyerDataPurgedAt" IS NOT NULL OR "sellerDeletedAt" IS NOT NULL/,
+    );
+    assert.match(
+      ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION,
+      /"buyerDataPurgedAt" IS NULL[\s\S]*"sellerDeletedAt" IS NULL/,
+    );
+    assert.doesNotMatch(
+      ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION,
+      /\b(?:id|buyerId|sellerId|shippoTransactionId|labelUrl|labelPurchasedAt|labelCostCents)\s+AS\s+/i,
+    );
+    assert.doesNotMatch(
+      ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION,
+      /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|CREATE|GRANT|REVOKE)\b/i,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /seller_user\."deletedAt" AS "sellerDeletedAt"/,
     );
     assert.doesNotMatch(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,

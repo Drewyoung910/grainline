@@ -92,6 +92,8 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
   "label_unpurchased_with_url_count",
   "label_unpurchased_with_timestamp_count",
   "label_unpurchased_with_cost_count",
+  "label_purchased_missing_reference_privacy_redacted_count",
+  "label_purchased_missing_reference_unexplained_count",
   "label_clawback_state_coherence_count",
   "quote_invalid_shape_count",
   "quote_invalid_rate_member_count",
@@ -540,6 +542,26 @@ export const ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION = `
   ) AS label_unpurchased_with_cost_count
 `;
 
+// Account deletion intentionally removes provider identifiers and download
+// URLs while retaining the historical PURCHASED status and fulfillment facts.
+// This projection distinguishes that required privacy redaction from missing
+// label references that have no deletion marker. The production CTE derives
+// sellerDeletedAt from the seller relationship; no identity is selected into
+// the aggregate evidence.
+export const ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION = `
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" = 'PURCHASED'
+      AND ("shippoTransactionId" IS NULL OR "labelUrl" IS NULL)
+      AND ("buyerDataPurgedAt" IS NOT NULL OR "sellerDeletedAt" IS NOT NULL)
+  ) AS label_purchased_missing_reference_privacy_redacted_count,
+  pg_catalog.count(*) FILTER (
+    WHERE "labelStatus" = 'PURCHASED'
+      AND ("shippoTransactionId" IS NULL OR "labelUrl" IS NULL)
+      AND "buyerDataPurgedAt" IS NULL
+      AND "sellerDeletedAt" IS NULL
+  ) AS label_purchased_missing_reference_unexplained_count
+`;
+
 export const STRIPE_WEBHOOK_STATE_INVALID_PREDICATE = `
   ("processedAt" IS NOT NULL AND "processingStartedAt" IS NULL)
   OR (
@@ -682,10 +704,20 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       event."orderId",
       event."stripeObjectId",
       (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION})
+  ), label_state_rows AS (
+    SELECT
+      orders.*,
+      seller_user."deletedAt" AS "sellerDeletedAt"
+    FROM public."Order" AS orders
+    LEFT JOIN public."SellerProfile" AS seller
+      ON seller.id = orders."sellerProfileId"
+    LEFT JOIN public."User" AS seller_user
+      ON seller_user.id = seller."userId"
   ), label_state_classification AS (
     SELECT
-      ${ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION}
-    FROM public."Order"
+      ${ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION},
+      ${ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION}
+    FROM label_state_rows
   )
   SELECT
     (SELECT pg_catalog.count(*) FROM public."Order") AS order_count,
@@ -809,6 +841,8 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     (SELECT label_unpurchased_with_url_count FROM label_state_classification) AS label_unpurchased_with_url_count,
     (SELECT label_unpurchased_with_timestamp_count FROM label_state_classification) AS label_unpurchased_with_timestamp_count,
     (SELECT label_unpurchased_with_cost_count FROM label_state_classification) AS label_unpurchased_with_cost_count,
+    (SELECT label_purchased_missing_reference_privacy_redacted_count FROM label_state_classification) AS label_purchased_missing_reference_privacy_redacted_count,
+    (SELECT label_purchased_missing_reference_unexplained_count FROM label_state_classification) AS label_purchased_missing_reference_unexplained_count,
     (
       SELECT pg_catalog.count(*)
       FROM public."Order"

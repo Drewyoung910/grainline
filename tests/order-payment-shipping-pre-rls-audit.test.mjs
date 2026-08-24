@@ -233,4 +233,14 @@ describe("order/payment/shipping pre-RLS audit", () => {
     assert.match(audit, /closes the OPS-A10 legacy-data classification gate/);
     assert.match(audit, /does not authorize cleanup, deployment, fixed\s+operation grants, RLS activation, FORCE, provider changes/);
   });
+
+  it("records label privacy redaction before any repair decision", () => {
+    assert.match(audit, /32784976638/);
+    assert.match(audit, /32785532138/);
+    assert.match(audit, /a4c7d40ac292d1fa4c8e43ad95b47630ac40be9ef7b5553f56e0523894cd0bff/);
+    assert.match(audit, /Exactly one PURCHASED row lacks both its Shippo\s+transaction reference and label URL/);
+    assert.match(audit, /Account deletion intentionally clears those two fields/);
+    assert.match(audit, /isolated 78-field\s+successor/);
+    assert.match(audit, /does not enumerate the row\s+or authorize restoration/);
+  });
 });

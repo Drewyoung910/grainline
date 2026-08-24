@@ -5,6 +5,7 @@ import pg from "pg";
 
 import {
   ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE,
+  ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION,
   ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
   ORDER_LABEL_STATE_INVALID_PREDICATE,
   ORDER_PAYMENT_EVENT_DISPUTE_SOURCE_INVALID_PREDICATE,
@@ -232,57 +233,81 @@ export async function runOrderPaymentShippingLegacyInspectionProof(
         "labelPurchasedAt",
         "labelCostCents",
         "fulfillmentMethod",
-        "fulfillmentStatus"
+        "fulfillmentStatus",
+        "buyerDataPurgedAt",
+        "sellerDeletedAt"
       ) AS (
         VALUES
           (
             'valid_unpurchased', NULL::public."LabelStatus", NULL::text,
             NULL::text, NULL::timestamp, NULL::integer,
             'SHIPPING'::public."FulfillmentMethod",
-            'PENDING'::public."FulfillmentStatus"
+            'PENDING'::public."FulfillmentStatus",
+            NULL::timestamp, NULL::timestamp
           ),
           (
             'valid_purchased', 'PURCHASED'::public."LabelStatus", 'txn_valid',
             'https://example.invalid/label.pdf',
             TIMESTAMP '2026-08-24 00:00:00', 100,
             'SHIPPING'::public."FulfillmentMethod",
-            'SHIPPED'::public."FulfillmentStatus"
+            'SHIPPED'::public."FulfillmentStatus",
+            NULL::timestamp, NULL::timestamp
           ),
           (
             'negative_cost', 'VOIDED'::public."LabelStatus", NULL::text,
             NULL::text, NULL::timestamp, -1,
             'SHIPPING'::public."FulfillmentMethod",
-            'PENDING'::public."FulfillmentStatus"
+            'PENDING'::public."FulfillmentStatus",
+            NULL::timestamp, NULL::timestamp
           ),
           (
             'purchased_missing_fields', 'PURCHASED'::public."LabelStatus",
             NULL::text, NULL::text, NULL::timestamp, 100,
             'PICKUP'::public."FulfillmentMethod",
-            'PENDING'::public."FulfillmentStatus"
+            'PENDING'::public."FulfillmentStatus",
+            NULL::timestamp, NULL::timestamp
           ),
           (
             'unpurchased_with_fields', NULL::public."LabelStatus", 'txn_stale',
             'https://example.invalid/stale.pdf',
             TIMESTAMP '2026-08-24 00:00:00', 100,
             'SHIPPING'::public."FulfillmentMethod",
-            'PENDING'::public."FulfillmentStatus"
+            'PENDING'::public."FulfillmentStatus",
+            NULL::timestamp, NULL::timestamp
+          ),
+          (
+            'buyer_privacy_redacted', 'PURCHASED'::public."LabelStatus",
+            NULL::text, NULL::text, TIMESTAMP '2026-08-24 00:00:00', 100,
+            'SHIPPING'::public."FulfillmentMethod",
+            'SHIPPED'::public."FulfillmentStatus",
+            TIMESTAMP '2026-08-24 00:01:00', NULL::timestamp
+          ),
+          (
+            'seller_privacy_redacted', 'PURCHASED'::public."LabelStatus",
+            NULL::text, NULL::text, TIMESTAMP '2026-08-24 00:00:00', 100,
+            'SHIPPING'::public."FulfillmentMethod",
+            'SHIPPED'::public."FulfillmentStatus",
+            NULL::timestamp, TIMESTAMP '2026-08-24 00:01:00'
           )
       )
       SELECT
         pg_catalog.count(*) FILTER (
           WHERE ${ORDER_LABEL_STATE_INVALID_PREDICATE}
         )::integer AS invalid_label_states,
-        ${ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION}
+        ${ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION},
+        ${ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION}
       FROM label_fixtures
     `);
     assert.deepEqual(labelStateSemantics.rows, [
       {
-        invalid_label_states: 3,
+        invalid_label_states: 5,
         label_negative_cost_count: "1",
         label_purchased_invalid_fulfillment_count: "1",
+        label_purchased_missing_reference_privacy_redacted_count: "2",
+        label_purchased_missing_reference_unexplained_count: "1",
         label_purchased_missing_timestamp_count: "1",
-        label_purchased_missing_transaction_count: "1",
-        label_purchased_missing_url_count: "1",
+        label_purchased_missing_transaction_count: "3",
+        label_purchased_missing_url_count: "3",
         label_purchased_nonshipping_method_count: "1",
         label_unpurchased_with_cost_count: "1",
         label_unpurchased_with_timestamp_count: "1",

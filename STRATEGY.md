@@ -587,6 +587,17 @@ separate Order release; it does not block continued OrderPaymentEvent design.
 The isolated 76-field successor classifies that finding with ten aggregate-only
 subtype counts before any separate repair decision. It retains no row or
 identity and authorizes no cleanup or production mutation.
+PR #263 merged that successor at exact main
+`3bd0a0f7a11074a323c0d6facdcc08d2aeadc0e1`; exact-main CI `32784976638`
+and protected read-only inspection `32785532138` passed. Sanitized evidence
+SHA-256 `a4c7d40ac292d1fa4c8e43ad95b47630ac40be9ef7b5553f56e0523894cd0bff`
+narrows the broad count to one PURCHASED Order missing both its Shippo
+transaction reference and label URL, with every other label subtype clean.
+Account deletion deliberately produces this shape when scrubbing buyer or
+seller provider/download data. Before any repair, run the isolated 78-field
+aggregate successor that distinguishes deletion-marked privacy redaction from
+an unexplained missing reference. Never rehydrate provider references erased
+for account deletion; continue the separately clean OrderPaymentEvent design.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
