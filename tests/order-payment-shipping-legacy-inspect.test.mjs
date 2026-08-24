@@ -12,6 +12,7 @@ import {
   ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
   ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITE_CONFIRMATION,
   ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE,
+  ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION,
   ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES,
   RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS,
   assertOrderPaymentShippingLegacyInspectionGitState,
@@ -255,6 +256,14 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(
       ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE,
       /'local:seller_refund_recorded:' \|\| event\."stripeObjectId"[\s\S]*'local:blocked_checkout_refund_recorded:' \|\| event\."stripeObjectId"[\s\S]*'local:case_refund_recorded:' \|\| event\."stripeObjectId"/,
+    );
+    assert.match(
+      ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION,
+      /pg_catalog\.to_jsonb\(event\)->>'stripeEventCreatedSeconds'/,
+    );
+    assert.doesNotMatch(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /event\."stripeEventCreatedSeconds"/,
     );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,

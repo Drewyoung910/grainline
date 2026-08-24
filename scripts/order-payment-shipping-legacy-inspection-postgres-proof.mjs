@@ -7,6 +7,7 @@ import {
   ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE,
   ORDER_PAYMENT_EVENT_DISPUTE_SOURCE_INVALID_PREDICATE,
   ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE,
+  ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION,
   ORDER_PAYMENT_EVENT_REFUND_SOURCE_INVALID_PREDICATE,
   ORDER_PAYMENT_EVENT_SIGNED_SOURCE_INVALID_PREDICATE,
   ORDER_PICKUP_STATE_INVALID_PREDICATE,
@@ -347,7 +348,7 @@ export async function runOrderPaymentShippingLegacyInspectionProof(
         SELECT
           event."orderId" AS order_id,
           event."stripeObjectId" AS object_id,
-          event."stripeEventCreatedSeconds" AS event_second,
+          (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) AS event_second,
           pg_catalog.count(DISTINCT (
             event."amountCents",
             event.currency,
@@ -358,11 +359,11 @@ export async function runOrderPaymentShippingLegacyInspectionProof(
         FROM event_fixtures AS event
         WHERE event."eventType" = 'DISPUTE'
           AND event."stripeObjectId" IS NOT NULL
-          AND event."stripeEventCreatedSeconds" IS NOT NULL
+          AND (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) IS NOT NULL
         GROUP BY
           event."orderId",
           event."stripeObjectId",
-          event."stripeEventCreatedSeconds"
+          (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION})
       )
       SELECT
         pg_catalog.count(*) FILTER (

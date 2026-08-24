@@ -467,8 +467,19 @@ export const STRIPE_WEBHOOK_STATE_INVALID_PREDICATE = `
   OR ("processedAt" IS NOT NULL AND "lastError" IS NOT NULL)
 `;
 
+// The protected inspection must compile both before and after the separately
+// released signed-authority migration adds stripeEventCreatedSeconds. A row
+// projection returns NULL when that key is absent and preserves the exact
+// bigint text when it exists; an invalid non-bigint value fails the cast.
+export const ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION = `
+  NULLIF(
+    pg_catalog.to_jsonb(event)->>'stripeEventCreatedSeconds',
+    ''
+  )::bigint
+`;
+
 export const ORDER_PAYMENT_EVENT_SIGNED_SOURCE_INVALID_PREDICATE = `
-  event."stripeEventCreatedSeconds" IS NULL
+  (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) IS NULL
   OR pg_catalog.jsonb_typeof(event.metadata) IS DISTINCT FROM 'object'
   OR (
     event."eventType" = 'REFUND'
@@ -490,7 +501,7 @@ export const ORDER_PAYMENT_EVENT_SIGNED_SOURCE_INVALID_PREDICATE = `
 `;
 
 export const ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE = `
-  event."stripeEventCreatedSeconds" IS NOT NULL
+  (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) IS NOT NULL
   OR event."eventType" IS DISTINCT FROM 'REFUND'
   OR event."stripeObjectType" IS DISTINCT FROM 'refund'
   OR pg_catalog.jsonb_typeof(event.metadata) IS DISTINCT FROM 'object'
@@ -520,7 +531,7 @@ export const ORDER_PAYMENT_EVENT_DISPUTE_SOURCE_INVALID_PREDICATE = `
   event."stripeObjectType" IS DISTINCT FROM 'dispute'
   OR event."stripeObjectId" IS NULL
   OR event."amountCents" IS NULL
-  OR event."stripeEventCreatedSeconds" IS NULL
+  OR (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) IS NULL
   OR event.status IS NULL
 `;
 
@@ -573,7 +584,7 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     SELECT
       event."orderId" AS order_id,
       event."stripeObjectId" AS object_id,
-      event."stripeEventCreatedSeconds" AS event_second,
+      (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) AS event_second,
       pg_catalog.count(DISTINCT (
         event."amountCents",
         event.currency,
@@ -584,11 +595,11 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     FROM public."OrderPaymentEvent" AS event
     WHERE event."eventType" = 'DISPUTE'
       AND event."stripeObjectId" IS NOT NULL
-      AND event."stripeEventCreatedSeconds" IS NOT NULL
+      AND (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) IS NOT NULL
     GROUP BY
       event."orderId",
       event."stripeObjectId",
-      event."stripeEventCreatedSeconds"
+      (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION})
   )
   SELECT
     (SELECT pg_catalog.count(*) FROM public."Order") AS order_count,
@@ -870,15 +881,15 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
     ) AS payment_object_cross_order_count,
     (
       SELECT pg_catalog.count(*)
-      FROM public."OrderPaymentEvent"
-      WHERE "stripeEventId" LIKE 'evt\\_%' ESCAPE '\\'
-        AND "stripeEventCreatedSeconds" IS NULL
+      FROM public."OrderPaymentEvent" AS event
+      WHERE event."stripeEventId" LIKE 'evt\\_%' ESCAPE '\\'
+        AND (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) IS NULL
     ) AS payment_signed_ordering_missing_count,
     (
       SELECT pg_catalog.count(*)
-      FROM public."OrderPaymentEvent"
-      WHERE "stripeEventId" LIKE 'local:%'
-        AND "stripeEventCreatedSeconds" IS NOT NULL
+      FROM public."OrderPaymentEvent" AS event
+      WHERE event."stripeEventId" LIKE 'local:%'
+        AND (${ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION}) IS NOT NULL
     ) AS payment_local_ordering_present_count,
     (
       SELECT pg_catalog.count(*)

@@ -55,6 +55,7 @@ describe("Order/payment/shipping legacy inspection PostgreSQL proof", () => {
     assert.match(proof, /ORDER_FULFILLMENT_TIMESTAMP_INVALID_PREDICATE/);
     assert.match(proof, /ORDER_PAYMENT_EVENT_SIGNED_SOURCE_INVALID_PREDICATE/);
     assert.match(proof, /ORDER_PAYMENT_EVENT_LOCAL_SOURCE_INVALID_PREDICATE/);
+    assert.match(proof, /ORDER_PAYMENT_EVENT_PROVIDER_TIME_EXPRESSION/);
     assert.match(proof, /ORDER_PAYMENT_EVENT_REFUND_SOURCE_INVALID_PREDICATE/);
     assert.match(proof, /ORDER_PAYMENT_EVENT_DISPUTE_SOURCE_INVALID_PREDICATE/);
     assert.match(proof, /ORDER_PICKUP_STATE_INVALID_PREDICATE/);

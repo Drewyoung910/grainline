@@ -379,6 +379,11 @@ shape, refund/dispute shape, cross-Order provider-object collisions and
 same-second dispute conflicts without retaining identifiers or rows. See
 `docs/order-payment-event-invariant-inspection.md`. It has not been merged or
 dispatched, and its results must be reviewed before invariant validation.
+The first exact-head CI run, `32770581896`, failed before later gates because
+the query compiled only against the prepared provider-time column while CI was
+still proving the predecessor schema. The corrected query uses a fail-closed
+row projection and is explicitly dual-schema; the failed run touched no
+production state and is not acceptance evidence.
 
 ### OPE-A10 - existing owner-private consumers are release dependencies
 

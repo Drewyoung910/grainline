@@ -32,6 +32,17 @@ The prior 54-count evidence remains historically accurate and is not rewritten.
 The successor query is additive and remains one aggregate-only `SELECT` inside
 the same owner-bound read-only transaction and protected-environment workflow.
 
+The inspection deliberately compiles both before and after the separate signed
+authority migration adds `stripeEventCreatedSeconds`. It reads provider time
+through the row's JSON projection: an absent predecessor column and a prepared
+null value both classify as missing, a populated bigint remains exact, and an
+invalid non-bigint representation fails closed.
+
+Exact-head CI run `32770581896` failed safely before later gates because the
+first extension referenced the not-yet-restored compatible column directly.
+No production data or state was touched. The dual-schema projection and its
+regression guard are the correction; the failed run is not acceptance evidence.
+
 ## Decision boundary
 
 Nonzero counts are classification evidence, not permission to delete, rewrite

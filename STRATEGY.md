@@ -557,6 +557,11 @@ clock shape, cross-Order object reuse and same-second dispute conflicts before
 any legacy validation or immutable trigger is written. See
 `docs/order-payment-event-invariant-inspection.md`; preparation is not a
 dispatch, migration, cleanup or activation authorization.
+Exact-head CI run `32770581896` then failed closed because the first query
+assumed the separately staged provider-time column had already been restored.
+The corrected inspection is intentionally dual-schema: absent/null provider
+time classifies as missing, populated bigint values remain exact, and malformed
+values fail the cast. No production state was touched by the failed run.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
