@@ -162,20 +162,22 @@ does not complete `OrderPaymentEvent` RLS. In particular:
 
 ## Proof retained
 
-Disposable PGlite executes the real claim, record and reconciliation migrations
-and proves current-ADMIN denial, exact 23/25-hour transitions,
-same-whole-second clock handling, exact generation/source binding, closed
-ambiguous reasons, owner-resistant update/delete rejection and the failed-
-lease recovery path end to end. It proves the ordinary wrapper cannot bypass
-the inactive lease, a forged reconciliation cannot recover it, the exact row
-can finalize once, and event completion/error clearing co-commit with the
-refund record. CI also applies the migration to its
-loopback PostgreSQL 16 service and runs a separate rollback-only proof through
-`SET LOCAL ROLE grainline_app_runtime`: it verifies the exact catalog, zero
-policies/table grants, current-ADMIN boundary, exact retry/replay behavior,
-owner-resistant evidence immutability and zero fixture residue. The real-engine
-proof refuses any non-loopback host, database other than `grainline_ci`, or
-login other than `ci`. Provider tests prove metadata binding, complete
+Disposable PGlite proves each sealed migration stage without reading a later
+migration hidden by CI: the record proof executes only claim plus record, while
+the reconciliation proof executes claim plus reconciliation and covers current-
+ADMIN denial, exact 23/25-hour transitions, same-whole-second clock handling,
+closed ambiguous reasons and owner-resistant update/delete rejection. CI also
+applies the complete migration prefix to its loopback PostgreSQL 16 service and
+runs a separate rollback-only proof through
+`SET LOCAL ROLE grainline_app_runtime`. That real-engine proof covers the
+failed-lease recovery end to end: the ordinary wrapper cannot bypass the
+inactive lease, a forged reconciliation cannot recover it, the exact row can
+finalize once, and event completion/error clearing co-commit with the refund
+record. It also verifies the exact catalog, zero policies/table grants,
+current-ADMIN boundary, exact retry/replay behavior, owner-resistant evidence
+immutability and zero fixture residue. The proof refuses any non-loopback host,
+database other than `grainline_ci`, or login other than `ci`. Provider tests
+prove metadata binding, complete
 pagination, retrieved-object validation, scan-snapshot digests, legacy untagged
 fail-close, duplicate/drift denial and exact retry behavior. Static contracts
 pin the session-bound Admin-PIN action, source callsites and unchanged
@@ -197,8 +199,18 @@ prefix through `20260824020000_prepare_order_refund_record_authority`; the
 unreviewed-successor case adds and removes one synthetic later directory, so
 its result no longer depends on CI staging order.
 
-Local validation on 2026-08-24 passed the final 30-test focused reconciliation
-cluster, the full 3,348-test suite (3,341 passed, seven intentional skips),
+Replacement CI run `32707048056` reached the isolated record-authority proof
+and failed before PostgreSQL execution because that historical proof
+unconditionally read the later reconciliation migration, which CI had
+intentionally hidden. This was a test-packaging regression, not a SQL or
+runtime-authority failure. The record proof is self-contained again, its
+release contract now rejects forward migration references, and the full-stack
+failed-lease recovery remains exercised at the reconciliation stage by the
+loopback PostgreSQL runtime-role proof.
+
+Local validation on 2026-08-24 passed the final 45-test focused record and
+reconciliation cluster, the full 3,349-test suite (3,342 passed, seven
+intentional skips),
 TypeScript, lint, Prisma schema validation and `git diff --check`. The normal
 Turbopack build cannot infer this nested symlinked-worktree root; the webpack
 fallback compiled and completed TypeScript, then correctly stopped at page

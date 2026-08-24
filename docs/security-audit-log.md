@@ -2264,10 +2264,18 @@ Open work:
   processed while clearing its error in the same transaction. A forged row,
   active/raced event, wrong generation, wrong claim family, released claim, or
   direct runtime call to the core fails closed.
-- PGlite now executes claim, record, and reconciliation together and proves the
-  failed-lease path end to end: ordinary finalization denied, forged
-  reconciliation denied, exact recovery accepted once, event completion and
-  error clearing co-committed, and all runtime/private ACLs exact. The
-  loopback-only PostgreSQL 16 rollback proof and exact-head CI remain required
-  before the draft PR can leave review. No migration, deployment, grant,
-  credential, or provider state changed while correcting this finding.
+- The sealed PGlite proofs retain their historical migration boundaries: the
+  record proof reads only claim plus record, while reconciliation behavior is
+  tested at its own stage. The loopback-only PostgreSQL 16 rollback proof
+  executes the complete prefix and proves the failed-lease path end to end:
+  ordinary finalization denied, forged reconciliation denied, exact recovery
+  accepted once, event completion and error clearing co-committed, and all
+  runtime/private ACLs exact.
+- Exact-head CI run `32707048056` exposed and failed closed on a packaging
+  regression before PostgreSQL execution: the isolated record proof tried to
+  read the intentionally hidden later reconciliation migration. The record
+  proof was restored to a self-contained sealed prefix and its release test now
+  rejects later migration references. This did not expose a SQL-engine defect
+  or change migration bytes. Fresh exact-head CI remains required before the
+  draft PR can leave review. No migration, deployment, grant, credential, or
+  provider state changed while correcting this finding.

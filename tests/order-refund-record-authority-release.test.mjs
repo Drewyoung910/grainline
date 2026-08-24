@@ -89,6 +89,10 @@ test("record migration byte verifier rejects a near match", () => {
 test("CI isolates the record release, replays the sealed claim, then proves the record migration", () => {
   const ci = readFileSync(".github/workflows/ci.yml", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+  const postgresProof = readFileSync(
+    "tests/order-refund-record-authority-postgres.test.mjs",
+    "utf8",
+  );
   const verifyRecord = ci.indexOf("Verify Order refund record authority release");
   const isolateRecord = ci.indexOf("Isolate Order refund record authority until sealed predecessors pass");
   const verifyClaim = ci.indexOf("Verify Order refund claim generation release");
@@ -106,6 +110,11 @@ test("CI isolates the record release, replays the sealed claim, then proves the 
   assert.equal(
     pkg.scripts["audit:order-refund-record-authority-release"],
     "node scripts/verify-order-refund-record-authority-release.mjs",
+  );
+  assert.doesNotMatch(
+    postgresProof,
+    /202608240[3-9][0-9]{4}_/,
+    "record-authority proof must not read a later migration hidden by CI",
   );
   assert.doesNotMatch(
     readFileSync(".github/workflows/production-migrations.yml", "utf8"),

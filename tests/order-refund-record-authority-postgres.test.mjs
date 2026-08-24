@@ -11,16 +11,11 @@ const recordMigration = readFileSync(
   "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
   "utf8",
 );
-const reconciliationMigration = readFileSync(
-  "prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority/migration.sql",
-  "utf8",
-);
 
 async function createDatabase() {
   const database = new PGlite();
   await database.exec(`
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
-    CREATE TYPE public."Role" AS ENUM ('USER', 'EMPLOYEE', 'ADMIN');
     CREATE TYPE public."ListingStatus" AS ENUM (
       'DRAFT', 'ACTIVE', 'SOLD', 'SOLD_OUT', 'HIDDEN',
       'PENDING_REVIEW', 'REJECTED'
@@ -28,7 +23,6 @@ async function createDatabase() {
     CREATE TYPE public."ListingType" AS ENUM ('MADE_TO_ORDER', 'IN_STOCK');
     CREATE TABLE public."User" (
       id text PRIMARY KEY,
-      role public."Role" NOT NULL DEFAULT 'USER',
       "deletedAt" timestamp(3) without time zone,
       banned boolean NOT NULL DEFAULT false
     );
@@ -46,7 +40,6 @@ async function createDatabase() {
       "claimGeneration" bigint NOT NULL DEFAULT 0,
       "processingStartedAt" timestamp(3) without time zone,
       "processedAt" timestamp(3) without time zone,
-      "lastError" text,
       "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -119,17 +112,6 @@ async function createDatabase() {
       metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
       "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE TABLE public."AdminAuditLog" (
-      id text PRIMARY KEY,
-      "adminId" text NOT NULL REFERENCES public."User"(id),
-      action varchar(100) NOT NULL,
-      "targetType" varchar(100) NOT NULL,
-      "targetId" varchar(255) NOT NULL,
-      reason varchar(1000),
-      metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-      undone boolean NOT NULL DEFAULT false,
-      "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
     CREATE FUNCTION public.grainline_case_seller_refund_apply(
       p_actor_user_id text,
       p_order_payment_event_id text
@@ -162,12 +144,10 @@ async function createDatabase() {
   `);
   await database.exec(claimMigration);
   await database.exec(recordMigration);
-  await database.exec(reconciliationMigration);
   await database.exec(`
-    INSERT INTO public."User" (id, role) VALUES
-      ('seller-user', 'USER'),
-      ('buyer-user', 'USER'),
-      ('admin-user', 'ADMIN');
+    INSERT INTO public."User" (id) VALUES
+      ('seller-user'),
+      ('buyer-user');
     INSERT INTO public."SellerProfile" (id, "userId")
       VALUES ('seller-profile', 'seller-user');
   `);
@@ -388,103 +368,6 @@ test("blocked-checkout claim hands off to a later signed lease and records once"
   }
 });
 
-test("reviewed blocked-checkout recovery finalizes after the failed webhook lease is cleared", async () => {
-  const database = await createDatabase();
-  try {
-    await seedOrder(database, {
-      id: "order-blocked-reconciliation",
-      sessionId: "cs_blocked_reconciliation",
-      transferId: null,
-    });
-    await database.exec(`
-      INSERT INTO public."StripeWebhookEvent" (
-        id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
-      ) VALUES (
-        'evt_blocked_reconciliation',
-        'checkout.session.completed',
-        'cs_blocked_reconciliation',
-        1,
-        CURRENT_TIMESTAMP
-      )
-    `);
-    const claim = await blockedClaim(database, {
-      eventId: "evt_blocked_reconciliation",
-      eventGeneration: 1,
-      sessionId: "cs_blocked_reconciliation",
-      orderId: "order-blocked-reconciliation",
-    });
-    await database.exec(`
-      UPDATE public."Order"
-         SET "sellerRefundId" = 'ambiguous_refund_pending_reconciliation'
-       WHERE id = 'order-blocked-reconciliation';
-      UPDATE public."StripeWebhookEvent"
-         SET "processingStartedAt" = NULL,
-             "lastError" = 'sanitized provider timeout'
-       WHERE id = 'evt_blocked_reconciliation';
-    `);
-
-    const prepared = (await database.query(`
-      SELECT public.grainline_order_refund_reconciliation_prepare(
-        'admin-user', 'order-blocked-reconciliation'
-      ) AS claim
-    `)).rows[0].claim;
-    assert.equal(prepared.claimId, claim.claimId);
-    assert.equal(prepared.claimGeneration, claim.claimGeneration);
-    const reconciled = (await database.query(`
-      SELECT public.grainline_order_refund_reconcile(
-        'admin-user', $1, $2, 'CONFIRMED_PROVIDER_EFFECT',
-        'Reviewed the exact blocked-checkout Stripe refund.',
-        pg_catalog.floor(EXTRACT(EPOCH FROM pg_catalog.clock_timestamp()))::bigint,
-        'USABLE_REFUND', $3
-      ) AS result
-    `, [prepared.claimId, prepared.claimGeneration, "d".repeat(64)])).rows[0]
-      .result;
-
-    await assert.rejects(
-      database.query(`
-        SELECT public.grainline_blocked_checkout_refund_record(
-          'evt_blocked_reconciliation', 1, $1, $2,
-          're_blockedreconciliation', 'succeeded', NULL, NULL
-        )
-      `, [prepared.claimId, prepared.claimGeneration]),
-      /source lease is inactive/,
-    );
-    await assert.rejects(
-      database.query(`
-        SELECT public.grainline_blocked_checkout_refund_reconciliation_record(
-          'order-refund-reconcile:00000000-0000-0000-0000-000000000000',
-          $1, $2, 're_blockedreconciliation', 'succeeded', NULL, NULL
-        )
-      `, [prepared.claimId, prepared.claimGeneration]),
-      /reconciliation authority is invalid/,
-    );
-
-    const recorded = (await database.query(`
-      SELECT public.grainline_blocked_checkout_refund_reconciliation_record(
-        $1, $2, $3, 're_blockedreconciliation', 'succeeded', NULL, NULL
-      ) AS result
-    `, [
-      reconciled.reconciliationId,
-      prepared.claimId,
-      prepared.claimGeneration,
-    ])).rows[0].result;
-    assert.equal(recorded.action, "recorded");
-    assert.equal(recorded.orderId, "order-blocked-reconciliation");
-    assert.deepEqual(
-      (await database.query(`
-        SELECT "processedAt" IS NOT NULL AS processed,
-               "processingStartedAt" AS processing,
-               "lastError" AS error
-          FROM public."StripeWebhookEvent"
-         WHERE id = 'evt_blocked_reconciliation'
-      `)).rows[0],
-      { processed: true, processing: null, error: null },
-    );
-  } finally {
-    await database.close();
-  }
-});
-
 test("seller finalization rolls back every write when the fixed Case application drifts", async () => {
   const database = await createDatabase();
   try {
@@ -660,11 +543,6 @@ test("refund record functions reject drift and expose only the reviewed runtime 
           'EXECUTE'
         ) AS core_public,
         pg_catalog.has_function_privilege(
-          'grainline_app_runtime',
-          'public.grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)',
-          'EXECUTE'
-        ) AS reconciliation_runtime,
-        pg_catalog.has_function_privilege(
           'public',
           'public.grainline_seller_refund_record(text,text,bigint,text,text,text,integer)',
           'EXECUTE'
@@ -676,7 +554,6 @@ test("refund record functions reject drift and expose only the reviewed runtime 
       resume_runtime: true,
       core_runtime: false,
       core_public: false,
-      reconciliation_runtime: true,
       seller_public: false,
     });
   } finally {
