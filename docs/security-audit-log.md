@@ -2218,3 +2218,27 @@ Open work:
   pending-runtime-acceptance state; the expanded focused set passes 41/41.
   Merge, replacement exact-head CI, live read-only proof and final evidence
   retention remain separate gates.
+
+## SellerPayoutEvent FORCE accepted in production (2026-08-23)
+
+- Postflight package PR #247 merged at exact main
+  `fb350c31772938ef52ef796c61bf670d9cf0750e`. Exact-main CI `32675227286`
+  passed the complete database release chain, direct-runtime FORCE proof,
+  3,253 tests, TypeScript, lint, dependency audit and production build.
+- The distinct production FORCE postflight was bound to exact main
+  `fb350c31772938ef52ef796c61bf670d9cf0750e`, CI `32675227286`, and guarded
+  migration run `32672434812`. It used only the pooled
+  `grainline_app_runtime` credential inside an engine-attested
+  repeatable-read/read-only transaction.
+- All nine checks passed: restricted runtime identity, policyless ENABLE plus
+  FORCE, zero direct runtime/PUBLIC authority, exact three-function catalog,
+  direct table denial, both fixed projections, and the fixed writer's SQLSTATE
+  `25006` read-only fence. The proof reported
+  `productionChangedByPostflight=false`.
+- Retain sanitized mode-`0600` evidence SHA-256
+  `f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+  No migration, deployment, grant, credential or provider change accompanied
+  the postflight. SellerPayoutEvent is accepted `RLS_LIVE_FORCE`.
+- The next remaining table starts only after its own fresh domain audit. Do
+  not bundle `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, or
+  `OrderItem`.

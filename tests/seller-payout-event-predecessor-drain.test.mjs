@@ -320,6 +320,6 @@ test("documentation and CI preserve the accepted predecessor boundary", () => {
   assert.match(architecture, /removed the sole\s+current-credential predecessor/);
   assert.match(
     matrix,
-    /Final FORCE acceptance is withheld until the distinct actual pooled-runtime FORCE postflight passes/,
+    /distinct actual pooled-runtime FORCE postflight passed all nine checks/,
   );
 });

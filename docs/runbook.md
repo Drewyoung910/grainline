@@ -658,9 +658,10 @@ SellerPayoutEvent FORCE production closure:
   successor, converged grants, and passed migration status, the global
   grant/RLS audit and exact after-scope proof. No deployment or provider state
   changed.
-- The merged release omitted a distinct actual pooled-runtime FORCE postflight
-  command. Production is FORCE-hardened, but final acceptance is pending this
-  proof. Never reuse the accepted Phase-A evidence, which expects NO FORCE.
+- The original FORCE release omitted a distinct actual pooled-runtime FORCE
+  postflight command. Never reuse the accepted Phase-A evidence, which expects
+  NO FORCE. The corrected package merged at exact main
+  `fb350c31772938ef52ef796c61bf670d9cf0750e`; CI `32675227286` passed.
 - Run only from the exact clean main commit that contains the postflight
   package and whose full CI passed. Use only the local pooled production
   `DATABASE_URL` for `grainline_app_runtime`; reject owner, direct and aliased
@@ -670,8 +671,12 @@ SellerPayoutEvent FORCE production closure:
 - The proof must attest repeatable-read/read-only, the actual restricted pooled
   identity, policyless ENABLE plus FORCE, zero direct runtime/PUBLIC authority,
   exact fixed-function catalog, direct read denial, both fixed projections and
-  the writer's SQLSTATE `25006` fence. Retain fresh sanitized mode-`0600`
-  evidence and only then mark `RLS_LIVE_FORCE`.
+  the writer's SQLSTATE `25006` fence.
+- Accepted 2026-08-23: the distinct actual pooled-runtime proof passed all nine
+  checks and reported `productionChangedByPostflight=false`. Retain fresh
+  sanitized mode-`0600` evidence SHA-256
+  `f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+  SellerPayoutEvent is `RLS_LIVE_FORCE`.
 
 StripeWebhookEvent FORCE postflight:
 

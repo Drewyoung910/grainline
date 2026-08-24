@@ -37,13 +37,13 @@ Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, and `SellerPayoutEvent`.
-Twelve tables have production RLS and all twelve currently have
-`FORCE ROW LEVEL SECURITY` set in the production catalog. Eleven have complete
-retained FORCE acceptance. `SellerPayoutEvent` FORCE was applied by guarded run
-`32672434812`; its owner-side migration/global/scope proofs passed, while its
-distinct actual pooled-runtime FORCE postflight remains the final acceptance
-gate. Until that evidence is retained, its matrix state is
-`RLS_LIVE_FORCE_PENDING_POSTFLIGHT`, not completed `RLS_LIVE_FORCE`.
+Twelve tables have production RLS and all twelve currently have complete
+retained `FORCE ROW LEVEL SECURITY` acceptance. `SellerPayoutEvent` FORCE was
+applied by guarded run `32672434812`; exact main
+`fb350c31772938ef52ef796c61bf670d9cf0750e` passed CI `32675227286`, and its
+distinct actual pooled-runtime FORCE postflight passed all nine checks without
+mutating production. Retain sanitized evidence SHA-256
+`f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
 DirectUpload,
 StripeWebhookEvent, the Case family, and
 CheckoutStockReservation intentionally use
@@ -183,11 +183,17 @@ SellerPayoutEvent Phase A remains accepted. Exact main
 `0eb360b9878698f45288ac3c1649871de9a8a33c` passed CI `32672008187`, and
 guarded run `32672434812` applied only the separate posture-only FORCE
 migration, converged grants, and passed migration status, the global audit and
-exact FORCE scope. The catalog is therefore FORCE-hardened. Final FORCE
-acceptance is deliberately withheld because the merged release lacked the
-distinct actual pooled-runtime FORCE postflight package. That package uses a
-separate `--post-force` mode, confirmation and evidence namespace; the accepted
-Phase-A artifact cannot be reused. See
+exact FORCE scope. The catalog is therefore FORCE-hardened. The separate
+postflight package merged at exact main
+`fb350c31772938ef52ef796c61bf670d9cf0750e`; CI `32675227286` passed the full
+release chain and production build. Its actual pooled-runtime postflight used
+the separate `--post-force` mode and passed all nine engine-read-only checks,
+including direct denial and the fixed writer's SQLSTATE `25006` fence. It
+reported `productionChangedByPostflight=false`; sanitized mode-`0600` evidence
+SHA-256 is
+`f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+SellerPayoutEvent is accepted `RLS_LIVE_FORCE`. The accepted Phase-A artifact
+remains distinct and cannot be reused. See
 `docs/seller-payout-event-activation-production-wiring.md` and
 `docs/seller-payout-event-force-release.md`.
 

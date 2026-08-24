@@ -1,9 +1,9 @@
 # SellerPayoutEvent FORCE RLS release
 
-Status: FORCE applied in production; final pooled-runtime acceptance pending.
-Nothing in this document authorizes deployment or provider mutation. Do not
-claim the FORCE release fully accepted until the distinct actual pooled-runtime
-postflight passes and its sanitized evidence is retained.
+Status: accepted production FORCE RLS.
+Nothing in this document authorizes deployment or provider mutation. The
+distinct actual pooled-runtime postflight passed and its sanitized evidence is
+retained below.
 
 Date: 2026-08-23
 
@@ -82,17 +82,23 @@ No application deployment or provider state changed.
 The release review then found that the merged package lacked the separately
 invokable actual pooled-runtime FORCE postflight. The Phase-A postflight and
 its evidence are deliberately not reusable because they require `NO FORCE`.
-The production catalog is FORCE-hardened, but final acceptance remains withheld
-until the distinct command below lands on an exact main commit, that commit's
-CI passes, and the command succeeds through pooled `grainline_app_runtime`:
+The distinct package merged at exact main
+`fb350c31772938ef52ef796c61bf670d9cf0750e`, whose CI run `32675227286`
+passed the complete release chain, 3,253 tests, TypeScript, lint, dependency
+audit and production build. The command below then passed through the actual
+pooled `grainline_app_runtime` credential:
 
-`SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_CONFIRM=verify-production-seller-payout-event-force-runtime-read-only SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT=<exact-main-with-postflight-package> SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID=<successful-exact-main-ci> SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID=32672434812 SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH="seller-payout-event-force-production-postflight-<exact-main-with-postflight-package>.json" npm run ops:seller-payout-event-force-postflight`
+`SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_CONFIRM=verify-production-seller-payout-event-force-runtime-read-only SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT=fb350c31772938ef52ef796c61bf670d9cf0750e SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID=32675227286 SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID=32672434812 SELLER_PAYOUT_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH="seller-payout-event-force-production-postflight-fb350c31772938ef52ef796c61bf670d9cf0750e.json" npm run ops:seller-payout-event-force-postflight`
 
 That command is engine-enforced repeatable-read/read-only, rejects owner,
 direct and aliased database URLs, binds the exact clean source and migration
 run, requires policyless ENABLE plus FORCE, proves direct denial and the exact
-three-function catalog, and writes a fresh mode-`0600` artifact. It must not
-change production.
+three-function catalog, and writes a fresh mode-`0600` artifact. PostgreSQL
+attested repeatable-read/read-only; all nine checks passed, including direct
+table denial, both fixed projections and the fixed writer's `25006` fence. It
+reported `productionChangedByPostflight=false`. Retain evidence SHA-256
+`f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+SellerPayoutEvent FORCE is accepted in production.
 
 ## Validation
 

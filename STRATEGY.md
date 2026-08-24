@@ -445,11 +445,14 @@ records no production mutation. SellerPayoutEvent Phase A is accepted. Its
 posture-only FORCE successor was applied from exact main
 `0eb360b9878698f45288ac3c1649871de9a8a33c`, CI `32672008187`, by guarded run
 `32672434812`; that run applied only the reviewed migration and passed
-migration status, the global audit and exact FORCE scope. The catalog is FORCE,
-but final acceptance remains pending the distinct actual pooled-runtime FORCE
-postflight and fresh retained evidence. Do not reuse Phase-A evidence. After
-that closure, begin the next remaining Order/payment/shipping table with its own
-fresh domain audit; do not bundle the tables. Retain
+migration status, the global audit and exact FORCE scope. Exact main
+`fb350c31772938ef52ef796c61bf670d9cf0750e` passed CI `32675227286`; the
+distinct actual pooled-runtime FORCE postflight passed all nine engine-read-only
+checks and retained evidence SHA-256
+`f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+SellerPayoutEvent FORCE is accepted. Begin the next remaining
+Order/payment/shipping table with its own fresh domain audit; do not bundle the
+tables. Retain
 `docs/seller-payout-event-activation-release.md` and
 `docs/seller-payout-event-activation-production-wiring.md` as the accepted
 Phase-A release records, and
