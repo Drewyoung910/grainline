@@ -680,3 +680,29 @@ in production from exact main
 `31923608819`, and guarded run `31923767337`; RLS remains off and predecessor
 CRUD remains retained. Application conversion/deployment, linked-seller signed
 proof, predecessor drain and separate ENABLE/FORCE releases remain required.
+
+### 2026-08-24 OrderPaymentEvent inspection refresh
+
+SellerPayoutEvent subsequently completed policyless ENABLE plus FORCE, zero
+ordinary-runtime/PUBLIC table authority, its exact three-function catalog and
+the distinct actual pooled-runtime postflight. The unfinished table set is now
+`OrderPaymentEvent`, `OrderShippingRateQuote`, `Order` and `OrderItem`; keep
+those four as separate releases.
+
+The compatible OrderPaymentEvent refund/signed-authority stack and additive
+66-count inspector merged through exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`; full main CI `32772585632`
+passed. Protected production inspection run `32773408735` failed closed with
+`POSTURE_MISMATCH` before the aggregate query or evidence write because its
+posture fence still treated the completed SellerPayoutEvent ledger as an
+RLS-off broad-CRUD predecessor. No count result exists for that run and no
+production mutation occurred.
+
+The reviewed successor posture requires `CheckoutStockReservation`,
+`StripeWebhookEvent` and `SellerPayoutEvent` all to be owner-held policyless
+FORCE tables with zero ordinary-runtime CRUD. `OrderPaymentEvent`,
+`OrderShippingRateQuote`, `Order` and `OrderItem` must remain owner-held,
+RLS-off, zero-policy broad-CRUD predecessors for this inspection only. Any
+other combination fails before counts. A fresh exact-main CI pass and separate
+protected read-only dispatch remain required; do not treat the failed run as
+legacy-data evidence.

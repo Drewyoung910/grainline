@@ -1,10 +1,11 @@
 # OrderPaymentEvent signed-webhook authority design
 
-Status: isolated compatible candidate implemented and byte-pinned. Migration
+Status: compatible candidate implemented, byte-pinned and merged through exact
+main `d17b0384f2b90b128ba23852a0dedb004ce52739`. Migration
 `20260824030000_prepare_order_payment_signed_authority` has SHA-256
 `176ad2c17301dd1d6bd9a1c0e190e8d44b15463ec830f9a67eb43ec3070396f2`.
-No merge, migration dispatch, application deployment, RLS, table-grant,
-provider or production state change is part of this checkpoint.
+No migration dispatch, application deployment, RLS, table-grant, provider or
+production state change has occurred for this checkpoint.
 
 Audited: 2026-08-23 after the fixed local-refund record and crash-safe
 participant-delivery packages.
@@ -127,7 +128,7 @@ grant revocation and FORCE remain later releases.
 
 ## Implemented candidate checkpoint
 
-The isolated candidate implements the two operations above, the nullable typed
+The merged candidate implements the two operations above, the nullable typed
 event-time column and its latest-dispute index. The Stripe platform webhook
 route uses typed application wrappers and no longer directly inserts
 `OrderPaymentEvent` rows for the converted refund/dispute families. Missing

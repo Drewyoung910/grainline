@@ -30,7 +30,7 @@ jobs:
       MIGRATION_DB_ROLE: neondb_owner
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECT_CONFIRM: ${{ inputs.confirmation }}
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECT_RELEASE_COMMIT: ${{ inputs.release_commit }}
-      ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED: checkout-stock-reservation-force-and-runtime-separation-postflights-passed
+      ORDER_PAYMENT_SHIPPING_LEGACY_PREREQUISITES_CONFIRMED: service-ledger-force-and-runtime-separation-postflights-passed
       PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
       RUNTIME_DB_ROLE: grainline_app_runtime
     steps:

@@ -1,14 +1,15 @@
 # OrderPaymentEvent pre-RLS domain audit
 
-Status: audit complete. The claim, record/finalize, signed-webhook and
-evidence-bound reconciliation corrections now exist as one isolated compatible
-stack; none is merged, deployed or production-applied and `OrderPaymentEvent`
-RLS remains off.
+Status: audit complete. The claim, record/finalize, signed-webhook,
+evidence-bound reconciliation, inactive-seller recovery and durable Case
+participant-delivery corrections merged through exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`. They are not deployed or
+production-applied, and `OrderPaymentEvent` RLS remains off.
 
 Audited: 2026-08-23 against the application source immediately after accepted
-SellerPayoutEvent FORCE proof. This branch is intentionally stacked on the
-unmerged SellerPayoutEvent production-record checkpoint `fd9c012150cbd4f4b12acbafa3d8567492c5f11a`.
-Merge that record first; this audit does not broaden or reinterpret it.
+SellerPayoutEvent FORCE proof; release state refreshed 2026-08-24 after the
+compatible stack merged. This audit does not broaden or reinterpret the
+accepted SellerPayoutEvent production record.
 
 ## Executive verdict
 
@@ -69,9 +70,10 @@ The fourth compatible correction is recorded in
 `docs/order-payment-event-refund-claim-generation.md`. Seller and
 blocked-checkout refunds now have an isolated, additive database-derived claim
 design with exact source/generation/idempotency binding and no elapsed-time
-release. It is prepared only: the migration and application conversion are not
-merged, deployed or applied to production, and the later fixed provider
-record/finalize catalog remains required before RLS activation.
+release. It is merged compatible preparation only: the migration and
+application conversion are not deployed or applied to production, and the
+later fixed provider record/finalize catalog remains required before RLS
+activation.
 
 The fifth compatible correction is recorded in
 `docs/order-payment-event-refund-record-authority.md`. Seller and
@@ -81,7 +83,8 @@ Case and audit evidence, plus a restart-safe exact webhook-generation handoff.
 The stacked crash-safety refinement moves source-validated in-app notification
 creation and deterministic seller-refund email-outbox reservation into the
 same application database transaction as that fixed finalizer. It is also
-isolated preparation only. Ambiguous provider reconciliation,
+merged compatible preparation only, not deployed or production-applied.
+Ambiguous provider reconciliation,
 signed refund/dispute writers, remaining invariants/projections, live proof and
 activation remain open.
 
@@ -89,8 +92,9 @@ The next stacked application-only correction is recorded in
 `docs/order-payment-event-case-refund-delivery.md`. It keeps the existing
 generation-fenced staff Case functions, but commits finalization, both
 source-validated participant Notifications and the deterministic
-`case_resolved` EmailOutbox reservation in one transaction. It is isolated
-preparation only; no database authority or production state changes.
+`case_resolved` EmailOutbox reservation in one transaction. It remains a
+separate compatible release boundary but is merged to main only; no database
+authority or production state changed.
 
 ## Product and evidence contract
 
@@ -294,7 +298,7 @@ before 23 hours, permits proved no-effect release only at or after 25 hours and
 records immutable private evidence. It also repairs the previously unreachable
 blocked-checkout claim-resume branch. See
 `docs/order-payment-event-refund-reconciliation.md`. OPE-A03 is implemented in
-the isolated compatible stack, not accepted in production.
+the merged compatible stack, not accepted in production.
 
 ### OPE-A04 - generic duplicate skipping is not replay validation
 
@@ -314,7 +318,7 @@ open event followed by an accepted `won` or `warning_closed` event can remain
 excluded forever. Those aggregates deliberately exclude lost/prevented/unknown
 outcomes as conversion signal; that distinct product rule must be preserved.
 
-Prepared disposition: the isolated compatible signed-authority candidate adds
+Prepared disposition: the merged compatible signed-authority candidate adds
 a nullable typed `stripeEventCreatedSeconds` column for signed events and one
 supporting latest-per-dispute index. Its signed dispute writer applies the
 newer state, retains older states without side effects, and treats any
@@ -372,13 +376,14 @@ again before activation if rows can change. It must expose counts only and
 classify taxonomy, currency, amounts, mutation, source-family shapes, replay
 collisions, event ordering, refund totals and maximum events per Order.
 
-Prepared disposition: the isolated successor extends the existing protected,
+Prepared disposition: the merged successor extends the existing protected,
 engine-read-only inspection from its historical 54-field shape to 66 aggregate
 counts. The 12 new counts classify source-family identity, signed/local clock
 shape, refund/dispute shape, cross-Order provider-object collisions and
 same-second dispute conflicts without retaining identifiers or rows. See
-`docs/order-payment-event-invariant-inspection.md`. It has not been merged or
-dispatched, and its results must be reviewed before invariant validation.
+`docs/order-payment-event-invariant-inspection.md`. Its first production
+dispatch failed closed before counts, and successful aggregate results must be
+reviewed before invariant validation.
 The first exact-head CI run, `32770581896`, failed before later gates because
 the query compiled only against the prepared provider-time column while CI was
 still proving the predecessor schema. The corrected query uses a fail-closed
@@ -390,6 +395,15 @@ CI run `32770970002` on 2026-08-24, including the aggregate inspection proof
 against the predecessor schema and the later restored migration/proof stack.
 This does not replace the fresh aggregate-only production inspection required
 before invariant validation, and no production or provider state changed.
+
+Protected production inspection run `32773408735` at exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739` then failed closed with
+`POSTURE_MISMATCH` before counts or evidence. The stale fence still expected
+`SellerPayoutEvent` to be a broad-CRUD predecessor after its accepted FORCE
+release. The correction requires all three completed service ledgers to remain
+policyless FORCE/no-CRUD and retains only `Order`, `OrderItem`,
+`OrderPaymentEvent` and `OrderShippingRateQuote` as RLS-off predecessors. No
+production mutation occurred; the failed run is not inspection evidence.
 
 ### OPE-A10 - existing owner-private consumers are release dependencies
 
@@ -425,10 +439,10 @@ post-commit and idempotent; a missed call affects only the existing bounded
 
 ## Required fixed-operation catalog
 
-Items 1 and 2 are implemented in the isolated, byte-pinned compatible
-candidate `20260824030000_prepare_order_payment_signed_authority`; they are not
-merged, deployed, production-applied or activation evidence. The remaining
-items are still design contracts until reviewed SQL is written.
+Items 1 and 2 are implemented in the merged, byte-pinned compatible candidate
+`20260824030000_prepare_order_payment_signed_authority`; they are not deployed,
+production-applied or activation evidence. The remaining items are still
+design contracts until reviewed SQL is written.
 
 1. Signed refund append: requires active exact `charge.refunded` webhook
    generation/source, derives Order from the retained charge relationship,
@@ -447,7 +461,7 @@ items are still design contracts until reviewed SQL is written.
 5. Blocked-checkout full-refund claim/record/finalize: derives the exact
    session/Order from the active webhook generation and preserves recovery.
 6. Bounded no-provider-effect reconciliation/release: implemented in the
-   isolated `20260824040000_prepare_order_refund_reconciliation_authority`
+   merged `20260824040000_prepare_order_refund_reconciliation_authority`
    successor. Current ADMIN plus session-bound PIN selects only an audit reason;
    the bounded provider scan and fixed database operation derive the outcome.
 7. Buyer and seller refund-outcome batch/page projections.

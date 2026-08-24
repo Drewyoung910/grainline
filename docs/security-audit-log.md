@@ -2344,3 +2344,31 @@ Open work:
   through `grainline_app_runtime`. Historical database proofs, 3,355 tests,
   TypeScript, lint, dependency audit and the production build also passed.
   Production remained unchanged.
+
+## OrderPaymentEvent compatible stack merged; successor inspection failed closed (2026-08-24)
+
+- PRs #257 through #260 merged in dependency order through exact main
+  `d17b0384f2b90b128ba23852a0dedb004ce52739`: refund reconciliation,
+  inactive-seller recovery, durable staff Case participant delivery, then the
+  additive 66-count `OrderPaymentEvent` inspection. Exact final-main CI
+  `32772585632` passed all migration/grant/RLS/rollback/runtime proofs,
+  TypeScript, lint, tests, security audit and production build. Main automatic
+  Vercel deployment is disabled; no migration, deploy, provider or production
+  mutation accompanied these merges.
+- Protected production inspection run `32773408735` was released through the
+  Production environment at that exact main commit. PostgreSQL rejected the
+  stale posture fence with `POSTURE_MISMATCH` before `readCounts()` ran or an
+  evidence file was created. The workflow had no mutation operation.
+- The mismatch was expected drift in a safety assertion, not production RLS
+  regression: `SellerPayoutEvent` had completed policyless FORCE RLS after the
+  earlier Order/payment/shipping inspection was written, while the fence still
+  required broad runtime CRUD on that table. The successor requires all three
+  completed service ledgers (`CheckoutStockReservation`,
+  `StripeWebhookEvent`, `SellerPayoutEvent`) to remain policyless FORCE with
+  zero ordinary-runtime CRUD. Only `Order`, `OrderItem`,
+  `OrderPaymentEvent` and `OrderShippingRateQuote` remain exact RLS-off
+  broad-CRUD predecessors.
+- The failed run is not aggregate evidence. A fresh exact-head full CI pass is
+  required before another protected engine-read-only dispatch. No cleanup,
+  invariant validation, migration, deployment, grant/RLS or provider change is
+  authorized by this correction.

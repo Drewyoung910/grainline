@@ -1,8 +1,9 @@
 # OrderPaymentEvent invariant inspection extension
 
-Status: isolated read-only inspection preparation on
-`agent/order-payment-event-invariants-20260824`. It has not been merged,
-dispatched, deployed or used to change production state.
+Status: merged through exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`. The first protected production
+dispatch failed closed on the stale posture fence before counts; it has not
+been deployed or used to change production state.
 
 Audited: 2026-08-24 after the staff Case participant-delivery candidate.
 
@@ -50,6 +51,18 @@ proved the later signed-authority migration stack. TypeScript, lint, the full
 test suite, security audit and production build also passed. This is packaging
 and disposable-PostgreSQL acceptance only: the production inspection was not
 dispatched and no production or provider state changed.
+
+After the stack merged at exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`, protected production inspection
+run `32773408735` failed closed with `POSTURE_MISMATCH` before the aggregate
+query ran or an evidence file was created. Its posture fence still classified
+`SellerPayoutEvent` as a broad-CRUD predecessor even though that service ledger
+had since completed FORCE RLS. The successor fence requires
+`CheckoutStockReservation`, `StripeWebhookEvent` and `SellerPayoutEvent` all to
+be policyless FORCE tables with zero ordinary-runtime CRUD, while `Order`,
+`OrderItem`, `OrderPaymentEvent` and `OrderShippingRateQuote` remain exact
+RLS-off broad-CRUD predecessors. The failed run made no production mutation and
+is not inspection evidence.
 
 ## Decision boundary
 

@@ -1,7 +1,8 @@
 # Order refund claim generation preparation
 
-Status: isolated compatible preparation; not merged, not deployed and not
-applied to production. `OrderPaymentEvent` RLS remains off.
+Status: compatible preparation merged through exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`; not deployed or applied to
+production. `OrderPaymentEvent` RLS remains off.
 
 Prepared: 2026-08-23 after the accepted SellerPayoutEvent FORCE boundary and
 the `OrderPaymentEvent` domain audit. The exact prepared migration is

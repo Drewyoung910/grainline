@@ -73,7 +73,7 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
     assert.match(audit, /Keep `OrderShippingRateQuote`, `Order` and `OrderItem` separate/);
     assert.match(
       audit,
-      /none is merged, deployed or production-applied and `OrderPaymentEvent`\s+RLS remains off/,
+      /merged through exact main[\s\S]*They are not deployed or\s+production-applied, and `OrderPaymentEvent` RLS remains off/,
     );
   });
 

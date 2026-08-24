@@ -1,12 +1,11 @@
 # Order refund provider reconciliation preparation
 
-Status: the byte-sealed reconciliation checkpoint remains isolated on
-`agent/order-payment-event-refund-reconciliation-20260824`; its reviewed
-inactive-seller successor is stacked on
-`agent/order-payment-event-inactive-seller-recovery-20260824`. Neither branch
-is merged, deployed or applied to production. `OrderPaymentEvent` RLS remains
-off, predecessor `Order`/`OrderPaymentEvent` grants remain unchanged and no
-production workflow is wired for either migration.
+Status: the byte-sealed reconciliation checkpoint and its reviewed
+inactive-seller successor merged through exact main
+`d17b0384f2b90b128ba23852a0dedb004ce52739`. Neither is deployed or applied to
+production. `OrderPaymentEvent` RLS remains off, predecessor
+`Order`/`OrderPaymentEvent` grants remain unchanged and no production workflow
+is wired for either migration.
 
 Prepared: 2026-08-24. The exact additive migration is
 `20260824040000_prepare_order_refund_reconciliation_authority`, SHA-256
