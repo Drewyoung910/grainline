@@ -6,7 +6,11 @@ import path from "node:path";
 export const ORDER_REFUND_RECORD_AUTHORITY_MIGRATION =
   "20260824020000_prepare_order_refund_record_authority";
 export const ORDER_REFUND_RECORD_AUTHORITY_MIGRATION_SHA256 =
-  "906b1e6c5196a7385027e3842fb3146907e2d24f629a9431bbbc5db7dbece782";
+  "e1cd79da8f6a0a22668cb612c6f7d579b7af1caf431f917d69771e6b0742d505";
+
+export const ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES = Object.freeze([
+  "grainline_blocked_checkout_refund_record_core",
+]);
 
 export function verifyOrderRefundRecordAuthorityMigrationBytes(
   rootDirectory = process.cwd(),

@@ -35,7 +35,7 @@ const marketplaceRefunds = readFileSync(
   "utf8",
 );
 
-test("adds three pinned source-bound runtime entrypoints without changing RLS or table grants", () => {
+test("adds three pinned runtime entrypoints and one owner-private record core without changing RLS or table grants", () => {
   for (const name of [
     "grainline_blocked_checkout_refund_claim_resume",
     "grainline_seller_refund_record",
@@ -55,10 +55,22 @@ test("adds three pinned source-bound runtime entrypoints without changing RLS or
       ),
     );
   }
-  assert.equal((migration.match(/SECURITY DEFINER/gu) ?? []).length, 3);
+  assert.match(
+    migration,
+    /CREATE FUNCTION public\.grainline_blocked_checkout_refund_record_core\(/,
+  );
+  assert.match(
+    migration,
+    /grainline_blocked_checkout_refund_record_core\([\s\S]*?FROM PUBLIC, grainline_app_runtime;/,
+  );
+  assert.doesNotMatch(
+    migration,
+    /GRANT EXECUTE ON FUNCTION\s+public\.grainline_blocked_checkout_refund_record_core/,
+  );
+  assert.equal((migration.match(/SECURITY DEFINER/gu) ?? []).length, 4);
   assert.equal(
     (migration.match(/SET search_path = pg_catalog/gu) ?? []).length,
-    3,
+    4,
   );
   assert.doesNotMatch(migration, /ENABLE ROW LEVEL SECURITY/);
   assert.doesNotMatch(migration, /FORCE ROW LEVEL SECURITY/);
@@ -175,6 +187,10 @@ test("application paths use one typed fixed finalizer for the initial write and 
   assert.equal(
     (finalizationHelper.match(/recordBlockedCheckoutOrderRefund\(input, tx\)/gu) ?? []).length,
     1,
+  );
+  assert.match(
+    finalizationHelper,
+    /recordReconciledBlockedCheckoutOrderRefund\(/,
   );
   assert.equal(
     (finalizationHelper.match(/prisma\.\$transaction\(async \(tx\) =>/gu) ?? []).length,

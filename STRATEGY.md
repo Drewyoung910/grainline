@@ -523,7 +523,12 @@ an immutable FORCE-RLS/no-policy evidence ledger and a single Admin-PIN action
 whose outcome is derived rather than selected. The pass also fixed the
 previously unreachable blocked-checkout generation-resume path and normalized
 all still-unapplied refund claim/finalizer clocks to UTC before refreshing their
-byte seals. This closes the ambiguous provider-outcome design gap only. It is
+byte seals. Extra-High review also caught a failed-lease recovery gap: the
+webhook correctly cleared its processing lease before staff inspection, but
+the original finalizer still required that lease. The isolated correction
+keeps the mutation core owner-private and adds an exact immutable-
+reconciliation wrapper that co-commits refund finalization with source-event
+completion. This closes the ambiguous provider-outcome design gap only. It is
 not merged, deployed, production-applied or activation evidence. Keep the
 inactive-seller-after-provider-effect recovery edge, staff Case refund family,
 remaining invariants, actor projections/aggregates, fresh production

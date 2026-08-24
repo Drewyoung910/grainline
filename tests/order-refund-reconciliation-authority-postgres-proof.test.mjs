@@ -44,6 +44,10 @@ test("real PostgreSQL reconciliation proof refuses unsafe database targets", () 
 
 test("CI runs the real PostgreSQL proof only after applying reconciliation", () => {
   const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+  const proofSource = readFileSync(
+    "scripts/order-refund-reconciliation-authority-postgres-proof.mjs",
+    "utf8",
+  );
   const apply = ci.indexOf(
     "Apply Order refund reconciliation authority preparation",
   );
@@ -60,5 +64,13 @@ test("CI runs the real PostgreSQL proof only after applying reconciliation", () 
       "audit:order-refund-reconciliation-authority-postgres"
     ],
     /order-refund-reconciliation-authority-postgres-proof\.mjs/,
+  );
+  assert.match(proofSource, /processingStartedAt" = NULL/);
+  assert.match(proofSource, /inactive signed-lease blocked-checkout record/);
+  assert.match(proofSource, /direct blocked-checkout record core/);
+  assert.match(proofSource, /forged blocked-checkout reconciliation record/);
+  assert.match(
+    proofSource,
+    /failedLeaseRecoveryBoundToReconciliation: true/,
   );
 });

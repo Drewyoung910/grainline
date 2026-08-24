@@ -42,22 +42,22 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
   );
   assert.equal(
     (migration.match(/CREATE FUNCTION public\.grainline_/gu) ?? []).length,
-    4,
+    5,
     "Order refund reconciliation function count drifted",
   );
   assert.equal(
     (migration.match(/SECURITY DEFINER/gu) ?? []).length,
-    3,
+    4,
     "Order refund reconciliation definer count drifted",
   );
   assert.equal(
     (migration.match(/SET search_path = pg_catalog/gu) ?? []).length,
-    4,
+    5,
     "Order refund reconciliation search path count drifted",
   );
   assert.equal(
     (migration.match(/TO grainline_app_runtime;/gu) ?? []).length,
-    3,
+    4,
     "Order refund reconciliation runtime grant count drifted",
   );
   assert.match(
@@ -89,7 +89,7 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     predecessorMigration: ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
     predecessorSha256: predecessor.migrationSha256,
     protectedTables: 1,
-    runtimeFunctions: 3,
+    runtimeFunctions: 4,
     privateFunctions: 1,
     rlsEnabled: true,
     rlsForced: true,

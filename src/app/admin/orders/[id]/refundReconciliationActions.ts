@@ -70,6 +70,7 @@ async function requirePinnedAdmin() {
 async function finalizePreparedRefund(
   orderId: string,
   claim: NonNullable<Awaited<ReturnType<typeof prepareOrderRefundReconciliation>>>,
+  reconciliationId: string,
 ) {
   const providerResult = await resolveOrderRefundProviderOutcome(claim);
   const evidence = orderRefundProviderEvidence(providerResult);
@@ -80,7 +81,12 @@ async function finalizePreparedRefund(
         claim,
         evidence,
       })
-    : finalizeBlockedCheckoutOrderRefund({ orderId, claim, evidence });
+    : finalizeBlockedCheckoutOrderRefund({
+        orderId,
+        claim,
+        evidence,
+        reconciliationId,
+      });
 
   try {
     return await finalize();
@@ -147,7 +153,7 @@ export async function reconcileAmbiguousOrderRefund(
       };
     }
 
-    await reconcileOrderRefundClaim({
+    const reconciled = await reconcileOrderRefundClaim({
       actorUserId: admin.id,
       claim: preparedClaim,
       action: decision.action,
@@ -166,7 +172,11 @@ export async function reconcileAmbiguousOrderRefund(
       };
     }
 
-    const finalized = await finalizePreparedRefund(orderId, preparedClaim);
+    const finalized = await finalizePreparedRefund(
+      orderId,
+      preparedClaim,
+      reconciled.reconciliationId,
+    );
     if (finalized.restoredActiveListingCount > 0) {
       revalidateListingSearchCaches();
       revalidateFeaturedMakerCaches();

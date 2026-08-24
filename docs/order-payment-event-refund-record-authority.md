@@ -8,7 +8,7 @@ Prepared: 2026-08-23 on
 `agent/order-payment-event-refund-finalization-20260823`, stacked on the
 generation-fenced claim checkpoint in PR #253. The exact prepared migration is
 `20260824020000_prepare_order_refund_record_authority`, SHA-256
-`906b1e6c5196a7385027e3842fb3146907e2d24f629a9431bbbc5db7dbece782`.
+`e1cd79da8f6a0a22668cb612c6f7d579b7af1caf431f917d69771e6b0742d505`.
 
 All fixed-operation timestamps are written explicitly in UTC. This preserves
 the claim clock and finalization evidence across database session time zones.
@@ -105,6 +105,16 @@ All are owner-held `SECURITY DEFINER`, `VOLATILE`, `PARALLEL UNSAFE`, pinned to
 `search_path=pg_catalog`, revoked from `PUBLIC`, and executable only by
 `grainline_app_runtime`. There is no dynamic SQL or generic table writer.
 
+The shared blocked-checkout mutation body is the separate
+`grainline_blocked_checkout_refund_record_core(...)`. It is owner-private:
+both `PUBLIC` and `grainline_app_runtime` are explicitly revoked. The ordinary
+runtime wrapper requires the exact active signed webhook lease, except that an
+exact already-recorded local payment-event replay remains readable. The later
+reconciliation migration adds a distinct runtime wrapper around the same core;
+that wrapper derives the event/generation from one immutable ADMIN
+reconciliation row and accepts only the failed, inactive, unprocessed event
+state. Runtime never receives direct execute on the core.
+
 Provider refund/reversal fields necessarily cross the application/database
 boundary because PostgreSQL cannot authenticate a synchronous Stripe API
 response. The fixed functions accept only one shaped refund identity, bind it
@@ -152,12 +162,16 @@ proves:
 - a later signed webhook generation can resume only the identical active
   blocked-checkout claim;
 - blocked-checkout replay remains exact after the event is processed;
+- direct runtime execution of the blocked-checkout core is denied;
+- after a failed webhook clears its lease, the ordinary wrapper denies a new
+  record while the exact immutable-reconciliation wrapper can record once and
+  atomically mark the source event processed;
 - malformed provider evidence and claim-generation drift fail closed; and
 - runtime/PUBLIC function privileges match the reviewed catalog.
 
-Static contracts additionally pin the three signatures, fixed function
-posture, application callsites, typed result validation, absence of dynamic SQL
-and absence of RLS/table-grant changes. The release verifier seals the exact
+Static contracts additionally pin the three runtime signatures plus the one
+owner-private core, fixed function posture, application callsites, typed result
+validation, absence of dynamic SQL and absence of RLS/table-grant changes. The release verifier seals the exact
 migration bytes and nests the release after the exact claim-generation
 predecessor. CI must isolate this migration while replaying historical sealed
 predecessors, then restore and apply it only to the disposable CI database.

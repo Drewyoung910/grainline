@@ -311,3 +311,48 @@ export async function recordBlockedCheckoutOrderRefund(
     supportsCase: false,
   });
 }
+
+export async function recordReconciledBlockedCheckoutOrderRefund(
+  input: {
+    reconciliationId: string;
+    orderId: string;
+    claim: OrderRefundClaim;
+    evidence: OrderRefundProviderEvidence;
+  },
+  client: RefundRecordClient = prisma,
+) {
+  if (
+    input.claim.source !== "BLOCKED_CHECKOUT"
+    || input.claim.sourceGeneration === null
+  ) {
+    throw new TypeError(
+      "Blocked-checkout reconciliation received the wrong claim family",
+    );
+  }
+  if (!/^order-refund-reconcile:[0-9a-f-]{36}$/.test(input.reconciliationId)) {
+    throw new TypeError("Blocked-checkout reconciliation identity is invalid");
+  }
+  validateEvidenceForClaim(input.claim, input.evidence);
+  const rows = await client.$queryRaw<Array<{ result: unknown }>>(Prisma.sql`
+    SELECT public.grainline_blocked_checkout_refund_reconciliation_record(
+      ${input.reconciliationId}::text,
+      ${input.claim.claimId}::text,
+      ${input.claim.claimGeneration}::bigint,
+      ${input.evidence.refundId}::text,
+      ${input.evidence.refundStatus}::text,
+      ${input.evidence.transferReversalId}::text,
+      ${input.evidence.transferReversalAmountCents}::integer
+    ) AS result
+  `);
+  if (rows.length !== 1) {
+    throw new TypeError(
+      "Blocked-checkout reconciliation record returned an invalid row count",
+    );
+  }
+  return validateRecordResult(rows[0]?.result, {
+    claim: input.claim,
+    evidence: input.evidence,
+    expectedOrderId: input.orderId,
+    supportsCase: false,
+  });
+}

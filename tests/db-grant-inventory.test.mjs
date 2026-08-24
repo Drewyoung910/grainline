@@ -21,6 +21,9 @@ import {
   CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
 import {
+  ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
+} from "../scripts/order-refund-record-authority-catalog.mjs";
+import {
   ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
   ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES,
 } from "../scripts/order-refund-reconciliation-authority-catalog.mjs";
@@ -1327,6 +1330,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
       ...ORDER_REFUND_CLAIM_FUNCTION_NAMES,
+      ...ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
       ...ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES,
       ...ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES,
       ...ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
@@ -1367,6 +1371,7 @@ describe("database grant inventory guardrails", () => {
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
         + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
+        + ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES.length
         + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length
         + ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES.length
         + ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES.length

@@ -395,6 +395,11 @@ test("disposable PostgreSQL keeps the ledger table private and fixed functions r
           'EXECUTE'
         ) AS reconcile_acl,
         pg_catalog.has_function_privilege(
+          'grainline_app_runtime',
+          'public.grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)',
+          'EXECUTE'
+        ) AS blocked_record_acl,
+        pg_catalog.has_function_privilege(
           'public',
           'public.grainline_order_refund_reconcile(text,text,bigint,text,text,bigint,text,text)',
           'EXECUTE'
@@ -405,6 +410,7 @@ test("disposable PostgreSQL keeps the ledger table private and fixed functions r
       prepare_acl: true,
       ambiguous_acl: true,
       reconcile_acl: true,
+      blocked_record_acl: true,
       public_acl: false,
     });
   } finally {

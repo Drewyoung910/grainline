@@ -40,6 +40,7 @@ test("release byte-pins the compatible fixed refund record authority", () => {
     "20260824010000_prepare_order_refund_claim_generation",
   );
   assert.equal(release.runtimeFunctions, 3);
+  assert.equal(release.privateFunctions, 1);
   assert.equal(release.rlsChanged, false);
   assert.equal(release.runtimeTablePrivilegesChanged, false);
   assert.equal(release.productionTouched, false);

@@ -32,7 +32,7 @@ const adminComponent = readFileSync(
   "utf8",
 );
 
-test("creates a private immutable ledger and three fixed refund recovery operations", () => {
+test("creates a private immutable ledger and four fixed refund recovery operations", () => {
   assert.match(schema, /model OrderRefundReconciliation \{/);
   assert.match(migration, /CREATE TABLE public\."OrderRefundReconciliation"/);
   assert.match(
@@ -43,10 +43,10 @@ test("creates a private immutable ledger and three fixed refund recovery operati
     migration,
     /REVOKE ALL ON TABLE public\."OrderRefundReconciliation"[\s\S]*FROM PUBLIC, grainline_app_runtime;/,
   );
-  assert.equal((migration.match(/SECURITY DEFINER/gu) ?? []).length, 3);
+  assert.equal((migration.match(/SECURITY DEFINER/gu) ?? []).length, 4);
   assert.equal(
     (migration.match(/SET search_path = pg_catalog/gu) ?? []).length,
-    4,
+    5,
   );
   assert.doesNotMatch(migration, /CREATE POLICY/);
   assert.match(
@@ -57,6 +57,37 @@ test("creates a private immutable ledger and three fixed refund recovery operati
   assert.doesNotMatch(
     migration,
     /pg_catalog\.(?:greatest|least|nullif|coalesce)\b/iu,
+  );
+});
+
+test("binds blocked-checkout finalization to immutable reconciliation after the failed lease clears", () => {
+  assert.match(
+    migration,
+    /CREATE FUNCTION public\.grainline_blocked_checkout_refund_reconciliation_record\(/,
+  );
+  assert.match(
+    migration,
+    /source_reconciliation\."claimSource" <> 'BLOCKED_CHECKOUT'/,
+  );
+  assert.match(
+    migration,
+    /source_reconciliation\.action NOT IN \([\s\S]*'RETRY_EXISTING_SCOPE',[\s\S]*'CONFIRMED_PROVIDER_EFFECT'/,
+  );
+  assert.match(
+    migration,
+    /locked_event\."processingStartedAt" IS NOT NULL[\s\S]*locked_event\."processedAt" IS NOT NULL/,
+  );
+  assert.match(
+    migration,
+    /public\.grainline_blocked_checkout_refund_record_core\(/,
+  );
+  assert.match(
+    migration,
+    /SET "processedAt" = source_now,[\s\S]*"lastError" = NULL/,
+  );
+  assert.match(
+    adminAction,
+    /reconciled\.reconciliationId/,
   );
 });
 

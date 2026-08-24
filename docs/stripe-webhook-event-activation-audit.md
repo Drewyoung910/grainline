@@ -237,6 +237,15 @@ defect. Each remaining path is classified:
   rollback behavior. It proves missing-row inserts and stale reclaims roll
   back, processed/in-progress classification is preserved, type mismatch
   fails, and exact fixture residue returns to zero.
+- `scripts/order-refund-reconciliation-authority-postgres-proof.mjs` is a
+  loopback-only disposable PostgreSQL authority proof. Inside one outer
+  rollback transaction it creates an exact blocked-checkout fixture, simulates
+  the production failed-lease transition, proves the ordinary wrapper and
+  private core are denied to runtime, proves a forged reconciliation is
+  denied, then uses the exact immutable reconciliation wrapper to co-commit
+  refund recording with event completion/error clearing. It runs only after
+  the isolated refund migrations are applied to `grainline_ci`, refuses any
+  non-loopback/non-`ci` target, and is not a persistent-table read path.
 - `scripts/checkout-stock-reservation-production-smoke.mjs` is the protected,
   one-shot compatible-application checkout smoke. Its direct
   `StripeWebhookEvent` reads use only the protected owner connection to prove

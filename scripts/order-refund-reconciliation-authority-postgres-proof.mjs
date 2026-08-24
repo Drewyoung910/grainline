@@ -18,9 +18,26 @@ const ids = Object.freeze({
   employeeUser: `${PREFIX}-employee-user`,
   adminUser: `${PREFIX}-admin-user`,
   order: `${PREFIX}-order`,
+  blockedOrder: `${PREFIX}-blocked-order`,
+  blockedEvent: `${PREFIX}-blocked-event`,
+  blockedSession: `${PREFIX}-blocked-session`,
 });
 
 const expectedFunctions = Object.freeze([
+  Object.freeze({
+    identity: "grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)",
+    securityDefiner: true,
+    volatility: "v",
+    parallel: "u",
+    runtimeExecute: true,
+  }),
+  Object.freeze({
+    identity: "grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)",
+    securityDefiner: true,
+    volatility: "v",
+    parallel: "u",
+    runtimeExecute: false,
+  }),
   Object.freeze({
     identity: "grainline_order_refund_claim_mark_ambiguous(text,bigint,text)",
     securityDefiner: true,
@@ -274,15 +291,29 @@ async function seedFixtures(client) {
   await client.query(`
     INSERT INTO public."Order" (
       id, "sellerProfileId", "paidAt", "stripePaymentIntentId",
-      "stripeTransferId", currency, "itemsSubtotalCents",
+      "stripeTransferId", "stripeSessionId", currency, "itemsSubtotalCents",
       "shippingAmountCents", "giftWrappingPriceCents", "taxAmountCents"
-    ) VALUES ($1, $2, CURRENT_TIMESTAMP, $3, $4, 'usd', 1000, 200, 50, 75)
+    ) VALUES
+      ($1, $2, CURRENT_TIMESTAMP, $3, $4, NULL, 'usd', 1000, 200, 50, 75),
+      ($5, $2, CURRENT_TIMESTAMP, $6, NULL, $7, 'usd', 1000, 200, 50, 75)
   `, [
     ids.order,
     ids.sellerProfile,
     `pi_${PREFIX}`,
     `tr_${PREFIX}`,
+    ids.blockedOrder,
+    `pi_${PREFIX}_blocked`,
+    ids.blockedSession,
   ]);
+  await client.query(`
+    INSERT INTO public."StripeWebhookEvent" (
+      id, type, "sourceObjectId", "claimGeneration",
+      "processingStartedAt", "createdAt", "updatedAt"
+    ) VALUES (
+      $1, 'checkout.session.completed', $2, 1,
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [ids.blockedEvent, ids.blockedSession]);
 }
 
 export async function runOrderRefundReconciliationAuthorityProof(
@@ -410,6 +441,115 @@ export async function runOrderRefundReconciliationAuthorityProof(
       /evidence is immutable/,
     );
 
+    const blockedClaim = (await runtimeQuery(client, `
+      SELECT public.grainline_blocked_checkout_refund_claim(
+        $1, 1, $2, $3, 1325
+      ) AS result
+    `, [ids.blockedEvent, ids.blockedSession, ids.blockedOrder])).rows[0].result;
+    assert.equal(blockedClaim.action, "claimed");
+
+    const blockedAmbiguous = (await runtimeQuery(client, `
+      SELECT public.grainline_order_refund_claim_mark_ambiguous(
+        $1, $2, 'BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS'
+      ) AS result
+    `, [blockedClaim.claimId, blockedClaim.claimGeneration])).rows[0].result;
+    assert.equal(blockedAmbiguous.action, "recorded");
+
+    // Production failure handling releases the webhook processing lease before
+    // an administrator can inspect the provider. Recovery must not fabricate a
+    // lease or rely on a concurrent retry to make the finalizer reachable.
+    await client.query(`
+      UPDATE public."StripeWebhookEvent"
+         SET "processingStartedAt" = NULL,
+             "lastError" = 'sanitized proof failure',
+             "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $1
+    `, [ids.blockedEvent]);
+
+    const blockedPrepared = (await runtimeQuery(client, `
+      SELECT public.grainline_order_refund_reconciliation_prepare($1, $2)
+        AS result
+    `, [ids.adminUser, ids.blockedOrder])).rows[0].result;
+    const blockedInspectedAt = Number(
+      blockedPrepared.providerAuthorizedAtSeconds,
+    );
+    const blockedReconciled = (await runtimeQuery(client, `
+      SELECT public.grainline_order_refund_reconcile(
+        $1, $2, $3, 'RETRY_EXISTING_SCOPE', $4, $5, 'ABSENT', $6
+      ) AS result
+    `, [
+      ids.adminUser,
+      blockedClaim.claimId,
+      blockedClaim.claimGeneration,
+      "PostgreSQL failed-lease recovery proof.",
+      blockedInspectedAt,
+      "b".repeat(64),
+    ])).rows[0].result;
+    assert.equal(blockedReconciled.action, "retry_authorized");
+
+    await expectError(
+      "inactive signed-lease blocked-checkout record",
+      () => runtimeQuery(client, `
+        SELECT public.grainline_blocked_checkout_refund_record(
+          $1, 1, $2, $3, 're_blockedpgproof', 'succeeded', NULL, NULL
+        )
+      `, [
+        ids.blockedEvent,
+        blockedClaim.claimId,
+        blockedClaim.claimGeneration,
+      ]),
+      "42501",
+      /source lease is inactive/,
+    );
+
+    await expectError(
+      "direct blocked-checkout record core",
+      () => runtimeQuery(client, `
+        SELECT public.grainline_blocked_checkout_refund_record_core(
+          $1, 1, $2, $3, 're_blockedpgproof', 'succeeded', NULL, NULL
+        )
+      `, [
+        ids.blockedEvent,
+        blockedClaim.claimId,
+        blockedClaim.claimGeneration,
+      ]),
+      "42501",
+      /permission denied for function grainline_blocked_checkout_refund_record_core/,
+    );
+
+    await expectError(
+      "forged blocked-checkout reconciliation record",
+      () => runtimeQuery(client, `
+        SELECT public.grainline_blocked_checkout_refund_reconciliation_record(
+          'order-refund-reconcile:00000000-0000-0000-0000-000000000000',
+          $1, $2, 're_blockedpgproof', 'succeeded', NULL, NULL
+        )
+      `, [blockedClaim.claimId, blockedClaim.claimGeneration]),
+      "42501",
+      /reconciliation authority is invalid/,
+    );
+
+    const blockedRecorded = (await runtimeQuery(client, `
+      SELECT public.grainline_blocked_checkout_refund_reconciliation_record(
+        $1, $2, $3, 're_blockedpgproof', 'succeeded', NULL, NULL
+      ) AS result
+    `, [
+      blockedReconciled.reconciliationId,
+      blockedClaim.claimId,
+      blockedClaim.claimGeneration,
+    ])).rows[0].result;
+    assert.equal(blockedRecorded.action, "recorded");
+    assert.equal(blockedRecorded.orderId, ids.blockedOrder);
+
+    const completedEvent = await client.query(`
+      SELECT "processingStartedAt", "processedAt", "lastError"
+        FROM public."StripeWebhookEvent"
+       WHERE id = $1
+    `, [ids.blockedEvent]);
+    assert.equal(completedEvent.rows[0].processingStartedAt, null);
+    assert.ok(completedEvent.rows[0].processedAt instanceof Date);
+    assert.equal(completedEvent.rows[0].lastError, null);
+
     await client.query("ROLLBACK");
     transactionOpen = false;
     const residue = await client.query(`
@@ -432,6 +572,7 @@ export async function runOrderRefundReconciliationAuthorityProof(
       adminPreparedExactClaim: true,
       exactReplayIdempotent: true,
       ownerMutationRejected: true,
+      failedLeaseRecoveryBoundToReconciliation: true,
       residueRows: 0,
       productionTouched: false,
     });

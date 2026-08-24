@@ -6,13 +6,14 @@ import path from "node:path";
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION =
   "20260824040000_prepare_order_refund_reconciliation_authority";
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION_SHA256 =
-  "09578b9848e3ded056c96b8d46d2aefbc066be2c0a924bdd2661e671dd7fd8ca";
+  "cfd5d2827eb234fb9c1b7f990b63c3e6bcc2db0dd80038cfcfd163c81314d3d7";
 
 export const ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES =
   Object.freeze([
     "grainline_order_refund_reconciliation_prepare",
     "grainline_order_refund_claim_mark_ambiguous",
     "grainline_order_refund_reconcile",
+    "grainline_blocked_checkout_refund_reconciliation_record",
   ]);
 
 export const ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES =

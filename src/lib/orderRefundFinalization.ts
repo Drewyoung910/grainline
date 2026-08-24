@@ -10,6 +10,7 @@ import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import type { OrderRefundClaim } from "@/lib/orderRefundClaimAuthority";
 import {
   recordBlockedCheckoutOrderRefund,
+  recordReconciledBlockedCheckoutOrderRefund,
   recordSellerOrderRefund,
   type OrderRefundProviderEvidence,
 } from "@/lib/orderRefundRecordAuthority";
@@ -97,9 +98,20 @@ export async function finalizeBlockedCheckoutOrderRefund(input: {
   orderId: string;
   claim: OrderRefundClaim;
   evidence: OrderRefundProviderEvidence;
+  reconciliationId?: string;
 }) {
   return prisma.$transaction(async (tx) => {
-    const result = await recordBlockedCheckoutOrderRefund(input, tx);
+    const result = input.reconciliationId
+      ? await recordReconciledBlockedCheckoutOrderRefund(
+          {
+            reconciliationId: input.reconciliationId,
+            orderId: input.orderId,
+            claim: input.claim,
+            evidence: input.evidence,
+          },
+          tx,
+        )
+      : await recordBlockedCheckoutOrderRefund(input, tx);
     if (!result.buyerUserId) return result;
 
     await createNotificationOrThrow({

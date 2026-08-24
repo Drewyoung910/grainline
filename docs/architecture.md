@@ -211,6 +211,16 @@ event, Checkout Session, Order, amount and idempotency scope. See
 `docs/order-payment-event-refund-claim-generation.md` and
 `docs/order-payment-event-refund-record-authority.md`; both remain isolated
 preparation, not production database state.
+The blocked-checkout finalizer uses one owner-private mutation core with no
+runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
+active-webhook-lease wrapper. If the webhook failed and released its lease,
+only a distinct wrapper bound to one immutable current-ADMIN reconciliation
+row may reach the core; that wrapper derives and locks the source event and
+generation, requires the failed inactive state, finalizes the refund, and marks
+the event processed in the same database transaction. This split avoids both
+fabricating a signed lease for staff recovery and granting runtime direct core
+authority. Provider refund/reversal fields remain authenticated application
+evidence rather than database-cryptographic Stripe proof.
 It also records the launch-safe refund contract: seller self-service supports
 full cancellation/refund, while partial refunds remain staff Case operations
 until the Order model can represent residual line-item fulfillment. Shipping

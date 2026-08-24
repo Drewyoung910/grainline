@@ -8,7 +8,7 @@ Production Migrations workflow is intentionally not wired.
 
 Prepared: 2026-08-24. The exact additive migration is
 `20260824040000_prepare_order_refund_reconciliation_authority`, SHA-256
-`09578b9848e3ded056c96b8d46d2aefbc066be2c0a924bdd2661e671dd7fd8ca`.
+`cfd5d2827eb234fb9c1b7f990b63c3e6bcc2db0dd80038cfcfd163c81314d3d7`.
 
 ## Decision
 
@@ -80,7 +80,7 @@ Both the server action and database require a trimmed 10-to-1,000-character
 reason, so direct function invocation cannot weaken the audit explanation to a
 token value.
 
-The runtime receives exactly three fixed entrypoints:
+The runtime receives exactly four fixed entrypoints:
 
 1. `grainline_order_refund_reconciliation_prepare(text,text)` returns one
    active claim only for a current, non-banned, non-deleted `ADMIN`;
@@ -88,15 +88,21 @@ The runtime receives exactly three fixed entrypoints:
    of four closed internal reason codes and moves only the exact active claim
    to the reconciliation sentinel; and
 3. `grainline_order_refund_reconcile(text,text,bigint,text,text,bigint,text,text)`
-   records one fresh inspection and applies only the matching closed transition.
+   records one fresh inspection and applies only the matching closed transition;
+   and
+4. `grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)`
+   derives the failed source event and generation from the exact immutable
+   reconciliation row, calls the owner-private record core, and marks that
+   event processed in the same transaction.
 
-The three owner-held operations are `SECURITY DEFINER`, `PARALLEL UNSAFE`, pin
+The four owner-held operations are `SECURITY DEFINER`, `PARALLEL UNSAFE`, pin
 `search_path=pg_catalog`, contain no dynamic SQL, are revoked from `PUBLIC` and
 grant execute only to `grainline_app_runtime`. The immutable trigger function
-is not a runtime entrypoint. This remains narrow application-service authority,
-not a claim that PostgreSQL cryptographically validates Stripe or Clerk: the
-database revalidates current ADMIN state and exact claim shape, while Clerk
-session and Admin-PIN possession are enforced by the server action.
+and the blocked-checkout record core are not runtime entrypoints. This remains
+narrow application-service authority, not a claim that PostgreSQL
+cryptographically validates Stripe or Clerk: the database revalidates current
+ADMIN state and exact claim shape, while Clerk session and Admin-PIN possession
+are enforced by the server action.
 
 ## Findings closed in this pass
 
@@ -116,6 +122,16 @@ session and Admin-PIN possession are enforced by the server action.
 - The admin form does not expose claim, PaymentIntent or provider outcome
   controls. It shows only the local pending/ambiguous state and one inspect
   action with a required reason.
+- Extra-High review found that a failed webhook clears `processingStartedAt`
+  before an administrator can inspect Stripe, while the original
+  blocked-checkout finalizer required that lease to remain active. Confirmed
+  effects and approved same-scope retries could therefore be classified but
+  never finalized. The repaired design keeps the mutation core owner-private,
+  preserves the signed-lease wrapper for normal webhook delivery, and adds a
+  separate exact-reconciliation wrapper for the failed inactive event. It
+  revalidates the immutable reconciliation, current ADMIN, source event type
+  and generation, finalizes once, and clears the source event error while
+  marking it processed atomically.
 - Draft PR CI run `32701936965` failed before this candidate was restored: the
   source-derived grant auditor treated the branch-tip Prisma model as already
   materialized while replaying the historical Case activation prefix. The
@@ -146,10 +162,14 @@ does not complete `OrderPaymentEvent` RLS. In particular:
 
 ## Proof retained
 
-Disposable PGlite executes the real claim and reconciliation migrations and
-proves current-ADMIN denial, exact 23/25-hour transitions, same-whole-second
-clock handling, exact generation/source binding, closed ambiguous reasons and
-owner-resistant update/delete rejection. CI also applies the migration to its
+Disposable PGlite executes the real claim, record and reconciliation migrations
+and proves current-ADMIN denial, exact 23/25-hour transitions,
+same-whole-second clock handling, exact generation/source binding, closed
+ambiguous reasons, owner-resistant update/delete rejection and the failed-
+lease recovery path end to end. It proves the ordinary wrapper cannot bypass
+the inactive lease, a forged reconciliation cannot recover it, the exact row
+can finalize once, and event completion/error clearing co-commit with the
+refund record. CI also applies the migration to its
 loopback PostgreSQL 16 service and runs a separate rollback-only proof through
 `SET LOCAL ROLE grainline_app_runtime`: it verifies the exact catalog, zero
 policies/table grants, current-ADMIN boundary, exact retry/replay behavior,

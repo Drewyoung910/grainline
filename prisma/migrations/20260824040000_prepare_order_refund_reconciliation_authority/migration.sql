@@ -18,6 +18,9 @@ BEGIN
      ) IS NOT NULL
      OR pg_catalog.to_regprocedure(
        'public.grainline_order_refund_reconcile(text,text,bigint,text,text,bigint,text,text)'
+     ) IS NOT NULL
+     OR pg_catalog.to_regprocedure(
+       'public.grainline_blocked_checkout_refund_reconciliation_record(text,text,bigint,text,text,text,integer)'
      ) IS NOT NULL THEN
     RAISE EXCEPTION 'Order refund reconciliation authority already exists'
       USING ERRCODE = 'duplicate_object';
@@ -684,6 +687,122 @@ BEGIN
 END
 $grainline_order_refund_reconcile$;
 
+-- A failed webhook clears processingStartedAt before an administrator can
+-- inspect Stripe. Bind the recovery finalizer to the immutable ADMIN
+-- reconciliation record instead of pretending that the old webhook lease is
+-- still active. The source event, generation and Order remain database-derived.
+CREATE FUNCTION public.grainline_blocked_checkout_refund_reconciliation_record(
+  p_reconciliation_id text,
+  p_claim_id text,
+  p_claim_generation bigint,
+  p_refund_id text,
+  p_refund_status text,
+  p_transfer_reversal_id text,
+  p_transfer_reversal_amount_cents integer
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_blocked_checkout_refund_reconciliation_record$
+DECLARE
+  source_reconciliation public."OrderRefundReconciliation"%ROWTYPE;
+  source_actor public."User"%ROWTYPE;
+  locked_event public."StripeWebhookEvent"%ROWTYPE;
+  record_result jsonb;
+  source_now timestamp(3) without time zone :=
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC';
+BEGIN
+  IF p_reconciliation_id IS NULL
+     OR p_reconciliation_id !~ '^order-refund-reconcile:[0-9a-f-]{36}$'
+     OR p_claim_id IS NULL
+     OR p_claim_id !~ '^order_refund_claim_[0-9a-f-]{36}$'
+     OR p_claim_generation IS NULL OR p_claim_generation < 1 THEN
+    RAISE EXCEPTION 'Blocked-checkout reconciliation record input is invalid'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  SELECT reconciliation.*
+    INTO source_reconciliation
+    FROM public."OrderRefundReconciliation" AS reconciliation
+   WHERE reconciliation.id = p_reconciliation_id
+     AND reconciliation."claimId" = p_claim_id
+     AND reconciliation."claimGeneration" = p_claim_generation
+   FOR SHARE;
+  IF NOT FOUND
+     OR source_reconciliation."claimSource" <> 'BLOCKED_CHECKOUT'
+     OR source_reconciliation."claimSourceGeneration" IS NULL
+     OR source_reconciliation.action NOT IN (
+       'RETRY_EXISTING_SCOPE',
+       'CONFIRMED_PROVIDER_EFFECT'
+     ) THEN
+    RAISE EXCEPTION 'Blocked-checkout reconciliation authority is invalid'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  SELECT actor.*
+    INTO source_actor
+    FROM public."User" AS actor
+   WHERE actor.id = source_reconciliation."actorUserId"
+   FOR SHARE;
+  IF NOT FOUND
+     OR source_actor.role <> 'ADMIN'::public."Role"
+     OR source_actor.banned
+     OR source_actor."deletedAt" IS NOT NULL THEN
+    RAISE EXCEPTION 'Blocked-checkout reconciliation requires a current ADMIN'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  SELECT source_event.*
+    INTO locked_event
+    FROM public."StripeWebhookEvent" AS source_event
+   WHERE source_event.id = source_reconciliation."claimSourceId"
+   FOR UPDATE;
+  IF NOT FOUND
+     OR locked_event.type NOT IN (
+       'checkout.session.completed',
+       'checkout.session.async_payment_succeeded'
+     )
+     OR locked_event."claimGeneration" IS DISTINCT FROM
+          source_reconciliation."claimSourceGeneration"
+     OR locked_event."processingStartedAt" IS NOT NULL
+     OR locked_event."processedAt" IS NOT NULL THEN
+    RAISE EXCEPTION 'Blocked-checkout reconciliation source event is not recoverable'
+      USING ERRCODE = 'serialization_failure';
+  END IF;
+
+  record_result := public.grainline_blocked_checkout_refund_record_core(
+    source_reconciliation."claimSourceId",
+    source_reconciliation."claimSourceGeneration",
+    p_claim_id,
+    p_claim_generation,
+    p_refund_id,
+    p_refund_status,
+    p_transfer_reversal_id,
+    p_transfer_reversal_amount_cents
+  );
+
+  UPDATE public."StripeWebhookEvent" AS source_event
+     SET "processedAt" = source_now,
+         "processingStartedAt" = NULL,
+         "lastError" = NULL,
+         "updatedAt" = source_now
+   WHERE source_event.id = source_reconciliation."claimSourceId"
+     AND source_event."claimGeneration"
+          = source_reconciliation."claimSourceGeneration"
+     AND source_event."processedAt" IS NULL
+     AND source_event."processingStartedAt" IS NULL;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Blocked-checkout reconciliation completion raced'
+      USING ERRCODE = 'serialization_failure';
+  END IF;
+
+  RETURN record_result;
+END
+$grainline_blocked_checkout_refund_reconciliation_record$;
+
 REVOKE ALL ON FUNCTION
   public.grainline_order_refund_reconciliation_prepare(text, text)
   FROM PUBLIC, grainline_app_runtime;
@@ -702,6 +821,17 @@ REVOKE ALL ON FUNCTION
     text
   )
   FROM PUBLIC, grainline_app_runtime;
+REVOKE ALL ON FUNCTION
+  public.grainline_blocked_checkout_refund_reconciliation_record(
+    text,
+    text,
+    bigint,
+    text,
+    text,
+    text,
+    integer
+  )
+  FROM PUBLIC, grainline_app_runtime;
 GRANT EXECUTE ON FUNCTION
   public.grainline_order_refund_reconciliation_prepare(text, text)
   TO grainline_app_runtime;
@@ -718,6 +848,17 @@ GRANT EXECUTE ON FUNCTION
     bigint,
     text,
     text
+  )
+  TO grainline_app_runtime;
+GRANT EXECUTE ON FUNCTION
+  public.grainline_blocked_checkout_refund_reconciliation_record(
+    text,
+    text,
+    bigint,
+    text,
+    text,
+    text,
+    integer
   )
   TO grainline_app_runtime;
 
@@ -741,6 +882,17 @@ COMMENT ON FUNCTION
     text
   ) IS
   'Transitions one exact ambiguous Order refund claim using fresh provider-inspection evidence.';
+COMMENT ON FUNCTION
+  public.grainline_blocked_checkout_refund_reconciliation_record(
+    text,
+    text,
+    bigint,
+    text,
+    text,
+    text,
+    integer
+  ) IS
+  'Finalizes one failed-lease blocked-checkout refund only through its exact immutable ADMIN reconciliation record.';
 
 DO $grainline_order_refund_reconciliation_postflight$
 DECLARE
@@ -765,14 +917,15 @@ BEGIN
      AND routine.proname IN (
        'grainline_order_refund_reconciliation_prepare',
        'grainline_order_refund_claim_mark_ambiguous',
-       'grainline_order_refund_reconcile'
+       'grainline_order_refund_reconcile',
+       'grainline_blocked_checkout_refund_reconciliation_record'
      )
      AND pg_catalog.has_function_privilege(
        'grainline_app_runtime',
        routine.oid,
        'EXECUTE'
      );
-  IF runtime_function_count <> 3 THEN
+  IF runtime_function_count <> 4 THEN
     RAISE EXCEPTION 'Order refund reconciliation function ACL drifted';
   END IF;
 END

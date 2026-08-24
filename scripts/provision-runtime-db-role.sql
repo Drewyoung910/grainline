@@ -1390,6 +1390,31 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- The blocked-checkout record core is owner-private. Runtime reaches it only
+-- through the active signed-lease wrapper above or the later immutable
+-- reconciliation wrapper below.
+WITH order_refund_record_private(function_signature) AS (
+  VALUES
+    ('public."grainline_blocked_checkout_refund_record_core"(text, bigint, text, bigint, text, text, text, integer)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_refund_record_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_record_private(function_signature) AS (
+  VALUES
+    ('public."grainline_blocked_checkout_refund_record_core"(text, bigint, text, bigint, text, text, text, integer)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_record_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- Signed platform refund/dispute authority is an additive compatibility
 -- boundary before OrderPaymentEvent RLS. Converge only its two source-bound
 -- functions when the reviewed successor migration is present.
@@ -1432,14 +1457,15 @@ SELECT format(
 \gexec
 
 -- Ambiguous Order-refund reconciliation is an additive compatible boundary.
--- Keep the immutable trigger helper private and expose only the three exact,
+-- Keep the immutable trigger helper private and expose only the four exact,
 -- source-bound operations when the reviewed migration is present.
 WITH order_refund_reconciliation_authority(function_signature, runtime_execute) AS (
   VALUES
     ('public."grainline_order_refund_reconciliation_immutable"()', false),
     ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
     ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
-    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true)
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true),
+    ('public."grainline_blocked_checkout_refund_reconciliation_record"(text, text, bigint, text, text, text, integer)', true)
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM order_refund_reconciliation_authority
@@ -1451,7 +1477,8 @@ WITH order_refund_reconciliation_authority(function_signature, runtime_execute) 
     ('public."grainline_order_refund_reconciliation_immutable"()', false),
     ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
     ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
-    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true)
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true),
+    ('public."grainline_blocked_checkout_refund_reconciliation_record"(text, text, bigint, text, text, text, integer)', true)
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -1467,7 +1494,8 @@ WITH order_refund_reconciliation_authority(function_signature, runtime_execute) 
     ('public."grainline_order_refund_reconciliation_immutable"()', false),
     ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
     ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
-    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true)
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true),
+    ('public."grainline_blocked_checkout_refund_reconciliation_record"(text, text, bigint, text, text, text, integer)', true)
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

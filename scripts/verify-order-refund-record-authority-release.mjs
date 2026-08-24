@@ -50,7 +50,7 @@ export function verifyOrderRefundRecordAuthorityRelease(
   }
   assert.equal(
     (migration.match(/CREATE FUNCTION public\.grainline_/gu) ?? []).length,
-    3,
+    4,
     "Order refund record authority function count drifted",
   );
   assert.match(migration, /SECURITY DEFINER/);
@@ -59,6 +59,10 @@ export function verifyOrderRefundRecordAuthorityRelease(
     (migration.match(/FROM PUBLIC;/gu) ?? []).length,
     3,
     "Order refund record PUBLIC revocation count drifted",
+  );
+  assert.match(
+    migration,
+    /REVOKE ALL ON FUNCTION\s+public\.grainline_blocked_checkout_refund_record_core\([\s\S]*?\)\s+FROM PUBLIC, grainline_app_runtime;/u,
   );
   assert.equal(
     (migration.match(/TO grainline_app_runtime;/gu) ?? []).length,
@@ -75,6 +79,7 @@ export function verifyOrderRefundRecordAuthorityRelease(
     migrationSha256,
     predecessorMigration: predecessor.migration,
     runtimeFunctions: 3,
+    privateFunctions: 1,
     rlsChanged: false,
     runtimeTablePrivilegesChanged: false,
     productionTouched: false,

@@ -33,7 +33,7 @@ test("release byte-pins the compatible refund reconciliation authority", () => {
     release.predecessorMigration,
     "20260824030000_prepare_order_payment_signed_authority",
   );
-  assert.equal(release.runtimeFunctions, 3);
+  assert.equal(release.runtimeFunctions, 4);
   assert.equal(release.privateFunctions, 1);
   assert.equal(release.rlsEnabled, true);
   assert.equal(release.rlsForced, true);

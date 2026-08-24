@@ -2242,3 +2242,32 @@ Open work:
 - The next remaining table starts only after its own fresh domain audit. Do
   not bundle `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, or
   `OrderItem`.
+
+## Order refund reconciliation failed-lease recovery correction (2026-08-24)
+
+- Extra-High end-to-end review found a functional recovery defect before merge
+  or production use. Failed Stripe webhook handling intentionally clears
+  `StripeWebhookEvent.processingStartedAt`, but the blocked-checkout refund
+  record function required that lease to remain active. An administrator could
+  therefore classify an ambiguous provider effect or authorize an exact-scope
+  retry, yet the subsequent local finalization would always fail unless it
+  raced a later active webhook lease.
+- The compatible record migration now keeps the shared blocked-checkout
+  mutation body in an owner-private `SECURITY DEFINER` core with explicit
+  runtime and PUBLIC revocation. The original runtime entrypoint remains the
+  signed-delivery wrapper and still requires the exact active event generation;
+  it retains only exact committed replay after the event is processed.
+- The compatible reconciliation migration adds a separate runtime wrapper.
+  It accepts an exact immutable reconciliation ID plus the claim tuple, derives
+  the event/generation from that row, rechecks the current ADMIN and failed
+  inactive event state, invokes the private core, and marks the source event
+  processed while clearing its error in the same transaction. A forged row,
+  active/raced event, wrong generation, wrong claim family, released claim, or
+  direct runtime call to the core fails closed.
+- PGlite now executes claim, record, and reconciliation together and proves the
+  failed-lease path end to end: ordinary finalization denied, forged
+  reconciliation denied, exact recovery accepted once, event completion and
+  error clearing co-committed, and all runtime/private ACLs exact. The
+  loopback-only PostgreSQL 16 rollback proof and exact-head CI remain required
+  before the draft PR can leave review. No migration, deployment, grant,
+  credential, or provider state changed while correcting this finding.

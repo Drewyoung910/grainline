@@ -688,7 +688,7 @@ BEGIN
 END
 $grainline_seller_refund_record$;
 
-CREATE FUNCTION public.grainline_blocked_checkout_refund_record(
+CREATE FUNCTION public.grainline_blocked_checkout_refund_record_core(
   p_event_id text,
   p_event_claim_generation bigint,
   p_claim_id text,
@@ -704,7 +704,7 @@ VOLATILE
 PARALLEL UNSAFE
 SECURITY DEFINER
 SET search_path = pg_catalog
-AS $grainline_blocked_checkout_refund_record$
+AS $grainline_blocked_checkout_refund_record_core$
 DECLARE
   locked_event public."StripeWebhookEvent"%ROWTYPE;
   locked_order public."Order"%ROWTYPE;
@@ -896,12 +896,6 @@ BEGIN
         (existing_event.metadata->>'restoredActiveListingCount')::integer,
       'action', 'replay'
     );
-  END IF;
-
-  IF locked_event."processingStartedAt" IS NULL
-     OR locked_event."processedAt" IS NOT NULL THEN
-    RAISE EXCEPTION 'Blocked-checkout refund record source lease is inactive'
-      USING ERRCODE = 'insufficient_privilege';
   END IF;
 
   SELECT orders.*
@@ -1192,6 +1186,71 @@ BEGIN
     'action', 'recorded'
   );
 END
+$grainline_blocked_checkout_refund_record_core$;
+
+-- The ordinary webhook entrypoint requires the exact signed lease to remain
+-- active. The later reconciliation release gets a separate wrapper around the
+-- private core so an administrator never has to fabricate or race a webhook
+-- lease merely to record an already-proven provider effect.
+CREATE FUNCTION public.grainline_blocked_checkout_refund_record(
+  p_event_id text,
+  p_event_claim_generation bigint,
+  p_claim_id text,
+  p_claim_generation bigint,
+  p_refund_id text,
+  p_refund_status text,
+  p_transfer_reversal_id text,
+  p_transfer_reversal_amount_cents integer
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_blocked_checkout_refund_record$
+DECLARE
+  locked_event public."StripeWebhookEvent"%ROWTYPE;
+BEGIN
+  SELECT source_event.*
+    INTO locked_event
+    FROM public."StripeWebhookEvent" AS source_event
+   WHERE source_event.id = p_event_id
+   FOR UPDATE;
+  IF NOT FOUND
+     OR locked_event.type NOT IN (
+       'checkout.session.completed',
+       'checkout.session.async_payment_succeeded'
+     )
+     OR locked_event."claimGeneration"
+          IS DISTINCT FROM p_event_claim_generation
+     OR (
+       (
+         locked_event."processingStartedAt" IS NULL
+         OR locked_event."processedAt" IS NOT NULL
+       )
+       AND NOT EXISTS (
+         SELECT 1
+           FROM public."OrderPaymentEvent" AS payment_event
+          WHERE payment_event."stripeEventId" =
+            'local:blocked_checkout_refund_recorded:' || p_refund_id
+       )
+     ) THEN
+    RAISE EXCEPTION 'Blocked-checkout refund record source lease is inactive'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN public.grainline_blocked_checkout_refund_record_core(
+    p_event_id,
+    p_event_claim_generation,
+    p_claim_id,
+    p_claim_generation,
+    p_refund_id,
+    p_refund_status,
+    p_transfer_reversal_id,
+    p_transfer_reversal_amount_cents
+  );
+END
 $grainline_blocked_checkout_refund_record$;
 
 REVOKE ALL ON FUNCTION
@@ -1204,6 +1263,11 @@ REVOKE ALL ON FUNCTION
     text, text, bigint, text, text, text, integer
   )
   FROM PUBLIC;
+REVOKE ALL ON FUNCTION
+  public.grainline_blocked_checkout_refund_record_core(
+    text, bigint, text, bigint, text, text, text, integer
+  )
+  FROM PUBLIC, grainline_app_runtime;
 REVOKE ALL ON FUNCTION
   public.grainline_blocked_checkout_refund_record(
     text, bigint, text, bigint, text, text, text, integer
@@ -1237,11 +1301,16 @@ COMMENT ON FUNCTION public.grainline_blocked_checkout_refund_record(
   text, bigint, text, bigint, text, text, text, integer
 ) IS
   'Atomically records and finalizes one exact signed-event generation-fenced blocked-checkout refund.';
+COMMENT ON FUNCTION public.grainline_blocked_checkout_refund_record_core(
+  text, bigint, text, bigint, text, text, text, integer
+) IS
+  'Owner-private blocked-checkout refund finalizer shared by active signed delivery and reviewed administrator reconciliation.';
 
 DO $grainline_order_refund_record_postflight$
 DECLARE
   runtime_role_oid oid := 'grainline_app_runtime'::pg_catalog.regrole;
   function_count integer;
+  private_function_count integer;
 BEGIN
   SELECT pg_catalog.count(*)::integer
     INTO function_count
@@ -1265,6 +1334,29 @@ BEGIN
      AND NOT pg_catalog.has_function_privilege('public', procedure.oid, 'EXECUTE');
   IF function_count <> 3 THEN
     RAISE EXCEPTION 'Order refund record function posture is incomplete';
+  END IF;
+
+  SELECT pg_catalog.count(*)::integer
+    INTO private_function_count
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = procedure.pronamespace
+   WHERE namespace.nspname = 'public'
+     AND procedure.oid =
+       'public.grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)'::pg_catalog.regprocedure
+     AND procedure.prosecdef
+     AND procedure.provolatile = 'v'
+     AND procedure.proparallel = 'u'
+     AND procedure.proowner <> runtime_role_oid
+     AND procedure.proconfig = ARRAY['search_path=pg_catalog']::text[]
+     AND NOT pg_catalog.has_function_privilege(
+       'grainline_app_runtime', procedure.oid, 'EXECUTE'
+     )
+     AND NOT pg_catalog.has_function_privilege(
+       'public', procedure.oid, 'EXECUTE'
+     );
+  IF private_function_count <> 1 THEN
+    RAISE EXCEPTION 'Order refund record private core posture is incomplete';
   END IF;
 END
 $grainline_order_refund_record_postflight$;
