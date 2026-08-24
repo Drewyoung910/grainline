@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
+import { repositoryAtOrderRefundRecordRelease } from "./helpers/release-verifier-root.mjs";
 
 import {
   ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
@@ -17,9 +23,8 @@ import {
 
 test("release byte-pins the compatible fixed refund record authority", () => {
   const release = verifyOrderRefundRecordAuthorityRelease(
-    repositoryBeforeRefundReconciliation(), {
-    allowReviewedSignedAuthoritySuccessor: true,
-  });
+    repositoryAtOrderRefundRecordRelease(),
+  );
   const releaseRecord = readFileSync(
     "docs/order-payment-event-refund-record-authority.md",
     "utf8",
@@ -45,10 +50,20 @@ test("release byte-pins the compatible fixed refund record authority", () => {
 });
 
 test("refund record verifier fails closed unless the signed successor is explicit", () => {
-  assert.throws(
-    () => verifyOrderRefundRecordAuthorityRelease(),
-    /unreviewed successor/,
+  const root = repositoryAtOrderRefundRecordRelease();
+  const unreviewed = path.join(
+    root,
+    "prisma/migrations/20260824030000_prepare_order_payment_signed_authority",
   );
+  mkdirSync(unreviewed);
+  try {
+    assert.throws(
+      () => verifyOrderRefundRecordAuthorityRelease(root),
+      /unreviewed successor/,
+    );
+  } finally {
+    rmSync(unreviewed, { recursive: true, force: true });
+  }
 });
 
 test("record migration byte verifier rejects a near match", () => {

@@ -168,6 +168,14 @@ isolated `20260824020000_prepare_order_refund_record_authority` successor was
 present. The postflight now derives reviewed-successor flags from the exact
 staged migration tree, requires the claim -> record -> signed chain in order,
 and still delegates every present successor to the byte-sealed release reader.
+The replacement run `32703083948` proved that correction through the complete
+CheckoutStockReservation and SellerPayoutEvent replay, then found a separate
+ambient-filesystem dependency in the refund-record release unit test: the test
+assumed its later signed-authority migration was still visible even though CI
+had intentionally isolated it. Release tests now construct an exact migration
+prefix through `20260824020000_prepare_order_refund_record_authority`; the
+unreviewed-successor case adds and removes one synthetic later directory, so
+its result no longer depends on CI staging order.
 
 Local validation on 2026-08-24 passed the final 30-test focused reconciliation
 cluster, the full 3,348-test suite (3,341 passed, seven intentional skips),

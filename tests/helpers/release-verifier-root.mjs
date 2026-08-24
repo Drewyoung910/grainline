@@ -11,10 +11,8 @@ import path from "node:path";
 
 const cachedRoots = new Map();
 
-export function repositoryBeforeRefundReconciliation() {
-  const excluded =
-    "20260824040000_prepare_order_refund_reconciliation_authority";
-  const cached = cachedRoots.get(excluded);
+function repositoryWithMigrationFilter(cacheKey, includeMigration) {
+  const cached = cachedRoots.get(cacheKey);
   if (cached) return cached;
 
   const sourceRoot = process.cwd();
@@ -53,7 +51,6 @@ export function repositoryBeforeRefundReconciliation() {
     path.join(sourcePrisma, "migrations"),
     { withFileTypes: true },
   )) {
-    if (entry.name === excluded) continue;
     const sourceMigration = path.join(
       sourcePrisma,
       "migrations",
@@ -64,6 +61,7 @@ export function repositoryBeforeRefundReconciliation() {
       symlinkSync(sourceMigration, targetMigration);
       continue;
     }
+    if (!includeMigration(entry.name)) continue;
     mkdirSync(targetMigration);
     for (const migrationEntry of readdirSync(sourceMigration)) {
       copyFileSync(
@@ -73,9 +71,27 @@ export function repositoryBeforeRefundReconciliation() {
     }
   }
 
-  cachedRoots.set(excluded, root);
+  cachedRoots.set(cacheKey, root);
   process.once("exit", () => {
     rmSync(root, { recursive: true, force: true });
   });
   return root;
+}
+
+export function repositoryBeforeRefundReconciliation() {
+  const excluded =
+    "20260824040000_prepare_order_refund_reconciliation_authority";
+  return repositoryWithMigrationFilter(
+    `without:${excluded}`,
+    (name) => name !== excluded,
+  );
+}
+
+export function repositoryAtOrderRefundRecordRelease() {
+  const finalMigration =
+    "20260824020000_prepare_order_refund_record_authority";
+  return repositoryWithMigrationFilter(
+    `through:${finalMigration}`,
+    (name) => name <= finalMigration,
+  );
 }
