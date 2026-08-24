@@ -442,6 +442,15 @@ privacy-redacted versus unexplained missing-reference counts using
 `buyerDataPurgedAt` and the seller user's `deletedAt`; only a nonzero
 unexplained count may enter a separate Order repair design.
 
+PR #264 exact head `6cc8625a252b79b1b794d7b86b9009a36d4f1690`
+merged at exact main `1d5bdf3ffa6b1ab41daf5a1c3e0f341253620dc4`.
+Exact-main CI `32787483409` and protected engine-read-only inspection
+`32788031745` passed. Sanitized artifact SHA-256
+`c7c70e68097174182b1aea43420ca1e5ff91c52e670b822f20bcb10db7d2649c`
+shows one privacy-redacted missing-reference state and zero unexplained states.
+The Order label finding is closed without mutation or repair. It does not block
+the separately empty and clean OrderPaymentEvent invariant/RLS work.
+
 ### OPE-A10 - existing owner-private consumers are release dependencies
 
 Case staff resolution inserts an exact payment row inside its generation-fenced
