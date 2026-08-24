@@ -5,6 +5,10 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+  verifyOrderRefundClaimGenerationMigrationBytes,
+} from "./order-refund-claim-generation-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION =
   "20260815210000_prepare_seller_payout_event_authority";
@@ -24,12 +28,24 @@ export function verifySellerPayoutEventAuthorityRelease(
   {
     allowReviewedActivationSuccessor = false,
     allowReviewedForceSuccessor = false,
+    allowReviewedRefundClaimSuccessor = false,
   } = {},
 ) {
   if (allowReviewedForceSuccessor && !allowReviewedActivationSuccessor) {
     throw new Error(
       "SellerPayoutEvent FORCE successor requires the reviewed activation successor",
     );
+  }
+  if (
+    allowReviewedRefundClaimSuccessor
+    && (!allowReviewedActivationSuccessor || !allowReviewedForceSuccessor)
+  ) {
+    throw new Error(
+      "Order refund claim successor requires SellerPayoutEvent activation and FORCE",
+    );
+  }
+  if (allowReviewedRefundClaimSuccessor) {
+    verifyOrderRefundClaimGenerationMigrationBytes(rootDirectory);
   }
   const migrationDirectory = path.join(
     rootDirectory,
@@ -61,7 +77,13 @@ export function verifySellerPayoutEventAuthorityRelease(
   );
   assert.deepEqual(
     later,
-    allowReviewedForceSuccessor
+    allowReviewedRefundClaimSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+        ]
+      : allowReviewedForceSuccessor
       ? [
           SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
           SELLER_PAYOUT_EVENT_FORCE_MIGRATION,

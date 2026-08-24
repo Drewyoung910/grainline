@@ -137,6 +137,9 @@ import {
   parseGuardedNeonDatabaseIdentity,
   validateSavedSearchRlsDeployShape,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "../scripts/order-refund-claim-generation-catalog.mjs";
 
 const RELEASE_ZERO = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
@@ -429,6 +432,9 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
     SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
     SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+    // This successor has its own byte-pinned release verifier. Historical
+    // guard-unit fixtures model immutable prefixes and intentionally omit it.
+    ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [

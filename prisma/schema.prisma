@@ -664,6 +664,16 @@ model Order {
   sellerRefundId          String?   @db.VarChar(255)
   sellerRefundAmountCents Int?
   sellerRefundLockedAt    DateTime?
+  // Compatible generation fence for seller and blocked-checkout provider
+  // refunds. The source tuple is present only while a claim is pending or
+  // awaiting reconciliation; generation remains monotonic across releases.
+  refundClaimId                  String?   @db.VarChar(255)
+  refundClaimGeneration          BigInt    @default(0)
+  refundClaimSource              String?   @db.VarChar(32)
+  refundClaimSourceId            String?   @db.VarChar(255)
+  refundClaimSourceGeneration    BigInt?
+  refundClaimIdempotencyScope    String?   @db.VarChar(191)
+  refundClaimProviderAuthorizedAt DateTime?
 
   // Shippo label
   shippoShipmentId           String?      @db.VarChar(255)
@@ -700,6 +710,7 @@ model Order {
   @@index([fulfillmentStatus])
   @@index([fulfillmentStatus, createdAt])
   @@index([sellerRefundId, sellerRefundLockedAt])
+  @@index([refundClaimId, refundClaimGeneration])
   @@index([labelClawbackStatus, labelClawbackNextAttemptAt])
   @@index([buyerDataPurgedAt, fulfillmentStatus, deliveredAt, pickedUpAt], map: "Order_buyer_pii_prune_idx")
   @@index([sellerProfileId, createdAt, id])

@@ -66,6 +66,7 @@ export type ChargeRefundOrderState = {
   sellerRefundId: string | null;
   sellerRefundLockedAt?: Date | null;
   caseResolutionClaimId?: string | null;
+  refundClaimId?: string | null;
   sellerRefundAmountCents: number | null;
   itemsSubtotalCents?: number | null;
   shippingAmountCents?: number | null;
@@ -520,14 +521,20 @@ export function chargeRefundLedgerState({
     order.sellerRefundId !== REFUND_LOCK_SENTINEL &&
     order.sellerRefundId !== REFUND_AMBIGUOUS_SENTINEL &&
     !order.sellerRefundId.startsWith("external:");
+  // A generation-fenced claim remains authoritative until its exact source
+  // records a durable provider result. Unlike the legacy timestamp lease, it
+  // must never become stealable merely because wall-clock time elapsed.
   const hasFreshLocalRefundLock =
-    order.sellerRefundId === REFUND_LOCK_SENTINEL &&
+    Boolean(order.refundClaimId) ||
     (
-      Boolean(order.caseResolutionClaimId)
-      || !isStaleRefundLock({
-        sellerRefundId: order.sellerRefundId,
-        sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
-      })
+      order.sellerRefundId === REFUND_LOCK_SENTINEL &&
+      (
+        Boolean(order.caseResolutionClaimId) ||
+        !isStaleRefundLock({
+          sellerRefundId: order.sellerRefundId,
+          sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
+        })
+      )
     );
   const isKnownLocalRefund = hasLocalRefundAudit && order.sellerRefundId === latestRefundId;
   const isAdditionalExternalRefund = hasLocalRefundAudit && !isKnownLocalRefund;

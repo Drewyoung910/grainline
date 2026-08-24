@@ -660,6 +660,31 @@ describe("Stripe webhook state helpers", () => {
     assert.equal(state.orderUpdate, null);
   });
 
+  it("does not let charge.refunded steal an elapsed generation-fenced refund claim", () => {
+    const state = chargeRefundLedgerState({
+      chargeId: "ch_1",
+      chargeCurrency: "usd",
+      amountRefundedCents: 3_500,
+      latestRefund: {
+        id: "re_generation_claim",
+        amount: 3_500,
+        status: "succeeded",
+        created: 10,
+      },
+      order: {
+        currency: "usd",
+        sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
+        sellerRefundLockedAt: new Date(0),
+        refundClaimId: "order_refund_claim_1",
+        sellerRefundAmountCents: null,
+      },
+    });
+
+    assert.equal(state.ledger.reason, "local_refund_pending_confirmation");
+    assert.equal(state.ledger.metadata.pendingLocalRefundLock, true);
+    assert.equal(state.orderUpdate, null);
+  });
+
   it("lets charge.refunded resolve ambiguous local refund attempts", () => {
     const state = chargeRefundLedgerState({
       chargeId: "ch_1",

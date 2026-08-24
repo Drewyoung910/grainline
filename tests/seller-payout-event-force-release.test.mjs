@@ -20,6 +20,9 @@ import {
   SELLER_PAYOUT_EVENT_FORCE_PHASE,
   verifySellerPayoutEventForceRelease,
 } from "../scripts/verify-seller-payout-event-force-release.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "../scripts/order-refund-claim-generation-catalog.mjs";
 
 const migration = fs.readFileSync(
   `prisma/migrations/${SELLER_PAYOUT_EVENT_FORCE_MIGRATION}/migration.sql`,
@@ -41,7 +44,9 @@ const releaseDocument = fs.readFileSync(
 
 test("FORCE release is one exact posture-only catalog change", () => {
   const candidate = buildSellerPayoutEventForceCandidate();
-  const release = verifySellerPayoutEventForceRelease();
+  const release = verifySellerPayoutEventForceRelease(undefined, {
+    allowReviewedRefundClaimSuccessor: true,
+  });
   assert.equal(release.phase, SELLER_PAYOUT_EVENT_FORCE_PHASE);
   assert.equal(release.migration, SELLER_PAYOUT_EVENT_FORCE_MIGRATION);
   assert.equal(candidate.migrationSha256, SELLER_PAYOUT_EVENT_FORCE_MIGRATION_SHA256);
@@ -79,9 +84,17 @@ test("activation verifier exposes only the exact FORCE successor mode", () => {
   assert.equal(strict.status, 1);
   assert.match(strict.stderr, /unreviewed successor/u);
 
-  const sealed = spawnSync(
+  const forceOnly = spawnSync(
     process.execPath,
     [script, "--allow-reviewed-force-successor"],
+    { encoding: "utf8" },
+  );
+  assert.equal(forceOnly.status, 1);
+  assert.match(forceOnly.stderr, /unreviewed successor/u);
+
+  const sealed = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-refund-claim-successor"],
     { encoding: "utf8" },
   );
   assert.equal(sealed.status, 0, sealed.stderr);
@@ -89,7 +102,7 @@ test("activation verifier exposes only the exact FORCE successor mode", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+    ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
   );
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {

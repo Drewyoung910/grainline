@@ -19,13 +19,13 @@ describe("refund lock state", () => {
 
     assert.match(
       cleanup,
-      /sellerRefundId: REFUND_LOCK_SENTINEL,[\s\S]*caseResolutionClaimId: null,[\s\S]*sellerRefundLockedAt/,
+      /sellerRefundId: REFUND_LOCK_SENTINEL,[\s\S]*caseResolutionClaimId: null,[\s\S]*refundClaimId: null,[\s\S]*sellerRefundLockedAt/,
     );
   });
 
   it("timestamps contended refund reservations after the database lock wait", () => {
-    const webhook = readFileSync(
-      "src/app/api/stripe/webhook/route.ts",
+    const refundAuthority = readFileSync(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
       "utf8",
     );
     const staffAuthority = readFileSync(
@@ -48,14 +48,29 @@ describe("refund lock state", () => {
       '"sellerRefundLockedAt" = CASE',
     );
 
-    assert.match(
-      webhook,
-      /"sellerRefundLockedAt" = pg_catalog\.clock_timestamp\(\)/,
-    );
-    assert.doesNotMatch(
-      webhook,
-      /"sellerRefundLockedAt" = \$\{new Date\(\)\}/,
-    );
+    for (const functionName of [
+      "grainline_seller_refund_claim",
+      "grainline_blocked_checkout_refund_claim",
+    ]) {
+      const functionStart = refundAuthority.indexOf(
+        `CREATE FUNCTION public.${functionName}`,
+      );
+      const functionEnd = refundAuthority.indexOf("$;", functionStart) + 2;
+      const functionBody = refundAuthority.slice(functionStart, functionEnd);
+      const refundOrderLock = functionBody.indexOf('FROM public."Order" AS orders');
+      const refundTransitionTimestamp = functionBody.indexOf(
+        "transition_at := pg_catalog.clock_timestamp()",
+      );
+      const refundLockTimestamp = functionBody.indexOf(
+        '"sellerRefundLockedAt" = transition_at',
+      );
+      assert.ok(
+        refundOrderLock >= 0
+          && refundTransitionTimestamp > refundOrderLock
+          && refundLockTimestamp > refundTransitionTimestamp,
+        `${functionName} must timestamp its claim after waiting on the Order lock`,
+      );
+    }
     assert.ok(
       orderLock >= 0
         && transitionTimestamp > orderLock

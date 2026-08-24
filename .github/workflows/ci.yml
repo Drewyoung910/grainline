@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order refund claim generation release
+        run: npm run audit:order-refund-claim-generation-release
+      - name: Isolate Order refund claim generation until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824010000_prepare_order_refund_claim_generation
+          "$RUNNER_TEMP/order-refund-claim-generation-release"
       - name: Verify SellerPayoutEvent FORCE migration tree
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-force-reviewed
@@ -559,6 +566,22 @@ jobs:
           SELLER_PAYOUT_EVENT_FORCE_ROLLBACK_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Re-audit restored SellerPayoutEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore Order refund claim generation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-refund-claim-generation-release"
+          prisma/migrations/20260824010000_prepare_order_refund_claim_generation
+      - name: Apply Order refund claim generation preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order refund claim generation migration status
+        run: npx prisma migrate status
+      - name: Audit Order refund claim grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove Order refund claims in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-refund-claim-generation-migration.test.mjs
+          tests/order-refund-claim-generation-postgres.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

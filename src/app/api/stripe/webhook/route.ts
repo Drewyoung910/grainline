@@ -47,7 +47,6 @@ import {
   orderHasRefundLedger,
 } from "@/lib/refundRouteState";
 import {
-  blockingRefundOrLatestOpenDisputeLedgerExistsSql,
   latestOpenDisputeLedgerRowsSql,
 } from "@/lib/refundLedgerSql";
 import { isStripeSessionUniqueConstraintError } from "@/lib/stripeWebhookEventState";
@@ -57,7 +56,7 @@ import {
   isStaleRefundLock,
 } from "@/lib/refundLockState";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
-import { createMarketplaceRefund, refundIdempotencyKeyBase } from "@/lib/marketplaceRefunds";
+import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
 import { localRefundEvidenceEventId, recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
@@ -87,6 +86,12 @@ import {
   shouldApplyDisputeWebhookSideEffects,
 } from "@/lib/stripeWebhookState";
 import { Prisma, type FulfillmentStatus } from "@prisma/client";
+import {
+  activeOrderRefundClaimWhere,
+  claimBlockedCheckoutOrderRefund,
+  clearedOrderRefundClaimData,
+  orderRefundClaimEvidence,
+} from "@/lib/orderRefundClaimAuthority";
 
 
 export const runtime = "nodejs";
@@ -304,6 +309,7 @@ function orderPostPaymentSideEffectsBlocked(order: {
 function blockedCheckoutRefundRetryReason(order: {
   sellerRefundId?: string | null;
   sellerRefundLockedAt?: Date | null;
+  refundClaimId?: string | null;
   reviewNeeded?: boolean | null;
   reviewNote?: string | null;
   paymentEvents?: Array<{ eventType?: string | null; status?: string | null }> | null;
@@ -312,6 +318,7 @@ function blockedCheckoutRefundRetryReason(order: {
   const reason = blockedCheckoutReviewReason(order.reviewNote);
   if (!reason) return null;
   if (order.paymentEvents?.some(isBlockingRefundLedgerEvent)) return null;
+  if (order.refundClaimId) return null;
   if (!order.sellerRefundId) return reason;
   if (isStaleRefundLock({
     sellerRefundId: order.sellerRefundId,
@@ -325,6 +332,7 @@ function blockedCheckoutRefundRetryReason(order: {
 function blockedCheckoutRefundStillInProgress(order: {
   sellerRefundId?: string | null;
   sellerRefundLockedAt?: Date | null;
+  refundClaimId?: string | null;
   reviewNeeded?: boolean | null;
   reviewNote?: string | null;
   paymentEvents?: Array<{ eventType?: string | null; status?: string | null }> | null;
@@ -333,11 +341,16 @@ function blockedCheckoutRefundStillInProgress(order: {
     order.reviewNeeded &&
       blockedCheckoutReviewReason(order.reviewNote) &&
       !order.paymentEvents?.some(isBlockingRefundLedgerEvent) &&
-      order.sellerRefundId === REFUND_LOCK_SENTINEL &&
-      !isStaleRefundLock({
-        sellerRefundId: order.sellerRefundId,
-        sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
-      }),
+      (
+        Boolean(order.refundClaimId) ||
+        (
+          order.sellerRefundId === REFUND_LOCK_SENTINEL &&
+          !isStaleRefundLock({
+            sellerRefundId: order.sellerRefundId,
+            sellerRefundLockedAt: order.sellerRefundLockedAt ?? null,
+          })
+        )
+      ),
   );
 }
 
@@ -940,6 +953,7 @@ export async function POST(req: Request) {
           buyerId: true,
           sellerRefundId: true,
           sellerRefundLockedAt: true,
+          refundClaimId: true,
           reviewNeeded: true,
           reviewNote: true,
           paymentEvents: {
@@ -1206,17 +1220,20 @@ export async function POST(req: Request) {
             return;
           }
 
-          const lockResult: number = await prisma.$executeRaw`
-            UPDATE "Order"
-            SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
-                "sellerRefundLockedAt" = pg_catalog.clock_timestamp(),
-                "reviewNeeded" = true,
-                "reviewNote" = ${`${reviewPrefix} Automatic refund is being processed because the maker account was not eligible to accept this order.`}
-            WHERE id = ${input.orderId}
-              AND "sellerRefundId" IS NULL
-              AND NOT (${blockingRefundOrLatestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
-          `;
-          if (lockResult !== 1) {
+          refundAmountCents =
+            s.amount_total
+            ?? itemsSubtotalCents
+              + shippingAmountCents
+              + (giftWrappingPriceCents ?? 0)
+              + taxAmountCents;
+          const refundClaim = await claimBlockedCheckoutOrderRefund({
+            eventId: event.id,
+            eventClaimGeneration: claimGeneration,
+            sessionId,
+            orderId: input.orderId,
+            expectedAmountCents: refundAmountCents,
+          });
+          if (!refundClaim) {
             const conflictingOrder = await prisma.order.findUnique({
               where: { id: input.orderId },
               select: {
@@ -1242,22 +1259,16 @@ export async function POST(req: Request) {
           }
 
           try {
-            refundAmountCents = s.amount_total ?? itemsSubtotalCents + shippingAmountCents + (giftWrappingPriceCents ?? 0) + taxAmountCents;
             const refund = await createMarketplaceRefund({
-              paymentIntentId,
+              paymentIntentId: refundClaim.paymentIntentId,
               resolution: "FULL",
-              amountCents: refundAmountCents,
-              itemsSubtotalCents,
-              shippingAmountCents,
-              giftWrappingPriceCents,
-              taxAmountCents,
-              canReverseTransfer: Boolean(stripeTransferId),
-              idempotencyKeyBase: refundIdempotencyKeyBase({
-                scope: "blocked-checkout-refund",
-                id: sessionId,
-                resolution: "FULL",
-                amountCents: refundAmountCents,
-              }),
+              amountCents: refundClaim.refundAmountCents,
+              itemsSubtotalCents: refundClaim.itemsSubtotalCents,
+              shippingAmountCents: refundClaim.shippingAmountCents,
+              giftWrappingPriceCents: refundClaim.giftWrappingPriceCents,
+              taxAmountCents: refundClaim.taxAmountCents,
+              canReverseTransfer: refundClaim.canReverseTransfer,
+              idempotencyKeyBase: refundClaim.idempotencyScope,
             });
             refundId = refund.primaryRefundId;
             refundIds = refund.refundIds;
@@ -1265,6 +1276,11 @@ export async function POST(req: Request) {
             refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
             refundRequiresManualFollowUp = refund.requiresManualFollowUp;
             refundAccountingEvidence = refund.accountingEvidence;
+            if (!refundId) {
+              throw new Error(
+                "Blocked checkout refund completed without a primary refund identifier.",
+              );
+            }
 
             const transferNote = refund.requiresManualTransferReconciliation
               ? " Seller transfer reversal requires manual reconciliation."
@@ -1277,11 +1293,15 @@ export async function POST(req: Request) {
             const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
               const restoredCount = await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
               const orderUpdate = await tx.order.updateMany({
-                where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                where: {
+                  id: input.orderId,
+                  ...activeOrderRefundClaimWhere(refundClaim),
+                },
                 data: {
                   sellerRefundId: refundId,
                   sellerRefundAmountCents: refundAmountCents,
                   sellerRefundLockedAt: null,
+                  ...clearedOrderRefundClaimData(),
                   reviewNeeded: true,
                   reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.${transferNote}${statusNote}`,
                 },
@@ -1309,6 +1329,7 @@ export async function POST(req: Request) {
                     refundAccounting: refund.accountingEvidence,
                     requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
                     requiresManualFollowUp: refund.requiresManualFollowUp,
+                    ...orderRefundClaimEvidence(refundClaim),
                   },
                 });
               }
@@ -1367,11 +1388,15 @@ export async function POST(req: Request) {
                 const orphanRefundAmountCents = refundAmountCents;
                 await prisma.$transaction(async (tx) => {
                   const orphanRecord = await tx.order.updateMany({
-                    where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                    where: {
+                      id: input.orderId,
+                      ...activeOrderRefundClaimWhere(refundClaim),
+                    },
                     data: {
                       sellerRefundId: orphanRefundId,
                       sellerRefundAmountCents: orphanRefundAmountCents,
                       sellerRefundLockedAt: null,
+                      ...clearedOrderRefundClaimData(),
                       reviewNeeded: true,
                       reviewNote: orphanReviewNote,
                     },
@@ -1399,6 +1424,7 @@ export async function POST(req: Request) {
                       refundAccounting: refundAccountingEvidence,
                       requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
                       requiresManualFollowUp: refundRequiresManualFollowUp,
+                      ...orderRefundClaimEvidence(refundClaim),
                     },
                   });
                 });
@@ -1412,8 +1438,11 @@ export async function POST(req: Request) {
             } else {
               retryBlockedCheckoutRefund = true;
               try {
-                await prisma.order.updateMany({
-                  where: { id: input.orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+                const ambiguousRecord = await prisma.order.updateMany({
+                  where: {
+                    id: input.orderId,
+                    ...activeOrderRefundClaimWhere(refundClaim),
+                  },
                   data: {
                     sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
                     sellerRefundLockedAt: null,
@@ -1421,6 +1450,11 @@ export async function POST(req: Request) {
                     reviewNote: `${reviewPrefix} Automatic refund has an ambiguous Stripe outcome; staff must reconcile this payment manually before another refund is attempted.`,
                   },
                 });
+                if (ambiguousRecord.count !== 1) {
+                  throw new Error(
+                    "Blocked checkout ambiguous outcome was not recorded against the active generation",
+                  );
+                }
               } catch (dbError) {
                 Sentry.captureException(dbError, {
                   tags: { source: "stripe_webhook_blocked_checkout_refund_ambiguous_record_failed" },
@@ -2318,6 +2352,7 @@ export async function POST(req: Request) {
                 sellerRefundId: true,
                 sellerRefundLockedAt: true,
                 caseResolutionClaimId: true,
+                refundClaimId: true,
                 sellerRefundAmountCents: true,
                 itemsSubtotalCents: true,
                 shippingAmountCents: true,
@@ -2404,6 +2439,7 @@ export async function POST(req: Request) {
                 currency: true,
                 sellerRefundId: true,
                 sellerRefundLockedAt: true,
+                refundClaimId: true,
               },
             });
             if (!order) {
@@ -2468,10 +2504,13 @@ export async function POST(req: Request) {
               if (
                 "sellerRefundLockedAt" in orderUpdate &&
                 order.sellerRefundId === REFUND_LOCK_SENTINEL &&
-                !isStaleRefundLock({
-                  sellerRefundId: order.sellerRefundId,
-                  sellerRefundLockedAt: order.sellerRefundLockedAt,
-                })
+                (
+                  Boolean(order.refundClaimId) ||
+                  !isStaleRefundLock({
+                    sellerRefundId: order.sellerRefundId,
+                    sellerRefundLockedAt: order.sellerRefundLockedAt,
+                  })
+                )
               ) {
                 delete orderUpdate.sellerRefundLockedAt;
               }

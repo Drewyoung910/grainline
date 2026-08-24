@@ -59,10 +59,10 @@ describe("payment and fulfillment side-effect observability", () => {
     const route = source("src/app/api/orders/[id]/refund/route.ts");
 
     assert.match(route, /refundMayRestoreStock\(order\)/);
-    assert.match(
-      route,
-      /tx\.order\.updateMany\(\{\s*where: \{ id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/s,
-    );
+    assert.match(route, /claimSellerOrderRefund\(\{/);
+    assert.match(route, /\.\.\.activeOrderRefundClaimWhere\(refundClaim\)/);
+    assert.match(route, /\.\.\.clearedOrderRefundClaimData\(\)/);
+    assert.match(route, /\.\.\.orderRefundClaimEvidence\(refundClaim\)/);
     assert.match(route, /if \(orderUpdate\.count !== 1\)/);
     assert.match(route, /manualStripeReconciliationNeeded: true/);
     assert.match(route, /grainline_case_seller_refund_apply/);
@@ -111,7 +111,8 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(sellerOrphanBlock, /await prisma\.\$transaction\(async \(tx\) => \{/);
     assert.match(sellerOrphanBlock, /const orphanRecord = await tx\.order\.updateMany/);
-    assert.match(sellerOrphanBlock, /where: \{ id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/);
+    assert.match(sellerOrphanBlock, /\.\.\.activeOrderRefundClaimWhere\(refundClaim\)/);
+    assert.match(sellerOrphanBlock, /\.\.\.clearedOrderRefundClaimData\(\)/);
     assert.match(sellerOrphanBlock, /if \(orphanRecord\.count !== 1\)/);
     assert.match(sellerOrphanBlock, /Seller refund orphan record was not written/);
     assert.match(sellerOrphanBlock, /recordLocalRefundEvidence\(tx, \{/);
@@ -139,6 +140,11 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(sellerRoute, /REFUND_AMBIGUOUS_SENTINEL/);
     assert.match(sellerRoute, /seller_refund_ambiguous_record_failed/);
     assert.match(sellerRoute, /ambiguous Stripe outcome/);
+    assert.match(sellerRoute, /ambiguousRecord\.count !== 1/);
+    assert.match(
+      sellerRoute,
+      /Seller refund ambiguous outcome was not recorded against the active generation/,
+    );
     assert.doesNotMatch(sellerRoute, /source: "seller_refund_lock_release_failed"/);
 
     assert.match(caseRoute, /case_refund_ambiguous_record_failed/);
@@ -163,8 +169,15 @@ describe("payment and fulfillment side-effect observability", () => {
   it("derives first-party refund reversal eligibility from the order transfer", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const sellerAuthority = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
 
-    assert.match(sellerRoute, /canReverseTransfer: Boolean\(order\.stripeTransferId\)/);
+    assert.match(sellerRoute, /canReverseTransfer: refundClaim\.canReverseTransfer/);
+    assert.match(
+      sellerAuthority,
+      /'canReverseTransfer', locked_order\."stripeTransferId" IS NOT NULL/,
+    );
     assert.match(caseRoute, /canReverseTransfer: prepared\.canReverseTransfer/);
     assert.match(
       source(
@@ -247,25 +260,31 @@ describe("payment and fulfillment side-effect observability", () => {
   it("keeps seller and staff refund entrypoints single-refund per order", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const sellerAuthority = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
 
     assert.match(sellerRoute, /blockingRefundLedgerWhere/);
     assert.match(sellerRoute, /latestOpenDisputeLedgerExistsSql/);
     assert.doesNotMatch(sellerRoute, /blockingRefundOrDisputeLedgerWhere/);
-    assert.match(sellerRoute, /blockingRefundOrLatestOpenDisputeLedgerExistsSql/);
     assert.match(sellerRoute, /sellerRefundConflictResponse/);
     assert.match(sellerRoute, /orderHasRefundLedger/);
-    assert.match(
-      sellerRoute,
-      /(?:await prisma|return tx)\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
-    );
+    assert.match(sellerRoute, /claimSellerOrderRefund\(\{/);
+    assert.doesNotMatch(sellerRoute, /\.\$executeRaw`[\s\S]*SET "sellerRefundId"/);
 
     assert.match(
       sellerRoute,
       /if \(orderHasRefundLedger\(orderForRefundState\)\)/,
     );
     assert.match(
-      sellerRoute,
-      /WHERE id = \$\{orderId\}[\s\S]*"sellerRefundId" IS NULL/s,
+      sellerAuthority,
+      /FROM public\."Order" AS orders[\s\S]*FOR UPDATE[\s\S]*locked_order\."sellerRefundId" IS NOT NULL/,
+    );
+    assert.match(sellerAuthority, /payment_event\."eventType" = 'REFUND'/);
+    assert.match(sellerAuthority, /latest_dispute/);
+    assert.match(
+      sellerAuthority,
+      /WHERE orders\.id = locked_order\.id[\s\S]*orders\."sellerRefundId" IS NULL[\s\S]*orders\."refundClaimId" IS NULL/,
     );
     assert.doesNotMatch(caseRoute, /blockingRefundLedgerWhere/);
     assert.doesNotMatch(caseRoute, /sellerRefundConflictResponse/);
@@ -332,6 +351,9 @@ describe("payment and fulfillment side-effect observability", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
+    const sellerAuthority = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
 
     assert.match(sellerRoute, /orderHasPurchasedLabel/);
     assert.match(
@@ -339,8 +361,8 @@ describe("payment and fulfillment side-effect observability", () => {
       /Cannot refund this order after a shipping label has been purchased/,
     );
     assert.match(
-      sellerRoute,
-      /"labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus"/,
+      sellerAuthority,
+      /locked_order\."labelStatus"::text = 'PURCHASED'/,
     );
     assert.match(sellerRoute, /labelStatus: true/);
 
@@ -574,29 +596,32 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(singleInvalidBranch, /return NextResponse\.json\(\{ ok: true \}\)/);
   });
 
-  it("uses the refund sentinel lock before issuing automatic blocked-checkout refunds", () => {
+  it("uses a source-bound generation claim before automatic blocked-checkout refunds", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
+    const authority = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
 
-    assert.match(route, /sellerRefundId: REFUND_LOCK_SENTINEL/);
     assert.match(route, /releaseStaleRefundLocks\(input\.orderId\)/);
+    assert.match(route, /claimBlockedCheckoutOrderRefund\(\{/);
+    assert.match(route, /eventClaimGeneration: claimGeneration/);
+    assert.match(route, /sessionId,[\s\S]*orderId: input\.orderId/);
+    assert.match(route, /createMarketplaceRefund\(\{/);
+    assert.match(route, /idempotencyKeyBase: refundClaim\.idempotencyScope/);
+    assert.match(route, /Stripe refund status requires manual follow-up/);
     assert.match(
       route,
-      /await prisma\.\$executeRaw`[\s\S]*"sellerRefundId" IS NULL[\s\S]*blockingRefundOrLatestOpenDisputeLedgerExistsSql/,
+      /Blocked checkout refund completed without a primary refund identifier/,
     );
-    assert.match(route, /createMarketplaceRefund\(\{/);
-    assert.match(route, /scope: "blocked-checkout-refund"/);
-    assert.match(route, /refundIdempotencyKeyBase\(\{/);
-    assert.match(route, /Stripe refund status requires manual follow-up/);
     assert.doesNotMatch(route, /refund\s*=\s*await stripe\.refunds\.create/);
     assert.ok(
-      route.indexOf('SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL}') <
+      route.indexOf("claimBlockedCheckoutOrderRefund({") <
         route.indexOf("createMarketplaceRefund({"),
-      "blocked-checkout refunds must acquire the local lock before the shared Stripe refund helper",
+      "blocked-checkout refunds must acquire the source-bound claim before the Stripe helper",
     );
-    assert.match(
-      route,
-      /where: \{ id: input\.orderId, sellerRefundId: REFUND_LOCK_SENTINEL \}/,
-    );
+    assert.match(route, /\.\.\.activeOrderRefundClaimWhere\(refundClaim\)/);
+    assert.match(route, /\.\.\.clearedOrderRefundClaimData\(\)/);
+    assert.match(route, /\.\.\.orderRefundClaimEvidence\(refundClaim\)/);
     assert.match(
       route,
       /Blocked checkout refund lock was no longer held while recording Stripe refund/,
@@ -605,6 +630,15 @@ describe("payment and fulfillment side-effect observability", () => {
       route,
       /stripe_webhook_blocked_checkout_refund_ambiguous_record_failed/,
     );
+    assert.match(route, /ambiguousRecord\.count !== 1/);
+    assert.match(
+      route,
+      /Blocked checkout ambiguous outcome was not recorded against the active generation/,
+    );
+    assert.match(authority, /locked_event\."claimGeneration" IS DISTINCT FROM p_event_claim_generation/);
+    assert.match(authority, /locked_event\."sourceObjectId" IS DISTINCT FROM p_session_id/);
+    assert.match(authority, /locked_order\."stripeSessionId" IS DISTINCT FROM p_session_id/);
+    assert.match(authority, /claim_amount IS DISTINCT FROM p_expected_amount_cents/);
   });
 
   it("keeps blocked-checkout refund recovery retryable until local state is durable", () => {
@@ -681,6 +715,7 @@ describe("payment and fulfillment side-effect observability", () => {
 
     assert.match(route, /sellerRefundLockedAt: true/);
     assert.match(route, /order\.sellerRefundId === REFUND_LOCK_SENTINEL/);
+    assert.match(route, /Boolean\(order\.refundClaimId\)/);
     assert.match(route, /!isStaleRefundLock\(/);
     assert.match(route, /delete orderUpdate\.sellerRefundLockedAt/);
   });

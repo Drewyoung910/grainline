@@ -7,10 +7,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
-import {
-  createMarketplaceRefund,
-  refundIdempotencyKeyBase,
-} from "@/lib/marketplaceRefunds";
+import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
 import { localRefundEvidenceEventId, recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
@@ -22,18 +19,10 @@ import {
 } from "@/lib/ratelimit";
 import {
   REFUND_AMBIGUOUS_SENTINEL,
-  REFUND_LOCK_SENTINEL,
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
-import {
-  blockingRefundOrLatestOpenDisputeLedgerExistsSql,
-  latestOpenDisputeLedgerExistsSql,
-} from "@/lib/refundLedgerSql";
-import {
-  databaseClockTimestamp,
-  lockOrderForCaseLifecycle,
-  lockUserForCaseLifecycle,
-} from "@/lib/caseLifecycleLocks";
+import { latestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
+import { lockUserForCaseLifecycle } from "@/lib/caseLifecycleLocks";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
@@ -58,6 +47,12 @@ import { HTTP_STATUS } from "@/lib/httpStatus";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
+import {
+  activeOrderRefundClaimWhere,
+  claimSellerOrderRefund,
+  clearedOrderRefundClaimData,
+  orderRefundClaimEvidence,
+} from "@/lib/orderRefundClaimAuthority";
 
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
@@ -259,22 +254,11 @@ export async function POST(
     );
     const refundNotificationBody = `Your maker issued a refund of ${refundAmountDisplay} for your order.`;
 
-    // Atomic lock: claim refund slot to prevent double-refund race after validation passes.
-    const lockResult = await prisma.$transaction(async (tx) => {
-      const orderExists = await lockOrderForCaseLifecycle(tx, orderId);
-      if (!orderExists) return 0;
-      const lockedAt = await databaseClockTimestamp(tx);
-      return tx.$executeRaw`
-        UPDATE "Order"
-        SET "sellerRefundId" = ${REFUND_LOCK_SENTINEL},
-            "sellerRefundLockedAt" = ${lockedAt}
-        WHERE id = ${orderId}
-          AND "sellerRefundId" IS NULL
-          AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")
-          AND NOT (${blockingRefundOrLatestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
-      `;
+    const refundClaim = await claimSellerOrderRefund({
+      actorUserId: me.id,
+      orderId,
     });
-    if (lockResult === 0) {
+    if (!refundClaim) {
       const [freshOrder, [{ hasOpenDispute } = { hasOpenDispute: false }]] =
         await Promise.all([
           prisma.order.findUnique({
@@ -302,6 +286,31 @@ export async function POST(
         { status: conflict.status },
       );
     }
+    if (
+      refundClaim.refundAmountCents !== refundAmountCents
+      || refundClaim.currency !== order.currency.toLowerCase()
+      || refundClaim.paymentIntentId !== order.stripePaymentIntentId
+    ) {
+      const driftRecord = await prisma.order.updateMany({
+        where: {
+          id: orderId,
+          ...activeOrderRefundClaimWhere(refundClaim),
+        },
+        data: {
+          sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
+          sellerRefundLockedAt: null,
+          reviewNeeded: true,
+          reviewNote:
+            "Seller refund claim drifted from the loaded Order; staff must reconcile before another attempt.",
+        },
+      });
+      if (driftRecord.count !== 1) {
+        throw new Error(
+          "Seller refund claim drift could not be recorded against the active generation",
+        );
+      }
+      throw new Error("Seller refund claim result drifted from the loaded Order");
+    }
 
     let refundId: string | null = null;
     let refundIds: string[] = [];
@@ -311,20 +320,15 @@ export async function POST(
     let refundAccountingEvidence: Prisma.InputJsonObject | null = null;
     try {
       const refund = await createMarketplaceRefund({
-        paymentIntentId: order.stripePaymentIntentId,
+        paymentIntentId: refundClaim.paymentIntentId,
         resolution: type,
-        amountCents: refundAmountCents,
-        itemsSubtotalCents: order.itemsSubtotalCents,
-        shippingAmountCents: order.shippingAmountCents,
-        giftWrappingPriceCents: order.giftWrappingPriceCents,
-        taxAmountCents: order.taxAmountCents,
-        canReverseTransfer: Boolean(order.stripeTransferId),
-        idempotencyKeyBase: refundIdempotencyKeyBase({
-          scope: "seller-refund",
-          id: orderId,
-          resolution: type,
-          amountCents: refundAmountCents,
-        }),
+        amountCents: refundClaim.refundAmountCents,
+        itemsSubtotalCents: refundClaim.itemsSubtotalCents,
+        shippingAmountCents: refundClaim.shippingAmountCents,
+        giftWrappingPriceCents: refundClaim.giftWrappingPriceCents,
+        taxAmountCents: refundClaim.taxAmountCents,
+        canReverseTransfer: refundClaim.canReverseTransfer,
+        idempotencyKeyBase: refundClaim.idempotencyScope,
       });
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
@@ -359,11 +363,15 @@ export async function POST(
           );
         }
         const orderUpdate = await tx.order.updateMany({
-          where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+          where: {
+            id: orderId,
+            ...activeOrderRefundClaimWhere(refundClaim),
+          },
           data: {
             sellerRefundId: refundId,
             sellerRefundAmountCents: refundAmountCents,
             sellerRefundLockedAt: null,
+            ...clearedOrderRefundClaimData(),
             reviewNeeded: true,
             reviewNote,
           },
@@ -396,6 +404,7 @@ export async function POST(
             refundAccounting: refund.accountingEvidence,
             requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
             requiresManualFollowUp: refund.requiresManualFollowUp,
+            ...orderRefundClaimEvidence(refundClaim),
           },
         });
         const refundAuthoritySourceId = localRefundEvidenceEventId(
@@ -504,11 +513,15 @@ export async function POST(
           const orphanReviewNote = `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`;
           await prisma.$transaction(async (tx) => {
             const orphanRecord = await tx.order.updateMany({
-              where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+              where: {
+                id: orderId,
+                ...activeOrderRefundClaimWhere(refundClaim),
+              },
               data: {
                 sellerRefundId: orphanRefundId,
                 sellerRefundAmountCents: refundAmountCents,
                 sellerRefundLockedAt: null,
+                ...clearedOrderRefundClaimData(),
                 reviewNeeded: true,
                 reviewNote: orphanReviewNote,
               },
@@ -534,6 +547,7 @@ export async function POST(
                 refundAccounting: refundAccountingEvidence,
                 requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
                 requiresManualFollowUp: refundRequiresManualFollowUp,
+                ...orderRefundClaimEvidence(refundClaim),
               },
             });
             if (refundRequiresManualTransferReconciliation) {
@@ -555,9 +569,12 @@ export async function POST(
           throw dbError;
         }
       } else {
-        await prisma.order
-          .updateMany({
-            where: { id: orderId, sellerRefundId: REFUND_LOCK_SENTINEL },
+        try {
+          const ambiguousRecord = await prisma.order.updateMany({
+            where: {
+              id: orderId,
+              ...activeOrderRefundClaimWhere(refundClaim),
+            },
             data: {
               sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
               sellerRefundLockedAt: null,
@@ -565,13 +582,19 @@ export async function POST(
               reviewNote:
                 "Seller refund attempt has an ambiguous Stripe outcome; staff must reconcile Stripe before another refund is attempted.",
             },
-          })
-          .catch((dbError) => {
-            Sentry.captureException(dbError, {
-              tags: { source: "seller_refund_ambiguous_record_failed" },
-              extra: { orderId, refundAmountCents },
-            });
           });
+          if (ambiguousRecord.count !== 1) {
+            throw new Error(
+              "Seller refund ambiguous outcome was not recorded against the active generation",
+            );
+          }
+        } catch (dbError) {
+          Sentry.captureException(dbError, {
+            tags: { source: "seller_refund_ambiguous_record_failed" },
+            extra: { orderId, refundAmountCents },
+          });
+          throw dbError;
+        }
       }
       throw err;
     }

@@ -17,6 +17,9 @@ export async function releaseStaleRefundLocks(orderId?: string) {
       // retried or released by the fixed reconciliation authority, never by
       // elapsed wall time.
       caseResolutionClaimId: null,
+      // The provider call for a generation-fenced claim was authorized before
+      // control left PostgreSQL, so age alone cannot prove it had no effect.
+      refundClaimId: null,
       OR: [
         { sellerRefundLockedAt: null },
         { sellerRefundLockedAt: { lt: cutoff } },

@@ -32,6 +32,12 @@ import {
 import {
   verifySellerPayoutEventActivationRelease,
 } from "./verify-seller-payout-event-activation-release.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "./order-refund-claim-generation-catalog.mjs";
+import {
+  verifyOrderRefundClaimGenerationRelease,
+} from "./verify-order-refund-claim-generation-release.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
   "checkout-stock-reservation-force-reviewed";
@@ -90,8 +96,15 @@ export function verifyCheckoutStockReservationForceRelease(
     "prisma/migrations",
     SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
   ));
+  const refundClaimSuccessorExists = fs.existsSync(path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+  ));
   if (allowReviewedSuccessor && payoutSuccessorExists) {
-    if (payoutActivationSuccessorExists) {
+    if (refundClaimSuccessorExists) {
+      verifyOrderRefundClaimGenerationRelease(rootDirectory);
+    } else if (payoutActivationSuccessorExists) {
       verifySellerPayoutEventActivationRelease(rootDirectory, {
         allowReviewedForceSuccessor: payoutForceSuccessorExists,
       });
@@ -114,6 +127,9 @@ export function verifyCheckoutStockReservationForceRelease(
             ...(payoutForceSuccessorExists
               ? [SELLER_PAYOUT_EVENT_FORCE_MIGRATION]
               : []),
+            ...(refundClaimSuccessorExists
+              ? [ORDER_REFUND_CLAIM_GENERATION_MIGRATION]
+              : []),
           ]
         : [],
   });
@@ -122,7 +138,9 @@ export function verifyCheckoutStockReservationForceRelease(
         phase: strictGuard.phase,
         sealedPrefix: true,
         reviewedSuccessorMigration: payoutForceSuccessorExists
-          ? SELLER_PAYOUT_EVENT_FORCE_MIGRATION
+          ? refundClaimSuccessorExists
+            ? ORDER_REFUND_CLAIM_GENERATION_MIGRATION
+            : SELLER_PAYOUT_EVENT_FORCE_MIGRATION
           : payoutActivationSuccessorExists
           ? SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION
           : SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
