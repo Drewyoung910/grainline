@@ -478,10 +478,14 @@ self-service export boundary is recorded in
 `docs/order-payment-event-account-export.md`. Compatible authority design is
 now supported by the isolated generation-fenced acquisition work in
 `docs/order-payment-event-refund-claim-generation.md`, but that work is not
-live and does not yet provide the final atomic payment-event/provider
-record/finalize or evidence-based reconciliation families. Activation remains
-blocked on those finalizers, typed ordering/invariants and fresh data
-classification. Pin all 26 semantic
+live. A stacked compatible package now adds atomic, source-bound seller and
+blocked-checkout provider record/finalize operations plus an exact
+later-webhook-generation handoff; see
+`docs/order-payment-event-refund-record-authority.md`. It is also not live and
+does not supply ambiguous provider-effect reconciliation, signed refund/dispute
+and staff families, projections or the remaining invariants. Activation remains
+blocked on those items, typed ordering and fresh data classification. Pin all
+26 semantic
 consumers, require a fresh aggregate-only
 production inspection, then use compatible schema/functions, converted app
 deployment, signed provider/concurrency proof, predecessor drain, policyless

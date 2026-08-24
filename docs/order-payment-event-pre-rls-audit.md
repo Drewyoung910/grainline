@@ -66,6 +66,15 @@ release. It is prepared only: the migration and application conversion are not
 merged, deployed or applied to production, and the later fixed provider
 record/finalize catalog remains required before RLS activation.
 
+The fifth compatible correction is recorded in
+`docs/order-payment-event-refund-record-authority.md`. Seller and
+blocked-checkout successful full refunds now use source-bound fixed
+record/finalize operations that atomically co-write Order, payment, stock,
+Case and audit evidence, plus a restart-safe exact webhook-generation handoff.
+It is also isolated preparation only. Ambiguous provider reconciliation,
+signed refund/dispute writers, remaining invariants/projections, live proof and
+activation remain open.
+
 ## Product and evidence contract
 
 ### What the table is
@@ -385,10 +394,10 @@ There is no runtime-callable `write_payment_event`, `get_payment_event`,
    latest-dispute helper with focused business-logic regressions.
 3. Run the fresh aggregate-only production inspection; review counts before
    any validating migration.
-4. Promote the prepared refund-generation claim only through a separately
-   byte-pinned compatible release, then add typed ordering, evidence-based
-   claim reconciliation, invariants and the remaining fixed operations with
-   RLS off and predecessor grants retained.
+4. Promote the prepared refund-generation and fixed record/finalize authority
+   only through separately byte-pinned compatible releases, then add typed
+   ordering, evidence-based claim reconciliation, invariants and the remaining
+   fixed operations with RLS off and predecessor grants retained.
 5. Prove all functions, replay/collision cases, append immutability, claim ABA
    races, dispute reorderings, actor projections and rollback in disposable
    PostgreSQL using separate owner and restricted runtime roles.

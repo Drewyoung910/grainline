@@ -29,7 +29,10 @@ const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
 ];
 const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_blocked_checkout_refund_claim",
+  "grainline_blocked_checkout_refund_claim_resume",
+  "grainline_blocked_checkout_refund_record",
   "grainline_seller_refund_claim",
+  "grainline_seller_refund_record",
 ];
 
 const {

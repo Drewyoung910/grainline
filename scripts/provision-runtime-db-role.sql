@@ -1340,13 +1340,16 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
--- Order refund generation claims are an additive compatibility fence before
--- Order/OrderPaymentEvent RLS. When present, expose only the two source-bound
--- claim functions and keep PUBLIC closed.
+-- Order refund generation claims and atomic finalizers are an additive
+-- compatibility fence before Order/OrderPaymentEvent RLS. When present,
+-- expose only the source-bound functions and keep PUBLIC closed.
 WITH order_refund_claim_service(function_signature) AS (
   VALUES
     ('public."grainline_seller_refund_claim"(text, text)'),
-    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)')
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_claim_resume"(text, bigint, text, text, integer)'),
+    ('public."grainline_seller_refund_record"(text, text, bigint, text, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_record"(text, bigint, text, bigint, text, text, text, integer)')
 )
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
   FROM order_refund_claim_service
@@ -1356,7 +1359,10 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
 WITH order_refund_claim_service(function_signature) AS (
   VALUES
     ('public."grainline_seller_refund_claim"(text, text)'),
-    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)')
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_claim_resume"(text, bigint, text, text, integer)'),
+    ('public."grainline_seller_refund_record"(text, text, bigint, text, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_record"(text, bigint, text, bigint, text, text, text, integer)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM %I',
@@ -1370,7 +1376,10 @@ SELECT format(
 WITH order_refund_claim_service(function_signature) AS (
   VALUES
     ('public."grainline_seller_refund_claim"(text, text)'),
-    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)')
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_claim_resume"(text, bigint, text, text, integer)'),
+    ('public."grainline_seller_refund_record"(text, text, bigint, text, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_record"(text, bigint, text, bigint, text, text, text, integer)')
 )
 SELECT format(
   'GRANT EXECUTE ON FUNCTION %s TO %I',

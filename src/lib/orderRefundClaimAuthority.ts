@@ -162,7 +162,7 @@ export async function claimBlockedCheckoutOrderRefund(
   client: RefundClaimClient = prisma,
 ) {
   const rows = await client.$queryRaw<Array<{ claim: unknown }>>`
-    SELECT public.grainline_blocked_checkout_refund_claim(
+    SELECT public.grainline_blocked_checkout_refund_claim_resume(
       ${input.eventId}::text,
       ${input.eventClaimGeneration}::bigint,
       ${input.sessionId}::text,

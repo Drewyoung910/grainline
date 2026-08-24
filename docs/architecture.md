@@ -204,6 +204,13 @@ pins 26 semantic application surfaces and requires sanitized buyer/seller
 projections, generation-fenced seller and blocked-checkout refund operations,
 canonical latest-per-dispute ordering, append-only/taxonomy invariants and a
 fresh production aggregate inspection before activation design can proceed.
+The prepared refund authority now separates database-derived claim acquisition
+from one atomic fixed record/finalize operation. A failed webhook retry may
+hand an existing claim only to a later active generation for the identical
+event, Checkout Session, Order, amount and idempotency scope. See
+`docs/order-payment-event-refund-claim-generation.md` and
+`docs/order-payment-event-refund-record-authority.md`; both remain isolated
+preparation, not production database state.
 It also records the launch-safe refund contract: seller self-service supports
 full cancellation/refund, while partial refunds remain staff Case operations
 until the Order model can represent residual line-item fulfillment. Shipping

@@ -8,7 +8,7 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { sendRefundIssued } from "@/lib/email";
 import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
-import { localRefundEvidenceEventId, recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
+import { localRefundEvidenceEventId } from "@/lib/localRefundEvidence";
 import { createNotification, shouldSendEmail } from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import { formatCurrencyCents } from "@/lib/money";
@@ -22,7 +22,6 @@ import {
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
 import { latestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
-import { lockUserForCaseLifecycle } from "@/lib/caseLifecycleLocks";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
   blockingRefundLedgerWhere,
@@ -30,8 +29,6 @@ import {
   orderHasRefundLedger,
   refundAmountForResolution,
   refundLockAcquisitionConflictResponse,
-  refundMayRestoreStock,
-  refundStockRestoreQuantities,
   sellerRefundIdAfterStaleRelease,
   sellerRefundConflictResponse,
 } from "@/lib/refundRouteState";
@@ -50,9 +47,13 @@ import * as Sentry from "@sentry/nextjs";
 import {
   activeOrderRefundClaimWhere,
   claimSellerOrderRefund,
-  clearedOrderRefundClaimData,
-  orderRefundClaimEvidence,
 } from "@/lib/orderRefundClaimAuthority";
+import {
+  orderRefundProviderEvidence,
+  recordSellerOrderRefund,
+  type OrderRefundProviderEvidence,
+  type OrderRefundRecordResult,
+} from "@/lib/orderRefundRecordAuthority";
 
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
@@ -156,11 +157,7 @@ export async function POST(
           include: {
             listing: {
               select: {
-                id: true,
                 sellerId: true,
-                listingType: true,
-                stockQuantity: true,
-                status: true,
               },
             },
           },
@@ -180,7 +177,6 @@ export async function POST(
       order.items.every((it) => it.listing.sellerId === seller.id);
     if (!allItemsBelongToSeller)
       return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
-    const myItems = order.items;
 
     const staleLocksReleased = await releaseStaleRefundLocks(orderId);
     const orderForRefundState = {
@@ -314,10 +310,8 @@ export async function POST(
 
     let refundId: string | null = null;
     let refundIds: string[] = [];
-    let refundStatuses: Array<string | null> = [];
-    let refundRequiresManualTransferReconciliation = false;
-    let refundRequiresManualFollowUp = false;
-    let refundAccountingEvidence: Prisma.InputJsonObject | null = null;
+    let refundProviderEvidence: OrderRefundProviderEvidence | null = null;
+    let refundRecordResult: OrderRefundRecordResult | null = null;
     try {
       const refund = await createMarketplaceRefund({
         paymentIntentId: refundClaim.paymentIntentId,
@@ -332,238 +326,46 @@ export async function POST(
       });
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
-      refundStatuses = refund.refundStatuses;
-      refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
-      refundRequiresManualFollowUp = refund.requiresManualFollowUp;
-      refundAccountingEvidence = refund.accountingEvidence;
-
-      const stockRestores =
-        refundMayRestoreStock(order)
-          ? refundStockRestoreQuantities(myItems)
-          : [];
-      const stockRestoreIds = stockRestores.map((restore) => restore.listingId);
-
-      const refundSummary =
-        refundIds.length > 1
-          ? `Stripe refunds ${refundIds.join(", ")}`
-          : `Stripe refund ${refundId}`;
-      const transferNote = refund.requiresManualTransferReconciliation
-        ? " Seller Stripe account is disconnected; transfer reversal must be reconciled manually."
-        : "";
-      const statusNote = refund.requiresManualFollowUp
-        ? ` Stripe refund status requires manual follow-up: ${refund.refundStatuses.filter(Boolean).join(", ") || "provider pending"}.`
-        : "";
-      const reviewNote = `Seller-initiated ${type.toLowerCase()} refund of ${refundAmountDisplay} via ${refundSummary}.${transferNote}${statusNote}`;
-
-      const refundWrite = await prisma.$transaction(async (tx) => {
-        const actorExists = await lockUserForCaseLifecycle(tx, me.id);
-        if (!actorExists) {
-          throw new Error(
-            "Seller refund actor disappeared while recording Stripe refund.",
-          );
-        }
-        const orderUpdate = await tx.order.updateMany({
-          where: {
-            id: orderId,
-            ...activeOrderRefundClaimWhere(refundClaim),
-          },
-          data: {
-            sellerRefundId: refundId,
-            sellerRefundAmountCents: refundAmountCents,
-            sellerRefundLockedAt: null,
-            ...clearedOrderRefundClaimData(),
-            reviewNeeded: true,
-            reviewNote,
-          },
-        });
-        if (orderUpdate.count !== 1) {
-          throw new Error(
-            "Seller refund lock was no longer held while recording Stripe refund.",
-          );
-        }
-        if (!refundId) {
-          throw new Error(
-            "Seller refund completed without a primary refund identifier.",
-          );
-        }
-        await recordLocalRefundEvidence(tx, {
-          action: "SELLER_REFUND_RECORDED",
-          actorType: "system",
-          actorId: me.id,
-          orderId,
-          refundId,
-          refundIds,
-          amountCents: refundAmountCents,
-          currency: order.currency,
-          status: refund.refundStatuses[0] ?? null,
-          reason: "seller_refund",
-          description: reviewNote,
-          metadata: {
-            refundType: type,
-            notificationBody: refundNotificationBody,
-            refundAccounting: refund.accountingEvidence,
-            requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
-            requiresManualFollowUp: refund.requiresManualFollowUp,
-            ...orderRefundClaimEvidence(refundClaim),
-          },
-        });
-        const refundAuthoritySourceId = localRefundEvidenceEventId(
-          "SELLER_REFUND_RECORDED",
-          refundId,
+      if (!refundId) {
+        throw new Error(
+          "Seller refund completed without a primary refund identifier.",
         );
-        const paymentEvent = await tx.orderPaymentEvent.findUnique({
-          where: { stripeEventId: refundAuthoritySourceId },
-          select: { id: true, orderId: true },
-        });
-        if (!paymentEvent || paymentEvent.orderId !== orderId) {
-          throw new Error("SELLER_REFUND_PAYMENT_EVENT_SOURCE_MISMATCH");
-        }
-        const caseResults = await tx.$queryRaw<Array<{
-          caseId: string | null;
-          orderId: string;
-          sellerUserId: string;
-          buyerUserId: string | null;
-          paymentEventId: string;
-          action: string;
-        }>>`
-          SELECT *
-          FROM public.grainline_case_seller_refund_apply(
-            ${me.id}::text,
-            ${paymentEvent.id}::text
-          )
-        `;
-        const caseResult = caseResults[0];
-        const actionIsValid =
-          caseResult?.action === "resolve"
-          || caseResult?.action === "terminal"
-          || caseResult?.action === "no_case"
-          || caseResult?.action === "replay";
-        const caseIdentityIsValid =
-          caseResult?.action === "no_case"
-            ? caseResult.caseId === null
-            : Boolean(caseResult?.caseId);
-        if (
-          caseResults.length !== 1
-          || !caseResult
-          || caseResult.orderId !== orderId
-          || caseResult.sellerUserId !== me.id
-          || caseResult.buyerUserId !== order.buyerId
-          || caseResult.paymentEventId !== paymentEvent.id
-          || !actionIsValid
-          || !caseIdentityIsValid
-        ) {
-          throw new Error("SELLER_REFUND_CASE_AUTHORITY_RESULT_INVALID");
-        }
-
-        if (refund.requiresManualTransferReconciliation) {
-          await tx.sellerProfile.update({
-            where: { id: seller.id },
-            data: {
-              manualStripeReconciliationNeeded: true,
-              manualStripeReconciliationNote:
-                "Seller refund used a platform-only Stripe refund because the connected account transfer could not be reversed. Staff must reconcile the seller transfer manually.",
-            },
-          });
-        }
-
-        if (caseResult.action === "terminal") {
-          await tx.order.update({
-            where: { id: orderId },
-            data: {
-              reviewNote: `${reviewNote} Case auto-resolution did not update because case state changed; staff must reconcile the case manually.`,
-            },
-          });
-        }
-
-        for (const restore of stockRestores) {
-          await tx.listing.update({
-            where: { id: restore.listingId },
-            data: { stockQuantity: { increment: restore.quantity } },
-          });
-        }
-
-        let restoredActiveListingCount = 0;
-        if (stockRestoreIds.length) {
-          const stockStatusUpdate = await tx.listing.updateMany({
-            where: {
-              id: { in: stockRestoreIds },
-              listingType: "IN_STOCK",
-              status: "SOLD_OUT",
-              stockQuantity: { gt: 0 },
-              isPrivate: false,
-            },
-            data: { status: "ACTIVE" },
-          });
-          restoredActiveListingCount = stockStatusUpdate.count;
-        }
-        return { stockStatusRestoredCount: restoredActiveListingCount };
+      }
+      const providerEvidence = orderRefundProviderEvidence(refund);
+      refundProviderEvidence = providerEvidence;
+      refundRecordResult = await recordSellerOrderRefund({
+        actorUserId: me.id,
+        orderId,
+        claim: refundClaim,
+        evidence: providerEvidence,
       });
-      if (refundWrite.stockStatusRestoredCount > 0) {
+      if (refundRecordResult.restoredActiveListingCount > 0) {
         revalidateListingSearchCaches();
         revalidateFeaturedMakerCaches();
       }
     } catch (err) {
       if (refundId) {
         Sentry.captureException(err, {
-          tags: { source: "seller_refund_orphaned_after_stripe" },
+          tags: { source: "seller_refund_finalize_retry" },
           extra: { orderId, refundId, refundIds, refundAmountCents },
         });
+        if (!refundProviderEvidence) {
+          throw err;
+        }
         try {
-          const orphanRefundId = refundId;
-          const orphanReviewNote = `ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`;
-          await prisma.$transaction(async (tx) => {
-            const orphanRecord = await tx.order.updateMany({
-              where: {
-                id: orderId,
-                ...activeOrderRefundClaimWhere(refundClaim),
-              },
-              data: {
-                sellerRefundId: orphanRefundId,
-                sellerRefundAmountCents: refundAmountCents,
-                sellerRefundLockedAt: null,
-                ...clearedOrderRefundClaimData(),
-                reviewNeeded: true,
-                reviewNote: orphanReviewNote,
-              },
-            });
-            if (orphanRecord.count !== 1) {
-              throw new Error("Seller refund orphan record was not written.");
-            }
-            await recordLocalRefundEvidence(tx, {
-              action: "SELLER_REFUND_RECORDED",
-              actorType: "system",
-              actorId: me.id,
-              orderId,
-              refundId: orphanRefundId,
-              refundIds,
-              amountCents: refundAmountCents,
-              currency: order.currency,
-              status: refundStatuses[0] ?? null,
-              reason: "seller_refund",
-              description: orphanReviewNote,
-              metadata: {
-                refundType: type,
-                orphanRecovery: true,
-                refundAccounting: refundAccountingEvidence,
-                requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
-                requiresManualFollowUp: refundRequiresManualFollowUp,
-                ...orderRefundClaimEvidence(refundClaim),
-              },
-            });
-            if (refundRequiresManualTransferReconciliation) {
-              await tx.sellerProfile.update({
-                where: { id: seller.id },
-                data: {
-                  manualStripeReconciliationNeeded: true,
-                  manualStripeReconciliationNote:
-                    "Seller refund used a platform-only Stripe refund because the connected account transfer could not be reversed. Staff must reconcile the seller transfer manually.",
-                },
-              });
-            }
+          refundRecordResult = await recordSellerOrderRefund({
+            actorUserId: me.id,
+            orderId,
+            claim: refundClaim,
+            evidence: refundProviderEvidence,
           });
+          if (refundRecordResult.restoredActiveListingCount > 0) {
+            revalidateListingSearchCaches();
+            revalidateFeaturedMakerCaches();
+          }
         } catch (dbError) {
           Sentry.captureException(dbError, {
-            tags: { source: "seller_refund_orphan_record_failed" },
+            tags: { source: "seller_refund_finalize_retry_failed" },
             extra: { orderId, refundId, refundIds, refundAmountCents },
           });
           throw dbError;
@@ -595,11 +397,11 @@ export async function POST(
           });
           throw dbError;
         }
+        throw err;
       }
-      throw err;
     }
 
-    if (!refundId) {
+    if (!refundId || !refundRecordResult) {
       throw new Error("Seller refund completed without durable refund authority");
     }
     const refundAuthoritySourceId = localRefundEvidenceEventId(

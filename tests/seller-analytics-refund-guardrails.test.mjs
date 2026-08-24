@@ -55,6 +55,9 @@ describe("seller analytics refund guardrails", () => {
   it("keeps seller and staff Case refunds visible to Guild sales filters", () => {
     const helper = source("src/lib/localRefundEvidenceCore.ts");
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const sellerRefundAuthority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
     const caseResolveRoute = source("src/app/api/cases/[id]/resolve/route.ts");
     const caseResolveAuthority = source(
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
@@ -66,9 +69,10 @@ describe("seller analytics refund guardrails", () => {
     assert.match(helper, /eventType: "REFUND"/);
     assert.match(helper, /amountCents/);
 
-    assert.match(sellerRefundRoute, /sellerRefundAmountCents: refundAmountCents/);
-    assert.match(sellerRefundRoute, /action: "SELLER_REFUND_RECORDED"/);
-    assert.match(sellerRefundRoute, /amountCents: refundAmountCents/);
+    assert.match(sellerRefundRoute, /recordSellerOrderRefund\(\{/);
+    assert.match(sellerRefundAuthority, /"sellerRefundAmountCents" = refund_amount/);
+    assert.match(sellerRefundAuthority, /'SELLER_REFUND_RECORDED'/);
+    assert.match(sellerRefundAuthority, /"amountCents"[\s\S]*refund_amount/);
     assert.match(
       sellerRefundRoute,
       /if \(refundParsed\.type === "PARTIAL"\)[\s\S]*Seller partial refunds require Grainline staff review/,

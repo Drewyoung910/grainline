@@ -22,6 +22,9 @@ import {
 import {
   ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
 } from "./order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+} from "./order-refund-record-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE =
   "seller-payout-event-activation-reviewed";
@@ -37,6 +40,7 @@ export function verifySellerPayoutEventActivationRelease(
   {
     allowReviewedForceSuccessor = false,
     allowReviewedRefundClaimSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
   } = {},
 ) {
   if (allowReviewedRefundClaimSuccessor && !allowReviewedForceSuccessor) {
@@ -44,10 +48,19 @@ export function verifySellerPayoutEventActivationRelease(
       "Order refund claim successor requires the reviewed SellerPayoutEvent FORCE successor",
     );
   }
+  if (
+    allowReviewedRefundRecordSuccessor
+    && !allowReviewedRefundClaimSuccessor
+  ) {
+    throw new Error(
+      "Order refund record successor requires the reviewed refund claim successor",
+    );
+  }
   verifySellerPayoutEventAuthorityRelease(rootDirectory, {
     allowReviewedActivationSuccessor: true,
     allowReviewedForceSuccessor,
     allowReviewedRefundClaimSuccessor,
+    allowReviewedRefundRecordSuccessor,
   });
   const candidate = buildSellerPayoutEventActivationCandidate(rootDirectory);
   const migrationDirectory = path.join(rootDirectory, "prisma/migrations");
@@ -110,7 +123,13 @@ export function verifySellerPayoutEventActivationRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedRefundClaimSuccessor
+    omittedReviewedMigrationNames: allowReviewedRefundRecordSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundClaimSuccessor
       ? [
           SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
           ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
@@ -138,7 +157,9 @@ export function verifySellerPayoutEventActivationRelease(
       ? Object.freeze({
           phase: guard.phase,
           sealedPrefix: true,
-          reviewedSuccessorMigration: allowReviewedRefundClaimSuccessor
+          reviewedSuccessorMigration: allowReviewedRefundRecordSuccessor
+            ? ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
+            : allowReviewedRefundClaimSuccessor
             ? ORDER_REFUND_CLAIM_GENERATION_MIGRATION
             : SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
         })

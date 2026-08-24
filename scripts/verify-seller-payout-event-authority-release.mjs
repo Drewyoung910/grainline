@@ -9,6 +9,10 @@ import {
   ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
   verifyOrderRefundClaimGenerationMigrationBytes,
 } from "./order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+  verifyOrderRefundRecordAuthorityMigrationBytes,
+} from "./order-refund-record-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION =
   "20260815210000_prepare_seller_payout_event_authority";
@@ -29,6 +33,7 @@ export function verifySellerPayoutEventAuthorityRelease(
     allowReviewedActivationSuccessor = false,
     allowReviewedForceSuccessor = false,
     allowReviewedRefundClaimSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
   } = {},
 ) {
   if (allowReviewedForceSuccessor && !allowReviewedActivationSuccessor) {
@@ -44,8 +49,19 @@ export function verifySellerPayoutEventAuthorityRelease(
       "Order refund claim successor requires SellerPayoutEvent activation and FORCE",
     );
   }
+  if (
+    allowReviewedRefundRecordSuccessor
+    && !allowReviewedRefundClaimSuccessor
+  ) {
+    throw new Error(
+      "Order refund record successor requires the reviewed refund claim successor",
+    );
+  }
   if (allowReviewedRefundClaimSuccessor) {
     verifyOrderRefundClaimGenerationMigrationBytes(rootDirectory);
+  }
+  if (allowReviewedRefundRecordSuccessor) {
+    verifyOrderRefundRecordAuthorityMigrationBytes(rootDirectory);
   }
   const migrationDirectory = path.join(
     rootDirectory,
@@ -77,7 +93,14 @@ export function verifySellerPayoutEventAuthorityRelease(
   );
   assert.deepEqual(
     later,
-    allowReviewedRefundClaimSuccessor
+    allowReviewedRefundRecordSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundClaimSuccessor
       ? [
           SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
           SELLER_PAYOUT_EVENT_FORCE_MIGRATION,

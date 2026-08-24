@@ -15,7 +15,9 @@ import {
 } from "../scripts/verify-order-refund-claim-generation-release.mjs";
 
 test("release byte-pins one coexistence-safe refund claim successor", () => {
-  const release = verifyOrderRefundClaimGenerationRelease();
+  const release = verifyOrderRefundClaimGenerationRelease(process.cwd(), {
+    allowReviewedRefundRecordSuccessor: true,
+  });
   assert.equal(release.phase, ORDER_REFUND_CLAIM_GENERATION_PHASE);
   assert.equal(release.migration, ORDER_REFUND_CLAIM_GENERATION_MIGRATION);
   assert.equal(
