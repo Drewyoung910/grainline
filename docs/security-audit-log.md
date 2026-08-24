@@ -2336,3 +2336,11 @@ Open work:
   double-quotes those evidence aliases and its static contract pins the exact
   driver shape. Migration and application bytes did not change. Replacement
   exact-head CI remains required.
+- Replacement exact-head CI run `32712649978` on code-bearing commit
+  `8d8f9ab26cd65f141d4f61216f61719d89dd4838` passed all 203 workflow steps.
+  It applied the complete prefix only to disposable PostgreSQL 16, re-audited
+  grants/RLS, and proved inactive denial, exact ADMIN-authorized recovery,
+  Case-boundary reachability, stock restoration, replay and zero residue
+  through `grainline_app_runtime`. Historical database proofs, 3,355 tests,
+  TypeScript, lint, dependency audit and the production build also passed.
+  Production remained unchanged.
