@@ -62,6 +62,7 @@ export async function runCheckoutStockReservationActivationPostflightProof(
     parseCheckoutStockReservationActivationPostflightProofConfig(env);
   verifyCheckoutStockReservationActivationRelease(undefined, {
     allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
   });
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();

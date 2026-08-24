@@ -26,6 +26,8 @@ function authorityAccessFiles(delegate, table) {
       + `(?:public\\.)?[\\"\u0060]${table}[\\"\u0060]`
       + (table === "OrderPaymentEvent"
         ? "|latestConversionBlockingDisputeLedgerExistsSql"
+          + "|record(?:Seller|BlockedCheckout)OrderRefund"
+          + "|grainline_(?:seller|blocked_checkout)_refund_record"
         : ""),
     "i",
   );
@@ -96,6 +98,7 @@ const expected = {
     "src/app/api/orders/[id]/refund/route.ts",
     "src/app/api/stripe/webhook/route.ts",
     "src/lib/localRefundEvidence.ts",
+    "src/lib/orderRefundRecordAuthority.ts",
     "src/lib/quality-score.ts",
     "src/lib/refundLedgerSql.ts",
     "src/lib/site-metrics-snapshot.ts",

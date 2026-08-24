@@ -56,12 +56,14 @@ export function readSellerPayoutEventActivationMigrationCatalog(
   {
     allowReviewedForceSuccessor = false,
     allowReviewedRefundClaimSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
   } = {},
 ) {
   const predecessor = readSellerPayoutEventAuthorityMigrationCatalog(root);
   const release = verifySellerPayoutEventActivationRelease(root, {
     allowReviewedForceSuccessor,
     allowReviewedRefundClaimSuccessor,
+    allowReviewedRefundRecordSuccessor,
   });
   const candidate = buildSellerPayoutEventActivationCandidate(root);
   if (

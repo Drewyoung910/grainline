@@ -36,8 +36,6 @@ import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import {
   lockCheckoutSessionMutation,
   markCheckoutStockReservationCompleted,
-  restorableStockItemsFromLineItems,
-  restoreReservedStockItems,
   restoreUnorderedCheckoutStockOnce,
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
@@ -57,7 +55,7 @@ import {
 } from "@/lib/refundLockState";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
-import { localRefundEvidenceEventId, recordLocalRefundEvidence } from "@/lib/localRefundEvidence";
+import { localRefundEvidenceEventId } from "@/lib/localRefundEvidence";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import {
@@ -89,9 +87,13 @@ import { Prisma, type FulfillmentStatus } from "@prisma/client";
 import {
   activeOrderRefundClaimWhere,
   claimBlockedCheckoutOrderRefund,
-  clearedOrderRefundClaimData,
-  orderRefundClaimEvidence,
 } from "@/lib/orderRefundClaimAuthority";
+import {
+  orderRefundProviderEvidence,
+  recordBlockedCheckoutOrderRefund,
+  type OrderRefundProviderEvidence,
+  type OrderRefundRecordResult,
+} from "@/lib/orderRefundRecordAuthority";
 
 
 export const runtime = "nodejs";
@@ -1122,7 +1124,6 @@ export async function POST(req: Request) {
       async function refundBlockedCheckout(input: {
         orderId: string;
         reason: string;
-        lineItems: CheckoutLineItem[];
         sellerUserIds: string[];
         buyerUserId: string | null;
       }) {
@@ -1155,10 +1156,8 @@ export async function POST(req: Request) {
         let refundId: string | null = null;
         let refundAmountCents: number | null = null;
         let refundIds: string[] = [];
-        let refundStatuses: Array<string | null> = [];
-        let refundRequiresManualTransferReconciliation = false;
-        let refundRequiresManualFollowUp = false;
-        let refundAccountingEvidence: Prisma.InputJsonObject | null = null;
+        let refundProviderEvidence: OrderRefundProviderEvidence | null = null;
+        let refundRecordResult: OrderRefundRecordResult | null = null;
         let retryBlockedCheckoutRefund = false;
         try {
           await releaseStaleRefundLocks(input.orderId);
@@ -1181,7 +1180,10 @@ export async function POST(req: Request) {
             });
             return;
           }
-          if (orderHasRefundLedger(currentOrder)) {
+          if (
+            orderHasRefundLedger(currentOrder)
+            && currentOrder.sellerRefundId !== REFUND_LOCK_SENTINEL
+          ) {
             await prisma.order.update({
               where: { id: input.orderId },
               data: {
@@ -1272,104 +1274,27 @@ export async function POST(req: Request) {
             });
             refundId = refund.primaryRefundId;
             refundIds = refund.refundIds;
-            refundStatuses = refund.refundStatuses;
-            refundRequiresManualTransferReconciliation = refund.requiresManualTransferReconciliation;
-            refundRequiresManualFollowUp = refund.requiresManualFollowUp;
-            refundAccountingEvidence = refund.accountingEvidence;
             if (!refundId) {
               throw new Error(
                 "Blocked checkout refund completed without a primary refund identifier.",
               );
             }
 
-            const transferNote = refund.requiresManualTransferReconciliation
-              ? " Seller transfer reversal requires manual reconciliation."
-              : "";
-            const statusNote = refund.requiresManualFollowUp
-              ? ` Stripe refund status requires manual follow-up: ${refund.refundStatuses.filter(Boolean).join(", ") || "provider pending"}.`
-              : "";
-            const issuedRefundAmountCents = refundAmountCents;
-
-            const stockStatusRestoredCount = await prisma.$transaction(async (tx) => {
-              const restoredCount = await restoreReservedStockItems(tx, restorableStockItemsFromLineItems(input.lineItems));
-              const orderUpdate = await tx.order.updateMany({
-                where: {
-                  id: input.orderId,
-                  ...activeOrderRefundClaimWhere(refundClaim),
-                },
-                data: {
-                  sellerRefundId: refundId,
-                  sellerRefundAmountCents: refundAmountCents,
-                  sellerRefundLockedAt: null,
-                  ...clearedOrderRefundClaimData(),
-                  reviewNeeded: true,
-                  reviewNote: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.${transferNote}${statusNote}`,
-                },
-              });
-              if (orderUpdate.count !== 1) {
-                throw new Error("Blocked checkout refund lock was no longer held while recording Stripe refund.");
-              }
-              if (refundId) {
-                await recordLocalRefundEvidence(tx, {
-                  action: "BLOCKED_CHECKOUT_REFUND_RECORDED",
-                  actorType: "webhook",
-                  actorId: event.id,
-                  orderId: input.orderId,
-                  refundId,
-                  refundIds,
-                  amountCents: issuedRefundAmountCents,
-                  currency,
-                  status: refund.refundStatuses[0] ?? null,
-                  reason: input.reason,
-                  description: `${reviewPrefix} Automatic refund issued because the maker account was not eligible to accept this order.`,
-                  metadata: {
-                    stripeSessionId: sessionId,
-                    stripeEventType: event.type,
-                    checkoutReason: input.reason,
-                    refundAccounting: refund.accountingEvidence,
-                    requiresManualTransferReconciliation: refund.requiresManualTransferReconciliation,
-                    requiresManualFollowUp: refund.requiresManualFollowUp,
-                    ...orderRefundClaimEvidence(refundClaim),
-                  },
-                });
-              }
-              return restoredCount;
+            refundProviderEvidence = orderRefundProviderEvidence(refund);
+            refundRecordResult = await recordBlockedCheckoutOrderRefund({
+              orderId: input.orderId,
+              claim: refundClaim,
+              evidence: refundProviderEvidence,
             });
-            if (stockStatusRestoredCount > 0) {
+            if (refundRecordResult.restoredActiveListingCount > 0) {
               revalidateListingSearchCaches();
               revalidateFeaturedMakerCaches();
             }
 
-            if (input.buyerUserId) {
-              try {
-                await createNotification({
-                  userId: input.buyerUserId,
-                  type: "NEW_ORDER",
-                  title: "Payment refunded",
-                  body: "This payment was refunded because the checkout was no longer eligible to complete.",
-                  link: `/dashboard/orders/${input.orderId}`,
-                  sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
-                  sourceId: localRefundEvidenceEventId(
-                    "BLOCKED_CHECKOUT_REFUND_RECORDED",
-                    refundId,
-                  ),
-                });
-              } catch (notificationError) {
-                Sentry.captureException(notificationError, {
-                  level: "warning",
-                  tags: { source: "stripe_webhook_blocked_checkout_refund_notification" },
-                  extra: {
-                    stripeSessionId: sessionId,
-                    orderId: input.orderId,
-                    buyerUserId: input.buyerUserId,
-                  },
-                });
-              }
-            }
           } catch (refundError) {
             if (refundId) {
               Sentry.captureException(refundError, {
-                tags: { source: "stripe_webhook_blocked_checkout_orphaned_after_stripe" },
+                tags: { source: "stripe_webhook_blocked_checkout_finalize_retry" },
                 extra: {
                   stripeSessionId: sessionId,
                   orderId: input.orderId,
@@ -1379,58 +1304,22 @@ export async function POST(req: Request) {
                   refundAmountCents,
                 },
               });
+              if (!refundProviderEvidence) {
+                throw refundError;
+              }
               try {
-                if (refundAmountCents == null) {
-                  throw new Error("Blocked checkout orphan refund amount was unavailable.");
-                }
-                const orphanRefundId = refundId;
-                const orphanReviewNote = `${reviewPrefix} ORPHANED REFUND: Stripe refund(s) ${refundIds.join(", ")} were created, but follow-up DB work failed. Manual reconciliation required.`;
-                const orphanRefundAmountCents = refundAmountCents;
-                await prisma.$transaction(async (tx) => {
-                  const orphanRecord = await tx.order.updateMany({
-                    where: {
-                      id: input.orderId,
-                      ...activeOrderRefundClaimWhere(refundClaim),
-                    },
-                    data: {
-                      sellerRefundId: orphanRefundId,
-                      sellerRefundAmountCents: orphanRefundAmountCents,
-                      sellerRefundLockedAt: null,
-                      ...clearedOrderRefundClaimData(),
-                      reviewNeeded: true,
-                      reviewNote: orphanReviewNote,
-                    },
-                  });
-                  if (orphanRecord.count !== 1) {
-                    throw new Error("Blocked checkout orphan refund record was not written.");
-                  }
-                  await recordLocalRefundEvidence(tx, {
-                    action: "BLOCKED_CHECKOUT_REFUND_RECORDED",
-                    actorType: "webhook",
-                    actorId: event.id,
-                    orderId: input.orderId,
-                    refundId: orphanRefundId,
-                    refundIds,
-                    amountCents: orphanRefundAmountCents,
-                    currency,
-                    status: refundStatuses[0] ?? null,
-                    reason: input.reason,
-                    description: orphanReviewNote,
-                    metadata: {
-                      stripeSessionId: sessionId,
-                      stripeEventType: event.type,
-                      checkoutReason: input.reason,
-                      orphanRecovery: true,
-                      refundAccounting: refundAccountingEvidence,
-                      requiresManualTransferReconciliation: refundRequiresManualTransferReconciliation,
-                      requiresManualFollowUp: refundRequiresManualFollowUp,
-                      ...orderRefundClaimEvidence(refundClaim),
-                    },
-                  });
+                refundRecordResult = await recordBlockedCheckoutOrderRefund({
+                  orderId: input.orderId,
+                  claim: refundClaim,
+                  evidence: refundProviderEvidence,
                 });
+                if (refundRecordResult.restoredActiveListingCount > 0) {
+                  revalidateListingSearchCaches();
+                  revalidateFeaturedMakerCaches();
+                }
               } catch (dbError) {
                 Sentry.captureException(dbError, {
-                  tags: { source: "stripe_webhook_blocked_checkout_orphan_record_failed" },
+                  tags: { source: "stripe_webhook_blocked_checkout_finalize_retry_failed" },
                   extra: { stripeSessionId: sessionId, orderId: input.orderId, reason: input.reason, refundId, refundIds },
                 });
                 throw dbError;
@@ -1469,6 +1358,37 @@ export async function POST(req: Request) {
               throw refundError;
             }
           }
+          if (!refundId || !refundRecordResult) {
+            throw new Error(
+              "Blocked checkout refund completed without durable refund authority.",
+            );
+          }
+          if (input.buyerUserId) {
+            try {
+              await createNotification({
+                userId: input.buyerUserId,
+                type: "NEW_ORDER",
+                title: "Payment refunded",
+                body: "This payment was refunded because the checkout was no longer eligible to complete.",
+                link: `/dashboard/orders/${input.orderId}`,
+                sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
+                sourceId: localRefundEvidenceEventId(
+                  "BLOCKED_CHECKOUT_REFUND_RECORDED",
+                  refundId,
+                ),
+              });
+            } catch (notificationError) {
+              Sentry.captureException(notificationError, {
+                level: "warning",
+                tags: { source: "stripe_webhook_blocked_checkout_refund_notification" },
+                extra: {
+                  stripeSessionId: sessionId,
+                  orderId: input.orderId,
+                  buyerUserId: input.buyerUserId,
+                },
+              });
+            }
+          }
         } catch (refundError) {
           if (refundId || retryBlockedCheckoutRefund) {
             throw refundError;
@@ -1492,7 +1412,6 @@ export async function POST(req: Request) {
         await refundBlockedCheckout({
           orderId: existingBlockedCheckoutRetry.id,
           reason: existingBlockedCheckoutRetry.retryReason,
-          lineItems: checkoutLineItems,
           sellerUserIds: existingBlockedCheckoutRetry.sellerUserIds,
           buyerUserId: existingBlockedCheckoutRetry.buyerId,
         });
@@ -1952,7 +1871,6 @@ export async function POST(req: Request) {
           await refundBlockedCheckout({
             orderId: createdCartOrder.id,
             reason: createdCartOrder.invalidReason,
-            lineItems: stripeLineItems,
             sellerUserIds: createdCartOrder.invalidSellerUserIds,
             buyerUserId: createdCartOrder.buyerUserId,
           });
@@ -2277,7 +2195,6 @@ export async function POST(req: Request) {
           await refundBlockedCheckout({
             orderId: createdSingleOrder.id,
             reason: createdSingleOrder.invalidReason,
-            lineItems: singleLineItems,
             sellerUserIds: createdSingleOrder.invalidSellerUserIds,
             buyerUserId: createdSingleOrder.buyerUserId,
           });

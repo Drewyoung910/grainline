@@ -10,6 +10,10 @@ import {
   verifyOrderRefundClaimGenerationMigrationBytes,
 } from "./order-refund-claim-generation-catalog.mjs";
 import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+  verifyOrderRefundRecordAuthorityMigrationBytes,
+} from "./order-refund-record-authority-catalog.mjs";
+import {
   verifySellerPayoutEventForceRelease,
 } from "./verify-seller-payout-event-force-release.mjs";
 
@@ -18,9 +22,11 @@ export const ORDER_REFUND_CLAIM_GENERATION_PHASE =
 
 export function verifyOrderRefundClaimGenerationRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedRefundRecordSuccessor = false } = {},
 ) {
   const predecessor = verifySellerPayoutEventForceRelease(rootDirectory, {
     allowReviewedRefundClaimSuccessor: true,
+    allowReviewedRefundRecordSuccessor,
   });
   const { migrationPath, migrationSha256 } =
     verifyOrderRefundClaimGenerationMigrationBytes(rootDirectory);
@@ -34,9 +40,14 @@ export function verifyOrderRefundClaimGenerationRelease(
     .filter((name) => name > ORDER_REFUND_CLAIM_GENERATION_MIGRATION);
   assert.deepEqual(
     laterMigrations,
-    [],
+    allowReviewedRefundRecordSuccessor
+      ? [ORDER_REFUND_RECORD_AUTHORITY_MIGRATION]
+      : [],
     "Order refund claim generation release has an unreviewed successor",
   );
+  if (allowReviewedRefundRecordSuccessor) {
+    verifyOrderRefundRecordAuthorityMigrationBytes(rootDirectory);
+  }
   assert.match(migration, /SECURITY DEFINER/);
   assert.match(migration, /SET search_path = pg_catalog/);
   assert.match(migration, /"refundClaimGeneration" = claim_generation/);
@@ -60,8 +71,16 @@ export function verifyOrderRefundClaimGenerationRelease(
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
+    const mode = process.argv[2];
+    assert.ok(
+      mode === undefined || mode === "--allow-reviewed-refund-record-successor",
+      "unsupported Order refund claim generation verifier mode",
+    );
     process.stdout.write(`${JSON.stringify(
-      verifyOrderRefundClaimGenerationRelease(),
+      verifyOrderRefundClaimGenerationRelease(process.cwd(), {
+        allowReviewedRefundRecordSuccessor:
+          mode === "--allow-reviewed-refund-record-successor",
+      }),
       null,
       2,
     )}\n`);

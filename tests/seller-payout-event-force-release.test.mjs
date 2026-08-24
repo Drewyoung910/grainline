@@ -21,8 +21,8 @@ import {
   verifySellerPayoutEventForceRelease,
 } from "../scripts/verify-seller-payout-event-force-release.mjs";
 import {
-  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
-} from "../scripts/order-refund-claim-generation-catalog.mjs";
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+} from "../scripts/order-refund-record-authority-catalog.mjs";
 
 const migration = fs.readFileSync(
   `prisma/migrations/${SELLER_PAYOUT_EVENT_FORCE_MIGRATION}/migration.sql`,
@@ -46,6 +46,7 @@ test("FORCE release is one exact posture-only catalog change", () => {
   const candidate = buildSellerPayoutEventForceCandidate();
   const release = verifySellerPayoutEventForceRelease(undefined, {
     allowReviewedRefundClaimSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
   });
   assert.equal(release.phase, SELLER_PAYOUT_EVENT_FORCE_PHASE);
   assert.equal(release.migration, SELLER_PAYOUT_EVENT_FORCE_MIGRATION);
@@ -59,6 +60,12 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.equal(release.runtimeTablePrivileges, 0);
   assert.equal(release.rowDataChanged, false);
   assert.equal(release.guard.phase, SELLER_PAYOUT_EVENT_FORCE_PHASE);
+  assert.throws(
+    () => verifySellerPayoutEventForceRelease(undefined, {
+      allowReviewedRefundRecordSuccessor: true,
+    }),
+    /refund record successor requires the reviewed refund claim successor/i,
+  );
   assert.equal(
     (migration.match(
       /^ALTER TABLE public\."SellerPayoutEvent" FORCE ROW LEVEL SECURITY;$/gmu,
@@ -92,9 +99,17 @@ test("activation verifier exposes only the exact FORCE successor mode", () => {
   assert.equal(forceOnly.status, 1);
   assert.match(forceOnly.stderr, /unreviewed successor/u);
 
-  const sealed = spawnSync(
+  const claimOnly = spawnSync(
     process.execPath,
     [script, "--allow-reviewed-refund-claim-successor"],
+    { encoding: "utf8" },
+  );
+  assert.equal(claimOnly.status, 1);
+  assert.match(claimOnly.stderr, /unreviewed successor/u);
+
+  const sealed = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-refund-record-successor"],
     { encoding: "utf8" },
   );
   assert.equal(sealed.status, 0, sealed.stderr);
@@ -102,7 +117,7 @@ test("activation verifier exposes only the exact FORCE successor mode", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+    ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
   );
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {

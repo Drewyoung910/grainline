@@ -64,6 +64,7 @@ test("release pins one policyless SellerPayoutEvent activation", () => {
   const release = verifySellerPayoutEventActivationRelease(undefined, {
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
   });
   assert.equal(release.phase, SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE);
   assert.equal(release.draftSha256, SELLER_PAYOUT_EVENT_ACTIVATION_DRAFT_SHA256);
@@ -229,11 +230,20 @@ test("compatible authority verifier accepts only the exact reviewed successor", 
     allowReviewedActivationSuccessor: true,
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
   });
   assert.equal(result.runtimeFunctions, 3);
   assert.throws(
     () => verifySellerPayoutEventAuthorityRelease(),
     /unreviewed successor/u,
+  );
+  assert.throws(
+    () => verifySellerPayoutEventAuthorityRelease(process.cwd(), {
+      allowReviewedActivationSuccessor: true,
+      allowReviewedForceSuccessor: true,
+      allowReviewedRefundRecordSuccessor: true,
+    }),
+    /refund record successor requires the reviewed refund claim successor/i,
   );
 });
 

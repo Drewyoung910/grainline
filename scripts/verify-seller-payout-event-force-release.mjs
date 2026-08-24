@@ -27,6 +27,9 @@ import {
 import {
   ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
 } from "./order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+} from "./order-refund-record-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_FORCE_PHASE =
   "seller-payout-event-force-reviewed";
@@ -44,11 +47,23 @@ function migrationPrefix(rootDirectory, finalMigration) {
 
 export function verifySellerPayoutEventForceRelease(
   rootDirectory = process.cwd(),
-  { allowReviewedRefundClaimSuccessor = false } = {},
+  {
+    allowReviewedRefundClaimSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
+  } = {},
 ) {
+  if (
+    allowReviewedRefundRecordSuccessor
+    && !allowReviewedRefundClaimSuccessor
+  ) {
+    throw new Error(
+      "Order refund record successor requires the reviewed refund claim successor",
+    );
+  }
   const activation = verifySellerPayoutEventActivationRelease(rootDirectory, {
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor,
+    allowReviewedRefundRecordSuccessor,
   });
   const activationCandidate = buildSellerPayoutEventActivationCandidate(
     rootDirectory,
@@ -89,7 +104,12 @@ export function verifySellerPayoutEventForceRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_FORCE_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedRefundClaimSuccessor
+    omittedReviewedMigrationNames: allowReviewedRefundRecordSuccessor
+      ? [
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundClaimSuccessor
       ? [ORDER_REFUND_CLAIM_GENERATION_MIGRATION]
       : [],
   });
@@ -113,7 +133,9 @@ export function verifySellerPayoutEventForceRelease(
       ? Object.freeze({
           phase: guard.phase,
           sealedPrefix: true,
-          reviewedSuccessorMigration: ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          reviewedSuccessorMigration: allowReviewedRefundRecordSuccessor
+            ? ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
+            : ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
         })
       : guard,
   });

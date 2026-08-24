@@ -147,6 +147,9 @@ describe("Round 10 state-machine guardrails", () => {
     const disputeAuthority = source(
       "prisma/migrations/20260729043000_prepare_case_stripe_dispute_authority/migration.sql",
     );
+    const refundAuthority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
 
     assert.match(autoClose, /family: "OPEN_RESPONSE_DUE"/);
     assert.match(autoClose, /family: "STALE_DISCUSSION"/);
@@ -166,7 +169,8 @@ describe("Round 10 state-machine guardrails", () => {
       /locked_case\."escalateUnlocksAt" > transition_at/,
     );
     assert.doesNotMatch(escalate, /verifyCronRequest|id === "all"/);
-    assert.match(refund, /grainline_case_seller_refund_apply/);
+    assert.match(refund, /recordSellerOrderRefund/);
+    assert.match(refundAuthority, /grainline_case_seller_refund_apply/);
     assert.doesNotMatch(refund, /(?:prisma|tx)\.case\.(?:findUnique|updateMany)\(/);
     assert.match(webhook, /grainline_case_stripe_dispute_apply\(\$\{paymentEvent\.id\}::text\)/);
     assert.doesNotMatch(webhook, /tx\.case\.(?:create|update|updateMany)\(/);

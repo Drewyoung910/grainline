@@ -38,6 +38,7 @@ test("activation release exactly promotes the reviewed policyless candidate", ()
   const promoted = verifyPromotedCheckoutStockReservationActivation();
   const release = verifyCheckoutStockReservationActivationRelease(undefined, {
     allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
   });
 
   assert.deepEqual(promoted, candidate);
@@ -80,6 +81,7 @@ test("activation release exactly promotes the reviewed policyless candidate", ()
 test("activation release remains a sealed prefix under only its reviewed successor", () => {
   const release = verifyCheckoutStockReservationActivationRelease(undefined, {
     allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
   });
   assert.deepEqual(release.guard, {
     phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,
@@ -89,6 +91,12 @@ test("activation release remains a sealed prefix under only its reviewed success
   assert.throws(
     () => verifyCheckoutStockReservationActivationRelease(),
     /requires 20260815060000_enable_checkout_stock_reservation_rls to remain the latest migration/,
+  );
+  assert.throws(
+    () => verifyCheckoutStockReservationActivationRelease(undefined, {
+      allowReviewedRefundRecordSuccessor: true,
+    }),
+    /refund record successor requires reviewed reservation successors/i,
   );
 });
 

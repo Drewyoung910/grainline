@@ -140,6 +140,9 @@ import {
 import {
   ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
 } from "../scripts/order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+} from "../scripts/order-refund-record-authority-catalog.mjs";
 
 const RELEASE_ZERO = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
@@ -435,6 +438,9 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     // This successor has its own byte-pinned release verifier. Historical
     // guard-unit fixtures model immutable prefixes and intentionally omit it.
     ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+    // The fixed refund-record successor is independently byte-pinned. Keep it
+    // outside every immutable historical guard fixture as well.
+    ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [

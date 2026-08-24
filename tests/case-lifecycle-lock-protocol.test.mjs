@@ -113,12 +113,16 @@ describe("Case and Order lifecycle lock protocol", () => {
       ["refund database claim", "const refundClaim = await claimSellerOrderRefund"],
       ["refund provider call", "await createMarketplaceRefund"],
     ]);
-    const refundFinalization = refund.slice(
-      refund.indexOf("const refundWrite = await prisma.$transaction"),
+    const refundFinalization = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    ).slice(
+      source(
+        "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+      ).indexOf("-- Mutable actor posture is required only"),
     );
     assert.match(
       refundFinalization,
-      /activeOrderRefundClaimWhere\(refundClaim\)/,
+      /orders\."refundClaimGeneration" = p_claim_generation/,
       "refund finalization must retain the exact generation predicate",
     );
     const refundClaimMigration = source(
@@ -133,18 +137,20 @@ describe("Case and Order lifecycle lock protocol", () => {
   });
 
   it("locks seller User before Order and Case authority in refund finalization", () => {
-    const refund = source("src/app/api/orders/[id]/refund/route.ts");
-    const finalization = refund.slice(
-      refund.indexOf("const refundWrite = await prisma.$transaction"),
+    const refundAuthority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
+    const finalization = refundAuthority.slice(
+      refundAuthority.indexOf("-- Mutable actor posture is required only"),
+      refundAuthority.indexOf(
+        "CREATE FUNCTION public.grainline_blocked_checkout_refund_record",
+      ),
     );
 
     assertOrdered(finalization, [
-      [
-        "seller User lock",
-        "await lockUserForCaseLifecycle(tx, me.id)",
-      ],
-      ["Order completion", "const orderUpdate = await tx.order.updateMany"],
-      ["payment evidence", "await recordLocalRefundEvidence(tx, {"],
+      ["seller User lock", 'FROM public."User" AS actor'],
+      ["Order lock", 'FROM public."Order" AS orders'],
+      ["payment evidence", 'INSERT INTO public."OrderPaymentEvent"'],
       [
         "Case authority",
         "FROM public.grainline_case_seller_refund_apply(",

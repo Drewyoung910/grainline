@@ -42,6 +42,7 @@ test("FORCE release is one exact posture-only catalog change", () => {
   const candidate = buildCheckoutStockReservationForceCandidate();
   const release = verifyCheckoutStockReservationForceRelease(undefined, {
     allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
   });
   assert.equal(release.phase, CHECKOUT_STOCK_RESERVATION_FORCE_PHASE);
   assert.equal(release.migration, candidate.migrationName);
@@ -64,11 +65,17 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260824010000_prepare_order_refund_claim_generation",
+    "20260824020000_prepare_order_refund_record_authority",
   );
   assert.throws(
     () => verifyCheckoutStockReservationForceRelease(),
     /requires 20260815060001_force_checkout_stock_reservation_rls to remain the latest migration/,
+  );
+  assert.throws(
+    () => verifyCheckoutStockReservationForceRelease(undefined, {
+      allowReviewedRefundRecordSuccessor: true,
+    }),
+    /refund record successor requires reviewed reservation successors/i,
   );
   assert.equal(
     (migration.match(
@@ -100,9 +107,17 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
     /requires 20260815060001_force_checkout_stock_reservation_rls to remain the latest migration/,
   );
 
-  const sealedPrefix = spawnSync(
+  const claimOnly = spawnSync(
     process.execPath,
     [script, "--allow-reviewed-successor"],
+    { encoding: "utf8" },
+  );
+  assert.equal(claimOnly.status, 1);
+  assert.match(claimOnly.stderr, /unreviewed successor/);
+
+  const sealedPrefix = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-refund-record-successor"],
     { encoding: "utf8" },
   );
   assert.equal(sealedPrefix.status, 0, sealedPrefix.stderr);
@@ -110,7 +125,7 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260824010000_prepare_order_refund_claim_generation",
+    "20260824020000_prepare_order_refund_record_authority",
   );
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {

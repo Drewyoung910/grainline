@@ -33,7 +33,8 @@ deferral.
 
 ## Verified direct-access baseline
 
-A machine-checked scanner pins direct Prisma and raw-SQL access under `src`.
+A machine-checked scanner pins direct Prisma, raw-SQL and converted fixed
+refund-authority callsites under `src`.
 The exact baseline is:
 
 | Model | Direct-access source files |
@@ -41,13 +42,13 @@ The exact baseline is:
 | `Order` | 38 |
 | `OrderItem` | 12 |
 | `OrderShippingRateQuote` | 2 |
-| `OrderPaymentEvent` | 7 |
+| `OrderPaymentEvent` | 8 |
 | `SellerPayoutEvent` | 3 |
 | `CheckoutStockReservation` | 4 |
 
 These counts exclude disposable/proof scripts and nested relation selections
 that do not name the Prisma delegate or raw table directly. They are a
-conversion floor, not a claim that only 66 semantic operations exist. The
+conversion floor, not a claim that only 67 semantic operations exist. The
 next inventory pass must classify nested reads, fixed Case/Notification
 functions, cron and provider side effects as well.
 
@@ -64,6 +65,8 @@ Current operation families include:
   analytics;
 - employee/admin order queues, holds, verification and audit actions;
 - signed Stripe checkout, refund, dispute, payout and deauthorization events;
+- source-bound seller and blocked-checkout refund recording through
+  `src/lib/orderRefundRecordAuthority.ts`;
 - Shippo quotes, re-quotes, labels and label-clawback retry;
 - checkout stock reservation, completion, expiry restoration and pruning;
 - Case predicates and refund/dispute application functions;

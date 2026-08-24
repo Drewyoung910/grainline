@@ -11,6 +11,9 @@ describe("Notification order, payment, and fulfillment authority", () => {
   const refund = source("src/app/api/orders/[id]/refund/route.ts");
   const webhook = source("src/app/api/stripe/webhook/route.ts");
   const payoutWebhook = source("src/lib/stripePayoutWebhook.ts");
+  const refundAuthority = source(
+    "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+  );
   const serviceAccess = source("src/lib/notificationServiceAccess.ts");
   const sql = source("docs/rls-drafts/notification-service-authority.sql");
 
@@ -31,8 +34,11 @@ describe("Notification order, payment, and fulfillment authority", () => {
   });
 
   it("binds seller and blocked-checkout refunds to their existing payment ledgers", () => {
-    assert.match(refund, /localRefundEvidenceEventId, recordLocalRefundEvidence/);
-    assert.match(refund, /metadata: \{[\s\S]{0,220}notificationBody: refundNotificationBody/);
+    assert.match(refund, /recordSellerOrderRefund\(\{/);
+    assert.doesNotMatch(refund, /recordLocalRefundEvidence/);
+    assert.match(refundAuthority, /'notificationBody',[\s\S]{0,260}'Your maker issued a refund of '/);
+    assert.match(refundAuthority, /'localAction', 'SELLER_REFUND_RECORDED'/);
+    assert.match(refundAuthority, /'localAction', 'BLOCKED_CHECKOUT_REFUND_RECORDED'/);
     assert.match(refund, /sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_PAYMENT/);
     assert.match(refund, /sourceId: refundAuthoritySourceId/);
     assert.match(refund, /relatedUserId: me\.id/);

@@ -23,6 +23,7 @@ import {
 const CATALOG = readSellerPayoutEventActivationMigrationCatalog(process.cwd(), {
   allowReviewedForceSuccessor: true,
   allowReviewedRefundClaimSuccessor: true,
+  allowReviewedRefundRecordSuccessor: true,
 });
 
 async function createLedger() {
