@@ -2218,3 +2218,64 @@ Open work:
   pending-runtime-acceptance state; the expanded focused set passes 41/41.
   Merge, replacement exact-head CI, live read-only proof and final evidence
   retention remain separate gates.
+
+## SellerPayoutEvent FORCE accepted in production (2026-08-23)
+
+- Postflight package PR #247 merged at exact main
+  `fb350c31772938ef52ef796c61bf670d9cf0750e`. Exact-main CI `32675227286`
+  passed the complete database release chain, direct-runtime FORCE proof,
+  3,253 tests, TypeScript, lint, dependency audit and production build.
+- The distinct production FORCE postflight was bound to exact main
+  `fb350c31772938ef52ef796c61bf670d9cf0750e`, CI `32675227286`, and guarded
+  migration run `32672434812`. It used only the pooled
+  `grainline_app_runtime` credential inside an engine-attested
+  repeatable-read/read-only transaction.
+- All nine checks passed: restricted runtime identity, policyless ENABLE plus
+  FORCE, zero direct runtime/PUBLIC authority, exact three-function catalog,
+  direct table denial, both fixed projections, and the fixed writer's SQLSTATE
+  `25006` read-only fence. The proof reported
+  `productionChangedByPostflight=false`.
+- Retain sanitized mode-`0600` evidence SHA-256
+  `f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+  No migration, deployment, grant, credential or provider change accompanied
+  the postflight. SellerPayoutEvent is accepted `RLS_LIVE_FORCE`.
+- The next remaining table starts only after its own fresh domain audit. Do
+  not bundle `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, or
+  `OrderItem`.
+
+## Order refund reconciliation failed-lease recovery correction (2026-08-24)
+
+- Extra-High end-to-end review found a functional recovery defect before merge
+  or production use. Failed Stripe webhook handling intentionally clears
+  `StripeWebhookEvent.processingStartedAt`, but the blocked-checkout refund
+  record function required that lease to remain active. An administrator could
+  therefore classify an ambiguous provider effect or authorize an exact-scope
+  retry, yet the subsequent local finalization would always fail unless it
+  raced a later active webhook lease.
+- The compatible record migration now keeps the shared blocked-checkout
+  mutation body in an owner-private `SECURITY DEFINER` core with explicit
+  runtime and PUBLIC revocation. The original runtime entrypoint remains the
+  signed-delivery wrapper and still requires the exact active event generation;
+  it retains only exact committed replay after the event is processed.
+- The compatible reconciliation migration adds a separate runtime wrapper.
+  It accepts an exact immutable reconciliation ID plus the claim tuple, derives
+  the event/generation from that row, rechecks the current ADMIN and failed
+  inactive event state, invokes the private core, and marks the source event
+  processed while clearing its error in the same transaction. A forged row,
+  active/raced event, wrong generation, wrong claim family, released claim, or
+  direct runtime call to the core fails closed.
+- The sealed PGlite proofs retain their historical migration boundaries: the
+  record proof reads only claim plus record, while reconciliation behavior is
+  tested at its own stage. The loopback-only PostgreSQL 16 rollback proof
+  executes the complete prefix and proves the failed-lease path end to end:
+  ordinary finalization denied, forged reconciliation denied, exact recovery
+  accepted once, event completion and error clearing co-committed, and all
+  runtime/private ACLs exact.
+- Exact-head CI run `32707048056` exposed and failed closed on a packaging
+  regression before PostgreSQL execution: the isolated record proof tried to
+  read the intentionally hidden later reconciliation migration. The record
+  proof was restored to a self-contained sealed prefix and its release test now
+  rejects later migration references. This did not expose a SQL-engine defect
+  or change migration bytes. Fresh exact-head CI remains required before the
+  draft PR can leave review. No migration, deployment, grant, credential, or
+  provider state changed while correcting this finding.

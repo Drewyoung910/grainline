@@ -6,13 +6,17 @@ const path =
   "prisma/migrations/20260815210000_prepare_seller_payout_event_authority/migration.sql";
 const sql = readFileSync(path, "utf8");
 const schema = readFileSync("prisma/schema.prisma", "utf8");
+const sellerPayoutEventModel = schema.match(
+  /model SellerPayoutEvent \{[\s\S]*?\n\}/,
+)?.[0];
 
 test("prepares event ordering without activating SellerPayoutEvent RLS", () => {
-  assert.match(schema, /stripeEventCreatedSeconds\s+BigInt(?:\s|$)/);
-  assert.doesNotMatch(schema, /stripeEventCreatedSeconds\s+BigInt\?/);
-  assert.match(schema, /stripeEventId\s+String\?\s+@unique/);
+  assert.ok(sellerPayoutEventModel);
+  assert.match(sellerPayoutEventModel, /stripeEventCreatedSeconds\s+BigInt(?:\s|$)/);
+  assert.doesNotMatch(sellerPayoutEventModel, /stripeEventCreatedSeconds\s+BigInt\?/);
+  assert.match(sellerPayoutEventModel, /stripeEventId\s+String\?\s+@unique/);
   assert.match(
-    schema,
+    sellerPayoutEventModel,
     /@@index\(\[sellerProfileId, stripeEventCreatedSeconds\(sort: Desc\), id\(sort: Desc\)\]/,
   );
   assert.match(sql, /ADD COLUMN "stripeEventCreatedSeconds" bigint/);

@@ -20,7 +20,14 @@ type MarketplaceRefundOptions = {
   taxAmountCents: number;
   canReverseTransfer: boolean;
   idempotencyKeyBase: string;
+  claimMetadata?: OrderRefundClaimProviderMetadata;
   reason?: Stripe.RefundCreateParams.Reason;
+};
+
+export type OrderRefundClaimProviderMetadata = {
+  claimId: string;
+  claimGeneration: bigint;
+  source: "SELLER" | "BLOCKED_CHECKOUT";
 };
 
 type RefundIdempotencyScope =
@@ -65,6 +72,33 @@ function assertRefundIdempotencyKeyBase(
       "Refund idempotency key base must match the refund resolution and amount.",
     );
   }
+}
+
+function refundClaimMetadata(
+  opts: MarketplaceRefundOptions,
+  component: string,
+): Stripe.MetadataParam | undefined {
+  const claim = opts.claimMetadata;
+  if (!claim) return undefined;
+  const expectedScope = claim.source === "SELLER"
+    ? "seller-refund"
+    : "blocked-checkout-refund";
+  if (
+    !/^order_refund_claim_[0-9a-f-]{36}$/.test(claim.claimId)
+    || claim.claimGeneration < 1n
+    || !opts.idempotencyKeyBase.startsWith(
+      `${expectedScope}:${claim.claimId}:`,
+    )
+  ) {
+    throw new Error("Refund claim provider metadata is inconsistent.");
+  }
+  return {
+    grainline_refund_claim_id: claim.claimId,
+    grainline_refund_claim_generation: claim.claimGeneration.toString(),
+    grainline_refund_claim_source: claim.source,
+    grainline_refund_idempotency_scope: opts.idempotencyKeyBase,
+    grainline_refund_component: component,
+  };
 }
 
 function assertCreatedRefundUsable(refund: CreatedRefund) {
@@ -146,9 +180,13 @@ export async function createMarketplaceRefundWithCreator(
     params: Stripe.RefundCreateParams,
     suffix: string,
   ) => {
-    const refund = await createStripeRefund(params, {
+    const metadata = refundClaimMetadata(opts, suffix);
+    const refund = await createStripeRefund(
+      metadata ? { ...params, metadata } : params,
+      {
       idempotencyKey: `${opts.idempotencyKeyBase}:${suffix}`,
-    });
+      },
+    );
     assertCreatedRefundUsable(refund);
     return refund;
   };

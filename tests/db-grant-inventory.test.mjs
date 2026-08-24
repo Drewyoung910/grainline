@@ -20,12 +20,30 @@ import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS,
 } from "../scripts/checkout-stock-reservation-authority-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
+} from "../scripts/order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
+  ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES,
+} from "../scripts/order-refund-reconciliation-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
   "grainline_seller_payout_event_apply",
   "grainline_seller_payout_export_page",
   "grainline_seller_payout_latest_failure",
+];
+const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
+  "grainline_blocked_checkout_refund_claim",
+  "grainline_blocked_checkout_refund_claim_resume",
+  "grainline_blocked_checkout_refund_record",
+  "grainline_seller_refund_claim",
+  "grainline_seller_refund_record",
+];
+const ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES = [
+  "grainline_order_payment_signed_refund_apply",
+  "grainline_order_payment_signed_dispute_apply",
 ];
 
 const {
@@ -443,6 +461,7 @@ describe("database grant inventory guardrails", () => {
       "CaseSellerRefundApplication",
       "CaseOpenApplication",
       "DirectUploadReference",
+      "OrderRefundReconciliation",
     ]);
     assert.deepEqual(POLICYLESS_SERVICE_RLS_TABLES, [
       "CaseResolutionClaim",
@@ -450,6 +469,7 @@ describe("database grant inventory guardrails", () => {
       "CaseSellerRefundApplication",
       "CaseOpenApplication",
       "DirectUploadReference",
+      "OrderRefundReconciliation",
     ]);
     assert.equal(
       directUploadRlsActivationExpected(directUploadActivationInventory),
@@ -493,6 +513,7 @@ describe("database grant inventory guardrails", () => {
         "CaseSellerRefundApplication",
         "CaseOpenApplication",
         "DirectUploadReference",
+        "OrderRefundReconciliation",
         "DirectUpload",
       ],
     );
@@ -504,6 +525,7 @@ describe("database grant inventory guardrails", () => {
         "CaseSellerRefundApplication",
         "CaseOpenApplication",
         "DirectUploadReference",
+        "OrderRefundReconciliation",
         "DirectUpload",
         "Case",
         "CaseMessage",
@@ -1271,7 +1293,7 @@ describe("database grant inventory guardrails", () => {
         (entry) => inventory.functions.includes(entry.name),
       );
 
-    assert.equal(inventory.tables.length, 64);
+    assert.equal(inventory.tables.length, 65);
     assert.equal(inventory.enums.length, 22);
     assert.deepEqual(inventory.functions, [
       "grainline_case_resolution_claim_immutable",
@@ -1307,6 +1329,11 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_item_seller_key_complete",
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
+      ...ORDER_REFUND_CLAIM_FUNCTION_NAMES,
+      ...ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
+      ...ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES,
+      ...ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES,
+      ...ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
@@ -1343,6 +1370,12 @@ describe("database grant inventory guardrails", () => {
         + (stripeWebhookEventRlsActivationExpected(inventory) ? 1 : 0)
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
         + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
+        + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
+        + ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES.length
+        + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length
+        + ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES.length
+        + ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES.length
+        + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0),
     );
@@ -1452,6 +1485,7 @@ describe("database grant inventory guardrails", () => {
         "DirectUploadReference",
         "Message",
         "Notification",
+        "OrderRefundReconciliation",
         "SavedSearch",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
@@ -1473,6 +1507,7 @@ describe("database grant inventory guardrails", () => {
         "DirectUploadReference",
         "Message",
         "Notification",
+        "OrderRefundReconciliation",
         "SavedSearch",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
@@ -2132,6 +2167,36 @@ describe("database grant inventory guardrails", () => {
     assert.deepEqual(inventory.publicDefaultPrivilegeRevokes, [
       "ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
     ]);
+  });
+
+  it("does not demand the staged refund-reconciliation table before its sealed migration is restored", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-refund-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model OrderRefundReconciliation {",
+        "  id String @id",
+        "}",
+      ].join("\n"),
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    const migrationDirectory = join(
+      root,
+      "prisma",
+      "migrations",
+      "20260824040000_prepare_order_refund_reconciliation_authority",
+    );
+    mkdirSync(migrationDirectory, { recursive: true });
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
+      'CREATE TABLE public."OrderRefundReconciliation" (id text PRIMARY KEY);',
+    );
+    assert.deepEqual(
+      deriveGrantInventory(root).tables,
+      ["OrderRefundReconciliation"],
+    );
   });
 
   it("documents source-derived inventory and the live-proof boundary", () => {

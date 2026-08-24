@@ -139,7 +139,7 @@ test("SellerPayoutEvent FORCE postflight is engine-read-only and FORCE-exact", (
   );
 });
 
-test("SellerPayoutEvent FORCE production records preserve the pending boundary", () => {
+test("SellerPayoutEvent FORCE production records preserve the accepted boundary", () => {
   const release = fs.readFileSync(
     "docs/seller-payout-event-force-release.md",
     "utf8",
@@ -155,6 +155,9 @@ test("SellerPayoutEvent FORCE production records preserve the pending boundary",
     assert.match(document, /0eb360b9878698f45288ac3c1649871de9a8a33c/u);
     assert.match(document, /32672008187/u);
     assert.match(document, /32672434812/u);
+    assert.match(document, /fb350c31772938ef52ef796c61bf670d9cf0750e/u);
+    assert.match(document, /32675227286/u);
+    assert.match(document, /f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e/u);
   }
   for (const document of [release, runbook, checklist]) {
     assert.match(
@@ -167,11 +170,11 @@ test("SellerPayoutEvent FORCE production records preserve the pending boundary",
       /seller-payout-event-force-production-postflight-/u,
     );
   }
-  assert.match(matrix, /RLS_LIVE_FORCE_PENDING_POSTFLIGHT/u);
-  assert.doesNotMatch(
+  assert.match(
     matrix,
     /`SellerPayoutEvent` \| `RLS_LIVE_FORCE`/u,
   );
   assert.match(release, /Phase-A postflight[\s\S]*not reusable/u);
-  assert.match(audit, /final FORCE acceptance is withheld/u);
+  assert.match(audit, /SellerPayoutEvent FORCE accepted in production/u);
+  assert.match(audit, /productionChangedByPostflight=false/u);
 });

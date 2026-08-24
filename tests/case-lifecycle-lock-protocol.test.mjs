@@ -110,29 +110,47 @@ describe("Case and Order lifecycle lock protocol", () => {
       ],
     ]);
     assertOrdered(refund, [
-      ["refund transaction", "const lockResult = await prisma.$transaction"],
-      ["refund Order lock", "await lockOrderForCaseLifecycle(tx, orderId)"],
-      [
-        "refund post-lock timestamp",
-        "const lockedAt = await databaseClockTimestamp(tx)",
-      ],
-      ["refund reservation", 'UPDATE "Order"'],
+      ["refund database claim", "const refundClaim = await claimSellerOrderRefund"],
+      ["refund provider outcome", "await resolveOrderRefundProviderOutcome(refundClaim)"],
+    ]);
+    const refundFinalization = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    ).slice(
+      source(
+        "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+      ).indexOf("-- Mutable actor posture is required only"),
+    );
+    assert.match(
+      refundFinalization,
+      /orders\."refundClaimGeneration" = p_claim_generation/,
+      "refund finalization must retain the exact generation predicate",
+    );
+    const refundClaimMigration = source(
+      "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
+    );
+    assertOrdered(refundClaimMigration, [
+      ["refund actor lock", 'FROM public."User" AS actor'],
+      ["refund seller lock", 'FROM public."SellerProfile" AS seller'],
+      ["refund Order lock", 'FROM public."Order" AS orders'],
+      ["refund provider authorization", '"refundClaimProviderAuthorizedAt" = transition_at'],
     ]);
   });
 
   it("locks seller User before Order and Case authority in refund finalization", () => {
-    const refund = source("src/app/api/orders/[id]/refund/route.ts");
-    const finalization = refund.slice(
-      refund.indexOf("const refundWrite = await prisma.$transaction"),
+    const refundAuthority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
+    const finalization = refundAuthority.slice(
+      refundAuthority.indexOf("-- Mutable actor posture is required only"),
+      refundAuthority.indexOf(
+        "CREATE FUNCTION public.grainline_blocked_checkout_refund_record",
+      ),
     );
 
     assertOrdered(finalization, [
-      [
-        "seller User lock",
-        "await lockUserForCaseLifecycle(tx, me.id)",
-      ],
-      ["Order completion", "const orderUpdate = await tx.order.updateMany"],
-      ["payment evidence", "await recordLocalRefundEvidence(tx, {"],
+      ["seller User lock", 'FROM public."User" AS actor'],
+      ["Order lock", 'FROM public."Order" AS orders'],
+      ["payment evidence", 'INSERT INTO public."OrderPaymentEvent"'],
       [
         "Case authority",
         "FROM public.grainline_case_seller_refund_apply(",

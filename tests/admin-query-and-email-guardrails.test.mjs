@@ -75,12 +75,14 @@ describe("admin query and email guardrails", () => {
   });
 
   it("honors refund email preferences before seller refund emails", () => {
-    const route = source("src/app/api/orders/[id]/refund/route.ts");
-    const prefIndex = route.indexOf('shouldSendEmail(order.buyerId, "EMAIL_REFUND_ISSUED")');
-    const sendIndex = route.indexOf("await sendRefundIssued");
+    const finalization = source("src/lib/orderRefundFinalization.ts");
+    const outbox = source("src/lib/emailOutbox.ts");
+    const prefIndex = outbox.indexOf("await shouldSendEmail(job.userId, job.preferenceKey)");
+    const sendIndex = outbox.indexOf("await sendRenderedEmail(", prefIndex);
 
-    assert.ok(prefIndex >= 0, "seller refunds must check EMAIL_REFUND_ISSUED");
-    assert.ok(sendIndex > prefIndex, "seller refunds must check preferences before emailing");
+    assert.match(finalization, /preferenceKey: "EMAIL_REFUND_ISSUED"/);
+    assert.ok(prefIndex >= 0, "refund outbox delivery must check its preference key");
+    assert.ok(sendIndex > prefIndex, "refund outbox delivery must check preferences before sending");
   });
 
   it("uses the configured email app URL for dynamic notification links", () => {

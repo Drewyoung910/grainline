@@ -445,16 +445,96 @@ records no production mutation. SellerPayoutEvent Phase A is accepted. Its
 posture-only FORCE successor was applied from exact main
 `0eb360b9878698f45288ac3c1649871de9a8a33c`, CI `32672008187`, by guarded run
 `32672434812`; that run applied only the reviewed migration and passed
-migration status, the global audit and exact FORCE scope. The catalog is FORCE,
-but final acceptance remains pending the distinct actual pooled-runtime FORCE
-postflight and fresh retained evidence. Do not reuse Phase-A evidence. After
-that closure, begin the next remaining Order/payment/shipping table with its own
-fresh domain audit; do not bundle the tables. Retain
+migration status, the global audit and exact FORCE scope. Exact main
+`fb350c31772938ef52ef796c61bf670d9cf0750e` passed CI `32675227286`; the
+distinct actual pooled-runtime FORCE postflight passed all nine engine-read-only
+checks and retained evidence SHA-256
+`f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+SellerPayoutEvent FORCE is accepted. Begin the next remaining
+Order/payment/shipping table with its own fresh domain audit; do not bundle the
+tables. Retain
 `docs/seller-payout-event-activation-release.md` and
 `docs/seller-payout-event-activation-production-wiring.md` as the accepted
 Phase-A release records, and
 `docs/seller-payout-event-force-release.md` as the FORCE execution and
 acceptance record.
+
+The fresh next-table audit is now
+`docs/order-payment-event-pre-rls-audit.md`. `OrderPaymentEvent` remains the
+next bounded release. The audit identified six domain gaps: raw
+payment-provider metadata in buyer/seller exports; seller and blocked-checkout
+refund ABA claims; inconsistent latest-dispute predicates; missing
+append-only/taxonomy/currency/event-time invariants; and ambiguous seller
+self-service partial-refund semantics; plus a post-commit crash gap in refund
+participant notification/email delivery. Use the launch-safe constraint:
+seller self-service supports full cancellation/refund, while partial refunds
+remain staff Case operations until a residual line-item fulfillment model is
+designed. The compatible application correction and future feature gate are
+recorded in `docs/order-payment-event-refund-contract.md`; it must deploy and
+pass route smoke before payment-ledger authority conversion. Canonical
+latest-per-dispute application semantics and the remaining typed event-time
+gate are recorded in `docs/order-payment-event-dispute-state.md`. Those two
+application corrections remain prepared, not live. The distinct refund-only
+self-service export boundary is recorded in
+`docs/order-payment-event-account-export.md`. Compatible authority design is
+now supported by the isolated generation-fenced acquisition work in
+`docs/order-payment-event-refund-claim-generation.md`, but that work is not
+live. A stacked compatible package adds atomic, source-bound seller and
+blocked-checkout provider record/finalize operations plus an exact
+later-webhook-generation handoff; see
+`docs/order-payment-event-refund-record-authority.md`. It is also not live and
+its stacked crash-safety refinement atomically reserves source-validated buyer
+notifications and deterministic seller-refund email-outbox work with the fixed
+record operation. A further isolated compatible candidate implements the two
+source-bound signed platform-webhook families, a typed provider clock and
+equal-second dispute reconciliation; see
+`docs/order-payment-event-signed-authority-design.md`. Its migration hash and
+historical successor allowances are byte-sealed, its disposable PostgreSQL
+authority/concurrency proof passes, and the guarded Production Migrations
+workflow intentionally cannot dispatch it. It is not merged, deployed or
+production-applied. Activation remains blocked on ambiguous provider-effect
+reconciliation, staff families, actor projections, remaining invariants, fresh
+data classification, converted-deployment signed provider proof and
+predecessor drain. Pin all 26 semantic
+consumers, require a fresh aggregate-only
+production inspection, then use compatible schema/functions, converted app
+deployment, signed provider/concurrency proof, predecessor drain, policyless
+ENABLE and separate FORCE. Do not bundle shipping quotes, Order or OrderItem.
+
+The current isolated successor is the two-function signed platform-webhook
+authority in `docs/order-payment-event-signed-authority-design.md`. Keep signed
+`charge.refunded` and dispute application together because they share the
+active webhook generation, charge/Order lock order and typed provider clock.
+Do not bundle ambiguous local-refund reconciliation, staff Case refunds,
+participant projections, RLS or grants. Equal-provider-second conflicts retain
+evidence and mark reconciliation without Case, refund-lock or notification
+effects; event ID and application arrival time must never choose the winner.
+The isolated implementation satisfies that contract locally and remains a
+compatible candidate—not permission to skip deployment coexistence, signed
+Stripe delivery/retry, production inspection, grant convergence, Phase A or
+FORCE.
+
+The next stacked compatible boundary is evidence-bound seller and
+blocked-checkout refund reconciliation in
+`docs/order-payment-event-refund-reconciliation.md`. It replaces timer/manual
+guesswork with a complete bounded Stripe inspection, a 23-hour same-key retry
+cutoff, a 25-hour no-effect release floor, provider-searchable claim metadata,
+an immutable FORCE-RLS/no-policy evidence ledger and a single Admin-PIN action
+whose outcome is derived rather than selected. The pass also fixed the
+previously unreachable blocked-checkout generation-resume path and normalized
+all still-unapplied refund claim/finalizer clocks to UTC before refreshing their
+byte seals. Extra-High review also caught a failed-lease recovery gap: the
+webhook correctly cleared its processing lease before staff inspection, but
+the original finalizer still required that lease. The isolated correction
+keeps the mutation core owner-private and adds an exact immutable-
+reconciliation wrapper that co-commits refund finalization with source-event
+completion. This closes the ambiguous provider-outcome design gap only. It is
+not merged, deployed, production-applied or activation evidence. Keep the
+inactive-seller-after-provider-effect recovery edge, staff Case refund family,
+remaining invariants, actor projections/aggregates, fresh production
+classification, converted provider proof, predecessor drain, policyless ENABLE
+and FORCE as explicit later gates. Do not bundle Order, OrderItem or shipping
+quotes.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 

@@ -6,6 +6,14 @@ const route = fs.readFileSync(
   "src/app/api/orders/[id]/refund/route.ts",
   "utf8",
 );
+const helper = fs.readFileSync(
+  "src/lib/orderRefundRecordAuthority.ts",
+  "utf8",
+);
+const migration = fs.readFileSync(
+  "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+  "utf8",
+);
 
 function orderedIndex(text, needles) {
   let previous = -1;
@@ -19,50 +27,46 @@ function orderedIndex(text, needles) {
 
 test("seller refund route uses only the source-bound Case operation", () => {
   assert.doesNotMatch(route, /(?:prisma|tx)\.case\./);
-  assert.match(
-    route,
-    /FROM public\.grainline_case_seller_refund_apply\(\s*\$\{me\.id\}::text,\s*\$\{paymentEvent\.id\}::text\s*\)/s,
-  );
-  assert.match(route, /SELLER_REFUND_PAYMENT_EVENT_SOURCE_MISMATCH/);
-  assert.match(route, /SELLER_REFUND_CASE_AUTHORITY_RESULT_INVALID/);
+  assert.match(route, /finalizeSellerOrderRefund\(\{/);
+  assert.doesNotMatch(route, /grainline_case_seller_refund_apply/);
+  assert.match(helper, /grainline_seller_refund_record/);
+  assert.match(migration, /FROM public\.grainline_case_seller_refund_apply\(/);
 });
 
 test("seller refund finalization preserves User then Order then Case lock order", () => {
-  const finalization = route.slice(
-    route.indexOf("const refundWrite = await prisma.$transaction"),
+  const finalization = migration.slice(
+    migration.indexOf("-- Mutable actor posture is required only"),
+    migration.indexOf("CREATE FUNCTION public.grainline_blocked_checkout_refund_record"),
   );
   orderedIndex(finalization, [
-    "await lockUserForCaseLifecycle(tx, me.id)",
-    "const orderUpdate = await tx.order.updateMany",
-    "await recordLocalRefundEvidence(tx, {",
-    "const paymentEvent = await tx.orderPaymentEvent.findUnique",
+    'FROM public."User" AS actor',
+    'FROM public."SellerProfile" AS seller',
+    'FROM public."Order" AS orders',
+    'INSERT INTO public."OrderPaymentEvent"',
     "FROM public.grainline_case_seller_refund_apply(",
   ]);
 });
 
 test("seller refund validates the complete database-derived relationship", () => {
   for (const contract of [
-    /caseResults\.length !== 1/,
-    /caseResult\.orderId !== orderId/,
-    /caseResult\.sellerUserId !== me\.id/,
-    /caseResult\.buyerUserId !== order\.buyerId/,
-    /caseResult\.paymentEventId !== paymentEvent\.id/,
-    /caseResult\?\.action === "resolve"/,
-    /caseResult\?\.action === "terminal"/,
-    /caseResult\?\.action === "no_case"/,
-    /caseResult\?\.action === "replay"/,
-    /caseResult\?\.action === "no_case"\s*\?\s*caseResult\.caseId === null/s,
+    /case_result\.action NOT IN \('resolve', 'terminal', 'no_case', 'replay'\)/,
+    /case_result\."orderId" IS DISTINCT FROM locked_order\.id/,
+    /case_result\."paymentEventId" IS DISTINCT FROM payment_event_id/,
+    /locked_order\."sellerProfileId" IS DISTINCT FROM locked_seller\.id/,
+    /locked_order\."refundClaimSourceId" IS DISTINCT FROM locked_actor\.id/,
+    /existing_event\.metadata - 'restoredActiveListingCount'/,
   ]) {
-    assert.match(route, contract);
+    assert.match(migration, contract);
   }
 });
 
 test("terminal Case disposition retains the existing reconciliation warning", () => {
-  assert.match(route, /if \(caseResult\.action === "terminal"\)/);
+  assert.match(migration, /IF case_action = 'terminal' THEN/);
   assert.match(
-    route,
-    /Case auto-resolution did not update because case state changed; staff must reconcile the case manually\./,
+    migration,
+    /Case auto-resolution did not update because Case state changed; staff must reconcile it manually\./,
   );
-  assert.match(route, /seller_refund_orphaned_after_stripe/);
-  assert.match(route, /orphanRecovery: true/);
+  assert.match(route, /seller_refund_finalize_retry/);
+  assert.match(route, /seller_refund_finalize_retry_failed/);
+  assert.doesNotMatch(route, /orphanRecovery|recordLocalRefundEvidence/);
 });

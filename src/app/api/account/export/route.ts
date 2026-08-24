@@ -31,6 +31,11 @@ import { HTTP_STATUS } from "@/lib/httpStatus";
 import { exportOwnedDirectUploads } from "@/lib/directUploadLifecycle";
 import { exportParticipantCases } from "@/lib/caseAccountExportAuthority";
 import { exportSellerPayoutEvents } from "@/lib/sellerPayoutEventAuthority";
+import {
+  ACCOUNT_PAYMENT_HISTORY_WHERE,
+  BUYER_ACCOUNT_PAYMENT_HISTORY_SELECT,
+  SELLER_ACCOUNT_PAYMENT_HISTORY_SELECT,
+} from "@/lib/accountPaymentHistory";
 
 export const runtime = "nodejs";
 
@@ -255,23 +260,9 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           },
         },
         paymentEvents: {
+          where: ACCOUNT_PAYMENT_HISTORY_WHERE,
           orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            orderId: true,
-            stripeEventId: true,
-            stripeObjectId: true,
-            stripeObjectType: true,
-            eventType: true,
-            amountCents: true,
-            currency: true,
-            status: true,
-            reason: true,
-            description: true,
-            metadata: true,
-            createdAt: true,
-            updatedAt: true,
-          },
+          select: BUYER_ACCOUNT_PAYMENT_HISTORY_SELECT,
         },
         shippingRateQuotes: {
           orderBy: { createdAt: "desc" },
@@ -325,23 +316,9 @@ async function buildExport(user: NonNullable<ExportableUser>) {
               },
             },
             paymentEvents: {
+              where: ACCOUNT_PAYMENT_HISTORY_WHERE,
               orderBy: { createdAt: "desc" },
-              select: {
-                id: true,
-                orderId: true,
-                stripeEventId: true,
-                stripeObjectId: true,
-                stripeObjectType: true,
-                eventType: true,
-                amountCents: true,
-                currency: true,
-                status: true,
-                reason: true,
-                description: true,
-                metadata: true,
-                createdAt: true,
-                updatedAt: true,
-              },
+              select: SELLER_ACCOUNT_PAYMENT_HISTORY_SELECT,
             },
             shippingRateQuotes: {
               orderBy: { createdAt: "desc" },

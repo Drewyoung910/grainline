@@ -47,7 +47,7 @@ test("classifies activation gates and deferred product work explicitly", () => {
 test("selects a separate bounded table without bundling Order authority", () => {
   assert.match(
     matrix,
-    /`SellerPayoutEvent` \| `RLS_LIVE_FORCE_PENDING_POSTFLIGHT`/,
+    /`SellerPayoutEvent` \| `RLS_LIVE_FORCE`/,
   );
   assert.match(matrix, /migration run `32667518275`/);
   assert.match(matrix, /01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de/);

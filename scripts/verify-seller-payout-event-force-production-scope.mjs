@@ -55,9 +55,18 @@ export function readSellerPayoutEventForceMigrationCatalog(
 ) {
   const activationCatalog = readSellerPayoutEventActivationMigrationCatalog(
     root,
-    { allowReviewedForceSuccessor: true },
+    {
+      allowReviewedForceSuccessor: true,
+      allowReviewedRefundClaimSuccessor: true,
+      allowReviewedRefundRecordSuccessor: true,
+      allowReviewedSignedAuthoritySuccessor: true,
+    },
   );
-  const release = verifySellerPayoutEventForceRelease(root);
+  const release = verifySellerPayoutEventForceRelease(root, {
+    allowReviewedRefundClaimSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
+  });
   if (
     release.migration !== SELLER_PAYOUT_EVENT_FORCE_MIGRATION
     || release.migrationSha256 !== SELLER_PAYOUT_EVENT_FORCE_MIGRATION_SHA256

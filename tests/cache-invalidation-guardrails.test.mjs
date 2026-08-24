@@ -128,9 +128,9 @@ describe("public cache invalidation guardrails", () => {
     assert.match(webhook, /createdCartOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(webhook, /createdSingleOrder\.listingSearchCacheInvalidationNeeded[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
-    assert.match(refund, /const refundWrite = await prisma\.\$transaction/);
-    assert.match(refund, /const stockStatusUpdate = await tx\.listing\.updateMany/);
-    assert.match(refund, /refundWrite\.stockStatusRestoredCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(refund, /refundRecordResult = await finalizeSellerOrderRefund\(\{/);
+    assert.doesNotMatch(refund, /(?:prisma|tx)\.listing\.(?:update|updateMany)/);
+    assert.match(refund, /refundRecordResult\.restoredActiveListingCount > 0[\s\S]*revalidateListingSearchCaches\(\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
 
     assert.match(
       caseResolve,

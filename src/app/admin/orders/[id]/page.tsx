@@ -536,6 +536,16 @@ export default async function AdminOrderDetailPage({
           reviewNeeded={order.reviewNeeded}
           labelStatus={order.labelStatus ?? null}
           labelClawbackStatus={order.labelClawbackStatus ?? null}
+          canReconcileRefundClaim={
+            staff.role === "ADMIN" && order.refundClaimId !== null
+          }
+          refundClaimState={
+            order.refundClaimId === null
+              ? null
+              : isAmbiguousRefundState(order.sellerRefundId)
+                ? "ambiguous"
+                : "pending"
+          }
         />
       </Section>
     </div>

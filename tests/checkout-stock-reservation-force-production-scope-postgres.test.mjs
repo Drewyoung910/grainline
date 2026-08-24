@@ -19,8 +19,11 @@ import {
   assertReservationForceProductionScope,
   readReservationForceMigrationCatalog,
 } from "../scripts/verify-checkout-stock-reservation-force-production-scope.mjs";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
-const CATALOG = readReservationForceMigrationCatalog();
+const CATALOG = readReservationForceMigrationCatalog(
+  repositoryBeforeRefundReconciliation(),
+);
 
 async function createLedger() {
   const database = new PGlite();

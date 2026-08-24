@@ -19,11 +19,16 @@ function sourceFiles(root = "src") {
   return files.sort();
 }
 
-function directAccessFiles(delegate, table) {
+function authorityAccessFiles(delegate, table) {
   const access = new RegExp(
     `\\b(?:prisma|tx|client)\\.${delegate}\\b|`
       + `(?:FROM|JOIN|UPDATE|INTO|TABLE|DELETE\\s+FROM)\\s+`
-      + `(?:public\\.)?[\\"\u0060]${table}[\\"\u0060]`,
+      + `(?:public\\.)?[\\"\u0060]${table}[\\"\u0060]`
+      + (table === "OrderPaymentEvent"
+        ? "|latestConversionBlockingDisputeLedgerExistsSql"
+          + "|record(?:Seller|BlockedCheckout)OrderRefund"
+          + "|grainline_(?:seller|blocked_checkout)_refund_record"
+        : ""),
     "i",
   );
   return sourceFiles().filter((file) => access.test(fs.readFileSync(file, "utf8")));
@@ -37,6 +42,7 @@ const expected = {
     "src/app/admin/cases/[id]/page.tsx",
     "src/app/admin/flagged/page.tsx",
     "src/app/admin/orders/[id]/page.tsx",
+    "src/app/admin/orders/[id]/refundReconciliationActions.ts",
     "src/app/admin/orders/page.tsx",
     "src/app/admin/verification/page.tsx",
     "src/app/api/account/export/route.ts",
@@ -65,6 +71,7 @@ const expected = {
     "src/lib/labelClawbackRetry.ts",
     "src/lib/listingSoftDelete.ts",
     "src/lib/metrics.ts",
+    "src/lib/orderRefundProviderReconciliation.ts",
     "src/lib/publicSellerStats.ts",
     "src/lib/quality-score.ts",
     "src/lib/refundLocks.ts",
@@ -90,9 +97,9 @@ const expected = {
   ],
   OrderPaymentEvent: [
     "src/app/api/orders/[id]/label/route.ts",
-    "src/app/api/orders/[id]/refund/route.ts",
-    "src/app/api/stripe/webhook/route.ts",
     "src/lib/localRefundEvidence.ts",
+    "src/lib/orderRefundFinalization.ts",
+    "src/lib/orderRefundRecordAuthority.ts",
     "src/lib/quality-score.ts",
     "src/lib/refundLedgerSql.ts",
     "src/lib/site-metrics-snapshot.ts",
@@ -117,9 +124,9 @@ const delegateByModel = {
 };
 
 describe("order/payment/shipping pre-RLS audit", () => {
-  it("pins every current direct source access file", () => {
+  it("pins every current direct or authority-helper source access file", () => {
     for (const [model, files] of Object.entries(expected)) {
-      assert.deepEqual(directAccessFiles(delegateByModel[model], model), files, model);
+      assert.deepEqual(authorityAccessFiles(delegateByModel[model], model), files, model);
     }
   });
 

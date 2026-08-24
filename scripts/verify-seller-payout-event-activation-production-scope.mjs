@@ -53,11 +53,19 @@ export function parseSellerPayoutEventActivationScopeEnvironment(
 
 export function readSellerPayoutEventActivationMigrationCatalog(
   root = process.cwd(),
-  { allowReviewedForceSuccessor = false } = {},
+  {
+    allowReviewedForceSuccessor = false,
+    allowReviewedRefundClaimSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
+  } = {},
 ) {
   const predecessor = readSellerPayoutEventAuthorityMigrationCatalog(root);
   const release = verifySellerPayoutEventActivationRelease(root, {
     allowReviewedForceSuccessor,
+    allowReviewedRefundClaimSuccessor,
+    allowReviewedRefundRecordSuccessor,
+    allowReviewedSignedAuthoritySuccessor,
   });
   const candidate = buildSellerPayoutEventActivationCandidate(root);
   if (

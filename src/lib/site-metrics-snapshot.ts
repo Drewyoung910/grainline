@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
-import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
+import { Prisma } from "@prisma/client";
+import {
+  BLOCKING_REFUND_LEDGER_SQL,
+  latestConversionBlockingDisputeLedgerExistsSql,
+} from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 
 export type SiteMetricsSnapshotResult = {
@@ -42,12 +46,7 @@ export async function calculateSiteMetricsSnapshot(): Promise<SiteMetricsSnapsho
           WHERE o."sellerRefundId" IS NULL
             ${PAID_STRIPE_ORDER_SQL}
             ${BLOCKING_REFUND_LEDGER_SQL}
-            AND NOT EXISTS (
-              SELECT 1 FROM "OrderPaymentEvent" ope
-              WHERE ope."orderId" = o.id
-                AND ope."eventType" = 'DISPUTE'
-                AND (ope.status IS NULL OR LOWER(ope.status) NOT IN ('won', 'warning_closed'))
-            )
+            AND NOT (${latestConversionBlockingDisputeLedgerExistsSql(Prisma.sql`o.id`)})
         ), 0) AS "totalOrders"
     `,
     prisma.$queryRaw<Array<{ avgRating: number | null }>>`

@@ -2,7 +2,12 @@ import { Prisma } from "@prisma/client";
 import {
   NON_BLOCKING_REFUND_LEDGER_STATUSES,
   STRIPE_DISPUTE_CLOSED_STATUSES,
-} from "@/lib/refundRouteState";
+} from "./refundRouteState.ts";
+
+export const QUALIFYING_CONVERSION_DISPUTE_STATUSES = [
+  "won",
+  "warning_closed",
+] as const;
 
 export function blockingRefundLedgerExistsSql(orderIdSql: Prisma.Sql) {
   return Prisma.sql`EXISTS (
@@ -25,6 +30,15 @@ export function latestOpenDisputeLedgerExistsSql(orderIdSql: Prisma.Sql) {
 export function latestOpenDisputeLedgerRowsSql(orderIdSql: Prisma.Sql) {
   return Prisma.sql`
     SELECT latest_dispute."status", latest_dispute."stripeObjectId"
+    FROM (${latestDisputeLedgerRowsSql(orderIdSql)}) latest_dispute
+    WHERE latest_dispute."status" IS NULL
+      OR lower(latest_dispute."status") NOT IN (${Prisma.join([...STRIPE_DISPUTE_CLOSED_STATUSES])})
+  `;
+}
+
+export function latestDisputeLedgerRowsSql(orderIdSql: Prisma.Sql) {
+  return Prisma.sql`
+    SELECT latest_dispute."status", latest_dispute."stripeObjectId"
     FROM (
       SELECT DISTINCT ON (COALESCE(ope."stripeObjectId", ope.id))
         ope."status",
@@ -38,9 +52,18 @@ export function latestOpenDisputeLedgerRowsSql(orderIdSql: Prisma.Sql) {
         ope."createdAt" DESC,
         ope.id DESC
     ) latest_dispute
-    WHERE latest_dispute."status" IS NULL
-      OR lower(latest_dispute."status") NOT IN (${Prisma.join([...STRIPE_DISPUTE_CLOSED_STATUSES])})
   `;
+}
+
+export function latestConversionBlockingDisputeLedgerExistsSql(
+  orderIdSql: Prisma.Sql,
+) {
+  return Prisma.sql`EXISTS (
+    SELECT 1
+    FROM (${latestDisputeLedgerRowsSql(orderIdSql)}) latest_dispute
+    WHERE latest_dispute."status" IS NULL
+      OR lower(latest_dispute."status") NOT IN (${Prisma.join([...QUALIFYING_CONVERSION_DISPUTE_STATUSES])})
+  )`;
 }
 
 export function blockingRefundOrLatestOpenDisputeLedgerExistsSql(orderIdSql: Prisma.Sql) {

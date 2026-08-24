@@ -137,6 +137,23 @@ import {
   parseGuardedNeonDatabaseIdentity,
   validateSavedSearchRlsDeployShape,
 } from "../scripts/guard-saved-search-rls-deploy.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "../scripts/order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+} from "../scripts/order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+} from "../scripts/order-payment-signed-authority-catalog.mjs";
+import {
+  repositoryBeforeRefundReconciliation,
+} from "./helpers/release-verifier-root.mjs";
+
+// This suite seals the historical deploy guard. Exercise it against the exact
+// repository prefix that existed before the new compatible reconciliation
+// successor instead of teaching a retired phase to accept a later migration.
+process.chdir(repositoryBeforeRefundReconciliation());
 
 const RELEASE_ZERO = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";
@@ -429,6 +446,15 @@ const RELEASE_ZERO_MIGRATIONS = CURRENT_MIGRATIONS
     SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION,
     SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
     SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+    // This successor has its own byte-pinned release verifier. Historical
+    // guard-unit fixtures model immutable prefixes and intentionally omit it.
+    ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+    // The fixed refund-record successor is independently byte-pinned. Keep it
+    // outside every immutable historical guard fixture as well.
+    ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+    // The signed payment-event authority successor is independently
+    // byte-pinned and stays outside immutable historical guard fixtures.
+    ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
   ].includes(name))
   .sort((a, b) => a.localeCompare(b));
 const REVIEWED_PHASE_A_MIGRATIONS = [

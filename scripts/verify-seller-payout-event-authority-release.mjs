@@ -5,6 +5,18 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+  verifyOrderRefundClaimGenerationMigrationBytes,
+} from "./order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+  verifyOrderRefundRecordAuthorityMigrationBytes,
+} from "./order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+  verifyOrderPaymentSignedAuthorityMigrationBytes,
+} from "./order-payment-signed-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION =
   "20260815210000_prepare_seller_payout_event_authority";
@@ -24,12 +36,48 @@ export function verifySellerPayoutEventAuthorityRelease(
   {
     allowReviewedActivationSuccessor = false,
     allowReviewedForceSuccessor = false,
+    allowReviewedRefundClaimSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
   } = {},
 ) {
   if (allowReviewedForceSuccessor && !allowReviewedActivationSuccessor) {
     throw new Error(
       "SellerPayoutEvent FORCE successor requires the reviewed activation successor",
     );
+  }
+  if (
+    allowReviewedRefundClaimSuccessor
+    && (!allowReviewedActivationSuccessor || !allowReviewedForceSuccessor)
+  ) {
+    throw new Error(
+      "Order refund claim successor requires SellerPayoutEvent activation and FORCE",
+    );
+  }
+  if (
+    allowReviewedRefundRecordSuccessor
+    && !allowReviewedRefundClaimSuccessor
+  ) {
+    throw new Error(
+      "Order refund record successor requires the reviewed refund claim successor",
+    );
+  }
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
+  if (allowReviewedRefundClaimSuccessor) {
+    verifyOrderRefundClaimGenerationMigrationBytes(rootDirectory);
+  }
+  if (allowReviewedRefundRecordSuccessor) {
+    verifyOrderRefundRecordAuthorityMigrationBytes(rootDirectory);
+  }
+  if (allowReviewedSignedAuthoritySuccessor) {
+    verifyOrderPaymentSignedAuthorityMigrationBytes(rootDirectory);
   }
   const migrationDirectory = path.join(
     rootDirectory,
@@ -61,7 +109,28 @@ export function verifySellerPayoutEventAuthorityRelease(
   );
   assert.deepEqual(
     later,
-    allowReviewedForceSuccessor
+    allowReviewedSignedAuthoritySuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+          ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundRecordSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundClaimSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+        ]
+      : allowReviewedForceSuccessor
       ? [
           SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
           SELLER_PAYOUT_EVENT_FORCE_MIGRATION,

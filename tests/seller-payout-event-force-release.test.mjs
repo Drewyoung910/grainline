@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   parseSellerPayoutEventForceProofConfig,
@@ -20,7 +21,6 @@ import {
   SELLER_PAYOUT_EVENT_FORCE_PHASE,
   verifySellerPayoutEventForceRelease,
 } from "../scripts/verify-seller-payout-event-force-release.mjs";
-
 const migration = fs.readFileSync(
   `prisma/migrations/${SELLER_PAYOUT_EVENT_FORCE_MIGRATION}/migration.sql`,
   "utf8",
@@ -41,7 +41,12 @@ const releaseDocument = fs.readFileSync(
 
 test("FORCE release is one exact posture-only catalog change", () => {
   const candidate = buildSellerPayoutEventForceCandidate();
-  const release = verifySellerPayoutEventForceRelease();
+  const release = verifySellerPayoutEventForceRelease(
+    repositoryBeforeRefundReconciliation(), {
+    allowReviewedRefundClaimSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
+  });
   assert.equal(release.phase, SELLER_PAYOUT_EVENT_FORCE_PHASE);
   assert.equal(release.migration, SELLER_PAYOUT_EVENT_FORCE_MIGRATION);
   assert.equal(candidate.migrationSha256, SELLER_PAYOUT_EVENT_FORCE_MIGRATION_SHA256);
@@ -54,6 +59,12 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.equal(release.runtimeTablePrivileges, 0);
   assert.equal(release.rowDataChanged, false);
   assert.equal(release.guard.phase, SELLER_PAYOUT_EVENT_FORCE_PHASE);
+  assert.throws(
+    () => verifySellerPayoutEventForceRelease(undefined, {
+      allowReviewedRefundRecordSuccessor: true,
+    }),
+    /refund record successor requires the reviewed refund claim successor/i,
+  );
   assert.equal(
     (migration.match(
       /^ALTER TABLE public\."SellerPayoutEvent" FORCE ROW LEVEL SECURITY;$/gmu,
@@ -79,18 +90,29 @@ test("activation verifier exposes only the exact FORCE successor mode", () => {
   assert.equal(strict.status, 1);
   assert.match(strict.stderr, /unreviewed successor/u);
 
-  const sealed = spawnSync(
+  const forceOnly = spawnSync(
     process.execPath,
     [script, "--allow-reviewed-force-successor"],
     { encoding: "utf8" },
   );
-  assert.equal(sealed.status, 0, sealed.stderr);
-  const release = JSON.parse(sealed.stdout);
-  assert.equal(release.guard.sealedPrefix, true);
-  assert.equal(
-    release.guard.reviewedSuccessorMigration,
-    SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+  assert.equal(forceOnly.status, 1);
+  assert.match(forceOnly.stderr, /unreviewed successor/u);
+
+  const claimOnly = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-refund-claim-successor"],
+    { encoding: "utf8" },
   );
+  assert.equal(claimOnly.status, 1);
+  assert.match(claimOnly.stderr, /unreviewed successor/u);
+
+  const sealed = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-signed-authority-successor"],
+    { encoding: "utf8" },
+  );
+  assert.equal(sealed.status, 1);
+  assert.match(sealed.stderr, /unreviewed successor/u);
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {
     encoding: "utf8",
@@ -220,8 +242,10 @@ test("CI proves FORCE after Phase A and production wiring preserves the order", 
   assert.match(production, /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after/u);
   assert.match(
     releaseDocument,
-    /FORCE applied in production; final pooled-runtime acceptance pending/u,
+    /Status: accepted production FORCE RLS/u,
   );
   assert.match(releaseDocument, /32672434812/u);
+  assert.match(releaseDocument, /32675227286/u);
+  assert.match(releaseDocument, /f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e/u);
   assert.match(releaseDocument, /Phase-A postflight[\s\S]*not reusable/u);
 });

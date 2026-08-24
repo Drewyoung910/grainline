@@ -33,12 +33,13 @@ deferral.
 
 ## Verified direct-access baseline
 
-A machine-checked scanner pins direct Prisma and raw-SQL access under `src`.
+A machine-checked scanner pins direct Prisma, raw-SQL and converted fixed
+refund-authority callsites under `src`.
 The exact baseline is:
 
 | Model | Direct-access source files |
 |---|---:|
-| `Order` | 38 |
+| `Order` | 40 |
 | `OrderItem` | 12 |
 | `OrderShippingRateQuote` | 2 |
 | `OrderPaymentEvent` | 7 |
@@ -48,7 +49,10 @@ The exact baseline is:
 These counts exclude disposable/proof scripts and nested relation selections
 that do not name the Prisma delegate or raw table directly. They are a
 conversion floor, not a claim that only 66 semantic operations exist. The
-next inventory pass must classify nested reads, fixed Case/Notification
+signed platform webhook route now uses fixed source-bound refund/dispute
+operations and no longer directly accesses the table, reducing the pinned
+source baseline from eight to seven. The next inventory pass must classify
+nested reads, fixed Case/Notification
 functions, cron and provider side effects as well.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
@@ -64,6 +68,8 @@ Current operation families include:
   analytics;
 - employee/admin order queues, holds, verification and audit actions;
 - signed Stripe checkout, refund, dispute, payout and deauthorization events;
+- source-bound seller and blocked-checkout refund recording through
+  `src/lib/orderRefundRecordAuthority.ts`;
 - Shippo quotes, re-quotes, labels and label-clawback retry;
 - checkout stock reservation, completion, expiry restoration and pruning;
 - Case predicates and refund/dispute application functions;
@@ -415,13 +421,13 @@ or migration yet.
 | Stripe delivery reservation | `src/lib/stripeWebhookEvents.ts` | begin/reclaim, complete and fail transitions; no direct table read/delete |
 | Seller-scoped checkout Order + items | `src/app/api/stripe/webhook/route.ts` | one transaction deriving durable seller, buyer, listing, totals, snapshot, provider replay source and reservation completion |
 | Stripe refund/dispute evidence | `src/app/api/stripe/webhook/route.ts`, `src/lib/localRefundEvidence.ts`, `src/lib/refundLedgerSql.ts` | append-only payment evidence plus separately locked Order/Case application |
-| Seller refund | `src/app/api/orders/[id]/refund/route.ts`, `src/lib/refundLocks.ts` | seller-authorized refund claim and exact provider finalizers; stale-claim release is an operator/cron transition |
+| Seller refund | `src/app/api/orders/[id]/refund/route.ts`, `src/lib/orderRefundFinalization.ts`, `src/lib/orderRefundProviderReconciliation.ts`, `src/lib/refundLocks.ts` | seller-authorized refund claim and exact provider finalizers; bounded provider-outcome recovery; source-bound participant notification plus email-outbox reservation commit with the refund record; stale-claim release is an operator/cron transition |
 | Fulfillment and buyer delivery | `src/app/api/orders/[id]/fulfillment/route.ts`, `src/app/api/orders/[id]/confirm-delivery/route.ts` | seller/buyer-specific monotonic transitions under the Order lock |
 | Shippo quote and label purchase | `src/app/api/orders/[id]/label/route.ts` | seller-authorized quote replacement and label claim/finalize operations with bounded provider snapshots |
 | Label clawback retry | `src/lib/labelClawbackRetry.ts` | bounded batch claim plus generation-checked success/failure finalizers |
 | Checkout stock lifecycle | `src/lib/checkoutStockRestore.ts`, `src/app/api/cart/checkout/resume/route.ts` | reserve, bind session, complete, restore, repair and terminal-prune transitions with one lock order |
 | Account deletion and PII expiry | `src/lib/accountDeletion.ts` | bounded account-owned reservation cleanup, Order PII purge, quote deletion and seller-history anonymization |
-| Admin reconciliation | `src/app/admin/actions.ts` | staff-authorized review, void/reconcile and append-note transitions with durable audit evidence |
+| Admin reconciliation | `src/app/admin/actions.ts`, `src/app/admin/orders/[id]/refundReconciliationActions.ts` | staff-authorized review, evidence-bound ambiguous-refund classification, void/reconcile and append-note transitions with durable audit evidence |
 | Payout failure state | `src/app/api/stripe/webhook/route.ts`, `src/app/api/stripe/webhook/connect/route.ts`, `src/lib/stripePayoutWebhook.ts` | separately signed platform/Connect compatibility routes share one webhook-bound monotonic payout-state upsert; seller receives only a bounded projection |
 | Seller deauthorization review flag | `src/app/api/stripe/webhook/route.ts` | exact affected-seller batch operation using the durable Order seller key, not live Listing ownership |
 
@@ -484,7 +490,8 @@ Service, safety and aggregate consumers:
   `src/lib/audit.ts` and `src/lib/listingSoftDelete.ts`;
 - shared lock/refund/label helpers: `src/lib/caseLifecycleLocks.ts`,
   `src/lib/refundLocks.ts`, `src/lib/localRefundEvidence.ts`,
-  `src/lib/refundLedgerSql.ts` and `src/lib/labelClawbackRetry.ts`;
+  `src/lib/refundLedgerSql.ts`, `src/lib/orderRefundFinalization.ts` and
+  `src/lib/labelClawbackRetry.ts`;
 - public and staff-safe aggregates: `src/lib/homepageStats.ts`,
   `src/lib/metrics.ts`, `src/lib/publicSellerStats.ts`,
   `src/lib/quality-score.ts` and `src/lib/site-metrics-snapshot.ts`; and

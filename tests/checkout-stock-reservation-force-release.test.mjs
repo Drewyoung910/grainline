@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   CHECKOUT_STOCK_RESERVATION_FORCE_CANDIDATE_SHA256,
@@ -40,8 +41,11 @@ const releaseDocument = fs.readFileSync(
 
 test("FORCE release is one exact posture-only catalog change", () => {
   const candidate = buildCheckoutStockReservationForceCandidate();
-  const release = verifyCheckoutStockReservationForceRelease(undefined, {
+  const release = verifyCheckoutStockReservationForceRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   assert.equal(release.phase, CHECKOUT_STOCK_RESERVATION_FORCE_PHASE);
   assert.equal(release.migration, candidate.migrationName);
@@ -64,11 +68,17 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260823220000_force_seller_payout_event_rls",
+    "20260824030000_prepare_order_payment_signed_authority",
   );
   assert.throws(
     () => verifyCheckoutStockReservationForceRelease(),
     /requires 20260815060001_force_checkout_stock_reservation_rls to remain the latest migration/,
+  );
+  assert.throws(
+    () => verifyCheckoutStockReservationForceRelease(undefined, {
+      allowReviewedRefundRecordSuccessor: true,
+    }),
+    /refund record successor requires reviewed reservation successors/i,
   );
   assert.equal(
     (migration.match(
@@ -100,18 +110,21 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
     /requires 20260815060001_force_checkout_stock_reservation_rls to remain the latest migration/,
   );
 
-  const sealedPrefix = spawnSync(
+  const claimOnly = spawnSync(
     process.execPath,
     [script, "--allow-reviewed-successor"],
     { encoding: "utf8" },
   );
-  assert.equal(sealedPrefix.status, 0, sealedPrefix.stderr);
-  const release = JSON.parse(sealedPrefix.stdout);
-  assert.equal(release.guard.sealedPrefix, true);
-  assert.equal(
-    release.guard.reviewedSuccessorMigration,
-    "20260823220000_force_seller_payout_event_rls",
+  assert.equal(claimOnly.status, 1);
+  assert.match(claimOnly.stderr, /unreviewed successor/);
+
+  const sealedPrefix = spawnSync(
+    process.execPath,
+    [script, "--allow-reviewed-signed-authority-successor"],
+    { encoding: "utf8" },
   );
+  assert.equal(sealedPrefix.status, 1);
+  assert.match(sealedPrefix.stderr, /unreviewed successor/);
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {
     encoding: "utf8",

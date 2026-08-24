@@ -5,16 +5,17 @@ Last updated: 2026-08-23
 ## Purpose And Scope
 
 This is the schema-complete disposition ledger for Grainline's site-wide
-database isolation program. Snapshot scope: 64 Prisma models.
+database isolation program. Snapshot scope: 65 Prisma models.
 
 `SavedSearch`, `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
-`StripeWebhookEvent`, and `CheckoutStockReservation` have complete retained
-FORCE acceptance. These are eleven of the twelve tables in this snapshot with
-production RLS. `SellerPayoutEvent` also has FORCE set in the production
-catalog after guarded migration run `32672434812`, but its distinct actual
-pooled-runtime FORCE postflight is pending; do not classify it as completed
-`RLS_LIVE_FORCE` until that fresh evidence is retained.
+`StripeWebhookEvent`, `CheckoutStockReservation`, and `SellerPayoutEvent` have
+complete retained FORCE acceptance. These are all twelve tables in this
+snapshot with production RLS. SellerPayoutEvent closed its distinct actual
+pooled-runtime FORCE postflight from exact main
+`fb350c31772938ef52ef796c61bf670d9cf0750e` after CI `32675227286` passed;
+sanitized evidence SHA-256 is
+`f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
 Every other row is **not active RLS** and remains work to design, prove, and
 promote.
 The target column is a planning disposition, not a claim that the control is
@@ -86,8 +87,9 @@ completed alternative.
 | `ReviewVote` | `BLOCKED_DESIGN` | Review and UGC | User vote history plus public helpful counts | Preserve aggregate counts while restricting per-user rows and writes |
 | `Order` | `BLOCKED_DESIGN` | Order, payment and shipping | Buyer PII, addresses, provider IDs, fulfillment and refunds; buyer, item sellers, staff, Stripe, Shippo and jobs | Full actor-operation inventory, seller-through-item policy, service writes, retention and rollback proof |
 | `OrderShippingRateQuote` | `BLOCKED_DESIGN` | Order, payment and shipping | Shipping quote snapshots; buyer, relevant seller, Shippo and cleanup jobs | Parent-order participant rules and service re-quote cleanup path |
-| `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Payment and dispute ledger; buyer, relevant seller, staff and Stripe | Decide user-visible projection versus service-only fields and immutable webhook writes |
-| `SellerPayoutEvent` | `RLS_LIVE_FORCE_PENDING_POSTFLIGHT` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Policyless Phase A remains accepted with exact main `bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`, CI `32663849012`, migration run `32667518275`, and retained pooled-runtime evidence SHA-256 `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`. Exact main `0eb360b9878698f45288ac3c1649871de9a8a33c`, CI `32672008187`, and guarded run `32672434812` then applied only `20260823220000_force_seller_payout_event_rls`, converged grants, and passed migration status, the global grant/RLS audit and exact FORCE scope. The production catalog is policyless ENABLE plus FORCE with zero direct runtime/PUBLIC authority and exactly three source-bound fixed operations. Final FORCE acceptance is withheld until the distinct actual pooled-runtime FORCE postflight passes; never reuse Phase-A evidence. Do not bundle `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, or `OrderItem`. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md`, `docs/seller-payout-event-linked-production-proof.md`, `docs/seller-payout-event-predecessor-drain.md`, `docs/seller-payout-event-activation-release.md`, `docs/seller-payout-event-activation-production-wiring.md` and `docs/seller-payout-event-force-release.md` |
+| `OrderPaymentEvent` | `BLOCKED_DESIGN` | Order, payment and shipping | Append-only payment/refund/dispute service evidence; signed Stripe, seller/staff refund authorities, bounded buyer/seller/staff projections and aggregate jobs | Dedicated audit pins 26 semantic application surfaces and selects policyless ENABLE then FORCE with zero direct table authority. The isolated compatible stack now covers launch-safe full-refund semantics, canonical dispute consumers, refund-only export projections, UTC generation-fenced claims, restart-safe blocked-checkout handoff, atomic record/finalize plus participant delivery, two source-bound signed refund/dispute operations and evidence-bound ambiguous provider reconciliation. Reconciliation uses provider-searchable claim metadata, a complete bounded scan, 23/25-hour closed windows, one derived Admin-PIN action and an immutable private FORCE-RLS ledger. None of the stack is merged, deployed, production-applied or activation evidence. Remaining gates are the inactive-seller staff-recovery edge, staff Case refunds, append-only/taxonomy/currency/source invariants, actor-safe projections/aggregates, fresh aggregate-only production inspection, converted signed provider/retry proof, predecessor drain and separate ENABLE/FORCE releases. Do not bundle quote, Order or OrderItem activation. See `docs/order-payment-event-pre-rls-audit.md`, `docs/order-payment-event-refund-contract.md`, `docs/order-payment-event-dispute-state.md`, `docs/order-payment-event-account-export.md`, `docs/order-payment-event-refund-claim-generation.md`, `docs/order-payment-event-refund-record-authority.md`, `docs/order-payment-event-signed-authority-design.md` and `docs/order-payment-event-refund-reconciliation.md` |
+| `OrderRefundReconciliation` | `COMPATIBLE_CANDIDATE` | Order, payment and shipping | Immutable private evidence for manual classification of generation-fenced ambiguous refunds; current ADMIN plus fixed service functions only | The isolated compatible migration creates the table as policyless ENABLE plus FORCE with zero direct runtime/PUBLIC authority and one immutable trigger. Four source-bound runtime operations derive the active claim, constrain the 23/25-hour provider evidence window, co-commit the exact Admin audit, and let only an exact immutable reconciliation finalize a failed blocked-checkout event after its lease is cleared. The shared record core remains owner-private. PGlite and static proofs pass; the real PostgreSQL 16 rollback-only authority proof is wired for CI. No migration, deployment or production state has changed. See `docs/order-payment-event-refund-reconciliation.md` |
+| `SellerPayoutEvent` | `RLS_LIVE_FORCE` | Order, payment and shipping | Retained payout-failure projection; seller, separately signed Stripe service and future audited staff support | Policyless Phase A remains accepted with exact main `bf9f353ed1d94f4d32933b5d6417a75f4c0f625e`, CI `32663849012`, migration run `32667518275`, and retained pooled-runtime evidence SHA-256 `01235ef9a0922d1d1b8feb17e53bf9bbf47589ef23c927a9e5e65312cebb27de`. Exact main `0eb360b9878698f45288ac3c1649871de9a8a33c`, CI `32672008187`, and guarded run `32672434812` then applied only `20260823220000_force_seller_payout_event_rls`, converged grants, and passed migration status, the global grant/RLS audit and exact FORCE scope. Exact main `fb350c31772938ef52ef796c61bf670d9cf0750e` passed CI `32675227286`; its distinct actual pooled-runtime FORCE postflight passed all nine checks inside an engine-attested repeatable-read/read-only transaction and recorded no mutation. Retain sanitized mode-`0600` evidence SHA-256 `f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`. Production is policyless ENABLE plus FORCE with zero direct runtime/PUBLIC authority and exactly three source-bound fixed operations. Do not reuse Phase-A evidence or bundle `OrderPaymentEvent`, `OrderShippingRateQuote`, `Order`, or `OrderItem`. See `docs/seller-payout-event-compatible-authority-release.md`, `docs/seller-payout-event-compatible-app-conversion.md`, `docs/seller-payout-event-linked-production-proof.md`, `docs/seller-payout-event-predecessor-drain.md`, `docs/seller-payout-event-activation-release.md`, `docs/seller-payout-event-activation-production-wiring.md` and `docs/seller-payout-event-force-release.md` |
 | `OrderItem` | `BLOCKED_DESIGN` | Order, payment and shipping | Purchased items and snapshots; buyer, listing seller, staff and provider workflows | Parent-order buyer rule plus seller-through-listing rule and immutable checkout writes |
 | `Cart` | `PLANNED_RLS` | Cart and cart item | Direct user-owned cart; owner, checkout, webhook and deletion | Direct-owner policies plus explicit checkout and cleanup service behavior |
 | `CartItem` | `PLANNED_RLS` | Cart and cart item | Items owned through parent cart; owner, checkout, webhook and listing cleanup | Parent-join policies tested with Cart RLS and cross-user cleanup bypass |
@@ -274,10 +276,13 @@ preclude a later reviewed policy or grant migration.
    SellerPayoutEvent Phase A is complete. Exact main
    `0eb360b9878698f45288ac3c1649871de9a8a33c`, CI `32672008187`, and guarded
    run `32672434812` applied its posture-only FORCE successor and passed the
-   owner-side migration/global/exact-scope proofs. Final acceptance is pending
-   the distinct actual pooled-runtime FORCE postflight; once retained, mark
-   `RLS_LIVE_FORCE`, then begin the next remaining table with its own fresh
-   domain audit.
+   owner-side migration/global/exact-scope proofs. Exact main
+   `fb350c31772938ef52ef796c61bf670d9cf0750e` then passed CI `32675227286`,
+   and its distinct actual pooled-runtime FORCE postflight passed all nine
+   engine-read-only checks with evidence SHA-256
+   `f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+   SellerPayoutEvent is accepted `RLS_LIVE_FORCE`; begin the next remaining
+   table only after its own fresh domain audit.
    See
    `docs/seller-payout-event-pre-rls-audit.md`,
    `docs/seller-payout-event-compatible-authority-release.md` and

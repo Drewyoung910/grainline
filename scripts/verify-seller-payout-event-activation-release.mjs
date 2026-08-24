@@ -19,6 +19,15 @@ import {
 import {
   verifySellerPayoutEventAuthorityRelease,
 } from "./verify-seller-payout-event-authority-release.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "./order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+} from "./order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+} from "./order-payment-signed-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE =
   "seller-payout-event-activation-reviewed";
@@ -31,11 +40,40 @@ function sha256(value) {
 
 export function verifySellerPayoutEventActivationRelease(
   rootDirectory = process.cwd(),
-  { allowReviewedForceSuccessor = false } = {},
+  {
+    allowReviewedForceSuccessor = false,
+    allowReviewedRefundClaimSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
+  } = {},
 ) {
+  if (allowReviewedRefundClaimSuccessor && !allowReviewedForceSuccessor) {
+    throw new Error(
+      "Order refund claim successor requires the reviewed SellerPayoutEvent FORCE successor",
+    );
+  }
+  if (
+    allowReviewedRefundRecordSuccessor
+    && !allowReviewedRefundClaimSuccessor
+  ) {
+    throw new Error(
+      "Order refund record successor requires the reviewed refund claim successor",
+    );
+  }
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
   verifySellerPayoutEventAuthorityRelease(rootDirectory, {
     allowReviewedActivationSuccessor: true,
     allowReviewedForceSuccessor,
+    allowReviewedRefundClaimSuccessor,
+    allowReviewedRefundRecordSuccessor,
+    allowReviewedSignedAuthoritySuccessor,
   });
   const candidate = buildSellerPayoutEventActivationCandidate(rootDirectory);
   const migrationDirectory = path.join(rootDirectory, "prisma/migrations");
@@ -98,7 +136,25 @@ export function verifySellerPayoutEventActivationRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedForceSuccessor
+    omittedReviewedMigrationNames: allowReviewedSignedAuthoritySuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+          ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundRecordSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundClaimSuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+        ]
+      : allowReviewedForceSuccessor
       ? [SELLER_PAYOUT_EVENT_FORCE_MIGRATION]
       : [],
   });
@@ -121,7 +177,13 @@ export function verifySellerPayoutEventActivationRelease(
       ? Object.freeze({
           phase: guard.phase,
           sealedPrefix: true,
-          reviewedSuccessorMigration: SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          reviewedSuccessorMigration: allowReviewedSignedAuthoritySuccessor
+            ? ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION
+            : allowReviewedRefundRecordSuccessor
+            ? ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
+            : allowReviewedRefundClaimSuccessor
+            ? ORDER_REFUND_CLAIM_GENERATION_MIGRATION
+            : SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
         })
       : guard,
   });
@@ -132,17 +194,35 @@ function main() {
   const mode = modes[0];
   if (
     modes.length > 1
-    || (mode !== undefined && mode !== "--allow-reviewed-force-successor")
+    || (
+      mode !== undefined
+      && mode !== "--allow-reviewed-force-successor"
+      && mode !== "--allow-reviewed-refund-claim-successor"
+      && mode !== "--allow-reviewed-refund-record-successor"
+      && mode !== "--allow-reviewed-signed-authority-successor"
+    )
   ) {
     throw new Error(
       "usage: verify-seller-payout-event-activation-release.mjs "
-      + "[--allow-reviewed-force-successor]",
+      + "[--allow-reviewed-force-successor|--allow-reviewed-refund-claim-successor|--allow-reviewed-refund-record-successor|--allow-reviewed-signed-authority-successor]",
     );
   }
   process.stdout.write(`${JSON.stringify(
     verifySellerPayoutEventActivationRelease(undefined, {
       allowReviewedForceSuccessor:
-        mode === "--allow-reviewed-force-successor",
+        mode === "--allow-reviewed-force-successor"
+        || mode === "--allow-reviewed-refund-claim-successor"
+        || mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
+      allowReviewedRefundClaimSuccessor:
+        mode === "--allow-reviewed-refund-claim-successor"
+        || mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
+      allowReviewedRefundRecordSuccessor:
+        mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
+      allowReviewedSignedAuthoritySuccessor:
+        mode === "--allow-reviewed-signed-authority-successor",
     }),
     null,
     2,

@@ -1340,6 +1340,173 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Order refund generation claims and atomic finalizers are an additive
+-- compatibility fence before Order/OrderPaymentEvent RLS. When present,
+-- expose only the source-bound functions and keep PUBLIC closed.
+WITH order_refund_claim_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_refund_claim"(text, text)'),
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_claim_resume"(text, bigint, text, text, integer)'),
+    ('public."grainline_seller_refund_record"(text, text, bigint, text, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_record"(text, bigint, text, bigint, text, text, text, integer)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_refund_claim_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_claim_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_refund_claim"(text, text)'),
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_claim_resume"(text, bigint, text, text, integer)'),
+    ('public."grainline_seller_refund_record"(text, text, bigint, text, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_record"(text, bigint, text, bigint, text, text, text, integer)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_claim_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_claim_service(function_signature) AS (
+  VALUES
+    ('public."grainline_seller_refund_claim"(text, text)'),
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_claim_resume"(text, bigint, text, text, integer)'),
+    ('public."grainline_seller_refund_record"(text, text, bigint, text, text, text, integer)'),
+    ('public."grainline_blocked_checkout_refund_record"(text, bigint, text, bigint, text, text, text, integer)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_claim_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- The blocked-checkout record core is owner-private. Runtime reaches it only
+-- through the active signed-lease wrapper above or the later immutable
+-- reconciliation wrapper below.
+WITH order_refund_record_private(function_signature) AS (
+  VALUES
+    ('public."grainline_blocked_checkout_refund_record_core"(text, bigint, text, bigint, text, text, text, integer)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_refund_record_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_record_private(function_signature) AS (
+  VALUES
+    ('public."grainline_blocked_checkout_refund_record_core"(text, bigint, text, bigint, text, text, text, integer)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_record_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Signed platform refund/dispute authority is an additive compatibility
+-- boundary before OrderPaymentEvent RLS. Converge only its two source-bound
+-- functions when the reviewed successor migration is present.
+WITH order_payment_signed_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_signed_refund_apply"(text, bigint, text, bigint, integer, text, text, integer, text, bigint, text)'),
+    ('public."grainline_order_payment_signed_dispute_apply"(text, bigint, text, text, bigint, integer, text, text, text)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_payment_signed_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_payment_signed_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_signed_refund_apply"(text, bigint, text, bigint, integer, text, text, integer, text, bigint, text)'),
+    ('public."grainline_order_payment_signed_dispute_apply"(text, bigint, text, text, bigint, integer, text, text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_payment_signed_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_payment_signed_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_signed_refund_apply"(text, bigint, text, bigint, integer, text, text, integer, text, bigint, text)'),
+    ('public."grainline_order_payment_signed_dispute_apply"(text, bigint, text, text, bigint, integer, text, text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_payment_signed_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Ambiguous Order-refund reconciliation is an additive compatible boundary.
+-- Keep the immutable trigger helper private and expose only the four exact,
+-- source-bound operations when the reviewed migration is present.
+WITH order_refund_reconciliation_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_order_refund_reconciliation_immutable"()', false),
+    ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
+    ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true),
+    ('public."grainline_blocked_checkout_refund_reconciliation_record"(text, text, bigint, text, text, text, integer)', true)
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_refund_reconciliation_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_reconciliation_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_order_refund_reconciliation_immutable"()', false),
+    ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
+    ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true),
+    ('public."grainline_blocked_checkout_refund_reconciliation_record"(text, text, bigint, text, text, text, integer)', true)
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_reconciliation_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_reconciliation_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_order_refund_reconciliation_immutable"()', false),
+    ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
+    ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true),
+    ('public."grainline_blocked_checkout_refund_reconciliation_record"(text, text, bigint, text, text, text, integer)', true)
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_reconciliation_authority
+ WHERE runtime_execute
+   AND to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- CheckoutStockReservation compatible preparation keeps predecessor table
 -- grants while adding only the fixed lifecycle surface. The functions may be
 -- absent before that migration, so every convergence statement is catalog-
@@ -1502,7 +1669,8 @@ FROM (
     ('CaseStripeDisputeApplication'),
     ('CaseSellerRefundApplication'),
     ('CaseOpenApplication'),
-    ('DirectUploadReference')
+    ('DirectUploadReference'),
+    ('OrderRefundReconciliation')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec

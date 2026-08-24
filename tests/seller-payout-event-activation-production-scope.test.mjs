@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   LISTING_VARIANTS_HISTORICAL_LEDGER_ALIAS,
@@ -22,8 +23,13 @@ import {
 } from "../scripts/verify-seller-payout-event-activation-production-scope.mjs";
 
 const catalog = readSellerPayoutEventActivationMigrationCatalog(
-  process.cwd(),
-  { allowReviewedForceSuccessor: true },
+  repositoryBeforeRefundReconciliation(),
+  {
+    allowReviewedForceSuccessor: true,
+    allowReviewedRefundClaimSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
+  },
 );
 const activation = catalog.at(-1);
 

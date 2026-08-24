@@ -124,11 +124,12 @@ model User {
   notificationPreferences Json      @default("{}")
   emailPreferenceOptInAt  DateTime?
 
-  banned       Boolean         @default(false)
-  bannedAt     DateTime?
-  banReason    String?         @db.VarChar(500)
-  bannedBy     String?         @db.VarChar(255)
-  adminActions AdminAuditLog[] @relation("AdminActions")
+  banned                     Boolean                     @default(false)
+  bannedAt                   DateTime?
+  banReason                  String?                     @db.VarChar(500)
+  bannedBy                   String?                     @db.VarChar(255)
+  adminActions               AdminAuditLog[]             @relation("AdminActions")
+  orderRefundReconciliations OrderRefundReconciliation[]
 
   blocks          Block[]      @relation("UserBlocks")
   blockedBy       Block[]      @relation("UserBlockedBy")
@@ -661,9 +662,19 @@ model Order {
   quotedUseCalculatedShipping Boolean? // what path we used
 
   // Seller-initiated refund
-  sellerRefundId          String?   @db.VarChar(255)
-  sellerRefundAmountCents Int?
-  sellerRefundLockedAt    DateTime?
+  sellerRefundId                  String?   @db.VarChar(255)
+  sellerRefundAmountCents         Int?
+  sellerRefundLockedAt            DateTime?
+  // Compatible generation fence for seller and blocked-checkout provider
+  // refunds. The source tuple is present only while a claim is pending or
+  // awaiting reconciliation; generation remains monotonic across releases.
+  refundClaimId                   String?   @db.VarChar(255)
+  refundClaimGeneration           BigInt    @default(0)
+  refundClaimSource               String?   @db.VarChar(32)
+  refundClaimSourceId             String?   @db.VarChar(255)
+  refundClaimSourceGeneration     BigInt?
+  refundClaimIdempotencyScope     String?   @db.VarChar(191)
+  refundClaimProviderAuthorizedAt DateTime?
 
   // Shippo label
   shippoShipmentId           String?      @db.VarChar(255)
@@ -688,8 +699,9 @@ model Order {
   giftWrappingPriceCents Int?
   buyerDataPurgedAt      DateTime?
 
-  shippingRateQuotes OrderShippingRateQuote[]
-  paymentEvents      OrderPaymentEvent[]
+  shippingRateQuotes    OrderShippingRateQuote[]
+  paymentEvents         OrderPaymentEvent[]
+  refundReconciliations OrderRefundReconciliation[]
 
   // Supports the raw-managed same-Order seller-authority FK from OrderItem.
   @@unique([id, sellerProfileId], map: "Order_id_sellerProfileId_key")
@@ -700,6 +712,7 @@ model Order {
   @@index([fulfillmentStatus])
   @@index([fulfillmentStatus, createdAt])
   @@index([sellerRefundId, sellerRefundLockedAt])
+  @@index([refundClaimId, refundClaimGeneration])
   @@index([labelClawbackStatus, labelClawbackNextAttemptAt])
   @@index([buyerDataPurgedAt, fulfillmentStatus, deliveredAt, pickedUpAt], map: "Order_buyer_pii_prune_idx")
   @@index([sellerProfileId, createdAt, id])
@@ -738,6 +751,9 @@ model OrderPaymentEvent {
   // Bounded Stripe payment/refund/dispute event context. Store safe ids and
   // small status details only, not full provider payloads.
   metadata                      Json?
+  // Signed Stripe ordering. Local/predecessor rows remain nullable until the
+  // compatible writer drain and legacy classification are complete.
+  stripeEventCreatedSeconds     BigInt?
   createdAt                     DateTime                       @default(now())
   updatedAt                     DateTime                       @updatedAt
   caseStripeDisputeApplications CaseStripeDisputeApplication[]
@@ -748,6 +764,37 @@ model OrderPaymentEvent {
   @@index([orderId, createdAt])
   @@index([eventType, createdAt])
   @@index([stripeObjectId])
+  @@index([orderId, eventType, stripeObjectId, stripeEventCreatedSeconds(sort: Desc), id(sort: Desc)], map: "OrderPaymentEvent_order_dispute_event_time_idx")
+}
+
+// Private immutable evidence for manual classification of ambiguous
+// generation-fenced Order refunds. The table is FORCE RLS with no policies;
+// ordinary runtime access exists only through the fixed ADMIN operations.
+model OrderRefundReconciliation {
+  id                     String        @id
+  orderId                String
+  order                  Order         @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  claimId                String        @db.VarChar(255)
+  claimGeneration        BigInt
+  claimSource            String        @db.VarChar(32)
+  claimSourceId          String        @db.VarChar(255)
+  claimSourceGeneration  BigInt?
+  idempotencyScope       String        @db.VarChar(191)
+  action                 String        @db.VarChar(40)
+  actorUserId            String
+  actor                  User          @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  providerInspectedAt    DateTime
+  providerDisposition    String        @db.VarChar(32)
+  providerEvidenceSha256 String        @db.VarChar(64)
+  reason                 String        @db.VarChar(1000)
+  auditLogId             String        @unique
+  auditLog               AdminAuditLog @relation(fields: [auditLogId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt              DateTime      @default(now())
+
+  @@unique([claimId, claimGeneration, action, providerEvidenceSha256], map: "OrderRefundReconciliation_replay_key")
+  @@index([orderId, createdAt(sort: Desc)])
+  @@index([claimId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
 }
 
 model SellerPayoutEvent {
@@ -1739,21 +1786,22 @@ model Metro {
 }
 
 model AdminAuditLog {
-  id                  String               @id @default(cuid())
-  adminId             String
-  admin               User                 @relation("AdminActions", fields: [adminId], references: [id])
-  caseOpenApplication CaseOpenApplication?
-  action              String               @db.VarChar(100)
-  targetType          String               @db.VarChar(100)
-  targetId            String               @db.VarChar(255)
-  reason              String?              @db.VarChar(1000)
+  id                        String                     @id @default(cuid())
+  adminId                   String
+  admin                     User                       @relation("AdminActions", fields: [adminId], references: [id])
+  caseOpenApplication       CaseOpenApplication?
+  orderRefundReconciliation OrderRefundReconciliation?
+  action                    String                     @db.VarChar(100)
+  targetType                String                     @db.VarChar(100)
+  targetId                  String                     @db.VarChar(255)
+  reason                    String?                    @db.VarChar(1000)
   // Bounded action metadata; keep bulky evidence in purpose-built tables.
-  metadata            Json                 @default("{}")
-  undone              Boolean              @default(false)
-  undoneAt            DateTime?
-  undoneBy            String?              @db.VarChar(255)
-  undoneReason        String?              @db.VarChar(1000)
-  createdAt           DateTime             @default(now())
+  metadata                  Json                       @default("{}")
+  undone                    Boolean                    @default(false)
+  undoneAt                  DateTime?
+  undoneBy                  String?                    @db.VarChar(255)
+  undoneReason              String?                    @db.VarChar(1000)
+  createdAt                 DateTime                   @default(now())
 
   @@index([adminId])
   @@index([targetType, targetId])

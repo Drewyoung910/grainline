@@ -24,6 +24,15 @@ import {
 import {
   verifySellerPayoutEventActivationRelease,
 } from "./verify-seller-payout-event-activation-release.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+} from "./order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+} from "./order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+} from "./order-payment-signed-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_FORCE_PHASE =
   "seller-payout-event-force-reviewed";
@@ -41,9 +50,33 @@ function migrationPrefix(rootDirectory, finalMigration) {
 
 export function verifySellerPayoutEventForceRelease(
   rootDirectory = process.cwd(),
+  {
+    allowReviewedRefundClaimSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
+  } = {},
 ) {
+  if (
+    allowReviewedRefundRecordSuccessor
+    && !allowReviewedRefundClaimSuccessor
+  ) {
+    throw new Error(
+      "Order refund record successor requires the reviewed refund claim successor",
+    );
+  }
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
   const activation = verifySellerPayoutEventActivationRelease(rootDirectory, {
     allowReviewedForceSuccessor: true,
+    allowReviewedRefundClaimSuccessor,
+    allowReviewedRefundRecordSuccessor,
+    allowReviewedSignedAuthoritySuccessor,
   });
   const activationCandidate = buildSellerPayoutEventActivationCandidate(
     rootDirectory,
@@ -84,6 +117,20 @@ export function verifySellerPayoutEventForceRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_FORCE_PHASE,
     rootDirectory,
+    omittedReviewedMigrationNames: allowReviewedSignedAuthoritySuccessor
+      ? [
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+          ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundRecordSuccessor
+      ? [
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundClaimSuccessor
+      ? [ORDER_REFUND_CLAIM_GENERATION_MIGRATION]
+      : [],
   });
   return Object.freeze({
     phase: SELLER_PAYOUT_EVENT_FORCE_PHASE,
@@ -101,7 +148,17 @@ export function verifySellerPayoutEventForceRelease(
     policyCount: 0,
     runtimeTablePrivileges: 0,
     rowDataChanged: false,
-    guard,
+    guard: allowReviewedRefundClaimSuccessor
+      ? Object.freeze({
+          phase: guard.phase,
+          sealedPrefix: true,
+          reviewedSuccessorMigration: allowReviewedSignedAuthoritySuccessor
+            ? ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION
+            : allowReviewedRefundRecordSuccessor
+            ? ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
+            : ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+        })
+      : guard,
   });
 }
 

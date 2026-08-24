@@ -22,13 +22,19 @@ describe("quality score query guardrails", () => {
     for (const path of ["src/lib/quality-score.ts", "src/lib/site-metrics-snapshot.ts"]) {
       const text = source(path);
 
-      assert.match(text, /ope\."eventType" = 'DISPUTE'/, `${path} must inspect dispute ledger rows`);
       assert.match(
         text,
-        /LOWER\(ope\.status\) NOT IN \('won', 'warning_closed'\)/,
-        `${path} must count only won or warning-closed Stripe disputes as conversion signal`,
+        /latestConversionBlockingDisputeLedgerExistsSql/,
+        `${path} must use the canonical latest-per-dispute conversion predicate`,
       );
-      assert.doesNotMatch(text, /'won', 'lost', 'warning_closed'/);
+      assert.doesNotMatch(text, /FROM "OrderPaymentEvent" ope/);
+      assert.doesNotMatch(text, /LOWER\(ope\.status\)/);
     }
+
+    const helper = source("src/lib/refundLedgerSql.ts");
+    assert.match(helper, /QUALIFYING_CONVERSION_DISPUTE_STATUSES = \[\s*"won",\s*"warning_closed",/);
+    assert.match(helper, /latestConversionBlockingDisputeLedgerExistsSql/);
+    assert.match(helper, /latestDisputeLedgerRowsSql/);
+    assert.match(helper, /SELECT DISTINCT ON \(COALESCE\(ope\."stripeObjectId", ope\.id\)\)/);
   });
 });

@@ -13,6 +13,8 @@ describe("seller analytics refund guardrails", () => {
     assert.match(helper, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
     assert.match(helper, /latestOpenDisputeLedgerExistsSql/);
     assert.match(helper, /latestOpenDisputeLedgerRowsSql/);
+    assert.match(helper, /latestDisputeLedgerRowsSql/);
+    assert.match(helper, /latestConversionBlockingDisputeLedgerExistsSql/);
     assert.match(helper, /SELECT DISTINCT ON \(COALESCE\(ope\."stripeObjectId", ope\.id\)\)/);
     assert.match(helper, /NULLIF\(ope\."metadata"->>'stripeEventCreated', ''\)::bigint/);
     assert.match(helper, /EXTRACT\(EPOCH FROM ope\."createdAt"\)::bigint/);
@@ -50,9 +52,12 @@ describe("seller analytics refund guardrails", () => {
     assert.match(homepageStats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
   });
 
-  it("keeps first-party partial refunds visible to Guild sales filters", () => {
+  it("keeps seller and staff Case refunds visible to Guild sales filters", () => {
     const helper = source("src/lib/localRefundEvidenceCore.ts");
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const sellerRefundAuthority = source(
+      "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
+    );
     const caseResolveRoute = source("src/app/api/cases/[id]/resolve/route.ts");
     const caseResolveAuthority = source(
       "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
@@ -64,9 +69,15 @@ describe("seller analytics refund guardrails", () => {
     assert.match(helper, /eventType: "REFUND"/);
     assert.match(helper, /amountCents/);
 
-    assert.match(sellerRefundRoute, /sellerRefundAmountCents: refundAmountCents/);
-    assert.match(sellerRefundRoute, /action: "SELLER_REFUND_RECORDED"/);
-    assert.match(sellerRefundRoute, /amountCents: refundAmountCents/);
+    assert.match(sellerRefundRoute, /finalizeSellerOrderRefund\(\{/);
+    assert.match(sellerRefundAuthority, /"sellerRefundAmountCents" = refund_amount/);
+    assert.match(sellerRefundAuthority, /'SELLER_REFUND_RECORDED'/);
+    assert.match(sellerRefundAuthority, /"amountCents"[\s\S]*refund_amount/);
+    assert.match(
+      sellerRefundRoute,
+      /if \(refundParsed\.type === "PARTIAL"\)[\s\S]*Seller partial refunds require Grainline staff review/,
+    );
+    assert.match(caseResolveRoute, /resolution: z\.enum\(\["REFUND_FULL", "REFUND_PARTIAL", "DISMISSED"\]\)/);
 
     assert.match(
       caseResolveRoute,
@@ -101,5 +112,7 @@ describe("seller analytics refund guardrails", () => {
 
     assert.match(stripeWebhook, /latestOpenDisputeLedgerRowsSql\(Prisma\.sql`\$\{input\.orderId\}`\)/);
     assert.doesNotMatch(stripeWebhook, /orderPaymentEvent\.findFirst\(\{\s*where: \{ orderId: input\.orderId, eventType: "DISPUTE" \}/s);
+    assert.doesNotMatch(sellerRefundRoute, /blockingRefundOrDisputeLedgerWhere/);
+    assert.doesNotMatch(stripeWebhook, /blockingRefundOrDisputeLedgerWhere/);
   });
 });

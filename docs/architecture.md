@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-23
+Last updated: 2026-08-24
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -37,13 +37,13 @@ Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, and `SellerPayoutEvent`.
-Twelve tables have production RLS and all twelve currently have
-`FORCE ROW LEVEL SECURITY` set in the production catalog. Eleven have complete
-retained FORCE acceptance. `SellerPayoutEvent` FORCE was applied by guarded run
-`32672434812`; its owner-side migration/global/scope proofs passed, while its
-distinct actual pooled-runtime FORCE postflight remains the final acceptance
-gate. Until that evidence is retained, its matrix state is
-`RLS_LIVE_FORCE_PENDING_POSTFLIGHT`, not completed `RLS_LIVE_FORCE`.
+Twelve tables have production RLS and all twelve currently have complete
+retained `FORCE ROW LEVEL SECURITY` acceptance. `SellerPayoutEvent` FORCE was
+applied by guarded run `32672434812`; exact main
+`fb350c31772938ef52ef796c61bf670d9cf0750e` passed CI `32675227286`, and its
+distinct actual pooled-runtime FORCE postflight passed all nine checks without
+mutating production. Retain sanitized evidence SHA-256
+`f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
 DirectUpload,
 StripeWebhookEvent, the Case family, and
 CheckoutStockReservation intentionally use
@@ -183,13 +183,73 @@ SellerPayoutEvent Phase A remains accepted. Exact main
 `0eb360b9878698f45288ac3c1649871de9a8a33c` passed CI `32672008187`, and
 guarded run `32672434812` applied only the separate posture-only FORCE
 migration, converged grants, and passed migration status, the global audit and
-exact FORCE scope. The catalog is therefore FORCE-hardened. Final FORCE
-acceptance is deliberately withheld because the merged release lacked the
-distinct actual pooled-runtime FORCE postflight package. That package uses a
-separate `--post-force` mode, confirmation and evidence namespace; the accepted
-Phase-A artifact cannot be reused. See
+exact FORCE scope. The catalog is therefore FORCE-hardened. The separate
+postflight package merged at exact main
+`fb350c31772938ef52ef796c61bf670d9cf0750e`; CI `32675227286` passed the full
+release chain and production build. Its actual pooled-runtime postflight used
+the separate `--post-force` mode and passed all nine engine-read-only checks,
+including direct denial and the fixed writer's SQLSTATE `25006` fence. It
+reported `productionChangedByPostflight=false`; sanitized mode-`0600` evidence
+SHA-256 is
+`f2be83824cf4f8a9354ae72a5d9a12498ba1b7c24bf10f9b1c92636a3490228e`.
+SellerPayoutEvent is accepted `RLS_LIVE_FORCE`. The accepted Phase-A artifact
+remains distinct and cannot be reused. See
 `docs/seller-payout-event-activation-production-wiring.md` and
 `docs/seller-payout-event-force-release.md`.
+
+The next domain-first boundary is `OrderPaymentEvent`; see
+`docs/order-payment-event-pre-rls-audit.md`. It remains a separately released,
+policyless service ledger rather than a participant-readable table. The audit
+pins 26 semantic application surfaces and requires sanitized buyer/seller
+projections, generation-fenced seller and blocked-checkout refund operations,
+canonical latest-per-dispute ordering, append-only/taxonomy invariants and a
+fresh production aggregate inspection before activation design can proceed.
+The prepared refund authority now separates database-derived claim acquisition
+from one atomic fixed record/finalize operation. A failed webhook retry may
+hand an existing claim only to a later active generation for the identical
+event, Checkout Session, Order, amount and idempotency scope. See
+`docs/order-payment-event-refund-claim-generation.md` and
+`docs/order-payment-event-refund-record-authority.md`; both remain isolated
+preparation, not production database state.
+The blocked-checkout finalizer uses one owner-private mutation core with no
+runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
+active-webhook-lease wrapper. If the webhook failed and released its lease,
+only a distinct wrapper bound to one immutable current-ADMIN reconciliation
+row may reach the core; that wrapper derives and locks the source event and
+generation, requires the failed inactive state, finalizes the refund, and marks
+the event processed in the same database transaction. This split avoids both
+fabricating a signed lease for staff recovery and granting runtime direct core
+authority. Provider refund/reversal fields remain authenticated application
+evidence rather than database-cryptographic Stripe proof.
+It also records the launch-safe refund contract: seller self-service supports
+full cancellation/refund, while partial refunds remain staff Case operations
+until the Order model can represent residual line-item fulfillment. Shipping
+quotes, Order and OrderItem remain later separate releases. The compatible
+seller application boundary and the required future partial-refund feature
+model are recorded in `docs/order-payment-event-refund-contract.md`. Current
+Stripe dispute consumers share the latest-per-dispute SQL family documented in
+`docs/order-payment-event-dispute-state.md`. The isolated signed-webhook
+candidate adds the typed provider clock and source-bound refund/dispute
+operations; equal-second differences, including signed event-type differences,
+retain evidence and mark staff reconciliation without Case or Notification
+effects. It is byte-pinned and passes disposable PostgreSQL authority and
+concurrency proof, but is not merged, deployed, production-applied or RLS
+activation evidence. See
+`docs/order-payment-event-signed-authority-design.md`. Self-service
+account exports use the distinct refund-only buyer/seller projections recorded
+in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
+fields remain private service evidence.
+
+The OPE-A03 concurrency correction is prepared in
+`docs/order-payment-event-refund-claim-generation.md`. It adds an Order-owned,
+database-derived claim ID/generation/source/idempotency tuple for seller and
+blocked-checkout full refunds. The exact active tuple fences success, orphan
+and ambiguous writes; stale-lock cleanup, signed `charge.refunded` handling and
+terminal dispute handling cannot detach it by elapsed time. The real migration
+runs in disposable PostgreSQL and is byte-pinned after the SellerPayoutEvent
+FORCE predecessor. It is not merged, deployed, production-applied or an RLS
+activation. `Order` retains predecessor direct runtime CRUD, and atomic fixed
+provider record/finalize plus evidence-based reconciliation remain required.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while

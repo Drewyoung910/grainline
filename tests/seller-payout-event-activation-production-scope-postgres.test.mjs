@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import { PGlite } from "@electric-sql/pglite";
 
@@ -20,8 +21,12 @@ import {
   readSellerPayoutEventActivationMigrationCatalog,
 } from "../scripts/verify-seller-payout-event-activation-production-scope.mjs";
 
-const CATALOG = readSellerPayoutEventActivationMigrationCatalog(process.cwd(), {
+const CATALOG = readSellerPayoutEventActivationMigrationCatalog(
+  repositoryBeforeRefundReconciliation(), {
   allowReviewedForceSuccessor: true,
+  allowReviewedRefundClaimSuccessor: true,
+  allowReviewedRefundRecordSuccessor: true,
+  allowReviewedSignedAuthoritySuccessor: true,
 });
 
 async function createLedger() {

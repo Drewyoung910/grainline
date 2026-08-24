@@ -70,6 +70,9 @@ describe("system audit logging", () => {
 
   it("audits Stripe webhook financial state transitions through SystemAuditLog", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const signedAuthority = source(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+    );
     const mirror = source("src/lib/stripeWebhookMirror.ts");
     const v2Webhook = source("src/app/api/stripe/webhook/v2/route.ts");
 
@@ -77,8 +80,8 @@ describe("system audit logging", () => {
     assert.match(webhook, /action: "STRIPE_CHECKOUT_ORDER_CREATED"/);
     assert.match(webhook, /checkoutMode: "cart"/);
     assert.match(webhook, /checkoutMode: "single"/);
-    assert.match(webhook, /action: "STRIPE_REFUND_RECORDED"/);
-    assert.match(webhook, /action: "STRIPE_DISPUTE_RECORDED"/);
+    assert.match(signedAuthority, /'STRIPE_REFUND_RECORDED'/);
+    assert.match(signedAuthority, /'STRIPE_DISPUTE_RECORDED'/);
     assert.match(webhook, /action: "STRIPE_ACCOUNT_DEAUTHORIZED"/);
     assert.match(webhook, /actorType: "webhook"/);
     assert.match(webhook, /actorId: event\.id/);
@@ -100,23 +103,30 @@ describe("system audit logging", () => {
     assert.match(v2Webhook, /actorType: "webhook"/);
     assert.match(v2Webhook, /actorId: stripeEventId/);
 
-    for (const action of [
-      "STRIPE_CHECKOUT_ORDER_CREATED",
-      "STRIPE_REFUND_RECORDED",
-      "STRIPE_DISPUTE_RECORDED",
-    ]) {
-      const index = webhook.indexOf(`action: "${action}"`);
-      assert.notEqual(index, -1, `${action} should be present`);
-      const block = webhook.slice(Math.max(0, index - 250), index + 600);
-      assert.match(block, /client: tx/);
-      assert.match(block, /targetType: "ORDER"/);
-      assert.match(block, /targetId:/);
-      assert.match(block, /metadata: \{/);
+    const checkoutIndex = webhook.indexOf('action: "STRIPE_CHECKOUT_ORDER_CREATED"');
+    assert.notEqual(checkoutIndex, -1);
+    const checkoutBlock = webhook.slice(Math.max(0, checkoutIndex - 250), checkoutIndex + 600);
+    assert.match(checkoutBlock, /client: tx/);
+    assert.match(checkoutBlock, /targetType: "ORDER"/);
+    assert.match(checkoutBlock, /targetId:/);
+    assert.match(checkoutBlock, /metadata: \{/);
+
+    for (const action of ["STRIPE_REFUND_RECORDED", "STRIPE_DISPUTE_RECORDED"]) {
+      const index = signedAuthority.indexOf(`'${action}'`);
+      assert.notEqual(index, -1, `${action} should be present in fixed authority`);
+      const block = signedAuthority.slice(Math.max(0, index - 500), index + 700);
+      assert.match(block, /INSERT INTO public\."SystemAuditLog"/);
+      assert.match(block, /'webhook'/);
+      assert.match(block, /'ORDER'/);
+      assert.match(block, /pg_catalog\.jsonb_build_object/);
     }
   });
 
   it("deduplicates Stripe refund and dispute audit rows through payment ledger writes", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const signedAuthority = source(
+      "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
+    );
     const refundStart = webhook.indexOf('if (event.type === "charge.refunded")');
     const disputeStart = webhook.indexOf("if (STRIPE_DISPUTE_EVENT_TYPES.has(event.type))");
     const payoutStart = webhook.indexOf('if (event.type === "payout.failed")');
@@ -125,24 +135,23 @@ describe("system audit logging", () => {
     assert.ok(disputeStart > refundStart, "dispute branch should follow refund branch");
     assert.ok(payoutStart > disputeStart, "payout branch should follow dispute branch");
 
-    const helperStart = webhook.indexOf("async function recordOrderPaymentEvent");
-    const helper = webhook.slice(helperStart, refundStart);
-    assert.match(helper, /orderPaymentEvent\.createMany/);
-    assert.match(helper, /skipDuplicates: true/);
-    assert.match(helper, /return result\.count > 0/);
-
     const refundBranch = webhook.slice(refundStart, disputeStart);
-    assert.match(refundBranch, /const refundLedgerCreated = await recordOrderPaymentEvent/);
-    assert.match(
-      refundBranch,
-      /if \(refundLedgerCreated\) \{\s+await logSystemActionOrThrow\(\{[\s\S]*action: "STRIPE_REFUND_RECORDED"/,
-    );
+    assert.match(refundBranch, /applySignedRefundWebhook\(tx,/);
 
     const disputeBranch = webhook.slice(disputeStart, payoutStart);
-    assert.match(disputeBranch, /const disputeLedgerCreated = await recordOrderPaymentEvent/);
-    assert.match(
-      disputeBranch,
-      /if \(disputeLedgerCreated\) \{\s+await logSystemActionOrThrow\(\{[\s\S]*action: "STRIPE_DISPUTE_RECORDED"/,
+    assert.match(disputeBranch, /applySignedDisputeWebhook\(tx,/);
+    assert.doesNotMatch(webhook, /async function recordOrderPaymentEvent/);
+    assert.equal(
+      (signedAuthority.match(/WHERE payment\."stripeEventId" = p_event_id/gu) ?? []).length,
+      2,
+    );
+    assert.equal(
+      (signedAuthority.match(/replay payload is inconsistent/gu) ?? []).length,
+      2,
+    );
+    assert.equal(
+      (signedAuthority.match(/INSERT INTO public\."SystemAuditLog"/gu) ?? []).length,
+      2,
     );
   });
 });

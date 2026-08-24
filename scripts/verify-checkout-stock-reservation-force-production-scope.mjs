@@ -58,6 +58,8 @@ export function readReservationForceMigrationCatalog(root = process.cwd()) {
   // deploy guard remains strict and CI/production runners isolate successors.
   const release = verifyCheckoutStockReservationForceRelease(root, {
     allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   if (
     release.migration !== CHECKOUT_STOCK_RESERVATION_FORCE_MIGRATION

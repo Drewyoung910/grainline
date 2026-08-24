@@ -20,9 +20,12 @@ import {
   readReservationActivationMigrationCatalog,
   verifyReservationActivationProductionScope,
 } from "../scripts/verify-checkout-stock-reservation-activation-production-scope.mjs";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 const URL = "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
-const catalog = readReservationActivationMigrationCatalog();
+const catalog = readReservationActivationMigrationCatalog(
+  repositoryBeforeRefundReconciliation(),
+);
 const activation = catalog.at(-1);
 
 const applied = (migrationName, checksum) => ({
