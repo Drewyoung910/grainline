@@ -176,20 +176,25 @@ function main() {
       mode !== undefined
       && mode !== "--allow-reviewed-force-successor"
       && mode !== "--allow-reviewed-refund-claim-successor"
+      && mode !== "--allow-reviewed-refund-record-successor"
     )
   ) {
     throw new Error(
       "usage: verify-seller-payout-event-activation-release.mjs "
-      + "[--allow-reviewed-force-successor|--allow-reviewed-refund-claim-successor]",
+      + "[--allow-reviewed-force-successor|--allow-reviewed-refund-claim-successor|--allow-reviewed-refund-record-successor]",
     );
   }
   process.stdout.write(`${JSON.stringify(
     verifySellerPayoutEventActivationRelease(undefined, {
       allowReviewedForceSuccessor:
         mode === "--allow-reviewed-force-successor"
-        || mode === "--allow-reviewed-refund-claim-successor",
+        || mode === "--allow-reviewed-refund-claim-successor"
+        || mode === "--allow-reviewed-refund-record-successor",
       allowReviewedRefundClaimSuccessor:
-        mode === "--allow-reviewed-refund-claim-successor",
+        mode === "--allow-reviewed-refund-claim-successor"
+        || mode === "--allow-reviewed-refund-record-successor",
+      allowReviewedRefundRecordSuccessor:
+        mode === "--allow-reviewed-refund-record-successor",
     }),
     null,
     2,

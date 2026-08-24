@@ -38,6 +38,10 @@ import {
 import {
   verifyOrderRefundClaimGenerationRelease,
 } from "./verify-order-refund-claim-generation-release.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+  verifyOrderRefundRecordAuthorityMigrationBytes,
+} from "./order-refund-record-authority-catalog.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
   "checkout-stock-reservation-force-reviewed";
@@ -55,8 +59,19 @@ function migrationPrefix(rootDirectory, finalMigration) {
 
 export function verifyCheckoutStockReservationForceRelease(
   rootDirectory = process.cwd(),
-  { allowReviewedSuccessor = false } = {},
+  {
+    allowReviewedSuccessor = false,
+    allowReviewedRefundRecordSuccessor = false,
+  } = {},
 ) {
+  if (allowReviewedRefundRecordSuccessor && !allowReviewedSuccessor) {
+    throw new Error(
+      "Order refund record successor requires reviewed reservation successors",
+    );
+  }
+  if (allowReviewedRefundRecordSuccessor) {
+    verifyOrderRefundRecordAuthorityMigrationBytes(rootDirectory);
+  }
   const activation = verifyPromotedCheckoutStockReservationActivation(
     rootDirectory,
   );
@@ -101,9 +116,16 @@ export function verifyCheckoutStockReservationForceRelease(
     "prisma/migrations",
     ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
   ));
+  const refundRecordSuccessorExists = fs.existsSync(path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+  ));
   if (allowReviewedSuccessor && payoutSuccessorExists) {
     if (refundClaimSuccessorExists) {
-      verifyOrderRefundClaimGenerationRelease(rootDirectory);
+      verifyOrderRefundClaimGenerationRelease(rootDirectory, {
+        allowReviewedRefundRecordSuccessor,
+      });
     } else if (payoutActivationSuccessorExists) {
       verifySellerPayoutEventActivationRelease(rootDirectory, {
         allowReviewedForceSuccessor: payoutForceSuccessorExists,
@@ -130,6 +152,9 @@ export function verifyCheckoutStockReservationForceRelease(
             ...(refundClaimSuccessorExists
               ? [ORDER_REFUND_CLAIM_GENERATION_MIGRATION]
               : []),
+            ...(allowReviewedRefundRecordSuccessor && refundRecordSuccessorExists
+              ? [ORDER_REFUND_RECORD_AUTHORITY_MIGRATION]
+              : []),
           ]
         : [],
   });
@@ -139,7 +164,9 @@ export function verifyCheckoutStockReservationForceRelease(
         sealedPrefix: true,
         reviewedSuccessorMigration: payoutForceSuccessorExists
           ? refundClaimSuccessorExists
-            ? ORDER_REFUND_CLAIM_GENERATION_MIGRATION
+            ? allowReviewedRefundRecordSuccessor
+              ? ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
+              : ORDER_REFUND_CLAIM_GENERATION_MIGRATION
             : SELLER_PAYOUT_EVENT_FORCE_MIGRATION
           : payoutActivationSuccessorExists
           ? SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION
@@ -177,16 +204,22 @@ function main() {
   const mode = modes[0];
   if (
     modes.length > 1
-    || (mode !== undefined && mode !== "--allow-reviewed-successor")
+    || (
+      mode !== undefined
+      && mode !== "--allow-reviewed-successor"
+      && mode !== "--allow-reviewed-refund-record-successor"
+    )
   ) {
     throw new Error(
       "usage: verify-checkout-stock-reservation-force-release.mjs "
-      + "[--allow-reviewed-successor]",
+      + "[--allow-reviewed-successor|--allow-reviewed-refund-record-successor]",
     );
   }
   process.stdout.write(`${JSON.stringify(
     verifyCheckoutStockReservationForceRelease(undefined, {
-      allowReviewedSuccessor: mode === "--allow-reviewed-successor",
+      allowReviewedSuccessor: mode !== undefined,
+      allowReviewedRefundRecordSuccessor:
+        mode === "--allow-reviewed-refund-record-successor",
     }),
     null,
     2,

@@ -58,10 +58,12 @@ export function readSellerPayoutEventForceMigrationCatalog(
     {
       allowReviewedForceSuccessor: true,
       allowReviewedRefundClaimSuccessor: true,
+      allowReviewedRefundRecordSuccessor: true,
     },
   );
   const release = verifySellerPayoutEventForceRelease(root, {
     allowReviewedRefundClaimSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
   });
   if (
     release.migration !== SELLER_PAYOUT_EVENT_FORCE_MIGRATION
