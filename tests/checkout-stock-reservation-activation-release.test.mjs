@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
@@ -15,6 +17,7 @@ import {
 } from "../scripts/build-checkout-stock-reservation-activation-candidate.mjs";
 import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,
+  detectCheckoutStockReservationActivationSuccessors,
   verifyCheckoutStockReservationActivationRelease,
 } from "../scripts/verify-checkout-stock-reservation-activation-release.mjs";
 import {
@@ -31,6 +34,10 @@ const production = fs.readFileSync(
 );
 const productionWiring = fs.readFileSync(
   "docs/checkout-stock-reservation-activation-production-wiring.md",
+  "utf8",
+);
+const activationPostflightProof = fs.readFileSync(
+  "scripts/checkout-stock-reservation-activation-postflight-postgres-proof.mjs",
   "utf8",
 );
 
@@ -138,6 +145,10 @@ test("CI isolates predecessors, applies activation, audits it, and proves direct
   assert.match(
     ci,
     /CHECKOUT_STOCK_RESERVATION_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql:\/\/grainline_app_runtime:/,
+  );
+  assert.match(
+    activationPostflightProof,
+    /detectCheckoutStockReservationActivationSuccessors\(\)/u,
   );
 });
 
@@ -268,4 +279,42 @@ test("runtime postflight proof accepts only a loopback direct runtime login", ()
         "postgresql://grainline_app_runtime:secret@localhost/grainline_ci",
     },
   );
+});
+
+test("runtime postflight derives only successors present in the staged migration tree", (t) => {
+  const root = fs.mkdtempSync(path.join(
+    os.tmpdir(),
+    "grainline-checkout-activation-successors-",
+  ));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const migrations = path.join(root, "prisma/migrations");
+  fs.mkdirSync(migrations, { recursive: true });
+  const add = (name) => fs.mkdirSync(path.join(migrations, name));
+
+  assert.deepEqual(detectCheckoutStockReservationActivationSuccessors(root), {
+    allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: false,
+    allowReviewedSignedAuthoritySuccessor: false,
+  });
+
+  add("20260824020000_prepare_order_refund_record_authority");
+  assert.deepEqual(detectCheckoutStockReservationActivationSuccessors(root), {
+    allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: false,
+    allowReviewedSignedAuthoritySuccessor: false,
+  });
+
+  add("20260824010000_prepare_order_refund_claim_generation");
+  assert.deepEqual(detectCheckoutStockReservationActivationSuccessors(root), {
+    allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: false,
+  });
+
+  add("20260824030000_prepare_order_payment_signed_authority");
+  assert.deepEqual(detectCheckoutStockReservationActivationSuccessors(root), {
+    allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
+  });
 });

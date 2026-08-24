@@ -161,8 +161,16 @@ fail-close, duplicate/drift denial and exact retry behavior. Static contracts
 pin the session-bound Admin-PIN action, source callsites and unchanged
 production/RLS wiring.
 
+Draft PR CI run `32702325266` passed the migration-aware grant inventory at
+the former failure point, then failed closed while replaying the historical
+CheckoutStockReservation activation because its runtime postflight claimed the
+isolated `20260824020000_prepare_order_refund_record_authority` successor was
+present. The postflight now derives reviewed-successor flags from the exact
+staged migration tree, requires the claim -> record -> signed chain in order,
+and still delegates every present successor to the byte-sealed release reader.
+
 Local validation on 2026-08-24 passed the final 30-test focused reconciliation
-cluster, the full 3,346-test suite (3,339 passed, seven intentional skips),
+cluster, the full 3,348-test suite (3,341 passed, seven intentional skips),
 TypeScript, lint, Prisma schema validation and `git diff --check`. The normal
 Turbopack build cannot infer this nested symlinked-worktree root; the webpack
 fallback compiled and completed TypeScript, then correctly stopped at page

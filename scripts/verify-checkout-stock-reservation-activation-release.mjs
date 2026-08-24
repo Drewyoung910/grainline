@@ -45,6 +45,32 @@ export const CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE =
 const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
   "checkout-stock-reservation-force-reviewed";
 
+export function detectCheckoutStockReservationActivationSuccessors(
+  rootDirectory = process.cwd(),
+) {
+  const migrationDirectory = path.join(rootDirectory, "prisma/migrations");
+  const refundClaimExists = fs.existsSync(path.join(
+    migrationDirectory,
+    ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+  ));
+  const refundRecordExists = fs.existsSync(path.join(
+    migrationDirectory,
+    ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+  ));
+  const signedAuthorityExists = fs.existsSync(path.join(
+    migrationDirectory,
+    ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+  ));
+
+  return Object.freeze({
+    allowReviewedSuccessor: true,
+    allowReviewedRefundRecordSuccessor:
+      refundClaimExists && refundRecordExists,
+    allowReviewedSignedAuthoritySuccessor:
+      refundClaimExists && refundRecordExists && signedAuthorityExists,
+  });
+}
+
 export function verifyCheckoutStockReservationActivationRelease(
   rootDirectory = process.cwd(),
   {

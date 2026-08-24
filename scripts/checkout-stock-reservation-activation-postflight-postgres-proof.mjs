@@ -12,6 +12,7 @@ import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATED_FUNCTIONS,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 import {
+  detectCheckoutStockReservationActivationSuccessors,
   verifyCheckoutStockReservationActivationRelease,
 } from "./verify-checkout-stock-reservation-activation-release.mjs";
 
@@ -60,10 +61,10 @@ export async function runCheckoutStockReservationActivationPostflightProof(
 ) {
   const { databaseUrl } =
     parseCheckoutStockReservationActivationPostflightProofConfig(env);
-  verifyCheckoutStockReservationActivationRelease(undefined, {
-    allowReviewedSuccessor: true,
-    allowReviewedRefundRecordSuccessor: true,
-  });
+  verifyCheckoutStockReservationActivationRelease(
+    undefined,
+    detectCheckoutStockReservationActivationSuccessors(),
+  );
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   let transactionOpen = false;
