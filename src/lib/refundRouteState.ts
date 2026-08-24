@@ -70,38 +70,12 @@ export function isBlockingRefundLedgerEvent(event: {
   );
 }
 
-export function isBlockingDisputeLedgerEvent(event: {
-  eventType?: string | null | undefined;
-  status?: string | null | undefined;
-}) {
-  return event.eventType === "DISPUTE" && isOpenStripeDisputeStatus(event.status);
-}
-
 export function blockingRefundLedgerWhere() {
   return {
     eventType: "REFUND",
     OR: [
       { status: null },
       { status: { notIn: [...NON_BLOCKING_REFUND_LEDGER_STATUSES] } },
-    ],
-  };
-}
-
-export function blockingOpenDisputeLedgerWhere() {
-  return {
-    eventType: "DISPUTE",
-    OR: [
-      { status: null },
-      { status: { notIn: [...STRIPE_DISPUTE_CLOSED_STATUSES] } },
-    ],
-  };
-}
-
-export function blockingRefundOrDisputeLedgerWhere() {
-  return {
-    OR: [
-      blockingRefundLedgerWhere(),
-      blockingOpenDisputeLedgerWhere(),
     ],
   };
 }
@@ -150,7 +124,7 @@ export function refundLockAcquisitionConflictResponse(order: {
   sellerRefundId?: string | null | undefined;
   labelStatus?: string | null | undefined;
   paymentEvents?: Array<{ eventType?: string | null | undefined; status?: string | null | undefined }> | null | undefined;
-} | null | undefined) {
+} | null | undefined, hasOpenDispute = false) {
   const refundConflict = sellerRefundConflictResponse(order?.sellerRefundId);
   if (refundConflict) return refundConflict;
 
@@ -161,7 +135,7 @@ export function refundLockAcquisitionConflictResponse(order: {
     };
   }
 
-  if (order?.paymentEvents?.some(isBlockingDisputeLedgerEvent)) {
+  if (hasOpenDispute) {
     return {
       status: HTTP_STATUS.CONFLICT,
       error: "This payment has an open Stripe dispute. Resolve the dispute before issuing a seller refund.",

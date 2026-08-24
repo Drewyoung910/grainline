@@ -461,17 +461,22 @@ acceptance record.
 
 The fresh next-table audit is now
 `docs/order-payment-event-pre-rls-audit.md`. `OrderPaymentEvent` remains the
-next bounded release, but compatible design is blocked until five domain gaps
-are closed: raw payment-provider metadata in buyer/seller exports; seller and
-blocked-checkout refund ABA claims; inconsistent latest-dispute predicates;
-missing append-only/taxonomy/currency/event-time invariants; and ambiguous
-seller self-service partial-refund semantics. Use the launch-safe constraint:
+next bounded release. The audit identified five domain gaps: raw
+payment-provider metadata in buyer/seller exports; seller and blocked-checkout
+refund ABA claims; inconsistent latest-dispute predicates; missing
+append-only/taxonomy/currency/event-time invariants; and ambiguous seller
+self-service partial-refund semantics. Use the launch-safe constraint:
 seller self-service supports full cancellation/refund, while partial refunds
 remain staff Case operations until a residual line-item fulfillment model is
 designed. The compatible application correction and future feature gate are
 recorded in `docs/order-payment-event-refund-contract.md`; it must deploy and
-pass route smoke before payment-ledger authority conversion. Pin all 26
-semantic consumers, require a fresh aggregate-only
+pass route smoke before payment-ledger authority conversion. Canonical
+latest-per-dispute application semantics and the remaining typed event-time
+gate are recorded in `docs/order-payment-event-dispute-state.md`. Those two
+application corrections remain prepared, not live. Compatible authority design
+is still blocked on safe exports, generation-fenced refund claims, typed
+ordering/invariants and fresh data classification. Pin all 26 semantic
+consumers, require a fresh aggregate-only
 production inspection, then use compatible schema/functions, converted app
 deployment, signed provider/concurrency proof, predecessor drain, policyless
 ENABLE and separate FORCE. Do not bundle shipping quotes, Order or OrderItem.

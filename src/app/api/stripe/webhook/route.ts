@@ -43,7 +43,6 @@ import {
 } from "@/lib/checkoutStockRestore";
 import {
   blockingRefundLedgerWhere,
-  blockingRefundOrDisputeLedgerWhere,
   isBlockingRefundLedgerEvent,
   orderHasRefundLedger,
 } from "@/lib/refundRouteState";
@@ -1223,8 +1222,8 @@ export async function POST(req: Request) {
               select: {
                 sellerRefundId: true,
                 paymentEvents: {
-                  where: blockingRefundOrDisputeLedgerWhere(),
-                  take: 2,
+                  where: blockingRefundLedgerWhere(),
+                  take: 1,
                   select: { eventType: true, status: true },
                 },
               },

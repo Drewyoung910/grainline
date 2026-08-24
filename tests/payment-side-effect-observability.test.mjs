@@ -249,7 +249,8 @@ describe("payment and fulfillment side-effect observability", () => {
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
 
     assert.match(sellerRoute, /blockingRefundLedgerWhere/);
-    assert.match(sellerRoute, /blockingRefundOrDisputeLedgerWhere/);
+    assert.match(sellerRoute, /latestOpenDisputeLedgerExistsSql/);
+    assert.doesNotMatch(sellerRoute, /blockingRefundOrDisputeLedgerWhere/);
     assert.match(sellerRoute, /blockingRefundOrLatestOpenDisputeLedgerExistsSql/);
     assert.match(sellerRoute, /sellerRefundConflictResponse/);
     assert.match(sellerRoute, /orderHasRefundLedger/);

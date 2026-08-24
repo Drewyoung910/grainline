@@ -19,11 +19,14 @@ function sourceFiles(root = "src") {
   return files.sort();
 }
 
-function directAccessFiles(delegate, table) {
+function authorityAccessFiles(delegate, table) {
   const access = new RegExp(
     `\\b(?:prisma|tx|client)\\.${delegate}\\b|`
       + `(?:FROM|JOIN|UPDATE|INTO|TABLE|DELETE\\s+FROM)\\s+`
-      + `(?:public\\.)?[\\"\u0060]${table}[\\"\u0060]`,
+      + `(?:public\\.)?[\\"\u0060]${table}[\\"\u0060]`
+      + (table === "OrderPaymentEvent"
+        ? "|latestConversionBlockingDisputeLedgerExistsSql"
+        : ""),
     "i",
   );
   return sourceFiles().filter((file) => access.test(fs.readFileSync(file, "utf8")));
@@ -117,9 +120,9 @@ const delegateByModel = {
 };
 
 describe("order/payment/shipping pre-RLS audit", () => {
-  it("pins every current direct source access file", () => {
+  it("pins every current direct or authority-helper source access file", () => {
     for (const [model, files] of Object.entries(expected)) {
-      assert.deepEqual(directAccessFiles(delegateByModel[model], model), files, model);
+      assert.deepEqual(authorityAccessFiles(delegateByModel[model], model), files, model);
     }
   });
 

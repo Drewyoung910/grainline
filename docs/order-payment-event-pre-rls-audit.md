@@ -49,6 +49,9 @@ The first compatible application correction is recorded in
 `docs/order-payment-event-refund-contract.md`: seller self-service partial
 refunds are removed from the UI and rejected before side effects, while full
 seller cancellation/refunds and staff Case partial refunds remain distinct.
+The second is recorded in `docs/order-payment-event-dispute-state.md`: all
+current-state consumers share the latest-per-dispute row selection while the
+typed provider-time/equal-second reconciliation remains a schema prerequisite.
 
 ## Product and evidence contract
 
