@@ -149,3 +149,28 @@ isolated 78-field successor adds only two overlapping aggregate counts:
 privacy-redacted missing references when `buyerDataPurgedAt` or the seller
 user's `deletedAt` is present, and unexplained missing references when neither
 marker exists. It retains no identity and remains classification-only.
+
+## Accepted 2026-08-24 privacy-redaction classification
+
+PR #264 exact head `6cc8625a252b79b1b794d7b86b9009a36d4f1690`
+merged at exact main `1d5bdf3ffa6b1ab41daf5a1c3e0f341253620dc4`.
+Exact-main CI `32787483409` passed the full sealed migration and PostgreSQL
+authority chain, TypeScript, lint, tests, dependency audit and production
+build. Protected inspection `32788031745` ran the exact 78-field query inside
+an engine-attested `REPEATABLE READ READ ONLY` transaction. Sanitized evidence
+SHA-256
+`c7c70e68097174182b1aea43420ca1e5ff91c52e670b822f20bcb10db7d2649c`
+retains no address, credential, object/provider/user identity, raw row or
+snapshot and made no production mutation.
+
+The production volumes and every previously clean defect family are unchanged.
+The historical broad label count, missing-transaction count and missing-URL
+count remain one, while:
+
+- `label_purchased_missing_reference_privacy_redacted_count = 1`; and
+- `label_purchased_missing_reference_unexplained_count = 0`.
+
+The lone state is therefore intentional privacy redaction created by account
+deletion, not unexplained corruption. No repair, row enumeration or provider
+reference rehydration is authorized or needed. Close this finding and continue
+the separate, zero-row OrderPaymentEvent invariant/RLS release.

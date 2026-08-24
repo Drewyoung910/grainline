@@ -740,3 +740,15 @@ this shape is not automatically corrupt or repairable. The isolated 78-field
 successor adds two overlapping counts that distinguish deletion-marked privacy
 redaction from an unexplained missing reference. It does not enumerate the row
 or authorize restoration of erased provider data.
+
+PR #264 exact head `6cc8625a252b79b1b794d7b86b9009a36d4f1690`
+merged at exact main `1d5bdf3ffa6b1ab41daf5a1c3e0f341253620dc4`.
+Exact-main CI `32787483409` passed, and protected inspection `32788031745`
+accepted the exact 78-field query inside an engine-enforced repeatable-read
+read-only transaction. Sanitized artifact SHA-256
+`c7c70e68097174182b1aea43420ca1e5ff91c52e670b822f20bcb10db7d2649c`
+retains no identities or raw rows and made no production mutation. The broad
+label count remains one, but the new classification is exactly one
+privacy-redacted missing-reference state and zero unexplained states. No Order
+cleanup or provider-reference restoration is needed. Keep the intentional
+privacy transform legal in future Order invariants.

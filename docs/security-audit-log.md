@@ -2429,3 +2429,20 @@ Open work:
 - GitHub emitted a nonblocking runner warning that `actions/upload-artifact@v4`
   targets deprecated Node.js 20 and is being forced to Node.js 24. Track the
   action-runtime upgrade separately; it did not affect evidence acceptance.
+- PR #264 exact head `6cc8625a252b79b1b794d7b86b9009a36d4f1690`
+  merged at exact main `1d5bdf3ffa6b1ab41daf5a1c3e0f341253620dc4`.
+  Exact-main CI `32787483409` passed the complete sealed migration/PostgreSQL
+  authority chain, TypeScript, lint, tests, security audit and production
+  build.
+- Protected inspection `32788031745` passed the exact 78-field query in an
+  engine-enforced repeatable-read read-only transaction. Sanitized artifact
+  SHA-256
+  `c7c70e68097174182b1aea43420ca1e5ff91c52e670b822f20bcb10db7d2649c`
+  retained no addresses, credentials, identities, provider values, raw rows or
+  snapshots. No production mutation occurred.
+- The historical broad count and missing-transaction/missing-URL subtype counts
+  remain one. The decisive new counts are
+  `label_purchased_missing_reference_privacy_redacted_count = 1` and
+  `label_purchased_missing_reference_unexplained_count = 0`. Close the finding
+  as an intentional account-deletion privacy transform. No cleanup, row
+  enumeration or provider-reference rehydration is authorized or required.

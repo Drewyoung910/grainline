@@ -599,6 +599,20 @@ aggregate successor that distinguishes deletion-marked privacy redaction from
 an unexplained missing reference. Never rehydrate provider references erased
 for account deletion; continue the separately clean OrderPaymentEvent design.
 
+PR #264 merged the 78-field successor at exact main
+`1d5bdf3ffa6b1ab41daf5a1c3e0f341253620dc4`; exact-main CI `32787483409`
+passed. Protected engine-read-only inspection `32788031745` accepted sanitized
+evidence with SHA-256
+`c7c70e68097174182b1aea43420ca1e5ff91c52e670b822f20bcb10db7d2649c`.
+The historical broad count and missing-transaction/missing-URL subtype counts
+remain one, but
+`label_purchased_missing_reference_privacy_redacted_count = 1` and
+`label_purchased_missing_reference_unexplained_count = 0`. The finding is
+therefore closed as an intentional account-deletion privacy transform. Do not
+repair, enumerate or rehydrate it. This classification unblocks continued
+OrderPaymentEvent invariant/RLS work; Order, OrderItem and
+OrderShippingRateQuote remain separate release boundaries.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
