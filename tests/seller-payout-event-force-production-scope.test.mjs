@@ -22,6 +22,9 @@ import {
   parseSellerPayoutEventForceScopeEnvironment,
   readSellerPayoutEventForceMigrationCatalog,
 } from "../scripts/verify-seller-payout-event-force-production-scope.mjs";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
+
+const historicalRoot = repositoryBeforeRefundReconciliation();
 
 function applied(migration_name, checksum) {
   return {
@@ -66,7 +69,7 @@ function reviewedActivatedRows(catalog) {
 }
 
 test("FORCE catalog appends exactly one byte-pinned migration", () => {
-  const catalog = readSellerPayoutEventForceMigrationCatalog();
+  const catalog = readSellerPayoutEventForceMigrationCatalog(historicalRoot);
   assert.equal(catalog.at(-1).migration_name, SELLER_PAYOUT_EVENT_FORCE_MIGRATION);
   assert.equal(catalog.at(-1).checksum, SELLER_PAYOUT_EVENT_FORCE_MIGRATION_SHA256);
   assert.equal(
@@ -76,7 +79,7 @@ test("FORCE catalog appends exactly one byte-pinned migration", () => {
 });
 
 test("FORCE scope accepts only absent-before or exact applied-after state", () => {
-  const catalog = readSellerPayoutEventForceMigrationCatalog();
+  const catalog = readSellerPayoutEventForceMigrationCatalog(historicalRoot);
   const before = reviewedActivatedRows(catalog);
   const rows = [
     ...before,

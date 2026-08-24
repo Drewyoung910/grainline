@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
@@ -15,7 +16,9 @@ import {
 } from "../scripts/verify-order-payment-signed-authority-release.mjs";
 
 test("release byte-pins one compatible signed payment authority successor", () => {
-  const release = verifyOrderPaymentSignedAuthorityRelease();
+  const release = verifyOrderPaymentSignedAuthorityRelease(
+    repositoryBeforeRefundReconciliation(),
+  );
   assert.equal(release.phase, ORDER_PAYMENT_SIGNED_AUTHORITY_PHASE);
   assert.equal(release.migration, ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION);
   assert.equal(

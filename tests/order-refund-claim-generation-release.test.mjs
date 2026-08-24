@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
@@ -15,7 +16,8 @@ import {
 } from "../scripts/verify-order-refund-claim-generation-release.mjs";
 
 test("release byte-pins one coexistence-safe refund claim successor", () => {
-  const release = verifyOrderRefundClaimGenerationRelease(process.cwd(), {
+  const release = verifyOrderRefundClaimGenerationRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedRefundRecordSuccessor: true,
     allowReviewedSignedAuthoritySuccessor: true,
   });

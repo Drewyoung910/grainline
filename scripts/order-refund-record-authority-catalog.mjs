@@ -6,7 +6,7 @@ import path from "node:path";
 export const ORDER_REFUND_RECORD_AUTHORITY_MIGRATION =
   "20260824020000_prepare_order_refund_record_authority";
 export const ORDER_REFUND_RECORD_AUTHORITY_MIGRATION_SHA256 =
-  "f6ee5689d7235536cbf855dfc71cf349b1b144fde22a2f21d3e1ec289922efb1";
+  "906b1e6c5196a7385027e3842fb3146907e2d24f629a9431bbbc5db7dbece782";
 
 export function verifyOrderRefundRecordAuthorityMigrationBytes(
   rootDirectory = process.cwd(),

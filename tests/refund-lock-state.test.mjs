@@ -52,14 +52,22 @@ describe("refund lock state", () => {
       "grainline_seller_refund_claim",
       "grainline_blocked_checkout_refund_claim",
     ]) {
-      const functionStart = refundAuthority.indexOf(
-        `CREATE FUNCTION public.${functionName}`,
+      const declaration = new RegExp(
+        `CREATE(?: OR REPLACE)? FUNCTION public\\.${functionName}\\b`,
+      ).exec(refundAuthority);
+      assert.ok(declaration, `${functionName} declaration is missing`);
+      const functionStart = declaration.index;
+      const bodyDelimiter = `$${functionName}$;`;
+      const functionEnd = refundAuthority.indexOf(bodyDelimiter, functionStart)
+        + bodyDelimiter.length;
+      assert.ok(
+        functionEnd >= bodyDelimiter.length,
+        `${functionName} body delimiter is missing`,
       );
-      const functionEnd = refundAuthority.indexOf("$;", functionStart) + 2;
       const functionBody = refundAuthority.slice(functionStart, functionEnd);
       const refundOrderLock = functionBody.indexOf('FROM public."Order" AS orders');
       const refundTransitionTimestamp = functionBody.indexOf(
-        "transition_at := pg_catalog.clock_timestamp()",
+        "pg_catalog.clock_timestamp()",
       );
       const refundLockTimestamp = functionBody.indexOf(
         '"sellerRefundLockedAt" = transition_at',

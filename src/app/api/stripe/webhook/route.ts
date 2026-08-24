@@ -53,12 +53,10 @@ import {
 } from "@/lib/refundLedgerSql";
 import { isStripeSessionUniqueConstraintError } from "@/lib/stripeWebhookEventState";
 import {
-  REFUND_AMBIGUOUS_SENTINEL,
   REFUND_LOCK_SENTINEL,
   isStaleRefundLock,
 } from "@/lib/refundLockState";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
-import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
 import { stripeWebhookCreatedSeconds } from "@/lib/stripeConnectV2";
 import { processStripePayoutFailedEvent } from "@/lib/stripePayoutWebhook";
 import {
@@ -84,16 +82,15 @@ import {
   SHIPPING_ESTIMATED_DAYS_MAX,
 } from "@/lib/stripeWebhookState";
 import { Prisma, type FulfillmentStatus } from "@prisma/client";
-import {
-  activeOrderRefundClaimWhere,
-  claimBlockedCheckoutOrderRefund,
-} from "@/lib/orderRefundClaimAuthority";
+import { claimBlockedCheckoutOrderRefund } from "@/lib/orderRefundClaimAuthority";
 import {
   orderRefundProviderEvidence,
   type OrderRefundProviderEvidence,
   type OrderRefundRecordResult,
 } from "@/lib/orderRefundRecordAuthority";
 import { finalizeBlockedCheckoutOrderRefund } from "@/lib/orderRefundFinalization";
+import { resolveOrderRefundProviderOutcome } from "@/lib/orderRefundProviderReconciliation";
+import { markOrderRefundClaimAmbiguous } from "@/lib/orderRefundReconciliationAuthority";
 import {
   applySignedDisputeWebhook,
   applySignedRefundWebhook,
@@ -311,15 +308,23 @@ function blockedCheckoutRefundRetryReason(order: {
   sellerRefundId?: string | null;
   sellerRefundLockedAt?: Date | null;
   refundClaimId?: string | null;
+  refundClaimSource?: string | null;
+  refundClaimSourceId?: string | null;
   reviewNeeded?: boolean | null;
   reviewNote?: string | null;
   paymentEvents?: Array<{ eventType?: string | null; status?: string | null }> | null;
-}) {
+}, eventId: string) {
   if (!order.reviewNeeded) return null;
   const reason = blockedCheckoutReviewReason(order.reviewNote);
   if (!reason) return null;
   if (order.paymentEvents?.some(isBlockingRefundLedgerEvent)) return null;
-  if (order.refundClaimId) return null;
+  if (order.refundClaimId) {
+    return order.sellerRefundId === REFUND_LOCK_SENTINEL
+      && order.refundClaimSource === "BLOCKED_CHECKOUT"
+      && order.refundClaimSourceId === eventId
+      ? reason
+      : null;
+  }
   if (!order.sellerRefundId) return reason;
   if (isStaleRefundLock({
     sellerRefundId: order.sellerRefundId,
@@ -911,6 +916,8 @@ export async function POST(req: Request) {
           sellerRefundId: true,
           sellerRefundLockedAt: true,
           refundClaimId: true,
+          refundClaimSource: true,
+          refundClaimSourceId: true,
           reviewNeeded: true,
           reviewNote: true,
           paymentEvents: {
@@ -930,7 +937,7 @@ export async function POST(req: Request) {
         },
       });
       if (already) {
-        const retryReason = blockedCheckoutRefundRetryReason(already);
+        const retryReason = blockedCheckoutRefundRetryReason(already, event.id);
         if (retryReason) {
           existingBlockedCheckoutRetry = {
             id: already.id,
@@ -1214,17 +1221,7 @@ export async function POST(req: Request) {
           }
 
           try {
-            const refund = await createMarketplaceRefund({
-              paymentIntentId: refundClaim.paymentIntentId,
-              resolution: "FULL",
-              amountCents: refundClaim.refundAmountCents,
-              itemsSubtotalCents: refundClaim.itemsSubtotalCents,
-              shippingAmountCents: refundClaim.shippingAmountCents,
-              giftWrappingPriceCents: refundClaim.giftWrappingPriceCents,
-              taxAmountCents: refundClaim.taxAmountCents,
-              canReverseTransfer: refundClaim.canReverseTransfer,
-              idempotencyKeyBase: refundClaim.idempotencyScope,
-            });
+            const refund = await resolveOrderRefundProviderOutcome(refundClaim);
             refundId = refund.primaryRefundId;
             refundIds = refund.refundIds;
             if (!refundId) {
@@ -1280,23 +1277,10 @@ export async function POST(req: Request) {
             } else {
               retryBlockedCheckoutRefund = true;
               try {
-                const ambiguousRecord = await prisma.order.updateMany({
-                  where: {
-                    id: input.orderId,
-                    ...activeOrderRefundClaimWhere(refundClaim),
-                  },
-                  data: {
-                    sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
-                    sellerRefundLockedAt: null,
-                    reviewNeeded: true,
-                    reviewNote: `${reviewPrefix} Automatic refund has an ambiguous Stripe outcome; staff must reconcile this payment manually before another refund is attempted.`,
-                  },
+                await markOrderRefundClaimAmbiguous({
+                  claim: refundClaim,
+                  reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS",
                 });
-                if (ambiguousRecord.count !== 1) {
-                  throw new Error(
-                    "Blocked checkout ambiguous outcome was not recorded against the active generation",
-                  );
-                }
               } catch (dbError) {
                 Sentry.captureException(dbError, {
                   tags: { source: "stripe_webhook_blocked_checkout_refund_ambiguous_record_failed" },

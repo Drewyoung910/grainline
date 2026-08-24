@@ -6,7 +6,7 @@ import path from "node:path";
 export const ORDER_REFUND_CLAIM_GENERATION_MIGRATION =
   "20260824010000_prepare_order_refund_claim_generation";
 export const ORDER_REFUND_CLAIM_GENERATION_MIGRATION_SHA256 =
-  "734bf3b8a89b916ded3852be20879342ebf2c6b9196577b1ac303eeac759ede8";
+  "2e08ec8c8c5c8d1c6aa85f59e3d914ad8f5b401100d5e79241f3043b2a52854b";
 
 export function verifyOrderRefundClaimGenerationMigrationBytes(
   rootDirectory = process.cwd(),

@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify Order refund reconciliation authority release
+        run: npm run audit:order-refund-reconciliation-authority-release
+      - name: Isolate Order refund reconciliation until sealed predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority
+          "$RUNNER_TEMP/order-refund-reconciliation-authority-release"
       - name: Verify Order payment signed authority release
         run: npm run audit:order-payment-signed-authority-release
       - name: Isolate Order payment signed authority until sealed predecessors pass
@@ -631,6 +638,30 @@ jobs:
           tests/order-payment-event-signed-authority-postgres-proof.test.mjs
           tests/order-payment-event-signed-webhook.test.mjs
           tests/order-payment-signed-authority-release.test.mjs
+      - name: Restore Order refund reconciliation authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-refund-reconciliation-authority-release"
+          prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority
+      - name: Apply Order refund reconciliation authority preparation
+        run: npx prisma migrate deploy
+      - name: Verify Order refund reconciliation migration status
+        run: npx prisma migrate status
+      - name: Audit Order refund reconciliation grants and retained payment RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove Order refund reconciliation authority through the runtime role
+        run: npm run audit:order-refund-reconciliation-authority-postgres
+        env:
+          ORDER_REFUND_RECONCILIATION_AUTHORITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Order refund reconciliation authority in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-refund-reconciliation-authority.test.mjs
+          tests/order-refund-reconciliation-authority-release.test.mjs
+          tests/order-refund-reconciliation-authority-postgres-proof.test.mjs
+          tests/order-refund-reconciliation-authority-postgres.test.mjs
+          tests/order-refund-provider-reconciliation.test.mjs
+          tests/order-refund-reconciliation-state.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

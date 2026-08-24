@@ -8,7 +8,10 @@ Prepared: 2026-08-23 on
 `agent/order-payment-event-refund-finalization-20260823`, stacked on the
 generation-fenced claim checkpoint in PR #253. The exact prepared migration is
 `20260824020000_prepare_order_refund_record_authority`, SHA-256
-`f6ee5689d7235536cbf855dfc71cf349b1b144fde22a2f21d3e1ec289922efb1`.
+`906b1e6c5196a7385027e3842fb3146907e2d24f629a9431bbbc5db7dbece782`.
+
+All fixed-operation timestamps are written explicitly in UTC. This preserves
+the claim clock and finalization evidence across database session time zones.
 
 ## Decision
 
@@ -167,9 +170,10 @@ predecessors, then restore and apply it only to the disposable CI database.
    with RLS activation.
 3. Deploy the converted application and prove seller and blocked-checkout
    provider/retry behavior while predecessor authority still coexists.
-4. Implement evidence-based ambiguous-claim reconciliation plus the signed
-   refund/dispute and staff families, append-only/taxonomy/currency/provider-time
-   invariants, participant/staff projections and aggregate predicates.
+4. Retain the evidence-bound ambiguous-claim successor in
+   `docs/order-payment-event-refund-reconciliation.md`, then finish the staff
+   families, append-only/taxonomy/currency/provider-time invariants,
+   participant/staff projections and aggregate predicates.
 5. Run fresh aggregate-only production inspection, prove the complete catalog
    with distinct owner/runtime logins, and drain the predecessor deployment.
 6. Revoke direct table authority and release policyless ENABLE, pooled-runtime

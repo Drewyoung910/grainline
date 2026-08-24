@@ -20,9 +20,12 @@ import {
   readReservationForceMigrationCatalog,
   verifyReservationForceProductionScope,
 } from "../scripts/verify-checkout-stock-reservation-force-production-scope.mjs";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 const URL = "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
-const catalog = readReservationForceMigrationCatalog();
+const catalog = readReservationForceMigrationCatalog(
+  repositoryBeforeRefundReconciliation(),
+);
 const force = catalog.at(-1);
 
 const applied = (migrationName, checksum) => ({

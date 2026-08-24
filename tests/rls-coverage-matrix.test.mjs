@@ -30,8 +30,8 @@ describe("site-wide RLS coverage matrix", () => {
     const rows = matrixRows();
     const documentedModels = rows.map((row) => row.model).sort();
 
-    assert.equal(models.length, 64, "review the snapshot count when the schema changes");
-    assert.match(matrix, /Snapshot scope: 64 Prisma models\./);
+    assert.equal(models.length, 65, "review the snapshot count when the schema changes");
+    assert.match(matrix, /Snapshot scope: 65 Prisma models\./);
     assert.equal(rows.length, models.length, "matrix must have exactly one row per model");
     assert.deepEqual(documentedModels, models);
     assert.equal(new Set(documentedModels).size, documentedModels.length);

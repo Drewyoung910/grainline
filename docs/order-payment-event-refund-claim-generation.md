@@ -6,7 +6,12 @@ applied to production. `OrderPaymentEvent` RLS remains off.
 Prepared: 2026-08-23 after the accepted SellerPayoutEvent FORCE boundary and
 the `OrderPaymentEvent` domain audit. The exact prepared migration is
 `20260824010000_prepare_order_refund_claim_generation`, SHA-256
-`734bf3b8a89b916ded3852be20879342ebf2c6b9196577b1ac303eeac759ede8`.
+`2e08ec8c8c5c8d1c6aa85f59e3d914ad8f5b401100d5e79241f3043b2a52854b`.
+
+The provider-authorized clock is stored explicitly as UTC at the SQL boundary.
+Do not restore a session-time-zone cast: the reconciliation safety windows are
+measured from this value and must be identical in local, CI and production
+sessions.
 
 ## Decision
 
@@ -103,8 +108,8 @@ preparation checkpoint.
    inspect production first and do not activate RLS in that run.
 3. Deploy and smoke the converted seller and blocked-checkout paths while old
    and new deployments remain compatible.
-4. Implement evidence-based claim reconciliation and the fixed
-   record/finalize families alongside the remaining `OrderPaymentEvent`
-   invariants and projections.
+4. Retain the compatible evidence-based reconciliation successor documented in
+   `docs/order-payment-event-refund-reconciliation.md`; it closes the ambiguous
+   claim recovery path but remains unapplied with this stack.
 5. Prove the complete catalog with separate owner/runtime logins, drain the
    predecessor, then release policyless ENABLE and FORCE separately.

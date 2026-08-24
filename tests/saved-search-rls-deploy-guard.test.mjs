@@ -146,6 +146,14 @@ import {
 import {
   ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
 } from "../scripts/order-payment-signed-authority-catalog.mjs";
+import {
+  repositoryBeforeRefundReconciliation,
+} from "./helpers/release-verifier-root.mjs";
+
+// This suite seals the historical deploy guard. Exercise it against the exact
+// repository prefix that existed before the new compatible reconciliation
+// successor instead of teaching a retired phase to accept a later migration.
+process.chdir(repositoryBeforeRefundReconciliation());
 
 const RELEASE_ZERO = "release-0";
 const REVIEWED_PHASE_A = "phase-a-reviewed";

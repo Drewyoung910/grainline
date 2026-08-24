@@ -1431,6 +1431,54 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Ambiguous Order-refund reconciliation is an additive compatible boundary.
+-- Keep the immutable trigger helper private and expose only the three exact,
+-- source-bound operations when the reviewed migration is present.
+WITH order_refund_reconciliation_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_order_refund_reconciliation_immutable"()', false),
+    ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
+    ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true)
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_refund_reconciliation_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_reconciliation_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_order_refund_reconciliation_immutable"()', false),
+    ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
+    ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true)
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_reconciliation_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_refund_reconciliation_authority(function_signature, runtime_execute) AS (
+  VALUES
+    ('public."grainline_order_refund_reconciliation_immutable"()', false),
+    ('public."grainline_order_refund_reconciliation_prepare"(text, text)', true),
+    ('public."grainline_order_refund_claim_mark_ambiguous"(text, bigint, text)', true),
+    ('public."grainline_order_refund_reconcile"(text, text, bigint, text, text, bigint, text, text)', true)
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_refund_reconciliation_authority
+ WHERE runtime_execute
+   AND to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- CheckoutStockReservation compatible preparation keeps predecessor table
 -- grants while adding only the fixed lifecycle surface. The functions may be
 -- absent before that migration, so every convergence statement is catalog-
@@ -1593,7 +1641,8 @@ FROM (
     ('CaseStripeDisputeApplication'),
     ('CaseSellerRefundApplication'),
     ('CaseOpenApplication'),
-    ('DirectUploadReference')
+    ('DirectUploadReference'),
+    ('OrderRefundReconciliation')
 ) AS private_table(table_name)
 WHERE to_regclass(format('public.%I', private_table.table_name)) IS NOT NULL;
 \gexec

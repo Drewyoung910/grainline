@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 import {
   parseSellerPayoutEventActivationProofConfig,
 } from "../scripts/seller-payout-event-activation-postgres-proof.mjs";
@@ -61,7 +62,8 @@ const productionWiringDocument = fs.readFileSync(
 
 test("release pins one policyless SellerPayoutEvent activation", () => {
   const candidate = buildSellerPayoutEventActivationCandidate();
-  const release = verifySellerPayoutEventActivationRelease(undefined, {
+  const release = verifySellerPayoutEventActivationRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
@@ -230,7 +232,8 @@ test("engine proofs require separate loopback owner and runtime logins", () => {
 });
 
 test("compatible authority verifier accepts only the exact reviewed successor", () => {
-  const result = verifySellerPayoutEventAuthorityRelease(process.cwd(), {
+  const result = verifySellerPayoutEventAuthorityRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedActivationSuccessor: true,
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION,
@@ -36,7 +37,8 @@ const productionWiring = fs.readFileSync(
 test("activation release exactly promotes the reviewed policyless candidate", () => {
   const candidate = buildCheckoutStockReservationActivationCandidate();
   const promoted = verifyPromotedCheckoutStockReservationActivation();
-  const release = verifyCheckoutStockReservationActivationRelease(undefined, {
+  const release = verifyCheckoutStockReservationActivationRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
     allowReviewedSignedAuthoritySuccessor: true,
@@ -80,7 +82,8 @@ test("activation release exactly promotes the reviewed policyless candidate", ()
 });
 
 test("activation release remains a sealed prefix under only its reviewed successor", () => {
-  const release = verifyCheckoutStockReservationActivationRelease(undefined, {
+  const release = verifyCheckoutStockReservationActivationRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
     allowReviewedSignedAuthoritySuccessor: true,

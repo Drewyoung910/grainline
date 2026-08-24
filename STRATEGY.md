@@ -514,6 +514,23 @@ compatible candidate—not permission to skip deployment coexistence, signed
 Stripe delivery/retry, production inspection, grant convergence, Phase A or
 FORCE.
 
+The next stacked compatible boundary is evidence-bound seller and
+blocked-checkout refund reconciliation in
+`docs/order-payment-event-refund-reconciliation.md`. It replaces timer/manual
+guesswork with a complete bounded Stripe inspection, a 23-hour same-key retry
+cutoff, a 25-hour no-effect release floor, provider-searchable claim metadata,
+an immutable FORCE-RLS/no-policy evidence ledger and a single Admin-PIN action
+whose outcome is derived rather than selected. The pass also fixed the
+previously unreachable blocked-checkout generation-resume path and normalized
+all still-unapplied refund claim/finalizer clocks to UTC before refreshing their
+byte seals. This closes the ambiguous provider-outcome design gap only. It is
+not merged, deployed, production-applied or activation evidence. Keep the
+inactive-seller-after-provider-effect recovery edge, staff Case refund family,
+remaining invariants, actor projections/aggregates, fresh production
+classification, converted provider proof, predecessor drain, policyless ENABLE
+and FORCE as explicit later gates. Do not bundle Order, OrderItem or shipping
+quotes.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment

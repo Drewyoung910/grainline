@@ -28,6 +28,9 @@ import {
   CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES,
   CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
+import {
+  ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
+} from "./order-refund-reconciliation-authority-catalog.mjs";
 
 const { Client } = pg;
 
@@ -52,6 +55,7 @@ export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseSellerRefundApplication",
   "CaseOpenApplication",
   "DirectUploadReference",
+  "OrderRefundReconciliation",
 ]);
 export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseResolutionClaim",
@@ -59,6 +63,7 @@ export const POLICYLESS_SERVICE_RLS_TABLES = Object.freeze([
   "CaseSellerRefundApplication",
   "CaseOpenApplication",
   "DirectUploadReference",
+  "OrderRefundReconciliation",
 ]);
 export const REQUIRED_SEQUENCE_PRIVILEGES = ["USAGE", "SELECT"];
 export const REQUIRED_FUNCTION_PRIVILEGES = ["EXECUTE"];
@@ -203,6 +208,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   ...DIRECT_UPLOAD_PRIVATE_FUNCTION_NAMES,
   ...CONVERSATION_MESSAGE_PRIVATE_FUNCTION_NAMES,
   ...NOTIFICATION_PRIVATE_RPC_FUNCTIONS,
+  ...ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
 ]);
 
 const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);

@@ -26,6 +26,14 @@ const finalizationHelper = readFileSync(
   "src/lib/orderRefundFinalization.ts",
   "utf8",
 );
+const providerReconciliation = readFileSync(
+  "src/lib/orderRefundProviderReconciliation.ts",
+  "utf8",
+);
+const marketplaceRefunds = readFileSync(
+  "src/lib/marketplaceRefunds.ts",
+  "utf8",
+);
 
 test("adds three pinned source-bound runtime entrypoints without changing RLS or table grants", () => {
   for (const name of [
@@ -92,6 +100,24 @@ test("resumes only the same blocked-checkout claim under an active later signed 
   assert.match(
     claimHelper,
     /SELECT public\.grainline_blocked_checkout_refund_claim_resume\(/,
+  );
+  const existingOrderBranch = webhookRoute.slice(
+    webhookRoute.indexOf("const already = await prisma.order.findFirst"),
+    webhookRoute.indexOf("// Retrieve with expansions"),
+  );
+  assert.match(existingOrderBranch, /refundClaimSource: true/);
+  assert.match(existingOrderBranch, /refundClaimSourceId: true/);
+  assert.match(
+    existingOrderBranch,
+    /blockedCheckoutRefundRetryReason\(already, event\.id\)/,
+  );
+  const retryClassifier = webhookRoute.slice(
+    webhookRoute.indexOf("function blockedCheckoutRefundRetryReason"),
+    webhookRoute.indexOf("function blockedCheckoutRefundStillInProgress"),
+  );
+  assert.match(
+    retryClassifier,
+    /order\.sellerRefundId === REFUND_LOCK_SENTINEL[\s\S]*order\.refundClaimSource === "BLOCKED_CHECKOUT"[\s\S]*order\.refundClaimSourceId === eventId/,
   );
 });
 
@@ -170,6 +196,25 @@ test("application paths use one typed fixed finalizer for the initial write and 
   assert.match(recordHelper, /rows\.length !== 1/);
   assert.match(recordHelper, /Order refund record changed refund identity/);
   assert.match(recordHelper, /Order refund record changed refund amount/);
+});
+
+test("provider calls carry database-derived claim identity for durable reconciliation", () => {
+  assert.match(
+    sellerRoute,
+    /resolveOrderRefundProviderOutcome\(refundClaim\)/,
+  );
+  assert.match(
+    webhookRoute,
+    /resolveOrderRefundProviderOutcome\(refundClaim\)/,
+  );
+  assert.match(
+    providerReconciliation,
+    /claimMetadata: claimMetadata\(claim\)/,
+  );
+  assert.match(marketplaceRefunds, /grainline_refund_claim_id/);
+  assert.match(marketplaceRefunds, /grainline_refund_claim_generation/);
+  assert.match(marketplaceRefunds, /grainline_refund_claim_source/);
+  assert.match(marketplaceRefunds, /grainline_refund_idempotency_scope/);
 });
 
 test("provider evidence rejects ambiguous or terminally unsuccessful results", () => {

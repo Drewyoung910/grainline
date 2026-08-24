@@ -67,7 +67,10 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
     assert.match(audit, /policyless service ledger under `ENABLE` then `FORCE` RLS/);
     assert.match(audit, /zero\s+direct runtime\/PUBLIC table or column privileges/);
     assert.match(audit, /Keep `OrderShippingRateQuote`, `Order` and `OrderItem` separate/);
-    assert.match(audit, /contains no policy, function,\s+migration, grant, deployment, provider or production-state change/);
+    assert.match(
+      audit,
+      /none is merged, deployed or production-applied and `OrderPaymentEvent`\s+RLS remains off/,
+    );
   });
 
   it("records the payment-domain blockers rather than only RLS mechanics", () => {

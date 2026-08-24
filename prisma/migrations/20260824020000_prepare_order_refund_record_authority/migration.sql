@@ -472,7 +472,9 @@ BEGIN
     'refundClaimSourceId', p_actor_user_id,
     'refundClaimSourceGeneration', NULL
   );
-  transition_at := pg_catalog.clock_timestamp()::timestamp(3);
+  transition_at := (
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+  )::timestamp(3);
   review_note := pg_catalog.format(
     'Seller-initiated full refund of %s cents via Stripe refund %s.%s%s',
     refund_amount,
@@ -995,7 +997,9 @@ BEGIN
     'refundClaimSourceId', p_event_id,
     'refundClaimSourceGeneration', p_event_claim_generation::text
   );
-  transition_at := pg_catalog.clock_timestamp()::timestamp(3);
+  transition_at := (
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+  )::timestamp(3);
   review_note := pg_catalog.format(
     'Automatic full refund of %s cents via Stripe refund %s because checkout was no longer eligible.%s%s',
     refund_amount,

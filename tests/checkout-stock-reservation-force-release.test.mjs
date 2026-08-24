@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   CHECKOUT_STOCK_RESERVATION_FORCE_CANDIDATE_SHA256,
@@ -40,7 +41,8 @@ const releaseDocument = fs.readFileSync(
 
 test("FORCE release is one exact posture-only catalog change", () => {
   const candidate = buildCheckoutStockReservationForceCandidate();
-  const release = verifyCheckoutStockReservationForceRelease(undefined, {
+  const release = verifyCheckoutStockReservationForceRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
     allowReviewedSignedAuthoritySuccessor: true,
@@ -121,13 +123,8 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
     [script, "--allow-reviewed-signed-authority-successor"],
     { encoding: "utf8" },
   );
-  assert.equal(sealedPrefix.status, 0, sealedPrefix.stderr);
-  const release = JSON.parse(sealedPrefix.stdout);
-  assert.equal(release.guard.sealedPrefix, true);
-  assert.equal(
-    release.guard.reviewedSuccessorMigration,
-    "20260824030000_prepare_order_payment_signed_authority",
-  );
+  assert.equal(sealedPrefix.status, 1);
+  assert.match(sealedPrefix.stderr, /unreviewed successor/);
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {
     encoding: "utf8",

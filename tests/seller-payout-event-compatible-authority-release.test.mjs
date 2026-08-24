@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   SELLER_PAYOUT_EVENT_AUTHORITY_MIGRATION_SHA256,
@@ -70,7 +71,8 @@ test("SellerPayoutEvent compatible release pins the exact migration bytes and bo
 });
 
 test("SellerPayoutEvent compatible verifier accepts only the byte-pinned latest candidate", () => {
-  const verified = verifySellerPayoutEventAuthorityRelease(process.cwd(), {
+  const verified = verifySellerPayoutEventAuthorityRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedActivationSuccessor: true,
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,

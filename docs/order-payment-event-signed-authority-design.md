@@ -151,6 +151,10 @@ migration only after replaying the byte-sealed historical refund,
 CheckoutStockReservation and SellerPayoutEvent chains. The guarded Production
 Migrations workflow intentionally does not expose this candidate yet.
 
+The stacked compatible refund-reconciliation successor is documented in
+`docs/order-payment-event-refund-reconciliation.md`. It does not widen these
+signed operations or authorize RLS activation.
+
 Disposable PostgreSQL proof covers separate owner/runtime ACLs, forged
 source/type/object/generation denial, replay/collision behavior, refund and
 dispute serialization, older/newer/equal-second handling, Case binding,

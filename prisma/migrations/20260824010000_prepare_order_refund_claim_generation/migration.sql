@@ -251,7 +251,9 @@ BEGIN
       USING ERRCODE = 'check_violation';
   END IF;
 
-  transition_at := pg_catalog.clock_timestamp()::timestamp(3);
+  transition_at := (
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+  )::timestamp(3);
   claim_generation := locked_order."refundClaimGeneration" + 1;
   claim_id := 'order_refund_claim_' || pg_catalog.gen_random_uuid()::text;
   idempotency_scope :=
@@ -441,7 +443,9 @@ BEGIN
       USING ERRCODE = 'check_violation';
   END IF;
 
-  transition_at := pg_catalog.clock_timestamp()::timestamp(3);
+  transition_at := (
+    pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
+  )::timestamp(3);
   claim_generation := locked_order."refundClaimGeneration" + 1;
   claim_id := 'order_refund_claim_' || pg_catalog.gen_random_uuid()::text;
   idempotency_scope :=

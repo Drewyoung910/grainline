@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   parseSellerPayoutEventForceProofConfig,
@@ -40,7 +41,8 @@ const releaseDocument = fs.readFileSync(
 
 test("FORCE release is one exact posture-only catalog change", () => {
   const candidate = buildSellerPayoutEventForceCandidate();
-  const release = verifySellerPayoutEventForceRelease(undefined, {
+  const release = verifySellerPayoutEventForceRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
     allowReviewedSignedAuthoritySuccessor: true,
@@ -109,13 +111,8 @@ test("activation verifier exposes only the exact FORCE successor mode", () => {
     [script, "--allow-reviewed-signed-authority-successor"],
     { encoding: "utf8" },
   );
-  assert.equal(sealed.status, 0, sealed.stderr);
-  const release = JSON.parse(sealed.stdout);
-  assert.equal(release.guard.sealedPrefix, true);
-  assert.equal(
-    release.guard.reviewedSuccessorMigration,
-    "20260824030000_prepare_order_payment_signed_authority",
-  );
+  assert.equal(sealed.status, 1);
+  assert.match(sealed.stderr, /unreviewed successor/u);
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {
     encoding: "utf8",

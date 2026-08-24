@@ -111,7 +111,7 @@ describe("Case and Order lifecycle lock protocol", () => {
     ]);
     assertOrdered(refund, [
       ["refund database claim", "const refundClaim = await claimSellerOrderRefund"],
-      ["refund provider call", "await createMarketplaceRefund"],
+      ["refund provider outcome", "await resolveOrderRefundProviderOutcome(refundClaim)"],
     ]);
     const refundFinalization = source(
       "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",

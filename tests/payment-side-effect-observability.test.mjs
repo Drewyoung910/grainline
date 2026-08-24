@@ -64,10 +64,17 @@ describe("payment and fulfillment side-effect observability", () => {
     const authority = source(
       "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
     );
+    const reconciliationAuthority = source(
+      "prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority/migration.sql",
+    );
 
     assert.match(route, /claimSellerOrderRefund\(\{/);
     assert.match(route, /finalizeSellerOrderRefund\(\{/);
-    assert.match(route, /\.\.\.activeOrderRefundClaimWhere\(refundClaim\)/);
+    assert.match(route, /markOrderRefundClaimAmbiguous\(\{/);
+    assert.match(
+      reconciliationAuthority,
+      /orders\."refundClaimId" = p_claim_id[\s\S]*orders\."refundClaimGeneration" = p_claim_generation[\s\S]*FOR UPDATE/,
+    );
     assert.match(authority, /orders\."refundClaimGeneration" = p_claim_generation/);
     assert.match(authority, /"refundClaimProviderAuthorizedAt" IS NULL/);
     assert.match(authority, /"manualStripeReconciliationNeeded" = true/);
@@ -132,14 +139,15 @@ describe("payment and fulfillment side-effect observability", () => {
   it("marks no-refund-id Stripe failures as ambiguous instead of reopening refund attempts", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
+    const reconciliationAuthority = source(
+      "prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority/migration.sql",
+    );
 
-    assert.match(sellerRoute, /REFUND_AMBIGUOUS_SENTINEL/);
     assert.match(sellerRoute, /seller_refund_ambiguous_record_failed/);
-    assert.match(sellerRoute, /ambiguous Stripe outcome/);
-    assert.match(sellerRoute, /ambiguousRecord\.count !== 1/);
+    assert.match(sellerRoute, /reason: "SELLER_PROVIDER_AMBIGUOUS"/);
     assert.match(
-      sellerRoute,
-      /Seller refund ambiguous outcome was not recorded against the active generation/,
+      reconciliationAuthority,
+      /'SELLER_PROVIDER_AMBIGUOUS'[\s\S]*Seller refund attempt has an ambiguous Stripe outcome/,
     );
     assert.doesNotMatch(sellerRoute, /source: "seller_refund_lock_release_failed"/);
 
@@ -164,12 +172,22 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("derives first-party refund reversal eligibility from the order transfer", () => {
     const sellerRoute = source("src/app/api/orders/[id]/refund/route.ts");
+    const providerReconciliation = source(
+      "src/lib/orderRefundProviderReconciliation.ts",
+    );
     const caseRoute = source("src/app/api/cases/[id]/resolve/route.ts");
     const sellerAuthority = source(
       "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
     );
 
-    assert.match(sellerRoute, /canReverseTransfer: refundClaim\.canReverseTransfer/);
+    assert.match(
+      providerReconciliation,
+      /canReverseTransfer: claim\.canReverseTransfer/,
+    );
+    assert.match(
+      sellerRoute,
+      /resolveOrderRefundProviderOutcome\(refundClaim\)/,
+    );
     assert.match(
       sellerAuthority,
       /'canReverseTransfer', locked_order\."stripeTransferId" IS NOT NULL/,
@@ -556,7 +574,9 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(existingOrderBranch, /reviewNeeded: true/);
     assert.match(existingOrderBranch, /reviewNote: true/);
     assert.match(existingOrderBranch, /blockingRefundLedgerWhere\(\)/);
-    assert.match(existingOrderBranch, /const retryReason = blockedCheckoutRefundRetryReason\(already\)/);
+    assert.match(existingOrderBranch, /const retryReason = blockedCheckoutRefundRetryReason\(already, event\.id\)/);
+    assert.match(existingOrderBranch, /refundClaimSource: true/);
+    assert.match(existingOrderBranch, /refundClaimSourceId: true/);
     assert.doesNotMatch(existingOrderBranch, /buyerId: already\.buyerId/);
     assert.match(existingOrderBranch, /sellerUserIds: \[/);
     assert.match(existingOrderBranch, /blockedCheckoutRefundStillInProgress\(already\)/);
@@ -568,7 +588,7 @@ describe("payment and fulfillment side-effect observability", () => {
       "existing-order retries must block side effects for marked blocked checkouts",
     );
     assert.ok(
-      route.indexOf("blockedCheckoutRefundRetryReason(already)") <
+      route.indexOf("blockedCheckoutRefundRetryReason(already, event.id)") <
         route.indexOf("stripe.checkout.sessions.retrieve"),
       "existing blocked-checkout retries should be detected before retrieving Stripe session details",
     );
@@ -607,6 +627,9 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("uses a source-bound generation claim before automatic blocked-checkout refunds", () => {
     const route = source("src/app/api/stripe/webhook/route.ts");
+    const providerReconciliation = source(
+      "src/lib/orderRefundProviderReconciliation.ts",
+    );
     const authority = source(
       "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
     );
@@ -618,8 +641,11 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(route, /claimBlockedCheckoutOrderRefund\(\{/);
     assert.match(route, /eventClaimGeneration: claimGeneration/);
     assert.match(route, /sessionId,[\s\S]*orderId: input\.orderId/);
-    assert.match(route, /createMarketplaceRefund\(\{/);
-    assert.match(route, /idempotencyKeyBase: refundClaim\.idempotencyScope/);
+    assert.match(route, /resolveOrderRefundProviderOutcome\(refundClaim\)/);
+    assert.match(
+      providerReconciliation,
+      /idempotencyKeyBase: claim\.idempotencyScope/,
+    );
     assert.match(route, /finalizeBlockedCheckoutOrderRefund\(\{/);
     assert.match(
       route,
@@ -628,7 +654,7 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.doesNotMatch(route, /refund\s*=\s*await stripe\.refunds\.create/);
     assert.ok(
       route.indexOf("claimBlockedCheckoutOrderRefund({") <
-        route.indexOf("createMarketplaceRefund({"),
+        route.indexOf("resolveOrderRefundProviderOutcome(refundClaim)"),
       "blocked-checkout refunds must acquire the source-bound claim before the Stripe helper",
     );
     assert.doesNotMatch(route, /clearedOrderRefundClaimData|orderRefundClaimEvidence/);
@@ -639,10 +665,9 @@ describe("payment and fulfillment side-effect observability", () => {
       route,
       /stripe_webhook_blocked_checkout_refund_ambiguous_record_failed/,
     );
-    assert.match(route, /ambiguousRecord\.count !== 1/);
     assert.match(
       route,
-      /Blocked checkout ambiguous outcome was not recorded against the active generation/,
+      /reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/,
     );
     assert.match(authority, /locked_event\."claimGeneration" IS DISTINCT FROM p_event_claim_generation/);
     assert.match(authority, /locked_event\."sourceObjectId" IS DISTINCT FROM p_session_id/);
@@ -680,8 +705,11 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(lockReleaseBlock, /Sentry\.captureException\(dbError/);
     assert.match(lockReleaseBlock, /throw dbError/);
-    assert.match(lockReleaseBlock, /sellerRefundId: REFUND_AMBIGUOUS_SENTINEL/);
-    assert.match(lockReleaseBlock, /ambiguous Stripe outcome/);
+    assert.match(lockReleaseBlock, /markOrderRefundClaimAmbiguous\(\{/);
+    assert.match(
+      lockReleaseBlock,
+      /reason: "BLOCKED_CHECKOUT_PROVIDER_AMBIGUOUS"/,
+    );
     assert.match(noRefundIdBranch, /retryBlockedCheckoutRefund = true/);
     assert.match(noRefundIdBranch, /throw refundError/);
 

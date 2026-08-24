@@ -1,8 +1,9 @@
 # OrderPaymentEvent pre-RLS domain audit
 
-Status: audit complete; compatible design and application corrections are
-blocked on the findings below. This document contains no policy, function,
-migration, grant, deployment, provider or production-state change.
+Status: audit complete. The claim, record/finalize, signed-webhook and
+evidence-bound reconciliation corrections now exist as one isolated compatible
+stack; none is merged, deployed or production-applied and `OrderPaymentEvent`
+RLS remains off.
 
 Audited: 2026-08-23 against the application source immediately after accepted
 SellerPayoutEvent FORCE proof. This branch is intentionally stacked on the
@@ -279,6 +280,14 @@ ABA acquisition/finalization race in the compatible application, but it is not
 live and does not replace the later atomic payment-event/provider
 record/finalize functions or evidence-based reconciliation operation.
 
+Prepared disposition update: the stacked reconciliation candidate now scans
+the exact PaymentIntent with claim metadata, permits same-scope retry only
+before 23 hours, permits proved no-effect release only at or after 25 hours and
+records immutable private evidence. It also repairs the previously unreachable
+blocked-checkout claim-resume branch. See
+`docs/order-payment-event-refund-reconciliation.md`. OPE-A03 is implemented in
+the isolated compatible stack, not accepted in production.
+
 ### OPE-A04 - generic duplicate skipping is not replay validation
 
 Both signed and local writers use `createMany(..., skipDuplicates: true)`.
@@ -410,9 +419,10 @@ items are still design contracts until reviewed SQL is written.
    application and audit atomically; stale generations cannot finalize.
 5. Blocked-checkout full-refund claim/record/finalize: derives the exact
    session/Order from the active webhook generation and preserves recovery.
-6. Bounded no-provider-effect reconciliation/release: separate staff or
-   database-selected maintenance authority; no caller-selected generic row
-   release.
+6. Bounded no-provider-effect reconciliation/release: implemented in the
+   isolated `20260824040000_prepare_order_refund_reconciliation_authority`
+   successor. Current ADMIN plus session-bound PIN selects only an audit reason;
+   the bounded provider scan and fixed database operation derive the outcome.
 7. Buyer and seller refund-outcome batch/page projections.
 8. Buyer and seller payment-history export pages with distinct safe columns.
 9. Live staff payment timeline projection with fixed role check and limit.
@@ -435,11 +445,10 @@ There is no runtime-callable `write_payment_event`, `get_payment_event`,
    latest-dispute helper with focused business-logic regressions.
 3. Run the fresh aggregate-only production inspection; review counts before
    any validating migration.
-4. Promote the prepared refund-generation, fixed record/finalize and signed
-   refund/dispute authorities only through separately byte-pinned compatible
-   releases, then add evidence-based claim reconciliation, remaining
-   invariants and remaining fixed operations with RLS off and predecessor
-   grants retained.
+4. Promote the prepared refund-generation, fixed record/finalize, signed
+   refund/dispute and evidence-bound reconciliation authorities only through
+   separately byte-pinned compatible releases, then add remaining invariants
+   and fixed operations with RLS off and predecessor grants retained.
 5. Prove all functions, replay/collision cases, append immutability, claim ABA
    races, dispute reorderings, actor projections and rollback in disposable
    PostgreSQL using separate owner and restricted runtime roles.

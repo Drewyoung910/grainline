@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { repositoryBeforeRefundReconciliation } from "./helpers/release-verifier-root.mjs";
 
 import {
   ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
@@ -15,7 +16,8 @@ import {
 } from "../scripts/verify-order-refund-record-authority-release.mjs";
 
 test("release byte-pins the compatible fixed refund record authority", () => {
-  const release = verifyOrderRefundRecordAuthorityRelease(process.cwd(), {
+  const release = verifyOrderRefundRecordAuthorityRelease(
+    repositoryBeforeRefundReconciliation(), {
     allowReviewedSignedAuthoritySuccessor: true,
   });
   const releaseRecord = readFileSync(

@@ -6,14 +6,12 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
-import { createMarketplaceRefund } from "@/lib/marketplaceRefunds";
 import {
   rateLimitResponse,
   refundRatelimit,
   safeRateLimit,
 } from "@/lib/ratelimit";
 import {
-  REFUND_AMBIGUOUS_SENTINEL,
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
 import { latestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
@@ -39,16 +37,15 @@ import { HTTP_STATUS } from "@/lib/httpStatus";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
-import {
-  activeOrderRefundClaimWhere,
-  claimSellerOrderRefund,
-} from "@/lib/orderRefundClaimAuthority";
+import { claimSellerOrderRefund } from "@/lib/orderRefundClaimAuthority";
 import {
   orderRefundProviderEvidence,
   type OrderRefundProviderEvidence,
   type OrderRefundRecordResult,
 } from "@/lib/orderRefundRecordAuthority";
 import { finalizeSellerOrderRefund } from "@/lib/orderRefundFinalization";
+import { resolveOrderRefundProviderOutcome } from "@/lib/orderRefundProviderReconciliation";
+import { markOrderRefundClaimAmbiguous } from "@/lib/orderRefundReconciliationAuthority";
 
 const RefundSchema = z.object({
   type: z.enum(["FULL", "PARTIAL"]).optional(),
@@ -276,24 +273,10 @@ export async function POST(
       || refundClaim.currency !== order.currency.toLowerCase()
       || refundClaim.paymentIntentId !== order.stripePaymentIntentId
     ) {
-      const driftRecord = await prisma.order.updateMany({
-        where: {
-          id: orderId,
-          ...activeOrderRefundClaimWhere(refundClaim),
-        },
-        data: {
-          sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
-          sellerRefundLockedAt: null,
-          reviewNeeded: true,
-          reviewNote:
-            "Seller refund claim drifted from the loaded Order; staff must reconcile before another attempt.",
-        },
+      await markOrderRefundClaimAmbiguous({
+        claim: refundClaim,
+        reason: "SELLER_CLAIM_DRIFT",
       });
-      if (driftRecord.count !== 1) {
-        throw new Error(
-          "Seller refund claim drift could not be recorded against the active generation",
-        );
-      }
       throw new Error("Seller refund claim result drifted from the loaded Order");
     }
 
@@ -302,17 +285,7 @@ export async function POST(
     let refundProviderEvidence: OrderRefundProviderEvidence | null = null;
     let refundRecordResult: OrderRefundRecordResult | null = null;
     try {
-      const refund = await createMarketplaceRefund({
-        paymentIntentId: refundClaim.paymentIntentId,
-        resolution: type,
-        amountCents: refundClaim.refundAmountCents,
-        itemsSubtotalCents: refundClaim.itemsSubtotalCents,
-        shippingAmountCents: refundClaim.shippingAmountCents,
-        giftWrappingPriceCents: refundClaim.giftWrappingPriceCents,
-        taxAmountCents: refundClaim.taxAmountCents,
-        canReverseTransfer: refundClaim.canReverseTransfer,
-        idempotencyKeyBase: refundClaim.idempotencyScope,
-      });
+      const refund = await resolveOrderRefundProviderOutcome(refundClaim);
       refundId = refund.primaryRefundId;
       refundIds = refund.refundIds;
       if (!refundId) {
@@ -361,24 +334,10 @@ export async function POST(
         }
       } else {
         try {
-          const ambiguousRecord = await prisma.order.updateMany({
-            where: {
-              id: orderId,
-              ...activeOrderRefundClaimWhere(refundClaim),
-            },
-            data: {
-              sellerRefundId: REFUND_AMBIGUOUS_SENTINEL,
-              sellerRefundLockedAt: null,
-              reviewNeeded: true,
-              reviewNote:
-                "Seller refund attempt has an ambiguous Stripe outcome; staff must reconcile Stripe before another refund is attempted.",
-            },
+          await markOrderRefundClaimAmbiguous({
+            claim: refundClaim,
+            reason: "SELLER_PROVIDER_AMBIGUOUS",
           });
-          if (ambiguousRecord.count !== 1) {
-            throw new Error(
-              "Seller refund ambiguous outcome was not recorded against the active generation",
-            );
-          }
         } catch (dbError) {
           Sentry.captureException(dbError, {
             tags: { source: "seller_refund_ambiguous_record_failed" },
