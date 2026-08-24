@@ -34,6 +34,10 @@ const ORDER_REFUND_CLAIM_FUNCTION_NAMES = [
   "grainline_seller_refund_claim",
   "grainline_seller_refund_record",
 ];
+const ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES = [
+  "grainline_order_payment_signed_refund_apply",
+  "grainline_order_payment_signed_dispute_apply",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -1315,6 +1319,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
       ...ORDER_REFUND_CLAIM_FUNCTION_NAMES,
+      ...ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES,
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
@@ -1352,6 +1357,7 @@ describe("database grant inventory guardrails", () => {
         + CHECKOUT_STOCK_RESERVATION_CANDIDATE_FUNCTIONS.length
         + SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES.length
         + ORDER_REFUND_CLAIM_FUNCTION_NAMES.length
+        + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0),
     );

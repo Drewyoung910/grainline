@@ -25,6 +25,9 @@ import {
 import {
   ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
 } from "./order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+} from "./order-payment-signed-authority-catalog.mjs";
 
 export const SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE =
   "seller-payout-event-activation-reviewed";
@@ -41,6 +44,7 @@ export function verifySellerPayoutEventActivationRelease(
     allowReviewedForceSuccessor = false,
     allowReviewedRefundClaimSuccessor = false,
     allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
   } = {},
 ) {
   if (allowReviewedRefundClaimSuccessor && !allowReviewedForceSuccessor) {
@@ -56,11 +60,20 @@ export function verifySellerPayoutEventActivationRelease(
       "Order refund record successor requires the reviewed refund claim successor",
     );
   }
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
   verifySellerPayoutEventAuthorityRelease(rootDirectory, {
     allowReviewedActivationSuccessor: true,
     allowReviewedForceSuccessor,
     allowReviewedRefundClaimSuccessor,
     allowReviewedRefundRecordSuccessor,
+    allowReviewedSignedAuthoritySuccessor,
   });
   const candidate = buildSellerPayoutEventActivationCandidate(rootDirectory);
   const migrationDirectory = path.join(rootDirectory, "prisma/migrations");
@@ -123,7 +136,14 @@ export function verifySellerPayoutEventActivationRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: SELLER_PAYOUT_EVENT_ACTIVATION_RELEASE_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedRefundRecordSuccessor
+    omittedReviewedMigrationNames: allowReviewedSignedAuthoritySuccessor
+      ? [
+          SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+          ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+          ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+          ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+        ]
+      : allowReviewedRefundRecordSuccessor
       ? [
           SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
           ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
@@ -157,7 +177,9 @@ export function verifySellerPayoutEventActivationRelease(
       ? Object.freeze({
           phase: guard.phase,
           sealedPrefix: true,
-          reviewedSuccessorMigration: allowReviewedRefundRecordSuccessor
+          reviewedSuccessorMigration: allowReviewedSignedAuthoritySuccessor
+            ? ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION
+            : allowReviewedRefundRecordSuccessor
             ? ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
             : allowReviewedRefundClaimSuccessor
             ? ORDER_REFUND_CLAIM_GENERATION_MIGRATION
@@ -177,11 +199,12 @@ function main() {
       && mode !== "--allow-reviewed-force-successor"
       && mode !== "--allow-reviewed-refund-claim-successor"
       && mode !== "--allow-reviewed-refund-record-successor"
+      && mode !== "--allow-reviewed-signed-authority-successor"
     )
   ) {
     throw new Error(
       "usage: verify-seller-payout-event-activation-release.mjs "
-      + "[--allow-reviewed-force-successor|--allow-reviewed-refund-claim-successor|--allow-reviewed-refund-record-successor]",
+      + "[--allow-reviewed-force-successor|--allow-reviewed-refund-claim-successor|--allow-reviewed-refund-record-successor|--allow-reviewed-signed-authority-successor]",
     );
   }
   process.stdout.write(`${JSON.stringify(
@@ -189,12 +212,17 @@ function main() {
       allowReviewedForceSuccessor:
         mode === "--allow-reviewed-force-successor"
         || mode === "--allow-reviewed-refund-claim-successor"
-        || mode === "--allow-reviewed-refund-record-successor",
+        || mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
       allowReviewedRefundClaimSuccessor:
         mode === "--allow-reviewed-refund-claim-successor"
-        || mode === "--allow-reviewed-refund-record-successor",
+        || mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
       allowReviewedRefundRecordSuccessor:
-        mode === "--allow-reviewed-refund-record-successor",
+        mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
+      allowReviewedSignedAuthoritySuccessor:
+        mode === "--allow-reviewed-signed-authority-successor",
     }),
     null,
     2,

@@ -39,6 +39,7 @@ test("activation release exactly promotes the reviewed policyless candidate", ()
   const release = verifyCheckoutStockReservationActivationRelease(undefined, {
     allowReviewedSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
 
   assert.deepEqual(promoted, candidate);
@@ -82,6 +83,7 @@ test("activation release remains a sealed prefix under only its reviewed success
   const release = verifyCheckoutStockReservationActivationRelease(undefined, {
     allowReviewedSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   assert.deepEqual(release.guard, {
     phase: CHECKOUT_STOCK_RESERVATION_ACTIVATION_PHASE,

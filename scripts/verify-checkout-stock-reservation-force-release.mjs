@@ -42,6 +42,10 @@ import {
   ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
   verifyOrderRefundRecordAuthorityMigrationBytes,
 } from "./order-refund-record-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+  verifyOrderPaymentSignedAuthorityMigrationBytes,
+} from "./order-payment-signed-authority-catalog.mjs";
 
 export const CHECKOUT_STOCK_RESERVATION_FORCE_PHASE =
   "checkout-stock-reservation-force-reviewed";
@@ -62,6 +66,7 @@ export function verifyCheckoutStockReservationForceRelease(
   {
     allowReviewedSuccessor = false,
     allowReviewedRefundRecordSuccessor = false,
+    allowReviewedSignedAuthoritySuccessor = false,
   } = {},
 ) {
   if (allowReviewedRefundRecordSuccessor && !allowReviewedSuccessor) {
@@ -69,8 +74,19 @@ export function verifyCheckoutStockReservationForceRelease(
       "Order refund record successor requires reviewed reservation successors",
     );
   }
+  if (
+    allowReviewedSignedAuthoritySuccessor
+    && !allowReviewedRefundRecordSuccessor
+  ) {
+    throw new Error(
+      "Order payment signed authority successor requires the reviewed refund record successor",
+    );
+  }
   if (allowReviewedRefundRecordSuccessor) {
     verifyOrderRefundRecordAuthorityMigrationBytes(rootDirectory);
+  }
+  if (allowReviewedSignedAuthoritySuccessor) {
+    verifyOrderPaymentSignedAuthorityMigrationBytes(rootDirectory);
   }
   const activation = verifyPromotedCheckoutStockReservationActivation(
     rootDirectory,
@@ -121,10 +137,16 @@ export function verifyCheckoutStockReservationForceRelease(
     "prisma/migrations",
     ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
   ));
+  const signedAuthoritySuccessorExists = fs.existsSync(path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+  ));
   if (allowReviewedSuccessor && payoutSuccessorExists) {
     if (refundClaimSuccessorExists) {
       verifyOrderRefundClaimGenerationRelease(rootDirectory, {
         allowReviewedRefundRecordSuccessor,
+        allowReviewedSignedAuthoritySuccessor,
       });
     } else if (payoutActivationSuccessorExists) {
       verifySellerPayoutEventActivationRelease(rootDirectory, {
@@ -155,6 +177,9 @@ export function verifyCheckoutStockReservationForceRelease(
             ...(allowReviewedRefundRecordSuccessor && refundRecordSuccessorExists
               ? [ORDER_REFUND_RECORD_AUTHORITY_MIGRATION]
               : []),
+            ...(allowReviewedSignedAuthoritySuccessor && signedAuthoritySuccessorExists
+              ? [ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION]
+              : []),
           ]
         : [],
   });
@@ -165,7 +190,9 @@ export function verifyCheckoutStockReservationForceRelease(
         reviewedSuccessorMigration: payoutForceSuccessorExists
           ? refundClaimSuccessorExists
             ? allowReviewedRefundRecordSuccessor
-              ? ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
+              ? allowReviewedSignedAuthoritySuccessor
+                ? ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION
+                : ORDER_REFUND_RECORD_AUTHORITY_MIGRATION
               : ORDER_REFUND_CLAIM_GENERATION_MIGRATION
             : SELLER_PAYOUT_EVENT_FORCE_MIGRATION
           : payoutActivationSuccessorExists
@@ -208,18 +235,22 @@ function main() {
       mode !== undefined
       && mode !== "--allow-reviewed-successor"
       && mode !== "--allow-reviewed-refund-record-successor"
+      && mode !== "--allow-reviewed-signed-authority-successor"
     )
   ) {
     throw new Error(
       "usage: verify-checkout-stock-reservation-force-release.mjs "
-      + "[--allow-reviewed-successor|--allow-reviewed-refund-record-successor]",
+      + "[--allow-reviewed-successor|--allow-reviewed-refund-record-successor|--allow-reviewed-signed-authority-successor]",
     );
   }
   process.stdout.write(`${JSON.stringify(
     verifyCheckoutStockReservationForceRelease(undefined, {
       allowReviewedSuccessor: mode !== undefined,
       allowReviewedRefundRecordSuccessor:
-        mode === "--allow-reviewed-refund-record-successor",
+        mode === "--allow-reviewed-refund-record-successor"
+        || mode === "--allow-reviewed-signed-authority-successor",
+      allowReviewedSignedAuthoritySuccessor:
+        mode === "--allow-reviewed-signed-authority-successor",
     }),
     null,
     2,

@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-23
+Last updated: 2026-08-24
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -218,8 +218,14 @@ quotes, Order and OrderItem remain later separate releases. The compatible
 seller application boundary and the required future partial-refund feature
 model are recorded in `docs/order-payment-event-refund-contract.md`. Current
 Stripe dispute consumers share the latest-per-dispute SQL family documented in
-`docs/order-payment-event-dispute-state.md`; the typed signed-event clock and
-equal-second reconciliation remain activation prerequisites. Self-service
+`docs/order-payment-event-dispute-state.md`. The isolated signed-webhook
+candidate adds the typed provider clock and source-bound refund/dispute
+operations; equal-second differences, including signed event-type differences,
+retain evidence and mark staff reconciliation without Case or Notification
+effects. It is byte-pinned and passes disposable PostgreSQL authority and
+concurrency proof, but is not merged, deployed, production-applied or RLS
+activation evidence. See
+`docs/order-payment-event-signed-authority-design.md`. Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
 fields remain private service evidence.

@@ -20,10 +20,6 @@ import {
   SELLER_PAYOUT_EVENT_FORCE_PHASE,
   verifySellerPayoutEventForceRelease,
 } from "../scripts/verify-seller-payout-event-force-release.mjs";
-import {
-  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
-} from "../scripts/order-refund-record-authority-catalog.mjs";
-
 const migration = fs.readFileSync(
   `prisma/migrations/${SELLER_PAYOUT_EVENT_FORCE_MIGRATION}/migration.sql`,
   "utf8",
@@ -47,6 +43,7 @@ test("FORCE release is one exact posture-only catalog change", () => {
   const release = verifySellerPayoutEventForceRelease(undefined, {
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   assert.equal(release.phase, SELLER_PAYOUT_EVENT_FORCE_PHASE);
   assert.equal(release.migration, SELLER_PAYOUT_EVENT_FORCE_MIGRATION);
@@ -109,7 +106,7 @@ test("activation verifier exposes only the exact FORCE successor mode", () => {
 
   const sealed = spawnSync(
     process.execPath,
-    [script, "--allow-reviewed-refund-record-successor"],
+    [script, "--allow-reviewed-signed-authority-successor"],
     { encoding: "utf8" },
   );
   assert.equal(sealed.status, 0, sealed.stderr);
@@ -117,7 +114,7 @@ test("activation verifier exposes only the exact FORCE successor mode", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+    "20260824030000_prepare_order_payment_signed_authority",
   );
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {

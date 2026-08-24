@@ -42,14 +42,17 @@ The exact baseline is:
 | `Order` | 38 |
 | `OrderItem` | 12 |
 | `OrderShippingRateQuote` | 2 |
-| `OrderPaymentEvent` | 8 |
+| `OrderPaymentEvent` | 7 |
 | `SellerPayoutEvent` | 3 |
 | `CheckoutStockReservation` | 4 |
 
 These counts exclude disposable/proof scripts and nested relation selections
 that do not name the Prisma delegate or raw table directly. They are a
-conversion floor, not a claim that only 67 semantic operations exist. The
-next inventory pass must classify nested reads, fixed Case/Notification
+conversion floor, not a claim that only 66 semantic operations exist. The
+signed platform webhook route now uses fixed source-bound refund/dispute
+operations and no longer directly accesses the table, reducing the pinned
+source baseline from eight to seven. The next inventory pass must classify
+nested reads, fixed Case/Notification
 functions, cron and provider side effects as well.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation

@@ -24,6 +24,7 @@ const CATALOG = readSellerPayoutEventActivationMigrationCatalog(process.cwd(), {
   allowReviewedForceSuccessor: true,
   allowReviewedRefundClaimSuccessor: true,
   allowReviewedRefundRecordSuccessor: true,
+  allowReviewedSignedAuthoritySuccessor: true,
 });
 
 async function createLedger() {

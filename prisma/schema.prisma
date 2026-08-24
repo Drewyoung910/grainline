@@ -749,6 +749,9 @@ model OrderPaymentEvent {
   // Bounded Stripe payment/refund/dispute event context. Store safe ids and
   // small status details only, not full provider payloads.
   metadata                      Json?
+  // Signed Stripe ordering. Local/predecessor rows remain nullable until the
+  // compatible writer drain and legacy classification are complete.
+  stripeEventCreatedSeconds     BigInt?
   createdAt                     DateTime                       @default(now())
   updatedAt                     DateTime                       @updatedAt
   caseStripeDisputeApplications CaseStripeDisputeApplication[]
@@ -759,6 +762,7 @@ model OrderPaymentEvent {
   @@index([orderId, createdAt])
   @@index([eventType, createdAt])
   @@index([stripeObjectId])
+  @@index([orderId, eventType, stripeObjectId, stripeEventCreatedSeconds(sort: Desc), id(sort: Desc)], map: "OrderPaymentEvent_order_dispute_event_time_idx")
 }
 
 model SellerPayoutEvent {

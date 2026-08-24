@@ -6,7 +6,11 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/db";
 import { mapWithConcurrency } from "@/lib/concurrency";
-import { createNotification, shouldSendEmail } from "@/lib/notifications";
+import {
+  createNotification,
+  createNotificationOrThrow,
+  shouldSendEmail,
+} from "@/lib/notifications";
 import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 import {
   renderFirstSaleCongratsEmail,
@@ -66,8 +70,6 @@ import { DEAUTHORIZED_SELLER_REVIEW_NOTE } from "@/lib/orderReviewHolds";
 import { requireSingleOrderSellerProfileId } from "@/lib/orderSellerKey";
 import {
   blockedCheckoutDisputeState,
-  chargeDisputeLedgerState,
-  chargeRefundLedgerState,
   checkoutItemsSubtotalCents,
   checkoutInvalidReasonState,
   checkoutPriceDriftState,
@@ -80,7 +82,6 @@ import {
   parsePositiveInt,
   retrievedStripeEventMatchesSignedEnvelope,
   SHIPPING_ESTIMATED_DAYS_MAX,
-  shouldApplyDisputeWebhookSideEffects,
 } from "@/lib/stripeWebhookState";
 import { Prisma, type FulfillmentStatus } from "@prisma/client";
 import {
@@ -93,6 +94,10 @@ import {
   type OrderRefundRecordResult,
 } from "@/lib/orderRefundRecordAuthority";
 import { finalizeBlockedCheckoutOrderRefund } from "@/lib/orderRefundFinalization";
+import {
+  applySignedDisputeWebhook,
+  applySignedRefundWebhook,
+} from "@/lib/orderPaymentSignedWebhook";
 
 
 export const runtime = "nodejs";
@@ -107,11 +112,6 @@ function snapshotText(value: string | null | undefined, maxLength: number) {
 
 function snapshotSellerName(value: string | null | undefined) {
   return sanitizeUserName(value ?? "", 100);
-}
-
-function paymentEventDescription(value: string | null | undefined) {
-  const description = truncateText(sanitizeText(value ?? ""), 5000);
-  return description || null;
 }
 
 type CheckoutBuyerPiiOrderData = {
@@ -564,44 +564,6 @@ export async function POST(req: Request) {
     }
   }
 
-  type OrderPaymentEventClient = {
-    orderPaymentEvent: {
-      createMany: (args: Prisma.OrderPaymentEventCreateManyArgs) => Promise<Prisma.BatchPayload>;
-    };
-  };
-
-  async function recordOrderPaymentEvent(data: {
-    orderId: string;
-    stripeEventId: string;
-    stripeObjectId?: string | null;
-    stripeObjectType?: string | null;
-    eventType: string;
-    amountCents?: number | null;
-    currency?: string | null;
-    status?: string | null;
-    reason?: string | null;
-    description?: string | null;
-    metadata?: Prisma.InputJsonObject;
-  }, db: OrderPaymentEventClient = prisma): Promise<boolean> {
-    const result = await db.orderPaymentEvent.createMany({
-      data: {
-        orderId: data.orderId,
-        stripeEventId: data.stripeEventId,
-        stripeObjectId: data.stripeObjectId ?? null,
-        stripeObjectType: data.stripeObjectType ?? null,
-        eventType: data.eventType,
-        amountCents: data.amountCents ?? null,
-        currency: (data.currency ?? DEFAULT_CURRENCY).toLowerCase(),
-        status: data.status ?? null,
-        reason: data.reason ?? null,
-        description: paymentEventDescription(data.description),
-        metadata: data.metadata ?? undefined,
-      },
-      skipDuplicates: true,
-    });
-    return result.count > 0;
-  }
-
   async function enqueueOrderPostPaymentSideEffects(
     orderId: string,
     opts: { multiSellerCheckout?: boolean } = {},
@@ -896,10 +858,6 @@ export async function POST(req: Request) {
         extra,
       });
     }
-  }
-
-  async function lockChargeMutation(tx: Prisma.TransactionClient, chargeId: string) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(913337, hashtext(${chargeId}))`;
   }
 
   async function lockUserRowsForUpdate(tx: Prisma.TransactionClient, userIds: Array<string | null | undefined>) {
@@ -2221,80 +2179,35 @@ export async function POST(req: Request) {
           currency?: string | null;
           refunds?: { data?: Array<{ id?: string; amount?: number; status?: string | null; created?: number | null; reason?: string | null }> };
         };
-        if (charge.id) {
-          await prisma.$transaction(async (tx) => {
-            await lockChargeMutation(tx, charge.id!);
-            const latestRefund = latestSuccessfulRefund(charge.refunds?.data ?? []);
-            const existingOrder = await tx.order.findFirst({
-              where: { stripeChargeId: charge.id },
-              select: {
-                id: true,
-                currency: true,
-                sellerRefundId: true,
-                sellerRefundLockedAt: true,
-                caseResolutionClaimId: true,
-                refundClaimId: true,
-                sellerRefundAmountCents: true,
-                itemsSubtotalCents: true,
-                shippingAmountCents: true,
-                giftWrappingPriceCents: true,
-                taxAmountCents: true,
-              },
-            });
-            if (!existingOrder) {
-              throw new Error("Stripe charge.refunded webhook could not find a Grainline order for charge.");
-            }
-            const refundLedger = chargeRefundLedgerState({
-              chargeId: charge.id!,
-              chargeCurrency: charge.currency,
-              amountRefundedCents: charge.amount_refunded,
-              latestRefund,
-              fallbackRefundId: `external:${event.id}`,
-              order: existingOrder,
-            });
-
-            const refundLedgerCreated = await recordOrderPaymentEvent({
-              orderId: existingOrder.id,
-              stripeEventId: event.id,
-              stripeObjectId: refundLedger.ledger.stripeObjectId,
-              stripeObjectType: "refund",
-              eventType: "REFUND",
-              amountCents: refundLedger.ledger.amountCents,
-              currency: refundLedger.ledger.currency,
-              status: refundLedger.ledger.status,
-              reason: refundLedger.ledger.reason,
-              description: refundLedger.ledger.description,
-              metadata: refundLedger.ledger.metadata,
-            }, tx);
-
-            if (refundLedgerCreated && refundLedger.orderUpdate) {
-              await tx.order.update({
-                where: { id: existingOrder.id },
-                data: refundLedger.orderUpdate,
-              });
-            }
-            if (refundLedgerCreated) {
-              await logSystemActionOrThrow({
-                client: tx,
-                actorType: "webhook",
-                actorId: event.id,
-                action: "STRIPE_REFUND_RECORDED",
-                targetType: "ORDER",
-                targetId: existingOrder.id,
-                reason: refundLedger.ledger.reason ?? null,
-                metadata: {
-                  stripeEventType: event.type,
-                  stripeChargeId: charge.id!,
-                  stripeRefundId: refundLedger.ledger.stripeObjectId,
-                  amountCents: refundLedger.ledger.amountCents,
-                  currency: refundLedger.ledger.currency,
-                  status: refundLedger.ledger.status,
-                  hasOrderUpdate: Boolean(refundLedger.orderUpdate),
-                },
-              });
-            }
-          });
+        if (
+          !charge.id
+          || typeof charge.amount_refunded !== "number"
+          || !Number.isSafeInteger(charge.amount_refunded)
+          || charge.amount_refunded <= 0
+          || typeof charge.currency !== "string"
+          || charge.currency.length === 0
+        ) {
+          throw new Error("Stripe charge.refunded webhook has an invalid signed source.");
         }
+        const chargeId = charge.id;
+        const amountRefundedCents = charge.amount_refunded;
+        const chargeCurrency = charge.currency;
+        await prisma.$transaction(async (tx) => {
+          const latestRefund = latestSuccessfulRefund(charge.refunds?.data ?? []);
+          await applySignedRefundWebhook(tx, {
+            eventId: event.id,
+            claimGeneration,
+            chargeId,
+            eventCreatedSeconds: event.created,
+            amountRefundedCents,
+            currency: chargeCurrency,
+            refundId: latestRefund?.id ?? null,
+            refundAmountCents: latestRefund?.amount ?? null,
+            refundStatus: latestRefund?.status ?? null,
+            refundCreatedSeconds: latestRefund?.created ?? null,
+            refundReason: latestRefund?.reason ?? null,
+          });
+        });
         return NextResponse.json({ received: true });
       });
     }
@@ -2310,199 +2223,64 @@ export async function POST(req: Request) {
           status?: string | null;
         };
         const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
-        if (chargeId) {
-          const notifySellerUserId = await prisma.$transaction(async (tx) => {
-            await lockChargeMutation(tx, chargeId);
-            const order = await tx.order.findFirst({
-              where: { stripeChargeId: chargeId },
-              select: {
-                id: true,
-                currency: true,
-                sellerRefundId: true,
-                sellerRefundLockedAt: true,
-                refundClaimId: true,
-              },
-            });
-            if (!order) {
-              throw new Error("Stripe dispute webhook could not find a Grainline order for charge.");
-            }
-            const disputeLedger = chargeDisputeLedgerState({
-              chargeId,
-              eventType: event.type,
-              stripeEventCreated: event.created,
-              dispute,
-              orderCurrency: order.currency,
-            });
-            const latestDisputeEvents = dispute.id
-              ? await tx.$queryRaw<Array<{
-                  stripeEventId: string;
-                  status: string | null;
-                  stripeEventCreated: bigint | number | null;
-                }>>`
-                  SELECT
-                    ope."stripeEventId",
-                    ope."status",
-                    COALESCE(
-                      NULLIF(ope."metadata"->>'stripeEventCreated', '')::bigint,
-                      EXTRACT(EPOCH FROM ope."createdAt")::bigint
-                    ) AS "stripeEventCreated"
-                  FROM "OrderPaymentEvent" ope
-                  WHERE ope."orderId" = ${order.id}
-                    AND ope."eventType" = 'DISPUTE'
-                    AND ope."stripeObjectId" = ${dispute.id}
-                  ORDER BY
-                    COALESCE(
-                      NULLIF(ope."metadata"->>'stripeEventCreated', '')::bigint,
-                      EXTRACT(EPOCH FROM ope."createdAt")::bigint
-                    ) DESC,
-                    ope."createdAt" DESC,
-                    ope.id DESC
-                  LIMIT 1
-                `
-              : [];
-            const latestDisputeEvent = latestDisputeEvents[0] ?? null;
-            const applyDisputeSideEffects = shouldApplyDisputeWebhookSideEffects({
-              currentEventCreated: event.created,
-              currentStatus: disputeLedger.ledger.status,
-              latestEvent: latestDisputeEvent,
-            });
-            const disputeLedgerCreated = await recordOrderPaymentEvent({
-              orderId: order.id,
-              stripeEventId: event.id,
-              stripeObjectId: disputeLedger.ledger.stripeObjectId,
-              stripeObjectType: "dispute",
-              eventType: "DISPUTE",
-              amountCents: disputeLedger.ledger.amountCents,
-              currency: disputeLedger.ledger.currency,
-              status: disputeLedger.ledger.status,
-              reason: disputeLedger.ledger.reason,
-              description: disputeLedger.ledger.description,
-              metadata: disputeLedger.ledger.metadata,
-            }, tx);
-            const disputeSideEffectsApplied = disputeLedgerCreated && applyDisputeSideEffects;
-            const orderUpdate = { ...disputeLedger.orderUpdate };
-            if (disputeSideEffectsApplied) {
-              if (
-                "sellerRefundLockedAt" in orderUpdate &&
-                order.sellerRefundId === REFUND_LOCK_SENTINEL &&
-                (
-                  Boolean(order.refundClaimId) ||
-                  !isStaleRefundLock({
-                    sellerRefundId: order.sellerRefundId,
-                    sellerRefundLockedAt: order.sellerRefundLockedAt,
-                  })
-                )
-              ) {
-                delete orderUpdate.sellerRefundLockedAt;
-              }
-              await tx.order.update({
-                where: { id: order.id },
-                data: orderUpdate,
-              });
-            }
-            let disputeCaseResult: {
-              caseId: string;
-              orderId: string;
-              sellerUserId: string;
-              buyerUserId: string;
-              paymentEventId: string;
-              action: "create" | "reopen";
-            } | null = null;
-            if (disputeSideEffectsApplied && event.type === "charge.dispute.created") {
-              const paymentEvent = await tx.orderPaymentEvent.findUnique({
-                where: { stripeEventId: event.id },
-                select: { id: true, orderId: true },
-              });
-              if (!paymentEvent || paymentEvent.orderId !== order.id) {
-                throw new Error("STRIPE_DISPUTE_PAYMENT_EVENT_SOURCE_MISMATCH");
-              }
-
-              const caseResults = await tx.$queryRaw<Array<{
-                caseId: string;
-                orderId: string;
-                sellerUserId: string;
-                buyerUserId: string;
-                paymentEventId: string;
-                action: string;
-              }>>`
-                SELECT *
-                FROM public.grainline_case_stripe_dispute_apply(${paymentEvent.id}::text)
-              `;
-              const caseResult = caseResults[0];
-              if (
-                caseResults.length !== 1 ||
-                !caseResult ||
-                !caseResult.caseId ||
-                caseResult.orderId !== order.id ||
-                !caseResult.sellerUserId ||
-                !caseResult.buyerUserId ||
-                caseResult.paymentEventId !== paymentEvent.id ||
-                (caseResult.action !== "create" && caseResult.action !== "reopen")
-              ) {
-                throw new Error("STRIPE_DISPUTE_CASE_AUTHORITY_RESULT_INVALID");
-              }
-              disputeCaseResult = {
-                ...caseResult,
-                action: caseResult.action,
-              };
-            }
-            if (disputeLedgerCreated) {
-              await logSystemActionOrThrow({
-                client: tx,
-                actorType: "webhook",
-                actorId: event.id,
-                action: "STRIPE_DISPUTE_RECORDED",
-                targetType: "ORDER",
-                targetId: order.id,
-                reason: disputeLedger.ledger.reason ?? null,
-                metadata: {
-                  stripeEventType: event.type,
-                  stripeChargeId: chargeId,
-                  stripeDisputeId: disputeLedger.ledger.stripeObjectId,
-                  amountCents: disputeLedger.ledger.amountCents,
-                  currency: disputeLedger.ledger.currency,
-                  status: disputeLedger.ledger.status,
-                  caseAction: disputeCaseResult?.action ?? "none",
-                  hasOrderUpdate: disputeSideEffectsApplied && Object.keys(orderUpdate).length > 0,
-                  disputeSideEffectsApplied,
-                  latestRecordedStripeEventId: latestDisputeEvent?.stripeEventId ?? null,
-                  latestRecordedStripeEventCreated: latestDisputeEvent?.stripeEventCreated != null
-                    ? String(latestDisputeEvent.stripeEventCreated)
-                    : null,
-                },
-              });
-            }
-            return disputeCaseResult
-              ? {
-                  sellerUserId: disputeCaseResult.sellerUserId,
-                  orderId: disputeCaseResult.orderId,
-                  buyerUserId: disputeCaseResult.buyerUserId,
-                  notificationPaymentSourceId: event.id,
-                }
-              : null;
+        if (
+          !chargeId
+          || !dispute.id
+          || typeof dispute.amount !== "number"
+          || !Number.isSafeInteger(dispute.amount)
+          || dispute.amount <= 0
+          || typeof dispute.currency !== "string"
+          || dispute.currency.length === 0
+          || typeof dispute.status !== "string"
+          || dispute.status.length === 0
+        ) {
+          throw new Error("Stripe dispute webhook has an invalid signed source.");
+        }
+        const disputeId = dispute.id;
+        const disputeAmountCents = dispute.amount;
+        const disputeCurrency = dispute.currency;
+        const disputeStatus = dispute.status;
+        const disputeResult = await prisma.$transaction(async (tx) => {
+          const result = await applySignedDisputeWebhook(tx, {
+            eventId: event.id,
+            claimGeneration,
+            chargeId,
+            disputeId,
+            eventCreatedSeconds: event.created,
+            amountCents: disputeAmountCents,
+            currency: disputeCurrency,
+            reason: dispute.reason ?? null,
+            status: disputeStatus,
           });
-          if (notifySellerUserId) {
-            await createNotification({
-              userId: notifySellerUserId.sellerUserId,
+          if (result.notificationAuthorized) {
+            await createNotificationOrThrow({
+              userId: result.sellerUserId,
               type: "PAYMENT_DISPUTE",
               title: "Payment dispute opened",
-              body: `Stripe reported a dispute for order ${notifySellerUserId.orderId}.`,
-              link: `/dashboard/sales/${notifySellerUserId.orderId}`,
-              dedupScope: `stripe-dispute:${dispute.id ?? event.id}:created`,
+              body: `Stripe reported a dispute for order ${result.orderId}.`,
+              link: `/dashboard/sales/${result.orderId}`,
+              dedupScope: `stripe-dispute:${disputeId}:created`,
               sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_PAYMENT,
-              sourceId: notifySellerUserId.notificationPaymentSourceId,
-              relatedUserId: notifySellerUserId.buyerUserId ?? undefined,
-            });
-            Sentry.captureMessage("Stripe dispute opened", {
-              level: "warning",
-              tags: { source: "stripe_dispute", disputeId: dispute.id, orderId: notifySellerUserId.orderId },
-              extra: {
-                stripeEventId: event.id,
-                stripeChargeId: typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id,
-                sellerUserId: notifySellerUserId.sellerUserId,
-              },
-            });
+              sourceId: event.id,
+              relatedUserId: result.buyerUserId,
+            }, tx);
           }
+          return result;
+        });
+        if (disputeResult.notificationAuthorized) {
+          Sentry.captureMessage("Stripe dispute opened", {
+            level: "warning",
+            tags: {
+              source: "stripe_dispute",
+              disputeId,
+              orderId: disputeResult.orderId,
+            },
+            extra: {
+              stripeEventId: event.id,
+              stripeChargeId: chargeId,
+              sellerUserId: disputeResult.sellerUserId,
+            },
+          });
         }
         return NextResponse.json({ received: true });
       });

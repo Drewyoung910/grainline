@@ -65,6 +65,7 @@ export function readReservationActivationMigrationCatalog(
   const release = verifyCheckoutStockReservationActivationRelease(root, {
     allowReviewedSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   if (
     release.migration !== CHECKOUT_STOCK_RESERVATION_ACTIVATION_MIGRATION

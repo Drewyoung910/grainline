@@ -27,6 +27,7 @@ const catalog = readSellerPayoutEventActivationMigrationCatalog(
     allowReviewedForceSuccessor: true,
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   },
 );
 const activation = catalog.at(-1);

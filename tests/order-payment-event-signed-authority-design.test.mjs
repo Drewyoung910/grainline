@@ -49,7 +49,17 @@ test("application conversion and later release gates remain separate", () => {
   assert.match(design, /post-commit\nbest-effort call is not accepted silently/);
   assert.match(design, /predecessor direct table authority and old\/new app\ncompatibility remain/);
   assert.match(design, /Policyless ENABLE,\ngrant revocation and FORCE remain later releases/);
-  assert.match(design, /No migration, application deployment,\nRLS, grant, provider or production state changes/);
+  assert.match(design, /isolated compatible candidate implemented and byte-pinned/);
+  assert.match(design, /20260824030000_prepare_order_payment_signed_authority/);
+  assert.match(
+    design,
+    /176ad2c17301dd1d6bd9a1c0e190e8d44b15463ec830f9a67eb43ec3070396f2/,
+  );
+  assert.match(
+    design,
+    /No merge, migration dispatch, application deployment, RLS, table-grant,\nprovider or production state change/,
+  );
+  assert.match(design, /guarded Production\nMigrations workflow intentionally does not expose this candidate/);
 });
 
 test("strategy preserves the signed-family sequencing decision", () => {

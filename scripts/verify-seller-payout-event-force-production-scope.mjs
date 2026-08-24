@@ -59,11 +59,13 @@ export function readSellerPayoutEventForceMigrationCatalog(
       allowReviewedForceSuccessor: true,
       allowReviewedRefundClaimSuccessor: true,
       allowReviewedRefundRecordSuccessor: true,
+      allowReviewedSignedAuthoritySuccessor: true,
     },
   );
   const release = verifySellerPayoutEventForceRelease(root, {
     allowReviewedRefundClaimSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   if (
     release.migration !== SELLER_PAYOUT_EVENT_FORCE_MIGRATION

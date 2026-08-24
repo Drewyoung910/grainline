@@ -43,6 +43,7 @@ test("FORCE release is one exact posture-only catalog change", () => {
   const release = verifyCheckoutStockReservationForceRelease(undefined, {
     allowReviewedSuccessor: true,
     allowReviewedRefundRecordSuccessor: true,
+    allowReviewedSignedAuthoritySuccessor: true,
   });
   assert.equal(release.phase, CHECKOUT_STOCK_RESERVATION_FORCE_PHASE);
   assert.equal(release.migration, candidate.migrationName);
@@ -65,7 +66,7 @@ test("FORCE release is one exact posture-only catalog change", () => {
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260824020000_prepare_order_refund_record_authority",
+    "20260824030000_prepare_order_payment_signed_authority",
   );
   assert.throws(
     () => verifyCheckoutStockReservationForceRelease(),
@@ -117,7 +118,7 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
 
   const sealedPrefix = spawnSync(
     process.execPath,
-    [script, "--allow-reviewed-refund-record-successor"],
+    [script, "--allow-reviewed-signed-authority-successor"],
     { encoding: "utf8" },
   );
   assert.equal(sealedPrefix.status, 0, sealedPrefix.stderr);
@@ -125,7 +126,7 @@ test("FORCE verifier CLI keeps strict history and exposes only the reviewed succ
   assert.equal(release.guard.sealedPrefix, true);
   assert.equal(
     release.guard.reviewedSuccessorMigration,
-    "20260824020000_prepare_order_refund_record_authority",
+    "20260824030000_prepare_order_payment_signed_authority",
   );
 
   const unknown = spawnSync(process.execPath, [script, "--allow-any-successor"], {

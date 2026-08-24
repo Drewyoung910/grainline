@@ -1,7 +1,10 @@
 # OrderPaymentEvent signed-webhook authority design
 
-Status: isolated design contract only. No migration, application deployment,
-RLS, grant, provider or production state changes are part of this checkpoint.
+Status: isolated compatible candidate implemented and byte-pinned. Migration
+`20260824030000_prepare_order_payment_signed_authority` has SHA-256
+`176ad2c17301dd1d6bd9a1c0e190e8d44b15463ec830f9a67eb43ec3070396f2`.
+No merge, migration dispatch, application deployment, RLS, table-grant,
+provider or production state change is part of this checkpoint.
 
 Audited: 2026-08-23 after the fixed local-refund record and crash-safe
 participant-delivery packages.
@@ -73,7 +76,8 @@ The compatible schema adds nullable
 `OrderPaymentEvent.stripeEventCreatedSeconds bigint` with a validated range
 check. Signed refund and dispute writes require it. Local historical writers
 remain nullable during coexistence. A latest-per-dispute index orders by
-`orderId`, `stripeObjectId`, typed event time descending and stable row ID.
+`orderId`, `eventType`, `stripeObjectId`, typed event time descending and
+stable row ID.
 
 The migration does not backfill a provider time from application `createdAt`.
 That would turn arrival time into fabricated provider evidence. Legacy rows
@@ -121,13 +125,46 @@ compatibility remain until the converted deployment, signed delivery/retry and
 concurrency proof, and predecessor drain are complete. Policyless ENABLE,
 grant revocation and FORCE remain later releases.
 
+## Implemented candidate checkpoint
+
+The isolated candidate implements the two operations above, the nullable typed
+event-time column and its latest-dispute index. The Stripe platform webhook
+route uses typed application wrappers and no longer directly inserts
+`OrderPaymentEvent` rows for the converted refund/dispute families. Missing
+signed charge/dispute amount, currency or status fields fail closed rather than
+being replaced with application defaults.
+
+The dispute operation derives Order, buyer and seller from the validated
+source, invokes the existing Case source operation only for a newest
+`charge.dispute.created` observation, and co-commits its source-bound seller
+Notification in the same database transaction. Same-provider-second rows are
+classified as `same_second_recorded` only when amount, currency, reason,
+status, and signed Stripe event type agree. Any differing field—including a
+`created`/`updated` type difference—records `conflict_recorded`, marks the
+Order for staff reconciliation and authorizes no Case or participant fanout.
+
+The migration stays compatible: RLS remains unchanged, predecessor table CRUD
+remains available for old deployments and exactly the two new operations are
+runtime-callable. `scripts/verify-order-payment-signed-authority-release.mjs`
+seals this phase as `order-payment-signed-authority-prepared`; CI applies the
+migration only after replaying the byte-sealed historical refund,
+CheckoutStockReservation and SellerPayoutEvent chains. The guarded Production
+Migrations workflow intentionally does not expose this candidate yet.
+
+Disposable PostgreSQL proof covers separate owner/runtime ACLs, forged
+source/type/object/generation denial, replay/collision behavior, refund and
+dispute serialization, older/newer/equal-second handling, Case binding,
+transaction rollback and zero new generic function authority. Predecessor
+direct table CRUD is intentionally retained for coexistence. These local proofs do not
+replace the future converted-deployment signed Stripe delivery/retry proof.
+
 ## Proof gates
 
 Before merge or deployment, disposable PostgreSQL must prove separate owner and
 runtime roles, ACLs, source/type/object/generation rejection, Order derivation,
 currency and amount checks, identical replay, conflicting replay, concurrent
 first insert, refund/dispute serialization, older/newer/equal-second dispute
-behavior, Case source binding, rollback and zero generic authority.
+behavior, Case source binding, rollback and zero new generic function authority.
 
 Before activation, a fresh provider proof must exercise real signed Stripe
 test-mode refund and dispute deliveries plus retry against the converted
