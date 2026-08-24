@@ -116,6 +116,12 @@ session and Admin-PIN possession are enforced by the server action.
 - The admin form does not expose claim, PaymentIntent or provider outcome
   controls. It shows only the local pending/ambiguous state and one inspect
   action with a required reason.
+- Draft PR CI run `32701936965` failed before this candidate was restored: the
+  source-derived grant auditor treated the branch-tip Prisma model as already
+  materialized while replaying the historical Case activation prefix. The
+  auditor now gates only this named successor table on both its exact migration
+  directory and `CREATE TABLE` marker. Missing-table denial remains strict once
+  the migration is present, and a regression test proves both prefix states.
 
 ## Residual gates and honest limits
 

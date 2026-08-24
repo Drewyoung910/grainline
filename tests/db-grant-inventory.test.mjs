@@ -2164,6 +2164,36 @@ describe("database grant inventory guardrails", () => {
     ]);
   });
 
+  it("does not demand the staged refund-reconciliation table before its sealed migration is restored", () => {
+    const root = mkdtempSync(join(tmpdir(), "grainline-refund-inventory-"));
+    mkdirSync(join(root, "prisma", "migrations"), { recursive: true });
+    writeFileSync(
+      join(root, "prisma", "schema.prisma"),
+      [
+        "model OrderRefundReconciliation {",
+        "  id String @id",
+        "}",
+      ].join("\n"),
+    );
+    assert.deepEqual(deriveGrantInventory(root).tables, []);
+
+    const migrationDirectory = join(
+      root,
+      "prisma",
+      "migrations",
+      "20260824040000_prepare_order_refund_reconciliation_authority",
+    );
+    mkdirSync(migrationDirectory, { recursive: true });
+    writeFileSync(
+      join(migrationDirectory, "migration.sql"),
+      'CREATE TABLE public."OrderRefundReconciliation" (id text PRIMARY KEY);',
+    );
+    assert.deepEqual(
+      deriveGrantInventory(root).tables,
+      ["OrderRefundReconciliation"],
+    );
+  });
+
   it("documents source-derived inventory and the live-proof boundary", () => {
     const plan = source("docs/db-defense-in-depth-plan.md");
     const rls = source("docs/rls-feasibility-plan.md");

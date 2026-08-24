@@ -29,6 +29,7 @@ import {
   CHECKOUT_STOCK_RESERVATION_PRIVATE_FUNCTION_NAMES,
 } from "./checkout-stock-reservation-authority-catalog.mjs";
 import {
+  ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
   ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
 } from "./order-refund-reconciliation-authority-catalog.mjs";
 
@@ -1001,7 +1002,25 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
   const migrationSql = readMigrationSql(rootDir);
 
   const modelBlocks = [...schema.matchAll(/^model\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
-  const tables = sortedUnique(modelBlocks.map((match) => mappedDbName(match[2], match[1])));
+  const schemaTables = modelBlocks.map((match) => mappedDbName(match[2], match[1]));
+  // CI intentionally removes sealed successor migrations while replaying each
+  // historical release prefix. Prisma schema remains at the branch tip during
+  // those intermediate audits, so a successor-only model is expected only
+  // after its exact CREATE TABLE migration is restored. Keep this exception
+  // named and byte-bound instead of weakening missing-table checks generally.
+  const refundReconciliationMigrationPresent = migrationSql.includes(
+    'CREATE TABLE public."OrderRefundReconciliation"',
+  ) && existsSync(path.join(
+    rootDir,
+    "prisma",
+    "migrations",
+    ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
+    "migration.sql",
+  ));
+  const tables = sortedUnique(schemaTables.filter(
+    (tableName) => tableName !== "OrderRefundReconciliation"
+      || refundReconciliationMigrationPresent,
+  ));
   const enumBlocks = [...schema.matchAll(/^enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^}/gm)];
   const enums = sortedUnique(
     enumBlocks.map((match) => mappedDbName(match[2], match[1])),
