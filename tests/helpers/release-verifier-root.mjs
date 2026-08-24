@@ -79,11 +79,11 @@ function repositoryWithMigrationFilter(cacheKey, includeMigration) {
 }
 
 export function repositoryBeforeRefundReconciliation() {
-  const excluded =
+  const firstExcluded =
     "20260824040000_prepare_order_refund_reconciliation_authority";
   return repositoryWithMigrationFilter(
-    `without:${excluded}`,
-    (name) => name !== excluded,
+    `before:${firstExcluded}`,
+    (name) => name < firstExcluded,
   );
 }
 
