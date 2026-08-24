@@ -494,6 +494,15 @@ production inspection, then use compatible schema/functions, converted app
 deployment, signed provider/concurrency proof, predecessor drain, policyless
 ENABLE and separate FORCE. Do not bundle shipping quotes, Order or OrderItem.
 
+The next isolated successor is the two-function signed platform-webhook
+authority in `docs/order-payment-event-signed-authority-design.md`. Keep signed
+`charge.refunded` and dispute application together because they share the
+active webhook generation, charge/Order lock order and typed provider clock.
+Do not bundle ambiguous local-refund reconciliation, staff Case refunds,
+participant projections, RLS or grants. Equal-provider-second conflicts retain
+evidence and mark reconciliation without Case, refund-lock or notification
+effects; event ID and application arrival time must never choose the winner.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
