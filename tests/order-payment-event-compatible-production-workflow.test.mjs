@@ -116,4 +116,20 @@ test("PostgreSQL proof refuses non-loopback and CI runs the real reader", async 
     ci,
     /ORDER_PAYMENT_EVENT_COMPATIBLE_SCOPE_PROOF_DATABASE_URL: \$\{\{ env\.DIRECT_URL \}\}/,
   );
+  assert.equal(
+    typeof pkg.scripts?.["audit:order-payment-compatible-postflight-postgres"],
+    "string",
+  );
+  assert.equal(
+    typeof pkg.scripts?.["ops:order-payment-compatible-postflight"],
+    "string",
+  );
+  assert.match(
+    ci,
+    /Prove OrderPaymentEvent compatible postflight through the actual runtime login/,
+  );
+  assert.match(
+    ci,
+    /ORDER_PAYMENT_EVENT_COMPATIBLE_POSTFLIGHT_PROOF_DATABASE_URL: postgresql:\/\/grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432\/grainline_ci\?sslmode=disable/,
+  );
 });

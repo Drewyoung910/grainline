@@ -1,9 +1,17 @@
 # OrderPaymentEvent compatible production preparation
 
-Status: isolated guarded-runner candidate. The five compatible migrations are
-merged and proven in disposable PostgreSQL, but this workflow has not been
-merged, dispatched, production-applied or deployed. `OrderPaymentEvent` RLS
-remains off and its predecessor runtime CRUD remains intact.
+Status: accepted compatible production database preparation. Exact main
+`8f4cf2df34a9f700adebc910107ac2dbb878054a`, CI `32792800761`, fresh
+aggregate inspection `32793276224`, and guarded run `32793394895` applied all
+five migrations and passed migration status, the global grant/RLS audit and the
+exact engine-read-only post-application scope. The converted application has
+not been deployed. `OrderPaymentEvent` RLS remains off and its predecessor
+runtime CRUD remains intact.
+
+Retain sanitized mode-`0600` inspection evidence SHA-256
+`f97e90cf79be803cf462b3201e6f71e2208268d399cf4903fe1ddae759503730`.
+It contains no addresses, credentials, provider/object/user identifiers, raw
+rows or snapshots.
 
 ## Purpose
 
@@ -79,6 +87,16 @@ The verifier checks the catalog, not only the ledger:
 The verifier runs inside an engine-attested `REPEATABLE READ READ ONLY`
 transaction. CI runs the same catalog reader against PostgreSQL 16 after the
 five promoted migrations and runtime-grant convergence.
+
+The distinct compatible postflight then connects through an actual direct
+login as the restricted runtime role in CI and through the reviewed pooled
+runtime credential in production. It repeats the exact migration-derived
+function-body and ACL catalog checks, proves predecessor
+`OrderPaymentEvent` read/CRUD compatibility remains, and directly proves both
+the private reconciliation table and private refund-record core reject the
+runtime role. Its production execution is separately bound to an exact clean
+main commit, successful main CI and guarded migration run, and emits only a
+fresh sanitized mode-`0600` evidence file.
 
 ## Execution and failure behavior
 
