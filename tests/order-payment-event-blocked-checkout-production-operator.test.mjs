@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   CONFIRMATION,
+  CONNECTED_ACCOUNT_MARKER_KEY,
   PRICE_CENTS,
   SELLER_TRANSFER_CENTS,
+  STRIPE_METADATA_KEY_MAX_LENGTH,
   assertCheckoutResponse,
   assertAbortCleanupStage,
   assertCompletedSession,
@@ -14,6 +16,7 @@ import {
   assertPreparedSnapshot,
   assertRefund,
   assertReplayUnchanged,
+  assertStripeMetadataKeys,
   assertState,
   buildConnectedAccountParams,
   buildEvidence,
@@ -149,6 +152,22 @@ test("configuration and restart state fail closed", () => {
   assert.equal(parsed.command, "prepare");
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_CONFIRM: "wrong" })), /confirmation is invalid/);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "run" })), /command is invalid/);
+  assert.throws(() => validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_COMMIT: "c".repeat(40),
+  })), /commit and CI must be supplied together/);
+  assert.throws(() => validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_COMMIT: "c".repeat(40),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_CI_RUN_ID: String(CI),
+  })), /must replace both commit and CI bindings/);
+  const recovery = validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_COMMIT: "c".repeat(40),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_CI_RUN_ID: String(CI + 1),
+  }), "/repo");
+  assert.equal(recovery.expectedCommit, COMMIT);
+  assert.equal(recovery.mainCiRunId, CI);
+  assert.equal(recovery.operatorCommit, "c".repeat(40));
+  assert.equal(recovery.operatorCiRunId, CI + 1);
+  assert.match(recovery.statePath, new RegExp(`state-${COMMIT.slice(0, 12)}\\.json$`));
   const initial = createInitialState(config, {
     id: "opebc_buyer_canary", clerkId: "user_canary", email: "canary@example.com",
     notificationPreferences: {}, termsAcceptedAt: "2026-08-25T12:34:56.123456",
@@ -202,6 +221,10 @@ test("disposable connected account is transfer-only and marker-bound", () => {
   const params = buildConnectedAccountParams(config, pending, new Date("2026-08-25T00:00:00Z"));
   assert.deepEqual(params.capabilities, { transfers: { requested: true } });
   assert.equal(params.capabilities.card_payments, undefined);
+  assert.deepEqual(Object.keys(params.metadata), [CONNECTED_ACCOUNT_MARKER_KEY]);
+  assert.ok(CONNECTED_ACCOUNT_MARKER_KEY.length <= STRIPE_METADATA_KEY_MAX_LENGTH);
+  assert.equal(assertState({ ...pending, stage: "account-create-pending" }, config).stage, "account-create-pending");
+  assert.throws(() => assertStripeMetadataKeys({ ["x".repeat(STRIPE_METADATA_KEY_MAX_LENGTH + 1)]: "value" }), /provider limits/);
   const account = { id: "acct_proof", deleted: false, livemode: false, country: "US", default_currency: "usd",
     type: "custom", capabilities: { transfers: "active" }, metadata: params.metadata };
   assert.equal(assertConnectedAccount(account, config, pending).id, "acct_proof");
@@ -262,6 +285,12 @@ test("delivery, exact replay, evidence, and redaction reject drift", () => {
     clerkSessionsRevoked: true, processedWebhookCount: 2, redisKeysRemoved: true };
   const evidence = buildEvidence(config, value, cleanup);
   assert.equal(assertEvidence(evidence, config).stripe.genuineSignedEventsDelivered, 2);
+  const recoveryConfig = { ...config, operatorCommit: "c".repeat(40), operatorCiRunId: CI + 1 };
+  const recoveryEvidence = buildEvidence(recoveryConfig, value, cleanup);
+  assert.equal(assertEvidence(recoveryEvidence, recoveryConfig).commit, COMMIT);
+  assert.equal(recoveryEvidence.operatorCommit, "c".repeat(40));
+  assert.equal(recoveryEvidence.operatorCiRunId, CI + 1);
+  assert.throws(() => assertEvidence({ ...recoveryEvidence, operatorCommit: "d".repeat(40) }, recoveryConfig), /evidence drifted/);
   assert.equal(redact("sk_test_secret cs_test_x_secret_y acct_123 postgres://u:p@db Bearer token"),
     "[redacted-stripe-secret] [redacted-stripe-secret] [redacted-stripe-object] [redacted-database-url] Bearer [redacted-token]");
 });
@@ -273,7 +302,7 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.match(source, /server\.listen\(config\.port, "127\.0\.0\.1"/);
   assert.match(
     source,
-    /servePaymentPage[\s\S]*assertGitState\(readGitState\(config\.cwd\), config\.expectedCommit\)[\s\S]*verifyGitHubCi\(config\)/,
+    /servePaymentPage[\s\S]*assertGitState\(readGitState\(config\.cwd\), config\.operatorCommit \?\? config\.expectedCommit\)[\s\S]*verifyGitHubCi\(config\)/,
   );
   assert.match(source, /checkout\.session\.completed/);
   assert.match(source, /charge\.refunded/);

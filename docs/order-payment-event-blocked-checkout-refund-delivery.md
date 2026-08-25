@@ -219,3 +219,35 @@ This correction and its eventual proof do not establish the signed-family,
 seller-refund or staff-Case proof, and none of those proves this path. They also
 do not authorize predecessor table-grant revocation, policyless ENABLE, FORCE,
 or activation of `Order`, `OrderItem` or `OrderShippingRateQuote`.
+
+## First production-proof attempt and restart correction (2026-08-25)
+
+The compatible database and application release completed before the provider
+proof. Exact main `a6593516be9fd5531e867aea43b4bbf6319f3094` passed CI
+`32900648444`; guarded run `32902265239` applied only
+`20260825010000_prepare_blocked_checkout_refund_delivery`; and production
+deployment `dpl_JCmwmKQVwTnvMB2nk7XwYFvQR5xA` reached `READY` on the
+canonical aliases. The separate pooled-runtime postflight passed from the same
+source with `productionChangedByPostflight=false`.
+
+The first authorized test-mode provider attempt stopped at
+`account-create-pending` before Stripe created an account. Stripe rejected the
+46-character connected-account marker key because metadata keys are limited to
+40 characters. No Checkout Session, payment, application fixture, signed
+delivery or proof evidence was created. The mode-`0600` journal remains at the
+exact ambiguous restart boundary and must not be deleted or bypassed.
+
+The correction shortens only that marker key and enforces the provider limit
+in the parameter builder. Recovery keeps the original attempt commit, CI,
+marker, idempotency and evidence filename while separately binding the clean
+corrected operator commit and its successful CI. Both historical and corrected
+CI runs must validate on every resumed command. Recovery mode refuses to start
+without the preserved journal. This is an operator defect and does not change
+the compatible application, migration, grants, RLS posture or provider
+configuration.
+
+Local correction validation passes the 24-test focused migration, scope,
+operator and atomic refund-side-effect suite, all 3,419 repository tests with
+3,412 passes and seven documented skips, TypeScript, lint, syntax and diff
+checks. A fresh exact-main CI binding is still required before recovery may
+resume.

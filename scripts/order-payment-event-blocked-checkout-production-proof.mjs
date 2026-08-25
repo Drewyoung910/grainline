@@ -51,6 +51,8 @@ export const RUNTIME_ROLE = "grainline_app_runtime";
 export const PRICE_CENTS = 500;
 export const SELLER_TRANSFER_CENTS = 475;
 export const TERMS_VERSION = "2026-06-14";
+export const STRIPE_METADATA_KEY_MAX_LENGTH = 40;
+export const CONNECTED_ACCOUNT_MARKER_KEY = "grainline_blocked_checkout_proof";
 export const REQUIRED_ALIASES = Object.freeze([
   "thegrainline.com",
   "www.thegrainline.com",
@@ -185,6 +187,21 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   const deploymentId = required(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_DEPLOYMENT_ID");
   if (!DEPLOYMENT_PATTERN.test(deploymentId)) throw new Error("blocked-checkout proof deployment ID is invalid");
   const mainCiRunId = positiveInteger(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_MAIN_CI_RUN_ID");
+  const operatorCommitInput = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_COMMIT || null;
+  const operatorCiRunIdInput = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_CI_RUN_ID || null;
+  if (Boolean(operatorCommitInput) !== Boolean(operatorCiRunIdInput)) {
+    throw new Error("blocked-checkout operator recovery commit and CI must be supplied together");
+  }
+  const operatorCommit = operatorCommitInput || expectedCommit;
+  const operatorCiRunId = operatorCiRunIdInput
+    ? positiveInteger(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_CI_RUN_ID")
+    : mainCiRunId;
+  if (!COMMIT_PATTERN.test(operatorCommit)) {
+    throw new Error("blocked-checkout operator recovery commit input is invalid");
+  }
+  if ((operatorCommit !== expectedCommit) !== (operatorCiRunId !== mainCiRunId)) {
+    throw new Error("blocked-checkout operator recovery must replace both commit and CI bindings");
+  }
   const suffix = expectedCommit.slice(0, 12);
   const statePath = path.resolve(env.ORDER_PAYMENT_BLOCKED_CHECKOUT_STATE_PATH
     || path.join(EVIDENCE_DIRECTORY, `order-payment-event-blocked-checkout-state-${suffix}.json`));
@@ -210,6 +227,8 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     evidencePath,
     expectedCommit,
     mainCiRunId,
+    operatorCiRunId,
+    operatorCommit,
     port,
     statePath,
     stripeCliPath: path.resolve(env.ORDER_PAYMENT_BLOCKED_CHECKOUT_STRIPE_CLI_PATH || "/opt/homebrew/bin/stripe"),
@@ -379,6 +398,18 @@ export function markerFor(config, state) {
   return sha256(`${config.expectedCommit}:${state.attemptId}:blocked-checkout`);
 }
 
+export function assertStripeMetadataKeys(metadata) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    throw new Error("blocked-checkout Stripe metadata must be one object");
+  }
+  for (const key of Object.keys(metadata)) {
+    if (key.length < 1 || key.length > STRIPE_METADATA_KEY_MAX_LENGTH) {
+      throw new Error("blocked-checkout Stripe metadata key exceeded provider limits");
+    }
+  }
+  return metadata;
+}
+
 export function buildConnectedAccountParams(config, state, now = new Date()) {
   return {
     type: "custom",
@@ -404,7 +435,7 @@ export function buildConnectedAccountParams(config, state, now = new Date()) {
       account_number: "000123456789", account_holder_name: "Grainline Blocked Checkout Canary",
       account_holder_type: "individual",
     },
-    metadata: { grainline_order_payment_blocked_checkout_proof: markerFor(config, state) },
+    metadata: assertStripeMetadataKeys({ [CONNECTED_ACCOUNT_MARKER_KEY]: markerFor(config, state) }),
     settings: { payouts: { schedule: { interval: "manual" } } },
   };
 }
@@ -412,7 +443,7 @@ export function buildConnectedAccountParams(config, state, now = new Date()) {
 export function assertConnectedAccount(account, config, state) {
   if (!account || account.deleted === true || account.livemode === true
     || !/^acct_[A-Za-z0-9_]+$/.test(String(account.id ?? ""))
-    || account.metadata?.grainline_order_payment_blocked_checkout_proof !== markerFor(config, state)
+    || account.metadata?.[CONNECTED_ACCOUNT_MARKER_KEY] !== markerFor(config, state)
     || account.country !== "US" || account.default_currency !== "usd" || account.type !== "custom"
     || account.capabilities?.transfers !== "active") {
     throw new Error("blocked-checkout disposable connected account drifted");
@@ -461,9 +492,9 @@ function readGitState(cwd) {
   };
 }
 
-function verifyGitHubCi(config) {
+function readGitHubCi(commit, runId) {
   const raw = execFileSync("gh", [
-    "run", "view", String(config.mainCiRunId), "--json",
+    "run", "view", String(runId), "--json",
     "databaseId,headSha,conclusion,status,workflowName,headBranch,event",
   ], {
     encoding: "utf8",
@@ -473,7 +504,14 @@ function verifyGitHubCi(config) {
     }),
     stdio: ["ignore", "pipe", "pipe"],
   });
-  return parseGitHubCiRun(raw, config.expectedCommit, config.mainCiRunId);
+  return parseGitHubCiRun(raw, commit, runId);
+}
+
+function verifyGitHubCi(config) {
+  readGitHubCi(config.expectedCommit, config.mainCiRunId);
+  if (config.operatorCommit !== config.expectedCommit) {
+    readGitHubCi(config.operatorCommit, config.operatorCiRunId);
+  }
 }
 
 function assertVercelProject(config) {
@@ -1382,6 +1420,8 @@ export function buildEvidence(config, state, cleanup) {
     commit: config.expectedCommit,
     deployedSourceCommit: config.deployedSourceCommit,
     ciRunId: config.mainCiRunId,
+    operatorCommit: config.operatorCommit ?? config.expectedCommit,
+    operatorCiRunId: config.operatorCiRunId ?? config.mainCiRunId,
     deploymentId: config.deploymentId,
     stripe: {
       accountSha256: sha256(state.stripeAccountId),
@@ -1432,6 +1472,8 @@ export function assertEvidence(value, config) {
   if (value?.phase !== "order-payment-event-blocked-checkout-production-proof" || value?.status !== "passed"
     || value?.mode !== "test" || value?.commit !== config.expectedCommit
     || value?.deployedSourceCommit !== config.deployedSourceCommit || String(value?.ciRunId) !== String(config.mainCiRunId)
+    || value?.operatorCommit !== (config.operatorCommit ?? config.expectedCommit)
+    || String(value?.operatorCiRunId) !== String(config.operatorCiRunId ?? config.mainCiRunId)
     || value?.deploymentId !== config.deploymentId || !stripeHashes.every((key) => hex.test(value?.stripe?.[key] ?? ""))
     || !databaseHashes.every((key) => hex.test(value?.database?.[key] ?? ""))
     || value?.stripe?.buyerRefundAmountCents < PRICE_CENTS
@@ -1494,7 +1536,7 @@ async function deleteDisposableAccount(stripeOps, config, state) {
 }
 
 async function loadExecutionContext(config, state = null) {
-  assertGitState(readGitState(config.cwd), config.expectedCommit);
+  assertGitState(readGitState(config.cwd), config.operatorCommit ?? config.expectedCommit);
   verifyGitHubCi(config);
   const localValues = loadPrivateEnvironment(LOCAL_ENV_PATH, "local environment file");
   const ownerValues = loadPrivateEnvironment(OWNER_ENV_PATH, "migration-owner environment file");
@@ -1520,6 +1562,9 @@ async function loadExecutionContext(config, state = null) {
 
 export async function prepareProof(config = validateConfiguration()) {
   if (existsSync(config.evidencePath)) throw new Error("blocked-checkout proof evidence already exists");
+  if (config.operatorCommit !== config.expectedCommit && !existsSync(config.statePath)) {
+    throw new Error("blocked-checkout corrected operator requires the preserved recovery state");
+  }
   let state = existsSync(config.statePath)
     ? assertState(readPrivateJson(config.statePath, "blocked-checkout recovery state"), config)
     : null;
@@ -1608,7 +1653,7 @@ export async function prepareProof(config = validateConfiguration()) {
 }
 
 export async function servePaymentPage(config = validateConfiguration()) {
-  assertGitState(readGitState(config.cwd), config.expectedCommit);
+  assertGitState(readGitState(config.cwd), config.operatorCommit ?? config.expectedCommit);
   verifyGitHubCi(config);
   const state = assertState(readPrivateJson(config.statePath, "blocked-checkout recovery state"), config);
   if (state.stage !== "seller-blocked") throw new Error("blocked-checkout payment page requires seller-blocked state");
