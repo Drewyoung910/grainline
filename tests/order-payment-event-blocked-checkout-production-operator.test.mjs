@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   CONFIRMATION,
+  CONNECTED_ACCOUNT_CONTROLLER,
   CONNECTED_ACCOUNT_MARKER_KEY,
   PRICE_CENTS,
   SELLER_TRANSFER_CENTS,
@@ -13,18 +16,24 @@ import {
   assertConnectedAccount,
   assertDeliverySnapshot,
   assertEvidence,
+  assertOnboardingLink,
+  assertOnboardingRecord,
   assertPreparedSnapshot,
   assertRefund,
   assertReplayUnchanged,
   assertStripeMetadataKeys,
   assertState,
+  buildConnectedAccountLinkParams,
   buildConnectedAccountParams,
   buildEvidence,
   buildPaymentPage,
   createInitialState,
   redact,
+  readOnboardingRecord,
+  removeOnboardingRecord,
   validateConfiguration,
   validateProviderCredentials,
+  writeOnboardingRecord,
 } from "../scripts/order-payment-event-blocked-checkout-production-proof.mjs";
 
 const COMMIT = "a".repeat(40);
@@ -150,6 +159,8 @@ test("configuration and restart state fail closed", () => {
   const parsed = validateConfiguration(environment(), "/repo");
   assert.equal(parsed.expectedCommit, COMMIT);
   assert.equal(parsed.command, "prepare");
+  assert.equal(validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "onboard" }), "/repo").command,
+    "onboard");
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_CONFIRM: "wrong" })), /confirmation is invalid/);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "run" })), /command is invalid/);
   assert.throws(() => validateConfiguration(environment({
@@ -168,6 +179,7 @@ test("configuration and restart state fail closed", () => {
   assert.equal(recovery.operatorCommit, "c".repeat(40));
   assert.equal(recovery.operatorCiRunId, CI + 1);
   assert.match(recovery.statePath, new RegExp(`state-${COMMIT.slice(0, 12)}\\.json$`));
+  assert.match(recovery.onboardingPath, new RegExp(`onboarding-${COMMIT.slice(0, 12)}\\.json$`));
   const initial = createInitialState(config, {
     id: "opebc_buyer_canary", clerkId: "user_canary", email: "canary@example.com",
     notificationPreferences: {}, termsAcceptedAt: "2026-08-25T12:34:56.123456",
@@ -221,14 +233,100 @@ test("disposable connected account is transfer-only and marker-bound", () => {
   const params = buildConnectedAccountParams(config, pending, new Date("2026-08-25T00:00:00Z"));
   assert.deepEqual(params.capabilities, { transfers: { requested: true } });
   assert.equal(params.capabilities.card_payments, undefined);
+  assert.equal(Object.hasOwn(params, "type"), false);
+  assert.equal(Object.hasOwn(params, "business_type"), false);
+  assert.equal(Object.hasOwn(params, "individual"), false);
+  assert.equal(Object.hasOwn(params, "tos_acceptance"), false);
+  assert.deepEqual(params.controller, CONNECTED_ACCOUNT_CONTROLLER);
+  assert.deepEqual(params.controller, {
+    fees: { payer: "application" },
+    losses: { payments: "application" },
+    requirement_collection: "stripe",
+    stripe_dashboard: { type: "express" },
+  });
   assert.deepEqual(Object.keys(params.metadata), [CONNECTED_ACCOUNT_MARKER_KEY]);
   assert.ok(CONNECTED_ACCOUNT_MARKER_KEY.length <= STRIPE_METADATA_KEY_MAX_LENGTH);
   assert.equal(assertState({ ...pending, stage: "account-create-pending" }, config).stage, "account-create-pending");
   assert.throws(() => assertStripeMetadataKeys({ ["x".repeat(STRIPE_METADATA_KEY_MAX_LENGTH + 1)]: "value" }), /provider limits/);
   const account = { id: "acct_proof", deleted: false, livemode: false, country: "US", default_currency: "usd",
-    type: "custom", capabilities: { transfers: "active" }, metadata: params.metadata };
+    controller: CONNECTED_ACCOUNT_CONTROLLER, capabilities: { transfers: "active" }, metadata: params.metadata };
   assert.equal(assertConnectedAccount(account, config, pending).id, "acct_proof");
+  assert.equal(assertConnectedAccount({ ...account, capabilities: { transfers: "pending" } }, config, pending,
+    { requireTransferActive: false }).id, "acct_proof");
   assert.throws(() => assertConnectedAccount({ ...account, capabilities: { transfers: "pending" } }, config, pending), /account drifted/);
+  assert.throws(() => assertConnectedAccount({ ...account, controller: {
+    ...CONNECTED_ACCOUNT_CONTROLLER, requirement_collection: "application",
+  } }, config, pending), /"requirementsCollector":"application"/);
+  assert.throws(() => assertConnectedAccount({ ...account, livemode: true }, config, pending), /account drifted/);
+});
+
+test("hosted onboarding is production-shaped, attempt-bound, and freshness-checked", () => {
+  assert.deepEqual(buildConnectedAccountLinkParams("acct_proof"), {
+    account: "acct_proof",
+    collection_options: { fields: "eventually_due" },
+    refresh_url: "https://thegrainline.com/?blocked_checkout_canary=refresh",
+    return_url: "https://thegrainline.com/?blocked_checkout_canary=return",
+    type: "account_onboarding",
+  });
+  assert.throws(() => buildConnectedAccountLinkParams("acct_invalid/value"), /exact account ID/);
+  const link = {
+    object: "account_link",
+    url: "https://connect.stripe.com/setup/test_link",
+    expires_at: Math.floor(Date.now() / 1000) + 600,
+  };
+  assert.equal(assertOnboardingLink(link).url, link.url);
+  assert.throws(() => assertOnboardingLink({ ...link, url: "https://example.com/setup/test_link" }), /outside the reviewed boundary/);
+  assert.throws(() => assertOnboardingLink({ ...link, expires_at: 1 }), /outside the reviewed boundary/);
+  const accountCreated = state("account-created", {
+    stripeSessionId: null, stripeClientSecret: null, checkoutLockKey: null, reservationId: null,
+    checkoutEventId: null, orderId: null, orderItemId: null, paymentIntentId: null, chargeId: null,
+    transferId: null, chargeAmountCents: null, refundId: null, refundAmountCents: null,
+    transferReversalId: null, refundEventId: null, localPaymentEventId: null, signedPaymentEventId: null,
+    notificationId: null, emailOutboxId: null,
+  });
+  const record = {
+    version: 1,
+    phase: "order-payment-event-blocked-checkout-onboarding",
+    status: "onboarding-required",
+    expectedCommit: COMMIT,
+    deploymentId: DEPLOYMENT,
+    attemptId: accountCreated.attemptId,
+    stripeAccountId: accountCreated.stripeAccountId,
+    accountLinkUrl: link.url,
+    accountLinkExpiresAt: link.expires_at,
+  };
+  assert.equal(assertOnboardingRecord(record, config, accountCreated).stripeAccountId, accountCreated.stripeAccountId);
+  assert.throws(() => assertOnboardingRecord({ ...record, attemptId: "22222222-2222-4222-8222-222222222222" },
+    config, accountCreated), /does not bind/);
+  assert.throws(() => assertOnboardingRecord({ ...record, accountLinkExpiresAt: 1 }, config, accountCreated),
+    /outside the reviewed boundary/);
+});
+
+test("hosted-onboarding handoff is mode 0600, replaceable, and exactly removable", () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "grainline-blocked-onboarding-test-"));
+  try {
+    const onboardingPath = path.join(directory, "onboarding.json");
+    const fileConfig = { ...config, onboardingPath };
+    const accountCreated = state("account-created", {
+      stripeSessionId: null, stripeClientSecret: null, checkoutLockKey: null, reservationId: null,
+      checkoutEventId: null, orderId: null, orderItemId: null, paymentIntentId: null, chargeId: null,
+      transferId: null, chargeAmountCents: null, refundId: null, refundAmountCents: null,
+      transferReversalId: null, refundEventId: null, localPaymentEventId: null, signedPaymentEventId: null,
+      notificationId: null, emailOutboxId: null,
+    });
+    const first = { object: "account_link", url: "https://connect.stripe.com/setup/first",
+      expires_at: Math.floor(Date.now() / 1000) + 600 };
+    writeOnboardingRecord(fileConfig, accountCreated, first);
+    assert.equal(statSync(onboardingPath).mode & 0o777, 0o600);
+    assert.equal(readOnboardingRecord(fileConfig, accountCreated).accountLinkUrl, first.url);
+    const second = { ...first, url: "https://connect.stripe.com/setup/second", expires_at: first.expires_at + 60 };
+    writeOnboardingRecord(fileConfig, accountCreated, second);
+    assert.equal(readOnboardingRecord(fileConfig, accountCreated).accountLinkUrl, second.url);
+    removeOnboardingRecord(fileConfig, accountCreated);
+    assert.equal(existsSync(onboardingPath), false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("provider credentials are pinned to test Stripe, live Grainline Clerk, and HTTPS Redis", () => {
@@ -276,6 +374,7 @@ test("embedded page, route result, prepared state and Stripe effects are exact",
 
 test("delivery, exact replay, evidence, and redaction reject drift", () => {
   const value = state();
+  assert.equal(redact("https://connect.stripe.com/setup/test_secret_path?key=value"), "[redacted-onboarding-url]");
   const delivered = assertDeliverySnapshot(snapshot(), value);
   assert.equal(delivered.wrongNotificationCount, 0);
   assert.deepEqual(assertReplayUnchanged(delivered, snapshot(), value), delivered);
@@ -298,7 +397,14 @@ test("delivery, exact replay, evidence, and redaction reject drift", () => {
 test("static operator contract stays test-only, loopback-only, non-activating, and restart-safe", () => {
   const source = readFileSync(new URL("../scripts/order-payment-event-blocked-checkout-production-proof.mjs", import.meta.url), "utf8");
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND/);
-  assert.match(source, /new Set\(\["prepare", "serve", "verify", "cleanup"\]\)/);
+  assert.match(source, /new Set\(\["prepare", "onboard", "serve", "verify", "cleanup"\]\)/);
+  assert.match(source, /controller: CONNECTED_ACCOUNT_CONTROLLER/);
+  assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND=onboard/);
+  assert.match(source, /account-express-stripe-collector-v1/);
+  assert.match(source, /createOnboardingLink\(state\.stripeAccountId\)/);
+  assert.match(source, /spawnSync\([\s\S]*"\/usr\/bin\/open"[\s\S]*stdio: "ignore"/);
+  assert.doesNotMatch(source, /type: "custom"/);
+  assert.doesNotMatch(source, /tos_acceptance/);
   assert.match(source, /server\.listen\(config\.port, "127\.0\.0\.1"/);
   assert.match(
     source,
