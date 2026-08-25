@@ -58,10 +58,10 @@ test("application conversion and later release gates remain separate", () => {
     design,
     /176ad2c17301dd1d6bd9a1c0e190e8d44b15463ec830f9a67eb43ec3070396f2/,
   );
-  assert.match(
-    design,
-    /No migration dispatch, application deployment, RLS, table-grant, provider or\nproduction state change has occurred/,
-  );
+  assert.match(design, /production-applied through guarded run `32793394895`/);
+  assert.match(design, /dpl_73aR913b9hfgkcdfBv2MwMyypR5a/);
+  assert.match(design, /RLS and predecessor table\s+grants remain unchanged/);
+  assert.match(design, /real signed-provider delivery\/retry proof is still\s+required/i);
   assert.match(design, /guarded Production\nMigrations workflow intentionally does not expose this candidate/);
 });
 

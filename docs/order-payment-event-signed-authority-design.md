@@ -4,8 +4,11 @@ Status: compatible candidate implemented, byte-pinned and merged through exact
 main `d17b0384f2b90b128ba23852a0dedb004ce52739`. Migration
 `20260824030000_prepare_order_payment_signed_authority` has SHA-256
 `176ad2c17301dd1d6bd9a1c0e190e8d44b15463ec830f9a67eb43ec3070396f2`.
-No migration dispatch, application deployment, RLS, table-grant, provider or
-production state change has occurred for this checkpoint.
+It is production-applied through guarded run `32793394895` and its compatible
+callers are live in deployment `dpl_73aR913b9hfgkcdfBv2MwMyypR5a` from exact
+main `2820986538c0d64f035defce052ba4ad0de1b3fb`. RLS and predecessor table
+grants remain unchanged; real signed-provider delivery/retry proof is still
+required before activation.
 
 Audited: 2026-08-23 after the fixed local-refund record and crash-safe
 participant-delivery packages.

@@ -3,8 +3,11 @@
 Status: audit complete. The claim, record/finalize, signed-webhook,
 evidence-bound reconciliation, inactive-seller recovery and durable Case
 participant-delivery corrections merged through exact main
-`d17b0384f2b90b128ba23852a0dedb004ce52739`. They are not deployed or
-production-applied, and `OrderPaymentEvent` RLS remains off.
+`d17b0384f2b90b128ba23852a0dedb004ce52739`. Their reviewed database authority
+is production-applied, and the converted application is live from exact main
+`2820986538c0d64f035defce052ba4ad0de1b3fb` as deployment
+`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`. `OrderPaymentEvent` RLS remains off and
+predecessor runtime CRUD remains intact.
 
 Audited: 2026-08-23 against the application source immediately after accepted
 SellerPayoutEvent FORCE proof; release state refreshed 2026-08-24 after the
@@ -70,10 +73,9 @@ The fourth compatible correction is recorded in
 `docs/order-payment-event-refund-claim-generation.md`. Seller and
 blocked-checkout refunds now have an additive database-derived claim design
 with exact source/generation/idempotency binding and no elapsed-time release.
-The reviewed database authority and its distinct actual pooled-runtime
-compatible postflight are accepted in production; the converted application is
-not deployed, and live provider/replay proof remains required before RLS
-activation.
+The reviewed database authority, its distinct actual pooled-runtime compatible
+postflight and the converted application deployment are accepted in
+production. Live provider/replay proof remains required before RLS activation.
 
 The fifth compatible correction is recorded in
 `docs/order-payment-event-refund-record-authority.md`. Seller and
@@ -83,8 +85,7 @@ Case and audit evidence, plus a restart-safe exact webhook-generation handoff.
 The stacked crash-safety refinement moves source-validated in-app notification
 creation and deterministic seller-refund email-outbox reservation into the
 same application database transaction as that fixed finalizer. Its reviewed
-database authority is production-applied, but the converted application is not
-deployed.
+database authority and converted application are production-live.
 Ambiguous provider reconciliation,
 signed refund/dispute writers, remaining invariants/projections, live proof and
 activation remain open.
@@ -94,8 +95,8 @@ The next stacked application-only correction is recorded in
 generation-fenced staff Case functions, but commits finalization, both
 source-validated participant Notifications and the deterministic
 `case_resolved` EmailOutbox reservation in one transaction. Its reviewed
-database authority is production-applied, while the application conversion and
-real provider/replay proof remain undeployed.
+database authority and application conversion are production-live, while the
+real provider/replay proof remains outstanding.
 
 The isolated compatible production runner is specified in
 `docs/order-payment-event-compatible-production-preparation.md`. It binds the
@@ -496,10 +497,11 @@ post-commit and idempotent; a missed call affects only the existing bounded
 
 ## Required fixed-operation catalog
 
-Items 1 and 2 are implemented in the merged, byte-pinned compatible candidate
-`20260824030000_prepare_order_payment_signed_authority`; they are not deployed,
-production-applied or activation evidence. The remaining items are still
-design contracts until reviewed SQL is written.
+Items 1 and 2 are implemented in the merged, byte-pinned migration
+`20260824030000_prepare_order_payment_signed_authority`; its authority and
+compatible callers are production-live, but that is not provider-proof or RLS
+activation evidence. The remaining items are still design contracts until
+reviewed SQL is written.
 
 1. Signed refund append: requires active exact `charge.refunded` webhook
    generation/source, derives Order from the retained charge relationship,

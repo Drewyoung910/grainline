@@ -1,9 +1,11 @@
 # OrderPaymentEvent staff Case delivery boundary
 
 Status: compatible application candidate merged through exact main
-`d17b0384f2b90b128ba23852a0dedb004ce52739`. It does not add or replace a
-database function, change grants or RLS, call Stripe from PostgreSQL, deploy an
-application, or change production state.
+`d17b0384f2b90b128ba23852a0dedb004ce52739` and live in production deployment
+`dpl_73aR913b9hfgkcdfBv2MwMyypR5a` from exact main
+`2820986538c0d64f035defce052ba4ad0de1b3fb`. It does not add or replace a
+database function, change grants or RLS, or call Stripe from PostgreSQL. Real
+staff Case provider/replay proof remains outstanding.
 
 Audited: 2026-08-24 after the evidence-bound refund-reconciliation and
 inactive-seller recovery candidates.

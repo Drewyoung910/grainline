@@ -4,12 +4,14 @@ Status: accepted compatible production database preparation. Exact main
 `8f4cf2df34a9f700adebc910107ac2dbb878054a`, CI `32792800761`, fresh
 aggregate inspection `32793276224`, and guarded run `32793394895` applied all
 five migrations and passed migration status, the global grant/RLS audit and the
-exact engine-read-only post-application scope. The converted application has
-not been deployed. Exact main
+exact engine-read-only post-application scope. Exact main
 `5d3b402317084d9d2af6b8bdf52300a800eda0d8` passed CI `32795444295`, and
 the distinct actual pooled-runtime postflight then passed all nine reviewed
-checks without mutation. `OrderPaymentEvent` RLS remains off and its
-predecessor runtime CRUD remains intact.
+checks without mutation. The converted application was then deployed from the
+clean exact-main worktree `2820986538c0d64f035defce052ba4ad0de1b3fb`, after
+CI `32798835742`, as production deployment
+`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`. `OrderPaymentEvent` RLS remains off and
+its predecessor runtime CRUD remains intact.
 
 Retain sanitized mode-`0600` inspection evidence SHA-256
 `f97e90cf79be803cf462b3201e6f71e2208268d399cf4903fe1ddae759503730`.
@@ -118,6 +120,38 @@ direct runtime authority for `OrderRefundReconciliation`, direct private-table
 and private-helper denial, and the fixed seller-refund function's read-only
 lock fence. It made no production change.
 
+## Compatible application production deployment
+
+On 2026-08-24, PR #270 exact head
+`b7bd29a4c3957f5234a9cca7290e610dace02d63` merged as exact main
+`2820986538c0d64f035defce052ba4ad0de1b3fb`. Exact-main CI `32798835742`
+passed the full release chain. A manual Vercel Production deployment from a
+clean detached worktree at that exact commit produced
+`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`, URL
+`grainline-bm7c316wm-drew-youngs-projects.vercel.app`, with target
+`production` and state `READY`. Vercel assigned the canonical aliases
+`thegrainline.com`, `www.thegrainline.com`, `grainline.vercel.app`, and
+`grainline-drew-youngs-projects.vercel.app`; the first and third returned
+HTTP 200 with `{ "ok": true }` from `/api/health`.
+
+The build-time runtime-database guard attested the pooled production
+`grainline_app_runtime` identity on the expected Neon project/database and the
+Next.js production build, TypeScript check and static generation completed.
+No migration, grant, RLS, Stripe or database row mutation was part of this
+deployment. The prior production deployment remains available as the
+coexistence predecessor until the real provider/retry proof completes and a
+separate drain verifies no old application authority remains.
+
+An authenticated health probe against the deployment-specific protected URL
+caused Vercel CLI 58.9.0 to create one project-wide, no-expiry automation
+bypass token automatically. The token was identified only by sanitized scope
+and creation timestamp, never printed, and immediately revoked with
+`regenerate=false`. A read-only project postflight reported zero remaining
+automation bypasses; public canonical health remained 200 afterward. Do not use
+`vercel curl` without an already reviewed bypass secret for future protected
+deployment checks because the CLI creates persistent provider state when none
+exists.
+
 ## Execution and failure behavior
 
 After the preflight returns one accepted prefix, `prisma migrate deploy`
@@ -150,8 +184,8 @@ This runner does not:
 - mutate an Order, refund, payment event or reconciliation row; or
 - bundle `Order`, `OrderItem` or `OrderShippingRateQuote` RLS.
 
-After an accepted production preparation, deploy the converted compatible app
-separately and prove the signed webhook, seller refund, blocked-checkout, staff
-Case, delivery/outbox and reconciliation paths. Remaining invariants,
-actor-safe projections, aggregate conversions, predecessor drain, Phase A and
-FORCE remain later independent gates.
+The converted compatible app is now live. Next prove the signed webhook,
+seller refund, blocked-checkout, staff Case, delivery/outbox and reconciliation
+paths against this exact deployment. Remaining invariants, actor-safe
+projections, aggregate conversions, predecessor drain, Phase A and FORCE remain
+later independent gates.

@@ -1,8 +1,11 @@
 # OrderPaymentEvent seller refund product correction
 
-Status: compatible application correction merged and database authority
-prepared in production; the converted application is not deployed. No action
-described by this document alone authorizes a Stripe or RLS state change.
+Status: compatible application correction and database authority are live in
+production through exact source
+`2820986538c0d64f035defce052ba4ad0de1b3fb` and deployment
+`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`. `OrderPaymentEvent` RLS remains off and
+predecessor table CRUD remains available. No action described by this document
+alone authorizes a Stripe delivery/proof or RLS state change.
 
 Audited: 2026-08-23 as the first bounded remediation after
 `docs/order-payment-event-pre-rls-audit.md`.

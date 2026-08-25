@@ -216,8 +216,10 @@ hand an existing claim only to a later active generation for the identical
 event, Checkout Session, Order, amount and idempotency scope. See
 `docs/order-payment-event-refund-claim-generation.md` and
 `docs/order-payment-event-refund-record-authority.md`. The compatible stack is
-merged, byte-pinned and accepted in the production database; the converted
-application has not been deployed.
+merged, byte-pinned and accepted in the production database. Exact main
+`2820986538c0d64f035defce052ba4ad0de1b3fb` is now live as Vercel deployment
+`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`; provider/retry proof and predecessor drain
+remain outstanding.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,
@@ -247,9 +249,10 @@ candidate adds the typed provider clock and source-bound refund/dispute
 operations; equal-second differences, including signed event-type differences,
 retain evidence and mark staff reconciliation without Case or Notification
 effects. It is byte-pinned and passes disposable PostgreSQL authority and
-concurrency proof. Its database authority and distinct actual pooled-runtime
-compatible postflight are accepted in production, but the converted application
-is not deployed and this is not `OrderPaymentEvent` RLS activation evidence. See
+concurrency proof. Its database authority, distinct actual pooled-runtime
+compatible postflight and converted application are accepted in production,
+but live Stripe/refund/Case replay proof is still required and this is not
+`OrderPaymentEvent` RLS activation evidence. See
 `docs/order-payment-event-signed-authority-design.md`. Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
@@ -262,8 +265,9 @@ blocked-checkout full refunds. The exact active tuple fences success, orphan
 and ambiguous writes; stale-lock cleanup, signed `charge.refunded` handling and
 terminal dispute handling cannot detach it by elapsed time. The real migration
 runs in disposable PostgreSQL and is byte-pinned after the SellerPayoutEvent
-FORCE predecessor. It is merged and production-applied but not deployed or an
-RLS activation. The restart-safe compatible runner checks every applied prefix,
+FORCE predecessor. It is merged, production-applied and used by the compatible
+production application, but is not RLS activation evidence. The restart-safe
+compatible runner checks every applied prefix,
 live function-body hash and catalog boundary before applying the missing suffix;
 see `docs/order-payment-event-compatible-production-preparation.md`. `Order`
 and `OrderPaymentEvent` retain predecessor direct runtime CRUD throughout this

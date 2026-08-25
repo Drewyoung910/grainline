@@ -624,10 +624,23 @@ catalog, compatible predecessor access and private reconciliation/helper
 denials inside an engine-read-only transaction. Retain sanitized mode-`0600`
 evidence SHA-256
 `ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10`.
-The converted application is not deployed. Next deploy it separately and run
-the real signed-provider/refund/Case/replay proofs. This preparation is not
-`OrderPaymentEvent` activation evidence. See
+PR #270 exact head `b7bd29a4c3957f5234a9cca7290e610dace02d63`
+merged as exact main `2820986538c0d64f035defce052ba4ad0de1b3fb`;
+exact-main CI `32798835742` passed and production deployment
+`dpl_73aR913b9hfgkcdfBv2MwMyypR5a` is `READY` behind all canonical aliases.
+The converted application is now live while `OrderPaymentEvent` RLS remains
+off and predecessor CRUD remains intact. Next run the real
+signed-provider/refund/Case/replay proofs, then drain the predecessor. This is
+not `OrderPaymentEvent` activation evidence. See
 `docs/order-payment-event-compatible-production-preparation.md`.
+
+The deployment-specific health check exposed a Vercel CLI footgun: `vercel
+curl` silently generated a persistent, no-expiry project-wide automation
+bypass when none existed. The exact newly-created token was never printed and
+was immediately revoked without regeneration; the project now has zero
+automation bypass tokens. Prefer public canonical health plus read-only
+deployment metadata unless a separately reviewed bypass is intentionally
+provisioned.
 
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
