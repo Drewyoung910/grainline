@@ -664,10 +664,12 @@ The blocked-checkout product audit found one delivery correction that must land
 before its live proof: the automatic refund was classified as `NEW_ORDER` and
 had no durable refund-email reservation. Follow
 `docs/order-payment-event-blocked-checkout-refund-delivery.md`: widen only the
-source-validated Notification function for old/new coexistence, deploy the
-`REFUND_ISSUED` plus atomic outbox caller, prove it, drain the predecessor, and
-then retire the legacy type. Do not grant generic Notification authority or
-skip the separate blocked-checkout provider proof.
+source-validated Notification function for old/new coexistence, canonicalize
+the predecessor type to `REFUND_ISSUED` before preferences and replay identity,
+deploy the `REFUND_ISSUED` plus atomic outbox caller, prove both cross-version
+call orders resolve one row, drain the predecessor, and then retire the legacy
+input. Do not grant generic Notification authority or skip the separate
+blocked-checkout provider proof.
 The compatibility migration uses its own exact-main, CI-bound, restart-safe
 production runner. Keep that runner limited to the byte-pinned function-body
 successor and exact before/after catalog proofs; do not use this narrow release

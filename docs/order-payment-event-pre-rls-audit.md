@@ -515,11 +515,15 @@ The compatible correction is specified in
 `docs/order-payment-event-blocked-checkout-refund-delivery.md`. First, the
 Notification owner function accepts both the predecessor `NEW_ORDER` spelling
 and the corrected `REFUND_ISSUED` spelling for only the already source-bound
-`BLOCKED_CHECKOUT_REFUND_RECORDED` family. Then the application deploy changes
-the in-app type and atomically reserves the existing `refund_issued` email
-template. After predecessor drain and live proof, a separate byte-pinned
-retirement removes `NEW_ORDER` acceptance. No permissive policy, generic
-runtime function or direct Notification table grant is introduced.
+`BLOCKED_CHECKOUT_REFUND_RECORDED` family. The owner function canonicalizes the
+legacy input to `REFUND_ISSUED` before recipient preferences, replay-key
+derivation and storage; otherwise the type-bearing uniqueness key would allow
+one old and one corrected row when a webhook retry crossed the deployment
+drain. Then the application deploy changes the in-app type and atomically
+reserves the existing `refund_issued` email template. After predecessor drain
+and live proof, a separate byte-pinned retirement removes `NEW_ORDER`
+acceptance. No permissive policy, generic runtime function or direct
+Notification table grant is introduced.
 
 ## Required fixed-operation catalog
 

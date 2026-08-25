@@ -25,7 +25,7 @@ test("blocked-checkout refund delivery migration is byte-reproducible", () => {
   assert.equal(migration, buildBlockedCheckoutRefundDeliveryMigration());
   assert.equal(
     createHash("sha256").update(migration).digest("hex"),
-    "5578678b745d41b57ec658a2363dea15728914c1b82e063bae1e3aea9ebbe25c",
+    "24000c6a69525b19ce14ef8031cfb7a7c1914aedc26115f7425b7ff9f7e223a6",
   );
 });
 
@@ -65,7 +65,18 @@ test("byte verification rejects a one-byte successor drift", () => {
   }
 });
 
-test("compatibility accepts predecessor and corrected refund notification types", () => {
+test("compatibility canonicalizes predecessor and corrected refund notification types", () => {
+  const canonicalization = migration.indexOf(
+    `p_type := 'REFUND_ISSUED'::public."NotificationType"`,
+  );
+  const preferenceCheck = migration.indexOf(
+    `recipient_preferences -> (p_type::text)`,
+  );
+  assert.ok(canonicalization >= 0, "legacy type canonicalization is missing");
+  assert.ok(
+    canonicalization < preferenceCheck,
+    "legacy type must be canonicalized before recipient preferences",
+  );
   assert.match(
     migration,
     /localAction' = 'BLOCKED_CHECKOUT_REFUND_RECORDED'[\s\S]*?p_related_user_id IS NULL[\s\S]*?p_type IN \([\s\S]*?'NEW_ORDER'::public\."NotificationType",[\s\S]*?'REFUND_ISSUED'::public\."NotificationType"[\s\S]*?\)\)/,
@@ -73,6 +84,10 @@ test("compatibility accepts predecessor and corrected refund notification types"
   assert.match(
     migration,
     /Compatibility window: predecessor deployments still emit[\s\S]*NEW_ORDER; the corrected application emits REFUND_ISSUED/,
+  );
+  assert.match(
+    migration,
+    /old\/new deployment retry cannot create[\s\S]*two rows for one durable refund source/,
   );
 });
 
