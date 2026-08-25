@@ -5,13 +5,21 @@ Status: accepted compatible production database preparation. Exact main
 aggregate inspection `32793276224`, and guarded run `32793394895` applied all
 five migrations and passed migration status, the global grant/RLS audit and the
 exact engine-read-only post-application scope. The converted application has
-not been deployed. `OrderPaymentEvent` RLS remains off and its predecessor
-runtime CRUD remains intact.
+not been deployed. Exact main
+`5d3b402317084d9d2af6b8bdf52300a800eda0d8` passed CI `32795444295`, and
+the distinct actual pooled-runtime postflight then passed all nine reviewed
+checks without mutation. `OrderPaymentEvent` RLS remains off and its
+predecessor runtime CRUD remains intact.
 
 Retain sanitized mode-`0600` inspection evidence SHA-256
 `f97e90cf79be803cf462b3201e6f71e2208268d399cf4903fe1ddae759503730`.
 It contains no addresses, credentials, provider/object/user identifiers, raw
 rows or snapshots.
+
+Retain the separate sanitized mode-`0600` pooled-runtime postflight evidence
+SHA-256
+`ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10`.
+It contains no PostgreSQL URL or row data.
 
 ## Purpose
 
@@ -97,6 +105,18 @@ the private reconciliation table and private refund-record core reject the
 runtime role. Its production execution is separately bound to an exact clean
 main commit, successful main CI and guarded migration run, and emits only a
 fresh sanitized mode-`0600` evidence file.
+
+PR #268 exact head `714a3cdc5ba8fccca4a3c92f1a09f95f05c341df`
+merged as exact main `5d3b402317084d9d2af6b8bdf52300a800eda0d8`.
+Exact-main CI `32795444295` passed, including the direct-login PostgreSQL 16
+proof. The production postflight used only the reviewed pooled
+`grainline_app_runtime` credential and passed the same catalog plus boundary
+checks inside an engine-attested repeatable-read/read-only transaction. It
+confirmed all 14 migration-derived function bodies and ACLs, retained
+predecessor `OrderPaymentEvent` access, policyless ENABLE plus FORCE with zero
+direct runtime authority for `OrderRefundReconciliation`, direct private-table
+and private-helper denial, and the fixed seller-refund function's read-only
+lock fence. It made no production change.
 
 ## Execution and failure behavior
 

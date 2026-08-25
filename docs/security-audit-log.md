@@ -2508,3 +2508,23 @@ Open work:
   source-validation exception was impossible in an engine-read-only
   transaction. The correction requires exact `25006`, retains all catalog and
   denial checks, and records no production change.
+- PR #268 exact corrected head
+  `714a3cdc5ba8fccca4a3c92f1a09f95f05c341df` merged as exact main
+  `5d3b402317084d9d2af6b8bdf52300a800eda0d8`. PR CI `32794890489` and
+  exact-main CI `32795444295` passed the complete release chain, including the
+  direct-login PostgreSQL 16 runtime proof, all repository tests, dependency
+  audit and production build. The Vercel Preview compiled and typechecked, then
+  failed only at page collection because Preview intentionally has no
+  `DATABASE_URL`; it did not expose a source defect or deploy production.
+- The actual production postflight ran from that exact clean main through only
+  the reviewed pooled `grainline_app_runtime` credential. All nine checks
+  passed inside an engine-attested repeatable-read/read-only transaction:
+  exact role identity; `OrderPaymentEvent` RLS-off predecessor CRUD; private
+  policyless-FORCE `OrderRefundReconciliation`; exact 14-function bodies and
+  ACLs; predecessor read success; direct private-table/helper denial; and the
+  fixed seller-refund function's read-only lock fence. It wrote only sanitized
+  mode-`0600` evidence with SHA-256
+  `ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10`,
+  retained no database URL or row data, and recorded
+  `productionChangedByPostflight=false`. The converted application remains
+  undeployed and `OrderPaymentEvent` RLS remains off.

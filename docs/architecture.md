@@ -37,10 +37,14 @@ Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`, and
-`OrderRefundReconciliation`. Thirteen tables have production RLS: twelve have
-complete retained `FORCE ROW LEVEL SECURITY` acceptance, while private
-`OrderRefundReconciliation` is FORCE-hardened with zero direct runtime CRUD and
-awaits its distinct actual pooled-runtime postflight. `SellerPayoutEvent` FORCE was
+`OrderRefundReconciliation`. Thirteen tables have production RLS and all
+thirteen have complete retained `FORCE ROW LEVEL SECURITY` acceptance. Private
+`OrderRefundReconciliation` is FORCE-hardened with zero direct runtime CRUD;
+its distinct actual pooled-runtime proof passed from exact main
+`5d3b402317084d9d2af6b8bdf52300a800eda0d8` after CI `32795444295` without
+mutation. Retain sanitized evidence SHA-256
+`ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10`.
+`SellerPayoutEvent` FORCE was
 applied by guarded run `32672434812`; exact main
 `fb350c31772938ef52ef796c61bf670d9cf0750e` passed CI `32675227286`, and its
 distinct actual pooled-runtime FORCE postflight passed all nine checks without
@@ -243,8 +247,9 @@ candidate adds the typed provider clock and source-bound refund/dispute
 operations; equal-second differences, including signed event-type differences,
 retain evidence and mark staff reconciliation without Case or Notification
 effects. It is byte-pinned and passes disposable PostgreSQL authority and
-concurrency proof. Its database authority is production-applied, but the
-converted application is not deployed and this is not RLS activation evidence. See
+concurrency proof. Its database authority and distinct actual pooled-runtime
+compatible postflight are accepted in production, but the converted application
+is not deployed and this is not `OrderPaymentEvent` RLS activation evidence. See
 `docs/order-payment-event-signed-authority-design.md`. Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
