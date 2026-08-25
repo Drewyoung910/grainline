@@ -701,9 +701,71 @@ async function selectCanary(clerk, owner, state = null) {
   return candidate;
 }
 
+async function lockCanaryFence(owner, state) {
+  const result = await owner.query(`
+    SELECT
+      "notificationPreferences" = $3::jsonb AS preferences_original,
+      "notificationPreferences" = pg_catalog.jsonb_set(
+        $3::jsonb, '{EMAIL_REFUND_ISSUED}', 'false'::jsonb, true
+      ) AS preferences_fenced,
+      "termsAcceptedAt" IS NOT DISTINCT FROM $4::timestamp AS terms_at_original,
+      "termsVersion" IS NOT DISTINCT FROM $5::text AS terms_version_original,
+      CASE
+        WHEN $4::timestamp IS NULL
+          THEN "termsAcceptedAt" IS NOT NULL AND "termsVersion" = $6
+        ELSE "termsAcceptedAt" IS NOT DISTINCT FROM $4::timestamp
+          AND "termsVersion" IS NOT DISTINCT FROM $5::text
+      END AS terms_fenced,
+      "ageAttestedAt" IS NOT DISTINCT FROM $7::timestamp AS age_original,
+      CASE
+        WHEN $7::timestamp IS NULL THEN "ageAttestedAt" IS NOT NULL
+        ELSE "ageAttestedAt" IS NOT DISTINCT FROM $7::timestamp
+      END AS age_fenced
+    FROM public."User"
+    WHERE id=$1 AND "clerkId"=$2 AND email=$8
+      AND "deletedAt" IS NULL AND banned=false
+    FOR UPDATE
+  `, [
+    state.buyerId,
+    state.buyerClerkId,
+    JSON.stringify(state.originalNotificationPreferences),
+    state.originalTermsAcceptedAt,
+    state.originalTermsVersion,
+    TERMS_VERSION,
+    state.originalAgeAttestedAt,
+    state.buyerEmail,
+  ]);
+  if (resultCardinality(result) !== 1) {
+    throw new Error("blocked-checkout canary fence identity drifted");
+  }
+  return result.rows[0];
+}
+
+function assertCanaryOriginal(fence) {
+  if (
+    fence?.preferences_original !== true
+    || fence.terms_at_original !== true
+    || fence.terms_version_original !== true
+    || fence.age_original !== true
+  ) {
+    throw new Error("blocked-checkout canary original snapshot drifted");
+  }
+}
+
+function assertCanaryFenced(fence) {
+  if (
+    fence?.preferences_fenced !== true
+    || fence.terms_fenced !== true
+    || fence.age_fenced !== true
+  ) {
+    throw new Error("blocked-checkout canary proof fence drifted");
+  }
+}
+
 export async function createFixtures(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
+    const canaryFence = await lockCanaryFence(owner, state);
     const collision = await owner.query(`
       SELECT
         (SELECT count(*)::integer FROM public."User" WHERE id=$1 OR "clerkId"=$2 OR email=$3) AS seller_user,
@@ -727,11 +789,13 @@ export async function createFixtures(owner, state) {
       `, [state.sellerUserId, state.sellerClerkId, state.sellerEmail, state.sellerProfileId,
         state.stripeAccountId, state.listingId, state.buyerId]);
       if (Object.values(exact.rows[0] ?? {}).every((count) => Number(count) === 1)) {
+        assertCanaryFenced(canaryFence);
         await owner.query("COMMIT");
         return;
       }
       throw new Error("blocked-checkout fixture identity collided");
     }
+    assertCanaryOriginal(canaryFence);
     const adjusted = await owner.query(`
       UPDATE public."User"
          SET "notificationPreferences" = pg_catalog.jsonb_set("notificationPreferences", '{EMAIL_REFUND_ISSUED}', 'false'::jsonb, true),
@@ -743,6 +807,7 @@ export async function createFixtures(owner, state) {
       RETURNING id
     `, [state.buyerId, TERMS_VERSION, state.buyerClerkId]);
     if (adjusted.rows.length !== 1) throw new Error("blocked-checkout canary preference fencing failed");
+    assertCanaryFenced(await lockCanaryFence(owner, state));
     await owner.query(`
       INSERT INTO public."User" (id,"clerkId",email,name,role,"notificationPreferences","updatedAt")
       VALUES ($1,$2,$3,'Grainline Blocked Checkout Proof Seller','USER','{}'::jsonb,CURRENT_TIMESTAMP)
@@ -1152,6 +1217,7 @@ async function assertNoForeignKeyDependents(client, relation, id) {
 export async function cleanupDeliveredRows(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
+    assertCanaryFenced(await lockCanaryFence(owner, state));
     const exact = await owner.query(`
       SELECT
         (SELECT count(*)::integer FROM public."User" WHERE id=$1 AND "clerkId"=$2 AND email=$3
@@ -1706,6 +1772,7 @@ export async function verifyAndCleanupProof(config = validateConfiguration()) {
 async function cleanupUnpaidFixtures(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
+    assertCanaryFenced(await lockCanaryFence(owner, state));
     const exact = await owner.query(`
       SELECT
         (SELECT count(*)::integer FROM public."Order" WHERE "stripeSessionId"=$1) AS orders,

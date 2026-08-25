@@ -212,6 +212,72 @@ test("fixture resume and cleanup reject marker drift without partial deletion", 
   }
 });
 
+test("canary fencing rejects concurrent preference drift without clobber or fixture deletion", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await db.query(
+      `UPDATE public."User" SET "termsVersion"='concurrent-change' WHERE id=$1`,
+      [value.buyerId],
+    );
+    await assert.rejects(
+      createFixtures(db, value),
+      /canary original snapshot drifted/,
+    );
+    const absentBeforeFence = await db.query(`
+      SELECT
+        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$1) AS sellers,
+        (SELECT count(*)::integer FROM public."Listing" WHERE id=$2) AS listings
+    `, [value.sellerProfileId, value.listingId]);
+    assert.deepEqual(absentBeforeFence.rows[0], { sellers: 0, listings: 0 });
+    await db.query(
+      `UPDATE public."User" SET "termsVersion"=$2 WHERE id=$1`,
+      [value.buyerId, value.originalTermsVersion],
+    );
+    await createFixtures(db, value);
+    await db.query(
+      `UPDATE public."User" SET "notificationPreferences"=$2::jsonb WHERE id=$1`,
+      [value.buyerId, JSON.stringify(value.originalNotificationPreferences)],
+    );
+    await assert.rejects(
+      createFixtures(db, value),
+      /canary proof fence drifted/,
+    );
+    const retainedAfterResume = await db.query(`
+      SELECT
+        (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$1) AS sellers,
+        (SELECT count(*)::integer FROM public."Listing" WHERE id=$2) AS listings
+    `, [value.sellerProfileId, value.listingId]);
+    assert.deepEqual(retainedAfterResume.rows[0], { sellers: 1, listings: 1 });
+
+    await db.query(
+      `UPDATE public."User"
+          SET "notificationPreferences"=pg_catalog.jsonb_set(
+            $2::jsonb, '{EMAIL_REFUND_ISSUED}', 'false'::jsonb, true
+          )
+        WHERE id=$1`,
+      [value.buyerId, JSON.stringify(value.originalNotificationPreferences)],
+    );
+    await seedOutcome(db, value);
+    await db.query(
+      `UPDATE public."User" SET "notificationPreferences"=$2::jsonb WHERE id=$1`,
+      [value.buyerId, JSON.stringify(value.originalNotificationPreferences)],
+    );
+    await assert.rejects(
+      cleanupDeliveredRows(db, value),
+      /canary proof fence drifted/,
+    );
+    const retainedAfterCleanup = await db.query(`
+      SELECT
+        (SELECT count(*)::integer FROM public."Order" WHERE id=$1) AS orders,
+        (SELECT count(*)::integer FROM public."OrderPaymentEvent" WHERE "orderId"=$1) AS payments
+    `, [value.orderId]);
+    assert.deepEqual(retainedAfterCleanup.rows[0], { orders: 1, payments: 2 });
+  } finally {
+    await db.close();
+  }
+});
+
 test("seller block transition converges after a crash before journal persistence", async () => {
   const db = await database();
   const value = state();

@@ -175,6 +175,15 @@ may make the buyer refund exceed $5; the proof derives that amount from the
 completed Session while requiring the seller transfer and reversal to remain
 exactly $4.75.
 
+The canary mutation is generation-fenced rather than a blind save/restore.
+Fixture creation locks the exact canary row and requires its persisted fields
+to equal the private original snapshot before applying the proof fence. Resume
+requires the exact proof-fenced preference/terms state, and both successful and
+unpaid cleanup lock and re-prove that same state before deleting fixtures or
+restoring the original snapshot. Concurrent preference or terms drift therefore
+fails closed without clobbering the external change or partially deleting the
+fixture.
+
 ## Proof fixture boundary
 
 Use only the retained operational Clerk canary as the temporary buyer actor.

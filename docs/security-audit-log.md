@@ -2779,3 +2779,17 @@ Open work:
   suite, all 3,417 repository tests with 3,410 passes and seven documented
   skips, TypeScript, lint, syntax and diff checks. No production or provider
   operation was executed.
+- The exact-main hard review then found that fixture cleanup restored the
+  operational canary's saved preference/terms snapshot without first proving
+  those fields had not changed concurrently. That could overwrite an external
+  canary update even though all marker-bound fixture deletion remained exact.
+  Fixture creation now locks the exact canary row and accepts only the saved
+  original snapshot before mutation or the exact proof-fenced snapshot on
+  resume. Successful and unpaid cleanup lock and require the proof-fenced state
+  before any deletion or restoration. Disposable PostgreSQL coverage changes
+  the canary preference between stages and proves both resume and cleanup fail
+  without deleting fixture rows. The refreshed focused operator/inventory suite
+  passes 19/19; the complete local suite passes 3,418 tests with 3,411 passes,
+  seven documented skips and zero failures, and TypeScript plus lint pass.
+  Fresh exact-head CI is pending. The operator remains unexecuted and
+  production/provider state remains unchanged.

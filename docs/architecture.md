@@ -296,6 +296,9 @@ synthetic seller into vacation mode after Session creation, and requires real
 Stripe Embedded Checkout plus signed completion/refund delivery. Its private
 restart journal separates `prepare`, loopback-only `serve`, `verify` and unpaid
 `cleanup`; a paid attempt cannot be discarded through the abort path.
+The operational canary preference/terms mutation uses an exact row lock and
+original/proof-fenced snapshot checks so cleanup cannot overwrite concurrent
+account changes.
 
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
