@@ -146,6 +146,15 @@ production-deployment binding:
    the marker-bound fixture. A paid Session cannot enter abort cleanup and must
    resume through `verify`.
 
+Crash recovery is stage-aware. `account-create-pending`, `fixtures-created`,
+`checkout-create-pending` and `checkout-created` can each straddle an external
+provider or database transition, so `cleanup` refuses those ambiguous journal
+stages. Rerun `prepare` with the same mode-`0600` state first: Stripe/app
+idempotency and exact marker checks converge it to `account-created` (before
+fixtures) or `seller-blocked` (one known unpaid Session), both of which are
+explicit abort-cleanup checkpoints. Never delete the recovery journal to skip
+that convergence.
+
 Successful cleanup performs live foreign-key dependent inspection before
 deleting application rows, restores the canary's exact preferences/terms,
 revokes its sessions, removes only exact Redis keys and deletes the zero-balance

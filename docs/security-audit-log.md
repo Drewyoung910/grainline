@@ -2729,3 +2729,15 @@ Open work:
   application failures and are not accepted as build evidence. The clean-clone
   build above is the successful production-build evidence for exact head
   `e95c60c9f2227ab97c1bb5c290041d92ee12cceb`.
+- A final state-machine audit found that abort cleanup could reach ambiguous
+  persisted stages immediately around account creation, fixture creation or
+  Checkout Session creation and then either miss an unjournaled provider
+  object or report a misleading relationship mismatch. Cleanup now rejects
+  those four stages before loading provider credentials and requires the same
+  restart journal to resume `prepare` through its idempotent/marker-bound
+  convergence. Only `reserved`, `account-created` and `seller-blocked` are
+  unpaid abort checkpoints; paid states still require `verify`. Unit coverage
+  enumerates every accepted and rejected boundary. Focused validation passes
+  20/20; the complete suite passes 3,409 tests with seven documented skips and
+  zero failures, and TypeScript plus lint pass. The operator remains unexecuted
+  and production/provider state remains unchanged.

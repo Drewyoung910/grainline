@@ -1718,11 +1718,29 @@ async function cleanupUnpaidFixtures(owner, state) {
   }
 }
 
-export async function cleanupProof(config = validateConfiguration()) {
-  const state = assertState(readPrivateJson(config.statePath, "blocked-checkout recovery state"), config);
-  if (STAGES.indexOf(state.stage) >= STAGES.indexOf("payment-completed")) {
+export function assertAbortCleanupStage(state) {
+  const stage = state?.stage;
+  const at = STAGES.indexOf(stage);
+  if (at < 0) throw new Error("blocked-checkout abort state is invalid");
+  if (at >= STAGES.indexOf("payment-completed")) {
     throw new Error("blocked-checkout paid state must be completed with verify, not aborted");
   }
+  if (new Set([
+    "account-create-pending",
+    "fixtures-created",
+    "checkout-create-pending",
+    "checkout-created",
+  ]).has(stage)) {
+    throw new Error(
+      "blocked-checkout ambiguous prepare state must resume prepare to a persisted cleanup checkpoint before abort cleanup",
+    );
+  }
+  return stage;
+}
+
+export async function cleanupProof(config = validateConfiguration()) {
+  const state = assertState(readPrivateJson(config.statePath, "blocked-checkout recovery state"), config);
+  assertAbortCleanupStage(state);
   const context = await loadExecutionContext(config, state);
   const { clerk, owner, redis, runtime, stripe, stripeSecret } = context;
   try {
@@ -1739,8 +1757,6 @@ export async function cleanupProof(config = validateConfiguration()) {
         "blocked-checkout signed expiry restoration",
       );
       await cleanupUnpaidFixtures(owner, state);
-    } else if (state.stage === "fixtures-created" || state.stage === "checkout-create-pending") {
-      throw new Error("blocked-checkout abort requires exact fixture cleanup after checkout preparation");
     }
     await revokeCanarySessions(clerk, state.buyerClerkId);
     await deleteExactRedisKeys(redis, state);

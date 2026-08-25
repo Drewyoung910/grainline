@@ -6,6 +6,7 @@ import {
   PRICE_CENTS,
   SELLER_TRANSFER_CENTS,
   assertCheckoutResponse,
+  assertAbortCleanupStage,
   assertCompletedSession,
   assertConnectedAccount,
   assertDeliverySnapshot,
@@ -161,6 +162,31 @@ test("configuration and restart state fail closed", () => {
   assert.throws(() => assertState(state("delivery-confirmed", { sellerProfileId: "real-seller-id" }), config), /disposable fixture identity/);
 });
 
+test("abort cleanup accepts only unambiguous persisted checkpoints", () => {
+  assert.equal(assertAbortCleanupStage({ stage: "reserved" }), "reserved");
+  assert.equal(assertAbortCleanupStage({ stage: "account-created" }), "account-created");
+  assert.equal(assertAbortCleanupStage({ stage: "seller-blocked" }), "seller-blocked");
+  for (const stage of [
+    "account-create-pending",
+    "fixtures-created",
+    "checkout-create-pending",
+    "checkout-created",
+  ]) {
+    assert.throws(
+      () => assertAbortCleanupStage({ stage }),
+      /must resume prepare to a persisted cleanup checkpoint/,
+    );
+  }
+  assert.throws(
+    () => assertAbortCleanupStage({ stage: "payment-completed" }),
+    /paid state must be completed with verify/,
+  );
+  assert.throws(
+    () => assertAbortCleanupStage({ stage: "unknown" }),
+    /abort state is invalid/,
+  );
+});
+
 test("disposable connected account is transfer-only and marker-bound", () => {
   const pending = state("reserved", {
     stripeAccountId: null, stripeSessionId: null, stripeClientSecret: null, checkoutLockKey: null, reservationId: null,
@@ -247,6 +273,7 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.match(source, /REFUND_ISSUED/);
   assert.match(source, /wrong_notification_count/);
   assert.match(source, /cleanupDeliveredRows/);
+  assert.match(source, /assertAbortCleanupStage\(state\)/);
   assert.doesNotMatch(source, /else if \(state\.stage === "account-created"\)[\s\S]{0,300}DELETE FROM public\."SellerProfile"/);
   assert.doesNotMatch(source, /sk_live_[A-Za-z0-9]{8,}/);
   assert.doesNotMatch(source, /webhookEndpoints\.(?:create|update|del)/);
