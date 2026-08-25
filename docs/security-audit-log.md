@@ -2788,8 +2788,15 @@ Open work:
   resume. Successful and unpaid cleanup lock and require the proof-fenced state
   before any deletion or restoration. Disposable PostgreSQL coverage changes
   the canary preference between stages and proves both resume and cleanup fail
-  without deleting fixture rows. The refreshed focused operator/inventory suite
-  passes 19/19; the complete local suite passes 3,418 tests with 3,411 passes,
-  seven documented skips and zero failures, and TypeScript plus lint pass.
-  Fresh exact-head CI is pending. The operator remains unexecuted and
-  production/provider state remains unchanged.
+  without deleting fixture rows.
+- That fence review also caught a same-class timestamp risk: directly reading
+  PostgreSQL `timestamp without time zone` fields through node-postgres can
+  reinterpret their wall time in the workstation timezone before a later exact
+  comparison. The canary query now projects both timestamp snapshots as
+  lossless six-digit database text, retains that representation in the private
+  journal, and casts it back only inside PostgreSQL. Regression coverage pins
+  the microsecond-preserving representation. The refreshed focused
+  operator/inventory suite passes 19/19; the complete local suite passes 3,418
+  tests with 3,411 passes, seven documented skips and zero failures, and
+  TypeScript plus lint pass. Fresh exact-head CI is pending. The operator
+  remains unexecuted and production/provider state remains unchanged.

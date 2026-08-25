@@ -183,6 +183,9 @@ unpaid cleanup lock and re-prove that same state before deleting fixtures or
 restoring the original snapshot. Concurrent preference or terms drift therefore
 fails closed without clobbering the external change or partially deleting the
 fixture.
+The two PostgreSQL `timestamp without time zone` snapshots are projected as
+lossless six-digit database text and cast back only inside PostgreSQL; they are
+never round-tripped through the workstation's local `Date` timezone.
 
 ## Proof fixture boundary
 

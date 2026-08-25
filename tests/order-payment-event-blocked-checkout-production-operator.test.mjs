@@ -151,9 +151,12 @@ test("configuration and restart state fail closed", () => {
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "run" })), /command is invalid/);
   const initial = createInitialState(config, {
     id: "opebc_buyer_canary", clerkId: "user_canary", email: "canary@example.com",
-    notificationPreferences: {}, termsAcceptedAt: null, termsVersion: null, ageAttestedAt: null,
+    notificationPreferences: {}, termsAcceptedAt: "2026-08-25T12:34:56.123456",
+    termsVersion: "2026-06-14", ageAttestedAt: "2026-08-25T12:35:01.654321",
   });
   assert.equal(initial.stage, "reserved");
+  assert.equal(initial.originalTermsAcceptedAt, "2026-08-25T12:34:56.123456");
+  assert.equal(initial.originalAgeAttestedAt, "2026-08-25T12:35:01.654321");
   assert.equal(assertState(state(), config).stage, "delivery-confirmed");
   assert.throws(() => assertState({ ...state(), unknown: true }, config), /unknown field/);
   assert.throws(() => assertState(state("delivery-confirmed", { refundEventId: null }), config), /refundEventId is missing/);
@@ -274,6 +277,7 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   );
   assert.match(source, /checkout\.session\.completed/);
   assert.match(source, /charge\.refunded/);
+  assert.match(source, /pg_catalog\.to_char\([\s\S]*YYYY-MM-DD"T"HH24:MI:SS\.US/);
   assert.match(source, /BLOCKED_CHECKOUT_REFUND_RECORDED/);
   assert.match(source, /REFUND_ISSUED/);
   assert.match(source, /wrong_notification_count/);

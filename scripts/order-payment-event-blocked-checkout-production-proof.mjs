@@ -69,6 +69,7 @@ const DEPLOYMENT_PATTERN = /^dpl_[A-Za-z0-9]+$/;
 const STRIPE_SECRET_PATTERN = /\b(?:sk_(?:live|test)_[A-Za-z0-9_]+|whsec_[A-Za-z0-9_]+|cs_test_[A-Za-z0-9_]+_secret_[A-Za-z0-9_]+)\b/g;
 const STRIPE_OBJECT_PATTERN = /\b(?:acct|ch|cs|evt|pi|re|tr|trr|we)_[A-Za-z0-9_]+\b/g;
 const DATABASE_URL_PATTERN = /postgres(?:ql)?:\/\/[^\s"']+/gi;
+const DATABASE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}$/;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const FIXTURE_PATTERN = /\bopebc_[a-f0-9]{32}(?:_[a-z_]+)?\b/g;
 const EXPECTED_PROJECT = Object.freeze({
@@ -222,6 +223,9 @@ function fixtureId(suffix = "") {
 
 function normalizedTimestamp(value) {
   if (value === null || value === undefined) return null;
+  if (typeof value === "string" && DATABASE_TIMESTAMP_PATTERN.test(value)) {
+    return value;
+  }
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime())) throw new Error("blocked-checkout canary timestamp drifted");
   return date.toISOString();
@@ -689,7 +693,14 @@ async function selectCanary(clerk, owner, state = null) {
     throw new Error("blocked-checkout operational canary identity drifted");
   }
   const result = await owner.query(`
-    SELECT id, "clerkId", email, "notificationPreferences", "termsAcceptedAt", "termsVersion", "ageAttestedAt"
+    SELECT id, "clerkId", email, "notificationPreferences",
+      pg_catalog.to_char(
+        "termsAcceptedAt", 'YYYY-MM-DD"T"HH24:MI:SS.US'
+      ) AS "termsAcceptedAt",
+      "termsVersion",
+      pg_catalog.to_char(
+        "ageAttestedAt", 'YYYY-MM-DD"T"HH24:MI:SS.US'
+      ) AS "ageAttestedAt"
       FROM public."User"
      WHERE "clerkId" = $1 AND "deletedAt" IS NULL AND banned = false
   `, [clerkUser.id]);

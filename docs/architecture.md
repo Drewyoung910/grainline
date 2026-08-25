@@ -298,7 +298,8 @@ restart journal separates `prepare`, loopback-only `serve`, `verify` and unpaid
 `cleanup`; a paid attempt cannot be discarded through the abort path.
 The operational canary preference/terms mutation uses an exact row lock and
 original/proof-fenced snapshot checks so cleanup cannot overwrite concurrent
-account changes.
+account changes. Timestamp-without-time-zone fields remain lossless database
+text until PostgreSQL performs the exact comparison and restoration.
 
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
