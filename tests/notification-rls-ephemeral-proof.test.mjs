@@ -89,7 +89,8 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
       "order_fulfillment_picked_up",
       "order_fulfillment_ready_for_pickup",
       "order_payment_seller_refund",
-      "order_payment_blocked_checkout_refund",
+      "order_payment_blocked_checkout_refund_predecessor",
+      "order_payment_blocked_checkout_refund_corrected",
       "listing_admin_review_sold_out",
       "listing_admin_review_rejected",
       "guild_admin_reject_member",
@@ -238,9 +239,17 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /paths:[\s\S]*docs\/rls-drafts\/\*\*/);
     assert.match(workflow, /scripts\/notification-rls-ephemeral-proof\.mjs/);
+    assert.match(
+      workflow,
+      /scripts\/build-blocked-checkout-refund-delivery-migration\.mjs/,
+    );
     assert.match(workflow, /scripts\/stage-notification-rls-candidate-migration\.mjs/);
     assert.match(workflow, /scripts\/audit-runtime-db-grants\.mjs/);
     assert.match(workflow, /image: postgres:16/);
+    assert.match(
+      workflow,
+      /Verify blocked-checkout refund delivery compatibility release[\s\S]*audit:order-payment-blocked-checkout-refund-delivery-release/,
+    );
     assert.match(workflow, /Verify committed Notification activation release artifact/);
     assert.match(workflow, /audit:rls-notification-activation-release/);
     assert.match(workflow, /Verify committed Notification FORCE release artifact/);
@@ -284,6 +293,12 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     assert.equal(
       packageJson.scripts["audit:rls-notification-force-release"],
       "node scripts/verify-notification-force-release.mjs",
+    );
+    assert.equal(
+      packageJson.scripts[
+        "audit:order-payment-blocked-checkout-refund-delivery-release"
+      ],
+      "node scripts/build-blocked-checkout-refund-delivery-migration.mjs --verify",
     );
   });
 });

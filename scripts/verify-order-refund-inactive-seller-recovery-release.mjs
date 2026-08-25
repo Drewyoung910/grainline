@@ -16,6 +16,10 @@ import {
   ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
   verifyOrderRefundReconciliationAuthorityMigrationBytes,
 } from "./order-refund-reconciliation-authority-catalog.mjs";
+import {
+  BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+  verifyBlockedCheckoutRefundDeliveryMigrationBytes,
+} from "./build-blocked-checkout-refund-delivery-migration.mjs";
 
 export const ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PHASE =
   "order-refund-inactive-seller-recovery-prepared";
@@ -44,9 +48,20 @@ export function verifyOrderRefundInactiveSellerRecoveryRelease(
     .filter(
       (name) => name > ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
     );
+  const successorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+  );
+  const reviewedSuccessors = fs.existsSync(successorPath)
+    ? [BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION]
+    : [];
+  if (reviewedSuccessors.length === 1) {
+    verifyBlockedCheckoutRefundDeliveryMigrationBytes(rootDirectory);
+  }
   assert.deepEqual(
     laterMigrations,
-    [],
+    reviewedSuccessors,
     "Order refund inactive-seller recovery has an unreviewed successor",
   );
 
@@ -104,6 +119,7 @@ export function verifyOrderRefundInactiveSellerRecoveryRelease(
     newRuntimeFunctions: 0,
     tablePrivilegesChanged: false,
     rlsChanged: false,
+    reviewedSuccessors,
     productionTouched: false,
   });
 }

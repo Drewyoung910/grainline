@@ -11,7 +11,8 @@ predecessor runtime CRUD remains intact.
 
 Audited: 2026-08-23 against the application source immediately after accepted
 SellerPayoutEvent FORCE proof; release state refreshed 2026-08-24 after the
-compatible stack merged. This audit does not broaden or reinterpret the
+compatible stack merged and the blocked-checkout participant-delivery surface
+was re-audited 2026-08-25. This audit does not broaden or reinterpret the
 accepted SellerPayoutEvent production record.
 
 ## Executive verdict
@@ -30,7 +31,7 @@ idempotency keys; the staff Case refund path already has a private provider
 claim; disputed-order side effects use signed provider event time; and the
 Order/refund transitions share row locks. That is a sound foundation.
 
-Activation is nevertheless not ready. The audit found six load-bearing
+Activation is nevertheless not ready. The audit found seven load-bearing
 issues:
 
 1. buyer and seller account exports expose the full provider ledger, including
@@ -50,7 +51,11 @@ issues:
    and staff Case buyer email, were attempted only after the financial
    transaction committed. A process exit in that window could permanently
    omit participant delivery because a safe retry must not issue the provider
-   refund again.
+   refund again; and
+7. the automatic blocked-checkout refund was classified as `NEW_ORDER` and
+   had no refund-email outbox. A buyer could disable order-confirmation notices
+   while retaining refund notices and consequently miss the active-account
+   warning that the just-completed payment was immediately returned.
 
 Fix these in a compatible application/schema sequence before activation. Do
 not compensate with a permissive policy, a generic DEFINER append function or
@@ -490,10 +495,31 @@ committed job immediately for existing UX, while the scheduled worker recovers
 a missed or retryable send; both re-check recipient lifecycle, preference,
 suppression and quota state before sending. Exact refund replays
 reuse source and outbox deduplication and cannot mint duplicate participant
-effects. Blocked checkout has no email contract, but its buyer Notification is
-part of the same transaction. Public listing/search cache invalidation remains
-post-commit and idempotent; a missed call affects only the existing bounded
-5-to-60-minute cache TTL, not durable money, inventory or participant evidence.
+effects. The 2026-08-25 follow-up found that the blocked-checkout exception was
+not a sound product boundary: a paid then automatically refunded checkout needs
+the same durable refund-delivery class. Its corrected buyer Notification and
+refund EmailOutbox reservation are part of the same transaction. Public
+listing/search cache invalidation remains post-commit and idempotent; a missed
+call affects only the existing bounded 5-to-60-minute cache TTL, not durable
+money, inventory or participant evidence.
+
+### OPE-A12 - blocked-checkout refund delivery used the wrong preference class
+
+`finalizeBlockedCheckoutOrderRefund()` used `NEW_ORDER` for an automatic refund.
+That produced the package/order-confirmation icon, consulted the buyer's
+`NEW_ORDER` preference instead of `REFUND_ISSUED`, and omitted the durable
+refund email that exists for seller and staff-Case refunds. This is a product
+and delivery defect independent of RLS.
+
+The compatible correction is specified in
+`docs/order-payment-event-blocked-checkout-refund-delivery.md`. First, the
+Notification owner function accepts both the predecessor `NEW_ORDER` spelling
+and the corrected `REFUND_ISSUED` spelling for only the already source-bound
+`BLOCKED_CHECKOUT_REFUND_RECORDED` family. Then the application deploy changes
+the in-app type and atomically reserves the existing `refund_issued` email
+template. After predecessor drain and live proof, a separate byte-pinned
+retirement removes `NEW_ORDER` acceptance. No permissive policy, generic
+runtime function or direct Notification table grant is introduced.
 
 ## Required fixed-operation catalog
 

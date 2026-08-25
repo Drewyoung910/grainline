@@ -12,6 +12,7 @@ on:
       - package-lock.json
       - prisma/**
       - scripts/audit-runtime-db-grants.mjs
+      - scripts/build-blocked-checkout-refund-delivery-migration.mjs
       - scripts/notification-rls-ephemeral-proof.mjs
       - scripts/notification-rls-rollback-proof.mjs
       - scripts/stage-notification-rls-candidate-migration.mjs
@@ -54,6 +55,8 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify blocked-checkout refund delivery compatibility release
+        run: npm run audit:order-payment-blocked-checkout-refund-delivery-release
       - name: Prepare CI runtime policy role
         run: psql "$DIRECT_URL" -f scripts/prepare-ci-rls-runtime-role.sql
       - name: Verify committed Notification activation release artifact

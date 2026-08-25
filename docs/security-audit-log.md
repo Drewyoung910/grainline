@@ -2590,3 +2590,56 @@ Open work:
   no Stripe object, database row, endpoint, deployment, grant or RLS state has
   changed, and the package is not activation evidence. Seller,
   blocked-checkout and staff Case refund live proofs remain separate gates.
+
+## OrderPaymentEvent seller-refund proof prepared (2026-08-24)
+
+- Draft PR #273 exact head
+  `4c4f0d6f7231594bf6a125693bf3b298c7de0025` adds a separate restart-safe
+  seller-refund provider proof. It is stacked on the signed-family proof and
+  therefore has not yet received main-targeted GitHub CI; its Vercel Preview
+  fails at the expected runtime-database isolation guard rather than compiling
+  or deploying with a privileged credential.
+- The operator authenticates one retained canary buyer, creates only hidden
+  test fixtures and a disposable Stripe test-mode seller, exercises the real
+  seller refund route, proves the source-bound payment/Case/stock/Notification
+  and EmailOutbox boundary plus exact replay, and removes all disposable
+  application and provider state except the reviewed processed webhook lease
+  and ordinary external telemetry.
+- Local validation at the exact checkpoint passed eight operator/fixture tests,
+  the 45-test refund and signed-authority suite, all 3,384 repository tests
+  with seven documented skips, TypeScript, lint and a clean-clone production
+  build. The proof has not run and changes no production or provider state.
+
+## Blocked-checkout refund delivery compatibility prepared (2026-08-25)
+
+- The required pre-RLS product audit found that an automatic paid-checkout
+  refund emitted `NEW_ORDER` and reserved no refund email. This consulted the
+  wrong preference/icon class and could omit durable refund delivery for an
+  otherwise active buyer. The correction is independent of RLS and is not
+  deferred behind activation.
+- Isolated branch
+  `agent/order-payment-event-blocked-checkout-delivery-20260825` changes the
+  existing path to `REFUND_ISSUED` and atomically co-commits its deterministic
+  `refund_issued` EmailOutbox reservation with the fixed payment record and
+  source-derived Notification. The post-commit send remains recoverable and
+  does not replay the Stripe refund.
+- Migration `20260825010000_prepare_blocked_checkout_refund_delivery`, SHA-256
+  `5578678b745d41b57ec658a2363dea15728914c1b82e063bae1e3aea9ebbe25c`,
+  temporarily accepts both the predecessor and corrected type for only the
+  existing source-bound blocked-checkout family. It recreates no wrapper,
+  changes no table/RLS posture or table grant, and re-denies the generic core
+  to `PUBLIC` and `grainline_app_runtime`.
+- CI verifies and isolates the successor before the five byte-sealed
+  OrderPaymentEvent predecessors, restores it only after their proofs, then
+  applies it, audits grants and runs the complete Notification family matrix
+  for both old and corrected spellings. Historical release verifiers accept
+  only this exact byte-verified successor; arbitrary later migrations remain
+  fail-closed.
+- Focused static/release checks and the complete local suite pass: 3,390 tests
+  passed with seven documented skips and zero failures; TypeScript, lint, YAML,
+  JSON and Notification 55/55 readiness checks also pass. No migration,
+  deployment, Stripe object, database row, grant, RLS or provider state has
+  changed. Required next gates are a clean-checkout build, exact-main
+  PostgreSQL CI, compatibility migration, compatible application deploy, real
+  hosted test-checkout proof, predecessor drain and a separate retirement
+  migration.

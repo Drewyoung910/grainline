@@ -273,6 +273,14 @@ and its signed `charge.refunded` confirmation without duplicating stock, Case,
 Notification or outbox effects. Cleanup retains only the processed signed
 webhook lease and immutable provider/observability evidence.
 
+Automatic blocked-checkout refunds use the same durable participant-delivery
+class as other refunds: one `REFUND_ISSUED` in-app row plus one deterministic
+`refund_issued` EmailOutbox reservation commit with the fixed payment
+finalizer. The source-bound Notification owner function temporarily accepts
+the predecessor `NEW_ORDER` spelling only for mixed-deployment compatibility;
+the retirement migration follows predecessor drain. See
+`docs/order-payment-event-blocked-checkout-refund-delivery.md`.
+
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation

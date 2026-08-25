@@ -57,23 +57,36 @@ test("seller refund record, notification, and email reservation share one transa
   );
 });
 
-test("blocked-checkout refund record and notification share one transaction and derive the buyer", () => {
+test("blocked-checkout refund record and participant delivery share one transaction", () => {
   const blocked = finalization.slice(
     finalization.indexOf(
       "export async function finalizeBlockedCheckoutOrderRefund",
     ),
   );
 
-  assert.match(blocked, /return prisma\.\$transaction\(async \(tx\) => \{/);
+  assert.match(
+    blocked,
+    /const committed = await prisma\.\$transaction\(async \(tx\) => \{/,
+  );
   ordered(blocked, [
     "recordBlockedCheckoutOrderRefund(input, tx)",
     "createNotificationOrThrow({",
+    "const buyer = await tx.user.findUnique({",
+    "enqueueEmailOutboxOnce(",
   ]);
   assert.match(blocked, /userId: result\.buyerUserId/);
-  assert.match(blocked, /type: "NEW_ORDER"/);
+  assert.match(blocked, /type: "REFUND_ISSUED"/);
   assert.doesNotMatch(blocked, /relatedUserId:/);
   assert.match(blocked, /BLOCKED_CHECKOUT_REFUND_ACTION/);
-  assert.match(blocked, /\},\s*tx,?\s*\);/);
+  assert.match(blocked, /dedupKey: `refund-issued:\$\{sourceId\}`/);
+  assert.match(blocked, /templateName: "refund_issued"/);
+  assert.match(blocked, /preferenceKey: "EMAIL_REFUND_ISSUED"/);
+  assert.equal((blocked.match(/\},\s*tx,?\s*\);/g) ?? []).length, 2);
+  assert.ok(
+    blocked.indexOf("processEmailOutboxJobById(committed.emailOutboxId)") >
+      blocked.indexOf("const committed = await prisma.$transaction"),
+    "blocked-checkout email delivery must run only after its outbox reservation commits",
+  );
   assert.doesNotMatch(webhookRoute, /input\.buyerUserId/);
   assert.equal(
     (webhookRoute.match(/finalizeBlockedCheckoutOrderRefund\(\{/g) ?? [])

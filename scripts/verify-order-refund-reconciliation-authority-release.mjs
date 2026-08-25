@@ -17,6 +17,10 @@ import {
   ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
   verifyOrderRefundInactiveSellerRecoveryMigrationBytes,
 } from "./order-refund-inactive-seller-recovery-catalog.mjs";
+import {
+  BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+  verifyBlockedCheckoutRefundDeliveryMigrationBytes,
+} from "./build-blocked-checkout-refund-delivery-migration.mjs";
 
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_PHASE =
   "order-refund-reconciliation-authority-prepared";
@@ -40,6 +44,20 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     : [];
   if (reviewedSuccessors.length === 1) {
     verifyOrderRefundInactiveSellerRecoveryMigrationBytes(rootDirectory);
+  }
+  const blockedCheckoutSuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+  );
+  if (fs.existsSync(blockedCheckoutSuccessorPath)) {
+    assert.equal(
+      reviewedSuccessors.length,
+      1,
+      "Blocked-checkout delivery requires the inactive-seller predecessor",
+    );
+    verifyBlockedCheckoutRefundDeliveryMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION);
   }
   const laterMigrations = fs.readdirSync(
     path.join(rootDirectory, "prisma/migrations"),

@@ -660,6 +660,15 @@ seller route and disposable test destination charge, prove the local/signed
 two-row confirmation model plus atomic Case/stock/delivery effects, and clean
 all temporary application identity without authenticating a real seller.
 
+The blocked-checkout product audit found one delivery correction that must land
+before its live proof: the automatic refund was classified as `NEW_ORDER` and
+had no durable refund-email reservation. Follow
+`docs/order-payment-event-blocked-checkout-refund-delivery.md`: widen only the
+source-validated Notification function for old/new coexistence, deploy the
+`REFUND_ISSUED` plus atomic outbox caller, prove it, drain the predecessor, and
+then retire the legacy type. Do not grant generic Notification authority or
+skip the separate blocked-checkout provider proof.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers

@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify blocked-checkout refund delivery compatibility release
+        run: npm run audit:order-payment-blocked-checkout-refund-delivery-release
+      - name: Isolate blocked-checkout refund delivery until OrderPaymentEvent predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260825010000_prepare_blocked_checkout_refund_delivery
+          "$RUNNER_TEMP/blocked-checkout-refund-delivery-release"
       - name: Verify Order refund inactive-seller recovery release
         run: npm run audit:order-refund-inactive-seller-recovery-release
       - name: Isolate Order refund inactive-seller recovery until sealed predecessors pass
@@ -697,6 +704,21 @@ jobs:
           node --test
           tests/order-refund-inactive-seller-recovery-release.test.mjs
           tests/order-refund-inactive-seller-recovery-postgres-proof.test.mjs
+      - name: Restore blocked-checkout refund delivery compatibility release
+        run: >-
+          mv
+          "$RUNNER_TEMP/blocked-checkout-refund-delivery-release"
+          prisma/migrations/20260825010000_prepare_blocked_checkout_refund_delivery
+      - name: Apply blocked-checkout refund delivery compatibility
+        run: npx prisma migrate deploy
+      - name: Verify blocked-checkout refund delivery migration status
+        run: npx prisma migrate status
+      - name: Audit blocked-checkout refund delivery grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove predecessor and corrected blocked-checkout notification delivery
+        run: npm run audit:rls-notification-ephemeral
+        env:
+          NOTIFICATION_RLS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

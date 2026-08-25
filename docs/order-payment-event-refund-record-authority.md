@@ -47,8 +47,11 @@ The stacked
 remaining application transaction gap. Seller finalization now runs the fixed
 record operation, source-validated buyer Notification function and a
 deterministic `refund_issued` EmailOutbox reservation through one Prisma
-transaction. Blocked-checkout finalization runs its fixed record operation and
-source-validated buyer Notification through the same transaction. Recipient,
+transaction. The 2026-08-25 product follow-up applies that same transaction
+boundary to blocked-checkout refund notification and email reservation, and
+corrects its in-app preference/type from `NEW_ORDER` to `REFUND_ISSUED` through
+the staged contract in
+`docs/order-payment-event-blocked-checkout-refund-delivery.md`. Recipient,
 refund amount, currency and source identity come from the validated claim and
 record result rather than the earlier route snapshot.
 

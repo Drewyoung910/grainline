@@ -44,7 +44,15 @@ describe("Notification order, payment, and fulfillment authority", () => {
     assert.match(refundFinalization, /recordBlockedCheckoutOrderRefund\(input, tx\)/);
     assert.equal(
       (refundFinalization.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_PAYMENT/g) ?? []).length,
-      3,
+      4,
+    );
+    assert.equal(
+      (refundFinalization.match(/createNotificationOrThrow\(\{/g) ?? []).length,
+      2,
+    );
+    assert.equal(
+      (refundFinalization.match(/enqueueEmailOutboxOnce\(/g) ?? []).length,
+      2,
     );
     assert.match(refundFinalization, /sourceId,[\s\S]*relatedUserId: input\.actorUserId/);
     assert.match(refundFinalization, /BLOCKED_CHECKOUT_REFUND_ACTION,[\s\S]*result\.refundId/);

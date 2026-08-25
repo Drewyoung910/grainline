@@ -1644,7 +1644,7 @@ const creationFamilyCases = Object.freeze([
     ),
   },
   {
-    label: "order_payment_blocked_checkout_refund",
+    label: "order_payment_blocked_checkout_refund_predecessor",
     functionName: "grainline_notification_create_order_event",
     userId: fixture.actorUserId,
     type: "NEW_ORDER",
@@ -1657,6 +1657,23 @@ const creationFamilyCases = Object.freeze([
     setup: (owner) => configureOrderPaymentEvent(
       owner,
       "evt_notification_proof_blocked_refund",
+      "BLOCKED_CHECKOUT_REFUND_RECORDED",
+    ),
+  },
+  {
+    label: "order_payment_blocked_checkout_refund_corrected",
+    functionName: "grainline_notification_create_order_event",
+    userId: fixture.actorUserId,
+    type: "REFUND_ISSUED",
+    sourceType: "order_payment",
+    sourceId: "evt_notification_proof_blocked_refund_corrected",
+    relatedUserId: null,
+    expectedLink: `/dashboard/orders/${fixture.orderId}`,
+    expectedTitle: "Payment refunded",
+    expectedBodyIncludes: "no longer eligible",
+    setup: (owner) => configureOrderPaymentEvent(
+      owner,
+      "evt_notification_proof_blocked_refund_corrected",
       "BLOCKED_CHECKOUT_REFUND_RECORDED",
     ),
   },
