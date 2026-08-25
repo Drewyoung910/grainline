@@ -17,6 +17,18 @@ import {
 const migrationPath =
   `prisma/migrations/${ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION}/migration.sql`;
 const migration = fs.readFileSync(migrationPath, "utf8");
+const checkoutAmounts = fs.readFileSync(
+  "src/lib/checkoutAmounts.ts",
+  "utf8",
+);
+
+test("blocks a platform-fee change until historical refund accounting is versioned", () => {
+  assert.match(checkoutAmounts, /const PLATFORM_FEE_RATE = 0\.05;/);
+  assert.match(
+    migration,
+    /locked_order\."itemsSubtotalCents"::numeric \* 0\.05::numeric/,
+  );
+});
 
 test("inactive-seller recovery migration is generated from sealed predecessors", () => {
   const generated = buildOrderRefundInactiveSellerRecoveryMigration();

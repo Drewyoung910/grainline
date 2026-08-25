@@ -34,7 +34,6 @@ const marketplaceRefunds = readFileSync(
   "src/lib/marketplaceRefunds.ts",
   "utf8",
 );
-
 test("adds three pinned runtime entrypoints and one owner-private record core without changing RLS or table grants", () => {
   for (const name of [
     "grainline_blocked_checkout_refund_claim_resume",
@@ -255,8 +254,10 @@ test("provider evidence rejects ambiguous or terminally unsuccessful results", (
   assert.match(recordHelper, /expectsTransferReversal/);
   assert.match(
     recordHelper,
-    /expectedTransferReversalAmountCents/,
+    /expectedTransferReversalAmountCents = calculateCheckoutAmounts\(\{/,
   );
+  assert.match(recordHelper, /giftWrapCents: claim\.giftWrappingPriceCents \?\? 0/);
+  assert.doesNotMatch(recordHelper, /itemsSubtotalCents \* 0\.05/);
   assert.match(
     migration,
     /Seller refund reversal evidence is missing or mismatched/,

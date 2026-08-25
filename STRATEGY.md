@@ -629,6 +629,14 @@ the real signed-provider/refund/Case/replay proofs. This preparation is not
 `OrderPaymentEvent` activation evidence. See
 `docs/order-payment-event-compatible-production-preparation.md`.
 
+Do not change the 5% platform-fee rate as a routine configuration edit. The
+application now derives checkout and refund expectations through
+`calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers
+independently reproduce the same launch rate and historical Orders do not store
+a checkout-time fee/transfer snapshot. Before any fee change, add and classify
+that durable accounting snapshot and release successor fixed functions; a
+contract test intentionally blocks rate drift until then.
+
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)
 
 Bucket A is complete in production. Deployment
