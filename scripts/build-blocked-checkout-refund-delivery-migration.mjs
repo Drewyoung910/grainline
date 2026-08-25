@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 
 export const BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION =
   "20260825010000_prepare_blocked_checkout_refund_delivery";
+export const BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION_SHA256 =
+  "24000c6a69525b19ce14ef8031cfb7a7c1914aedc26115f7425b7ff9f7e223a6";
 
 const SOURCE_MIGRATION =
   "prisma/migrations/20260722051500_prepare_notification_rls/migration.sql";
@@ -26,6 +28,27 @@ function extractFunction(source, start, end) {
   return source.slice(startIndex, endIndex + end.length);
 }
 
+function extractFunctionBody(definition, delimiter) {
+  const marker = `AS ${delimiter}`;
+  const startIndex = definition.indexOf(marker);
+  const endIndex = definition.lastIndexOf(`${delimiter};`);
+  if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex) {
+    throw new Error("blocked-checkout notification function body is missing");
+  }
+  return definition.slice(startIndex + marker.length, endIndex);
+}
+
+function readPinnedNotificationSource(rootDirectory) {
+  const source = fs.readFileSync(
+    path.join(rootDirectory, SOURCE_MIGRATION),
+    "utf8",
+  );
+  if (sha256(source) !== SOURCE_MIGRATION_SHA256) {
+    throw new Error("blocked-checkout notification source migration drifted");
+  }
+  return source;
+}
+
 function replaceOnce(source, before, after) {
   const first = source.indexOf(before);
   if (first < 0 || first !== source.lastIndexOf(before)) {
@@ -37,13 +60,7 @@ function replaceOnce(source, before, after) {
 export function buildBlockedCheckoutRefundDeliveryMigration(
   rootDirectory = process.cwd(),
 ) {
-  const source = fs.readFileSync(
-    path.join(rootDirectory, SOURCE_MIGRATION),
-    "utf8",
-  );
-  if (sha256(source) !== SOURCE_MIGRATION_SHA256) {
-    throw new Error("blocked-checkout notification source migration drifted");
-  }
+  const source = readPinnedNotificationSource(rootDirectory);
 
   let notificationCore = extractFunction(
     source,
@@ -152,6 +169,41 @@ $grainline_blocked_checkout_refund_delivery_verify$;
 `;
 }
 
+export function blockedCheckoutRefundDeliveryFunctionSources(
+  rootDirectory = process.cwd(),
+) {
+  const source = readPinnedNotificationSource(rootDirectory);
+  const predecessorCoreDefinition = extractFunction(
+    source,
+    "CREATE OR REPLACE FUNCTION public.grainline_notification_create_core(",
+    "$grainline_notification_create_core$;",
+  );
+  const candidateCoreDefinition = extractFunction(
+    buildBlockedCheckoutRefundDeliveryMigration(rootDirectory),
+    "CREATE OR REPLACE FUNCTION public.grainline_notification_create_core(",
+    "$grainline_notification_create_core$;",
+  );
+  const orderWrapperDefinition = extractFunction(
+    source,
+    "CREATE OR REPLACE FUNCTION public.grainline_notification_create_order_event(",
+    "$grainline_notification_create_order_event$;",
+  );
+  return Object.freeze({
+    predecessorCore: extractFunctionBody(
+      predecessorCoreDefinition,
+      "$grainline_notification_create_core$",
+    ),
+    candidateCore: extractFunctionBody(
+      candidateCoreDefinition,
+      "$grainline_notification_create_core$",
+    ),
+    orderWrapper: extractFunctionBody(
+      orderWrapperDefinition,
+      "$grainline_notification_create_order_event$",
+    ),
+  });
+}
+
 export function verifyBlockedCheckoutRefundDeliveryMigrationBytes(
   rootDirectory = process.cwd(),
 ) {
@@ -169,9 +221,12 @@ export function verifyBlockedCheckoutRefundDeliveryMigrationBytes(
   if (migration !== expected) {
     throw new Error("blocked-checkout refund delivery migration bytes drifted");
   }
+  if (sha256(migration) !== BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION_SHA256) {
+    throw new Error("blocked-checkout refund delivery migration checksum drifted");
+  }
   return Object.freeze({
     migrationPath,
-    migrationSha256: sha256(migration),
+    migrationSha256: BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION_SHA256,
   });
 }
 

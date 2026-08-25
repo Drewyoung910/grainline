@@ -670,6 +670,11 @@ deploy the `REFUND_ISSUED` plus atomic outbox caller, prove both cross-version
 call orders resolve one row, drain the predecessor, and then retire the legacy
 input. Do not grant generic Notification authority or skip the separate
 blocked-checkout provider proof.
+The compatibility migration uses its own exact-main, CI-bound, restart-safe
+production runner. Keep that runner limited to the byte-pinned function-body
+successor and exact before/after catalog proofs; do not use this narrow release
+as a reason to rerun broad grant provisioning or to bundle the later
+`OrderPaymentEvent` ENABLE/FORCE steps.
 
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through

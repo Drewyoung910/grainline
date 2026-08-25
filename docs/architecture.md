@@ -282,6 +282,12 @@ but canonicalizes that input to `REFUND_ISSUED` before preferences, replay-key
 derivation and storage so a retry crossing deployments cannot create a second
 row. The retirement migration follows predecessor drain. See
 `docs/order-payment-event-blocked-checkout-refund-delivery.md`.
+Its production compatibility runner reads the five-migration
+`OrderPaymentEvent` prefix, the candidate ledger, Notification FORCE
+table/policy grants and the exact private-core/order-wrapper bodies in one
+repeatable-read/read-only snapshot. It accepts only absent-candidate or exact
+applied-candidate restart state and does not reuse the broad runtime-role
+provisioner for this function-body-only successor.
 
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded

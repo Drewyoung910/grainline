@@ -419,10 +419,111 @@ async function readRelationPosture(client, relationName, runtimeRole) {
   return rows[0] ?? null;
 }
 
+export async function readOrderPaymentEventCompatibleProductionSnapshotFromClient(
+  client,
+  {
+    runtimeRole = RUNTIME_ROLE,
+    root = process.cwd(),
+  } = {},
+) {
+  const migrationNames = ORDER_PAYMENT_EVENT_COMPATIBLE_MIGRATIONS.map(
+    (entry) => entry.name,
+  );
+  const ledgerRows = (await client.query(
+    `SELECT migration_name, checksum, finished_at, rolled_back_at,
+            applied_steps_count
+       FROM public._prisma_migrations
+      WHERE migration_name = ANY($1::text[])
+      ORDER BY migration_name, started_at, id`,
+    [migrationNames],
+  )).rows;
+  const orderPaymentEventTable = await readRelationPosture(
+    client,
+    "OrderPaymentEvent",
+    runtimeRole,
+  );
+  if (!orderPaymentEventTable) throw new Error("OrderPaymentEvent table is missing");
+  const reconciliationTable = await readRelationPosture(
+    client,
+    "OrderRefundReconciliation",
+    runtimeRole,
+  );
+  const refundClaimColumns = (await client.query(
+    `SELECT column_name, data_type, is_nullable
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'Order'
+        AND column_name = ANY($1::text[])
+      ORDER BY column_name`,
+    [REFUND_CLAIM_COLUMNS.map((entry) => entry.column_name)],
+  )).rows;
+  const paymentEventColumns = (await client.query(
+    `SELECT column_name, data_type, is_nullable
+       FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'OrderPaymentEvent'
+        AND column_name = 'stripeEventCreatedSeconds'
+      ORDER BY column_name`,
+  )).rows;
+  const allFunctionSources = orderPaymentEventCompatibleFunctionSources(
+    root,
+    ORDER_PAYMENT_EVENT_COMPATIBLE_MIGRATIONS.length,
+  );
+  const functionNames = [...new Set(
+    Object.keys(allFunctionSources).map((identity) =>
+      identity.slice(0, identity.indexOf("("))
+    ),
+  )];
+  const functions = (await client.query(
+    `SELECT
+       procedure.proname || '(' || pg_catalog.replace(
+         pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
+       ) || ')' AS identity,
+       pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
+       procedure.prosecdef AS security_definer,
+       procedure.prokind AS function_kind,
+       procedure.proleakproof AS leakproof,
+       procedure.proconfig AS config,
+       procedure.prosrc AS function_source,
+       pg_catalog.has_function_privilege($1, procedure.oid, 'EXECUTE')
+         AS runtime_can_execute,
+       EXISTS (
+         SELECT 1 FROM pg_catalog.aclexplode(
+           COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
+         ) AS acl
+         WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+       ) AS public_can_execute,
+       (SELECT pg_catalog.count(*)::integer
+          FROM pg_catalog.aclexplode(
+            COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
+          ) AS acl
+         WHERE acl.privilege_type <> 'EXECUTE' OR acl.grantee = 0
+           OR acl.grantee NOT IN (
+             procedure.proowner,
+             (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = $1)
+           ) OR (
+             acl.grantee = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = $1)
+             AND (acl.grantor <> procedure.proowner OR acl.is_grantable)
+           )) AS invalid_acl_count
+     FROM pg_catalog.pg_proc AS procedure
+     JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+     WHERE namespace.nspname = 'public' AND procedure.proname = ANY($2::text[])
+     ORDER BY identity`,
+    [runtimeRole, functionNames],
+  )).rows;
+  return Object.freeze({
+    ledgerRows,
+    orderPaymentEventTable,
+    reconciliationTable,
+    refundClaimColumns,
+    paymentEventColumns,
+    functions,
+  });
+}
+
 export async function readOrderPaymentEventCompatibleProductionSnapshot(
   connectionString,
   {
     runtimeRole = RUNTIME_ROLE,
+    root = process.cwd(),
   } = {},
 ) {
   const client = new Client({
@@ -442,99 +543,13 @@ export async function readOrderPaymentEventCompatibleProductionSnapshot(
       "SELECT pg_catalog.current_setting('transaction_read_only') AS read_only",
     )).rows[0]?.read_only;
     if (readOnly !== "on") throw new Error("scope transaction is not read-only");
-    const migrationNames = ORDER_PAYMENT_EVENT_COMPATIBLE_MIGRATIONS.map(
-      (entry) => entry.name,
-    );
-    const ledgerRows = (await client.query(
-      `SELECT migration_name, checksum, finished_at, rolled_back_at,
-              applied_steps_count
-         FROM public._prisma_migrations
-        WHERE migration_name = ANY($1::text[])
-        ORDER BY migration_name, started_at, id`,
-      [migrationNames],
-    )).rows;
-    const orderPaymentEventTable = await readRelationPosture(
+    const snapshot = await readOrderPaymentEventCompatibleProductionSnapshotFromClient(
       client,
-      "OrderPaymentEvent",
-      runtimeRole,
+      { runtimeRole, root },
     );
-    if (!orderPaymentEventTable) throw new Error("OrderPaymentEvent table is missing");
-    const reconciliationTable = await readRelationPosture(
-      client,
-      "OrderRefundReconciliation",
-      runtimeRole,
-    );
-    const refundClaimColumns = (await client.query(
-      `SELECT column_name, data_type, is_nullable
-         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'Order'
-          AND column_name = ANY($1::text[])
-        ORDER BY column_name`,
-      [REFUND_CLAIM_COLUMNS.map((entry) => entry.column_name)],
-    )).rows;
-    const paymentEventColumns = (await client.query(
-      `SELECT column_name, data_type, is_nullable
-         FROM information_schema.columns
-        WHERE table_schema = 'public' AND table_name = 'OrderPaymentEvent'
-          AND column_name = 'stripeEventCreatedSeconds'
-        ORDER BY column_name`,
-    )).rows;
-    const allFunctionSources = orderPaymentEventCompatibleFunctionSources(
-      process.cwd(),
-      ORDER_PAYMENT_EVENT_COMPATIBLE_MIGRATIONS.length,
-    );
-    const functionNames = [...new Set(
-      Object.keys(allFunctionSources).map((identity) =>
-        identity.slice(0, identity.indexOf("("))
-      ),
-    )];
-    const functions = (await client.query(
-      `SELECT
-         procedure.proname || '(' || pg_catalog.replace(
-           pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
-         ) || ')' AS identity,
-         pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
-         procedure.prosecdef AS security_definer,
-         procedure.prokind AS function_kind,
-         procedure.proleakproof AS leakproof,
-         procedure.proconfig AS config,
-         procedure.prosrc AS function_source,
-         pg_catalog.has_function_privilege($1, procedure.oid, 'EXECUTE')
-           AS runtime_can_execute,
-         EXISTS (
-           SELECT 1 FROM pg_catalog.aclexplode(
-             COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
-           ) AS acl
-           WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
-         ) AS public_can_execute,
-         (SELECT pg_catalog.count(*)::integer
-            FROM pg_catalog.aclexplode(
-              COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
-            ) AS acl
-           WHERE acl.privilege_type <> 'EXECUTE' OR acl.grantee = 0
-             OR acl.grantee NOT IN (
-               procedure.proowner,
-               (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = $1)
-             ) OR (
-               acl.grantee = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = $1)
-               AND (acl.grantor <> procedure.proowner OR acl.is_grantable)
-             )) AS invalid_acl_count
-       FROM pg_catalog.pg_proc AS procedure
-       JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
-       WHERE namespace.nspname = 'public' AND procedure.proname = ANY($2::text[])
-       ORDER BY identity`,
-      [runtimeRole, functionNames],
-    )).rows;
     await client.query("ROLLBACK");
     open = false;
-    return Object.freeze({
-      ledgerRows,
-      orderPaymentEventTable,
-      reconciliationTable,
-      refundClaimColumns,
-      paymentEventColumns,
-      functions,
-    });
+    return snapshot;
   } finally {
     if (open) await client.query("ROLLBACK").catch(() => {});
     await client.end();

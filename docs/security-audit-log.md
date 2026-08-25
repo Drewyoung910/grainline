@@ -2653,3 +2653,29 @@ Open work:
   PostgreSQL CI, compatibility migration, compatible application deploy, real
   hosted test-checkout proof, predecessor drain and a separate retirement
   migration.
+
+## Blocked-checkout refund delivery production gate isolated (2026-08-25)
+
+- The isolated successor now has a dedicated exact-main production workflow
+  rather than relying on the older five-migration compatible-stack runner. It
+  binds one successful push-triggered main CI run, the direct reviewed owner
+  credential and the exact latest migration before any mutation is reachable.
+- A combined scope reader verifies the five-migration `OrderPaymentEvent`
+  prefix, the candidate ledger, Notification ENABLE/FORCE posture, its two
+  exact policies, runtime table/column grants, and the exact private core plus
+  source-specific order-wrapper bodies in one engine-attested
+  repeatable-read/read-only transaction. Restart mode accepts only the exact
+  absent candidate or exact applied candidate; failed, partial, duplicate or
+  checksum-drifted rows fail closed.
+- The runner isolates the candidate while proving the sealed predecessor tree
+  and clean predecessor migration status, restores it before one conditional
+  `prisma migrate deploy`, then runs migration status, the global grant/RLS
+  audit and required after-state scope proof. It does not run the broad role
+  provisioner because this successor changes only one source-validating
+  function body and explicitly re-denies its private core.
+- Focused migration, scope, workflow and predecessor-contract validation passes
+  20/20, including real disposable PostgreSQL application and ACL proof. The
+  complete repository suite passes 3,400 tests with seven documented skips and
+  zero failures; TypeScript and lint pass, and both edited GitHub workflows
+  parse as YAML. The branch remains unmerged and the workflow has not run;
+  production, deployment, provider, grants and RLS state are unchanged.
