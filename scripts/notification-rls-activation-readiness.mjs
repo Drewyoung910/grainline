@@ -74,7 +74,9 @@ function emissionFromObject(file, sourceFile, object, kind, serviceAccess, autho
     : null;
   const sourceIdText = sourceId && ts.isPropertyAssignment(sourceId)
     ? sourceId.initializer.getText(sourceFile)
-    : null;
+    : sourceId && ts.isShorthandPropertyAssignment(sourceId)
+      ? sourceId.name.getText(sourceFile)
+      : null;
   const familyKey = sourceTypeText?.match(/^NOTIFICATION_SOURCE_TYPES\.([A-Z0-9_]+)$/)?.[1] ?? null;
   const authorityFunction = familyKey ? FAMILY_SQL_FUNCTION_BY_SOURCE_KEY[familyKey] ?? null : null;
   const hasServiceDispatch = Boolean(
