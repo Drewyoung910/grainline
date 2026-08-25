@@ -263,6 +263,16 @@ defect. Each remaining path is classified:
   operator grants no table authority, exports only hashes/counts, is not an
   ordinary application path, and must run before `OrderPaymentEvent`
   activation revokes predecessor table access.
+- `scripts/order-payment-event-seller-refund-production-proof.mjs` is the
+  protected, restart-safe seller-refund acceptance proof. Its direct
+  `StripeWebhookEvent` reads use only the protected owner connection in
+  engine-enforced read-only snapshots to bind the exact locally recorded
+  refund and signed `charge.refunded` leases, verify concurrency-safe replay,
+  and retain only the immutable processed signed lease after exact fixture
+  cleanup. The authenticated marketplace mutation still runs through the
+  deployed seller-refund route; the operator grants no table authority,
+  exports only hashes/counts, is not an ordinary application path, and must
+  run before `OrderPaymentEvent` activation revokes predecessor table access.
 - `scripts/stripe-connect-signed-payout-proof.mjs` is the protected,
   exact-release-bound pre-activation Connect delivery proof. It uses the
   reviewed pooled runtime credential inside an engine-enforced read-only

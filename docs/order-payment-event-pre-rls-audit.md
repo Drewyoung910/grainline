@@ -579,6 +579,15 @@ stand in for the still-separate seller, blocked-checkout or staff Case refund
 proofs. Do not interpret its eventual success as permission to skip the
 remaining activation sequence.
 
+The next isolated package is the authenticated seller full-refund proof in
+`docs/order-payment-event-seller-refund-production-proof.md`. It uses the
+retained operational Clerk canary only as a temporary vacation-mode seller,
+one synthetic email-opted-out buyer and one disposable Stripe test-mode
+transfer-capable account. It must prove the exact 500-cent buyer refund,
+475-cent reversal, local plus signed payment evidence, Case, Notification,
+skipped outbox, stock and retry boundaries before exact cleanup. It does not
+authorize execution or RLS activation.
+
 ## Exit criteria
 
 The table is complete only when all of the following are durable:

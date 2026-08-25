@@ -653,6 +653,13 @@ semantics. A passing signed-family proof remains explicitly insufficient for
 RLS activation. The restart-safe first operator is documented in
 `docs/order-payment-event-signed-production-proof.md` and remains unexecuted.
 
+The separate seller full-refund provider boundary is designed in
+`docs/order-payment-event-seller-refund-production-proof.md`. Keep it behind
+the successful signed-family proof. It must exercise a real authenticated
+seller route and disposable test destination charge, prove the local/signed
+two-row confirmation model plus atomic Case/stock/delivery effects, and clean
+all temporary application identity without authenticating a real seller.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers

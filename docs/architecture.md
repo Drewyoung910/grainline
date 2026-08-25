@@ -264,6 +264,15 @@ application row under live foreign-key inspection. No single family proof is
 activation evidence for the others; see
 `docs/order-payment-event-signed-production-proof.md`.
 
+The distinct seller-route acceptance contract is recorded in
+`docs/order-payment-event-seller-refund-production-proof.md`. It uses the
+retained operational Clerk canary with a temporary vacation-mode seller
+profile and a disposable Stripe test destination account; no real seller is
+impersonated. One full refund must produce both the local source-bound record
+and its signed `charge.refunded` confirmation without duplicating stock, Case,
+Notification or outbox effects. Cleanup retains only the processed signed
+webhook lease and immutable provider/observability evidence.
+
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
