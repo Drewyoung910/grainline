@@ -116,6 +116,17 @@ proof is the authority-convergence check. Disposable PostgreSQL CI applies the
 candidate after all five predecessors and proves the same combined catalog
 reader against PostgreSQL 16.
 
+The first production dispatch, run `32895229230`, failed closed before
+`prisma migrate deploy`: after isolating only the candidate, the runner invoked
+the oldest predecessor verifier while four later reviewed predecessor
+migrations were still visible, so its no-successor invariant rejected the
+stack. Production remained unchanged. The corrected runner mirrors CI's
+reverse isolation order, verifying and moving aside each newest predecessor
+until the oldest becomes the visible leaf, then restores the four isolated
+successors in chronological order before migration status or deploy. A
+filesystem-level regression executes that exact verifier sequence against a
+disposable copy of the migration tree.
+
 The hosted Checkout completion is intentionally a distinct operator stage. A
 private mode-0600 recovery file may retain its short-lived client secret; public
 logs and sanitized evidence may retain only hashes and counts. No webhook
