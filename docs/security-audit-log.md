@@ -2741,3 +2741,31 @@ Open work:
   20/20; the complete suite passes 3,409 tests with seven documented skips and
   zero failures, and TypeScript plus lint pass. The operator remains unexecuted
   and production/provider state remains unchanged.
+- A subsequent whole-transition review found one remaining crash window:
+  `checkout-created` changed the synthetic seller to vacation mode before
+  persisting `seller-blocked`, but its retry required the old value to remain
+  false. A crash between those operations therefore could not converge. The
+  transition now revalidates and idempotently updates the exact marker-bound
+  SellerProfile whether its vacation flag is false or already true. Disposable
+  PostgreSQL regression coverage executes the transition twice and proves one
+  unchanged blocked fixture. The operator remains unexecuted and production
+  state remains unchanged.
+- The same review rejected `account-created` as an unproven cleanup checkpoint:
+  fixture creation could have committed before the journal advanced, allowing
+  abort cleanup to remove the disposable Stripe account while leaving the
+  production fixture and altered canary fields behind. The operator now writes
+  `fixtures-create-pending` before that transaction and refuses cleanup from
+  that state. Consequently `account-created` proves no fixture mutation has
+  begun, while a crash around fixture commit must resume the exact idempotent
+  prepare path. Unit coverage includes the new ambiguous stage. Nothing has
+  run against production or a provider.
+- Exact-release binding was also inconsistent across commands: `prepare`,
+  `verify` and `cleanup` checked the clean reviewed main commit and successful
+  CI, while loopback `serve` handled the private Checkout client secret without
+  repeating those checks. `serve` now enforces both bindings before reading the
+  recovery journal or environment. Static regression coverage pins that order;
+  the operator remains unexecuted.
+- Post-correction validation passes the 26-test focused migration/scope/operator
+  suite, all 3,417 repository tests with 3,410 passes and seven documented
+  skips, TypeScript, lint, syntax and diff checks. No production or provider
+  operation was executed.

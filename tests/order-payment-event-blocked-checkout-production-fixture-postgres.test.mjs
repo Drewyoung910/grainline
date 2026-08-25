@@ -4,6 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   assertCleanupSnapshot,
   assertDeliverySnapshot,
+  blockFixtureSeller,
   cleanupDeliveredRows,
   createFixtures,
   readCleanupSnapshot,
@@ -206,6 +207,23 @@ test("fixture resume and cleanup reject marker drift without partial deletion", 
     const retained = await db.query(`SELECT (SELECT count(*)::integer FROM public."Order") AS orders,
       (SELECT count(*)::integer FROM public."OrderPaymentEvent") AS payments`);
     assert.deepEqual(retained.rows[0], { orders: 1, payments: 2 });
+  } finally {
+    await db.close();
+  }
+});
+
+test("seller block transition converges after a crash before journal persistence", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await createFixtures(db, value);
+    await blockFixtureSeller(db, value);
+    await blockFixtureSeller(db, value);
+    const result = await db.query(
+      `SELECT "vacationMode" FROM public."SellerProfile" WHERE id=$1`,
+      [value.sellerProfileId],
+    );
+    assert.deepEqual(result.rows, [{ vacationMode: true }]);
   } finally {
     await db.close();
   }

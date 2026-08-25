@@ -12,7 +12,7 @@ The schema-complete disposition ledger is
 `docs/rls-coverage-matrix.md`. The smaller candidate matrix in this document is
 a prototype-order excerpt and must not be treated as whole-schema coverage.
 
-Current production status (2026-07-19): the least-privilege runtime role and
+Historical production snapshot (2026-07-19): the least-privilege runtime role and
 SavedSearch Phase A are live and verified. `SavedSearch` is the only
 RLS-protected table. Phase B FORCE is separately staged but remains barred
 until its post-skew canary and minimum promotion time. Historical staging and
@@ -206,7 +206,7 @@ Order/payment/shipping as its own later activation.
 ## Prototype Candidate Matrix
 
 This is an architecture excerpt for early activation order. See
-`docs/rls-coverage-matrix.md` for the required disposition of all 60 Prisma
+`docs/rls-coverage-matrix.md` for the required disposition of all 65 Prisma
 models.
 
 | Table | Current app-layer owner model | RLS difficulty | Prototype decision |

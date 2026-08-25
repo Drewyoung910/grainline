@@ -89,6 +89,7 @@ const STAGES = Object.freeze([
   "reserved",
   "account-create-pending",
   "account-created",
+  "fixtures-create-pending",
   "fixtures-created",
   "checkout-create-pending",
   "checkout-created",
@@ -764,6 +765,27 @@ export async function createFixtures(owner, state) {
   } catch (error) {
     try { await owner.query("ROLLBACK"); } catch {}
     throw error;
+  }
+}
+
+export async function blockFixtureSeller(owner, state) {
+  const blocked = await owner.query(`
+    UPDATE public."SellerProfile"
+       SET "vacationMode"=true,"updatedAt"=CURRENT_TIMESTAMP
+     WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3
+       AND "displayName"='Grainline Blocked Checkout Proof'
+       AND "displayNameNormalized"='grainline blocked checkout proof'
+       AND "chargesEnabled"=true AND "acceptingNewOrders"=true
+       AND "allowLocalPickup"=true
+       AND "stripeAccountVersion"='v1' AND "stripeControllerType"='custom'
+    RETURNING id,"vacationMode"
+  `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId]);
+  if (
+    resultCardinality(blocked) !== 1
+    || blocked.rows[0]?.id !== state.sellerProfileId
+    || blocked.rows[0]?.vacationMode !== true
+  ) {
+    throw new Error("blocked-checkout seller eligibility transition drifted");
   }
 }
 
@@ -1451,6 +1473,9 @@ export async function prepareProof(config = validateConfiguration()) {
       state = updateState(config, state, { stage: "account-created", stripeAccountId: account.id });
     }
     if (state.stage === "account-created") {
+      state = updateState(config, state, { stage: "fixtures-create-pending" });
+    }
+    if (state.stage === "fixtures-create-pending") {
       await createFixtures(owner, state);
       await redis.del(`account-state:vercel-production:clerk:${state.buyerClerkId}`);
       state = updateState(config, state, { stage: "fixtures-created" });
@@ -1484,13 +1509,7 @@ export async function prepareProof(config = validateConfiguration()) {
       });
     }
     if (state.stage === "checkout-created") {
-      const blocked = await owner.query(`
-        UPDATE public."SellerProfile" SET "vacationMode"=true,"updatedAt"=CURRENT_TIMESTAMP
-         WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3 AND "vacationMode"=false
-           AND "chargesEnabled"=true AND "acceptingNewOrders"=true
-        RETURNING id
-      `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId]);
-      if (blocked.rowCount !== 1) throw new Error("blocked-checkout seller eligibility transition drifted");
+      await blockFixtureSeller(owner, state);
       assertPreparedSnapshot(await readPreparedSnapshot(owner, state), state, true);
       state = updateState(config, state, { stage: "seller-blocked" });
     }
@@ -1512,6 +1531,8 @@ export async function prepareProof(config = validateConfiguration()) {
 }
 
 export async function servePaymentPage(config = validateConfiguration()) {
+  assertGitState(readGitState(config.cwd), config.expectedCommit);
+  verifyGitHubCi(config);
   const state = assertState(readPrivateJson(config.statePath, "blocked-checkout recovery state"), config);
   if (state.stage !== "seller-blocked") throw new Error("blocked-checkout payment page requires seller-blocked state");
   const values = loadPrivateEnvironment(LOCAL_ENV_PATH, "local environment file");
@@ -1727,6 +1748,7 @@ export function assertAbortCleanupStage(state) {
   }
   if (new Set([
     "account-create-pending",
+    "fixtures-create-pending",
     "fixtures-created",
     "checkout-create-pending",
     "checkout-created",

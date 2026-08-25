@@ -168,6 +168,7 @@ test("abort cleanup accepts only unambiguous persisted checkpoints", () => {
   assert.equal(assertAbortCleanupStage({ stage: "seller-blocked" }), "seller-blocked");
   for (const stage of [
     "account-create-pending",
+    "fixtures-create-pending",
     "fixtures-created",
     "checkout-create-pending",
     "checkout-created",
@@ -267,6 +268,10 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND/);
   assert.match(source, /new Set\(\["prepare", "serve", "verify", "cleanup"\]\)/);
   assert.match(source, /server\.listen\(config\.port, "127\.0\.0\.1"/);
+  assert.match(
+    source,
+    /servePaymentPage[\s\S]*assertGitState\(readGitState\(config\.cwd\), config\.expectedCommit\)[\s\S]*verifyGitHubCi\(config\)/,
+  );
   assert.match(source, /checkout\.session\.completed/);
   assert.match(source, /charge\.refunded/);
   assert.match(source, /BLOCKED_CHECKOUT_REFUND_RECORDED/);

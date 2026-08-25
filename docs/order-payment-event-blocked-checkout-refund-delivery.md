@@ -130,9 +130,10 @@ production-deployment binding:
    seller to vacation mode. The short-lived Stripe client secret is written
    only to the mode-`0600` recovery state.
 2. `serve` binds only `127.0.0.1` and serves a no-store Stripe Embedded Checkout
-   page. Card data stays in Stripe-hosted frames; the page does not call a
-   Grainline webhook or know any webhook secret. Closing the server does not
-   alter recovery state.
+   page after independently rechecking the exact clean main commit and its
+   successful CI. Card data stays in Stripe-hosted frames; the page does not
+   call a Grainline webhook or know any webhook secret. Closing the server does
+   not alter recovery state.
 3. `verify` requires a genuinely paid test Checkout Session. It discovers the
    exact provider `checkout.session.completed` and `charge.refunded` events,
    proves the completed reservation, restored listing, source-bound local and
@@ -146,12 +147,18 @@ production-deployment binding:
    the marker-bound fixture. A paid Session cannot enter abort cleanup and must
    resume through `verify`.
 
-Crash recovery is stage-aware. `account-create-pending`, `fixtures-created`,
-`checkout-create-pending` and `checkout-created` can each straddle an external
-provider or database transition, so `cleanup` refuses those ambiguous journal
-stages. Rerun `prepare` with the same mode-`0600` state first: Stripe/app
-idempotency and exact marker checks converge it to `account-created` (before
-fixtures) or `seller-blocked` (one known unpaid Session), both of which are
+Crash recovery is stage-aware. `account-create-pending`,
+`fixtures-create-pending`, `fixtures-created`, `checkout-create-pending` and
+`checkout-created` can each straddle an external provider or database
+transition, so `cleanup` refuses those ambiguous journal stages. The operator
+persists `fixtures-create-pending` before touching the canary or inserting any
+database fixture, which makes `account-created` an actual pre-fixture abort
+checkpoint. Rerun `prepare` with the same mode-`0600` state first: Stripe/app
+idempotency and exact marker checks converge ambiguous states to
+`account-created` (before fixtures) or `seller-blocked` (one known unpaid
+Session). The seller-block
+transition itself is an exact-row idempotent update, so a crash after the
+database commit but before journal persistence also converges. Both are
 explicit abort-cleanup checkpoints. Never delete the recovery journal to skip
 that convergence.
 
