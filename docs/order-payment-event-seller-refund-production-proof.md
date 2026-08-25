@@ -1,0 +1,122 @@
+# OrderPaymentEvent seller full-refund production proof
+
+Status: isolated design and operator scaffold. Review or merge does not
+authorize execution. `OrderPaymentEvent` RLS remains off and predecessor CRUD
+must remain available throughout this proof.
+
+Audited: 2026-08-25 after the signed refund/dispute proof package was prepared.
+
+## Purpose
+
+Prove the real authenticated seller full-refund route against the compatible
+production application, PostgreSQL authority, Stripe test mode, Clerk and the
+active signed platform webhook. This proof is deliberately separate from the
+signed-webhook proof: a successful provider webhook does not prove that the
+seller route derives the correct actor, amount, transfer reversal, stock,
+Case, notification and email-outbox effects.
+
+The proof is required before `OrderPaymentEvent` direct runtime CRUD can be
+removed. It is not RLS activation evidence by itself.
+
+## Identity and provider boundary
+
+- Reuse only the retained non-customer Clerk operational canary. It must have
+  no active Clerk session, no SellerProfile and no marketplace activity that
+  overlaps the fixture.
+- Add one temporary vacation-mode SellerProfile to that canary. Never
+  authenticate or modify a real seller.
+- Create one synthetic production buyer row with
+  `EMAIL_REFUND_ISSUED=false`. The refund email outbox row must therefore
+  commit atomically and finish as `SKIPPED`; the proof sends no email.
+- Create one disposable Stripe **test-mode** platform-controlled connected
+  account with only the `transfers` capability needed by a destination charge.
+  This proof does not represent production seller onboarding or a live-mode
+  account. The account must be marker-bound, receive exactly one 475-cent
+  destination transfer, return to zero after reversal and be deleted during
+  cleanup.
+- Create one 500-cent test PaymentIntent with a 475-cent destination transfer.
+  The 25-cent difference is the exact 5% product fee derived by production
+  accounting. The authenticated route must refund 500 cents and Stripe must
+  reverse exactly 475 cents.
+
+Provider-created PaymentIntent, charge, refund, transfer, reversal, Event and
+ordinary observability records are immutable external test evidence. They are
+not application cleanup residue. The disposable connected account is removed.
+
+## Application fixture
+
+The owner-only fixture is marker-bound and must be revalidated immediately
+before deletion:
+
+- retained operational canary User plus one temporary vacation-mode
+  SellerProfile linked to the disposable Stripe account;
+- one synthetic buyer User with email refund delivery disabled;
+- one non-private `IN_STOCK` Listing in `SOLD_OUT` with stock zero. Vacation
+  mode keeps it absent from public inventory while allowing the fixed refund
+  function to prove stock restoration and status reactivation;
+- one paid Order and one same-seller OrderItem bound to the real test
+  PaymentIntent, charge and transfer;
+- one OPEN Case for the exact buyer, seller and Order.
+
+No fixture is inferred from broad time ranges during cleanup. Identifiers,
+provider object IDs and fixture markers remain only in a mode-0600 restart
+state file and are hashed or omitted from sanitized evidence.
+
+## Required assertions
+
+The operator must fail closed unless all of these hold:
+
+1. exact clean reviewed commit, successful exact-main CI, compatible deployed
+   source, Vercel deployment identity, aliases and health;
+2. successful signed refund/dispute predecessor evidence for the same deployed
+   source and active stage-4 platform endpoint;
+3. production owner and pooled runtime identities plus RLS-off predecessor
+   `OrderPaymentEvent` grants and exact fixed-function catalog;
+4. explicit cross-origin POST returns 403 before mutation;
+5. authenticated `POST /api/orders/:id/refund` with `{ "type": "FULL" }`
+   returns one provider refund and the database-derived 500-cent amount;
+6. Stripe refund succeeds and exposes the exact 475-cent transfer reversal;
+7. one local `local:seller_refund_recorded:<refund>` payment row and one signed
+   `charge.refunded` payment row exist for the same refund and Order;
+8. the signed confirmation is classified `local_refund_confirmed` when local
+   finalization wins the race, or `local_refund_pending_confirmation` when the
+   signed webhook wins it. Both orders must preserve the final local refund ID
+   and must not apply a second stock or Case transition;
+9. the Order claim is cleared, terminal refund fields are exact, stock is one,
+   the vacation-hidden Listing is ACTIVE, the Case is `RESOLVED` /
+   `REFUND_FULL`, and exactly one CaseSellerRefundApplication exists;
+10. exactly one source-bound buyer Notification, one `SKIPPED` refund outbox
+    row, one seller-refund audit, one Case-application audit and one signed
+    confirmation audit exist;
+11. an exact authenticated retry is rejected as already refunded and changes
+    no provider or application identity;
+12. exact signed event resend is idempotent; and
+13. cleanup revokes every canary Clerk session, removes the refund rate-limit
+    keys, deletes the disposable connected account and all temporary
+    application rows, and retains only the processed signed webhook replay
+    lease plus provider/observability evidence.
+
+## Crash and cleanup rules
+
+The operator writes every externally visible transition to a private state
+file before advancing. Recovery accepts only the reviewed adjacent stages and
+revalidates provider and database identity; it never guesses that an HTTP or
+Stripe call failed from the absence of a local response.
+
+Once the refund exists, cleanup must first wait for the signed
+`charge.refunded` lease, because deleting the Order first could make a delayed
+signed event fail and retry forever. It then removes dependent rows under a
+serializable owner transaction after live foreign-key discovery and exact
+marker checks. The permanent operational canary User and the processed webhook
+lease are retained. A failed cleanup preserves the private state file and
+prints only redacted diagnostics.
+
+## Sequencing
+
+1. Merge and execute the distinct signed refund/dispute proof.
+2. Review this operator, unit tests and disposable PostgreSQL fixture proof.
+3. Merge from an exact main commit and require exact-main CI.
+4. Execute this proof once against the already-compatible deployment.
+5. Record sanitized evidence and cleanup outcome.
+6. Continue with blocked-checkout and staff Case refund live proofs. Do not
+   bundle those authorities or infer them from this seller proof.

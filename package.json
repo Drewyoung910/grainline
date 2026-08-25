@@ -180,6 +180,7 @@
     "ops:stripe-connect-signed-payout-proof": "node scripts/stripe-connect-signed-payout-proof.mjs",
     "ops:seller-payout-event-linked-production-proof": "node scripts/seller-payout-event-linked-production-proof.mjs",
     "ops:order-payment-event-signed-production-proof": "node scripts/order-payment-event-signed-production-proof.mjs",
+    "ops:order-payment-event-seller-refund-production-proof": "node scripts/order-payment-event-seller-refund-production-proof.mjs",
     "audit:stripe-money": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/stripe-money-movement-proof.mjs",
     "audit:dependencies": "node scripts/audit-dependencies.mjs",
     "audit:buyer-deletion-replay": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/buyer-deletion-stripe-replay-proof.mjs",
