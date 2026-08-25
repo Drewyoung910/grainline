@@ -2798,5 +2798,35 @@ Open work:
   the microsecond-preserving representation. The refreshed focused
   operator/inventory suite passes 19/19; the complete local suite passes 3,418
   tests with 3,411 passes, seven documented skips and zero failures, and
-  TypeScript plus lint pass. Fresh exact-head CI is pending. The operator
-  remains unexecuted and production/provider state remains unchanged.
+  TypeScript plus lint pass. Exact head
+  `d568238accb123784a42fc4b3d202c4d5ac73ab4` passed CI `32893122321`, and
+  PR #276 merged as main `dc46c7791d0761735118666800d5beaddd402ec9`.
+  The operator remains unexecuted and production/provider state remains
+  unchanged.
+
+## Blocked-checkout compatibility runner predecessor isolation (2026-08-25)
+
+- Authorized workflow run `32895229230` passed its exact-main/CI, credential,
+  byte, and read-only restart-scope gates, then failed closed before
+  `prisma migrate deploy` while verifying the sealed predecessor releases.
+  No production migration, deployment, provider action, grant change or RLS
+  change occurred.
+- The run's engine-read-only restart snapshot directly reported
+  `blockedCheckoutRefundDeliveryApplied=false`,
+  `state=delivery-predecessor`, `OrderPaymentEvent` RLS off, predecessor CRUD
+  retained, Notification FORCE retained and `productionChangedByProof=false`.
+- The runner had isolated only the blocked-checkout candidate before invoking
+  the oldest OrderPaymentEvent predecessor verifier. Four later reviewed
+  predecessors remained visible, and the verifier correctly rejected them as
+  successors. This was a workflow staging defect, not migration-ledger or live
+  database drift.
+- The isolated correction mirrors the already-proven CI sequence: verify the
+  newest predecessor, move it aside, continue backward through all five, then
+  restore the four isolated successors chronologically before migration status
+  and the one conditional deploy; the oldest visible leaf never moves. A
+  disposable migration-tree regression runs every verifier at the exact staged
+  filesystem boundary, preventing a static ordering assertion from masking
+  this failure class again.
+- Focused migration/scope/workflow validation passes 11/11. The complete
+  repository suite passes 3,419 tests with 3,412 passes, seven documented
+  skips and zero failures; TypeScript, lint, YAML parsing and diff checks pass.

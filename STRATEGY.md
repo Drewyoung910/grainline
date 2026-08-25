@@ -4,6 +4,38 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Deferred repository and Preview operational hygiene (2026-08-25)
+
+Do not reconcile worktrees during the active OrderPaymentEvent release chain.
+The repository root is intentionally left on
+`codex/saved-search-rls-rollout-20260717` because it contains uncommitted user
+material (`audit_open_findings.md`, `.codex/`, `AGENTS.md` and
+`audit_open_findings.md.bak`). Worktrees are independent checkouts; they are
+not merged together. The 2026-08-25 Git inventory reports 12 registered
+worktrees, while VS Code's earlier “106 worktrees” popup is stale cached UI
+state rather than the Git inventory.
+
+After the current PR/release chain is complete, run one dedicated,
+non-destructive reconciliation before switching the root folder: inventory
+every registered worktree and its branch/remote containment; classify and
+preserve unique commits and uncommitted files; archive duplicates only after
+content equivalence is proven; return the root checkout to current `main`; and
+remove or prune only worktrees proven clean, merged/remote-contained and
+obsolete. Record the retained branches, archived artifacts and every removed
+worktree. Never use a bulk cleanup or treat the VS Code count as deletion
+authority.
+
+Ordinary Vercel Preview failures are currently expected because Preview has no
+`DATABASE_URL`: compilation and TypeScript complete, then the runtime database
+isolation guard/page-data collection fails closed. GitHub exact-head CI and its
+production build remain the release gate; a red Preview is not accepted as
+successful build evidence, but it also does not indicate an application
+compile failure in this configuration. After the RLS chain, choose and
+document one durable noise reduction path: either disable automatic ordinary
+Previews, or provision lifecycle-managed disposable Neon Preview databases
+with a restricted non-owner role. Never link a Preview to Production
+`DATABASE_URL`, `DIRECT_URL`, an owner credential or shared production state.
+
 ### Case FORCE completion and Order/payment/shipping start (2026-08-04)
 
 The Case-family database RLS group is complete. Exact main
