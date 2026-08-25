@@ -2679,3 +2679,124 @@ Open work:
   zero failures; TypeScript and lint pass, and both edited GitHub workflows
   parse as YAML. The branch remains unmerged and the workflow has not run;
   production, deployment, provider, grants and RLS state are unchanged.
+
+## Blocked-checkout live provider proof isolated (2026-08-25)
+
+- Isolated branch
+  `agent/order-payment-event-blocked-checkout-proof-20260825` adds the distinct
+  restart-safe live acceptance operator
+  `scripts/order-payment-event-blocked-checkout-production-proof.mjs`. It has
+  four explicit commands: `prepare`, loopback-only `serve`, `verify`, and an
+  unpaid-only `cleanup`. Review, commit or merge does not authorize execution.
+- The proof creates one marker-bound transfer-only Stripe test Custom account,
+  one hidden private $5 listing, and a Checkout Session through the deployed
+  authenticated quote and single-item checkout routes. It changes only the
+  synthetic seller to vacation mode after Session creation, so the real
+  webhook path must recognize the now-blocked paid checkout. Payment remains a
+  human-completed Stripe Embedded Checkout; no webhook secret or forged event
+  substitutes for provider delivery.
+- Verification binds the genuine `checkout.session.completed` and
+  `charge.refunded` events to one Order, completed reservation, restored stock,
+  full tax-inclusive buyer refund, exact $4.75 seller transfer reversal, two
+  source-bound `OrderPaymentEvent` rows, one `REFUND_ISSUED` Notification, one
+  preference-skipped refund EmailOutbox row and three audit rows. It separately
+  requires zero erroneous `NEW_ORDER` Notification or email effects, then
+  resends both exact signed event identities and rejects any application-row or
+  lease-generation change.
+- Cleanup performs exact relationship and live foreign-key checks before
+  deleting the application fixture, restores the canary's original preference
+  and terms snapshot, revokes its Clerk sessions, removes only its Redis keys,
+  and deletes the zero-balance connected account. It retains only the two
+  processed webhook leases plus immutable Stripe test objects and ordinary
+  provider/observability telemetry. A paid Session cannot use the abort path.
+- Adversarial review tightened the mode-`0600` restart journal's preference,
+  terms, timestamp and disposable-identity validation; removed an unnecessary
+  early-stage direct SellerProfile delete; pinned the live Grainline Clerk
+  tenant and HTTPS Redis credentials; and explicitly classified the new
+  owner-side `StripeWebhookEvent` reads in the historical activation inventory.
+  The inventory tripwire was the only failure in the first full run and passed
+  after that classification.
+- The final local validation passed the 84-test focused payment/refund suite,
+  the 16-test operator plus StripeWebhookEvent inventory suite, all 3,415
+  repository tests with 3,408 passes and seven documented skips, TypeScript,
+  lint, syntax/diff checks and an exact clean-clone Next.js production build.
+  The nested-worktree build was rejected by Turbopack's filesystem-root check,
+  and the first sandboxed clean-clone attempt was denied its internal localhost
+  port; the identical clean-clone build completed after removing that sandbox
+  restriction, including compilation, TypeScript, page-data collection and all
+  159 static pages. The disposable clone and its mode-`0600` environment copy
+  were deleted afterward. The operator has not run: no Stripe object, Checkout
+  Session, database row, deployment, migration, grant, RLS, Clerk, Redis or
+  provider configuration changed in this checkpoint.
+- The review stack is intentionally linear: PR `#272` targets `main`; PRs
+  `#273`, `#274`, `#275` and `#276` each target the immediately preceding
+  branch. Land one PR at a time, retarget the next child to current `main`, and
+  require fresh exact-main CI before landing it; merging a child into its
+  feature-branch base does not put that child on `main`. Root PR `#272` passed
+  GitHub CI run `32804056205`. Its Vercel Preview and PR `#276`'s Preview both
+  compiled and passed TypeScript before page-data collection failed because
+  Preview deliberately has no `DATABASE_URL`; those red Preview checks are not
+  application failures and are not accepted as build evidence. The clean-clone
+  build above is the successful production-build evidence for exact head
+  `e95c60c9f2227ab97c1bb5c290041d92ee12cceb`.
+- A final state-machine audit found that abort cleanup could reach ambiguous
+  persisted stages immediately around account creation, fixture creation or
+  Checkout Session creation and then either miss an unjournaled provider
+  object or report a misleading relationship mismatch. Cleanup now rejects
+  those four stages before loading provider credentials and requires the same
+  restart journal to resume `prepare` through its idempotent/marker-bound
+  convergence. Only `reserved`, `account-created` and `seller-blocked` are
+  unpaid abort checkpoints; paid states still require `verify`. Unit coverage
+  enumerates every accepted and rejected boundary. Focused validation passes
+  20/20; the complete suite passes 3,409 tests with seven documented skips and
+  zero failures, and TypeScript plus lint pass. The operator remains unexecuted
+  and production/provider state remains unchanged.
+- A subsequent whole-transition review found one remaining crash window:
+  `checkout-created` changed the synthetic seller to vacation mode before
+  persisting `seller-blocked`, but its retry required the old value to remain
+  false. A crash between those operations therefore could not converge. The
+  transition now revalidates and idempotently updates the exact marker-bound
+  SellerProfile whether its vacation flag is false or already true. Disposable
+  PostgreSQL regression coverage executes the transition twice and proves one
+  unchanged blocked fixture. The operator remains unexecuted and production
+  state remains unchanged.
+- The same review rejected `account-created` as an unproven cleanup checkpoint:
+  fixture creation could have committed before the journal advanced, allowing
+  abort cleanup to remove the disposable Stripe account while leaving the
+  production fixture and altered canary fields behind. The operator now writes
+  `fixtures-create-pending` before that transaction and refuses cleanup from
+  that state. Consequently `account-created` proves no fixture mutation has
+  begun, while a crash around fixture commit must resume the exact idempotent
+  prepare path. Unit coverage includes the new ambiguous stage. Nothing has
+  run against production or a provider.
+- Exact-release binding was also inconsistent across commands: `prepare`,
+  `verify` and `cleanup` checked the clean reviewed main commit and successful
+  CI, while loopback `serve` handled the private Checkout client secret without
+  repeating those checks. `serve` now enforces both bindings before reading the
+  recovery journal or environment. Static regression coverage pins that order;
+  the operator remains unexecuted.
+- Post-correction validation passes the 26-test focused migration/scope/operator
+  suite, all 3,417 repository tests with 3,410 passes and seven documented
+  skips, TypeScript, lint, syntax and diff checks. No production or provider
+  operation was executed.
+- The exact-main hard review then found that fixture cleanup restored the
+  operational canary's saved preference/terms snapshot without first proving
+  those fields had not changed concurrently. That could overwrite an external
+  canary update even though all marker-bound fixture deletion remained exact.
+  Fixture creation now locks the exact canary row and accepts only the saved
+  original snapshot before mutation or the exact proof-fenced snapshot on
+  resume. Successful and unpaid cleanup lock and require the proof-fenced state
+  before any deletion or restoration. Disposable PostgreSQL coverage changes
+  the canary preference between stages and proves both resume and cleanup fail
+  without deleting fixture rows.
+- That fence review also caught a same-class timestamp risk: directly reading
+  PostgreSQL `timestamp without time zone` fields through node-postgres can
+  reinterpret their wall time in the workstation timezone before a later exact
+  comparison. The canary query now projects both timestamp snapshots as
+  lossless six-digit database text, retains that representation in the private
+  journal, and casts it back only inside PostgreSQL. Regression coverage pins
+  the microsecond-preserving representation. The refreshed focused
+  operator/inventory suite passes 19/19; the complete local suite passes 3,418
+  tests with 3,411 passes, seven documented skips and zero failures, and
+  TypeScript plus lint pass. Fresh exact-head CI is pending. The operator
+  remains unexecuted and production/provider state remains unchanged.

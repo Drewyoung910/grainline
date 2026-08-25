@@ -117,9 +117,75 @@ candidate after all five predecessors and proves the same combined catalog
 reader against PostgreSQL 16.
 
 The hosted Checkout completion is intentionally a distinct operator stage. A
-private mode-0600 recovery file may retain its short-lived session URL; public
+private mode-0600 recovery file may retain its short-lived client secret; public
 logs and sanitized evidence may retain only hashes and counts. No webhook
 secret may be used to forge an event as a substitute for provider delivery.
+
+## Restart-safe provider operator
+
+`scripts/order-payment-event-blocked-checkout-production-proof.mjs` implements
+four explicit commands behind one exact-main, successful-CI and READY
+production-deployment binding:
+
+1. `prepare` creates one marker-bound transfer-only Custom account, fences the
+   operational canary's refund-email preference, creates a private reserved
+   $5 listing, authenticates the canary, calls the real quote and single-item
+   checkout routes, proves exact route retry, and only then flips the synthetic
+   seller to vacation mode. The short-lived Stripe client secret is written
+   only to the mode-`0600` recovery state.
+2. `serve` binds only `127.0.0.1` and serves a no-store Stripe Embedded Checkout
+   page after independently rechecking the exact clean main commit and its
+   successful CI. Card data stays in Stripe-hosted frames; the page does not
+   call a Grainline webhook or know any webhook secret. Closing the server does
+   not alter recovery state.
+3. `verify` requires a genuinely paid test Checkout Session. It discovers the
+   exact provider `checkout.session.completed` and `charge.refunded` events,
+   proves the completed reservation, restored listing, source-bound local and
+   signed payment rows, claim clearance, full buyer refund, exact seller
+   transfer reversal, `REFUND_ISSUED` Notification, skipped deterministic
+   refund outbox and absence of all `NEW_ORDER` delivery. It resends both exact
+   provider events and requires every application identity and webhook claim
+   generation to remain unchanged before cleanup.
+4. `cleanup` is an explicit abort path only while the Session is unpaid. It
+   expires that exact Session, waits for signed stock restoration, then removes
+   the marker-bound fixture. A paid Session cannot enter abort cleanup and must
+   resume through `verify`.
+
+Crash recovery is stage-aware. `account-create-pending`,
+`fixtures-create-pending`, `fixtures-created`, `checkout-create-pending` and
+`checkout-created` can each straddle an external provider or database
+transition, so `cleanup` refuses those ambiguous journal stages. The operator
+persists `fixtures-create-pending` before touching the canary or inserting any
+database fixture, which makes `account-created` an actual pre-fixture abort
+checkpoint. Rerun `prepare` with the same mode-`0600` state first: Stripe/app
+idempotency and exact marker checks converge ambiguous states to
+`account-created` (before fixtures) or `seller-blocked` (one known unpaid
+Session). The seller-block
+transition itself is an exact-row idempotent update, so a crash after the
+database commit but before journal persistence also converges. Both are
+explicit abort-cleanup checkpoints. Never delete the recovery journal to skip
+that convergence.
+
+Successful cleanup performs live foreign-key dependent inspection before
+deleting application rows, restores the canary's exact preferences/terms,
+revokes its sessions, removes only exact Redis keys and deletes the zero-balance
+disposable connected account. The two processed webhook leases and immutable
+Stripe test objects remain as the documented evidence boundary. Automatic tax
+may make the buyer refund exceed $5; the proof derives that amount from the
+completed Session while requiring the seller transfer and reversal to remain
+exactly $4.75.
+
+The canary mutation is generation-fenced rather than a blind save/restore.
+Fixture creation locks the exact canary row and requires its persisted fields
+to equal the private original snapshot before applying the proof fence. Resume
+requires the exact proof-fenced preference/terms state, and both successful and
+unpaid cleanup lock and re-prove that same state before deleting fixtures or
+restoring the original snapshot. Concurrent preference or terms drift therefore
+fails closed without clobbering the external change or partially deleting the
+fixture.
+The two PostgreSQL `timestamp without time zone` snapshots are projected as
+lossless six-digit database text and cast back only inside PostgreSQL; they are
+never round-tripped through the workstation's local `Date` timezone.
 
 ## Proof fixture boundary
 

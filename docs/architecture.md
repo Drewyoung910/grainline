@@ -289,6 +289,18 @@ repeatable-read/read-only snapshot. It accepts only absent-candidate or exact
 applied-candidate restart state and does not reuse the broad runtime-role
 provisioner for this function-body-only successor.
 
+The distinct live acceptance operator is
+`scripts/order-payment-event-blocked-checkout-production-proof.mjs`: it creates
+the Session through the authenticated production checkout route, moves only a
+synthetic seller into vacation mode after Session creation, and requires real
+Stripe Embedded Checkout plus signed completion/refund delivery. Its private
+restart journal separates `prepare`, loopback-only `serve`, `verify` and unpaid
+`cleanup`; a paid attempt cannot be discarded through the abort path.
+The operational canary preference/terms mutation uses an exact row lock and
+original/proof-fenced snapshot checks so cleanup cannot overwrite concurrent
+account changes. Timestamp-without-time-zone fields remain lossless database
+text until PostgreSQL performs the exact comparison and restoration.
+
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
@@ -387,7 +399,7 @@ behavior is backed by an unusually broad regression/evidence suite. The code is
 not an unstructured mess, but it is a large modular monolith whose complexity is
 now concentrated in several hotspots:
 
-- 114 API route files and 60 Prisma models create a broad authorization and
+- 114 API route files and 65 Prisma models create a broad authorization and
   lifecycle surface.
 - The Stripe webhook (2,717 lines) and account-deletion coordinator (2,007
   lines) are high-change, cross-domain orchestration files that deserve staged
