@@ -642,6 +642,17 @@ automation bypass tokens. Prefer public canonical health plus read-only
 deployment metadata unless a separately reviewed bypass is intentionally
 provisioned.
 
+The compatible OrderPaymentEvent application is live, so production proof is
+now split by real authority family rather than one oversized synthetic smoke.
+First prove signed Stripe refund/dispute delivery and exact replay with two
+separate test charges and exact cleanup; then independently prove seller full
+refund, blocked-checkout recovery and staff Case refund. This is a security and
+product-correctness boundary, not rollout ceremony: the four paths have
+different authentication, provider-call, stock/Case and participant-delivery
+semantics. A passing signed-family proof remains explicitly insufficient for
+RLS activation. The restart-safe first operator is documented in
+`docs/order-payment-event-signed-production-proof.md` and remains unexecuted.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers

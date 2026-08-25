@@ -2557,3 +2557,36 @@ Open work:
   regeneration. A postflight reported zero remaining project bypasses and
   canonical public health stayed 200. Future protected URL probes must not use
   `vercel curl` without an intentionally provisioned reviewed bypass.
+
+## OrderPaymentEvent signed provider proof prepared (2026-08-24)
+
+- Added a restart-safe, Stripe-test-mode-only live proof for the deployed
+  `charge.refunded` and `charge.dispute.created` families. It binds an exact
+  clean-main operator commit, exact-main CI, the compatible deployed source,
+  Vercel deployment/project/aliases/health, Stripe provider stage 4 and exact
+  production owner/runtime identities before any test mutation.
+- The proof uses independent refund and dispute charges, derives two private
+  disposable Orders from their returned charge IDs, verifies the exact
+  payment, Order, Case, Notification and audit effects, and sends an exact
+  post-success replay for each family. The dispute receives one earlier exact
+  resend after fixture insertion because Stripe's special dispute payment may
+  emit before its Order exists.
+- Cleanup verifies exact relationships and every live foreign-key dependent
+  before deleting two Users, one SellerProfile, two Listings, two Orders, two
+  OrderItems, two payment rows, one Case/application, one Notification and
+  three audit rows. It intentionally retains only two processed test-mode
+  `StripeWebhookEvent` replay leases in the database. Stripe test objects and
+  ordinary Stripe/Vercel/Sentry delivery telemetry remain external records;
+  evidence distinguishes those from database residue. Unexpected dependents
+  fail and roll back cleanup rather than cascading.
+- Adversarial restart review corrected three pre-checkpoint defects: final
+  evidence no longer attempts to re-read rows already removed by a committed
+  cleanup; each non-transactional Stripe resend now has a durable pending stage
+  and evidence does not claim an unknowable exactly-once call count; and a
+  crash-left `.next` state is promoted only as one exact adjacent transition
+  with all prior fields sealed. Cleanup also re-proves every base fixture
+  marker immediately before deletion.
+- Pure and disposable PostgreSQL tests pass locally. The operator has not run,
+  no Stripe object, database row, endpoint, deployment, grant or RLS state has
+  changed, and the package is not activation evidence. Seller,
+  blocked-checkout and staff Case refund live proofs remain separate gates.

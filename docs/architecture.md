@@ -253,7 +253,18 @@ concurrency proof. Its database authority, distinct actual pooled-runtime
 compatible postflight and converted application are accepted in production,
 but live Stripe/refund/Case replay proof is still required and this is not
 `OrderPaymentEvent` RLS activation evidence. See
-`docs/order-payment-event-signed-authority-design.md`. Self-service
+`docs/order-payment-event-signed-authority-design.md`.
+
+Provider acceptance is split by authority family: signed Stripe
+refund/dispute delivery, seller self-service full refund, blocked-checkout
+recovery and staff Case refund each receive an independent restart-safe live
+proof. The prepared signed-family operator uses two private disposable Orders,
+retains only processed webhook replay leases and removes every temporary
+application row under live foreign-key inspection. No single family proof is
+activation evidence for the others; see
+`docs/order-payment-event-signed-production-proof.md`.
+
+Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
 fields remain private service evidence.

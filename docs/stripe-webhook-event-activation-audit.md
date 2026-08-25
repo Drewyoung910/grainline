@@ -253,6 +253,16 @@ defect. Each remaining path is classified:
   claim for its disposable session IDs. It never deletes those immutable
   audit/idempotency rows, grants no runtime table access, retains no IDs in its
   sanitized evidence, and is not an ordinary application path.
+- `scripts/order-payment-event-signed-production-proof.mjs` is the protected,
+  restart-safe `OrderPaymentEvent` signed-family acceptance proof. Its direct
+  `StripeWebhookEvent` reads use only the protected owner connection in
+  engine-enforced read-only snapshots to bind two exact Stripe test-mode
+  events, verify their processed leases and replay stability, and retain only
+  those immutable leases after exact application-fixture cleanup. The pooled
+  runtime connection is used only to attest its restricted identity; this
+  operator grants no table authority, exports only hashes/counts, is not an
+  ordinary application path, and must run before `OrderPaymentEvent`
+  activation revokes predecessor table access.
 - `scripts/stripe-connect-signed-payout-proof.mjs` is the protected,
   exact-release-bound pre-activation Connect delivery proof. It uses the
   reviewed pooled runtime credential inside an engine-enforced read-only
