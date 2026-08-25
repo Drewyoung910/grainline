@@ -2718,3 +2718,14 @@ Open work:
   were deleted afterward. The operator has not run: no Stripe object, Checkout
   Session, database row, deployment, migration, grant, RLS, Clerk, Redis or
   provider configuration changed in this checkpoint.
+- The review stack is intentionally linear: PR `#272` targets `main`; PRs
+  `#273`, `#274`, `#275` and `#276` each target the immediately preceding
+  branch. Land one PR at a time, retarget the next child to current `main`, and
+  require fresh exact-main CI before landing it; merging a child into its
+  feature-branch base does not put that child on `main`. Root PR `#272` passed
+  GitHub CI run `32804056205`. Its Vercel Preview and PR `#276`'s Preview both
+  compiled and passed TypeScript before page-data collection failed because
+  Preview deliberately has no `DATABASE_URL`; those red Preview checks are not
+  application failures and are not accepted as build evidence. The clean-clone
+  build above is the successful production-build evidence for exact head
+  `e95c60c9f2227ab97c1bb5c290041d92ee12cceb`.
