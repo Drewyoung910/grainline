@@ -273,6 +273,17 @@ defect. Each remaining path is classified:
   deployed seller-refund route; the operator grants no table authority,
   exports only hashes/counts, is not an ordinary application path, and must
   run before `OrderPaymentEvent` activation revokes predecessor table access.
+- `scripts/order-payment-event-blocked-checkout-production-proof.mjs` is the
+  protected, restart-safe blocked-checkout acceptance proof. It creates one
+  Session through the deployed authenticated checkout route and requires real
+  Stripe Embedded Checkout plus signed `checkout.session.completed` and
+  `charge.refunded` delivery. Its direct `StripeWebhookEvent` reads use only
+  the protected owner connection in engine-enforced read-only snapshots to
+  bind those two exact processed leases and verify replay stability. The
+  operator grants no table authority, exports only hashes/counts, removes all
+  disposable application rows, retains only the two immutable processed
+  leases, is not an ordinary application path, and must run before
+  `OrderPaymentEvent` activation revokes predecessor table access.
 - `scripts/stripe-connect-signed-payout-proof.mjs` is the protected,
   exact-release-bound pre-activation Connect delivery proof. It uses the
   reviewed pooled runtime credential inside an engine-enforced read-only

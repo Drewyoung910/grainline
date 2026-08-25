@@ -674,6 +674,14 @@ successor and exact before/after catalog proofs; do not use this narrow release
 as a reason to rerun broad grant provisioning or to bundle the later
 `OrderPaymentEvent` ENABLE/FORCE steps.
 
+The live blocked-checkout acceptance is now a four-command restart-safe
+operator rather than a webhook-secret simulation. Keep its payment completion
+interactive through a loopback-only Stripe Embedded Checkout page, derive the
+tax-inclusive buyer refund from the completed Session, prove the fixed $4.75
+seller reversal and zero `NEW_ORDER` side effects, and retain only the two
+processed signed webhook leases after exact cleanup. Never use the unpaid
+abort command once Stripe reports the Session paid.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers

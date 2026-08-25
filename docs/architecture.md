@@ -287,6 +287,14 @@ repeatable-read/read-only snapshot. It accepts only absent-candidate or exact
 applied-candidate restart state and does not reuse the broad runtime-role
 provisioner for this function-body-only successor.
 
+The distinct live acceptance operator is
+`scripts/order-payment-event-blocked-checkout-production-proof.mjs`: it creates
+the Session through the authenticated production checkout route, moves only a
+synthetic seller into vacation mode after Session creation, and requires real
+Stripe Embedded Checkout plus signed completion/refund delivery. Its private
+restart journal separates `prepare`, loopback-only `serve`, `verify` and unpaid
+`cleanup`; a paid attempt cannot be discarded through the abort path.
+
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
