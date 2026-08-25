@@ -2526,5 +2526,34 @@ Open work:
   mode-`0600` evidence with SHA-256
   `ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10`,
   retained no database URL or row data, and recorded
-  `productionChangedByPostflight=false`. The converted application remains
-  undeployed and `OrderPaymentEvent` RLS remains off.
+  `productionChangedByPostflight=false`. At that checkpoint the converted
+  application remained undeployed and `OrderPaymentEvent` RLS remained off.
+
+## OrderPaymentEvent compatible application live (2026-08-24)
+
+- The application-side seller refund validation now derives the expected
+  seller transfer through `calculateCheckoutAmounts()` instead of duplicating
+  the launch fee arithmetic. A release contract prevents changing the
+  application fee rate while the byte-sealed PostgreSQL finalizers still
+  validate the historical 5% contract and Orders lack a durable checkout-time
+  fee/transfer snapshot.
+- PR #270 exact head `b7bd29a4c3957f5234a9cca7290e610dace02d63`
+  merged as exact main `2820986538c0d64f035defce052ba4ad0de1b3fb`.
+  Exact-main CI `32798835742` passed the complete release chain.
+- A manual deployment from a clean detached worktree at that exact commit
+  produced Vercel Production deployment
+  `dpl_73aR913b9hfgkcdfBv2MwMyypR5a`, state `READY`. The build runtime guard
+  attested the pooled `grainline_app_runtime` identity; both
+  `thegrainline.com/api/health` and `grainline.vercel.app/api/health` returned
+  HTTP 200 with `{ "ok": true }`.
+- No migration, grant, RLS, Stripe, database-row or credential change was part
+  of the deployment. `OrderPaymentEvent` remains RLS/FORCE off with predecessor
+  CRUD. The previous deployment remains the coexistence predecessor until the
+  real signed-provider/refund/Case/replay proof succeeds and a separate drain
+  is accepted.
+- Vercel CLI 58.9.0 automatically created one persistent, no-expiry automation
+  bypass while probing the protected deployment URL. The token was matched by
+  sanitized scope and creation timestamp, never printed, and revoked with no
+  regeneration. A postflight reported zero remaining project bypasses and
+  canonical public health stayed 200. Future protected URL probes must not use
+  `vercel curl` without an intentionally provisioned reviewed bypass.

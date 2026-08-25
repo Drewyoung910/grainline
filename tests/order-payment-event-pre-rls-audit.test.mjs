@@ -73,8 +73,11 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
     assert.match(audit, /Keep `OrderShippingRateQuote`, `Order` and `OrderItem` separate/);
     assert.match(
       audit,
-      /merged through exact main[\s\S]*They are not deployed or\s+production-applied, and `OrderPaymentEvent` RLS remains off/,
+      /merged through exact main[\s\S]*reviewed database authority\s+is production-applied[\s\S]*converted application is live[\s\S]*`OrderPaymentEvent` RLS remains off/,
     );
+    assert.match(audit, /2820986538c0d64f035defce052ba4ad0de1b3fb/);
+    assert.match(audit, /dpl_73aR913b9hfgkcdfBv2MwMyypR5a/);
+    assert.match(audit, /Live provider\/replay proof remains required/);
   });
 
   it("records the payment-domain blockers rather than only RLS mechanics", () => {

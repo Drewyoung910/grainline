@@ -2,10 +2,11 @@
 
 Status: the byte-sealed reconciliation checkpoint and its reviewed
 inactive-seller successor merged through exact main
-`d17b0384f2b90b128ba23852a0dedb004ce52739`. Neither is deployed or applied to
-production. `OrderPaymentEvent` RLS remains off, predecessor
-`Order`/`OrderPaymentEvent` grants remain unchanged and no production workflow
-is wired for either migration.
+`d17b0384f2b90b128ba23852a0dedb004ce52739`, production-applied through guarded
+run `32793394895`, and used by production application
+`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`. `OrderPaymentEvent` RLS remains off and
+predecessor `Order`/`OrderPaymentEvent` grants remain unchanged. Live bounded
+provider reconciliation proof remains outstanding.
 
 Prepared: 2026-08-24. The exact additive migration is
 `20260824040000_prepare_order_refund_reconciliation_authority`, SHA-256
