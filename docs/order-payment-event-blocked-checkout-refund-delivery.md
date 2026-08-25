@@ -1,9 +1,9 @@
 # Blocked-checkout refund participant delivery
 
-Status: the compatibility migration is live in Production. The compatible
-application deployment, provider proof, predecessor drain and retirement are
-not complete. Nothing in this document authorizes deployment, a paid Checkout
-Session, provider changes or `OrderPaymentEvent` RLS activation.
+Status: the compatibility migration and compatible application are live in
+Production. The provider proof, predecessor drain and retirement are not
+complete. Nothing in this document authorizes a paid Checkout Session,
+provider changes or `OrderPaymentEvent` RLS activation.
 
 ## Finding
 
@@ -139,6 +139,28 @@ FORCE retained with two policies and its generic core runtime-private, and
 `productionChangedByProof=false`. No application deployment, provider proof,
 RLS activation, predecessor drain or provider-state change occurred.
 
+The same exact main commit was then manually deployed, bound to CI
+`32900648444` and migration run `32902265239`. Vercel deployment
+`dpl_JCmwmKQVwTnvMB2nk7XwYFvQR5xA`, URL
+`grainline-34fxv17am-drew-youngs-projects.vercel.app`, is `READY`, target
+`production`, and source-pinned to
+`a6593516be9fd5531e867aea43b4bbf6319f3094`. Vercel assigned all four reviewed
+aliases. `thegrainline.com` and `grainline.vercel.app` returned health 200;
+`www.thegrainline.com` redirected to canonical health 200. The team-scoped
+alias remains behind Vercel login protection, so verification did not create
+an automation bypass.
+
+The first local pooled-runtime postflight invocation failed before connection
+because the deployment-only worktree had no installed `pg` package. It wrote
+no evidence and queried no database. The retry used the clean exact source in
+the dependency-installed proof worktree and passed inside an engine-attested
+repeatable-read/read-only transaction: the actual pooled runtime identity, 14
+exact function bodies and ACLs, predecessor direct CRUD, private table/core
+denial and the read-only lock fence all matched. It made no production change.
+Retain mode-0600 evidence
+`order-payment-event-compatible-production-postflight-a6593516be9fd5531e867aea43b4bbf6319f3094.json`,
+SHA-256 `5da86ae1aaf0d6ab2a327173cc13e0bf6d8cda3e2bfd9cd5563baab47dc0249e`.
+
 The hosted Checkout completion is intentionally a distinct operator stage. A
 private mode-0600 recovery file may retain its short-lived client secret; public
 logs and sanitized evidence may retain only hashes and counts. No webhook
@@ -147,8 +169,9 @@ secret may be used to forge an event as a substitute for provider delivery.
 ## Restart-safe provider operator
 
 `scripts/order-payment-event-blocked-checkout-production-proof.mjs` implements
-four explicit commands behind one exact-main, successful-CI and READY
-production-deployment binding:
+four explicit commands behind exact main
+`a6593516be9fd5531e867aea43b4bbf6319f3094`, successful CI `32900648444`
+and READY production deployment `dpl_JCmwmKQVwTnvMB2nk7XwYFvQR5xA`:
 
 1. `prepare` creates one marker-bound transfer-only Custom account, fences the
    operational canary's refund-email preference, creates a private reserved

@@ -2842,3 +2842,16 @@ Open work:
   off, predecessor runtime CRUD retained, Notification ENABLE/FORCE and private
   core authority retained, and `productionChangedByProof=false`. No deployment,
   provider proof, activation, predecessor drain or provider mutation occurred.
+- Manual Vercel Production deployment `dpl_JCmwmKQVwTnvMB2nk7XwYFvQR5xA`
+  is `READY`, target `production`, and source-pinned to exact main
+  `a6593516be9fd5531e867aea43b4bbf6319f3094`. All four reviewed aliases map to
+  it; public canonical health is 200 and the team-scoped alias remains behind
+  Vercel login protection. No automation bypass was created.
+- The first pooled-runtime postflight invocation failed before connection
+  because the deployment-only worktree had no installed `pg` dependency. It
+  wrote no evidence and queried no database. The dependency-installed exact
+  source retry passed the actual pooled-runtime identity, 14-function body/ACL
+  catalog, predecessor direct-access and private-authority denial checks in an
+  engine-attested repeatable-read/read-only transaction. It made no production
+  change. Retain mode-0600 evidence SHA-256
+  `5da86ae1aaf0d6ab2a327173cc13e0bf6d8cda3e2bfd9cd5563baab47dc0249e`.
