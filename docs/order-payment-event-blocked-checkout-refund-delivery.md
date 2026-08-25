@@ -1,9 +1,9 @@
 # Blocked-checkout refund participant delivery
 
-Status: isolated compatibility correction and guarded production wiring under
-review. Nothing in this document authorizes merge, migration execution,
-deployment, a paid Checkout Session, provider changes or `OrderPaymentEvent`
-RLS activation.
+Status: the compatibility migration is live in Production. The compatible
+application deployment, provider proof, predecessor drain and retirement are
+not complete. Nothing in this document authorizes deployment, a paid Checkout
+Session, provider changes or `OrderPaymentEvent` RLS activation.
 
 ## Finding
 
@@ -126,6 +126,18 @@ until the oldest becomes the visible leaf, then restores the four isolated
 successors in chronological order before migration status or deploy. A
 filesystem-level regression executes that exact verifier sequence against a
 disposable copy of the migration tree.
+
+PR #277 merged the correction as exact main
+`a6593516be9fd5531e867aea43b4bbf6319f3094`; exact-main CI `32900648444`
+passed. Guarded Production run `32902265239` then applied only
+`20260825010000_prepare_blocked_checkout_refund_delivery`. Migration status
+reported all 206 migrations current, the global runtime grant/RLS audit passed
+for 65 tables and four policy tables, and the engine-read-only post-application
+scope proved `state=delivery-compatible`, candidate applied, `OrderPaymentEvent`
+RLS still off, predecessor runtime CRUD retained, Notification ENABLE plus
+FORCE retained with two policies and its generic core runtime-private, and
+`productionChangedByProof=false`. No application deployment, provider proof,
+RLS activation, predecessor drain or provider-state change occurred.
 
 The hosted Checkout completion is intentionally a distinct operator stage. A
 private mode-0600 recovery file may retain its short-lived client secret; public

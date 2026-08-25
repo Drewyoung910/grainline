@@ -2830,3 +2830,15 @@ Open work:
 - Focused migration/scope/workflow validation passes 11/11. The complete
   repository suite passes 3,419 tests with 3,412 passes, seven documented
   skips and zero failures; TypeScript, lint, YAML parsing and diff checks pass.
+- PR #277 merged exact corrected head
+  `bd9a73c76c15d57534dbb40aafa7c0b478fa704d` as main
+  `a6593516be9fd5531e867aea43b4bbf6319f3094`; exact-main CI `32900648444`
+  passed the full proof, test, audit and production-build gate.
+- Guarded Production run `32902265239` applied only
+  `20260825010000_prepare_blocked_checkout_refund_delivery`. Before application
+  its read-only restart state was `delivery-predecessor`; afterward all 206
+  migrations were current, the global grant/RLS audit passed, and the same
+  engine-read-only scope proved `delivery-compatible`, `OrderPaymentEvent` RLS
+  off, predecessor runtime CRUD retained, Notification ENABLE/FORCE and private
+  core authority retained, and `productionChangedByProof=false`. No deployment,
+  provider proof, activation, predecessor drain or provider mutation occurred.
