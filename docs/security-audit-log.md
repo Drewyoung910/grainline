@@ -2624,11 +2624,21 @@ Open work:
   source-derived Notification. The post-commit send remains recoverable and
   does not replay the Stripe refund.
 - Migration `20260825010000_prepare_blocked_checkout_refund_delivery`, SHA-256
-  `5578678b745d41b57ec658a2363dea15728914c1b82e063bae1e3aea9ebbe25c`,
+  `24000c6a69525b19ce14ef8031cfb7a7c1914aedc26115f7425b7ff9f7e223a6`,
   temporarily accepts both the predecessor and corrected type for only the
   existing source-bound blocked-checkout family. It recreates no wrapper,
   changes no table/RLS posture or table grant, and re-denies the generic core
   to `PUBLIC` and `grainline_app_runtime`.
+- A final whole-transition review rejected the first compatibility draft even
+  after exact-head CI had started: Notification replay identity and its unique
+  constraint include `type`, so accepting old `NEW_ORDER` and corrected
+  `REFUND_ISSUED` literally could create two rows when a webhook retry crossed
+  the deployment drain. The owner function now canonicalizes the legacy input
+  to `REFUND_ISSUED` before preference evaluation, replay-key derivation and
+  insert. The real creation-family matrix invokes both spellings in both
+  orders and requires one stable stored `REFUND_ISSUED` row. Focused migration,
+  ACL, Notification-matrix and refund-finalization tests pass 19/19; the
+  superseded exact-head CI result is not release evidence.
 - CI verifies and isolates the successor before the five byte-sealed
   OrderPaymentEvent predecessors, restores it only after their proofs, then
   applies it, audits grants and runs the complete Notification family matrix

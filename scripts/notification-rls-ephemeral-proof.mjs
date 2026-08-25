@@ -1651,6 +1651,8 @@ const creationFamilyCases = Object.freeze([
     sourceType: "order_payment",
     sourceId: "evt_notification_proof_blocked_refund",
     relatedUserId: null,
+    replayType: "REFUND_ISSUED",
+    expectedStoredType: "REFUND_ISSUED",
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedTitle: "Payment refunded",
     expectedBodyIncludes: "no longer eligible",
@@ -1668,6 +1670,8 @@ const creationFamilyCases = Object.freeze([
     sourceType: "order_payment",
     sourceId: "evt_notification_proof_blocked_refund_corrected",
     relatedUserId: null,
+    replayType: "NEW_ORDER",
+    expectedStoredType: "REFUND_ISSUED",
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedTitle: "Payment refunded",
     expectedBodyIncludes: "no longer eligible",
@@ -1860,7 +1864,13 @@ const creationFamilyCases = Object.freeze([
   },
 ]);
 
-async function invokeCreationFamily(client, family, userId, notificationId = crypto.randomUUID()) {
+async function invokeCreationFamily(
+  client,
+  family,
+  userId,
+  notificationId = crypto.randomUUID(),
+  type = family.type,
+) {
   assert.match(family.functionName, /^grainline_notification_create_[a-z_]+$/);
   return client.query(
     `SELECT public.${family.functionName}(
@@ -1869,7 +1879,7 @@ async function invokeCreationFamily(client, family, userId, notificationId = cry
     [
       notificationId,
       userId,
-      family.type,
+      type,
       family.sourceType,
       family.sourceId,
       family.relatedUserId,
@@ -1900,7 +1910,13 @@ async function proveCreationFamilyMatrix(owner) {
       const firstId = first.rows[0].notification_id;
       assert.ok(firstId, `${family.label} valid source did not create a notification`);
 
-      const replay = await invokeCreationFamily(runtime, family, family.userId);
+      const replay = await invokeCreationFamily(
+        runtime,
+        family,
+        family.userId,
+        crypto.randomUUID(),
+        family.replayType ?? family.type,
+      );
       assert.equal(
         replay.rows[0].notification_id,
         firstId,
@@ -1926,7 +1942,7 @@ async function proveCreationFamilyMatrix(owner) {
         },
         {
           userId: family.userId,
-          type: family.type,
+          type: family.expectedStoredType ?? family.type,
           link: family.expectedLink,
           sourceType: family.sourceType,
           sourceId: family.sourceId,
