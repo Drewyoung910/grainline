@@ -2798,8 +2798,11 @@ Open work:
   the microsecond-preserving representation. The refreshed focused
   operator/inventory suite passes 19/19; the complete local suite passes 3,418
   tests with 3,411 passes, seven documented skips and zero failures, and
-  TypeScript plus lint pass. Fresh exact-head CI is pending. The operator
-  remains unexecuted and production/provider state remains unchanged.
+  TypeScript plus lint pass. Exact head
+  `d568238accb123784a42fc4b3d202c4d5ac73ab4` passed CI `32893122321`, and
+  PR #276 merged as main `dc46c7791d0761735118666800d5beaddd402ec9`.
+  The operator remains unexecuted and production/provider state remains
+  unchanged.
 
 ## Blocked-checkout compatibility runner predecessor isolation (2026-08-25)
 
