@@ -570,6 +570,15 @@ Provider proof is required for this table: it changes a hot signed-event path,
 refund money movement and lock/generation behavior. Ephemeral PostgreSQL alone
 cannot establish Stripe delivery/retry or serverless overlap correctness.
 
+The signed refund/dispute portion of step 6 now has a restart-safe isolated
+operator and local proof package in
+`docs/order-payment-event-signed-production-proof.md`. It uses two independent
+Stripe test charges, retains only processed replay leases after exact cleanup,
+and never changes provider configuration. It is not yet executed and cannot
+stand in for the still-separate seller, blocked-checkout or staff Case refund
+proofs. Do not interpret its eventual success as permission to skip the
+remaining activation sequence.
+
 ## Exit criteria
 
 The table is complete only when all of the following are durable:

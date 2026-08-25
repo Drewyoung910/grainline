@@ -10,6 +10,15 @@ main `2820986538c0d64f035defce052ba4ad0de1b3fb`. RLS and predecessor table
 grants remain unchanged; real signed-provider delivery/retry proof is still
 required before activation.
 
+The restart-safe provider proof is now implemented in
+`scripts/order-payment-event-signed-production-proof.mjs` and documented in
+`docs/order-payment-event-signed-production-proof.md`. It uses separate Stripe
+test-mode refund and dispute charges, exact signed-event resends, disposable
+private Order relationships and exact cleanup while retaining only processed
+webhook replay leases. It has not run. Even after it passes, seller,
+blocked-checkout and staff Case refund live proofs remain separate activation
+gates.
+
 Audited: 2026-08-23 after the fixed local-refund record and crash-safe
 participant-delivery packages.
 
