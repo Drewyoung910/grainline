@@ -2830,3 +2830,30 @@ Open work:
 - Focused migration/scope/workflow validation passes 11/11. The complete
   repository suite passes 3,419 tests with 3,412 passes, seven documented
   skips and zero failures; TypeScript, lint, YAML parsing and diff checks pass.
+
+## Blocked-checkout provider metadata failure (2026-08-25)
+
+- Exact main `a6593516be9fd5531e867aea43b4bbf6319f3094`, CI
+  `32900648444`, migration run `32902265239` and READY deployment
+  `dpl_JCmwmKQVwTnvMB2nk7XwYFvQR5xA` passed the pre-execution bindings. The
+  focused migration, scope, operator and atomic refund-side-effect suite passed
+  24/24 immediately before execution.
+- Stripe rejected the disposable connected-account request because the
+  operator's marker metadata key was 46 characters; Stripe permits at most 40.
+  The provider request created no account, and the proof reached no database
+  fixture, Checkout Session, payment, signed event or sanitized success
+  evidence. The private recovery journal is preserved at
+  `account-create-pending` with no provider object identifier.
+- The isolated correction uses a 32-character marker key and adds an executable
+  provider-limit assertion plus fail-closed unit coverage. It does not rewrite
+  the journal. Instead, the original attempt commit and CI remain the state,
+  marker and idempotency binding while a separate clean operator commit and CI
+  are required for execution. Both CI bindings are revalidated, and recovery
+  mode refuses to create a fresh attempt without the preserved journal.
+- Production application, database, grants, RLS posture, deployment and
+  provider configuration were not changed by the failed attempt or correction.
+  The hosted payment, signed delivery, exact replay and cleanup remain open.
+- The isolated correction passes the 24-test focused migration, scope,
+  operator and atomic refund-side-effect suite; all 3,419 repository tests
+  complete with 3,412 passes, seven documented skips and zero failures.
+  TypeScript, lint, syntax and diff checks pass.

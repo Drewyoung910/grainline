@@ -716,6 +716,14 @@ seller reversal and zero `NEW_ORDER` side effects, and retain only the two
 processed signed webhook leases after exact cleanup. Never use the unpaid
 abort command once Stripe reports the Session paid.
 
+The first production-proof attempt on 2026-08-25 failed closed before creating
+a Stripe account because its 46-character marker metadata key exceeded Stripe's
+40-character limit. Preserve the mode-`0600` `account-create-pending` journal.
+Resume only through the isolated short-key correction with both the original
+attempt commit/CI and the corrected operator commit/CI bound; do not delete the
+journal, create a replacement attempt, or advance to predecessor drain or RLS
+activation until hosted payment, signed delivery, exact replay and cleanup pass.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers
