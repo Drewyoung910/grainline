@@ -2709,6 +2709,12 @@ Open work:
 - The final local validation passed the 84-test focused payment/refund suite,
   the 16-test operator plus StripeWebhookEvent inventory suite, all 3,415
   repository tests with 3,408 passes and seven documented skips, TypeScript,
-  lint and syntax/diff checks. The operator has not run: no Stripe object,
-  Checkout Session, database row, deployment, migration, grant, RLS, Clerk,
-  Redis or provider configuration changed in this checkpoint.
+  lint, syntax/diff checks and an exact clean-clone Next.js production build.
+  The nested-worktree build was rejected by Turbopack's filesystem-root check,
+  and the first sandboxed clean-clone attempt was denied its internal localhost
+  port; the identical clean-clone build completed after removing that sandbox
+  restriction, including compilation, TypeScript, page-data collection and all
+  159 static pages. The disposable clone and its mode-`0600` environment copy
+  were deleted afterward. The operator has not run: no Stripe object, Checkout
+  Session, database row, deployment, migration, grant, RLS, Clerk, Redis or
+  provider configuration changed in this checkpoint.
