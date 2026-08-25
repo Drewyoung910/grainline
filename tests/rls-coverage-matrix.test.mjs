@@ -67,6 +67,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(liveRows.map((row) => row.model), [
       "Conversation",
       "Message",
+      "OrderRefundReconciliation",
       "SellerPayoutEvent",
       "CheckoutStockReservation",
       "Case",
@@ -83,6 +84,10 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
+        [
+          "OrderRefundReconciliation",
+          "RLS_LIVE_FORCE_PENDING_POSTFLIGHT",
+        ],
         ["SellerPayoutEvent", "RLS_LIVE_FORCE"],
         ["CheckoutStockReservation", "RLS_LIVE_FORCE"],
         ["Case", "RLS_LIVE_FORCE"],
@@ -95,7 +100,14 @@ describe("site-wide RLS coverage matrix", () => {
         ["Notification", "RLS_LIVE_PHASE_B"],
       ],
     );
-    assert.match(matrix, /all twelve tables in this[\s\S]*snapshot with production RLS/);
+    assert.match(
+      matrix,
+      /all twelve tables in this[\s\S]*snapshot with completed production RLS acceptance/,
+    );
+    assert.match(
+      matrix,
+      /OrderRefundReconciliation` is the thirteenth production RLS table[\s\S]*RLS_LIVE_FORCE_PENDING_POSTFLIGHT/,
+    );
     assert.match(
       matrix,
       /Pooled-runtime and cleanup-role acceptance passed read-only/,
@@ -103,7 +115,10 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /Every\s+other row is \*\*not active\s+RLS\*\*/);
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
-    assert.match(architecture, /Twelve tables have production RLS and all twelve currently have[\s\S]*`FORCE ROW LEVEL SECURITY`/);
+    assert.match(
+      architecture,
+      /Thirteen tables have production RLS: twelve have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*OrderRefundReconciliation` is FORCE-hardened[\s\S]*awaits its distinct actual pooled-runtime postflight/,
+    );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(
       architecture,

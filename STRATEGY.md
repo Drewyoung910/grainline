@@ -613,13 +613,15 @@ repair, enumerate or rehydrate it. This classification unblocks continued
 OrderPaymentEvent invariant/RLS work; Order, OrderItem and
 OrderShippingRateQuote remain separate release boundaries.
 
-The next isolated compatible-production candidate binds the five already
-sealed refund/payment authority migrations to exact-main CI and a fresh
-aggregate inspection. Its engine-read-only verifier accepts only the six exact
-applied-prefix states from clean predecessor through fully prepared, compares
-the live function bodies and catalog, refuses any later migration directory,
-and preserves `OrderPaymentEvent` RLS-off broad predecessor CRUD. It is not an
-activation runner. See
+The five-migration compatible-production stack is accepted from exact main
+`8f4cf2df34a9f700adebc910107ac2dbb878054a`, CI `32792800761`, aggregate
+inspection `32793276224`, and guarded run `32793394895`. The engine-read-only
+proof confirmed the fully prepared state, exact live function bodies/catalog,
+`OrderPaymentEvent` RLS off and broad predecessor CRUD retained. The converted
+application is not deployed. Next add the distinct actual pooled-runtime
+postflight for the new private reconciliation/function boundary, then deploy
+and run the real signed-provider/refund/Case/replay proofs. This preparation is
+not activation evidence. See
 `docs/order-payment-event-compatible-production-preparation.md`.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)

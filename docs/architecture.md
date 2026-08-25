@@ -36,9 +36,11 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
-`StripeWebhookEvent`, `CheckoutStockReservation`, and `SellerPayoutEvent`.
-Twelve tables have production RLS and all twelve currently have complete
-retained `FORCE ROW LEVEL SECURITY` acceptance. `SellerPayoutEvent` FORCE was
+`StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`, and
+`OrderRefundReconciliation`. Thirteen tables have production RLS: twelve have
+complete retained `FORCE ROW LEVEL SECURITY` acceptance, while private
+`OrderRefundReconciliation` is FORCE-hardened with zero direct runtime CRUD and
+awaits its distinct actual pooled-runtime postflight. `SellerPayoutEvent` FORCE was
 applied by guarded run `32672434812`; exact main
 `fb350c31772938ef52ef796c61bf670d9cf0750e` passed CI `32675227286`, and its
 distinct actual pooled-runtime FORCE postflight passed all nine checks without
@@ -210,8 +212,8 @@ hand an existing claim only to a later active generation for the identical
 event, Checkout Session, Order, amount and idempotency scope. See
 `docs/order-payment-event-refund-claim-generation.md` and
 `docs/order-payment-event-refund-record-authority.md`. The compatible stack is
-merged and byte-pinned but remains absent from the production database and
-deployed application.
+merged, byte-pinned and accepted in the production database; the converted
+application has not been deployed.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,
@@ -241,8 +243,8 @@ candidate adds the typed provider clock and source-bound refund/dispute
 operations; equal-second differences, including signed event-type differences,
 retain evidence and mark staff reconciliation without Case or Notification
 effects. It is byte-pinned and passes disposable PostgreSQL authority and
-concurrency proof. It is merged but not deployed, production-applied or RLS
-activation evidence. See
+concurrency proof. Its database authority is production-applied, but the
+converted application is not deployed and this is not RLS activation evidence. See
 `docs/order-payment-event-signed-authority-design.md`. Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
@@ -255,8 +257,8 @@ blocked-checkout full refunds. The exact active tuple fences success, orphan
 and ambiguous writes; stale-lock cleanup, signed `charge.refunded` handling and
 terminal dispute handling cannot detach it by elapsed time. The real migration
 runs in disposable PostgreSQL and is byte-pinned after the SellerPayoutEvent
-FORCE predecessor. It is merged but not deployed, production-applied or an RLS
-activation. The restart-safe compatible runner checks every applied prefix,
+FORCE predecessor. It is merged and production-applied but not deployed or an
+RLS activation. The restart-safe compatible runner checks every applied prefix,
 live function-body hash and catalog boundary before applying the missing suffix;
 see `docs/order-payment-event-compatible-production-preparation.md`. `Order`
 and `OrderPaymentEvent` retain predecessor direct runtime CRUD throughout this

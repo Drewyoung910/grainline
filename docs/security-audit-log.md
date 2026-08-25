@@ -2473,3 +2473,29 @@ Open work:
   nonexistent package script. No migration or grant change occurred. The
   correction uses the existing byte-sealed FORCE release verifier and adds an
   exact package-script existence contract.
+- PR `#267` exact head `9e93bfe2562a12c280359cb18a167666b5a11474`
+  merged as main `8f4cf2df34a9f700adebc910107ac2dbb878054a`.
+  Exact-main CI `32792800761` passed. Fresh protected inspection
+  `32793276224` retained the identical accepted aggregate posture; sanitized
+  mode-`0600` evidence SHA-256 is
+  `f97e90cf79be803cf462b3201e6f71e2208268d399cf4903fe1ddae759503730`.
+- Corrected guarded run `32793394895` applied only the five reviewed compatible
+  migrations. Production reports 205 migrations up to date; the global audit
+  passed for 65 tables, 22 enums, 178 `grainline_*` functions, one extension,
+  four policy tables and zero sequence references. Final engine-read-only scope
+  was `prepared` with prefix length five, `OrderPaymentEvent` RLS/FORCE off and
+  predecessor CRUD retained, plus private policyless-FORCE
+  `OrderRefundReconciliation`. No application deployment or RLS activation
+  occurred. The distinct actual pooled-runtime postflight remains the next
+  acceptance gate.
+- The follow-up isolated release adds that distinct proof without changing the
+  historical owner-side runner. CI connects through a direct login as the
+  restricted runtime role after applying the exact five-migration stack;
+  production accepts only the reviewed pooled `DATABASE_URL` and rejects every
+  privileged or aliased PostgreSQL URL. Both paths attest repeatable-read and
+  read-only mode, compare all 14 live function bodies and ACLs with the
+  migration bytes, retain predecessor `OrderPaymentEvent` compatibility, and
+  directly deny the private reconciliation table and refund-record core. The
+  production proof remains unexecuted until its exact-main CI passes; no
+  deployment, migration, grant, RLS, row or provider state is changed by this
+  scaffolding.

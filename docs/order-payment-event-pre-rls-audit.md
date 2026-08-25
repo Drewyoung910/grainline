@@ -68,12 +68,11 @@ keyset-paged database functions.
 
 The fourth compatible correction is recorded in
 `docs/order-payment-event-refund-claim-generation.md`. Seller and
-blocked-checkout refunds now have an isolated, additive database-derived claim
-design with exact source/generation/idempotency binding and no elapsed-time
-release. It is merged compatible preparation only: the migration and
-application conversion are not deployed or applied to production, and the
-later fixed provider record/finalize catalog remains required before RLS
-activation.
+blocked-checkout refunds now have an additive database-derived claim design
+with exact source/generation/idempotency binding and no elapsed-time release.
+The reviewed database authority is production-applied; the converted
+application is not deployed, and live provider/replay proof remains required
+before RLS activation.
 
 The fifth compatible correction is recorded in
 `docs/order-payment-event-refund-record-authority.md`. Seller and
@@ -82,8 +81,9 @@ record/finalize operations that atomically co-write Order, payment, stock,
 Case and audit evidence, plus a restart-safe exact webhook-generation handoff.
 The stacked crash-safety refinement moves source-validated in-app notification
 creation and deterministic seller-refund email-outbox reservation into the
-same application database transaction as that fixed finalizer. It is also
-merged compatible preparation only, not deployed or production-applied.
+same application database transaction as that fixed finalizer. Its reviewed
+database authority is production-applied, but the converted application is not
+deployed.
 Ambiguous provider reconciliation,
 signed refund/dispute writers, remaining invariants/projections, live proof and
 activation remain open.
@@ -92,17 +92,19 @@ The next stacked application-only correction is recorded in
 `docs/order-payment-event-case-refund-delivery.md`. It keeps the existing
 generation-fenced staff Case functions, but commits finalization, both
 source-validated participant Notifications and the deterministic
-`case_resolved` EmailOutbox reservation in one transaction. It remains a
-separate compatible release boundary but is merged to main only; no database
-authority or production state changed.
+`case_resolved` EmailOutbox reservation in one transaction. Its reviewed
+database authority is production-applied, while the application conversion and
+real provider/replay proof remain undeployed.
 
 The isolated compatible production runner is specified in
 `docs/order-payment-event-compatible-production-preparation.md`. It binds the
 five sealed migrations to exact-main CI plus a fresh aggregate-only production
 inspection, accepts only an exact applied prefix, compares the live function
 bodies and catalog in an engine-read-only transaction, and preserves
-`OrderPaymentEvent` RLS-off predecessor CRUD. The runner is preparation only:
-it is not merged or dispatched and authorizes no deployment or activation.
+`OrderPaymentEvent` RLS-off predecessor CRUD. Exact main
+`8f4cf2df34a9f700adebc910107ac2dbb878054a`, CI `32792800761`, inspection
+`32793276224`, and guarded run `32793394895` accepted the five-step production
+preparation. This is not application deployment or RLS activation evidence.
 
 ## Product and evidence contract
 
