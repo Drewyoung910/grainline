@@ -715,6 +715,10 @@ jobs:
         run: npx prisma migrate status
       - name: Audit blocked-checkout refund delivery grants and retained RLS posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove restart-safe blocked-checkout refund delivery production scope in PostgreSQL 16
+        run: npm run audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres
+        env:
+          BLOCKED_CHECKOUT_REFUND_DELIVERY_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove predecessor and corrected blocked-checkout notification delivery
         run: npm run audit:rls-notification-ephemeral
         env:

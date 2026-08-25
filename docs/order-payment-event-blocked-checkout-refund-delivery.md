@@ -1,8 +1,9 @@
 # Blocked-checkout refund participant delivery
 
-Status: isolated compatibility correction under review. Nothing in this
-document authorizes merge, migration execution, deployment, a paid Checkout
-Session, provider changes or `OrderPaymentEvent` RLS activation.
+Status: isolated compatibility correction and guarded production wiring under
+review. Nothing in this document authorizes merge, migration execution,
+deployment, a paid Checkout Session, provider changes or `OrderPaymentEvent`
+RLS activation.
 
 ## Finding
 
@@ -79,6 +80,37 @@ suppressed is skipped by the existing worker lifecycle checks.
 5. Drain the predecessor deployment. Then apply a separate byte-pinned
    retirement that removes `NEW_ORDER` acceptance for the blocked-checkout
    source and repeat the Notification/OrderPaymentEvent dependency proof.
+
+## Guarded production wiring
+
+The isolated release includes a dedicated
+`Blocked Checkout Refund Delivery Production Compatibility` workflow. It is
+not a generic migration runner. The workflow:
+
+- accepts only a manual run from the exact reviewed `main` commit with one
+  successful push-triggered `CI` run for that same commit;
+- requires the direct `neondb_owner` migration credential and the existing
+  runtime/migration role guard;
+- refuses any migration after
+  `20260825010000_prepare_blocked_checkout_refund_delivery`;
+- byte-verifies the candidate, then reads the live candidate ledger,
+  `OrderPaymentEvent` compatible catalog and Notification FORCE authority in
+  one engine-attested repeatable-read/read-only transaction;
+- accepts only the exact predecessor or exact already-applied restart state;
+- temporarily isolates the candidate before verifying the five sealed live
+  OrderPaymentEvent predecessors and, for the predecessor state, the clean
+  production migration ledger;
+- runs exactly one conditional `prisma migrate deploy`, never a provider or
+  application deployment; and
+- finishes with migration status, the global grant/RLS audit and the same
+  exact read-only scope proof in required `after` mode.
+
+The workflow deliberately does not invoke broad runtime-role grant
+reprovisioning. This migration changes one source-validating Notification
+function body and re-denies its private core; the exact post-application scope
+proof is the authority-convergence check. Disposable PostgreSQL CI applies the
+candidate after all five predecessors and proves the same combined catalog
+reader against PostgreSQL 16.
 
 The hosted Checkout completion is intentionally a distinct operator stage. A
 private mode-0600 recovery file may retain its short-lived session URL; public

@@ -120,6 +120,8 @@
     "audit:order-refund-inactive-seller-recovery-release": "node scripts/verify-order-refund-inactive-seller-recovery-release.mjs",
     "audit:order-refund-inactive-seller-recovery-postgres": "node scripts/order-refund-inactive-seller-recovery-postgres-proof.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-release": "node scripts/build-blocked-checkout-refund-delivery-migration.mjs --verify",
+    "audit:order-payment-blocked-checkout-refund-delivery-production-scope": "node scripts/verify-blocked-checkout-refund-delivery-production-scope.mjs",
+    "audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres": "node scripts/blocked-checkout-refund-delivery-production-scope-postgres-proof.mjs",
     "audit:order-payment-compatible-production-scope": "node scripts/verify-order-payment-event-compatible-production-scope.mjs",
     "audit:order-payment-compatible-production-scope-postgres": "node scripts/order-payment-event-compatible-production-scope-postgres-proof.mjs",
     "audit:order-payment-compatible-postflight-postgres": "node scripts/order-payment-event-compatible-postflight-postgres-proof.mjs",
