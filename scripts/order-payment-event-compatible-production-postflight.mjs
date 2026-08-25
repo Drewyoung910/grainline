@@ -445,7 +445,7 @@ export async function proveOrderPaymentEventCompatibleRuntimeBoundaries(client) 
     "42501",
     "private refund-record core execute",
   );
-  const invalidActor = await expectSqlState(
+  await expectSqlState(
     client,
     () => client.query(`
       SELECT public.grainline_seller_refund_claim(
@@ -453,13 +453,8 @@ export async function proveOrderPaymentEventCompatibleRuntimeBoundaries(client) 
         'order-payment-compatible-postflight-absent-order'
       )
     `),
-    "P0001",
-    "fixed seller refund claim",
-  );
-  assert.match(
-    invalidActor.message,
-    /seller refund actor (?:does not exist|is not active)/iu,
-    "fixed seller refund claim did not reach its source validation",
+    "25006",
+    "fixed seller refund claim read-only lock fence",
   );
 }
 
@@ -534,7 +529,7 @@ export async function runOrderPaymentEventCompatiblePostflight(config) {
           "predecessor_direct_read_succeeds",
           "private_reconciliation_direct_read_denied",
           "private_refund_record_core_execute_denied",
-          "fixed_seller_refund_claim_reaches_source_validation",
+          "fixed_seller_refund_claim_reaches_read_only_lock_fence",
         ]),
       }),
       completedAt: new Date().toISOString(),

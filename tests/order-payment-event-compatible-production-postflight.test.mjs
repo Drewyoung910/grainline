@@ -124,7 +124,8 @@ test("payment compatible postflight is actual-runtime and engine-read-only", () 
   assert.match(source, /orderRefundReconciliationRlsForced: true/u);
   assert.match(source, /private reconciliation table read/u);
   assert.match(source, /private refund-record core execute/u);
-  assert.match(source, /fixed seller refund claim/u);
+  assert.match(source, /fixed seller refund claim read-only lock fence/u);
+  assert.match(source, /"25006"/u);
   assert.match(source, /databaseUrlSha256/u);
   assert.doesNotMatch(
     source,

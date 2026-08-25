@@ -2499,3 +2499,12 @@ Open work:
   production proof remains unexecuted until its exact-main CI passes; no
   deployment, migration, grant, RLS, row or provider state is changed by this
   scaffolding.
+- PR #268 CI run `32794527053` reached the new direct-runtime step only after
+  every predecessor and compatible migration proof passed, then failed closed
+  on an incorrect test expectation: PostgreSQL rejects `SELECT ... FOR UPDATE`
+  immediately with read-only SQLSTATE `25006`, even when the predicate would
+  find no actor row. The fixed seller-refund operation therefore proved its
+  runtime EXECUTE path reached the transaction lock fence; expecting the later
+  source-validation exception was impossible in an engine-read-only
+  transaction. The correction requires exact `25006`, retains all catalog and
+  denial checks, and records no production change.
