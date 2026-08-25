@@ -53,6 +53,8 @@ export const SELLER_TRANSFER_CENTS = 475;
 export const TERMS_VERSION = "2026-06-14";
 export const STRIPE_METADATA_KEY_MAX_LENGTH = 40;
 export const CONNECTED_ACCOUNT_MARKER_KEY = "grainline_blocked_checkout_proof";
+export const DISPOSABLE_SELLER_CONTROLLER_SUMMARY =
+  "dashboard:express|fees:application|losses:application|requirements:stripe";
 export const CONNECTED_ACCOUNT_CONTROLLER = Object.freeze({
   fees: Object.freeze({ payer: "application" }),
   losses: Object.freeze({ payments: "application" }),
@@ -950,14 +952,14 @@ export async function createFixtures(owner, state) {
             AND name='Grainline Blocked Checkout Proof Seller' AND role='USER' AND banned=false AND "deletedAt" IS NULL) AS seller_user,
           (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$4 AND "userId"=$1 AND "stripeAccountId"=$5
             AND "displayName"='Grainline Blocked Checkout Proof' AND "displayNameNormalized"='grainline blocked checkout proof'
-            AND "chargesEnabled"=true AND "stripeAccountVersion"='v1' AND "stripeControllerType"='custom'
+            AND "chargesEnabled"=true AND "stripeAccountVersion" IS NULL AND "stripeControllerType"=$8
             AND "vacationMode" IN (false,true) AND "acceptingNewOrders"=true AND "allowLocalPickup"=true) AS seller,
           (SELECT count(*)::integer FROM public."Listing" WHERE id=$6 AND "sellerId"=$4
             AND title='blocked-checkout-production-proof' AND "priceCents"=500 AND currency='usd'
             AND status IN ('ACTIVE','SOLD_OUT') AND "listingType"='IN_STOCK' AND "stockQuantity" IN (0,1)
             AND "isPrivate"=true AND "reservedForUserId"=$7) AS listing
       `, [state.sellerUserId, state.sellerClerkId, state.sellerEmail, state.sellerProfileId,
-        state.stripeAccountId, state.listingId, state.buyerId]);
+        state.stripeAccountId, state.listingId, state.buyerId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
       if (Object.values(exact.rows[0] ?? {}).every((count) => Number(count) === 1)) {
         assertCanaryFenced(canaryFence);
         await owner.query("COMMIT");
@@ -986,8 +988,8 @@ export async function createFixtures(owner, state) {
       INSERT INTO public."SellerProfile" (
         id,"userId","displayName","displayNameNormalized","stripeAccountId","chargesEnabled",
         "stripeAccountVersion","stripeControllerType","vacationMode","acceptingNewOrders","allowLocalPickup","updatedAt"
-      ) VALUES ($1,$2,'Grainline Blocked Checkout Proof','grainline blocked checkout proof',$3,true,'v1','custom',false,true,true,CURRENT_TIMESTAMP)
-    `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId]);
+      ) VALUES ($1,$2,'Grainline Blocked Checkout Proof','grainline blocked checkout proof',$3,true,NULL,$4,false,true,true,CURRENT_TIMESTAMP)
+    `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
     await owner.query(`
       INSERT INTO public."Listing" (
         id,"sellerId",title,description,"priceCents",currency,status,"listingType","stockQuantity",
@@ -1003,6 +1005,40 @@ export async function createFixtures(owner, state) {
   }
 }
 
+export async function convergeFixtureSellerConnectIdentity(owner, state) {
+  const converged = await owner.query(`
+    UPDATE public."SellerProfile"
+       SET "stripeAccountVersion"=NULL,
+           "stripeControllerType"=$4,
+           "updatedAt"=CURRENT_TIMESTAMP
+     WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3
+       AND "displayName"='Grainline Blocked Checkout Proof'
+       AND "displayNameNormalized"='grainline blocked checkout proof'
+       AND "chargesEnabled"=true AND "vacationMode"=false
+       AND "acceptingNewOrders"=true AND "allowLocalPickup"=true
+       AND (
+         ("stripeAccountVersion"='v1' AND "stripeControllerType"='custom')
+         OR
+         ("stripeAccountVersion" IS NULL AND "stripeControllerType"=$4)
+       )
+    RETURNING id,"stripeAccountVersion","stripeControllerType","vacationMode"
+  `, [
+    state.sellerProfileId,
+    state.sellerUserId,
+    state.stripeAccountId,
+    DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
+  ]);
+  const row = converged.rows[0];
+  if (resultCardinality(converged) !== 1
+    || row?.id !== state.sellerProfileId
+    || row?.stripeAccountVersion !== null
+    || row?.stripeControllerType !== DISPOSABLE_SELLER_CONTROLLER_SUMMARY
+    || row?.vacationMode !== false) {
+    throw new Error("blocked-checkout disposable seller Connect identity drifted");
+  }
+  return row;
+}
+
 export async function blockFixtureSeller(owner, state) {
   const blocked = await owner.query(`
     UPDATE public."SellerProfile"
@@ -1012,9 +1048,9 @@ export async function blockFixtureSeller(owner, state) {
        AND "displayNameNormalized"='grainline blocked checkout proof'
        AND "chargesEnabled"=true AND "acceptingNewOrders"=true
        AND "allowLocalPickup"=true
-       AND "stripeAccountVersion"='v1' AND "stripeControllerType"='custom'
+       AND "stripeAccountVersion" IS NULL AND "stripeControllerType"=$4
     RETURNING id,"vacationMode"
-  `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId]);
+  `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
   if (
     resultCardinality(blocked) !== 1
     || blocked.rows[0]?.id !== state.sellerProfileId
@@ -1067,7 +1103,10 @@ async function signedPickupRate(token, state) {
     },
     method: "POST",
   });
-  if (response.status !== 200 || !Array.isArray(response.body.rates)) throw new Error("blocked-checkout shipping quote route failed");
+  if (response.status !== 200 || !Array.isArray(response.body.rates)) {
+    const detail = typeof response.body?.error === "string" ? response.body.error.slice(0, 160) : "no safe route detail";
+    throw new Error(`blocked-checkout shipping quote route failed with status ${response.status}: ${detail}`);
+  }
   return checkoutRate(response.body.rates.find((rate) => rate?.objectId === "pickup"));
 }
 
@@ -1757,6 +1796,7 @@ export async function prepareProof(config = validateConfiguration()) {
     }
     if (state.stage === "fixtures-created") state = updateState(config, state, { stage: "checkout-create-pending" });
     if (state.stage === "checkout-create-pending") {
+      await convergeFixtureSellerConnectIdentity(owner, state);
       session = await createCanarySession(clerk, state.buyerClerkId);
       const denied = await createCheckout(session.jwt, state, {
         objectId: "pickup", amountCents: 0, currency: "usd", displayName: "Local pickup",

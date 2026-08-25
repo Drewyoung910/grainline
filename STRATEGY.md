@@ -735,6 +735,15 @@ one-time onboarding URL. This provider correction remains prerequisite proof
 work; it does not authorize predecessor drain, `OrderPaymentEvent` activation,
 or any `Order`/`OrderItem`/shipping RLS bundle.
 
+The first post-onboarding retry exposed a separate disposable-fixture drift:
+the proof still labeled its classic-API Express account as `v1/custom`, which
+the current checkout eligibility guard correctly rejects. Never relabel a
+classic-created proof account as Accounts v2 merely to pass that guard. For
+this compatibility proof, retain an honest legacy-null account-version marker
+and the exact observed Express controller summary; repair only the marker-bound
+temporary seller row from the prior `v1/custom` value. Production seller
+onboarding must continue to create real Accounts v2 through `/v2/core/accounts`.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers

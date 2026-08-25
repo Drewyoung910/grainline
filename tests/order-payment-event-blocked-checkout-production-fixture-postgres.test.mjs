@@ -6,7 +6,9 @@ import {
   assertDeliverySnapshot,
   blockFixtureSeller,
   cleanupDeliveredRows,
+  convergeFixtureSellerConnectIdentity,
   createFixtures,
+  DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
   readCleanupSnapshot,
   readDeliverySnapshot,
 } from "../scripts/order-payment-event-blocked-checkout-production-proof.mjs";
@@ -207,6 +209,35 @@ test("fixture resume and cleanup reject marker drift without partial deletion", 
     const retained = await db.query(`SELECT (SELECT count(*)::integer FROM public."Order") AS orders,
       (SELECT count(*)::integer FROM public."OrderPaymentEvent") AS payments`);
     assert.deepEqual(retained.rows[0], { orders: 1, payments: 2 });
+  } finally {
+    await db.close();
+  }
+});
+
+test("fixture Connect identity is honest, current-controller bound, and narrowly repairable", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await createFixtures(db, value);
+    const created = await db.query(`SELECT "stripeAccountVersion","stripeControllerType" FROM public."SellerProfile" WHERE id=$1`,
+      [value.sellerProfileId]);
+    assert.deepEqual(created.rows[0], {
+      stripeAccountVersion: null,
+      stripeControllerType: DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
+    });
+
+    await db.query(`UPDATE public."SellerProfile" SET "stripeAccountVersion"='v1',"stripeControllerType"='custom' WHERE id=$1`,
+      [value.sellerProfileId]);
+    const repaired = await convergeFixtureSellerConnectIdentity(db, value);
+    assert.equal(repaired.stripeAccountVersion, null);
+    assert.equal(repaired.stripeControllerType, DISPOSABLE_SELLER_CONTROLLER_SUMMARY);
+
+    await db.query(`UPDATE public."SellerProfile" SET "stripeControllerType"='unexpected-controller' WHERE id=$1`,
+      [value.sellerProfileId]);
+    await assert.rejects(convergeFixtureSellerConnectIdentity(db, value), /Connect identity drifted/);
+    const retained = await db.query(`SELECT "stripeControllerType" FROM public."SellerProfile" WHERE id=$1`,
+      [value.sellerProfileId]);
+    assert.equal(retained.rows[0].stripeControllerType, "unexpected-controller");
   } finally {
     await db.close();
   }
