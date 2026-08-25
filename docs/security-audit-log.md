@@ -2464,3 +2464,12 @@ Open work:
 - CI runs the same catalog reader against PostgreSQL 16 after the full five-step
   compatible stack. The candidate is isolated only: no workflow dispatch,
   migration, deployment, grant, RLS, provider or production change occurred.
+- PR `#266` merged as `0e3a5531c5e216dec2be77126d0cd712316247d7`;
+  exact-main CI `32791106621` and fresh engine-read-only aggregate inspection
+  `32791693877` passed. Sanitized mode-`0600` inspection evidence SHA-256 is
+  `bee2ff246cac5c45b1131ac58f192c1b671b8d9782d1355165e5666975c74d8c`.
+  Guarded production-preparation run `32791937150` then failed closed before
+  migration deployment because its SellerPayoutEvent predecessor step named a
+  nonexistent package script. No migration or grant change occurred. The
+  correction uses the existing byte-sealed FORCE release verifier and adds an
+  exact package-script existence contract.

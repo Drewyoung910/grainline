@@ -129,7 +129,7 @@ jobs:
           mv prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority "$RUNNER_TEMP/order-refund-reconciliation-authority-release"
           mv prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release"
       - name: Verify sealed SellerPayoutEvent FORCE predecessor
-        run: npm run audit:rls-seller-payout-event-force-sealed-prefix
+        run: npm run audit:rls-seller-payout-event-force-release
       - name: Restore and verify refund claim generation release
         run: |
           mv "$RUNNER_TEMP/order-refund-claim-generation-release" prisma/migrations/20260824010000_prepare_order_refund_claim_generation

@@ -93,6 +93,13 @@ add a separately reviewed recovery only if the accepted-prefix verifier cannot
 classify the state. The workflow is intentionally safe to rerun from any
 successfully committed prefix.
 
+Guarded run `32791937150` failed closed before `prisma migrate deploy` because
+the workflow referenced a nonexistent predecessor-verifier package script. The
+owner/role guard passed, but no migration, grant convergence or post-application
+step ran. The corrected runner calls the existing byte-sealed
+`audit:rls-seller-payout-event-force-release` command, and its workflow contract
+now proves that every referenced release verifier exists in `package.json`.
+
 ## Explicit non-authority
 
 This runner does not:
