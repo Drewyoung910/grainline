@@ -135,21 +135,26 @@ secret may be used to forge an event as a substitute for provider delivery.
 ## Restart-safe provider operator
 
 `scripts/order-payment-event-blocked-checkout-production-proof.mjs` implements
-four explicit commands behind one exact-main, successful-CI and READY
+five explicit commands behind one exact-main, successful-CI and READY
 production-deployment binding:
 
-1. `prepare` creates one marker-bound transfer-only Custom account, fences the
-   operational canary's refund-email preference, creates a private reserved
-   $5 listing, authenticates the canary, calls the real quote and single-item
-   checkout routes, proves exact route retry, and only then flips the synthetic
-   seller to vacation mode. The short-lived Stripe client secret is written
-   only to the mode-`0600` recovery state.
-2. `serve` binds only `127.0.0.1` and serves a no-store Stripe Embedded Checkout
+1. `prepare` creates one marker-bound, production-aligned Express account. If
+   its transfer capability needs Stripe-hosted onboarding, it stops before any
+   application fixture and writes only a mode-`0600` Account Link handoff. Once
+   active, it fences the operational canary's refund-email preference, creates
+   a private reserved $5 listing, authenticates the canary, calls the real quote
+   and single-item checkout routes, proves exact route retry, and only then
+   flips the synthetic seller to vacation mode. The short-lived Stripe client
+   secret is written only to the mode-`0600` recovery state.
+2. `onboard` rechecks the exact clean operator commit/CI and private attempt
+   binding, then opens the unexpired one-time Account Link without printing it.
+   It does not complete onboarding or accept any responsibility for the user.
+3. `serve` binds only `127.0.0.1` and serves a no-store Stripe Embedded Checkout
    page after independently rechecking the exact clean main commit and its
    successful CI. Card data stays in Stripe-hosted frames; the page does not
    call a Grainline webhook or know any webhook secret. Closing the server does
    not alter recovery state.
-3. `verify` requires a genuinely paid test Checkout Session. It discovers the
+4. `verify` requires a genuinely paid test Checkout Session. It discovers the
    exact provider `checkout.session.completed` and `charge.refunded` events,
    proves the completed reservation, restored listing, source-bound local and
    signed payment rows, claim clearance, full buyer refund, exact seller
@@ -157,7 +162,7 @@ production-deployment binding:
    refund outbox and absence of all `NEW_ORDER` delivery. It resends both exact
    provider events and requires every application identity and webhook claim
    generation to remain unchanged before cleanup.
-4. `cleanup` is an explicit abort path only while the Session is unpaid. It
+5. `cleanup` is an explicit abort path only while the Session is unpaid. It
    expires that exact Session, waits for signed stock restoration, then removes
    the marker-bound fixture. A paid Session cannot enter abort cleanup and must
    resume through `verify`.
@@ -246,8 +251,32 @@ without the preserved journal. This is an operator defect and does not change
 the compatible application, migration, grants, RLS posture or provider
 configuration.
 
-Local correction validation passes the 24-test focused migration, scope,
-operator and atomic refund-side-effect suite, all 3,419 repository tests with
-3,412 passes and seven documented skips, TypeScript, lint, syntax and diff
-checks. A fresh exact-main CI binding is still required before recovery may
-resume.
+Local correction validation passes the 30-test focused migration, scope,
+operator, disposable-PostgreSQL and atomic refund-side-effect suite, all 3,421
+repository tests with 3,414 passes and seven documented skips, TypeScript,
+lint, syntax and diff checks. PR #279 merged the short-key correction as exact main
+`ed80ecc3401ec9b1b95724978beccb85e0d8f9b0`; exact-main CI `32907978390`
+passed every PostgreSQL proof, TypeScript, lint, all repository tests, the
+security audit and production build.
+
+The resumed attempt then stopped at the same `account-create-pending` boundary
+because the disposable builder still used a legacy top-level Custom account,
+application-collected identity data and direct service-agreement acceptance.
+Stripe correctly required Grainline to review platform requirement-collection
+responsibilities before accepting that account shape. No acknowledgment was
+submitted. No account, application row, Checkout Session, payment, signed
+event or success evidence was created. The seller/listing IDs visible in the
+journal are reserved deterministic identifiers; `createFixtures()` is ordered
+strictly after the persisted `account-created` checkpoint.
+
+That provider error is an operator-design regression, not a reason to change
+Grainline's business responsibilities. Production seller onboarding uses an
+Express dashboard with Stripe-collected identity requirements and
+application-paid fees/losses. The recovery successor must use that same
+controller, omit top-level `type`, `business_type`, `individual` and
+`tos_acceptance`, attest the returned controller, and pause at a mode-`0600`
+Stripe-hosted onboarding record until the transfer capability is active. The
+one-time onboarding URL may be opened locally but must never be printed,
+committed or retained in sanitized evidence. Use a new versioned account-create
+idempotency operation under the same preserved attempt so prior failed
+validation requests cannot alias the corrected parameter shape.

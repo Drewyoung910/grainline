@@ -2857,3 +2857,40 @@ Open work:
   operator and atomic refund-side-effect suite; all 3,419 repository tests
   complete with 3,412 passes, seven documented skips and zero failures.
   TypeScript, lint, syntax and diff checks pass.
+
+## Blocked-checkout provider responsibility regression (2026-08-25)
+
+- PR #279 merged the metadata-limit correction as exact main
+  `ed80ecc3401ec9b1b95724978beccb85e0d8f9b0`; exact-main CI
+  `32907978390` passed the complete PostgreSQL, TypeScript, lint, test,
+  security-audit and production-build chain.
+- The resumed test-mode attempt stopped fail closed at
+  `account-create-pending`. The disposable builder still requested a legacy
+  Custom/application-collected identity contract, so Stripe required a
+  platform-profile acknowledgment. No acknowledgment was submitted. The
+  request created no account and reached no application fixture, Checkout
+  Session, payment, signed event or success evidence. Deterministic fixture IDs
+  are reserved in the private journal before any fixture row exists;
+  `createFixtures()` follows only after `account-created`.
+- This reproduces a previously resolved provider-proof class. Grainline's real
+  seller onboarding uses an Express dashboard, Stripe-collected identity
+  requirements and application-paid fees/losses. A disposable proof must not
+  create a different compliance contract merely to avoid hosted onboarding.
+- The isolated successor removes `type`, `business_type`, `individual` and
+  direct `tos_acceptance`; adds the exact production-aligned controller and
+  non-secret returned-controller diagnostics; and pauses before application
+  fixtures when Stripe-hosted onboarding is required. Its one-time Account
+  Link lives only in a mode-`0600` record, is redacted from errors, and is
+  opened through a local command without printing the URL. An account-create
+  idempotency version successor prevents the two rejected parameter shapes
+  from aliasing the corrected request while preserving the original attempt,
+  marker and evidence boundary.
+- The corrected successor passes the 30-test focused migration, scope,
+  disposable-PostgreSQL and operator suite; all 3,421 repository tests complete
+  with 3,414 passes, seven documented skips and zero failures. TypeScript,
+  lint, syntax and diff checks also pass.
+- Production application, database, migration, grants, RLS, deployment and
+  provider configuration remain unchanged. Do not submit the Stripe platform
+  profile for this proof, delete the recovery journal, or advance predecessor
+  drain/RLS activation before hosted onboarding, genuine payment, signed
+  delivery, exact replay and cleanup all pass.

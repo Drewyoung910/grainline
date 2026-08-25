@@ -724,6 +724,17 @@ attempt commit/CI and the corrected operator commit/CI bound; do not delete the
 journal, create a replacement attempt, or advance to predecessor drain or RLS
 activation until hosted payment, signed delivery, exact replay and cleanup pass.
 
+The short-key retry exposed a second fail-closed operator regression at the
+same pre-account boundary: its legacy Custom/application-collected identity
+shape asked Stripe for responsibilities that do not match Grainline's real
+seller onboarding. Do not accept a platform-profile responsibility change for
+this proof. Keep the production-aligned Express/Stripe-collected controller,
+pause for a private Stripe-hosted test-onboarding handoff, and resume the same
+journal only after its transfer capability is active. Never print or commit the
+one-time onboarding URL. This provider correction remains prerequisite proof
+work; it does not authorize predecessor drain, `OrderPaymentEvent` activation,
+or any `Order`/`OrderItem`/shipping RLS bundle.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers
