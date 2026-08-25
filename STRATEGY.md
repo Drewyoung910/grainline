@@ -36,6 +36,27 @@ Previews, or provision lifecycle-managed disposable Neon Preview databases
 with a restricted non-owner role. Never link a Preview to Production
 `DATABASE_URL`, `DIRECT_URL`, an owner credential or shared production state.
 
+### Blocked-checkout refund delivery compatibility (2026-08-25)
+
+The product pre-RLS audit found that a paid checkout immediately refunded after
+the seller became ineligible delivered the buyer warning under the wrong
+`NEW_ORDER` preference and omitted durable refund email reservation. Exact main
+`a6593516be9fd5531e867aea43b4bbf6319f3094`, CI `32900648444`, guarded
+migration run `32902265239` and READY deployment
+`dpl_JCmwmKQVwTnvMB2nk7XwYFvQR5xA` now make the corrected
+`REFUND_ISSUED` application compatible with the predecessor. The actual pooled
+runtime postflight passed the function catalog and predecessor/private
+boundaries without mutation; retain evidence SHA-256
+`5da86ae1aaf0d6ab2a327173cc13e0bf6d8cda3e2bfd9cd5563baab47dc0249e`.
+
+Do not treat this as `OrderPaymentEvent` activation: RLS remains off and broad
+predecessor CRUD remains intentionally available. Next run the separate
+restart-safe real Stripe test-mode blocked-checkout proof. Only after its exact
+signed delivery, retry and cleanup pass may the predecessor deployment drain;
+then byte-pin and apply the separate retirement removing legacy `NEW_ORDER`
+acceptance. Keep provider proof, drain, retirement and later ENABLE/FORCE as
+separate recorded boundaries. Do not reconcile worktrees during this chain.
+
 ### Case FORCE completion and Order/payment/shipping start (2026-08-04)
 
 The Case-family database RLS group is complete. Exact main

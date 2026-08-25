@@ -2830,3 +2830,28 @@ Open work:
 - Focused migration/scope/workflow validation passes 11/11. The complete
   repository suite passes 3,419 tests with 3,412 passes, seven documented
   skips and zero failures; TypeScript, lint, YAML parsing and diff checks pass.
+- PR #277 merged exact corrected head
+  `bd9a73c76c15d57534dbb40aafa7c0b478fa704d` as main
+  `a6593516be9fd5531e867aea43b4bbf6319f3094`; exact-main CI `32900648444`
+  passed the full proof, test, audit and production-build gate.
+- Guarded Production run `32902265239` applied only
+  `20260825010000_prepare_blocked_checkout_refund_delivery`. Before application
+  its read-only restart state was `delivery-predecessor`; afterward all 206
+  migrations were current, the global grant/RLS audit passed, and the same
+  engine-read-only scope proved `delivery-compatible`, `OrderPaymentEvent` RLS
+  off, predecessor runtime CRUD retained, Notification ENABLE/FORCE and private
+  core authority retained, and `productionChangedByProof=false`. No deployment,
+  provider proof, activation, predecessor drain or provider mutation occurred.
+- Manual Vercel Production deployment `dpl_JCmwmKQVwTnvMB2nk7XwYFvQR5xA`
+  is `READY`, target `production`, and source-pinned to exact main
+  `a6593516be9fd5531e867aea43b4bbf6319f3094`. All four reviewed aliases map to
+  it; public canonical health is 200 and the team-scoped alias remains behind
+  Vercel login protection. No automation bypass was created.
+- The first pooled-runtime postflight invocation failed before connection
+  because the deployment-only worktree had no installed `pg` dependency. It
+  wrote no evidence and queried no database. The dependency-installed exact
+  source retry passed the actual pooled-runtime identity, 14-function body/ACL
+  catalog, predecessor direct-access and private-authority denial checks in an
+  engine-attested repeatable-read/read-only transaction. It made no production
+  change. Retain mode-0600 evidence SHA-256
+  `5da86ae1aaf0d6ab2a327173cc13e0bf6d8cda3e2bfd9cd5563baab47dc0249e`.
