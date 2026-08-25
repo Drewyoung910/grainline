@@ -70,9 +70,10 @@ The fourth compatible correction is recorded in
 `docs/order-payment-event-refund-claim-generation.md`. Seller and
 blocked-checkout refunds now have an additive database-derived claim design
 with exact source/generation/idempotency binding and no elapsed-time release.
-The reviewed database authority is production-applied; the converted
-application is not deployed, and live provider/replay proof remains required
-before RLS activation.
+The reviewed database authority and its distinct actual pooled-runtime
+compatible postflight are accepted in production; the converted application is
+not deployed, and live provider/replay proof remains required before RLS
+activation.
 
 The fifth compatible correction is recorded in
 `docs/order-payment-event-refund-record-authority.md`. Seller and

@@ -617,11 +617,16 @@ The five-migration compatible-production stack is accepted from exact main
 `8f4cf2df34a9f700adebc910107ac2dbb878054a`, CI `32792800761`, aggregate
 inspection `32793276224`, and guarded run `32793394895`. The engine-read-only
 proof confirmed the fully prepared state, exact live function bodies/catalog,
-`OrderPaymentEvent` RLS off and broad predecessor CRUD retained. The converted
-application is not deployed. Next add the distinct actual pooled-runtime
-postflight for the new private reconciliation/function boundary, then deploy
-and run the real signed-provider/refund/Case/replay proofs. This preparation is
-not activation evidence. See
+`OrderPaymentEvent` RLS off and broad predecessor CRUD retained. Exact main
+`5d3b402317084d9d2af6b8bdf52300a800eda0d8` then passed CI `32795444295`,
+and the distinct actual pooled-runtime postflight accepted the 14-function
+catalog, compatible predecessor access and private reconciliation/helper
+denials inside an engine-read-only transaction. Retain sanitized mode-`0600`
+evidence SHA-256
+`ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10`.
+The converted application is not deployed. Next deploy it separately and run
+the real signed-provider/refund/Case/replay proofs. This preparation is not
+`OrderPaymentEvent` activation evidence. See
 `docs/order-payment-event-compatible-production-preparation.md`.
 
 ### SavedSearch Phase-B and runtime-separation completion (2026-07-21)

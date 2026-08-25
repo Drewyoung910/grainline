@@ -86,7 +86,7 @@ describe("site-wide RLS coverage matrix", () => {
         ["Message", "RLS_LIVE_FORCE"],
         [
           "OrderRefundReconciliation",
-          "RLS_LIVE_FORCE_PENDING_POSTFLIGHT",
+          "RLS_LIVE_FORCE",
         ],
         ["SellerPayoutEvent", "RLS_LIVE_FORCE"],
         ["CheckoutStockReservation", "RLS_LIVE_FORCE"],
@@ -102,11 +102,11 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /all twelve tables in this[\s\S]*snapshot with completed production RLS acceptance/,
+      /all thirteen tables in this[\s\S]*snapshot with completed production RLS acceptance/,
     );
     assert.match(
       matrix,
-      /OrderRefundReconciliation` is the thirteenth production RLS table[\s\S]*RLS_LIVE_FORCE_PENDING_POSTFLIGHT/,
+      /OrderRefundReconciliation` closed its distinct actual pooled-runtime proof[\s\S]*ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10/,
     );
     assert.match(
       matrix,
@@ -117,7 +117,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /Thirteen tables have production RLS: twelve have[\s\S]*complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*OrderRefundReconciliation` is FORCE-hardened[\s\S]*awaits its distinct actual pooled-runtime postflight/,
+      /Thirteen tables have production RLS and all[\s\S]*thirteen have complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*OrderRefundReconciliation` is FORCE-hardened[\s\S]*ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(
