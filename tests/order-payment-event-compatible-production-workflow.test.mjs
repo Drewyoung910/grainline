@@ -14,6 +14,7 @@ const scope = readFileSync(
   "utf8",
 );
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
+const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 
 test("workflow binds one protected exact-main compatible production operation", () => {
   assert.match(workflow, /^name: OrderPaymentEvent Compatible Production Preparation$/m);
@@ -44,9 +45,14 @@ test("workflow byte-verifies and applies only the reviewed migration tail", () =
     "audit:order-payment-signed-authority-release",
     "audit:order-refund-reconciliation-authority-release",
     "audit:order-refund-inactive-seller-recovery-release",
-    "audit:rls-seller-payout-event-force-sealed-prefix",
+    "audit:rls-seller-payout-event-force-release",
   ]) {
     assert.match(workflow, new RegExp(command.replaceAll(":", "\\:")));
+    assert.equal(
+      typeof pkg.scripts?.[command],
+      "string",
+      `${command} must be an actual package script`,
+    );
   }
   assert.match(
     workflow,
