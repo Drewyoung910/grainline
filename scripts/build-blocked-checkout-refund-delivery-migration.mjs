@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 export const BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION =
   "20260825010000_prepare_blocked_checkout_refund_delivery";
 export const BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION_SHA256 =
-  "5578678b745d41b57ec658a2363dea15728914c1b82e063bae1e3aea9ebbe25c";
+  "24000c6a69525b19ce14ef8031cfb7a7c1914aedc26115f7425b7ff9f7e223a6";
 
 const SOURCE_MIGRATION =
   "prisma/migrations/20260722051500_prepare_notification_rls/migration.sql";
@@ -69,6 +69,24 @@ export function buildBlockedCheckoutRefundDeliveryMigration(
   );
   notificationCore = replaceOnce(
     notificationCore,
+    `  END IF;
+  IF (p_source_type = 'blog_comment'`,
+    `  END IF;
+
+  -- The predecessor application mislabeled blocked-checkout refunds as
+  -- NEW_ORDER. Normalize that one legacy input before recipient preferences,
+  -- replay identity and storage so an old/new deployment retry cannot create
+  -- two rows for one durable refund source. The order_payment source branch
+  -- below still proves that only BLOCKED_CHECKOUT_REFUND_RECORDED can use it.
+  IF p_source_type = 'order_payment'
+     AND p_type = 'NEW_ORDER'::public."NotificationType" THEN
+    p_type := 'REFUND_ISSUED'::public."NotificationType";
+  END IF;
+
+  IF (p_source_type = 'blog_comment'`,
+  );
+  notificationCore = replaceOnce(
+    notificationCore,
     `          AND p_related_user_id IS NULL
           AND p_type = 'NEW_ORDER'::public."NotificationType")`,
     `          AND p_related_user_id IS NULL
@@ -82,9 +100,11 @@ export function buildBlockedCheckoutRefundDeliveryMigration(
 
   return `-- Compatibility-safe correction for automatic blocked-checkout refund
 -- delivery. This does not change Notification or OrderPaymentEvent RLS posture,
--- table grants, or any provider state. The predecessor NEW_ORDER spelling stays
--- accepted only through the deployment drain; a later byte-pinned retirement
--- removes it after the corrected application is proven live.
+-- table grants, or any provider state. The predecessor NEW_ORDER input stays
+-- accepted only through the deployment drain and is canonicalized to
+-- REFUND_ISSUED before preference checks, replay identity and storage. A later
+-- byte-pinned retirement removes the legacy input after the corrected
+-- application is proven live.
 
 ${notificationCore}
 
@@ -115,8 +135,12 @@ BEGIN
      OR pg_catalog.strpos(
        function_definition,
        'REFUND_ISSUED''::public."NotificationType"'
+     ) = 0
+     OR pg_catalog.strpos(
+       function_definition,
+       'p_type := ''REFUND_ISSUED''::public."NotificationType"'
      ) = 0 THEN
-    RAISE EXCEPTION 'Blocked-checkout refund compatibility predicate drifted';
+    RAISE EXCEPTION 'Blocked-checkout refund compatibility canonicalization drifted';
   END IF;
 
   IF pg_catalog.has_function_privilege(

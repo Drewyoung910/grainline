@@ -106,6 +106,14 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     }
     assert.match(
       proof,
+      /label: "order_payment_blocked_checkout_refund_predecessor"[\s\S]*?type: "NEW_ORDER"[\s\S]*?replayType: "REFUND_ISSUED"[\s\S]*?expectedStoredType: "REFUND_ISSUED"/,
+    );
+    assert.match(
+      proof,
+      /label: "order_payment_blocked_checkout_refund_corrected"[\s\S]*?type: "REFUND_ISSUED"[\s\S]*?replayType: "NEW_ORDER"[\s\S]*?expectedStoredType: "REFUND_ISSUED"/,
+    );
+    assert.match(
+      proof,
       /service_family_\$\{family\.label\}_valid_replay_and_forged_recipient_rejected/,
     );
     assert.match(

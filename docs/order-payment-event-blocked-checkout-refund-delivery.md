@@ -31,7 +31,10 @@ only the existing owner-private
 body. The builder pins the exact historical Notification migration and changes
 one source predicate: the already validated
 `BLOCKED_CHECKOUT_REFUND_RECORDED` family temporarily accepts both
-`NEW_ORDER` and `REFUND_ISSUED`.
+`NEW_ORDER` and `REFUND_ISSUED`. The legacy `NEW_ORDER` input is normalized to
+`REFUND_ISSUED` before the recipient preference check, replay-key derivation
+and insert. Calls from predecessor and corrected deployments therefore resolve
+the same canonical row even when a webhook retry crosses the deployment drain.
 
 The compatibility window is deliberately narrow:
 
@@ -63,7 +66,8 @@ suppressed is skipped by the existing worker lifecycle checks.
 1. Prove the migration bytes reproduce from the pinned source; apply the full
    migration tree and Notification family matrix in disposable PostgreSQL.
    The matrix must accept both predecessor `NEW_ORDER` and corrected
-   `REFUND_ISSUED` for this one source and reject unrelated forgeries.
+   `REFUND_ISSUED` for this one source, prove both call orders resolve one
+   stored `REFUND_ISSUED` row, and reject unrelated forgeries.
 2. Apply only the byte-pinned compatibility migration through the guarded
    Production Migrations workflow. Verify that the generic core remains
    runtime-private and Notification remains FORCE RLS.
