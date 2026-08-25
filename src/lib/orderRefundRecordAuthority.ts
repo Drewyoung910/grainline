@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { calculateCheckoutAmounts } from "@/lib/checkoutAmounts";
 import type { OrderRefundClaim } from "@/lib/orderRefundClaimAuthority";
 
 type RefundRecordClient = Pick<typeof prisma, "$queryRaw">;
@@ -203,8 +204,11 @@ function validateEvidenceForClaim(
     + (claim.giftWrappingPriceCents ?? 0);
   const expectsTransferReversal =
     claim.canReverseTransfer && sellerPortionCents > 0;
-  const expectedTransferReversalAmountCents =
-    sellerPortionCents - Math.round(claim.itemsSubtotalCents * 0.05);
+  const expectedTransferReversalAmountCents = calculateCheckoutAmounts({
+    itemsSubtotalCents: claim.itemsSubtotalCents,
+    shippingAmountCents: claim.shippingAmountCents,
+    giftWrapCents: claim.giftWrappingPriceCents ?? 0,
+  }).sellerTransferAmountCents;
   if (
     expectsTransferReversal
     && (
