@@ -382,3 +382,21 @@ are revalidated, the canonical aliases must serve the replacement deployment,
 and final sanitized evidence retains the initial binding alongside the actual
 application binding. Never rewrite or delete the journal to make the new
 deployment appear to be the original one.
+
+The corrective application was deployed as exact main
+`5ef81acca6f8e302830b983a614432094cfa2458` after exact-main CI
+`32926506350`; Vercel deployment `dpl_AJanN3zfnubB39Aj14NFziHAhfeB` is READY,
+serves all canonical aliases and reports healthy pooled-runtime identity. The
+authorized restart recovered or boundedly replaced the exact unpaid attempt,
+advanced the private mode-0600 journal to `seller-blocked`, and retained three
+exact expired/restored attempts. The first local `serve` handoff then stopped
+before opening a browser or accepting payment: the recovery validator correctly
+accepted the current percent-escaped, Session-bound Stripe client secret, while
+the HTML payment-page builder still required the obsolete alphanumeric-only
+shape. This is an operator-contract mismatch; it did not charge a card, deliver
+an event, change provider configuration or mutate RLS/grants. The correction
+passes the exact journal Session ID into the page builder and reuses the same
+1,024-character, complete-percent-triplet, exact-Session binding used by prepare
+and the application resume path. Cross-Session, malformed-escape and oversized
+secrets remain fail closed, and the secret remains only in the private journal
+and generated loopback response.
