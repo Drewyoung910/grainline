@@ -145,7 +145,12 @@ production-deployment binding:
    a private reserved $5 listing, authenticates the canary, calls the real quote
    and single-item checkout routes, proves exact route retry, and only then
    flips the synthetic seller to vacation mode. The short-lived Stripe client
-   secret is written only to the mode-`0600` recovery state.
+   secret is written only to the mode-`0600` recovery state. Before creating or
+   recovering the active Session, it classifies the complete fixture-bound
+   reservation history: at most five rows may be exact expired, unpaid,
+   provider-confirmed Sessions with `RESTORED/stripe_session_expired` database
+   evidence, and at most one may be an exact open, unpaid active Session. Any
+   other row, provider state, source identity or cardinality fails closed.
 2. `onboard` rechecks the exact clean operator commit/CI and private attempt
    binding, then opens the unexpired one-time Account Link without printing it.
    It does not complete onboarding or accept any responsibility for the user.
@@ -183,7 +188,12 @@ explicit abort-cleanup checkpoints. Never delete the recovery journal to skip
 that convergence.
 
 Successful cleanup performs live foreign-key dependent inspection before
-deleting application rows, restores the canary's exact preferences/terms,
+deleting application rows. It transactionally locks, revalidates and deletes
+the current reservation plus every classified expired-attempt reservation so
+an interrupted prior `prepare` cannot leave a foreign-key dependent behind.
+Both the paid-success and unpaid-abort paths require the exact persisted
+history count and roll back every deletion on drift. Cleanup then restores the
+canary's exact preferences/terms,
 revokes its sessions, removes only exact Redis keys and deletes the zero-balance
 disposable connected account. The two processed webhook leases and immutable
 Stripe test objects remain as the documented evidence boundary. Automatic tax
@@ -202,6 +212,17 @@ fixture.
 The two PostgreSQL `timestamp without time zone` snapshots are projected as
 lossless six-digit database text and cast back only inside PostgreSQL; they are
 never round-tripped through the workstation's local `Date` timezone.
+
+Two pre-payment retries on 2026-08-25 created Sessions before their local
+operators failed closed: the first exposed the percent-encoded client-secret
+validator defect and the second exposed the over-deep Stripe expansion. A
+read-only production/Stripe inspection later proved both Sessions expired and
+unpaid, both reservations are `RESTORED` with exact
+`stripe_session_expired` evidence, neither has a PaymentIntent, and all source,
+metadata, repair-claim and item bindings match the disposable fixture. They
+are retained only until the same proof completes or takes its explicit unpaid
+abort path; the bounded history contract above prevents silently ignoring or
+leaking either row.
 
 ## Proof fixture boundary
 

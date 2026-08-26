@@ -69,6 +69,7 @@ export const REQUIRED_ALIASES = Object.freeze([
 
 const STRIPE_API_VERSION = "2026-02-25.clover";
 export const CHECKOUT_SESSION_EXPANDS = Object.freeze(["payment_intent.latest_charge.transfer"]);
+export const MAX_EXPIRED_CHECKOUT_ATTEMPTS = 5;
 const STRIPE_CLI_VERSION = "1.39.0";
 const VERCEL_CLI_VERSION = "58.9.0";
 const CLERK_FRONTEND_API = "clerk.thegrainline.com";
@@ -77,7 +78,7 @@ const MAX_JSON_BYTES = 64 * 1024;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 const COMMIT_PATTERN = /^[a-f0-9]{40}$/;
 const DEPLOYMENT_PATTERN = /^dpl_[A-Za-z0-9]+$/;
-const STRIPE_SECRET_PATTERN = /\b(?:sk_(?:live|test)_[A-Za-z0-9_]+|whsec_[A-Za-z0-9_]+|cs_test_[A-Za-z0-9_]+_secret_[A-Za-z0-9_]+)\b/g;
+const STRIPE_SECRET_PATTERN = /\b(?:sk_(?:live|test)_[A-Za-z0-9_]+|whsec_[A-Za-z0-9_]+|cs_test_[A-Za-z0-9_]+_secret_(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2})+)/g;
 const STRIPE_OBJECT_PATTERN = /\b(?:acct|ch|cs|evt|pi|re|tr|trr|we)_[A-Za-z0-9_]+\b/g;
 const DATABASE_URL_PATTERN = /postgres(?:ql)?:\/\/[^\s"']+/gi;
 const DATABASE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}$/;
@@ -292,6 +293,7 @@ export function createInitialState(config, canary) {
     stripeClientSecret: null,
     checkoutLockKey: null,
     reservationId: null,
+    priorExpiredCheckoutCount: 0,
     checkoutEventId: null,
     orderId: null,
     orderItemId: null,
@@ -324,6 +326,7 @@ export function assertState(value, config) {
     "originalNotificationPreferences", "originalTermsAcceptedAt", "originalTermsVersion", "originalAgeAttestedAt",
     "sellerUserId", "sellerClerkId", "sellerProfileId", "sellerEmail", "listingId",
     "stripeAccountId", "stripeSessionId", "stripeClientSecret", "checkoutLockKey", "reservationId",
+    "priorExpiredCheckoutCount",
     "checkoutEventId", "orderId", "orderItemId", "paymentIntentId", "chargeId", "transferId",
     "chargeAmountCents", "refundId", "refundAmountCents", "transferReversalId", "refundEventId", "localPaymentEventId", "signedPaymentEventId",
     "notificationId", "emailOutboxId",
@@ -374,7 +377,15 @@ export function assertState(value, config) {
   }
   nullableId(value.stripeAccountId, /^acct_[A-Za-z0-9_]+$/, "Stripe account");
   nullableId(value.stripeSessionId, /^cs_test_[A-Za-z0-9_]+$/, "Checkout Session");
-  nullableId(value.stripeClientSecret, /^cs_test_[A-Za-z0-9_]+_secret_[A-Za-z0-9_]+$/, "Checkout client secret");
+  if (value.stripeClientSecret !== null
+    && !isCheckoutClientSecretForSession(value.stripeSessionId, value.stripeClientSecret)) {
+    throw new Error("blocked-checkout Checkout client secret is invalid");
+  }
+  const priorExpiredCheckoutCount = value.priorExpiredCheckoutCount ?? 0;
+  if (!Number.isSafeInteger(priorExpiredCheckoutCount) || priorExpiredCheckoutCount < 0
+    || priorExpiredCheckoutCount > MAX_EXPIRED_CHECKOUT_ATTEMPTS) {
+    throw new Error("blocked-checkout prior expired Checkout count is invalid");
+  }
   for (const [key, prefix] of [["checkoutEventId", "evt"], ["refundEventId", "evt"], ["paymentIntentId", "pi"],
     ["chargeId", "ch"], ["transferId", "tr"], ["refundId", "re"], ["transferReversalId", "trr"]]) {
     nullableId(value[key], new RegExp(`^${prefix}_[A-Za-z0-9_]+$`), key);
@@ -400,7 +411,7 @@ export function assertState(value, config) {
   requireAt("payment-completed", ["paymentIntentId", "chargeId", "transferId", "chargeAmountCents"]);
   requireAt("delivery-confirmed", ["checkoutEventId", "orderId", "orderItemId", "refundId", "refundAmountCents", "transferReversalId",
     "refundEventId", "localPaymentEventId", "signedPaymentEventId", "notificationId", "emailOutboxId"]);
-  return Object.freeze({ ...value });
+  return Object.freeze({ ...value, priorExpiredCheckoutCount });
 }
 
 function updateState(config, state, update) {
@@ -1127,21 +1138,156 @@ async function createCheckout(token, state, selectedRate, origin = PRODUCTION_OR
   });
 }
 
+export function isCheckoutClientSecretForSession(sessionId, clientSecret) {
+  if (!/^cs_test_[A-Za-z0-9_]+$/.test(String(sessionId ?? ""))
+    || typeof clientSecret !== "string" || clientSecret.length > 1024) return false;
+  const secretPrefix = `${sessionId}_secret_`;
+  const secretSuffix = clientSecret.startsWith(secretPrefix)
+    ? clientSecret.slice(secretPrefix.length)
+    : null;
+  return typeof secretSuffix === "string" && secretSuffix.length > 0
+    && /^(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2})+$/.test(secretSuffix);
+}
+
 export function assertCheckoutResponse(response, expectedSessionId = null) {
   const sessionId = response?.body?.sessionId;
   const clientSecret = response?.body?.clientSecret;
-  const secretPrefix = `${sessionId}_secret_`;
-  const secretSuffix = typeof clientSecret === "string" && clientSecret.startsWith(secretPrefix)
-    ? clientSecret.slice(secretPrefix.length)
-    : null;
   if (response?.status !== 200 || !/^cs_test_[A-Za-z0-9_]+$/.test(String(sessionId ?? ""))
-    || typeof clientSecret !== "string" || clientSecret.length > 1024
-    || typeof secretSuffix !== "string" || secretSuffix.length === 0
-    || !/^(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2})+$/.test(secretSuffix)
+    || !isCheckoutClientSecretForSession(sessionId, clientSecret)
     || (expectedSessionId !== null && sessionId !== expectedSessionId)) {
     throw new Error("blocked-checkout route response drifted");
   }
   return Object.freeze({ clientSecret, sessionId });
+}
+
+function assertReservationAttemptRow(row, state) {
+  const item = Array.isArray(row?.reserved_items) && row.reserved_items.length === 1
+    ? row.reserved_items[0]
+    : null;
+  const exactItem = item && typeof item === "object" && !Array.isArray(item)
+    && JSON.stringify(Object.keys(item).sort()) === JSON.stringify(["listingId", "quantity", "sellerId"])
+    && item.listingId === state.listingId && item.quantity === 1 && item.sellerId === state.sellerProfileId;
+  if (typeof row?.id !== "string" || row.id.length < 1 || row.id.length > 255
+    || row.checkout_lock_key !== `checkout:single:${state.buyerId}:listing:${state.listingId}`
+    || !/^[A-Za-z0-9_-]{32}$/.test(String(row.payload_hash ?? ""))
+    || row.buyer_id !== state.buyerId || row.seller_id !== state.sellerProfileId
+    || !/^cs_test_[A-Za-z0-9_]+$/.test(String(row.stripe_session_id ?? ""))
+    || !exactItem
+    || row.repair_claimed_at !== null || row.repair_claim_kind !== null
+    || Number(row.repair_generation) !== 0 || row.last_repair_error !== null
+    || row.last_repair_attempt_at !== null) {
+    throw new Error("blocked-checkout historical reservation authority drifted");
+  }
+  return row;
+}
+
+function assertAttemptSession(session, row, state) {
+  if (session?.id !== row.stripe_session_id || session?.livemode !== false
+    || session?.ui_mode !== "embedded" || session?.payment_status !== "unpaid"
+    || session?.metadata?.buyerId !== state.buyerId
+    || session?.metadata?.sellerId !== state.sellerProfileId
+    || session?.metadata?.listingId !== state.listingId
+    || session?.metadata?.checkoutLockKey !== row.checkout_lock_key
+    || session?.payment_intent !== null) {
+    throw new Error("blocked-checkout historical Stripe Session drifted");
+  }
+  return session;
+}
+
+export function assertCheckoutAttemptHistory(rows, sessions, state) {
+  if (!Array.isArray(rows) || !Array.isArray(sessions) || rows.length !== sessions.length
+    || rows.length > MAX_EXPIRED_CHECKOUT_ATTEMPTS + 1) {
+    throw new Error("blocked-checkout Checkout attempt history cardinality drifted");
+  }
+  const sessionById = new Map();
+  for (const session of sessions) {
+    if (sessionById.has(session?.id)) throw new Error("blocked-checkout Checkout attempt history contains duplicate Sessions");
+    sessionById.set(session?.id, session);
+  }
+  const terminalReservationIds = [];
+  let active = null;
+  for (const candidate of rows) {
+    const row = assertReservationAttemptRow(candidate, state);
+    const session = assertAttemptSession(sessionById.get(row.stripe_session_id), row, state);
+    if (row.status === "RESTORED") {
+      if (!row.restored_at || row.restore_reason !== "stripe_session_expired"
+        || session.status !== "expired" || session.client_secret !== null) {
+        throw new Error("blocked-checkout terminal Checkout attempt drifted");
+      }
+      terminalReservationIds.push(row.id);
+      continue;
+    }
+    if (row.status !== "SESSION_CREATED" || row.restored_at !== null || row.restore_reason !== null
+      || session.status !== "open" || !isCheckoutClientSecretForSession(session.id, session.client_secret)
+      || active !== null) {
+      throw new Error("blocked-checkout active Checkout attempt drifted");
+    }
+    active = Object.freeze({
+      clientSecret: session.client_secret,
+      reservationId: row.id,
+      sessionId: session.id,
+    });
+  }
+  if (terminalReservationIds.length > MAX_EXPIRED_CHECKOUT_ATTEMPTS
+    || sessionById.size !== rows.length) {
+    throw new Error("blocked-checkout Checkout attempt history cardinality drifted");
+  }
+  return Object.freeze({
+    active,
+    terminalCount: terminalReservationIds.length,
+    terminalReservationIds: Object.freeze(terminalReservationIds),
+  });
+}
+
+export function assertReservationCleanupHistory(rows, state, currentStatus) {
+  if (!Array.isArray(rows) || !new Set(["COMPLETED", "RESTORED"]).has(currentStatus)
+    || rows.length !== state.priorExpiredCheckoutCount + 1) {
+    throw new Error("blocked-checkout cleanup reservation history cardinality drifted");
+  }
+  let currentCount = 0;
+  const ids = [];
+  for (const candidate of rows) {
+    const row = assertReservationAttemptRow(candidate, state);
+    ids.push(row.id);
+    if (row.id === state.reservationId && row.stripe_session_id === state.stripeSessionId) {
+      currentCount += 1;
+      if (row.status !== currentStatus
+        || (currentStatus === "COMPLETED" && (row.restored_at !== null || row.restore_reason !== null))
+        || (currentStatus === "RESTORED" && (!row.restored_at || row.restore_reason !== "stripe_session_expired"))) {
+        throw new Error("blocked-checkout current cleanup reservation drifted");
+      }
+    } else if (row.status !== "RESTORED" || !row.restored_at
+      || row.restore_reason !== "stripe_session_expired") {
+      throw new Error("blocked-checkout prior cleanup reservation drifted");
+    }
+  }
+  if (currentCount !== 1 || new Set(ids).size !== ids.length) {
+    throw new Error("blocked-checkout cleanup reservation identity drifted");
+  }
+  return Object.freeze(ids);
+}
+
+export async function readCheckoutAttemptRows(owner, state, lock = false) {
+  const result = await owner.query(`
+    SELECT id, "checkoutLockKey" AS checkout_lock_key, "payloadHash" AS payload_hash,
+      "buyerId" AS buyer_id, "sellerId" AS seller_id, "stripeSessionId" AS stripe_session_id,
+      status, "reservedItems" AS reserved_items, "restoredAt" AS restored_at,
+      "restoreReason" AS restore_reason, "repairGeneration" AS repair_generation,
+      "repairClaimedAt" AS repair_claimed_at, "repairClaimKind" AS repair_claim_kind,
+      "lastRepairError" AS last_repair_error, "lastRepairAttemptAt" AS last_repair_attempt_at
+      FROM public."CheckoutStockReservation"
+     WHERE "buyerId"=$1 OR "sellerId"=$2 OR "reservedItems" @> pg_catalog.jsonb_build_array(
+       pg_catalog.jsonb_build_object('listingId',$3::text)
+     )
+     ORDER BY "createdAt", id${lock ? " FOR UPDATE" : ""}
+  `, [state.buyerId, state.sellerProfileId, state.listingId]);
+  return result.rows;
+}
+
+async function readCheckoutAttemptHistory(owner, stripeOps, state) {
+  const rows = await readCheckoutAttemptRows(owner, state);
+  const sessions = await Promise.all(rows.map((row) => stripeOps.retrieveSession(row.stripe_session_id)));
+  return assertCheckoutAttemptHistory(rows, sessions, state);
 }
 
 export async function readPreparedSnapshot(owner, state) {
@@ -1434,6 +1580,11 @@ export async function cleanupDeliveredRows(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
     assertCanaryFenced(await lockCanaryFence(owner, state));
+    const reservationIds = assertReservationCleanupHistory(
+      await readCheckoutAttemptRows(owner, state, true),
+      state,
+      "COMPLETED",
+    );
     const exact = await owner.query(`
       SELECT
         (SELECT count(*)::integer FROM public."User" WHERE id=$1 AND "clerkId"=$2 AND email=$3
@@ -1477,9 +1628,10 @@ export async function cleanupDeliveredRows(owner, state) {
       await owner.query(`DELETE FROM public."OrderPaymentEvent" WHERE id IN ($1,$2) RETURNING id`,
         [state.localPaymentEventId, state.signedPaymentEventId]),
       await owner.query(`DELETE FROM public."OrderItem" WHERE id=$1 RETURNING id`, [state.orderItemId]),
-      await owner.query(`DELETE FROM public."CheckoutStockReservation" WHERE id=$1 RETURNING id`, [state.reservationId]),
+      await owner.query(`DELETE FROM public."CheckoutStockReservation" WHERE id=ANY($1::text[]) RETURNING id`,
+        [reservationIds]),
     ];
-    [1, 1, 3, 2, 1, 1].forEach((count, index) => {
+    [1, 1, 3, 2, 1, reservationIds.length].forEach((count, index) => {
       if (resultCardinality(deletions[index]) !== count) {
         throw new Error("blocked-checkout cleanup cardinality drifted");
       }
@@ -1525,7 +1677,8 @@ export async function readCleanupSnapshot(owner, state) {
       (SELECT count(*)::integer FROM public."User" WHERE id=$1) AS seller_user_count,
       (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$2) AS seller_count,
       (SELECT count(*)::integer FROM public."Listing" WHERE id=$3) AS listing_count,
-      (SELECT count(*)::integer FROM public."CheckoutStockReservation" WHERE id=$4) AS reservation_count,
+      (SELECT count(*)::integer FROM public."CheckoutStockReservation"
+        WHERE "buyerId"=$4 AND "sellerId"=$2) AS reservation_count,
       (SELECT count(*)::integer FROM public."Order" WHERE id=$5) AS order_count,
       (SELECT count(*)::integer FROM public."OrderItem" WHERE id=$6) AS item_count,
       (SELECT count(*)::integer FROM public."OrderPaymentEvent" WHERE id IN ($7,$8)) AS payment_count,
@@ -1538,7 +1691,7 @@ export async function readCleanupSnapshot(owner, state) {
         AND "notificationPreferences"=$15::jsonb AND "termsAcceptedAt" IS NOT DISTINCT FROM $16::timestamp
         AND "termsVersion" IS NOT DISTINCT FROM $17 AND "ageAttestedAt" IS NOT DISTINCT FROM $18::timestamp
         AND "deletedAt" IS NULL AND banned=false) AS canary_count
-  `, [state.sellerUserId, state.sellerProfileId, state.listingId, state.reservationId, state.orderId,
+  `, [state.sellerUserId, state.sellerProfileId, state.listingId, state.buyerId, state.orderId,
     state.orderItemId, state.localPaymentEventId, state.signedPaymentEventId, state.notificationId,
     state.emailOutboxId, state.checkoutEventId, state.refundEventId, state.buyerId, state.buyerClerkId,
     JSON.stringify(state.originalNotificationPreferences), state.originalTermsAcceptedAt, state.originalTermsVersion,
@@ -1609,6 +1762,7 @@ export function buildEvidence(config, state, cleanup) {
     },
     database: {
       retainedProcessedWebhookLeases: cleanup.processedWebhookCount,
+      expiredUnpaidSessionsClassified: state.priorExpiredCheckoutCount,
       localPaymentEventSha256: sha256(state.localPaymentEventId),
       signedPaymentEventSha256: sha256(state.signedPaymentEventId),
       notificationSha256: sha256(state.notificationId),
@@ -1648,6 +1802,9 @@ export function assertEvidence(value, config) {
     || value?.stripe?.genuineEmbeddedCheckoutCompleted !== true || value?.stripe?.genuineSignedEventsDelivered !== 2
     || value?.stripe?.exactSignedReplaysProven !== 2 || value?.stripe?.disposableConnectedAccountDeleted !== true
     || value?.database?.retainedProcessedWebhookLeases !== 2
+    || !Number.isSafeInteger(value?.database?.expiredUnpaidSessionsClassified)
+    || value.database.expiredUnpaidSessionsClassified < 0
+    || value.database.expiredUnpaidSessionsClassified > MAX_EXPIRED_CHECKOUT_ATTEMPTS
     || value?.database?.refundIssuedNotificationProven !== true || value?.database?.wrongNewOrderSideEffectsAbsent !== true
     || value?.database?.refundEmailSkippedByPreference !== true || value?.database?.stockRestoredAndReactivated !== true
     || value?.database?.temporaryApplicationRowsRemoved !== true || value?.database?.operationalCanaryRestored !== true
@@ -1811,23 +1968,36 @@ export async function prepareProof(config = validateConfiguration()) {
       }, "https://example.invalid");
       if (denied.status !== 403 || denied.body?.error !== "Forbidden") throw new Error("blocked-checkout checkout route did not reject cross-origin POST");
       const selectedRate = await signedPickupRate(session.jwt, state);
-      const created = assertCheckoutResponse(await createCheckout(session.jwt, state, selectedRate));
-      const retrieved = await stripeOps.retrieveSession(created.sessionId);
-      if (retrieved.livemode !== false || retrieved.status !== "open" || retrieved.payment_status !== "unpaid"
-        || retrieved.metadata?.buyerId !== state.buyerId || retrieved.metadata?.sellerId !== state.sellerProfileId
-        || retrieved.metadata?.listingId !== state.listingId) {
-        throw new Error("blocked-checkout prepared Stripe Session drifted");
+      const beforeHistory = await readCheckoutAttemptHistory(owner, stripeOps, state);
+      let created;
+      if (beforeHistory.active) {
+        created = Object.freeze({
+          clientSecret: beforeHistory.active.clientSecret,
+          sessionId: beforeHistory.active.sessionId,
+        });
+      } else {
+        created = assertCheckoutResponse(await createCheckout(session.jwt, state, selectedRate));
       }
       const retry = assertCheckoutResponse(await createCheckout(session.jwt, state, selectedRate), created.sessionId);
       if (retry.clientSecret !== created.clientSecret) throw new Error("blocked-checkout exact route retry changed the client secret");
+      const afterHistory = await readCheckoutAttemptHistory(owner, stripeOps, state);
+      if (afterHistory.terminalCount !== beforeHistory.terminalCount || !afterHistory.active
+        || afterHistory.active.sessionId !== created.sessionId
+        || afterHistory.active.clientSecret !== created.clientSecret) {
+        throw new Error("blocked-checkout Checkout attempt recovery drifted");
+      }
       const preparedState = { ...state, stripeSessionId: created.sessionId };
       const prepared = assertPreparedSnapshot(await readPreparedSnapshot(owner, preparedState), preparedState, false);
+      if (prepared.reservationId !== afterHistory.active.reservationId) {
+        throw new Error("blocked-checkout active reservation identity drifted");
+      }
       state = updateState(config, state, {
         stage: "checkout-created",
         stripeSessionId: created.sessionId,
         stripeClientSecret: created.clientSecret,
         checkoutLockKey: prepared.checkoutLockKey,
         reservationId: prepared.reservationId,
+        priorExpiredCheckoutCount: afterHistory.terminalCount,
       });
     }
     if (state.stage === "checkout-created") {
@@ -2056,10 +2226,15 @@ export async function verifyAndCleanupProof(config = validateConfiguration()) {
   }
 }
 
-async function cleanupUnpaidFixtures(owner, state) {
+export async function cleanupUnpaidFixtures(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
     assertCanaryFenced(await lockCanaryFence(owner, state));
+    const reservationIds = assertReservationCleanupHistory(
+      await readCheckoutAttemptRows(owner, state, true),
+      state,
+      "RESTORED",
+    );
     const exact = await owner.query(`
       SELECT
         (SELECT count(*)::integer FROM public."Order" WHERE "stripeSessionId"=$1) AS orders,
@@ -2075,7 +2250,10 @@ async function cleanupUnpaidFixtures(owner, state) {
     for (const [key, expected] of Object.entries({ orders: 0, reservation: 1, listing: 1, seller: 1, seller_user: 1 })) {
       if (Number(exact.rows[0]?.[key]) !== expected) throw new Error(`blocked-checkout abort ${key} relationship drifted`);
     }
-    if (resultCardinality(await owner.query(`DELETE FROM public."CheckoutStockReservation" WHERE id=$1 RETURNING id`, [state.reservationId])) !== 1
+    if (resultCardinality(await owner.query(
+      `DELETE FROM public."CheckoutStockReservation" WHERE id=ANY($1::text[]) RETURNING id`,
+      [reservationIds],
+    )) !== reservationIds.length
       || resultCardinality(await owner.query(`DELETE FROM public."Listing" WHERE id=$1 RETURNING id`, [state.listingId])) !== 1
       || resultCardinality(await owner.query(`DELETE FROM public."SellerProfile" WHERE id=$1 RETURNING id`, [state.sellerProfileId])) !== 1
       || resultCardinality(await owner.query(`DELETE FROM public."User" WHERE id=$1 RETURNING id`, [state.sellerUserId])) !== 1) {
