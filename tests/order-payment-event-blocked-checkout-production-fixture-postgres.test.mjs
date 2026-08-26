@@ -12,6 +12,7 @@ import {
   DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
   readCleanupSnapshot,
   readDeliverySnapshot,
+  reopenFixtureSellerForPaymentRenewal,
 } from "../scripts/order-payment-event-blocked-checkout-production-proof.mjs";
 
 function state() {
@@ -187,6 +188,47 @@ async function seedOutcome(db, value) {
     ('audit-local','webhook',$1,'BLOCKED_CHECKOUT_REFUND_RECORDED','ORDER',$3),
     ('audit-refund','webhook',$2,'STRIPE_REFUND_RECORDED','ORDER',$3)`,
   [value.checkoutEventId, value.refundEventId, value.orderId]);
+}
+
+async function seedExpiredPaymentAttempts(db, value) {
+  const items = JSON.stringify([{
+    listingId: value.listingId,
+    quantity: 1,
+    sellerId: value.sellerProfileId,
+  }]);
+  await db.query(`
+    INSERT INTO public."CheckoutStockReservation" (
+      id,"checkoutLockKey","payloadHash","buyerId","sellerId","stripeSessionId",
+      status,"reservedItems","restoredAt","restoreReason"
+    ) VALUES
+      ('reservation_expired_1',$2,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',$3,$4,
+        'cs_test_expired_1','RESTORED',$6::jsonb,CURRENT_TIMESTAMP,'stripe_session_expired'),
+      ('reservation_expired_2',$2,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',$3,$4,
+        'cs_test_expired_2','RESTORED',$6::jsonb,CURRENT_TIMESTAMP,'stripe_session_expired'),
+      ($1,$2,'cccccccccccccccccccccccccccccccc',$3,$4,
+        $5,'RESTORED',$6::jsonb,CURRENT_TIMESTAMP,'stripe_session_expired')
+  `, [
+    value.reservationId,
+    value.checkoutLockKey,
+    value.buyerId,
+    value.sellerProfileId,
+    value.stripeSessionId,
+    items,
+  ]);
+  return Object.freeze({
+    active: null,
+    terminalCount: 3,
+    terminalReservationIds: Object.freeze([
+      "reservation_expired_1",
+      "reservation_expired_2",
+      value.reservationId,
+    ]),
+    terminalSessionIds: Object.freeze([
+      "cs_test_expired_1",
+      "cs_test_expired_2",
+      value.stripeSessionId,
+    ]),
+  });
 }
 
 test("blocked-checkout outcome is exact and removable while retaining two signed leases", async () => {
@@ -380,6 +422,60 @@ test("seller block transition converges after a crash before journal persistence
       [value.sellerProfileId],
     );
     assert.deepEqual(result.rows, [{ vacationMode: true }]);
+  } finally {
+    await db.close();
+  }
+});
+
+test("expired payment renewal reopens only the exact locked synthetic seller and is restart-safe", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await createFixtures(db, value);
+    await blockFixtureSeller(db, value);
+    const history = await seedExpiredPaymentAttempts(db, value);
+
+    await reopenFixtureSellerForPaymentRenewal(db, value, history);
+    await reopenFixtureSellerForPaymentRenewal(db, value, history);
+
+    const result = await db.query(`
+      SELECT
+        (SELECT "vacationMode" FROM public."SellerProfile" WHERE id=$1) AS vacation_mode,
+        (SELECT "stockQuantity" FROM public."Listing" WHERE id=$2) AS stock,
+        (SELECT count(*)::integer FROM public."CheckoutStockReservation") AS reservations,
+        (SELECT count(*)::integer FROM public."Order") AS orders
+    `, [value.sellerProfileId, value.listingId]);
+    assert.deepEqual(result.rows[0], {
+      vacation_mode: false,
+      stock: 1,
+      reservations: 3,
+      orders: 0,
+    });
+  } finally {
+    await db.close();
+  }
+});
+
+test("expired payment renewal rejects drift and rolls back without reopening the seller", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await createFixtures(db, value);
+    await blockFixtureSeller(db, value);
+    const history = await seedExpiredPaymentAttempts(db, value);
+    await db.query(`UPDATE public."Listing" SET "stockQuantity"=2 WHERE id=$1`, [value.listingId]);
+
+    await assert.rejects(
+      reopenFixtureSellerForPaymentRenewal(db, value, history),
+      /renewal listing drifted/,
+    );
+
+    const retained = await db.query(`
+      SELECT
+        (SELECT "vacationMode" FROM public."SellerProfile" WHERE id=$1) AS vacation_mode,
+        (SELECT count(*)::integer FROM public."CheckoutStockReservation") AS reservations
+    `, [value.sellerProfileId]);
+    assert.deepEqual(retained.rows[0], { vacation_mode: true, reservations: 3 });
   } finally {
     await db.close();
   }

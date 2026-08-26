@@ -185,7 +185,7 @@ function loadPrivateEnvironment(filePath, label) {
 
 export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   const command = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND || "prepare";
-  if (!new Set(["prepare", "onboard", "serve", "verify", "cleanup"]).has(command)) {
+  if (!new Set(["prepare", "onboard", "renew", "serve", "verify", "cleanup"]).has(command)) {
     throw new Error("blocked-checkout proof command is invalid");
   }
   if (required(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_CONFIRM") !== CONFIRMATION) {
@@ -1262,6 +1262,7 @@ export function assertCheckoutAttemptHistory(rows, sessions, state) {
     sessionById.set(session?.id, session);
   }
   const terminalReservationIds = [];
+  const terminalSessionIds = [];
   let active = null;
   for (const candidate of rows) {
     const row = assertReservationAttemptRow(candidate, state);
@@ -1272,6 +1273,7 @@ export function assertCheckoutAttemptHistory(rows, sessions, state) {
         throw new Error("blocked-checkout terminal Checkout attempt drifted");
       }
       terminalReservationIds.push(row.id);
+      terminalSessionIds.push(row.stripe_session_id);
       continue;
     }
     if (row.status !== "SESSION_CREATED" || row.restored_at !== null || row.restore_reason !== null
@@ -1293,7 +1295,73 @@ export function assertCheckoutAttemptHistory(rows, sessions, state) {
     active,
     terminalCount: terminalReservationIds.length,
     terminalReservationIds: Object.freeze(terminalReservationIds),
+    terminalSessionIds: Object.freeze(terminalSessionIds),
   });
+}
+
+export function assertExpiredPaymentRenewal(history, state) {
+  if (state?.stage !== "seller-blocked" || !history || typeof history !== "object"
+    || !Number.isSafeInteger(history.terminalCount)
+    || !Array.isArray(history.terminalReservationIds) || !Array.isArray(history.terminalSessionIds)
+    || history.terminalReservationIds.length !== history.terminalCount
+    || history.terminalSessionIds.length !== history.terminalCount
+    || new Set(history.terminalReservationIds).size !== history.terminalCount
+    || new Set(history.terminalSessionIds).size !== history.terminalCount) {
+    throw new Error("blocked-checkout payment renewal state drifted");
+  }
+  const active = history.active ?? null;
+  if (active?.sessionId === state.stripeSessionId) {
+    if (active.reservationId !== state.reservationId || active.clientSecret !== state.stripeClientSecret
+      || history.terminalCount !== state.priorExpiredCheckoutCount
+      || history.terminalReservationIds.includes(state.reservationId)
+      || history.terminalSessionIds.includes(state.stripeSessionId)) {
+      throw new Error("blocked-checkout current payment attempt drifted");
+    }
+    return Object.freeze({ active, mode: "current", terminalCount: history.terminalCount });
+  }
+  if (history.terminalCount !== state.priorExpiredCheckoutCount + 1
+    || history.terminalCount > MAX_EXPIRED_CHECKOUT_ATTEMPTS
+    || !history.terminalReservationIds.includes(state.reservationId)
+    || !history.terminalSessionIds.includes(state.stripeSessionId)
+    || (active && (active.reservationId === state.reservationId || active.sessionId === state.stripeSessionId))) {
+    throw new Error("blocked-checkout expired payment attempt drifted");
+  }
+  return Object.freeze({
+    active,
+    mode: active ? "resume-replacement" : "create-replacement",
+    terminalCount: history.terminalCount,
+  });
+}
+
+export function assertExpiredPaymentSnapshot(snapshot, state, sellerBlocked) {
+  if (Number(snapshot?.stock) !== 1 || snapshot?.listing_status !== "ACTIVE"
+    || snapshot?.vacation_mode !== sellerBlocked || Number(snapshot?.orders) !== 0
+    || snapshot?.reservation_id !== state.reservationId || snapshot?.reservation_status !== "RESTORED"
+    || snapshot?.checkout_lock_key !== `checkout:single:${state.buyerId}:listing:${state.listingId}`
+    || snapshot?.reservation_buyer !== state.buyerId || snapshot?.reservation_seller !== state.sellerProfileId) {
+    throw new Error("blocked-checkout expired payment database state drifted");
+  }
+  return Object.freeze({ reservationId: snapshot.reservation_id });
+}
+
+function assertLockedRenewalRows(rows, history, state) {
+  const expected = new Set(history.terminalReservationIds);
+  if (history.active) expected.add(history.active.reservationId);
+  if (!Array.isArray(rows) || rows.length !== expected.size) {
+    throw new Error("blocked-checkout locked renewal history cardinality drifted");
+  }
+  for (const candidate of rows) {
+    const row = assertReservationAttemptRow(candidate, state);
+    if (!expected.delete(row.id)) throw new Error("blocked-checkout locked renewal history identity drifted");
+    if (history.terminalReservationIds.includes(row.id)) {
+      if (row.status !== "RESTORED" || !row.restored_at || row.restore_reason !== "stripe_session_expired") {
+        throw new Error("blocked-checkout locked terminal renewal row drifted");
+      }
+    } else if (row.status !== "SESSION_CREATED" || row.restored_at !== null || row.restore_reason !== null) {
+      throw new Error("blocked-checkout locked active renewal row drifted");
+    }
+  }
+  if (expected.size !== 0) throw new Error("blocked-checkout locked renewal history is incomplete");
 }
 
 export function assertReservationCleanupHistory(rows, state, currentStatus) {
@@ -1361,6 +1429,65 @@ export async function readPreparedSnapshot(owner, state) {
       (SELECT "sellerId" FROM public."CheckoutStockReservation" WHERE "stripeSessionId"=$3) AS reservation_seller
   `, [state.listingId, state.sellerProfileId, state.stripeSessionId]);
   return result.rows[0];
+}
+
+export async function reopenFixtureSellerForPaymentRenewal(owner, state, history) {
+  await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
+  try {
+    const sellerUser = await owner.query(`
+      SELECT id FROM public."User"
+       WHERE id=$1 AND "clerkId"=$2 AND email=$3 AND role='USER'
+         AND banned=false AND "deletedAt" IS NULL
+       FOR UPDATE
+    `, [state.sellerUserId, state.sellerClerkId, state.sellerEmail]);
+    if (resultCardinality(sellerUser) !== 1 || sellerUser.rows[0]?.id !== state.sellerUserId) {
+      throw new Error("blocked-checkout renewal seller user drifted");
+    }
+    const seller = await owner.query(`
+      SELECT id,"vacationMode" FROM public."SellerProfile"
+       WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3
+         AND "displayName"='Grainline Blocked Checkout Proof'
+         AND "displayNameNormalized"='grainline blocked checkout proof'
+         AND "chargesEnabled"=true AND "acceptingNewOrders"=true AND "allowLocalPickup"=true
+         AND "stripeAccountVersion" IS NULL AND "stripeControllerType"=$4
+       FOR UPDATE
+    `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
+    if (resultCardinality(seller) !== 1 || seller.rows[0]?.id !== state.sellerProfileId
+      || typeof seller.rows[0]?.vacationMode !== "boolean") {
+      throw new Error("blocked-checkout renewal seller drifted");
+    }
+    const listing = await owner.query(`
+      SELECT id FROM public."Listing"
+       WHERE id=$1 AND "sellerId"=$2 AND title='blocked-checkout-production-proof'
+         AND "priceCents"=500 AND currency='usd' AND status='ACTIVE'
+         AND "listingType"='IN_STOCK' AND "stockQuantity"=1 AND "isPrivate"=true
+         AND "reservedForUserId"=$3
+       FOR UPDATE
+    `, [state.listingId, state.sellerProfileId, state.buyerId]);
+    if (resultCardinality(listing) !== 1 || listing.rows[0]?.id !== state.listingId) {
+      throw new Error("blocked-checkout renewal listing drifted");
+    }
+    assertLockedRenewalRows(await readCheckoutAttemptRows(owner, state, true), history, state);
+    assertExpiredPaymentSnapshot(await readPreparedSnapshot(owner, state), state, seller.rows[0].vacationMode);
+    const reopened = await owner.query(`
+      UPDATE public."SellerProfile"
+         SET "vacationMode"=false,"updatedAt"=CURRENT_TIMESTAMP
+       WHERE id=$1 AND "userId"=$2 AND "stripeAccountId"=$3
+         AND "displayName"='Grainline Blocked Checkout Proof'
+         AND "displayNameNormalized"='grainline blocked checkout proof'
+         AND "chargesEnabled"=true AND "acceptingNewOrders"=true AND "allowLocalPickup"=true
+         AND "stripeAccountVersion" IS NULL AND "stripeControllerType"=$4
+      RETURNING id,"vacationMode"
+    `, [state.sellerProfileId, state.sellerUserId, state.stripeAccountId, DISPOSABLE_SELLER_CONTROLLER_SUMMARY]);
+    if (resultCardinality(reopened) !== 1 || reopened.rows[0]?.id !== state.sellerProfileId
+      || reopened.rows[0]?.vacationMode !== false) {
+      throw new Error("blocked-checkout renewal seller reopen drifted");
+    }
+    await owner.query("COMMIT");
+  } catch (error) {
+    try { await owner.query("ROLLBACK"); } catch {}
+    throw error;
+  }
 }
 
 export function assertPreparedSnapshot(snapshot, state, sellerBlocked = true) {
@@ -2092,6 +2219,100 @@ export async function prepareProof(config = validateConfiguration()) {
   }
 }
 
+export async function renewExpiredPayment(config = validateConfiguration()) {
+  if (existsSync(config.evidencePath)) throw new Error("blocked-checkout proof evidence already exists");
+  if (!existsSync(config.statePath)) throw new Error("blocked-checkout payment renewal requires preserved recovery state");
+  let state = assertState(readPrivateJson(config.statePath, "blocked-checkout recovery state"), config);
+  if (state.stage !== "seller-blocked") throw new Error("blocked-checkout payment renewal requires seller-blocked state");
+  const context = await loadExecutionContext(config, state);
+  const { clerk, owner, runtime, stripe, stripeSecret } = context;
+  let session = null;
+  try {
+    const stripeOps = stripeDependencies(stripe, stripeSecret, config, state);
+    const provider = await readProviderState(stripeOps);
+    if (provider.stage !== 4 || provider.platform?.url !== PLATFORM_WEBHOOK_URL || provider.platform?.status !== "enabled") {
+      throw new Error("blocked-checkout payment renewal requires the active stage-4 platform webhook");
+    }
+    assertConnectedAccount(await stripeOps.retrieveAccount(state.stripeAccountId), config, state);
+    const beforeHistory = await readCheckoutAttemptHistory(owner, stripeOps, state);
+    const renewal = assertExpiredPaymentRenewal(beforeHistory, state);
+    if (renewal.mode === "current") {
+      const snapshot = await readPreparedSnapshot(owner, state);
+      if (snapshot?.vacation_mode === false) await blockFixtureSeller(owner, state);
+      assertPreparedSnapshot(await readPreparedSnapshot(owner, state), state, true);
+    } else {
+      let created = renewal.active;
+      if (!created) {
+        await reopenFixtureSellerForPaymentRenewal(owner, state, beforeHistory);
+        session = await createCanarySession(clerk, state.buyerClerkId);
+        const selectedRate = await signedPickupRate(session.jwt, state);
+        created = assertCheckoutResponse(await createCheckout(session.jwt, state, selectedRate));
+        const retry = assertCheckoutResponse(await createCheckout(session.jwt, state, selectedRate), created.sessionId);
+        if (retry.clientSecret !== created.clientSecret) {
+          throw new Error("blocked-checkout renewal exact retry changed the client secret");
+        }
+      }
+      const afterHistory = await readCheckoutAttemptHistory(owner, stripeOps, state);
+      if (afterHistory.terminalCount !== renewal.terminalCount || !afterHistory.active
+        || afterHistory.active.sessionId !== created.sessionId
+        || afterHistory.active.clientSecret !== created.clientSecret
+        || (created.reservationId !== undefined && afterHistory.active.reservationId !== created.reservationId)) {
+        throw new Error("blocked-checkout payment renewal history drifted");
+      }
+      const replacement = {
+        ...state,
+        stripeSessionId: created.sessionId,
+        stripeClientSecret: created.clientSecret,
+      };
+      const replacementSnapshot = await readPreparedSnapshot(owner, replacement);
+      if (typeof replacementSnapshot?.vacation_mode !== "boolean") {
+        throw new Error("blocked-checkout renewal seller eligibility drifted");
+      }
+      const prepared = assertPreparedSnapshot(
+        replacementSnapshot,
+        replacement,
+        replacementSnapshot.vacation_mode,
+      );
+      if (prepared.reservationId !== afterHistory.active.reservationId) {
+        throw new Error("blocked-checkout renewal reservation identity drifted");
+      }
+      state = updateState(config, state, {
+        stripeSessionId: created.sessionId,
+        stripeClientSecret: created.clientSecret,
+        checkoutLockKey: prepared.checkoutLockKey,
+        reservationId: prepared.reservationId,
+        priorExpiredCheckoutCount: afterHistory.terminalCount,
+      });
+      await blockFixtureSeller(owner, state);
+      assertPreparedSnapshot(await readPreparedSnapshot(owner, state), state, true);
+    }
+    if (session) await revokeCanarySessions(clerk, state.buyerClerkId);
+    process.stdout.write(`${JSON.stringify({
+      phase: "order-payment-event-blocked-checkout-production-proof",
+      status: "payment-renewed",
+      next: "ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND=serve ... node scripts/order-payment-event-blocked-checkout-production-proof.mjs",
+      loopbackUrl: `http://127.0.0.1:${config.port}/`,
+      priorExpiredCheckoutCount: state.priorExpiredCheckoutCount,
+      rawProviderIdsPersistedInOutput: false,
+      secretsPersistedInOutput: false,
+    })}\n`);
+    return state;
+  } catch (error) {
+    try {
+      await blockFixtureSeller(owner, state);
+    } catch (blockError) {
+      throw new AggregateError(
+        [error, blockError],
+        "blocked-checkout payment renewal failed and the synthetic seller could not be reblocked",
+      );
+    }
+    throw error;
+  } finally {
+    if (session) await revokeCanarySessions(clerk, state?.buyerClerkId).catch(() => {});
+    await Promise.allSettled([owner.end(), runtime.end()]);
+  }
+}
+
 export async function openHostedOnboarding(config = validateConfiguration(), dependencies = {}) {
   assertGitState(readGitState(config.cwd), config.operatorCommit ?? config.expectedCommit);
   verifyGitHubCi(config);
@@ -2399,6 +2620,7 @@ async function main() {
     config = validateConfiguration();
     if (config.command === "prepare") await prepareProof(config);
     else if (config.command === "onboard") await openHostedOnboarding(config);
+    else if (config.command === "renew") await renewExpiredPayment(config);
     else if (config.command === "serve") await servePaymentPage(config);
     else if (config.command === "verify") {
       const result = await verifyAndCleanupProof(config);
