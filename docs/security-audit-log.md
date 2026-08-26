@@ -2936,3 +2936,21 @@ Open work:
   Cross-session secrets, malformed escapes, control characters and oversized
   values are explicitly rejected. This changes no application, migration,
   grants, RLS or provider configuration.
+
+## Blocked-checkout Stripe expansion-depth drift (2026-08-25)
+
+- PR #282 merged the encoded-client-secret correction as exact main
+  `f361d6c8a4c34b2eb097e18025d515bd7a19285a`; push-triggered main CI
+  `32916271880` passed the full release/test/build chain.
+- The next restart recovered the existing checkout response but stopped before
+  journal advancement because Session retrieval asked Stripe to expand
+  `payment_intent.latest_charge.refunds.data.transfer_reversal`, which exceeds
+  Stripe's four-level property-expansion limit. No payment or signed event
+  exists; the journal remains at `checkout-create-pending` and the existing
+  unpaid Session/reservation remains the restart source of truth.
+- Refund verification already resolves the exact refund ID from the durable
+  Order and retrieves that refund separately with only `transfer_reversal`
+  expanded. The isolated correction therefore removes the redundant deep
+  Session expansion, pins the exact three-level
+  `payment_intent.latest_charge.transfer` expansion, and leaves all refund and
+  reversal assertions intact.

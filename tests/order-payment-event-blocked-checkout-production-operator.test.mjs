@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   CONFIRMATION,
+  CHECKOUT_SESSION_EXPANDS,
   CONNECTED_ACCOUNT_CONTROLLER,
   CONNECTED_ACCOUNT_MARKER_KEY,
   DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
@@ -348,6 +349,9 @@ test("provider credentials are pinned to test Stripe, live Grainline Clerk, and 
 });
 
 test("embedded page, route result, prepared state and Stripe effects are exact", () => {
+  assert.deepEqual(CHECKOUT_SESSION_EXPANDS, ["payment_intent.latest_charge.transfer"]);
+  assert.equal(Math.max(...CHECKOUT_SESSION_EXPANDS.map((value) => value.split(".").length)), 3);
+  assert.equal(CHECKOUT_SESSION_EXPANDS.some((value) => value.includes("refunds")), false);
   const page = buildPaymentPage("pk_test_public", "cs_test_session_secret_private");
   assert.match(page, /https:\/\/js\.stripe\.com\/v3\//);
   assert.match(page, /initEmbeddedCheckout/);
@@ -445,6 +449,7 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.doesNotMatch(source, /else if \(state\.stage === "account-created"\)[\s\S]{0,300}DELETE FROM public\."SellerProfile"/);
   assert.doesNotMatch(source, /sk_live_[A-Za-z0-9]{8,}/);
   assert.doesNotMatch(source, /webhookEndpoints\.(?:create|update|del)/);
+  assert.doesNotMatch(source, /payment_intent\.latest_charge\.refunds\.data\.transfer_reversal/);
   assert.doesNotMatch(source, /vercel\s+(?:deploy|env|promote|remove)/i);
   assert.doesNotMatch(source, /ALTER TABLE[\s\S]*ROW LEVEL SECURITY/i);
   assert.doesNotMatch(source, /prisma migrate|migrate deploy/i);
