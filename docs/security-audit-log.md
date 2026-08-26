@@ -2917,3 +2917,22 @@ Open work:
   PostgreSQL and operator suite; all 3,422 repository tests complete with 3,415
   passes, seven documented skips and zero failures. TypeScript, lint, syntax and
   diff checks also pass.
+
+## Blocked-checkout client-secret encoding drift (2026-08-25)
+
+- The corrected seller identity passed the shipping quote and the real checkout
+  route behaved correctly: the forged-origin request returned `403`, and the
+  authenticated request returned `200`, creating one open unpaid Embedded
+  Checkout Session and one `SESSION_CREATED` reservation.
+- The proof stopped before journal advancement because its response validator
+  allowed only an alphanumeric/underscore client-secret suffix. The observed
+  current Stripe test secret is bound to the exact Session ID but contains a
+  valid percent escape. No payment or signed event exists; the journal remains
+  at `checkout-create-pending` and the existing checkout lock is the recovery
+  source of truth.
+- The isolated correction requires the exact test Session ID prefix, binds the
+  secret to that exact ID plus `_secret_`, caps the full value at 1,024
+  characters, and accepts `%` only as a complete hexadecimal escape triplet.
+  Cross-session secrets, malformed escapes, control characters and oversized
+  values are explicitly rejected. This changes no application, migration,
+  grants, RLS or provider configuration.

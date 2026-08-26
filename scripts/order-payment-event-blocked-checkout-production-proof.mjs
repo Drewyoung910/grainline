@@ -1129,8 +1129,14 @@ async function createCheckout(token, state, selectedRate, origin = PRODUCTION_OR
 export function assertCheckoutResponse(response, expectedSessionId = null) {
   const sessionId = response?.body?.sessionId;
   const clientSecret = response?.body?.clientSecret;
+  const secretPrefix = `${sessionId}_secret_`;
+  const secretSuffix = typeof clientSecret === "string" && clientSecret.startsWith(secretPrefix)
+    ? clientSecret.slice(secretPrefix.length)
+    : null;
   if (response?.status !== 200 || !/^cs_test_[A-Za-z0-9_]+$/.test(String(sessionId ?? ""))
-    || !/^cs_test_[A-Za-z0-9_]+_secret_[A-Za-z0-9_]+$/.test(String(clientSecret ?? ""))
+    || typeof clientSecret !== "string" || clientSecret.length > 1024
+    || typeof secretSuffix !== "string" || secretSuffix.length === 0
+    || !/^(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2})+$/.test(secretSuffix)
     || (expectedSessionId !== null && sessionId !== expectedSessionId)) {
     throw new Error("blocked-checkout route response drifted");
   }

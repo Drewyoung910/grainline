@@ -296,3 +296,17 @@ Local validation passes the 31-test focused migration, scope, disposable-
 PostgreSQL and operator suite; all 3,422 repository tests complete with 3,415
 passes, seven documented skips and zero failures. TypeScript, lint, syntax and
 diff checks also pass.
+
+The next restart reached the real checkout route. The forged cross-origin call
+returned `403`, while the authenticated call returned `200` and created exactly
+one open, unpaid Embedded Checkout Session plus one `SESSION_CREATED`
+reservation. The operator then stopped at `checkout-create-pending` because its
+client-secret validator assumed the older alphanumeric-only suffix; Stripe's
+current test-mode response is longer and contains valid percent escapes. The
+restart-safe correction still requires the exact `cs_test_...` Session ID,
+binds the client secret to that exact ID plus `_secret_`, caps it at 1,024
+characters and permits percent characters only as complete hexadecimal escape
+triplets. Cross-session values, malformed escapes, whitespace/control
+characters and oversized values remain fail closed. No payment or signed event
+exists at this checkpoint; the same persisted Session must be recovered through
+the checkout lock rather than replaced.

@@ -744,6 +744,16 @@ and the exact observed Express controller summary; repair only the marker-bound
 temporary seller row from the prior `v1/custom` value. Production seller
 onboarding must continue to create real Accounts v2 through `/v2/core/accounts`.
 
+The seller-identity recovery reached the real checkout route: forged origin was
+denied, and the authenticated request created one unpaid Session/reservation.
+The operator then rejected Stripe's current percent-encoded Embedded Checkout
+client secret under an obsolete alphanumeric-only assertion. Resume only after
+the validator binds the secret to the exact Session ID, bounds its length and
+accepts percent characters solely as complete hexadecimal escapes. Reuse the
+existing checkout lock/Session; do not create a replacement attempt or advance
+to predecessor drain/RLS activation before genuine payment, signed delivery,
+exact replay and cleanup pass.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers
