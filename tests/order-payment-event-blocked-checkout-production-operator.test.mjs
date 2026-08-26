@@ -356,6 +356,24 @@ test("embedded page, route result, prepared state and Stripe effects are exact",
   assert.deepEqual(assertCheckoutResponse({ status: 200, body: {
     sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_private",
   } }), { sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_private" });
+  assert.deepEqual(assertCheckoutResponse({ status: 200, body: {
+    sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_payload%2Fencoded%25value",
+  } }), { sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_payload%2Fencoded%25value" });
+  assert.throws(() => assertCheckoutResponse({ status: 200, body: {
+    sessionId: "cs_test_session", clientSecret: "cs_test_other_secret_payload%2Fencoded",
+  } }), /route response drifted/);
+  assert.throws(() => assertCheckoutResponse({ status: 200, body: {
+    sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_payload%2Ginvalid",
+  } }), /route response drifted/);
+  assert.throws(() => assertCheckoutResponse({ status: 200, body: {
+    sessionId: "cs_test_session", clientSecret: `cs_test_session_secret_${"a".repeat(1024)}`,
+  } }), /route response drifted/);
+  assert.throws(() => assertCheckoutResponse({ status: 200, body: {
+    sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_payload\nforged",
+  } }), /route response drifted/);
+  assert.throws(() => assertCheckoutResponse({ status: 200, body: {
+    sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_payload",
+  } }, "cs_test_different"), /route response drifted/);
   const value = state();
   assert.equal(assertPreparedSnapshot({
     stock: 0, listing_status: "ACTIVE", vacation_mode: true, orders: 0,
