@@ -214,6 +214,34 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   if ((operatorCommit !== expectedCommit) !== (operatorCiRunId !== mainCiRunId)) {
     throw new Error("blocked-checkout operator recovery must replace both commit and CI bindings");
   }
+  const recoveryDeployedSourceCommitInput = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYED_SOURCE_COMMIT || null;
+  const recoveryMainCiRunIdInput = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_MAIN_CI_RUN_ID || null;
+  const recoveryDeploymentIdInput = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYMENT_ID || null;
+  const recoveryApplicationInputs = [
+    recoveryDeployedSourceCommitInput,
+    recoveryMainCiRunIdInput,
+    recoveryDeploymentIdInput,
+  ];
+  const recoveryApplicationInputCount = recoveryApplicationInputs.filter(Boolean).length;
+  if (recoveryApplicationInputCount !== 0 && recoveryApplicationInputCount !== recoveryApplicationInputs.length) {
+    throw new Error("blocked-checkout recovery application commit, CI and deployment must be supplied together");
+  }
+  const applicationDeployedSourceCommit = recoveryDeployedSourceCommitInput || deployedSourceCommit;
+  const applicationMainCiRunId = recoveryMainCiRunIdInput
+    ? positiveInteger(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_MAIN_CI_RUN_ID")
+    : mainCiRunId;
+  const applicationDeploymentId = recoveryDeploymentIdInput || deploymentId;
+  if (!COMMIT_PATTERN.test(applicationDeployedSourceCommit)
+    || !DEPLOYMENT_PATTERN.test(applicationDeploymentId)) {
+    throw new Error("blocked-checkout recovery application binding is invalid");
+  }
+  if (recoveryApplicationInputCount !== 0 && (
+    applicationDeployedSourceCommit === deployedSourceCommit
+    || applicationMainCiRunId === mainCiRunId
+    || applicationDeploymentId === deploymentId
+  )) {
+    throw new Error("blocked-checkout recovery application must replace commit, CI and deployment bindings");
+  }
   const suffix = expectedCommit.slice(0, 12);
   const statePath = path.resolve(env.ORDER_PAYMENT_BLOCKED_CHECKOUT_STATE_PATH
     || path.join(EVIDENCE_DIRECTORY, `order-payment-event-blocked-checkout-state-${suffix}.json`));
@@ -237,6 +265,9 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   return Object.freeze({
     command,
     cwd,
+    applicationDeployedSourceCommit,
+    applicationDeploymentId,
+    applicationMainCiRunId,
     deployedSourceCommit,
     deploymentId,
     evidencePath,
@@ -636,9 +667,20 @@ function readGitHubCi(commit, runId) {
 }
 
 function verifyGitHubCi(config) {
-  readGitHubCi(config.expectedCommit, config.mainCiRunId);
-  if (config.operatorCommit !== config.expectedCommit) {
-    readGitHubCi(config.operatorCommit, config.operatorCiRunId);
+  const bindings = new Map();
+  for (const [commit, runId] of [
+    [config.expectedCommit, config.mainCiRunId],
+    [config.operatorCommit, config.operatorCiRunId],
+    [config.applicationDeployedSourceCommit, config.applicationMainCiRunId],
+  ]) {
+    const existingRunId = bindings.get(commit);
+    if (existingRunId !== undefined && existingRunId !== runId) {
+      throw new Error("blocked-checkout CI binding assigns two runs to one exact commit");
+    }
+    bindings.set(commit, runId);
+  }
+  for (const [commit, runId] of bindings) {
+    readGitHubCi(commit, runId);
   }
 }
 
@@ -680,14 +722,18 @@ async function fetchJson(pathname, token, { body, method = "GET", origin = PRODU
 async function verifyDeployment(config) {
   assertVercelProject(config);
   const raw = command("npx", [
-    "--yes", `vercel@${VERCEL_CLI_VERSION}`, "api", `/v13/deployments/${config.deploymentId}`,
+    "--yes", `vercel@${VERCEL_CLI_VERSION}`, "api", `/v13/deployments/${config.applicationDeploymentId}`,
     "--raw", "--cwd", config.vercelProjectDirectory, "--no-color",
   ], {
     cwd: config.vercelProjectDirectory,
     env: childEnvironment(process.env.VERCEL_TOKEN ? { VERCEL_TOKEN: process.env.VERCEL_TOKEN } : {}),
     label: "blocked-checkout deployment lookup",
   });
-  parseVercelDeployment(raw, { ...config, requiredAliases: REQUIRED_ALIASES });
+  parseVercelDeployment(raw, {
+    deployedSourceCommit: config.applicationDeployedSourceCommit,
+    deploymentId: config.applicationDeploymentId,
+    requiredAliases: REQUIRED_ALIASES,
+  });
   const health = await fetch(`${PRODUCTION_ORIGIN}/api/health`, {
     cache: "no-store", redirect: "error", signal: AbortSignal.timeout(30_000),
   });
@@ -697,7 +743,7 @@ async function verifyDeployment(config) {
     cache: "no-store", redirect: "error", signal: AbortSignal.timeout(30_000),
   });
   const body = await boundedText(page, MAX_PAGE_BYTES);
-  if (page.status !== 200 || !body.includes(`dpl=${config.deploymentId}`)) {
+  if (page.status !== 200 || !body.includes(`dpl=${config.applicationDeploymentId}`)) {
     throw new Error("blocked-checkout canonical alias drifted");
   }
 }
@@ -1138,6 +1184,10 @@ async function createCheckout(token, state, selectedRate, origin = PRODUCTION_OR
   });
 }
 
+async function resumeSingleCheckout(token, state) {
+  return fetchJson(`/api/cart/checkout/single/resume?listingId=${encodeURIComponent(state.listingId)}`, token);
+}
+
 export function isCheckoutClientSecretForSession(sessionId, clientSecret) {
   if (!/^cs_test_[A-Za-z0-9_]+$/.test(String(sessionId ?? ""))
     || typeof clientSecret !== "string" || clientSecret.length > 1024) return false;
@@ -1152,10 +1202,17 @@ export function isCheckoutClientSecretForSession(sessionId, clientSecret) {
 export function assertCheckoutResponse(response, expectedSessionId = null) {
   const sessionId = response?.body?.sessionId;
   const clientSecret = response?.body?.clientSecret;
+  const sessionShapeValid = /^cs_test_[A-Za-z0-9_]+$/.test(String(sessionId ?? ""));
+  const secretShapeValid = isCheckoutClientSecretForSession(sessionId, clientSecret);
+  const expectedSessionMatches = expectedSessionId === null || sessionId === expectedSessionId;
   if (response?.status !== 200 || !/^cs_test_[A-Za-z0-9_]+$/.test(String(sessionId ?? ""))
-    || !isCheckoutClientSecretForSession(sessionId, clientSecret)
-    || (expectedSessionId !== null && sessionId !== expectedSessionId)) {
-    throw new Error("blocked-checkout route response drifted");
+    || !secretShapeValid || !expectedSessionMatches) {
+    const responseKeys = response?.body && typeof response.body === "object" && !Array.isArray(response.body)
+      ? Object.keys(response.body).sort().join(",")
+      : "non-object";
+    throw new Error(
+      `blocked-checkout route response drifted (status=${response?.status ?? "missing"}; keys=${responseKeys}; sessionShape=${sessionShapeValid}; secretShape=${secretShapeValid}; expectedMatch=${expectedSessionMatches})`,
+    );
   }
   return Object.freeze({ clientSecret, sessionId });
 }
@@ -1738,11 +1795,16 @@ export function buildEvidence(config, state, cleanup) {
     status: "passed",
     mode: "test",
     commit: config.expectedCommit,
-    deployedSourceCommit: config.deployedSourceCommit,
-    ciRunId: config.mainCiRunId,
+    initialApplicationBinding: Object.freeze({
+      deployedSourceCommit: config.deployedSourceCommit,
+      ciRunId: config.mainCiRunId,
+      deploymentId: config.deploymentId,
+    }),
+    deployedSourceCommit: config.applicationDeployedSourceCommit ?? config.deployedSourceCommit,
+    ciRunId: config.applicationMainCiRunId ?? config.mainCiRunId,
     operatorCommit: config.operatorCommit ?? config.expectedCommit,
     operatorCiRunId: config.operatorCiRunId ?? config.mainCiRunId,
-    deploymentId: config.deploymentId,
+    deploymentId: config.applicationDeploymentId ?? config.deploymentId,
     stripe: {
       accountSha256: sha256(state.stripeAccountId),
       sessionSha256: sha256(state.stripeSessionId),
@@ -1792,10 +1854,15 @@ export function assertEvidence(value, config) {
   const databaseHashes = ["localPaymentEventSha256", "signedPaymentEventSha256", "notificationSha256", "emailOutboxSha256"];
   if (value?.phase !== "order-payment-event-blocked-checkout-production-proof" || value?.status !== "passed"
     || value?.mode !== "test" || value?.commit !== config.expectedCommit
-    || value?.deployedSourceCommit !== config.deployedSourceCommit || String(value?.ciRunId) !== String(config.mainCiRunId)
+    || value?.initialApplicationBinding?.deployedSourceCommit !== config.deployedSourceCommit
+    || String(value?.initialApplicationBinding?.ciRunId) !== String(config.mainCiRunId)
+    || value?.initialApplicationBinding?.deploymentId !== config.deploymentId
+    || value?.deployedSourceCommit !== (config.applicationDeployedSourceCommit ?? config.deployedSourceCommit)
+    || String(value?.ciRunId) !== String(config.applicationMainCiRunId ?? config.mainCiRunId)
     || value?.operatorCommit !== (config.operatorCommit ?? config.expectedCommit)
     || String(value?.operatorCiRunId) !== String(config.operatorCiRunId ?? config.mainCiRunId)
-    || value?.deploymentId !== config.deploymentId || !stripeHashes.every((key) => hex.test(value?.stripe?.[key] ?? ""))
+    || value?.deploymentId !== (config.applicationDeploymentId ?? config.deploymentId)
+    || !stripeHashes.every((key) => hex.test(value?.stripe?.[key] ?? ""))
     || !databaseHashes.every((key) => hex.test(value?.database?.[key] ?? ""))
     || value?.stripe?.buyerRefundAmountCents < PRICE_CENTS
     || value?.stripe?.sellerTransferReversalAmountCents !== SELLER_TRANSFER_CENTS
@@ -1967,19 +2034,22 @@ export async function prepareProof(config = validateConfiguration()) {
         carrier: "Grainline", estDays: 1, subjectHash: "invalid", token: "invalid", expiresAt: 0,
       }, "https://example.invalid");
       if (denied.status !== 403 || denied.body?.error !== "Forbidden") throw new Error("blocked-checkout checkout route did not reject cross-origin POST");
-      const selectedRate = await signedPickupRate(session.jwt, state);
       const beforeHistory = await readCheckoutAttemptHistory(owner, stripeOps, state);
       let created;
       if (beforeHistory.active) {
-        created = Object.freeze({
-          clientSecret: beforeHistory.active.clientSecret,
-          sessionId: beforeHistory.active.sessionId,
-        });
+        created = assertCheckoutResponse(
+          await resumeSingleCheckout(session.jwt, state),
+          beforeHistory.active.sessionId,
+        );
+        if (created.clientSecret !== beforeHistory.active.clientSecret) {
+          throw new Error("blocked-checkout resumed client secret drifted");
+        }
       } else {
+        const selectedRate = await signedPickupRate(session.jwt, state);
         created = assertCheckoutResponse(await createCheckout(session.jwt, state, selectedRate));
+        const retry = assertCheckoutResponse(await createCheckout(session.jwt, state, selectedRate), created.sessionId);
+        if (retry.clientSecret !== created.clientSecret) throw new Error("blocked-checkout exact route retry changed the client secret");
       }
-      const retry = assertCheckoutResponse(await createCheckout(session.jwt, state, selectedRate), created.sessionId);
-      if (retry.clientSecret !== created.clientSecret) throw new Error("blocked-checkout exact route retry changed the client secret");
       const afterHistory = await readCheckoutAttemptHistory(owner, stripeOps, state);
       if (afterHistory.terminalCount !== beforeHistory.terminalCount || !afterHistory.active
         || afterHistory.active.sessionId !== created.sessionId

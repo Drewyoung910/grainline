@@ -345,3 +345,40 @@ restart-safe correction limits Session retrieval to
 tests. Refund and reversal authority remain separately retrieved and asserted;
 no Session, payment, signed event, migration, grant, RLS or provider
 configuration is added or changed by this correction.
+
+The bounded-history successor merged as exact main
+`0a77c695a079568ac4eb16d91d16da1406e39b07`; exact-main CI `32922211178`
+passed. Its first authorized restart classified the two terminal attempts and
+created one new exact open, unpaid Session plus one `SESSION_CREATED`
+reservation. The immediate exact POST retry then failed closed because the
+single-checkout route checked the now-zero last-unit stock before consulting
+the buyer/listing-scoped ready lock. A later restart independently confirmed
+the same application defect when shipping quote returned `400` out of stock.
+The new Session, reservation and ready Redis lock agree on source, payload,
+Session and encoded-secret identity; there is no PaymentIntent, payment or
+signed completion event.
+
+This is a buyer-visible idempotency defect, not permission to weaken stock
+authority. The application correction keeps complete price, variant, signed-
+rate and payload validation, but checks an exact ready lock before rejecting
+newly unavailable stock. A dedicated authenticated single-checkout resume route
+derives the lock key from the current buyer and requested listing, retrieves
+the exact Stripe Session, and returns a secret only when buyer, listing, lock,
+payload, Session mode/status and the Redis/Stripe client secrets all agree.
+The Buy Now modal consults that route before requesting a fresh shipping quote.
+New or payload-different attempts still fail the authoritative stock check and
+cannot oversell. The production proof must not create another attempt before
+the correction is reviewed, merged, deployed and attested. After that release,
+it must resume the existing attempt if Stripe still reports it open and unpaid.
+If the short-lived Session has expired normally during review, it must first
+classify all three attempts as exact terminal unpaid history and may then create
+exactly one bounded replacement under the existing five-attempt ceiling.
+
+The private journal remains bound to the original application source, CI run
+and deployment that created the fixtures. A restart on the corrective release
+must additionally supply an all-or-none recovery application source, exact-main
+CI run and production deployment ID. Both original and replacement CI bindings
+are revalidated, the canonical aliases must serve the replacement deployment,
+and final sanitized evidence retains the initial binding alongside the actual
+application binding. Never rewrite or delete the journal to make the new
+deployment appear to be the original one.

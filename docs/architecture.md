@@ -106,6 +106,18 @@ scope proof green. The pooled-runtime postflight, application deployment,
 authenticated smoke and exact-ID predecessor drain are accepted; no superseded
 deployment can authenticate with the current runtime credential.
 
+Buy Now recovery is buyer/listing-scoped. A response may be lost after the
+fixed reservation statement consumes the final unit, so an exact retry checks
+the already-published ready Redis lock before treating the resulting zero stock
+as a new-attempt rejection. Modal re-entry uses an authenticated private/no-
+store resume route that derives the lock key from the current buyer, rechecks
+all mutable listing and seller orderability state except the stock held by that
+same reservation, retrieves the exact Stripe Session, and returns a client
+secret only when lock payload, Session identity, metadata, mode, status and
+secret agree. New or payload-different attempts still pass through the normal
+stock checks and the database reservation function; this recovery path does not
+create, mutate or directly read CheckoutStockReservation rows.
+
 The exact policyless Phase-A migration is live from exact main
 `405d6dff327bee76aced17f3876f8f18f29e05db`, CI `31894742120`, and guarded
 migration run `31903152300`. The restart-safe scope accepted the exact

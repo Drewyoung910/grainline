@@ -2983,3 +2983,40 @@ Open work:
   TypeScript, lint and diff checks. The exact new classifier also accepted the
   two real rows and Stripe Sessions through an engine-read-only aggregate check
   with `terminalCount=2`, `activeCount=0` and no raw identifiers in output.
+
+## Buy Now last-unit exact-retry recovery gap (2026-08-25)
+
+- The bounded-history recovery merged as exact main
+  `0a77c695a079568ac4eb16d91d16da1406e39b07`; exact-main CI `32922211178`
+  passed the complete migration, PostgreSQL, TypeScript, lint, 3,425-test,
+  dependency-audit and production-build chain.
+- Its authorized restart classified the two exact restored/expired unpaid
+  attempts and created one new open unpaid Embedded Checkout Session with one
+  exact `SESSION_CREATED` reservation. The exact POST retry then failed closed,
+  and a subsequent restart returned `400` from shipping quote because the
+  first request had correctly reserved the final unit and reduced live stock to
+  zero before the buyer consumed the response.
+- A sanitized read-only database/Stripe inspection plus exact Redis-key read
+  proved three bounded rows: two `RESTORED/stripe_session_expired` and one
+  `SESSION_CREATED`; all Sessions are unpaid with no PaymentIntent; and the
+  active ready lock exactly matches the reservation payload, Session and
+  client secret. No raw identity or secret was retained in output. No fourth
+  Session was created and no payment, delivery, deployment, migration, RLS,
+  grant or provider-configuration change occurred.
+- Root cause is application ordering: the Buy Now POST checked last-unit stock
+  before its ready lock, while modal re-entry asked shipping quote before it
+  had any single-checkout resume mechanism. The isolated fix keeps exact
+  payload validation and database stock authority, recovers only an exact ready
+  lock before new-attempt stock rejection, and adds a buyer/listing/lock/
+  Stripe-bound resume route. Mismatched metadata, payload, Session, mode,
+  status or secret fails closed. The retained active attempt may continue only
+  after this correction passes review, exact-main CI and a compatible
+  production deployment. No attempt may be created before that deployment. If
+  the retained Session expires during review, the restart must classify all
+  three exact terminal unpaid attempts and may create exactly one bounded
+  replacement under the already-reviewed five-attempt ceiling.
+- The recovery configuration preserves the journal's original source, CI and
+  deployment identity while accepting a separate all-or-none corrective
+  source/CI/deployment binding. It revalidates every distinct exact-main CI,
+  attests the corrective canonical deployment, and retains both application
+  bindings in final sanitized evidence rather than rewriting history.

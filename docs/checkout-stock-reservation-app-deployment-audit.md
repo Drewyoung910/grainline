@@ -144,6 +144,24 @@ cleanup invariant passed; the sanitized mode-`0600` evidence SHA-256 is
 Paid completion remains a separate provider side-effect decision and was not
 claimed.
 
+The 2026-08-25 blocked-checkout paid-path proof later found a narrower edge the
+original smoke did not cover: an in-stock Buy Now exact retry where the first
+request reserved the final unit before its response was durably consumed. The
+route rejected that retry as out of stock before reaching its exact ready lock,
+and reopening the modal could not request a new quote while the buyer's own
+reservation held stock at zero. The isolated correction preserves all signed-
+rate, variant, price, payload and database stock authority, moves only the exact
+ready-lock recovery ahead of new-attempt availability rejection, and adds a
+buyer/listing-scoped Stripe-attested resume route used by the Buy Now modal.
+This application correction requires its own review, exact-main CI and
+compatible production deployment before the retained unpaid proof attempt may
+continue. If that Session expires during the release, the operator must
+classify it as the third exact unpaid terminal attempt before creating one
+bounded replacement; it must not create any replacement before the corrected
+deployment is attested. The preserved journal keeps its original deployment
+binding and records the corrective application binding separately. It does not
+change CheckoutStockReservation RLS or grants.
+
 The predecessor coexistence boundary is complete. Exact main
 `4ff40f22c70072406168c378cdb13860f9de317b` and CI `31858295911` finalized
 the restart-safe drain after exact deployment
