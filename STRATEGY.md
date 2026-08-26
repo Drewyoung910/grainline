@@ -754,6 +754,13 @@ existing checkout lock/Session; do not create a replacement attempt or advance
 to predecessor drain/RLS activation before genuine payment, signed delivery,
 exact replay and cleanup pass.
 
+The encoded-secret restart then exposed a redundant five-level Stripe Session
+expansion, which Stripe rejects. Keep Session retrieval limited to the exact
+payment-intent, charge and transfer chain; retrieve the durable refund by its
+source-bound ID and expand its transfer reversal separately. This preserves the
+existing unpaid Session and the independent refund/reversal proof instead of
+weakening provider assertions or creating another attempt.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers

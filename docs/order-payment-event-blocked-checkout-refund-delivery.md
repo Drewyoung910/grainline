@@ -310,3 +310,17 @@ triplets. Cross-session values, malformed escapes, whitespace/control
 characters and oversized values remain fail closed. No payment or signed event
 exists at this checkpoint; the same persisted Session must be recovered through
 the checkout lock rather than replaced.
+
+After the percent-encoding correction passed exact-main CI, the next restart
+again recovered the existing checkout response and then stopped before journal
+advancement because the operator requested
+`payment_intent.latest_charge.refunds.data.transfer_reversal` as a Session
+expansion. Stripe rejects property expansion beyond four levels. The refund is
+already discovered from the durable local refund identity and retrieved through
+a separate exact `refunds.retrieve(..., { expand: ["transfer_reversal"] })`
+call during verification, so the deep Session expansion was redundant. The
+restart-safe correction limits Session retrieval to
+`payment_intent.latest_charge.transfer` and pins that exact three-level set in
+tests. Refund and reversal authority remain separately retrieved and asserted;
+no Session, payment, signed event, migration, grant, RLS or provider
+configuration is added or changed by this correction.

@@ -68,6 +68,7 @@ export const REQUIRED_ALIASES = Object.freeze([
 ]);
 
 const STRIPE_API_VERSION = "2026-02-25.clover";
+export const CHECKOUT_SESSION_EXPANDS = Object.freeze(["payment_intent.latest_charge.transfer"]);
 const STRIPE_CLI_VERSION = "1.39.0";
 const VERCEL_CLI_VERSION = "58.9.0";
 const CLERK_FRONTEND_API = "clerk.thegrainline.com";
@@ -749,7 +750,7 @@ function stripeDependencies(stripe, secretKey, config, state) {
     ),
     retrieveAccount: (id) => stripe.accounts.retrieve(id),
     deleteAccount: (id) => stripe.accounts.del(id),
-    retrieveSession: (id) => stripe.checkout.sessions.retrieve(id, { expand: ["payment_intent.latest_charge.transfer", "payment_intent.latest_charge.refunds.data.transfer_reversal"] }),
+    retrieveSession: (id) => stripe.checkout.sessions.retrieve(id, { expand: CHECKOUT_SESSION_EXPANDS }),
     retrieveRefund: (id) => stripe.refunds.retrieve(id, { expand: ["transfer_reversal"] }),
     listCheckoutEvents: (createdAfter) => listAll(stripe.events.list({ created: { gte: createdAfter }, limit: 100, type: "checkout.session.completed" })),
     listRefundEvents: (createdAfter) => listAll(stripe.events.list({ created: { gte: createdAfter }, limit: 100, type: "charge.refunded" })),
