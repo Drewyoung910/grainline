@@ -388,11 +388,28 @@ test("embedded page, route result, prepared state and Stripe effects are exact",
   assert.deepEqual(CHECKOUT_SESSION_EXPANDS, ["payment_intent.latest_charge.transfer"]);
   assert.equal(Math.max(...CHECKOUT_SESSION_EXPANDS.map((value) => value.split(".").length)), 3);
   assert.equal(CHECKOUT_SESSION_EXPANDS.some((value) => value.includes("refunds")), false);
-  const page = buildPaymentPage("pk_test_public", "cs_test_session_secret_private");
+  const page = buildPaymentPage("pk_test_public", "cs_test_session", "cs_test_session_secret_private");
   assert.match(page, /https:\/\/js\.stripe\.com\/v3\//);
   assert.match(page, /initEmbeddedCheckout/);
   assert.match(page, /4242 4242 4242 4242/);
-  assert.throws(() => buildPaymentPage("pk_live_forbidden", "cs_test_session_secret_private"), /test publishable key/);
+  const encodedPage = buildPaymentPage(
+    "pk_test_public",
+    "cs_test_session",
+    "cs_test_session_secret_payload%2Fencoded%25value",
+  );
+  assert.match(encodedPage, /payload%2Fencoded%25value/);
+  assert.throws(() => buildPaymentPage(
+    "pk_live_forbidden", "cs_test_session", "cs_test_session_secret_private",
+  ), /test publishable key/);
+  assert.throws(() => buildPaymentPage(
+    "pk_test_public", "cs_test_other", "cs_test_session_secret_payload%2Fencoded",
+  ), /session-bound test client secret/);
+  assert.throws(() => buildPaymentPage(
+    "pk_test_public", "cs_test_session", "cs_test_session_secret_payload%2Ginvalid",
+  ), /session-bound test client secret/);
+  assert.throws(() => buildPaymentPage(
+    "pk_test_public", "cs_test_session", `cs_test_session_secret_${"a".repeat(1024)}`,
+  ), /session-bound test client secret/);
   assert.deepEqual(assertCheckoutResponse({ status: 200, body: {
     sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_private",
   } }), { sessionId: "cs_test_session", clientSecret: "cs_test_session_secret_private" });

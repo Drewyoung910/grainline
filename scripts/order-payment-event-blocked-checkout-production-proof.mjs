@@ -610,9 +610,9 @@ export function removeOnboardingRecord(config, state) {
   unlinkSync(config.onboardingPath);
 }
 
-export function buildPaymentPage(publishableKey, clientSecret) {
+export function buildPaymentPage(publishableKey, sessionId, clientSecret) {
   if (!/^pk_test_[A-Za-z0-9_]+$/.test(publishableKey)) throw new Error("blocked-checkout payment page requires a test publishable key");
-  if (!/^cs_test_[A-Za-z0-9_]+_secret_[A-Za-z0-9_]+$/.test(clientSecret)) throw new Error("blocked-checkout payment page requires one test client secret");
+  if (!isCheckoutClientSecretForSession(sessionId, clientSecret)) throw new Error("blocked-checkout payment page requires one session-bound test client secret");
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer"><title>Grainline blocked-checkout proof</title>
@@ -2129,7 +2129,7 @@ export async function servePaymentPage(config = validateConfiguration()) {
   if (state.stage !== "seller-blocked") throw new Error("blocked-checkout payment page requires seller-blocked state");
   const values = loadPrivateEnvironment(LOCAL_ENV_PATH, "local environment file");
   const publishableKey = required(values, "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
-  const page = buildPaymentPage(publishableKey, state.stripeClientSecret);
+  const page = buildPaymentPage(publishableKey, state.stripeSessionId, state.stripeClientSecret);
   const server = http.createServer((request, response) => {
     const remote = request.socket.remoteAddress;
     const host = request.headers.host ?? "";
