@@ -2954,3 +2954,32 @@ Open work:
   Session expansion, pins the exact three-level
   `payment_intent.latest_charge.transfer` expansion, and leaves all refund and
   reversal assertions intact.
+- PR #283 merged that correction as exact main
+  `d08ce3eb94efe74b388bc1d6605a2657f1f2035f`; push-triggered main CI
+  `32918254271` passed. During the two correction/CI waits, both pre-payment
+  Sessions expired normally and their signed expiry handling restored stock.
+  A later aggregate-only production/Stripe inspection retained no raw IDs and
+  proved exactly two fixture-bound rows, both
+  `RESTORED/stripe_session_expired`, unpaid, Embedded Checkout, test mode,
+  without a PaymentIntent, with null repair claims and exact buyer, seller,
+  listing, lock, metadata and one-item reservation bindings. No payment,
+  checkout-completed delivery or refund delivery occurred.
+- A new isolated recovery correction treats that history as explicit input
+  rather than residue to ignore. It permits at most five exact terminal
+  expired attempts and at most one exact open unpaid attempt, reuses the active
+  Session if present, and persists the terminal count with the private journal.
+  The Session-bound encoded-secret validator is shared by route and journal
+  validation, and redaction now consumes complete percent escapes. Paid and
+  unpaid cleanup each lock and re-prove the full fixture-bound reservation set,
+  delete every classified row in the same serializable transaction, and fail
+  without partial deletion on source, item, provider, repair or cardinality
+  drift. Disposable PostgreSQL coverage proves cleanup of two terminal rows
+  plus the current row for both paths and proves rollback on drift. Production
+  remains at the two restored rows pending the same proof's successful or
+  explicit unpaid-abort cleanup; RLS, grants, deployment and provider
+  configuration are unchanged.
+- Final validation passes the 17-test operator/disposable-PostgreSQL suite,
+  all 3,425 repository tests with 3,418 passes and seven documented skips,
+  TypeScript, lint and diff checks. The exact new classifier also accepted the
+  two real rows and Stripe Sessions through an engine-read-only aggregate check
+  with `terminalCount=2`, `activeCount=0` and no raw identifiers in output.

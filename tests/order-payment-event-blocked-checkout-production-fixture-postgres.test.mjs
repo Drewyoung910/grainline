@@ -6,6 +6,7 @@ import {
   assertDeliverySnapshot,
   blockFixtureSeller,
   cleanupDeliveredRows,
+  cleanupUnpaidFixtures,
   convergeFixtureSellerConnectIdentity,
   createFixtures,
   DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
@@ -31,6 +32,7 @@ function state() {
     stripeSessionId: "cs_test_fixture",
     checkoutLockKey: "checkout:single:opebc_buyer:listing:opebc_listing",
     reservationId: "reservation_fixture",
+    priorExpiredCheckoutCount: 2,
     checkoutEventId: "evt_checkout_fixture",
     orderId: "order_fixture",
     orderItemId: "item_fixture",
@@ -82,6 +84,9 @@ async function database() {
       id text PRIMARY KEY, "checkoutLockKey" varchar(255) NOT NULL, "payloadHash" varchar(64) NOT NULL DEFAULT 'hash',
       "buyerId" varchar(191), "sellerId" varchar(191), "stripeSessionId" varchar(255) UNIQUE,
       status varchar(32) NOT NULL, "reservedItems" jsonb NOT NULL DEFAULT '[]'::jsonb,
+      "restoredAt" timestamp, "restoreReason" varchar(100), "repairGeneration" bigint NOT NULL DEFAULT 0,
+      "repairClaimedAt" timestamp, "repairClaimKind" varchar(32), "lastRepairError" varchar(100),
+      "lastRepairAttemptAt" timestamp,
       "expiresAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, "createdAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -139,9 +144,15 @@ async function seedOutcome(db, value) {
   await db.query(`UPDATE public."SellerProfile" SET "vacationMode"=true WHERE id=$1`, [value.sellerProfileId]);
   await db.query(`UPDATE public."Listing" SET "stockQuantity"=1,status='ACTIVE' WHERE id=$1`, [value.listingId]);
   await db.query(`INSERT INTO public."CheckoutStockReservation" (
-    id,"checkoutLockKey","buyerId","sellerId","stripeSessionId",status,"reservedItems")
-    VALUES ($1,$2,$3,$4,$5,'COMPLETED','[]'::jsonb)`,
-  [value.reservationId, value.checkoutLockKey, value.buyerId, value.sellerProfileId, value.stripeSessionId]);
+    id,"checkoutLockKey","payloadHash","buyerId","sellerId","stripeSessionId",status,"reservedItems","restoredAt","restoreReason")
+    VALUES
+      ('reservation_expired_1',$2,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',$3,$4,'cs_test_expired_1','RESTORED',$6::jsonb,
+        CURRENT_TIMESTAMP,'stripe_session_expired'),
+      ('reservation_expired_2',$2,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',$3,$4,'cs_test_expired_2','RESTORED',$6::jsonb,
+        CURRENT_TIMESTAMP,'stripe_session_expired'),
+      ($1,$2,'cccccccccccccccccccccccccccccccc',$3,$4,$5,'COMPLETED',$6::jsonb,NULL,NULL)`,
+  [value.reservationId, value.checkoutLockKey, value.buyerId, value.sellerProfileId, value.stripeSessionId,
+    JSON.stringify([{ listingId: value.listingId, quantity: 1, sellerId: value.sellerProfileId }])]);
   await db.query(`INSERT INTO public."Order" (
     id,"buyerId","sellerProfileId","stripeSessionId","stripePaymentIntentId","stripeChargeId","stripeTransferId",
     "itemsSubtotalCents","shippingAmountCents","taxAmountCents","sellerRefundId","sellerRefundAmountCents",
@@ -209,6 +220,54 @@ test("fixture resume and cleanup reject marker drift without partial deletion", 
     const retained = await db.query(`SELECT (SELECT count(*)::integer FROM public."Order") AS orders,
       (SELECT count(*)::integer FROM public."OrderPaymentEvent") AS payments`);
     assert.deepEqual(retained.rows[0], { orders: 1, payments: 2 });
+  } finally {
+    await db.close();
+  }
+});
+
+test("cleanup rejects expired-attempt history drift and rolls back every deletion", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await createFixtures(db, value);
+    await seedOutcome(db, value);
+    await db.query(`UPDATE public."CheckoutStockReservation" SET "restoreReason"='unexpected'
+      WHERE id='reservation_expired_1'`);
+    await assert.rejects(cleanupDeliveredRows(db, value), /prior cleanup reservation drifted/);
+    const retained = await db.query(`SELECT
+      (SELECT count(*)::integer FROM public."CheckoutStockReservation") AS reservations,
+      (SELECT count(*)::integer FROM public."Order") AS orders,
+      (SELECT count(*)::integer FROM public."OrderPaymentEvent") AS payments`);
+    assert.deepEqual(retained.rows[0], { reservations: 3, orders: 1, payments: 2 });
+  } finally {
+    await db.close();
+  }
+});
+
+test("unpaid abort cleanup removes the current and every classified expired reservation", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await createFixtures(db, value);
+    await blockFixtureSeller(db, value);
+    const items = JSON.stringify([{ listingId: value.listingId, quantity: 1, sellerId: value.sellerProfileId }]);
+    await db.query(`INSERT INTO public."CheckoutStockReservation" (
+      id,"checkoutLockKey","payloadHash","buyerId","sellerId","stripeSessionId",status,"reservedItems","restoredAt","restoreReason")
+      VALUES
+        ('reservation_expired_1',$2,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',$3,$4,'cs_test_expired_1','RESTORED',$6::jsonb,
+          CURRENT_TIMESTAMP,'stripe_session_expired'),
+        ('reservation_expired_2',$2,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',$3,$4,'cs_test_expired_2','RESTORED',$6::jsonb,
+          CURRENT_TIMESTAMP,'stripe_session_expired'),
+        ($1,$2,'cccccccccccccccccccccccccccccccc',$3,$4,$5,'RESTORED',$6::jsonb,
+          CURRENT_TIMESTAMP,'stripe_session_expired')`,
+    [value.reservationId, value.checkoutLockKey, value.buyerId, value.sellerProfileId, value.stripeSessionId, items]);
+    await cleanupUnpaidFixtures(db, value);
+    const removed = await db.query(`SELECT
+      (SELECT count(*)::integer FROM public."CheckoutStockReservation") AS reservations,
+      (SELECT count(*)::integer FROM public."Listing") AS listings,
+      (SELECT count(*)::integer FROM public."SellerProfile") AS sellers,
+      (SELECT count(*)::integer FROM public."User" WHERE id=$1) AS seller_users`, [value.sellerUserId]);
+    assert.deepEqual(removed.rows[0], { reservations: 0, listings: 0, sellers: 0, seller_users: 0 });
   } finally {
     await db.close();
   }

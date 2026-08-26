@@ -9,10 +9,12 @@ import {
   CONNECTED_ACCOUNT_CONTROLLER,
   CONNECTED_ACCOUNT_MARKER_KEY,
   DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
+  MAX_EXPIRED_CHECKOUT_ATTEMPTS,
   PRICE_CENTS,
   SELLER_TRANSFER_CENTS,
   STRIPE_METADATA_KEY_MAX_LENGTH,
   assertCheckoutResponse,
+  assertCheckoutAttemptHistory,
   assertAbortCleanupStage,
   assertCompletedSession,
   assertConnectedAccount,
@@ -30,6 +32,7 @@ import {
   buildEvidence,
   buildPaymentPage,
   createInitialState,
+  isCheckoutClientSecretForSession,
   redact,
   readOnboardingRecord,
   removeOnboardingRecord,
@@ -88,6 +91,7 @@ function state(stage = "delivery-confirmed", overrides = {}) {
     stripeClientSecret: "cs_test_blockedproof_secret_private",
     checkoutLockKey: "checkout:single:opebc_buyer_canary:listing:opebc_11111111111111111111111111111111_listing",
     reservationId: "reservation-proof",
+    priorExpiredCheckoutCount: 0,
     checkoutEventId: "evt_checkoutproof",
     orderId: "order-proof",
     orderItemId: "item-proof",
@@ -191,6 +195,12 @@ test("configuration and restart state fail closed", () => {
   assert.equal(initial.originalTermsAcceptedAt, "2026-08-25T12:34:56.123456");
   assert.equal(initial.originalAgeAttestedAt, "2026-08-25T12:35:01.654321");
   assert.equal(assertState(state(), config).stage, "delivery-confirmed");
+  assert.equal(assertState({ ...state(), stripeClientSecret: "cs_test_blockedproof_secret_encoded%2Fvalue" }, config)
+    .stripeClientSecret, "cs_test_blockedproof_secret_encoded%2Fvalue");
+  assert.throws(() => assertState({ ...state(), stripeClientSecret: "cs_test_blockedproof_secret_encoded%2Gvalue" }, config),
+    /client secret is invalid/);
+  assert.throws(() => assertState({ ...state(), priorExpiredCheckoutCount: MAX_EXPIRED_CHECKOUT_ATTEMPTS + 1 }, config),
+    /prior expired Checkout count is invalid/);
   assert.throws(() => assertState({ ...state(), unknown: true }, config), /unknown field/);
   assert.throws(() => assertState(state("delivery-confirmed", { refundEventId: null }), config), /refundEventId is missing/);
   assert.throws(() => assertState(state("delivery-confirmed", { originalNotificationPreferences: [] }), config), /preference snapshot drifted/);
@@ -397,6 +407,86 @@ test("embedded page, route result, prepared state and Stripe effects are exact",
   assert.equal(assertRefund(refund, value).transferReversalId, value.transferReversalId);
 });
 
+test("Checkout attempt history accepts only bounded exact terminal rows and one active retry", () => {
+  const value = state("checkout-create-pending", {
+    stripeSessionId: null, stripeClientSecret: null, checkoutLockKey: null, reservationId: null,
+    checkoutEventId: null, orderId: null, orderItemId: null, paymentIntentId: null, chargeId: null,
+    transferId: null, chargeAmountCents: null, refundId: null, refundAmountCents: null,
+    transferReversalId: null, refundEventId: null, localPaymentEventId: null, signedPaymentEventId: null,
+    notificationId: null, emailOutboxId: null,
+  });
+  const row = (index, status = "RESTORED") => ({
+    id: `reservation-${index}`,
+    checkout_lock_key: `checkout:single:${value.buyerId}:listing:${value.listingId}`,
+    payload_hash: `${index}`.repeat(32),
+    buyer_id: value.buyerId,
+    seller_id: value.sellerProfileId,
+    stripe_session_id: `cs_test_attempt_${index}`,
+    status,
+    reserved_items: [{ listingId: value.listingId, quantity: 1, sellerId: value.sellerProfileId }],
+    restored_at: status === "RESTORED" ? "2026-08-25T01:00:00.000Z" : null,
+    restore_reason: status === "RESTORED" ? "stripe_session_expired" : null,
+    repair_generation: "0",
+    repair_claimed_at: null,
+    repair_claim_kind: null,
+    last_repair_error: null,
+    last_repair_attempt_at: null,
+  });
+  const session = (index, status = "expired") => ({
+    id: `cs_test_attempt_${index}`,
+    livemode: false,
+    ui_mode: "embedded",
+    status,
+    payment_status: "unpaid",
+    payment_intent: null,
+    client_secret: status === "open" ? `cs_test_attempt_${index}_secret_value%2Fencoded` : null,
+    metadata: {
+      buyerId: value.buyerId,
+      sellerId: value.sellerProfileId,
+      listingId: value.listingId,
+      checkoutLockKey: `checkout:single:${value.buyerId}:listing:${value.listingId}`,
+    },
+  });
+  const terminalRows = [row(1), row(2)];
+  const terminalSessions = [session(1), session(2)];
+  assert.deepEqual(assertCheckoutAttemptHistory(terminalRows, terminalSessions, value), {
+    active: null,
+    terminalCount: 2,
+    terminalReservationIds: ["reservation-1", "reservation-2"],
+  });
+  const activeHistory = assertCheckoutAttemptHistory(
+    [...terminalRows, row(3, "SESSION_CREATED")],
+    [...terminalSessions, session(3, "open")],
+    value,
+  );
+  assert.equal(activeHistory.terminalCount, 2);
+  assert.equal(activeHistory.active.sessionId, "cs_test_attempt_3");
+  assert.equal(isCheckoutClientSecretForSession(activeHistory.active.sessionId, activeHistory.active.clientSecret), true);
+  assert.throws(() => assertCheckoutAttemptHistory(
+    [...terminalRows, row(3, "SESSION_CREATED"), row(4, "SESSION_CREATED")],
+    [...terminalSessions, session(3, "open"), session(4, "open")],
+    value,
+  ), /active Checkout attempt drifted/);
+  assert.throws(() => assertCheckoutAttemptHistory(
+    terminalRows,
+    [{ ...session(1), payment_status: "paid" }, session(2)],
+    value,
+  ), /historical Stripe Session drifted/);
+  assert.throws(() => assertCheckoutAttemptHistory(
+    terminalRows,
+    [{ ...session(1), metadata: { ...session(1).metadata, sellerId: "wrong" } }, session(2)],
+    value,
+  ), /historical Stripe Session drifted/);
+  assert.throws(() => assertCheckoutAttemptHistory(
+    terminalRows.map((candidate, index) => index === 0 ? { ...candidate, restore_reason: "wrong" } : candidate),
+    terminalSessions,
+    value,
+  ), /terminal Checkout attempt drifted/);
+  const excessiveRows = Array.from({ length: MAX_EXPIRED_CHECKOUT_ATTEMPTS + 1 }, (_, index) => row(index + 1));
+  const excessiveSessions = Array.from({ length: MAX_EXPIRED_CHECKOUT_ATTEMPTS + 1 }, (_, index) => session(index + 1));
+  assert.throws(() => assertCheckoutAttemptHistory(excessiveRows, excessiveSessions, value), /cardinality drifted/);
+});
+
 test("delivery, exact replay, evidence, and redaction reject drift", () => {
   const value = state();
   assert.equal(redact("https://connect.stripe.com/setup/test_secret_path?key=value"), "[redacted-onboarding-url]");
@@ -417,6 +507,7 @@ test("delivery, exact replay, evidence, and redaction reject drift", () => {
   assert.throws(() => assertEvidence({ ...recoveryEvidence, operatorCommit: "d".repeat(40) }, recoveryConfig), /evidence drifted/);
   assert.equal(redact("sk_test_secret cs_test_x_secret_y acct_123 postgres://u:p@db Bearer token"),
     "[redacted-stripe-secret] [redacted-stripe-secret] [redacted-stripe-object] [redacted-database-url] Bearer [redacted-token]");
+  assert.equal(redact("cs_test_x_secret_payload%2Fencoded%25value"), "[redacted-stripe-secret]");
 });
 
 test("static operator contract stays test-only, loopback-only, non-activating, and restart-safe", () => {

@@ -758,8 +758,23 @@ The encoded-secret restart then exposed a redundant five-level Stripe Session
 expansion, which Stripe rejects. Keep Session retrieval limited to the exact
 payment-intent, charge and transfer chain; retrieve the durable refund by its
 source-bound ID and expand its transfer reversal separately. This preserves the
-existing unpaid Session and the independent refund/reversal proof instead of
-weakening provider assertions or creating another attempt.
+independent refund/reversal proof instead of weakening provider assertions.
+
+Both pre-payment Sessions expired while their correction PRs and exact-main CI
+ran. An aggregate-only production/Stripe inspection proved both attempts are
+unpaid, have no PaymentIntent, and are paired with exact
+`RESTORED/stripe_session_expired` reservation rows. Recovery must not hide that
+history or create unbounded retries. The operator may classify at most five
+such exact terminal attempts and at most one exact open active attempt, must
+reuse the active attempt when present, and persists the terminal count before
+payment. Successful and unpaid-abort cleanup must lock, re-prove and delete the
+complete fixture-bound reservation history transactionally before deleting the
+listing. The same Session-bound encoded-secret validator must guard both the
+route response and the private recovery journal, and secret redaction must
+consume complete `%HH` escapes. Any metadata, source, item, repair claim,
+provider state or cardinality drift remains a hard stop. Do not advance to
+predecessor drain or RLS activation until genuine payment, signed delivery,
+exact replay and complete cleanup pass.
 
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
