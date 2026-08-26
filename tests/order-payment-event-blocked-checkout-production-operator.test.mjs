@@ -7,6 +7,7 @@ import {
   CONFIRMATION,
   CONNECTED_ACCOUNT_CONTROLLER,
   CONNECTED_ACCOUNT_MARKER_KEY,
+  DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
   PRICE_CENTS,
   SELLER_TRANSFER_CENTS,
   STRIPE_METADATA_KEY_MAX_LENGTH,
@@ -244,6 +245,8 @@ test("disposable connected account is transfer-only and marker-bound", () => {
     requirement_collection: "stripe",
     stripe_dashboard: { type: "express" },
   });
+  assert.equal(DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
+    "dashboard:express|fees:application|losses:application|requirements:stripe");
   assert.deepEqual(Object.keys(params.metadata), [CONNECTED_ACCOUNT_MARKER_KEY]);
   assert.ok(CONNECTED_ACCOUNT_MARKER_KEY.length <= STRIPE_METADATA_KEY_MAX_LENGTH);
   assert.equal(assertState({ ...pending, stage: "account-create-pending" }, config).stage, "account-create-pending");
@@ -402,6 +405,9 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND=onboard/);
   assert.match(source, /account-express-stripe-collector-v1/);
   assert.match(source, /createOnboardingLink\(state\.stripeAccountId\)/);
+  assert.match(source, /convergeFixtureSellerConnectIdentity\(owner, state\)/);
+  assert.match(source, /"stripeAccountVersion" IS NULL AND "stripeControllerType"=\$4/);
+  assert.doesNotMatch(source, /VALUES \([^\n]*true,'v1','custom'/);
   assert.match(source, /spawnSync\([\s\S]*"\/usr\/bin\/open"[\s\S]*stdio: "ignore"/);
   assert.doesNotMatch(source, /type: "custom"/);
   assert.doesNotMatch(source, /tos_acceptance/);

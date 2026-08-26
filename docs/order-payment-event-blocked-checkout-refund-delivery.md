@@ -280,3 +280,19 @@ one-time onboarding URL may be opened locally but must never be printed,
 committed or retained in sanitized evidence. Use a new versioned account-create
 idempotency operation under the same preserved attempt so prior failed
 validation requests cannot alias the corrected parameter shape.
+
+After hosted onboarding completed, the same journal advanced through exact
+fixture creation and stopped fail closed at `checkout-create-pending`: the
+shipping-quote route correctly rejected the temporary seller because the old
+operator labeled it `stripeAccountVersion='v1'` and
+`stripeControllerType='custom'`. No Checkout Session, reservation, payment or
+signed event existed. This is fixture drift, not a quote/checkout regression.
+The account was created by the classic Accounts API with the reviewed Express
+controller, so the honest compatible marker is legacy-null plus the exact
+controller summary, not a false `v2` label. The restart-safe successor permits
+only the exact marker-bound temporary row to converge from the known
+`v1/custom` state to that honest representation before retrying the quote.
+Local validation passes the 31-test focused migration, scope, disposable-
+PostgreSQL and operator suite; all 3,422 repository tests complete with 3,415
+passes, seven documented skips and zero failures. TypeScript, lint, syntax and
+diff checks also pass.

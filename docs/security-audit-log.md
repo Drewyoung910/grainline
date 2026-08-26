@@ -2894,3 +2894,26 @@ Open work:
   profile for this proof, delete the recovery journal, or advance predecessor
   drain/RLS activation before hosted onboarding, genuine payment, signed
   delivery, exact replay and cleanup all pass.
+
+## Blocked-checkout disposable seller eligibility drift (2026-08-25)
+
+- Hosted test onboarding completed and the preserved proof created its exact
+  private seller/listing fixtures. The first quote stopped fail closed before a
+  Checkout Session because the fixture still carried the obsolete
+  `v1/custom` database markers; production's seller-order guard correctly
+  rejects `stripeAccountVersion='v1'`.
+- No reservation, Checkout Session, payment or signed event existed at the
+  stop. The temporary account was created through the classic Accounts API, so
+  labeling it Accounts v2 would be false. The isolated recovery instead uses
+  `stripeAccountVersion IS NULL` for honest legacy compatibility and binds
+  `stripeControllerType` to the exact Express/application/application/Stripe
+  controller summary.
+- Recovery is restricted to the exact marker-bound temporary seller identity
+  and accepts only the known prior `v1/custom` tuple or the exact converged
+  tuple. Any other controller/version drift fails closed. Real seller
+  onboarding remains unchanged on `/v2/core/accounts`; no production migration,
+  deployment, RLS, grant, credential or provider configuration changed.
+- The recovery passes the 31-test focused migration, scope, disposable-
+  PostgreSQL and operator suite; all 3,422 repository tests complete with 3,415
+  passes, seven documented skips and zero failures. TypeScript, lint, syntax and
+  diff checks also pass.
