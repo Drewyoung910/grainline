@@ -20,6 +20,8 @@ import {
   assertConnectedAccount,
   assertDeliverySnapshot,
   assertEvidence,
+  assertExpiredPaymentRenewal,
+  assertExpiredPaymentSnapshot,
   assertOnboardingLink,
   assertOnboardingRecord,
   assertPreparedSnapshot,
@@ -173,6 +175,8 @@ test("configuration and restart state fail closed", () => {
   assert.equal(parsed.applicationDeploymentId, DEPLOYMENT);
   assert.equal(validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "onboard" }), "/repo").command,
     "onboard");
+  assert.equal(validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "renew" }), "/repo").command,
+    "renew");
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_CONFIRM: "wrong" })), /confirmation is invalid/);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "run" })), /command is invalid/);
   assert.throws(() => validateConfiguration(environment({
@@ -496,6 +500,7 @@ test("Checkout attempt history accepts only bounded exact terminal rows and one 
     active: null,
     terminalCount: 2,
     terminalReservationIds: ["reservation-1", "reservation-2"],
+    terminalSessionIds: ["cs_test_attempt_1", "cs_test_attempt_2"],
   });
   const activeHistory = assertCheckoutAttemptHistory(
     [...terminalRows, row(3, "SESSION_CREATED")],
@@ -528,6 +533,68 @@ test("Checkout attempt history accepts only bounded exact terminal rows and one 
   const excessiveRows = Array.from({ length: MAX_EXPIRED_CHECKOUT_ATTEMPTS + 1 }, (_, index) => row(index + 1));
   const excessiveSessions = Array.from({ length: MAX_EXPIRED_CHECKOUT_ATTEMPTS + 1 }, (_, index) => session(index + 1));
   assert.throws(() => assertCheckoutAttemptHistory(excessiveRows, excessiveSessions, value), /cardinality drifted/);
+});
+
+test("expired seller-blocked payment renewal accepts only the exact bounded successor", () => {
+  const value = state("seller-blocked", { priorExpiredCheckoutCount: 2 });
+  const current = {
+    active: {
+      clientSecret: value.stripeClientSecret,
+      reservationId: value.reservationId,
+      sessionId: value.stripeSessionId,
+    },
+    terminalCount: 2,
+    terminalReservationIds: ["reservation-1", "reservation-2"],
+    terminalSessionIds: ["cs_test_attempt_1", "cs_test_attempt_2"],
+  };
+  assert.equal(assertExpiredPaymentRenewal(current, value).mode, "current");
+  const expired = {
+    active: null,
+    terminalCount: 3,
+    terminalReservationIds: ["reservation-1", "reservation-2", value.reservationId],
+    terminalSessionIds: ["cs_test_attempt_1", "cs_test_attempt_2", value.stripeSessionId],
+  };
+  assert.equal(assertExpiredPaymentRenewal(expired, value).mode, "create-replacement");
+  const replacement = {
+    ...expired,
+    active: {
+      clientSecret: "cs_test_replacement_secret_payload%2Fencoded",
+      reservationId: "reservation-replacement",
+      sessionId: "cs_test_replacement",
+    },
+  };
+  assert.equal(assertExpiredPaymentRenewal(replacement, value).mode, "resume-replacement");
+  assert.throws(() => assertExpiredPaymentRenewal({
+    ...expired,
+    terminalSessionIds: ["cs_test_attempt_1", "cs_test_attempt_2", "cs_test_wrong"],
+  }, value), /expired payment attempt drifted/);
+  assert.throws(() => assertExpiredPaymentRenewal({ ...expired, terminalCount: 4 }, value), /payment renewal state drifted/);
+  assert.throws(() => assertExpiredPaymentRenewal({
+    ...expired,
+    terminalReservationIds: [value.reservationId, value.reservationId, value.reservationId],
+  }, value), /payment renewal state drifted/);
+  assert.throws(() => assertExpiredPaymentRenewal({
+    ...replacement,
+    active: { ...replacement.active, reservationId: value.reservationId },
+  }, value), /expired payment attempt drifted/);
+  const expiredSnapshot = {
+    stock: 1,
+    listing_status: "ACTIVE",
+    vacation_mode: true,
+    orders: 0,
+    reservation_id: value.reservationId,
+    reservation_status: "RESTORED",
+    checkout_lock_key: value.checkoutLockKey,
+    reservation_buyer: value.buyerId,
+    reservation_seller: value.sellerProfileId,
+  };
+  assert.equal(assertExpiredPaymentSnapshot(expiredSnapshot, value, true).reservationId, value.reservationId);
+  assert.equal(assertExpiredPaymentSnapshot({ ...expiredSnapshot, vacation_mode: false }, value, false).reservationId,
+    value.reservationId);
+  assert.throws(() => assertExpiredPaymentSnapshot({ ...expiredSnapshot, stock: 0 }, value, true),
+    /expired payment database state drifted/);
+  assert.throws(() => assertExpiredPaymentSnapshot({ ...expiredSnapshot, reservation_status: "SESSION_CREATED" }, value, true),
+    /expired payment database state drifted/);
 });
 
 test("delivery, exact replay, evidence, and redaction reject drift", () => {
@@ -576,12 +643,17 @@ test("delivery, exact replay, evidence, and redaction reject drift", () => {
 test("static operator contract stays test-only, loopback-only, non-activating, and restart-safe", () => {
   const source = readFileSync(new URL("../scripts/order-payment-event-blocked-checkout-production-proof.mjs", import.meta.url), "utf8");
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND/);
-  assert.match(source, /new Set\(\["prepare", "onboard", "serve", "verify", "cleanup"\]\)/);
+  assert.match(source, /new Set\(\["prepare", "onboard", "renew", "serve", "verify", "cleanup"\]\)/);
   assert.match(source, /controller: CONNECTED_ACCOUNT_CONTROLLER/);
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND=onboard/);
   assert.match(source, /account-express-stripe-collector-v1/);
   assert.match(source, /createOnboardingLink\(state\.stripeAccountId\)/);
   assert.match(source, /convergeFixtureSellerConnectIdentity\(owner, state\)/);
+  assert.match(source, /reopenFixtureSellerForPaymentRenewal\(owner, state, beforeHistory\)/);
+  assert.match(source, /BEGIN ISOLATION LEVEL SERIALIZABLE/);
+  assert.match(source, /assertLockedRenewalRows\(await readCheckoutAttemptRows\(owner, state, true\), history, state\)/);
+  assert.match(source, /payment renewal failed and the synthetic seller could not be reblocked/);
+  assert.match(source, /assertPreparedSnapshot\([\s\S]*replacementSnapshot\.vacation_mode/);
   assert.match(source, /"stripeAccountVersion" IS NULL AND "stripeControllerType"=\$4/);
   assert.doesNotMatch(source, /VALUES \([^\n]*true,'v1','custom'/);
   assert.match(source, /spawnSync\([\s\S]*"\/usr\/bin\/open"[\s\S]*stdio: "ignore"/);

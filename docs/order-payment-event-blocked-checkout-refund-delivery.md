@@ -400,3 +400,33 @@ passes the exact journal Session ID into the page builder and reuses the same
 and the application resume path. Cross-Session, malformed-escape and oversized
 secrets remain fail closed, and the secret remains only in the private journal
 and generated loopback response.
+
+Exact-main CI `32934907379` passed for operator/main
+`8be59704d91951dd2cf72a6c6db0de824b373ab6`. The repaired loopback page served
+successfully, but the retained Checkout Session had expired before human
+payment. Stripe's page therefore showed its intentionally ambiguous completed-
+or-timed-out terminal message. The authorized verifier and a separate
+sanitized, read-only provider lookup established the exact state: test mode,
+`expired`, `unpaid`, no PaymentIntent and no client secret. Verification stopped
+before retry, refund, reversal or cleanup; the mode-0600 journal and exact
+fixtures remain preserved at `seller-blocked`.
+
+This exposed a distinct restart boundary: bounded expiration recovery existed
+before `seller-blocked`, but not after the operator deliberately made the
+synthetic seller ineligible. The successor adds a separate `renew` command; it
+does not relax `prepare`, `serve` or `verify`. Renewal accepts only the exact
+journaled Session/reservation transitioning into the next
+`stripe_session_expired` terminal pair. It locks the marker-bound disposable
+seller user, seller, private reserved listing and complete Checkout reservation
+history in a serializable transaction; requires restored stock one, zero Orders,
+the exact canary/source identities and no unclassified row; and reopens only
+that synthetic seller. It then creates or recovers at most one active bounded
+replacement, rebinds the private journal to its exact Session/secret/lock/
+reservation, and returns the seller to vacation mode before another payment
+handoff. Crashes before creation, after creation or after journal rebinding are
+all restart-classified. The failure path also reblocks the synthetic seller and
+fails loudly if that safety convergence cannot be completed. An already-created
+replacement can therefore resume whether the crash happened before or after
+that reblock. Cross-source, paid, ambiguous, excessive-history and non-restored
+states remain fail closed. `renew` is a separately authorized production
+mutation and review/merge alone must never execute it.
