@@ -89,9 +89,11 @@ export default function BuyNowCheckoutModal({
   const [giftNote, setGiftNote] = useState("");
   const [giftWrapping, setGiftWrapping] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
+  const [resumingSession, setResumingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const createSessionRequestRef = useRef(0);
+  const resumeSessionRequestRef = useRef(0);
   const completedRef = useRef(false);
   const isOpenRef = useRef(isOpen);
   const mountedRef = useRef(true);
@@ -110,6 +112,7 @@ export default function BuyNowCheckoutModal({
 
   const resetCheckoutState = useCallback(({ rollback }: { rollback: boolean }) => {
     createSessionRequestRef.current += 1;
+    resumeSessionRequestRef.current += 1;
 
     const currentSessionId = sessionIdRef.current;
     if (rollback && !completedRef.current && currentSessionId) {
@@ -121,6 +124,7 @@ export default function BuyNowCheckoutModal({
     setSessionId(null);
     setSelectedRate(null);
     setCreatingSession(false);
+    setResumingSession(false);
     setError(null);
     setStep((currentStep) => (currentStep === "payment" ? "shipping" : currentStep));
   }, []);
@@ -158,6 +162,51 @@ export default function BuyNowCheckoutModal({
       completedRef.current = false;
     }
   }, [isOpen, resetCheckoutState]);
+
+  // A response can be lost after the server has already reserved the last
+  // unit. Recover that buyer/listing-scoped Stripe Session before asking for a
+  // fresh quote so the buyer is not stranded behind their own reservation.
+  useEffect(() => {
+    if (!isOpen || !isSignedIn) return;
+
+    const requestId = resumeSessionRequestRef.current + 1;
+    resumeSessionRequestRef.current = requestId;
+    const controller = new AbortController();
+    setResumingSession(true);
+
+    void fetch(`/api/cart/checkout/single/resume?listingId=${encodeURIComponent(listingId)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "Could not resume checkout.");
+      if (!mountedRef.current || !isOpenRef.current || requestId !== resumeSessionRequestRef.current) return;
+
+      if (typeof data.completedSessionId === "string" && data.completedSessionId) {
+        completedRef.current = true;
+        router.push(`/checkout/success?session_id=${data.completedSessionId}`);
+        return;
+      }
+
+      if (typeof data.clientSecret === "string" && data.clientSecret
+        && typeof data.sessionId === "string" && data.sessionId) {
+        sessionIdRef.current = data.sessionId;
+        setClientSecret(data.clientSecret);
+        setSessionId(data.sessionId);
+        setStep("payment");
+      }
+    }).catch((resumeError: unknown) => {
+      if (controller.signal.aborted || !mountedRef.current || !isOpenRef.current
+        || requestId !== resumeSessionRequestRef.current) return;
+      setError(resumeError instanceof Error ? resumeError.message : "Could not resume checkout.");
+    }).finally(() => {
+      if (mountedRef.current && isOpenRef.current && requestId === resumeSessionRequestRef.current) {
+        setResumingSession(false);
+      }
+    });
+
+    return () => controller.abort();
+  }, [isOpen, isSignedIn, listingId, router]);
 
   useEffect(() => {
     return () => {
@@ -327,8 +376,14 @@ export default function BuyNowCheckoutModal({
             </div>
           )}
 
+          {resumingSession && (
+            <div className="rounded-md border border-neutral-200 bg-[#F7F5F0] p-4 text-sm text-neutral-600">
+              Checking for an open checkout...
+            </div>
+          )}
+
           {/* Step 1: Address */}
-          {step === "address" && (
+          {!resumingSession && step === "address" && (
             <ShippingAddressForm
               isSignedIn={isSignedIn}
               onConfirm={handleAddressConfirmed}
@@ -336,7 +391,7 @@ export default function BuyNowCheckoutModal({
           )}
 
           {/* Step 2: Shipping */}
-          {step === "shipping" && shippingAddress && (
+          {!resumingSession && step === "shipping" && shippingAddress && (
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 rounded-md bg-white border border-neutral-200 text-sm">
                 <span className="text-neutral-600 truncate mr-3 text-xs">
@@ -445,7 +500,7 @@ export default function BuyNowCheckoutModal({
           )}
 
           {/* Step 3: Payment */}
-          {step === "payment" && clientSecret && sessionId && (
+          {!resumingSession && step === "payment" && clientSecret && sessionId && (
             <EmbeddedCheckoutPanel
               clientSecret={clientSecret}
               sellerName={sellerName}

@@ -201,16 +201,6 @@ export async function POST(req: Request) {
         { status: HTTP_STATUS.BAD_REQUEST },
       );
     }
-    if (listing.listingType === "IN_STOCK") {
-      const available = listing.stockQuantity ?? 0;
-      if (available <= 0) {
-        return privateJson({ error: "This item is currently out of stock." }, { status: HTTP_STATUS.BAD_REQUEST });
-      }
-      if (body.quantity > available) {
-        return privateJson({ error: `Only ${available} available.` }, { status: HTTP_STATUS.BAD_REQUEST });
-      }
-    }
-
     const currency = (listing.currency || DEFAULT_CURRENCY).toLowerCase();
     if (body.selectedRate.currency.toLowerCase() !== currency) {
       return privateJson({ error: "Invalid shipping rate currency." }, { status: HTTP_STATUS.BAD_REQUEST });
@@ -370,6 +360,21 @@ export async function POST(req: Request) {
         { error: "A checkout session is already open for this listing. Complete payment in the Stripe tab or wait up to 31 minutes for the reservation to expire." },
         { status: HTTP_STATUS.CONFLICT },
       );
+    }
+
+    // A successful first request may reserve the final unit before its HTTP
+    // response reaches the buyer. Keep the exact ready-lock recovery above
+    // availability checks so an identical retry can recover that Session.
+    // New or payload-different attempts still reach the authoritative stock
+    // checks below and cannot oversell the listing.
+    if (listing.listingType === "IN_STOCK") {
+      const available = listing.stockQuantity ?? 0;
+      if (available <= 0) {
+        return privateJson({ error: "This item is currently out of stock." }, { status: HTTP_STATUS.BAD_REQUEST });
+      }
+      if (body.quantity > available) {
+        return privateJson({ error: `Only ${available} available.` }, { status: HTTP_STATUS.BAD_REQUEST });
+      }
     }
 
     checkoutPayloadHashValue = payloadHash;

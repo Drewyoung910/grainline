@@ -45,6 +45,9 @@ const COMMIT = "a".repeat(40);
 const SOURCE = "b".repeat(40);
 const CI = 32820000001;
 const DEPLOYMENT = "dpl_BlockedCheckoutProof";
+const RECOVERY_SOURCE = "d".repeat(40);
+const RECOVERY_CI = CI + 2;
+const RECOVERY_DEPLOYMENT = "dpl_BlockedCheckoutRecovery";
 const config = Object.freeze({
   expectedCommit: COMMIT,
   deployedSourceCommit: SOURCE,
@@ -165,6 +168,9 @@ test("configuration and restart state fail closed", () => {
   const parsed = validateConfiguration(environment(), "/repo");
   assert.equal(parsed.expectedCommit, COMMIT);
   assert.equal(parsed.command, "prepare");
+  assert.equal(parsed.applicationDeployedSourceCommit, SOURCE);
+  assert.equal(parsed.applicationMainCiRunId, CI);
+  assert.equal(parsed.applicationDeploymentId, DEPLOYMENT);
   assert.equal(validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "onboard" }), "/repo").command,
     "onboard");
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_CONFIRM: "wrong" })), /confirmation is invalid/);
@@ -184,6 +190,26 @@ test("configuration and restart state fail closed", () => {
   assert.equal(recovery.mainCiRunId, CI);
   assert.equal(recovery.operatorCommit, "c".repeat(40));
   assert.equal(recovery.operatorCiRunId, CI + 1);
+  assert.throws(() => validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYED_SOURCE_COMMIT: RECOVERY_SOURCE,
+  })), /commit, CI and deployment must be supplied together/);
+  assert.throws(() => validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYED_SOURCE_COMMIT: SOURCE,
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_MAIN_CI_RUN_ID: String(RECOVERY_CI),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYMENT_ID: RECOVERY_DEPLOYMENT,
+  })), /must replace commit, CI and deployment bindings/);
+  const applicationRecovery = validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYED_SOURCE_COMMIT: RECOVERY_SOURCE,
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_MAIN_CI_RUN_ID: String(RECOVERY_CI),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYMENT_ID: RECOVERY_DEPLOYMENT,
+  }), "/repo");
+  assert.equal(applicationRecovery.expectedCommit, COMMIT);
+  assert.equal(applicationRecovery.deployedSourceCommit, SOURCE);
+  assert.equal(applicationRecovery.mainCiRunId, CI);
+  assert.equal(applicationRecovery.deploymentId, DEPLOYMENT);
+  assert.equal(applicationRecovery.applicationDeployedSourceCommit, RECOVERY_SOURCE);
+  assert.equal(applicationRecovery.applicationMainCiRunId, RECOVERY_CI);
+  assert.equal(applicationRecovery.applicationDeploymentId, RECOVERY_DEPLOYMENT);
   assert.match(recovery.statePath, new RegExp(`state-${COMMIT.slice(0, 12)}\\.json$`));
   assert.match(recovery.onboardingPath, new RegExp(`onboarding-${COMMIT.slice(0, 12)}\\.json$`));
   const initial = createInitialState(config, {
@@ -505,6 +531,26 @@ test("delivery, exact replay, evidence, and redaction reject drift", () => {
   assert.equal(recoveryEvidence.operatorCommit, "c".repeat(40));
   assert.equal(recoveryEvidence.operatorCiRunId, CI + 1);
   assert.throws(() => assertEvidence({ ...recoveryEvidence, operatorCommit: "d".repeat(40) }, recoveryConfig), /evidence drifted/);
+  const applicationRecoveryConfig = {
+    ...recoveryConfig,
+    applicationDeployedSourceCommit: RECOVERY_SOURCE,
+    applicationMainCiRunId: RECOVERY_CI,
+    applicationDeploymentId: RECOVERY_DEPLOYMENT,
+  };
+  const applicationRecoveryEvidence = buildEvidence(applicationRecoveryConfig, value, cleanup);
+  assert.deepEqual(applicationRecoveryEvidence.initialApplicationBinding, {
+    deployedSourceCommit: SOURCE,
+    ciRunId: CI,
+    deploymentId: DEPLOYMENT,
+  });
+  assert.equal(applicationRecoveryEvidence.deployedSourceCommit, RECOVERY_SOURCE);
+  assert.equal(applicationRecoveryEvidence.ciRunId, RECOVERY_CI);
+  assert.equal(applicationRecoveryEvidence.deploymentId, RECOVERY_DEPLOYMENT);
+  assert.equal(assertEvidence(applicationRecoveryEvidence, applicationRecoveryConfig).deploymentId, RECOVERY_DEPLOYMENT);
+  assert.throws(() => assertEvidence({
+    ...applicationRecoveryEvidence,
+    initialApplicationBinding: { ...applicationRecoveryEvidence.initialApplicationBinding, deploymentId: "dpl_wrong" },
+  }, applicationRecoveryConfig), /evidence drifted/);
   assert.equal(redact("sk_test_secret cs_test_x_secret_y acct_123 postgres://u:p@db Bearer token"),
     "[redacted-stripe-secret] [redacted-stripe-secret] [redacted-stripe-object] [redacted-database-url] Bearer [redacted-token]");
   assert.equal(redact("cs_test_x_secret_payload%2Fencoded%25value"), "[redacted-stripe-secret]");

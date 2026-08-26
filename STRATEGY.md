@@ -776,6 +776,24 @@ provider state or cardinality drift remains a hard stop. Do not advance to
 predecessor drain or RLS activation until genuine payment, signed delivery,
 exact replay and complete cleanup pass.
 
+The first bounded-history restart created one new open unpaid Session and
+reservation, then exposed a real Buy Now last-unit retry gap: the first request
+reserved stock to zero before the exact retry reached the ready lock, and modal
+re-entry could not obtain a new shipping quote. Do not create another attempt
+before shipping the isolated application correction: retain
+signed-rate, variant, price, payload and database stock checks for new attempts,
+recover an exact ready lock ahead of stock rejection, and let the modal query a
+buyer/listing-scoped resume route that independently binds Redis and Stripe
+metadata, mode, status and client secret. Only after exact-main CI and a
+compatible production deployment may the proof resume that same unpaid Session.
+If it expires during review, classify it as the third exact terminal unpaid
+attempt and create exactly one bounded replacement after the corrected deploy;
+do not erase the history or exceed the existing five-attempt ceiling. Preserve
+the original journal binding and attest the corrective application source, CI
+and deployment separately. This is product correctness discovered by the
+RLS/provider gate, not a reason to weaken reservation authority or skip the
+paid signed-delivery proof.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers
