@@ -3155,3 +3155,25 @@ Open work:
   mismatch still fail closed. The same stale embedded-list assumption is removed from
   the seller-refund proof operator with regression coverage. No production or
   provider state changed during diagnosis or candidate validation.
+- PR #294 merged the modern Stripe event-identity correction as exact main
+  `3b11d8f95f402675bed0446cf32dd2db374603bb`; exact-main CI
+  `33117395241` passed. Its separately authorized reconciliation rerun failed
+  closed after exact identity rediscovery but before a reconciliation
+  checkpoint, reversal or cleanup. Read-only inspection proved zero reversals
+  and found four exact historical-representation mismatches in the manual-only
+  predicate: the signed row is `additional_external_refund` with null
+  `latestRefundId`; that classification installed the exact preserved-local-
+  audit review note; and the private listing correctly remains `SOLD_OUT` with
+  stock one. The local row, independent `refund.created` event and retrieved
+  Refund still cross-bind the durable 541-cent refund. The isolated correction
+  requires only this exact failed-fixture shape and leaves the normal automatic
+  success predicate unchanged. The journal remains mode `0600` at
+  `payment-completed`; no reconciliation evidence, automatic-proof evidence,
+  reversal or cleanup exists.
+- A final cleanup-path review found the shared fixture deletion fence still
+  required the normal proof's `ACTIVE` listing. That would have made a corrected
+  reconciliation reverse the exact transfer and then fail before removing the
+  historical `SOLD_OUT` fixture. The cleanup function remains default-strict on
+  `ACTIVE`; only the manual reconciliation call selects `SOLD_OUT`, and it
+  rejects every other status before opening its serializable transaction.
+  Disposable PostgreSQL coverage proves both paths and rollback on mismatch.

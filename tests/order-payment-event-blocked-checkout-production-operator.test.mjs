@@ -10,6 +10,7 @@ import {
   CONNECTED_ACCOUNT_CONTROLLER,
   CONNECTED_ACCOUNT_MARKER_KEY,
   DISPOSABLE_SELLER_CONTROLLER_SUMMARY,
+  FAILED_PROOF_REVIEW_NOTE,
   MAX_EXPIRED_CHECKOUT_ATTEMPTS,
   PRICE_CENTS,
   SELLER_TRANSFER_CENTS,
@@ -662,6 +663,10 @@ test("failed-proof reconciliation stays distinct, exact and restart-safe", () =>
   const value = state("payment-completed", { transferReversalId: null });
   const manualSnapshot = snapshot({
     transfer_id: null,
+    review_note: FAILED_PROOF_REVIEW_NOTE,
+    signed_reason: "additional_external_refund",
+    signed_latest_refund: null,
+    listing_status: "SOLD_OUT",
     local_reversal_id: null,
     local_reversal_amount: null,
     local_expected_reversal: "false",
@@ -670,10 +675,23 @@ test("failed-proof reconciliation stays distinct, exact and restart-safe", () =>
     local_requires_manual_follow_up: "false",
   });
   assert.equal(assertManualReconciliationDeliverySnapshot(manualSnapshot, value).transferId, null);
+  const source = readFileSync(new URL("../scripts/order-payment-event-blocked-checkout-production-proof.mjs", import.meta.url), "utf8");
+  assert.match(source, /cleanupDeliveredRows\(owner, state, "SOLD_OUT"\)/);
   assert.throws(() => assertManualReconciliationDeliverySnapshot({
     ...manualSnapshot,
     local_requires_manual_reconciliation: "false",
   }, value), /database evidence drifted/);
+  for (const drift of [
+    { review_note: "Seller entered vacation mode before payment completion. Order was held for staff review." },
+    { signed_reason: "local_refund_confirmed" },
+    { signed_latest_refund: value.refundId },
+    { listing_status: "ACTIVE" },
+  ]) {
+    assert.throws(() => assertManualReconciliationDeliverySnapshot({
+      ...manualSnapshot,
+      ...drift,
+    }, value), /database evidence drifted/);
+  }
 
   const transfer = { id: value.transferId, amount: SELLER_TRANSFER_CENTS, amount_reversed: 0,
     currency: "usd", destination: value.stripeAccountId, livemode: false, reversed: false };

@@ -52,6 +52,8 @@ export const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.l
 export const RUNTIME_ROLE = "grainline_app_runtime";
 export const PRICE_CENTS = 500;
 export const SELLER_TRANSFER_CENTS = 475;
+export const FAILED_PROOF_REVIEW_NOTE =
+  "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.";
 export const TERMS_VERSION = "2026-06-14";
 export const STRIPE_METADATA_KEY_MAX_LENGTH = 40;
 export const CONNECTED_ACCOUNT_MARKER_KEY = "grainline_blocked_checkout_proof";
@@ -1942,7 +1944,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || normalized.shippingAmount !== 0
     || normalized.itemsSubtotal + normalized.shippingAmount + normalized.taxAmount !== state.refundAmountCents
     || normalized.reviewNeeded !== true
-    || !normalized.reviewNote.includes("Seller entered vacation mode before payment completion.")
+    || normalized.reviewNote !== FAILED_PROOF_REVIEW_NOTE
     || normalized.claimCleared !== true
     || !/^[1-9][0-9]*$/.test(normalized.claimGeneration)
     || normalized.itemCount !== 1
@@ -1950,7 +1952,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || normalized.paymentCount !== 2
     || normalized.localPaymentId !== state.localPaymentEventId
     || normalized.signedPaymentId !== state.signedPaymentEventId
-    || !new Set(["local_refund_confirmed", "local_refund_pending_confirmation"]).has(normalized.signedReason)
+    || normalized.signedReason !== "additional_external_refund"
     || normalized.localBuyerRefund !== state.refundAmountCents
     || normalized.localTransferAmount !== SELLER_TRANSFER_CENTS
     || normalized.localReversalId !== null
@@ -1959,7 +1961,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || normalized.localPlatformFundedRefund !== state.refundAmountCents
     || String(normalized.localRequiresManualReconciliation) !== "true"
     || String(normalized.localRequiresManualFollowUp) !== "false"
-    || normalized.signedLatestRefund !== state.refundId
+    || normalized.signedLatestRefund !== null
     || normalized.signedTotalRefunded !== state.refundAmountCents
     || normalized.checkoutWebhookCount !== 1
     || normalized.refundWebhookCount !== 1
@@ -1967,7 +1969,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || !/^[1-9][0-9]*$/.test(normalized.refundGeneration)
     || normalized.reservationStatus !== "COMPLETED"
     || normalized.stock !== 1
-    || normalized.listingStatus !== "ACTIVE"
+    || normalized.listingStatus !== "SOLD_OUT"
     || normalized.vacationMode !== true
     || normalized.notificationCount !== 1
     || normalized.notificationId !== state.notificationId
@@ -2024,7 +2026,10 @@ async function assertNoForeignKeyDependents(client, relation, id) {
   }
 }
 
-export async function cleanupDeliveredRows(owner, state) {
+export async function cleanupDeliveredRows(owner, state, expectedListingStatus = "ACTIVE") {
+  if (!new Set(["ACTIVE", "SOLD_OUT"]).has(expectedListingStatus)) {
+    throw new Error("blocked-checkout cleanup listing status is unsupported");
+  }
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
     assertCanaryFenced(await lockCanaryFence(owner, state));
@@ -2040,7 +2045,7 @@ export async function cleanupDeliveredRows(owner, state) {
         (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$4 AND "userId"=$1 AND "stripeAccountId"=$5
           AND "displayName"='Grainline Blocked Checkout Proof' AND "vacationMode"=true) AS seller,
         (SELECT count(*)::integer FROM public."Listing" WHERE id=$6 AND "sellerId"=$4
-          AND title='blocked-checkout-production-proof' AND status='ACTIVE' AND "stockQuantity"=1
+          AND title='blocked-checkout-production-proof' AND status=$20 AND "stockQuantity"=1
           AND "isPrivate"=true AND "reservedForUserId"=$7) AS listing,
         (SELECT count(*)::integer FROM public."CheckoutStockReservation" WHERE id=$8 AND "stripeSessionId"=$9
           AND "buyerId"=$7 AND "sellerId"=$4 AND status='COMPLETED') AS reservation,
@@ -2060,7 +2065,8 @@ export async function cleanupDeliveredRows(owner, state) {
     `, [state.sellerUserId, state.sellerClerkId, state.sellerEmail, state.sellerProfileId, state.stripeAccountId,
       state.listingId, state.buyerId, state.reservationId, state.stripeSessionId, state.orderId, state.refundId,
       state.refundAmountCents, state.orderItemId, state.localPaymentEventId, state.signedPaymentEventId,
-      state.notificationId, state.emailOutboxId, state.checkoutEventId, state.refundEventId]);
+      state.notificationId, state.emailOutboxId, state.checkoutEventId, state.refundEventId,
+      expectedListingStatus]);
     const expected = { seller_user: 1, seller: 1, listing: 1, reservation: 1, order_row: 1, item: 1,
       payments: 2, notification: 1, outbox: 1, audits: 3, webhooks: 2 };
     for (const [key, count] of Object.entries(expected)) {
@@ -3034,7 +3040,7 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
         await readDeliverySnapshot(owner, state),
         state,
       );
-      await cleanupDeliveredRows(owner, state);
+      await cleanupDeliveredRows(owner, state, "SOLD_OUT");
     }
     const cleanupSnapshot = assertCleanupSnapshot(
       await readCleanupSnapshot(owner, state),
