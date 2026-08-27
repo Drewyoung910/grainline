@@ -175,7 +175,14 @@ completed alternative.
 > migration status, the global grant/RLS audit and corrected engine-read-only
 > scope proof. The migration is accepted. Deployment, preserved-fixture
 > reconciliation, predecessor drain and `OrderPaymentEvent` ENABLE/FORCE remain
-> separate later gates.
+> separate later gates. PR #292 merged the accepted record as exact main
+> `a09827e0a641ec2f7e228520661cd7e74625bb0d`; CI `33110954923` passed and
+> deployment `dpl_8FMq11zfZT166Dve7Vf6sTJTXFzX` reached `READY` with exact
+> source metadata, canonical aliases and healthy runtime status. The post-
+> deployment engine-read-only proof remained `transfer-binding-compatible`,
+> while predecessor deployment `dpl_AJanN3zfnubB39Aj14NFziHAhfeB` remains
+> `READY`. Preserved-fixture reconciliation, predecessor drain and
+> `OrderPaymentEvent` ENABLE/FORCE remain separate gates.
 
 ## Program Rules
 

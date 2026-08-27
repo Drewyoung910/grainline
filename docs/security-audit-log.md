@@ -3127,3 +3127,14 @@ Open work:
   compatibility migration is closed. No application deployment, fixture
   reconciliation, RLS activation, predecessor drain or provider change
   occurred.
+- PR #292 merged the accepted evidence as exact main
+  `a09827e0a641ec2f7e228520661cd7e74625bb0d`; exact-main CI
+  `33110954923` passed. Vercel production deployment
+  `dpl_8FMq11zfZT166Dve7Vf6sTJTXFzX` reached `READY`, reports exact source SHA
+  `a09827e0a641ec2f7e228520661cd7e74625bb0d`, serves every canonical alias and
+  returned healthy canonical runtime status. The post-deployment engine-read-
+  only proof remained exactly `transfer-binding-compatible`, retained
+  predecessor CRUD and changed no production state. Predecessor deployment
+  `dpl_AJanN3zfnubB39Aj14NFziHAhfeB` remains `READY`. No fixture reconciliation,
+  migration, RLS activation, predecessor drain, provider-variable or
+  credential change occurred.
