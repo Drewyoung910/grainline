@@ -3066,3 +3066,16 @@ Open work:
   Focused tests pass 44/44 and the full repository passes 3,451 tests with zero
   failures and seven intentional skips; TypeScript, lint and diff checks pass.
   Production and the preserved failed-proof fixture remain unchanged.
+- Draft head `a403e3c947a7f5f7728fa384b2c397e9694e50f8` failed exact-head CI
+  `33045363294` only when its proof logged in through the real restricted
+  runtime role against the complete migration tree. The complete tree's
+  deferred Order seller-key trigger rejected the proof's empty synthetic
+  Order; the lightweight migration-only PGlite test did not include that older
+  invariant. The production function was not relaxed. The proof fixture now
+  creates and cleans one full disposable User/SellerProfile/Listing/Order/
+  OrderItem authority chain in a single transaction, with regression coverage
+  preventing another incomplete-order shortcut. The failed run is not release
+  evidence and made no production or provider change; fresh exact-head CI is
+  required. The corrected focused suite passes 17/17 and the full repository
+  suite passes 3,452 tests with zero failures and seven intentional skips;
+  TypeScript, lint and diff checks pass.

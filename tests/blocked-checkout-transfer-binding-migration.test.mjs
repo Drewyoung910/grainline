@@ -78,3 +78,22 @@ test("real PostgreSQL proof requires separate loopback owner and runtime logins"
     /grainline_app_runtime/,
   );
 });
+
+test("real PostgreSQL proof preserves the durable Order seller invariant", () => {
+  const proofSource = readFileSync(
+    "scripts/blocked-checkout-transfer-binding-postgres-proof.mjs",
+    "utf8",
+  );
+  assert.match(
+    proofSource,
+    /await owner\.query\("BEGIN"\)[\s\S]*INSERT INTO public\."User"[\s\S]*INSERT INTO public\."SellerProfile"[\s\S]*INSERT INTO public\."Listing"[\s\S]*INSERT INTO public\."Order"[\s\S]*INSERT INTO public\."OrderItem"[\s\S]*await owner\.query\("COMMIT"\)/,
+  );
+  assert.match(
+    proofSource,
+    /"OrderItem" \([\s\S]*"orderId"[\s\S]*"listingId"[\s\S]*"sellerProfileId"/,
+  );
+  assert.match(
+    proofSource,
+    /DELETE FROM public\."Order"[\s\S]*DELETE FROM public\."Listing"[\s\S]*DELETE FROM public\."SellerProfile"[\s\S]*DELETE FROM public\."User"/,
+  );
+});

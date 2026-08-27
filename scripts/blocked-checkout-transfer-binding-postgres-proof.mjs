@@ -51,6 +51,10 @@ export function parseBlockedCheckoutTransferBindingProofConfig(
 function fixtureIds() {
   const suffix = randomUUID().replaceAll("-", "");
   return Object.freeze({
+    sellerUserId: `user_transfer_binding_${suffix}`,
+    sellerProfileId: `seller_transfer_binding_${suffix}`,
+    listingId: `listing_transfer_binding_${suffix}`,
+    orderItemId: `item_transfer_binding_${suffix}`,
     eventId: `evt_transfer_binding_${suffix}`,
     sessionId: `cs_transfer_binding_${suffix}`,
     orderId: `order_transfer_binding_${suffix}`,
@@ -61,36 +65,87 @@ function fixtureIds() {
 }
 
 async function insertFixture(owner, ids, { refunded = false } = {}) {
-  await owner.query(`
-    INSERT INTO public."StripeWebhookEvent" (
-      id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
-    ) VALUES ($1, 'checkout.session.completed', $2, 3, CURRENT_TIMESTAMP)
-  `, [ids.eventId, ids.sessionId]);
-  await owner.query(`
-    INSERT INTO public."Order" (
-      id,
-      "paidAt",
-      "stripeSessionId",
-      "stripePaymentIntentId",
-      "stripeChargeId",
-      "sellerRefundId",
-      "sellerRefundLockedAt"
-    ) VALUES (
-      $1,
-      CURRENT_TIMESTAMP,
-      $2,
-      $3,
-      $4,
-      CASE WHEN $5::boolean THEN 're_already' ELSE NULL END,
-      CASE WHEN $5::boolean THEN CURRENT_TIMESTAMP ELSE NULL END
-    )
-  `, [
-    ids.orderId,
-    ids.sessionId,
-    ids.paymentIntentId,
-    ids.chargeId,
-    refunded,
-  ]);
+  await owner.query("BEGIN");
+  try {
+    await owner.query(`
+      INSERT INTO public."User" (
+        id, "clerkId", email, name, "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2, $3, 'Transfer binding proof seller',
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [
+      ids.sellerUserId,
+      `clerk-${ids.sellerUserId}`,
+      `${ids.sellerUserId}@example.invalid`,
+    ]);
+    await owner.query(`
+      INSERT INTO public."SellerProfile" (
+        id, "userId", "displayName", "displayNameNormalized",
+        "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2, 'Transfer binding proof seller',
+        'transfer binding proof seller', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.sellerProfileId, ids.sellerUserId]);
+    await owner.query(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", title, description, "priceCents",
+        "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2, 'Transfer binding proof listing',
+        'Disposable transfer binding proof listing.', 1000,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.listingId, ids.sellerProfileId]);
+    await owner.query(`
+      INSERT INTO public."StripeWebhookEvent" (
+        id, type, "sourceObjectId", "claimGeneration", "processingStartedAt"
+      ) VALUES ($1, 'checkout.session.completed', $2, 3, CURRENT_TIMESTAMP)
+    `, [ids.eventId, ids.sessionId]);
+    await owner.query(`
+      INSERT INTO public."Order" (
+        id,
+        "sellerProfileId",
+        "paidAt",
+        "stripeSessionId",
+        "stripePaymentIntentId",
+        "stripeChargeId",
+        "sellerRefundId",
+        "sellerRefundLockedAt"
+      ) VALUES (
+        $1,
+        $2,
+        CURRENT_TIMESTAMP,
+        $3,
+        $4,
+        $5,
+        CASE WHEN $6::boolean THEN 're_already' ELSE NULL END,
+        CASE WHEN $6::boolean THEN CURRENT_TIMESTAMP ELSE NULL END
+      )
+    `, [
+      ids.orderId,
+      ids.sellerProfileId,
+      ids.sessionId,
+      ids.paymentIntentId,
+      ids.chargeId,
+      refunded,
+    ]);
+    await owner.query(`
+      INSERT INTO public."OrderItem" (
+        id, "orderId", "listingId", "sellerProfileId", quantity, "priceCents"
+      ) VALUES ($1, $2, $3, $4, 1, 1000)
+    `, [
+      ids.orderItemId,
+      ids.orderId,
+      ids.listingId,
+      ids.sellerProfileId,
+    ]);
+    await owner.query("COMMIT");
+  } catch (error) {
+    await owner.query("ROLLBACK").catch(() => {});
+    throw error;
+  }
 }
 
 async function bind(runtime, ids, overrides = {}) {
@@ -223,6 +278,18 @@ export async function runBlockedCheckoutTransferBindingPostgresProof(
     await owner.query(
       `DELETE FROM public."StripeWebhookEvent" WHERE id = ANY($1::text[])`,
       [[exact.eventId, late.eventId]],
+    ).catch(() => {});
+    await owner.query(
+      `DELETE FROM public."Listing" WHERE id = ANY($1::text[])`,
+      [[exact.listingId, late.listingId]],
+    ).catch(() => {});
+    await owner.query(
+      `DELETE FROM public."SellerProfile" WHERE id = ANY($1::text[])`,
+      [[exact.sellerProfileId, late.sellerProfileId]],
+    ).catch(() => {});
+    await owner.query(
+      `DELETE FROM public."User" WHERE id = ANY($1::text[])`,
+      [[exact.sellerUserId, late.sellerUserId]],
     ).catch(() => {});
     await runtime.end().catch(() => {});
     await owner.end().catch(() => {});

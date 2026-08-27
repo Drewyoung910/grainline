@@ -518,3 +518,19 @@ its TypeScript phase, then correctly stopped during page-data collection
 because this worktree has no production Redis environment. That is
 environment-limited validation, not a green deploy build. Production and the
 preserved failed-proof fixture are unchanged.
+
+Draft release head `a403e3c947a7f5f7728fa384b2c397e9694e50f8`
+then failed exact-head CI `33045363294` in the direct-runtime PostgreSQL proof.
+The full historical migration tree correctly rejected the proof's synthetic
+Order as missing its durable seller key and matching OrderItem. The smaller
+PGlite fixture did not model that predecessor invariant, so this is a proof-
+fixture defect rather than evidence that the transfer-binding function should
+be weakened. The corrected real-PostgreSQL proof transactionally creates a
+complete disposable User, SellerProfile, Listing, Order and OrderItem chain,
+then removes that exact chain during cleanup. A structural regression test
+pins the full seller chain and reverse-order cleanup. The failed CI run changed
+no production or provider state and cannot support migration or deployment;
+the corrected exact head requires a fresh complete CI pass.
+After the correction, the focused transfer-binding suite passes 17/17 and the
+full repository suite passes 3,452 tests with zero failures and seven
+intentional skips; TypeScript, lint and diff checks also pass.
