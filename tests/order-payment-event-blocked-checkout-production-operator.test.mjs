@@ -467,7 +467,7 @@ test("embedded page, route result, prepared state and Stripe effects are exact",
     amount_total: 540, metadata: { buyerId: value.buyerId, sellerId: value.sellerProfileId,
       listingId: value.listingId, checkoutLockKey: value.checkoutLockKey }, payment_intent: paymentIntent };
   assert.equal(assertCompletedSession(session, value).chargeAmountCents, 540);
-  const refund = { id: value.refundId, livemode: false, amount: 540, currency: "usd", status: "succeeded",
+  const refund = { id: value.refundId, object: "refund", amount: 540, currency: "usd", status: "succeeded",
     payment_intent: value.paymentIntentId, charge: value.chargeId,
     transfer_reversal: { id: value.transferReversalId, amount: SELLER_TRANSFER_CENTS, transfer: value.transferId } };
   assert.equal(assertRefund(refund, value).transferReversalId, value.transferReversalId);
@@ -702,7 +702,7 @@ test("failed-proof reconciliation stays distinct, exact and restart-safe", () =>
     metadata: { buyerId: value.buyerId, sellerId: value.sellerProfileId,
       listingId: value.listingId, checkoutLockKey: value.checkoutLockKey },
     payment_intent: { id: value.paymentIntentId, latest_charge: charge } };
-  const refund = { id: value.refundId, livemode: false, amount: value.refundAmountCents, currency: "usd",
+  const refund = { id: value.refundId, object: "refund", amount: value.refundAmountCents, currency: "usd",
     status: "succeeded", payment_intent: value.paymentIntentId, charge: value.chargeId,
     transfer_reversal: null, source_transfer_reversal: null };
   assert.equal(assertManualReconciliationProvider({ refund, reversals: [], session, transfer }, value).reversalId, null);

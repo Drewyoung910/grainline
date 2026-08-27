@@ -29,6 +29,7 @@ import Stripe from "stripe";
 import { NOTIFICATION_CANARY_EXTERNAL_ID } from "./notification-operational-canary.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 import { readProviderState } from "./stripe-connect-provider-cutover.mjs";
+import { assertStripeRefundObject } from "./stripe-refund-object-proof.mjs";
 import {
   assertGitState,
   parseDatabaseUrls,
@@ -792,10 +793,11 @@ export function findSingleRefundEvent(events, state) {
 }
 
 export function assertRefundProviderEvidence(refund, state) {
+  assertStripeRefundObject(refund, "seller refund provider evidence");
   const reversal = refund?.transfer_reversal;
   const reversalId = typeof reversal === "object" && reversal ? reversal.id : null;
   if (
-    refund?.id !== state.refundId || refund?.livemode !== false || refund?.amount !== REFUND_AMOUNT_CENTS
+    refund?.id !== state.refundId || refund?.amount !== REFUND_AMOUNT_CENTS
     || refund?.currency !== "usd" || !["pending", "requires_action", "succeeded"].includes(refund?.status)
     || refund?.payment_intent !== state.paymentIntentId || refund?.charge !== state.chargeId
     || !/^trr_[A-Za-z0-9_]+$/.test(String(reversalId ?? ""))

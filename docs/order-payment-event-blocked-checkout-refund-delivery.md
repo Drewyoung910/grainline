@@ -689,3 +689,26 @@ manual reconciliation call supplies `SOLD_OUT`, and any other status is
 rejected before a transaction begins. Disposable PostgreSQL coverage proves
 the default rejects the historical fixture, the explicit historical fence
 removes it atomically, and an unsupported status cannot broaden cleanup.
+
+PR #295 merged both historical-shape corrections as exact main
+`350133a9e67295e09a9238df09444326442b6585`; exact-main CI
+`33120674371` passed the complete release chain. The separately authorized
+reconciliation invocation then failed closed before creating a reconciliation
+checkpoint or transfer reversal with
+`blocked-checkout manual reconciliation provider source drifted`. Immediate
+read-only verification proved the transfer still had zero reversals and the
+database fixture remained unchanged.
+
+The only failed provider scalar was a nonexistent `Refund.livemode` field.
+Stripe's installed OpenAPI-generated `Refund` type does not define that field,
+and the real retrieved test Refund omits it. Test mode is already independently
+bound by the validated `sk_test` credential, test-mode Checkout Session,
+PaymentIntent Charge, Transfer and signed Events. The correction replaces the
+invented field assertion with the real `object === "refund"` discriminator and
+exact `re_` identity, while rejecting any future explicit `livemode=true`.
+The same incorrect assertion existed in the seller-refund and signed-payment
+proof operators, so a shared helper and class-wide regression correct all
+three without changing application runtime behavior. Read-only validation
+against the preserved Stripe objects passes the corrected full provider-source
+predicate with zero reversals. A fresh exact-main/CI-bound authorization is
+still required before reconciliation is retried.

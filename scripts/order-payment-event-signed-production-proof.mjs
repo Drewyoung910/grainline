@@ -25,6 +25,7 @@ import pg from "pg";
 import Stripe from "stripe";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 import { readProviderState } from "./stripe-connect-provider-cutover.mjs";
+import { assertStripeRefundObject } from "./stripe-refund-object-proof.mjs";
 import {
   assertGitState,
   parseDatabaseUrls,
@@ -1409,11 +1410,12 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
       state = updateState(config, state, { stage: "refund-fixture-created" });
     }
     if (state.stage === "refund-fixture-created") {
-      const refund = await stripeOps.createRefund(state.refundChargeId);
+      const refund = assertStripeRefundObject(
+        await stripeOps.createRefund(state.refundChargeId),
+        "signed payment refund",
+      );
       if (
-        !/^re_[A-Za-z0-9_]+$/.test(String(refund?.id ?? ""))
-        || refund?.livemode !== false
-        || refund?.status !== "succeeded"
+        refund?.status !== "succeeded"
         || refund?.amount !== REFUND_AMOUNT_CENTS
         || refund?.currency !== "usd"
       ) throw new Error("refund did not reach the reviewed Stripe test state");
