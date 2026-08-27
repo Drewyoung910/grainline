@@ -545,3 +545,19 @@ updates only the durable `stripeTransferId`; its PGlite Order schema matches the
 real column boundary, the static contract rejects any `updatedAt` reference,
 and the migration is repinned to the SHA-256 above. This second failed run is
 also non-release evidence and requires another fresh exact-head CI pass.
+
+Final correction head `a092e4a4bf1608ab1e7231633db3da36d2fbd391`
+passed exact-head CI `33046657108`, including the full historical migration
+tree, disposable PostgreSQL proof, direct `grainline_app_runtime` login proof,
+TypeScript, lint, dependency audit, production build and the complete test
+suite (3,452 passed, zero failed, seven intentional skips). PR #289 merged as
+exact main `ea12d220b9809ac113e9d79c7e8996e103d8d641`; exact-main CI
+`33088415834` and the standing Conversation/Message and Notification FORCE
+proof workflows `33088415885` and `33088415831` also passed. These results
+validate the production-inert release bytes only. The migration remains
+unapplied, the corrected application remains undeployed, the preserved failed
+fixture remains unreconciled and `OrderPaymentEvent` RLS remains off. The next
+boundary is the dedicated guarded application of only
+`20260826010000_prepare_blocked_checkout_transfer_binding`; deployment,
+fixture reconciliation, a fresh automatic paid proof, predecessor drain and
+RLS activation remain later separate boundaries in that order.

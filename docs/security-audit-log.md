@@ -3087,3 +3087,13 @@ Open work:
   now writes only `stripeTransferId`, the lightweight schema no longer invents
   `updatedAt`, and a static assertion rejects its reintroduction. The repinned
   SHA-256 is recorded above; this second failed run is not release evidence.
+- Final correction head `a092e4a4bf1608ab1e7231633db3da36d2fbd391`
+  passed exact-head CI `33046657108`, including disposable and real restricted-
+  runtime PostgreSQL proofs, the complete repository suite, TypeScript, lint,
+  dependency audit and production build. PR #289 merged as exact main
+  `ea12d220b9809ac113e9d79c7e8996e103d8d641`; exact-main CI
+  `33088415834` plus the standing Conversation/Message and Notification FORCE
+  proofs `33088415885` and `33088415831` passed. This is release-byte evidence,
+  not production-application evidence: no migration, deployment, fixture
+  reconciliation, RLS activation or provider mutation occurred. The preserved
+  paid failed-proof fixture remains the exact separate reconciliation target.
