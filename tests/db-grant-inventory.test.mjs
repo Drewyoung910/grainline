@@ -45,6 +45,9 @@ const ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES = [
   "grainline_order_payment_signed_refund_apply",
   "grainline_order_payment_signed_dispute_apply",
 ];
+const BLOCKED_CHECKOUT_TRANSFER_BINDING_FUNCTION_NAMES = [
+  "grainline_blocked_checkout_transfer_bind",
+];
 
 const {
   ALLOW_LOOPBACK_CI_FLAG,
@@ -1334,6 +1337,7 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES,
       ...ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES,
       ...ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
+      ...BLOCKED_CHECKOUT_TRANSFER_BINDING_FUNCTION_NAMES,
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
@@ -1375,6 +1379,7 @@ describe("database grant inventory guardrails", () => {
         + ORDER_PAYMENT_SIGNED_AUTHORITY_FUNCTION_NAMES.length
         + ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES.length
         + ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES.length
+        + BLOCKED_CHECKOUT_TRANSFER_BINDING_FUNCTION_NAMES.length
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)

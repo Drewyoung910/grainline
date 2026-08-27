@@ -143,6 +143,24 @@ completed alternative.
 | `Block` | `BLOCKED_DESIGN` | Aggregate and fanout | Bidirectional safety relationship; blocker, blocked user and fanout filters | Bidirectional read policy and service filtering without revealing unsafe detail |
 | `UserReport` | `BLOCKED_DESIGN` | Admin security | Reporter details, target and resolution notes; reporter and staff | Reporter submission or status projection, staff-only investigation fields and retention rules |
 
+> **OrderPaymentEvent superseding gate update (2026-08-26):** the
+> blocked-checkout delivery compatibility migration and corrected application
+> are live, and the real authenticated provider proof reached a genuine paid
+> test Session. That run failed acceptance because the buyer refund succeeded
+> before Stripe's destination transfer became visible to the webhook, leaving
+> the exact 475-cent test transfer unreversed and the Order transfer field null.
+> The failed fixture and private journal are preserved. The additive
+> transfer-binding correction, separately classified test-fixture
+> reconciliation and a completely fresh automatic proof now precede
+> predecessor drain or `OrderPaymentEvent` ENABLE/FORCE. Manual reconciliation
+> is cleanup evidence, never activation evidence. See
+> `docs/order-payment-event-blocked-checkout-refund-delivery.md`.
+> The correction is now byte-pinned and guarded by a dedicated exact-main/CI
+> production runner plus an engine-read-only absent/exact-applied restart
+> verifier. The generic migration runner conditionally isolates it while
+> unapplied. This is release preparation only: production and the preserved
+> failed-proof fixture remain unchanged.
+
 ## Program Rules
 
 1. A row can move to `RLS_LIVE_PHASE_A` or a later live status only with exact

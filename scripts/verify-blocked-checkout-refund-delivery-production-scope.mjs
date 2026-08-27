@@ -372,13 +372,47 @@ async function readNotificationFunctions(client, runtimeRole) {
   )).rows;
 }
 
-export async function readBlockedCheckoutRefundDeliveryProductionSnapshot(
-  connectionString,
+export async function readBlockedCheckoutRefundDeliveryProductionSnapshotFromClient(
+  client,
   {
     runtimeRole = RUNTIME_ROLE,
     root = process.cwd(),
   } = {},
 ) {
+  verifyBlockedCheckoutRefundDeliveryMigrationBytes(root);
+  const orderPaymentEventCompatible =
+    await readOrderPaymentEventCompatibleProductionSnapshotFromClient(
+      client,
+      { runtimeRole, root },
+    );
+  const candidateLedgerRows = (await client.query(
+    `SELECT migration_name, checksum, finished_at, rolled_back_at,
+            applied_steps_count
+       FROM public._prisma_migrations
+      WHERE migration_name = $1
+      ORDER BY started_at, id`,
+    [BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION],
+  )).rows;
+  const notificationTable = await readNotificationTable(client, runtimeRole);
+  const notificationPolicies = await readNotificationPolicyState(client);
+  const notificationFunctions = await readNotificationFunctions(
+    client,
+    runtimeRole,
+  );
+  return Object.freeze({
+    orderPaymentEventCompatible,
+    candidateLedgerRows,
+    notificationTable,
+    notificationPolicies,
+    notificationFunctions,
+  });
+}
+
+export async function readBlockedCheckoutRefundDeliveryProductionSnapshot(
+  connectionString,
+  options = {},
+) {
+  const { root = process.cwd() } = options;
   verifyBlockedCheckoutRefundDeliveryMigrationBytes(root);
   const client = new Client({
     connectionString,
@@ -399,34 +433,14 @@ export async function readBlockedCheckoutRefundDeliveryProductionSnapshot(
       "SELECT pg_catalog.current_setting('transaction_read_only') AS read_only",
     )).rows[0]?.read_only;
     if (readOnly !== "on") throw new Error("scope transaction is not read-only");
-    const orderPaymentEventCompatible =
-      await readOrderPaymentEventCompatibleProductionSnapshotFromClient(
+    const snapshot =
+      await readBlockedCheckoutRefundDeliveryProductionSnapshotFromClient(
         client,
-        { runtimeRole, root },
+        options,
       );
-    const candidateLedgerRows = (await client.query(
-      `SELECT migration_name, checksum, finished_at, rolled_back_at,
-              applied_steps_count
-         FROM public._prisma_migrations
-        WHERE migration_name = $1
-        ORDER BY started_at, id`,
-      [BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION],
-    )).rows;
-    const notificationTable = await readNotificationTable(client, runtimeRole);
-    const notificationPolicies = await readNotificationPolicyState(client);
-    const notificationFunctions = await readNotificationFunctions(
-      client,
-      runtimeRole,
-    );
     await client.query("ROLLBACK");
     open = false;
-    return Object.freeze({
-      orderPaymentEventCompatible,
-      candidateLedgerRows,
-      notificationTable,
-      notificationPolicies,
-      notificationFunctions,
-    });
+    return snapshot;
   } finally {
     if (open) await client.query("ROLLBACK").catch(() => {});
     await client.end();

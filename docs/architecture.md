@@ -306,12 +306,35 @@ The distinct live acceptance operator is
 the Session through the authenticated production checkout route, moves only a
 synthetic seller into vacation mode after Session creation, and requires real
 Stripe Embedded Checkout plus signed completion/refund delivery. Its private
-restart journal separates `prepare`, loopback-only `serve`, `verify` and unpaid
-`cleanup`; a paid attempt cannot be discarded through the abort path.
+restart journal separates `prepare`, hosted `onboard`, expired-attempt `renew`,
+loopback-only `serve`, automatic `verify`, failed-proof `reconcile` and unpaid
+`cleanup`; a paid attempt cannot be discarded through the abort path, and
+manual reconciliation cannot emit acceptance evidence.
 The operational canary preference/terms mutation uses an exact row lock and
 original/proof-fenced snapshot checks so cleanup cannot overwrite concurrent
 account changes. Timestamp-without-time-zone fields remain lossless database
 text until PostgreSQL performs the exact comparison and restoration.
+
+Destination-transfer identity is a required refund-authority input, not an
+optional observability field. Stripe may make a paid PaymentIntent and Charge
+visible before the destination transfer appears on an expanded response. The
+checkout webhook therefore performs only a short bounded reread; if the exact
+transfer remains absent, it fails the signed event for provider retry instead
+of classifying the refund as platform-funded. Before the blocked-checkout
+refund claim, the provider-derived transfer is durably bound by
+`grainline_blocked_checkout_transfer_bind` under the exact active
+`StripeWebhookEvent` generation and paid Order/Session/PaymentIntent/Charge.
+The function cannot first-bind after any refund claim or record. The failed
+test-mode acceptance run and its separately fenced reconciliation cannot
+substitute for the required fresh automatic proof; see
+`docs/order-payment-event-blocked-checkout-refund-delivery.md`.
+The additive binding migration has its own exact-main/CI guarded runner and
+read-only restart verifier. Until that dedicated release applies it, the
+generic Production Migrations runner removes it from the filesystem before
+`migrate deploy` and restores it only after status and global grant auditing.
+Once applied, the same verifier requires its exact ledger checksum and exact
+runtime-only function catalog. This prevents migration visibility from
+silently broadening authorization.
 
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded

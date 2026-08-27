@@ -137,6 +137,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove("20260826010000_prepare_blocked_checkout_transfer_binding");
     remove("20260825010000_prepare_blocked_checkout_refund_delivery");
     verifyOrderRefundInactiveSellerRecoveryRelease(root);
     remove("20260824050000_prepare_order_refund_inactive_seller_recovery");

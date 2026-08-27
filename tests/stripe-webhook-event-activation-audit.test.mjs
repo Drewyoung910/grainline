@@ -115,6 +115,8 @@ test("all remaining script-level direct access is explicitly classified", () => 
     .filter((file) => directAccess.test(fs.readFileSync(file, "utf8")))
     .sort();
   assert.deepEqual(directScripts, [
+    "scripts/blocked-checkout-transfer-binding-postgres-proof.mjs",
+    "scripts/build-blocked-checkout-transfer-binding-migration.mjs",
     "scripts/buyer-deletion-stripe-replay-postgres-proof.mjs",
     "scripts/checkout-stock-reservation-production-smoke.mjs",
     "scripts/order-payment-event-blocked-checkout-production-proof.mjs",

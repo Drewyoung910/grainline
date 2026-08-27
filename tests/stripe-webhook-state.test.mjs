@@ -54,18 +54,32 @@ describe("Stripe webhook state helpers", () => {
 
   it("keeps expanded checkout payment-intent extraction behind a runtime-narrowing helper", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const paymentRefs = readFileSync("src/lib/checkoutPaymentIntentRefs.ts", "utf8");
 
     assert.match(source, /async function checkoutSessionPaymentIntentRefs\(session: Stripe\.Checkout\.Session\)/);
-    assert.match(source, /function objectRecord\(value: unknown\)/);
-    assert.match(source, /function stripeObjectId\(value: unknown\)/);
+    assert.match(paymentRefs, /function objectRecord\(value: unknown\)/);
+    assert.match(paymentRefs, /function stripeObjectId\(value: unknown\)/);
     assert.match(source, /await checkoutSessionPaymentIntentRefs\(s\)/);
-    assert.match(source, /expand: \["payment_intent\.latest_charge", "shipping_cost\.shipping_rate", "line_items\.data\.price\.product"\]/);
-    assert.match(source, /stripe\.paymentIntents\.retrieve\(paymentIntent, \{\s*expand: \["latest_charge"\]/s);
-    assert.match(source, /stripe\.charges\.retrieve\(latestCharge\)/);
-    assert.match(source, /paymentIntentRecord\?\.latest_charge/);
-    assert.doesNotMatch(source, /payment_intent\.charges\.data/);
+    assert.match(source, /expand: \["payment_intent\.latest_charge\.transfer", "shipping_cost\.shipping_rate", "line_items\.data\.price\.product"\]/);
+    assert.match(paymentRefs, /expand: \["latest_charge\.transfer"\]/);
+    assert.match(paymentRefs, /retrieveCharge\(latestCharge, \{ expand: \["transfer"\] \}\)/);
+    assert.match(paymentRefs, /paymentIntentRecord\?\.latest_charge/);
+    assert.doesNotMatch(paymentRefs, /payment_intent\.charges\.data/);
     assert.equal((source.match(/as unknown as ExpandedPI/g) ?? []).length, 0);
     assert.doesNotMatch(source, /type ExpandedPI/);
+  });
+
+  it("fails closed and binds the exact destination transfer before a blocked-checkout refund claim", () => {
+    const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
+    const missingTransfer = source.indexOf("Blocked checkout destination transfer is not yet available");
+    const bindTransfer = source.indexOf("await bindBlockedCheckoutTransfer({");
+    const claimRefund = source.indexOf("const refundClaim = await claimBlockedCheckoutOrderRefund({");
+
+    assert.ok(missingTransfer >= 0);
+    assert.ok(bindTransfer > missingTransfer);
+    assert.ok(claimRefund > bindTransfer);
+    assert.match(source, /eventClaimGeneration: claimGeneration/);
+    assert.match(source, /transferId: stripeTransferId/);
   });
 
   it("detects Stripe thin event data objects conservatively", () => {
