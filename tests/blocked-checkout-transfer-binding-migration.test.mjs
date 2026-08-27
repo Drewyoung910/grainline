@@ -5,6 +5,7 @@ import test from "node:test";
 const {
   BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
   BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION_SHA256,
+  blockedCheckoutTransferBindingFunctionSource,
   buildBlockedCheckoutTransferBindingMigration,
   verifyBlockedCheckoutTransferBindingMigrationBytes,
 } = await import("../scripts/build-blocked-checkout-transfer-binding-migration.mjs");
@@ -25,6 +26,11 @@ test("blocked-checkout transfer binding migration is byte pinned", () => {
   assert.equal(
     readFileSync(proof.migrationPath, "utf8"),
     buildBlockedCheckoutTransferBindingMigration(),
+  );
+  assert.match(
+    blockedCheckoutTransferBindingFunctionSource(),
+    /^\nDECLARE[\s\S]*END\n$/,
+    "function source must preserve the dollar-quote boundary newlines stored in pg_proc.prosrc",
   );
 });
 
@@ -100,5 +106,10 @@ test("real PostgreSQL proof preserves the durable Order seller invariant", () =>
   assert.match(
     proofSource,
     /DELETE FROM public\."Order"[\s\S]*DELETE FROM public\."Listing"[\s\S]*DELETE FROM public\."SellerProfile"[\s\S]*DELETE FROM public\."User"/,
+  );
+  assert.match(
+    proofSource,
+    /routine\.prosrc AS function_source[\s\S]*blockedCheckoutTransferBindingFunctionSource\(\)/,
+    "real PostgreSQL proof must compare the stored function source exactly",
   );
 });

@@ -5,6 +5,10 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import pg from "pg";
 
+import {
+  blockedCheckoutTransferBindingFunctionSource,
+} from "./build-blocked-checkout-transfer-binding-migration.mjs";
+
 const { Client } = pg;
 
 const OWNER_DATABASE_ENV =
@@ -198,6 +202,7 @@ export async function runBlockedCheckoutTransferBindingPostgresProof(
       SELECT
         routine.prosecdef AS security_definer,
         routine.proconfig AS config,
+        routine.prosrc AS function_source,
         pg_catalog.has_function_privilege(
           $1,
           routine.oid,
@@ -217,7 +222,16 @@ export async function runBlockedCheckoutTransferBindingPostgresProof(
       FROM pg_catalog.pg_proc AS routine
       WHERE routine.oid = $2::pg_catalog.regprocedure
     `, [RUNTIME_ROLE, FUNCTION_IDENTITY])).rows;
-    assert.deepEqual(catalog, [{
+    assert.equal(
+      catalog[0]?.function_source,
+      blockedCheckoutTransferBindingFunctionSource(),
+    );
+    assert.deepEqual([{
+      security_definer: catalog[0]?.security_definer,
+      config: catalog[0]?.config,
+      runtime_execute: catalog[0]?.runtime_execute,
+      public_execute: catalog[0]?.public_execute,
+    }], [{
       security_definer: true,
       config: ["search_path=pg_catalog"],
       runtime_execute: true,

@@ -161,9 +161,15 @@ completed alternative.
 > unapplied. Final head `a092e4a4bf1608ab1e7231633db3da36d2fbd391`
 > passed exact-head CI `33046657108` and merged as exact main
 > `ea12d220b9809ac113e9d79c7e8996e103d8d641`, whose CI `33088415834`
-> also passed. This is release preparation only: the migration remains
-> unapplied, the corrected app remains undeployed, and production plus the
-> preserved failed-proof fixture remain unchanged.
+> also passed. At that checkpoint the migration remained unapplied, the
+> corrected app remained undeployed, and the preserved failed-proof fixture
+> remained unchanged. Guarded run `33106083900`
+> subsequently applied only the transfer-binding migration; migration status
+> and the global grant/RLS audit passed. Its final read-only proof exposed a
+> verifier-only dollar-quote boundary-newline mismatch after all security-
+> relevant catalog fields matched. The migration is live but not yet accepted;
+> a corrected exact-main restart-safe read-only rerun remains required before
+> deployment or fixture reconciliation.
 
 ## Program Rules
 
