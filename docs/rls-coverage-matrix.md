@@ -167,9 +167,15 @@ completed alternative.
 > subsequently applied only the transfer-binding migration; migration status
 > and the global grant/RLS audit passed. Its final read-only proof exposed a
 > verifier-only dollar-quote boundary-newline mismatch after all security-
-> relevant catalog fields matched. The migration is live but not yet accepted;
-> a corrected exact-main restart-safe read-only rerun remains required before
-> deployment or fixture reconciliation.
+> relevant catalog fields matched. Correction head `8bd52c006a8637d6bf6009eb38212154541ab91d`
+> merged as exact main `9736957e0700e1c41e3319148daa63a1d8f17602`;
+> exact-main CI `33108121631` and restart-safe guarded production run
+> `33109482365` passed. The restart classified exactly
+> `transfer-binding-compatible`, skipped migration deployment, and passed final
+> migration status, the global grant/RLS audit and corrected engine-read-only
+> scope proof. The migration is accepted. Deployment, preserved-fixture
+> reconciliation, predecessor drain and `OrderPaymentEvent` ENABLE/FORCE remain
+> separate later gates.
 
 ## Program Rules
 

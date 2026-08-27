@@ -585,3 +585,17 @@ compatible migrations applied, runtime EXECUTE only, `OrderPaymentEvent` RLS
 still off, predecessor CRUD retained and `productionChangedByProof=false`.
 That confirms the diagnosis without mutation, but it does not replace the
 required exact-main/CI-bound GitHub restart proof.
+
+Correction head `8bd52c006a8637d6bf6009eb38212154541ab91d` passed
+exact-head CI `33106963478` and PR #291 merged as exact main
+`9736957e0700e1c41e3319148daa63a1d8f17602`; exact-main CI
+`33108121631` passed the full migration/RLS proof suite, TypeScript, lint,
+tests, dependency audit and production build. Restart-safe guarded production
+run `33109482365` then classified the engine-read-only restart state as exactly
+`transfer-binding-compatible`. The predecessor-only status check and migration
+deployment step were both skipped. Final migration status, the global
+grant/RLS audit and the corrected engine-read-only post-application scope proof
+all passed. The transfer-binding compatibility migration is therefore
+accepted in production. The application remains undeployed, the preserved
+failed-proof fixture remains unreconciled, `OrderPaymentEvent` RLS remains off,
+the predecessor remains undrained and no provider state changed.
