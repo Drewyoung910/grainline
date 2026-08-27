@@ -3116,3 +3116,14 @@ Open work:
   `productionChangedByProof=false`. This validates the diagnosis without
   mutation but does not substitute for the exact-main/CI-bound GitHub restart
   proof.
+- Correction head `8bd52c006a8637d6bf6009eb38212154541ab91d`
+  passed exact-head CI `33106963478` and PR #291 merged as exact main
+  `9736957e0700e1c41e3319148daa63a1d8f17602`; exact-main CI
+  `33108121631` passed. Restart-safe guarded production run `33109482365`
+  classified the exact state as `transfer-binding-compatible`, skipped both
+  the predecessor-only migration-status check and migration deployment, then
+  passed final migration status, the global grant/RLS audit and the corrected
+  engine-read-only post-application scope proof. Production acceptance of the
+  compatibility migration is closed. No application deployment, fixture
+  reconciliation, RLS activation, predecessor drain or provider change
+  occurred.
