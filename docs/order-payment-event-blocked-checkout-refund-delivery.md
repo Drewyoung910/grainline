@@ -135,7 +135,7 @@ secret may be used to forge an event as a substitute for provider delivery.
 ## Restart-safe provider operator
 
 `scripts/order-payment-event-blocked-checkout-production-proof.mjs` implements
-five explicit commands behind one exact-main, successful-CI and READY
+seven explicit commands behind one exact-main, successful-CI and READY
 production-deployment binding:
 
 1. `prepare` creates one marker-bound, production-aligned Express account. If
@@ -154,12 +154,16 @@ production-deployment binding:
 2. `onboard` rechecks the exact clean operator commit/CI and private attempt
    binding, then opens the unexpired one-time Account Link without printing it.
    It does not complete onboarding or accept any responsibility for the user.
-3. `serve` binds only `127.0.0.1` and serves a no-store Stripe Embedded Checkout
+3. `renew` accepts only an exact expired, unpaid seller-blocked Session and its
+   restored reservation. It briefly reopens only the synthetic seller, creates
+   or recovers at most one bounded replacement, rebinds the private journal and
+   returns the seller to vacation mode before payment handoff.
+4. `serve` binds only `127.0.0.1` and serves a no-store Stripe Embedded Checkout
    page after independently rechecking the exact clean main commit and its
    successful CI. Card data stays in Stripe-hosted frames; the page does not
    call a Grainline webhook or know any webhook secret. Closing the server does
    not alter recovery state.
-4. `verify` requires a genuinely paid test Checkout Session. It discovers the
+5. `verify` requires a genuinely paid test Checkout Session. It discovers the
    exact provider `checkout.session.completed` and `charge.refunded` events,
    proves the completed reservation, restored listing, source-bound local and
    signed payment rows, claim clearance, full buyer refund, exact seller
@@ -167,7 +171,11 @@ production-deployment binding:
    refund outbox and absence of all `NEW_ORDER` delivery. It resends both exact
    provider events and requires every application identity and webhook claim
    generation to remain unchanged before cleanup.
-5. `cleanup` is an explicit abort path only while the Session is unpaid. It
+6. `reconcile` is disabled without a second exact confirmation and accepts only
+   the documented failed paid checkpoint. It manually balances that one
+   Stripe test-mode transfer and emits failure-recovery evidence; it can never
+   emit automatic-proof success.
+7. `cleanup` is an explicit abort path only while the Session is unpaid. It
    expires that exact Session, waits for signed stock restoration, then removes
    the marker-bound fixture. A paid Session cannot enter abort cleanup and must
    resume through `verify`.
@@ -430,3 +438,83 @@ replacement can therefore resume whether the crash happened before or after
 that reblock. Cross-source, paid, ambiguous, excessive-history and non-restored
 states remain fail closed. `renew` is a separately authorized production
 mutation and review/merge alone must never execute it.
+
+## Paid proof failed on transfer visibility; recovery is not acceptance (2026-08-26)
+
+Exact operator/main `71197a539e2eb2e476dce3fc0c4ae2b11315032b`
+passed CI `32988148978`. The bounded `renew` command created one final exact
+replacement, returned the disposable seller to vacation mode and handed the
+Session to the loopback Stripe frame. A human completed the genuine Stripe
+test-mode payment. The preserved journal advanced to `payment-completed`.
+
+`verify` then failed closed before replay or cleanup with
+`blocked-checkout Stripe refund evidence drifted`. Engine-enforced read-only
+database inspection and read-only Stripe retrieval established one exact
+state without exporting row contents:
+
+- the tax-inclusive buyer refund succeeded for 541 cents;
+- the destination transfer exists for the expected 475 cents and exact
+  disposable account;
+- neither the refund nor the transfer has a transfer reversal;
+- the Order persisted the PaymentIntent and Charge but a null
+  `stripeTransferId`; and
+- the local refund ledger honestly classified a 541-cent platform-funded
+  refund with `requiresManualTransferReconciliation=true`.
+
+A later deep retrieval of the same PaymentIntent/Charge returned the exact
+transfer. The evidence therefore supports a provider-consistency race during
+the original signed completion handler, not a permanently absent transfer.
+This is a real accounting defect even though it occurred only in Stripe test
+mode: the buyer was made whole, but Grainline funded the refund while the
+temporary seller retained the 475-cent transfer. No success evidence was
+written. The paid fixture, processed signed leases and mode-`0600` journal
+remain preserved until exact reconciliation; this run must never be relabeled
+as a passed automatic proof.
+
+The isolated correction has two distinct boundaries:
+
+1. Application release migration
+   `20260826010000_prepare_blocked_checkout_transfer_binding` (generated
+   SHA-256
+   `c5a2f599a8b5ef711053e4cc8fb36e8fbfd080ecaebd4e7e27ff08ca016e3c06`)
+   adds one runtime-callable, owner-executed transfer-binding function. It
+   locks the active signed `StripeWebhookEvent` generation and exact paid
+   Order/Session/PaymentIntent/Charge, derives no target from an untrusted
+   caller, rejects conflicts and refuses a first binding after refund
+   authority exists. The webhook uses a short bounded Stripe reread, fails the
+   signed event for retry while the destination transfer remains unavailable,
+   and binds the provider-derived transfer before claiming refund authority.
+   The locked check and the final UPDATE independently refuse a seller-refund
+   lock, refund claim or refund ledger row. The dedicated
+   `blocked-checkout-transfer-binding-production.yml` runner binds exact main
+   plus successful CI, accepts only absent or exact-applied restart state in an
+   engine-enforced repeatable-read/read-only snapshot, isolates the candidate
+   while proving the sealed predecessor, and applies only this migration. The
+   generic Production Migrations runner conditionally isolates the candidate
+   whenever production is still on its predecessor, so a broad migration
+   dispatch cannot apply this release accidentally.
+2. The separately confirmed `reconcile` operator accepts only this exact
+   failed `payment-completed` journal. It proves the platform-funded refund,
+   null durable transfer and zero existing reversals; writes a private restart
+   checkpoint; creates one exact 475-cent test-mode reversal behind a
+   deterministic idempotency key; proves exact retry and one-reversal
+   cardinality; and then performs the already-reviewed exact fixture cleanup.
+   Sanitized evidence is status `reconciled-failed-proof` with
+   `automaticProductionProofPassed=false` and
+   `freshAutomaticProofRequired=true`.
+
+Required sequence is: review and merge the isolated correction; apply only the
+additive transfer-binding migration; deploy and attest the corrected
+application; separately authorize reconciliation of the preserved test
+fixture; then run a completely fresh blocked-checkout provider proof. Only the
+fresh run may satisfy this acceptance gate. `OrderPaymentEvent` predecessor
+drain or RLS activation remains blocked until that automatic proof passes.
+
+The production-inert release checkpoint passes 44 focused authority,
+operator, workflow and disposable-PostgreSQL tests; the full repository suite
+passes 3,451 tests with zero failures and seven intentional skips. TypeScript,
+lint and diff checks pass. The isolated Webpack build compiled and completed
+its TypeScript phase, then correctly stopped during page-data collection
+because this worktree has no production Redis environment. That is
+environment-limited validation, not a green deploy build. Production and the
+preserved failed-proof fixture are unchanged.

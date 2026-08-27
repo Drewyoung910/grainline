@@ -237,6 +237,17 @@ defect. Each remaining path is classified:
   rollback behavior. It proves missing-row inserts and stale reclaims roll
   back, processed/in-progress classification is preserved, type mismatch
   fails, and exact fixture residue returns to zero.
+- `scripts/blocked-checkout-transfer-binding-postgres-proof.mjs` is a
+  loopback-only disposable PostgreSQL proof of the post-activation-compatible
+  transfer-binding function. It uses separate owner and direct runtime logins,
+  proves the exact signed source and paid Order binding plus replay/conflict/
+  late-refund fences, and removes only its synthetic rows. It is CI proof, not
+  production evidence and not a new direct application table-access path.
+- `scripts/build-blocked-checkout-transfer-binding-migration.mjs` is an
+  offline deterministic SQL generator and byte verifier. Its embedded direct
+  table references are the reviewed function body written into a migration;
+  the script opens no database or provider connection and cannot exercise
+  runtime table authority.
 - `scripts/order-refund-reconciliation-authority-postgres-proof.mjs` is a
   loopback-only disposable PostgreSQL authority proof. Inside one outer
   rollback transaction it creates an exact blocked-checkout fixture, simulates

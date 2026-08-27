@@ -91,6 +91,8 @@ import {
 import { finalizeBlockedCheckoutOrderRefund } from "@/lib/orderRefundFinalization";
 import { resolveOrderRefundProviderOutcome } from "@/lib/orderRefundProviderReconciliation";
 import { markOrderRefundClaimAmbiguous } from "@/lib/orderRefundReconciliationAuthority";
+import { bindBlockedCheckoutTransfer } from "@/lib/blockedCheckoutTransferAuthority";
+import { resolveCheckoutPaymentIntentRefs } from "@/lib/checkoutPaymentIntentRefs";
 import {
   applySignedDisputeWebhook,
   applySignedRefundWebhook,
@@ -224,51 +226,13 @@ async function listAllCheckoutSessionLineItems(sessionId: string): Promise<Check
   return lineItems;
 }
 
-function objectRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? value as Record<string, unknown> : null;
-}
-
-function stripeObjectId(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  const record = objectRecord(value);
-  return typeof record?.id === "string" ? record.id : null;
-}
-
 async function checkoutSessionPaymentIntentRefs(session: Stripe.Checkout.Session) {
-  const paymentIntent = session.payment_intent;
-  let paymentIntentId = stripeObjectId(paymentIntent);
-  let charge: Record<string, unknown> | null = null;
-
-  if (typeof paymentIntent === "string") {
-    const retrieved = await stripe.paymentIntents.retrieve(paymentIntent, {
-      expand: ["latest_charge"],
-    });
-    paymentIntentId = retrieved.id;
-    const latestCharge = retrieved.latest_charge;
-    charge = typeof latestCharge === "string"
-      ? objectRecord(await stripe.charges.retrieve(latestCharge))
-      : objectRecord(latestCharge);
-  } else {
-    const paymentIntentRecord = objectRecord(paymentIntent);
-    const latestCharge = paymentIntentRecord?.latest_charge;
-    charge = typeof latestCharge === "string"
-      ? objectRecord(await stripe.charges.retrieve(latestCharge))
-      : objectRecord(latestCharge);
-
-    if (!charge) {
-      const chargesRecord = objectRecord(paymentIntentRecord?.charges);
-      charge = Array.isArray(chargesRecord?.data)
-        ? objectRecord(chargesRecord.data[0])
-        : null;
-    }
-  }
-
-  return {
-    paymentIntentId,
-    stripeChargeId: stripeObjectId(charge),
-    stripeApplicationFeeId: stripeObjectId(charge?.application_fee),
-    stripeTransferId: stripeObjectId(charge?.transfer),
-  };
+  return resolveCheckoutPaymentIntentRefs(session, {
+    retrievePaymentIntent: (paymentIntentId, params) =>
+      stripe.paymentIntents.retrieve(paymentIntentId, params),
+    retrieveCharge: (chargeId, params) =>
+      stripe.charges.retrieve(chargeId, params),
+  });
 }
 
 const STRIPE_DISPUTE_EVENT_TYPES = new Set([
@@ -961,7 +925,7 @@ export async function POST(req: Request) {
 
       // Retrieve with expansions (line_items needed to derive quantities at payment time)
       const s = await stripe.checkout.sessions.retrieve(sessionId, {
-        expand: ["payment_intent.latest_charge", "shipping_cost.shipping_rate", "line_items.data.price.product"],
+        expand: ["payment_intent.latest_charge.transfer", "shipping_cost.shipping_rate", "line_items.data.price.product"],
       });
       const sessionMeta = (s.metadata ?? {}) as Record<string, string | undefined>;
       checkoutLockKey = sessionMeta.checkoutLockKey ?? checkoutLockKey;
@@ -1112,6 +1076,28 @@ export async function POST(req: Request) {
           });
           return;
         }
+
+        // A paid destination charge can briefly expose its PaymentIntent and
+        // Charge before the associated transfer appears. Treating that
+        // provider-consistency window as a disconnected seller would fund the
+        // refund from Grainline while leaving the seller transfer intact.
+        // Fail closed until the exact provider-derived transfer is available,
+        // then bind it under this signed webhook generation before claiming
+        // refund authority. A Stripe retry can safely replay the binding.
+        if (!stripeChargeId || !stripeTransferId) {
+          throw new Error(
+            "Blocked checkout destination transfer is not yet available; retry the signed event.",
+          );
+        }
+        await bindBlockedCheckoutTransfer({
+          eventId: event.id,
+          eventClaimGeneration: claimGeneration,
+          sessionId,
+          orderId: input.orderId,
+          paymentIntentId,
+          chargeId: stripeChargeId,
+          transferId: stripeTransferId,
+        });
 
         let refundId: string | null = null;
         let refundAmountCents: number | null = null;

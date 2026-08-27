@@ -21,6 +21,10 @@ import {
   BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
   verifyBlockedCheckoutRefundDeliveryMigrationBytes,
 } from "./build-blocked-checkout-refund-delivery-migration.mjs";
+import {
+  BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+  verifyBlockedCheckoutTransferBindingMigrationBytes,
+} from "./build-blocked-checkout-transfer-binding-migration.mjs";
 
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_PHASE =
   "order-refund-reconciliation-authority-prepared";
@@ -58,6 +62,23 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     );
     verifyBlockedCheckoutRefundDeliveryMigrationBytes(rootDirectory);
     reviewedSuccessors.push(BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION);
+  }
+  const transferBindingSuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+  );
+  if (fs.existsSync(transferBindingSuccessorPath)) {
+    assert.deepEqual(
+      reviewedSuccessors,
+      [
+        ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
+        BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+      ],
+      "Blocked-checkout transfer binding requires its reviewed predecessors",
+    );
+    verifyBlockedCheckoutTransferBindingMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION);
   }
   const laterMigrations = fs.readdirSync(
     path.join(rootDirectory, "prisma/migrations"),

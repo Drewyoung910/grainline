@@ -794,6 +794,25 @@ and deployment separately. This is product correctness discovered by the
 RLS/provider gate, not a reason to weaken reservation authority or skip the
 paid signed-delivery proof.
 
+The bounded replacement was genuinely paid on 2026-08-26. The buyer's
+tax-inclusive test refund succeeded, but the webhook had observed a null
+destination transfer and therefore recorded a platform-funded refund; the
+exact 475-cent seller transfer remained unreversed. A later deep provider read
+returned that transfer, establishing a transfer-visibility race as the narrow
+corrective target. Do not treat the failed run or its manual reconciliation as
+acceptance. First ship the additive source/generation-fenced transfer-binding
+function and bounded provider reread; separately reverse and clean only the
+preserved test fixture with `reconciled-failed-proof` evidence; then run a
+fresh automatic paid proof from a new fixture. Predecessor drain and
+`OrderPaymentEvent` ENABLE/FORCE remain blocked until the fresh proof passes.
+The additive migration must use its dedicated exact-main/CI workflow; the
+generic Production Migrations runner must keep conditionally isolating it while
+the read-only restart verifier reports the predecessor state. Do not execute
+the reconciliation operator merely because its code and tests are ready.
+This sequencing is durable even if the current operator branch or local
+worktree is later pruned; the detailed state and exact release boundary live in
+`docs/order-payment-event-blocked-checkout-refund-delivery.md`.
+
 Do not change the 5% platform-fee rate as a routine configuration edit. The
 application now derives checkout and refund expectations through
 `calculateCheckoutAmounts()`, but the byte-sealed database refund finalizers

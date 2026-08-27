@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   CONFIRMATION,
+  RECONCILIATION_CONFIRMATION,
   CHECKOUT_SESSION_EXPANDS,
   CONNECTED_ACCOUNT_CONTROLLER,
   CONNECTED_ACCOUNT_MARKER_KEY,
@@ -24,14 +25,20 @@ import {
   assertExpiredPaymentSnapshot,
   assertOnboardingLink,
   assertOnboardingRecord,
+  assertManualReconciliationDeliverySnapshot,
+  assertManualReconciliationProvider,
   assertPreparedSnapshot,
   assertRefund,
+  assertReconciliationEvidence,
+  assertReconciliationProofState,
+  assertReconciliationState,
   assertReplayUnchanged,
   assertStripeMetadataKeys,
   assertState,
   buildConnectedAccountLinkParams,
   buildConnectedAccountParams,
   buildEvidence,
+  buildReconciliationEvidence,
   buildPaymentPage,
   createInitialState,
   isCheckoutClientSecretForSession,
@@ -177,6 +184,13 @@ test("configuration and restart state fail closed", () => {
     "onboard");
   assert.equal(validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "renew" }), "/repo").command,
     "renew");
+  assert.throws(() => validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "reconcile",
+  }), "/repo"), /RECONCILIATION_CONFIRM|reconciliation confirmation/);
+  assert.equal(validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "reconcile",
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_CONFIRM: RECONCILIATION_CONFIRMATION,
+  }), "/repo").command, "reconcile");
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_CONFIRM: "wrong" })), /confirmation is invalid/);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "run" })), /command is invalid/);
   assert.throws(() => validateConfiguration(environment({
@@ -216,6 +230,8 @@ test("configuration and restart state fail closed", () => {
   assert.equal(applicationRecovery.applicationDeploymentId, RECOVERY_DEPLOYMENT);
   assert.match(recovery.statePath, new RegExp(`state-${COMMIT.slice(0, 12)}\\.json$`));
   assert.match(recovery.onboardingPath, new RegExp(`onboarding-${COMMIT.slice(0, 12)}\\.json$`));
+  assert.match(recovery.reconciliationPath, new RegExp(`reconciliation-state-${COMMIT.slice(0, 12)}\\.json$`));
+  assert.match(recovery.reconciliationEvidencePath, new RegExp(`reconciliation-${COMMIT.slice(0, 12)}\\.json$`));
   const initial = createInitialState(config, {
     id: "opebc_buyer_canary", clerkId: "user_canary", email: "canary@example.com",
     notificationPreferences: {}, termsAcceptedAt: "2026-08-25T12:34:56.123456",
@@ -640,10 +656,81 @@ test("delivery, exact replay, evidence, and redaction reject drift", () => {
   assert.equal(redact("cs_test_x_secret_payload%2Fencoded%25value"), "[redacted-stripe-secret]");
 });
 
+test("failed-proof reconciliation stays distinct, exact and restart-safe", () => {
+  const value = state("payment-completed", { transferReversalId: null });
+  const manualSnapshot = snapshot({
+    transfer_id: null,
+    local_reversal_id: null,
+    local_reversal_amount: null,
+    local_expected_reversal: "false",
+    local_platform_funded_refund: String(value.refundAmountCents),
+    local_requires_manual_reconciliation: "true",
+    local_requires_manual_follow_up: "false",
+  });
+  assert.equal(assertManualReconciliationDeliverySnapshot(manualSnapshot, value).transferId, null);
+  assert.throws(() => assertManualReconciliationDeliverySnapshot({
+    ...manualSnapshot,
+    local_requires_manual_reconciliation: "false",
+  }, value), /database evidence drifted/);
+
+  const transfer = { id: value.transferId, amount: SELLER_TRANSFER_CENTS, amount_reversed: 0,
+    currency: "usd", destination: value.stripeAccountId, livemode: false, reversed: false };
+  const charge = { id: value.chargeId, amount: value.chargeAmountCents, currency: "usd", paid: true,
+    livemode: false, transfer };
+  const session = { id: value.stripeSessionId, livemode: false, status: "complete", payment_status: "paid",
+    currency: "usd", amount_total: value.chargeAmountCents,
+    metadata: { buyerId: value.buyerId, sellerId: value.sellerProfileId,
+      listingId: value.listingId, checkoutLockKey: value.checkoutLockKey },
+    payment_intent: { id: value.paymentIntentId, latest_charge: charge } };
+  const refund = { id: value.refundId, livemode: false, amount: value.refundAmountCents, currency: "usd",
+    status: "succeeded", payment_intent: value.paymentIntentId, charge: value.chargeId,
+    transfer_reversal: null, source_transfer_reversal: null };
+  assert.equal(assertManualReconciliationProvider({ refund, reversals: [], session, transfer }, value).reversalId, null);
+
+  const reversalId = "trr_manualreconciliation";
+  const reversal = { id: reversalId, livemode: false, amount: SELLER_TRANSFER_CENTS, transfer: value.transferId,
+    metadata: { grainline_proof: "blocked_checkout", reconciliation_reason: "transfer_visibility_race",
+      attempt_sha256: "bd7662a5eeb41614e720d477abfcb2272e19a8a70a93b7e3bc8560d44ad326e9" } };
+  const reversedTransfer = { ...transfer, amount_reversed: SELLER_TRANSFER_CENTS, reversed: true };
+  assert.equal(assertManualReconciliationProvider({
+    refund, reversals: [reversal], session: { ...session, payment_intent: { id: value.paymentIntentId,
+      latest_charge: { ...charge, transfer: reversedTransfer } } }, transfer: reversedTransfer,
+  }, value, reversalId).reversalId, reversalId);
+  assert.throws(() => assertManualReconciliationProvider({
+    refund, reversals: [reversal, { ...reversal, id: "trr_other" }],
+    session: { ...session, payment_intent: { id: value.paymentIntentId,
+      latest_charge: { ...charge, transfer: reversedTransfer } } }, transfer: reversedTransfer,
+  }, value, reversalId), /cardinality drifted/);
+
+  const reconciliation = assertReconciliationState({
+    version: 1,
+    phase: "order-payment-event-blocked-checkout-transfer-reconciliation",
+    stage: "reversal-confirmed",
+    expectedCommit: COMMIT,
+    operatorCommit: COMMIT,
+    operatorCiRunId: CI,
+    attemptId: value.attemptId,
+    manualTransferReversalId: reversalId,
+  }, config, value);
+  assert.throws(() => assertReconciliationState({ ...reconciliation, stage: "cleanup-started",
+    manualTransferReversalId: null }, config, value), /identity is missing/);
+  assert.throws(() => assertReconciliationState({ ...reconciliation, extra: true }, config, value), /unknown field/);
+  assert.equal(assertReconciliationProofState(value).orderId, value.orderId);
+  assert.throws(() => assertReconciliationProofState({ ...value, notificationId: null }), /notificationId is missing/);
+
+  const cleanup = { accountDeleted: true, applicationRowsRemoved: true, canaryCount: 1,
+    clerkSessionsRevoked: true, processedWebhookCount: 2, redisKeysRemoved: true };
+  const evidence = buildReconciliationEvidence(config, value, reconciliation, cleanup);
+  assert.equal(assertReconciliationEvidence(evidence, config).automaticProductionProofPassed, false);
+  assert.equal(evidence.freshAutomaticProofRequired, true);
+  assert.throws(() => assertReconciliationEvidence({ ...evidence, automaticProductionProofPassed: true }, config),
+    /reconciliation evidence drifted/);
+});
+
 test("static operator contract stays test-only, loopback-only, non-activating, and restart-safe", () => {
   const source = readFileSync(new URL("../scripts/order-payment-event-blocked-checkout-production-proof.mjs", import.meta.url), "utf8");
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND/);
-  assert.match(source, /new Set\(\["prepare", "onboard", "renew", "serve", "verify", "cleanup"\]\)/);
+  assert.match(source, /new Set\(\["prepare", "onboard", "renew", "serve", "verify", "reconcile", "cleanup"\]\)/);
   assert.match(source, /controller: CONNECTED_ACCOUNT_CONTROLLER/);
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND=onboard/);
   assert.match(source, /account-express-stripe-collector-v1/);
@@ -672,6 +759,9 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.match(source, /wrong_notification_count/);
   assert.match(source, /cleanupDeliveredRows/);
   assert.match(source, /assertAbortCleanupStage\(state\)/);
+  assert.match(source, /manual-transfer-reconciliation-v1/);
+  assert.match(source, /automaticProductionProofPassed: false/);
+  assert.match(source, /freshAutomaticProofRequired: true/);
   assert.doesNotMatch(source, /else if \(state\.stage === "account-created"\)[\s\S]{0,300}DELETE FROM public\."SellerProfile"/);
   assert.doesNotMatch(source, /sk_live_[A-Za-z0-9]{8,}/);
   assert.doesNotMatch(source, /webhookEndpoints\.(?:create|update|del)/);

@@ -3020,3 +3020,49 @@ Open work:
   source/CI/deployment binding. It revalidates every distinct exact-main CI,
   attests the corrective canonical deployment, and retains both application
   bindings in final sanitized evidence rather than rewriting history.
+
+## Blocked-checkout paid proof exposed transfer-visibility accounting race (2026-08-26)
+
+- Exact main/operator `71197a539e2eb2e476dce3fc0c4ae2b11315032b`
+  passed CI `32988148978`. Its authorized renewal created at most one bounded
+  replacement, restored vacation mode and produced a genuine human-completed
+  Stripe test-mode Checkout. The journal advanced to `payment-completed`.
+- Verification failed closed before event replay or cleanup. Sanitized
+  engine-read-only database and provider inspection proved the buyer's
+  541-cent refund succeeded, the exact 475-cent destination transfer exists,
+  no transfer reversal exists, the Order retained null `stripeTransferId`, and
+  the local refund ledger truthfully recorded platform-funded/manual-transfer-
+  reconciliation accounting. No success evidence was written and the exact
+  fixture remains preserved.
+- A subsequent deep read returned the same transfer from the exact
+  PaymentIntent/Charge. The isolated correction now performs a bounded
+  provider reread and throws for signed-event retry while the transfer is
+  absent. Migration
+  `20260826010000_prepare_blocked_checkout_transfer_binding` adds one
+  `SECURITY DEFINER`, `search_path=pg_catalog`, runtime-only binding operation.
+  It locks the exact active `StripeWebhookEvent` generation and paid
+  Order/Session/PaymentIntent/Charge, permits exact replay, rejects conflicting
+  transfers and refuses first-write binding after refund authority.
+- The separate `reconcile` operator never changes the failed run to passed. It
+  is exact-journal and test-mode only, checkpoints before the manual 475-cent
+  reversal, uses one deterministic idempotency key, proves exact retry and
+  one-reversal cardinality, and resumes cleanup safely after database or
+  account cleanup. Its sanitized evidence must say
+  `reconciled-failed-proof`, `automaticProductionProofPassed=false` and
+  `freshAutomaticProofRequired=true`.
+- Production was not changed by preparing this correction. Required order is
+  migration review/apply, compatible app deploy, separately authorized exact
+  fixture reconciliation, and a fresh automatic paid proof. Do not drain the
+  predecessor or activate `OrderPaymentEvent` RLS before the fresh proof.
+- The final isolated release adds a dedicated exact-main/CI production
+  workflow plus one engine-attested repeatable-read/read-only restart verifier.
+  It accepts only absent or exact-applied candidate ledger state and pins the
+  function owner, body, SECURITY DEFINER/search-path posture, runtime-only
+  EXECUTE and PUBLIC denial. The generic Production Migrations runner now
+  isolates the candidate whenever it is unapplied, preventing accidental
+  application outside the dedicated boundary. The final migration SHA-256 is
+  `c5a2f599a8b5ef711053e4cc8fb36e8fbfd080ecaebd4e7e27ff08ca016e3c06`;
+  its final UPDATE independently refuses refund locks, claims and ledger rows.
+  Focused tests pass 44/44 and the full repository passes 3,451 tests with zero
+  failures and seven intentional skips; TypeScript, lint and diff checks pass.
+  Production and the preserved failed-proof fixture remain unchanged.

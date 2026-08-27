@@ -45,6 +45,32 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify blocked-checkout transfer binding migration bytes
+        run: npm run audit:order-payment-blocked-checkout-transfer-binding-release
+      - name: Inspect blocked-checkout transfer binding restart scope read-only
+        id: transfer_scope
+        shell: bash
+        env:
+          BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGE: restart
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          scope_json="$(npm run --silent audit:order-payment-blocked-checkout-transfer-binding-production-scope)"
+          printf '%s\n' "$scope_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            const states = new Set(["transfer-binding-predecessor", "transfer-binding-compatible"]);
+            if (!states.has(value.state)) {
+              throw new Error("invalid blocked-checkout transfer binding restart state");
+            }
+            process.stdout.write(`state=${value.state}\n`);
+          ' "$scope_json" >> "$GITHUB_OUTPUT"
+      - name: Isolate unapplied blocked-checkout transfer binding compatibility
+        if: steps.transfer_scope.outputs.state == 'transfer-binding-predecessor'
+        run: >-
+          mv
+          prisma/migrations/20260826010000_prepare_blocked_checkout_transfer_binding
+          "$RUNNER_TEMP/blocked-checkout-transfer-binding-release"
       - name: Verify exact SellerPayoutEvent FORCE migration tree
         run: npm run verify:rls-release-artifact
         env:
@@ -190,6 +216,17 @@ jobs:
       - name: Audit final runtime grants and RLS catalog
         run: npm run audit:db-grants -- --require-direct-url
         env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Restore unapplied blocked-checkout transfer binding compatibility
+        if: steps.transfer_scope.outputs.state == 'transfer-binding-predecessor'
+        run: >-
+          mv
+          "$RUNNER_TEMP/blocked-checkout-transfer-binding-release"
+          prisma/migrations/20260826010000_prepare_blocked_checkout_transfer_binding
+      - name: Reverify blocked-checkout transfer binding restart scope read-only
+        run: npm run audit:order-payment-blocked-checkout-transfer-binding-production-scope
+        env:
+          BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGE: restart
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Prove exact SellerPayoutEvent FORCE production scope
         run: npm run audit:rls-seller-payout-event-force-production-scope

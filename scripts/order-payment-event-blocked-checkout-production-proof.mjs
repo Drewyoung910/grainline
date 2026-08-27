@@ -42,6 +42,8 @@ import {
 const { Client } = pg;
 
 export const CONFIRMATION = "reviewed-blocked-checkout-refund-production-proof";
+export const RECONCILIATION_CONFIRMATION =
+  "reviewed-blocked-checkout-transfer-reconciliation";
 export const PRODUCTION_ORIGIN = "https://thegrainline.com";
 export const PLATFORM_WEBHOOK_URL = `${PRODUCTION_ORIGIN}/api/stripe/webhook`;
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
@@ -115,6 +117,11 @@ const STAGES = Object.freeze([
   "cleanup-started",
   "cleaned",
 ]);
+const RECONCILIATION_STAGES = Object.freeze([
+  "reversal-pending",
+  "reversal-confirmed",
+  "cleanup-started",
+]);
 
 function required(env, key) {
   const value = env[key];
@@ -185,11 +192,15 @@ function loadPrivateEnvironment(filePath, label) {
 
 export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   const command = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND || "prepare";
-  if (!new Set(["prepare", "onboard", "renew", "serve", "verify", "cleanup"]).has(command)) {
+  if (!new Set(["prepare", "onboard", "renew", "serve", "verify", "reconcile", "cleanup"]).has(command)) {
     throw new Error("blocked-checkout proof command is invalid");
   }
   if (required(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_CONFIRM") !== CONFIRMATION) {
     throw new Error("blocked-checkout proof confirmation is invalid");
+  }
+  if (command === "reconcile"
+    && required(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_CONFIRM") !== RECONCILIATION_CONFIRMATION) {
+    throw new Error("blocked-checkout transfer reconciliation confirmation is invalid");
   }
   const expectedCommit = required(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_EXPECTED_COMMIT");
   const deployedSourceCommit = required(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_DEPLOYED_SOURCE_COMMIT");
@@ -249,10 +260,16 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     || path.join(EVIDENCE_DIRECTORY, `order-payment-event-blocked-checkout-proof-${suffix}.json`));
   const onboardingPath = path.resolve(env.ORDER_PAYMENT_BLOCKED_CHECKOUT_ONBOARDING_PATH
     || path.join(EVIDENCE_DIRECTORY, `order-payment-event-blocked-checkout-onboarding-${suffix}.json`));
+  const reconciliationPath = path.resolve(env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PATH
+    || path.join(EVIDENCE_DIRECTORY, `order-payment-event-blocked-checkout-reconciliation-state-${suffix}.json`));
+  const reconciliationEvidencePath = path.resolve(env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_EVIDENCE_PATH
+    || path.join(EVIDENCE_DIRECTORY, `order-payment-event-blocked-checkout-reconciliation-${suffix}.json`));
   for (const [candidate, basename] of [
     [statePath, `order-payment-event-blocked-checkout-state-${suffix}.json`],
     [evidencePath, `order-payment-event-blocked-checkout-proof-${suffix}.json`],
     [onboardingPath, `order-payment-event-blocked-checkout-onboarding-${suffix}.json`],
+    [reconciliationPath, `order-payment-event-blocked-checkout-reconciliation-state-${suffix}.json`],
+    [reconciliationEvidencePath, `order-payment-event-blocked-checkout-reconciliation-${suffix}.json`],
   ]) {
     if (path.dirname(candidate) !== EVIDENCE_DIRECTORY || path.basename(candidate) !== basename) {
       throw new Error("blocked-checkout proof file path is outside the reviewed evidence boundary");
@@ -277,6 +294,8 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     operatorCiRunId,
     operatorCommit,
     port,
+    reconciliationEvidencePath,
+    reconciliationPath,
     statePath,
     stripeCliPath: path.resolve(env.ORDER_PAYMENT_BLOCKED_CHECKOUT_STRIPE_CLI_PATH || "/opt/homebrew/bin/stripe"),
     vercelProjectDirectory: path.resolve(env.VERCEL_PROJECT_DIRECTORY || "/Users/drewyoung/grainline"),
@@ -449,6 +468,91 @@ function updateState(config, state, update) {
   const next = assertState({ ...state, ...update }, config);
   writePrivateJson(config.statePath, next);
   return next;
+}
+
+export function assertReconciliationState(value, config, proofState) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("blocked-checkout reconciliation state must be one object");
+  }
+  const allowed = new Set([
+    "version",
+    "phase",
+    "stage",
+    "expectedCommit",
+    "operatorCommit",
+    "operatorCiRunId",
+    "attemptId",
+    "manualTransferReversalId",
+  ]);
+  const unknown = Object.keys(value).filter((key) => !allowed.has(key));
+  if (unknown.length) {
+    throw new Error(`blocked-checkout reconciliation state contains unknown field ${unknown[0]}`);
+  }
+  if (value.version !== 1
+    || value.phase !== "order-payment-event-blocked-checkout-transfer-reconciliation"
+    || !RECONCILIATION_STAGES.includes(value.stage)
+    || value.expectedCommit !== config.expectedCommit
+    || value.operatorCommit !== (config.operatorCommit ?? config.expectedCommit)
+    || String(value.operatorCiRunId) !== String(config.operatorCiRunId ?? config.mainCiRunId)
+    || value.attemptId !== proofState.attemptId) {
+    throw new Error("blocked-checkout reconciliation state binding drifted");
+  }
+  const reversalId = value.manualTransferReversalId ?? null;
+  if (reversalId !== null && !/^trr_[A-Za-z0-9_]+$/.test(reversalId)) {
+    throw new Error("blocked-checkout reconciliation reversal identity drifted");
+  }
+  if (value.stage !== "reversal-pending" && reversalId === null) {
+    throw new Error("blocked-checkout reconciliation reversal identity is missing");
+  }
+  return Object.freeze({ ...value, manualTransferReversalId: reversalId });
+}
+
+export function assertReconciliationProofState(state) {
+  if (state?.stage !== "payment-completed" || state.transferReversalId !== null) {
+    throw new Error("blocked-checkout reconciliation proof checkpoint drifted");
+  }
+  for (const key of [
+    "checkoutEventId",
+    "orderId",
+    "orderItemId",
+    "paymentIntentId",
+    "chargeId",
+    "transferId",
+    "refundId",
+    "refundEventId",
+    "localPaymentEventId",
+    "signedPaymentEventId",
+    "notificationId",
+    "emailOutboxId",
+  ]) {
+    if (typeof state[key] !== "string" || state[key].length < 1) {
+      throw new Error(`blocked-checkout reconciliation proof state ${key} is missing`);
+    }
+  }
+  if (!Number.isSafeInteger(state.chargeAmountCents)
+    || state.refundAmountCents !== state.chargeAmountCents) {
+    throw new Error("blocked-checkout reconciliation proof amount drifted");
+  }
+  return state;
+}
+
+function writeReconciliationState(config, proofState, state) {
+  const next = assertReconciliationState(state, config, proofState);
+  writePrivateJson(config.reconciliationPath, next);
+  return next;
+}
+
+function createReconciliationState(config, proofState) {
+  return writeReconciliationState(config, proofState, {
+    version: 1,
+    phase: "order-payment-event-blocked-checkout-transfer-reconciliation",
+    stage: "reversal-pending",
+    expectedCommit: config.expectedCommit,
+    operatorCommit: config.operatorCommit ?? config.expectedCommit,
+    operatorCiRunId: config.operatorCiRunId ?? config.mainCiRunId,
+    attemptId: proofState.attemptId,
+    manualTransferReversalId: null,
+  });
 }
 
 export function markerFor(config, state) {
@@ -809,6 +913,17 @@ function stripeDependencies(stripe, secretKey, config, state) {
     deleteAccount: (id) => stripe.accounts.del(id),
     retrieveSession: (id) => stripe.checkout.sessions.retrieve(id, { expand: CHECKOUT_SESSION_EXPANDS }),
     retrieveRefund: (id) => stripe.refunds.retrieve(id, { expand: ["transfer_reversal"] }),
+    retrieveTransfer: (id) => stripe.transfers.retrieve(id),
+    listTransferReversals: (id) => listAll(stripe.transfers.listReversals(id, { limit: 100 })),
+    createManualTransferReversal: (id) => stripe.transfers.createReversal(id, {
+      amount: SELLER_TRANSFER_CENTS,
+      description: "Grainline blocked-checkout test proof reconciliation",
+      metadata: {
+        grainline_proof: "blocked_checkout",
+        reconciliation_reason: "transfer_visibility_race",
+        attempt_sha256: sha256(state.attemptId),
+      },
+    }, idempotency("manual-transfer-reconciliation-v1")),
     listCheckoutEvents: (createdAfter) => listAll(stripe.events.list({ created: { gte: createdAfter }, limit: 100, type: "checkout.session.completed" })),
     listRefundEvents: (createdAfter) => listAll(stripe.events.list({ created: { gte: createdAfter }, limit: 100, type: "charge.refunded" })),
     retrieveBalance: (accountId) => stripe.balance.retrieve({}, { stripeAccount: accountId }),
@@ -1558,6 +1673,60 @@ export function assertRefund(refund, state) {
   return Object.freeze({ refundAmountCents: refund.amount, transferReversalId: reversal.id });
 }
 
+export function assertManualReconciliationProvider(
+  { refund, reversals, session, transfer },
+  state,
+  expectedReversalId = null,
+) {
+  const payment = assertCompletedSession(session, state);
+  if (payment.paymentIntentId !== state.paymentIntentId
+    || payment.chargeId !== state.chargeId
+    || payment.transferId !== state.transferId
+    || payment.chargeAmountCents !== state.chargeAmountCents
+    || refund?.id !== state.refundId
+    || refund?.livemode !== false
+    || refund?.status !== "succeeded"
+    || refund?.amount !== state.refundAmountCents
+    || refund?.currency !== "usd"
+    || stripeObjectId(refund?.payment_intent) !== state.paymentIntentId
+    || stripeObjectId(refund?.charge) !== state.chargeId
+    || refund?.transfer_reversal != null
+    || refund?.source_transfer_reversal != null
+    || transfer?.id !== state.transferId
+    || transfer?.livemode !== false
+    || transfer?.amount !== SELLER_TRANSFER_CENTS
+    || transfer?.currency !== "usd"
+    || stripeObjectId(transfer?.destination) !== state.stripeAccountId
+    || !Array.isArray(reversals)) {
+    throw new Error("blocked-checkout manual reconciliation provider source drifted");
+  }
+
+  if (expectedReversalId === null) {
+    if (transfer.reversed !== false || Number(transfer.amount_reversed ?? 0) !== 0 || reversals.length !== 0) {
+      throw new Error("blocked-checkout transfer was already reversed outside the reviewed recovery");
+    }
+    return Object.freeze({ reversalId: null });
+  }
+
+  if (!/^trr_[A-Za-z0-9_]+$/.test(expectedReversalId)
+    || transfer.reversed !== true
+    || Number(transfer.amount_reversed) !== SELLER_TRANSFER_CENTS
+    || reversals.length !== 1) {
+    throw new Error("blocked-checkout manual reconciliation reversal cardinality drifted");
+  }
+  const reversal = reversals[0];
+  if (reversal?.id !== expectedReversalId
+    || reversal?.livemode !== false
+    || reversal?.amount !== SELLER_TRANSFER_CENTS
+    || stripeObjectId(reversal?.transfer) !== state.transferId
+    || reversal?.metadata?.grainline_proof !== "blocked_checkout"
+    || reversal?.metadata?.reconciliation_reason !== "transfer_visibility_race"
+    || reversal?.metadata?.attempt_sha256 !== sha256(state.attemptId)) {
+    throw new Error("blocked-checkout manual reconciliation reversal evidence drifted");
+  }
+  return Object.freeze({ reversalId: reversal.id });
+}
+
 export async function readDeliverySnapshot(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
   try {
@@ -1594,6 +1763,16 @@ export async function readDeliverySnapshot(owner, state) {
           WHERE "stripeEventId"='local:blocked_checkout_refund_recorded:'||$2) AS local_transfer_amount,
         (SELECT metadata->'refundAccounting'->>'transferReversalId' FROM public."OrderPaymentEvent"
           WHERE "stripeEventId"='local:blocked_checkout_refund_recorded:'||$2) AS local_reversal_id,
+        (SELECT metadata->'refundAccounting'->>'transferReversalAmountCents' FROM public."OrderPaymentEvent"
+          WHERE "stripeEventId"='local:blocked_checkout_refund_recorded:'||$2) AS local_reversal_amount,
+        (SELECT metadata->'refundAccounting'->>'expectedTransferReversal' FROM public."OrderPaymentEvent"
+          WHERE "stripeEventId"='local:blocked_checkout_refund_recorded:'||$2) AS local_expected_reversal,
+        (SELECT metadata->'refundAccounting'->>'platformFundedRefundCents' FROM public."OrderPaymentEvent"
+          WHERE "stripeEventId"='local:blocked_checkout_refund_recorded:'||$2) AS local_platform_funded_refund,
+        (SELECT metadata->>'requiresManualTransferReconciliation' FROM public."OrderPaymentEvent"
+          WHERE "stripeEventId"='local:blocked_checkout_refund_recorded:'||$2) AS local_requires_manual_reconciliation,
+        (SELECT metadata->>'requiresManualFollowUp' FROM public."OrderPaymentEvent"
+          WHERE "stripeEventId"='local:blocked_checkout_refund_recorded:'||$2) AS local_requires_manual_follow_up,
         (SELECT metadata->>'latestRefundId' FROM public."OrderPaymentEvent" WHERE "stripeEventId"=$3) AS signed_latest_refund,
         (SELECT metadata->>'totalRefundedCents' FROM public."OrderPaymentEvent" WHERE "stripeEventId"=$3) AS signed_total_refunded,
         (SELECT count(*)::integer FROM public."StripeWebhookEvent" WHERE id=$4 AND type='checkout.session.completed'
@@ -1639,8 +1818,8 @@ export async function readDeliverySnapshot(owner, state) {
   }
 }
 
-export function assertDeliverySnapshot(snapshot, state, expected = {}) {
-  const normalized = {
+function normalizeDeliverySnapshot(snapshot) {
+  return Object.freeze({
     orderId: snapshot?.order_id ?? null,
     orderRefundId: snapshot?.order_refund_id ?? null,
     orderRefundAmount: Number(snapshot?.order_refund_amount),
@@ -1665,6 +1844,15 @@ export function assertDeliverySnapshot(snapshot, state, expected = {}) {
     localBuyerRefund: Number(snapshot?.local_buyer_refund),
     localTransferAmount: Number(snapshot?.local_transfer_amount),
     localReversalId: snapshot?.local_reversal_id ?? null,
+    localReversalAmount: snapshot?.local_reversal_amount == null
+      ? null
+      : Number(snapshot.local_reversal_amount),
+    localExpectedReversal: snapshot?.local_expected_reversal ?? null,
+    localPlatformFundedRefund: snapshot?.local_platform_funded_refund == null
+      ? null
+      : Number(snapshot.local_platform_funded_refund),
+    localRequiresManualReconciliation: snapshot?.local_requires_manual_reconciliation ?? null,
+    localRequiresManualFollowUp: snapshot?.local_requires_manual_follow_up ?? null,
     signedLatestRefund: snapshot?.signed_latest_refund ?? null,
     signedTotalRefunded: Number(snapshot?.signed_total_refunded),
     checkoutWebhookCount: Number(snapshot?.checkout_webhook_count),
@@ -1684,7 +1872,11 @@ export function assertDeliverySnapshot(snapshot, state, expected = {}) {
     checkoutAuditCount: Number(snapshot?.checkout_audit_count),
     localAuditCount: Number(snapshot?.local_audit_count),
     signedAuditCount: Number(snapshot?.signed_audit_count),
-  };
+  });
+}
+
+export function assertDeliverySnapshot(snapshot, state, expected = {}) {
+  const normalized = normalizeDeliverySnapshot(snapshot);
   if (!normalized.orderId || normalized.orderRefundId !== state.refundId
     || normalized.orderRefundAmount !== state.refundAmountCents || normalized.paymentIntentId !== state.paymentIntentId
     || normalized.chargeId !== state.chargeId || normalized.transferId !== state.transferId
@@ -1717,6 +1909,61 @@ export function assertDeliverySnapshot(snapshot, state, expected = {}) {
     throw new Error("blocked-checkout delivery effects drifted");
   }
   return Object.freeze(normalized);
+}
+
+export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
+  const normalized = normalizeDeliverySnapshot(snapshot);
+  if (!normalized.orderId || normalized.orderId !== state.orderId
+    || normalized.orderRefundId !== state.refundId
+    || normalized.orderRefundAmount !== state.refundAmountCents
+    || normalized.paymentIntentId !== state.paymentIntentId
+    || normalized.chargeId !== state.chargeId
+    || normalized.transferId !== null
+    || normalized.buyerId !== state.buyerId
+    || normalized.sellerId !== state.sellerProfileId
+    || normalized.itemsSubtotal !== PRICE_CENTS
+    || normalized.shippingAmount !== 0
+    || normalized.itemsSubtotal + normalized.shippingAmount + normalized.taxAmount !== state.refundAmountCents
+    || normalized.reviewNeeded !== true
+    || !normalized.reviewNote.includes("Seller entered vacation mode before payment completion.")
+    || normalized.claimCleared !== true
+    || !/^[1-9][0-9]*$/.test(normalized.claimGeneration)
+    || normalized.itemCount !== 1
+    || normalized.itemId !== state.orderItemId
+    || normalized.paymentCount !== 2
+    || normalized.localPaymentId !== state.localPaymentEventId
+    || normalized.signedPaymentId !== state.signedPaymentEventId
+    || !new Set(["local_refund_confirmed", "local_refund_pending_confirmation"]).has(normalized.signedReason)
+    || normalized.localBuyerRefund !== state.refundAmountCents
+    || normalized.localTransferAmount !== SELLER_TRANSFER_CENTS
+    || normalized.localReversalId !== null
+    || normalized.localReversalAmount !== null
+    || String(normalized.localExpectedReversal) !== "false"
+    || normalized.localPlatformFundedRefund !== state.refundAmountCents
+    || String(normalized.localRequiresManualReconciliation) !== "true"
+    || String(normalized.localRequiresManualFollowUp) !== "false"
+    || normalized.signedLatestRefund !== state.refundId
+    || normalized.signedTotalRefunded !== state.refundAmountCents
+    || normalized.checkoutWebhookCount !== 1
+    || normalized.refundWebhookCount !== 1
+    || !/^[1-9][0-9]*$/.test(normalized.checkoutGeneration)
+    || !/^[1-9][0-9]*$/.test(normalized.refundGeneration)
+    || normalized.reservationStatus !== "COMPLETED"
+    || normalized.stock !== 1
+    || normalized.listingStatus !== "ACTIVE"
+    || normalized.vacationMode !== true
+    || normalized.notificationCount !== 1
+    || normalized.notificationId !== state.notificationId
+    || normalized.wrongNotificationCount !== 0
+    || normalized.outboxCount !== 1
+    || normalized.outboxId !== state.emailOutboxId
+    || normalized.wrongOutboxCount !== 0
+    || normalized.checkoutAuditCount !== 1
+    || normalized.localAuditCount !== 1
+    || normalized.signedAuditCount !== 1) {
+    throw new Error("blocked-checkout manual reconciliation database evidence drifted");
+  }
+  return normalized;
 }
 
 export function assertReplayUnchanged(before, after, state) {
@@ -2006,6 +2253,99 @@ export function assertEvidence(value, config) {
     || value?.productionChangedByProof !== true || value?.providerConfigurationChanged !== false
     || value?.liveMoneyMoved !== false || value?.secretsRetained !== false) {
     throw new Error("blocked-checkout sanitized evidence drifted");
+  }
+  return Object.freeze(value);
+}
+
+export function buildReconciliationEvidence(config, state, reconciliation, cleanup) {
+  return Object.freeze({
+    generatedAt: new Date().toISOString(),
+    phase: "order-payment-event-blocked-checkout-transfer-reconciliation",
+    status: "reconciled-failed-proof",
+    mode: "test",
+    originalProofCommit: config.expectedCommit,
+    operatorCommit: config.operatorCommit ?? config.expectedCommit,
+    operatorCiRunId: config.operatorCiRunId ?? config.mainCiRunId,
+    applicationBinding: Object.freeze({
+      deployedSourceCommit: config.applicationDeployedSourceCommit ?? config.deployedSourceCommit,
+      ciRunId: config.applicationMainCiRunId ?? config.mainCiRunId,
+      deploymentId: config.applicationDeploymentId ?? config.deploymentId,
+    }),
+    failureClass: "destination_transfer_visibility_race",
+    stripe: Object.freeze({
+      accountSha256: sha256(state.stripeAccountId),
+      sessionSha256: sha256(state.stripeSessionId),
+      checkoutEventSha256: sha256(state.checkoutEventId),
+      paymentIntentSha256: sha256(state.paymentIntentId),
+      chargeSha256: sha256(state.chargeId),
+      transferSha256: sha256(state.transferId),
+      refundSha256: sha256(state.refundId),
+      refundEventSha256: sha256(state.refundEventId),
+      manualReversalSha256: sha256(reconciliation.manualTransferReversalId),
+      buyerRefundAmountCents: state.refundAmountCents,
+      manuallyReconciledSellerAmountCents: SELLER_TRANSFER_CENTS,
+      disposableConnectedAccountDeleted: cleanup.accountDeleted,
+    }),
+    database: Object.freeze({
+      retainedProcessedWebhookLeases: cleanup.processedWebhookCount,
+      expiredUnpaidSessionsClassified: state.priorExpiredCheckoutCount,
+      localPaymentEventSha256: sha256(state.localPaymentEventId),
+      signedPaymentEventSha256: sha256(state.signedPaymentEventId),
+      notificationSha256: sha256(state.notificationId),
+      emailOutboxSha256: sha256(state.emailOutboxId),
+      platformFundedRefundRecorded: true,
+      temporaryApplicationRowsRemoved: cleanup.applicationRowsRemoved,
+      operationalCanaryRestored: cleanup.canaryCount === 1,
+    }),
+    clerkSessionsRevoked: cleanup.clerkSessionsRevoked,
+    redisKeysRemoved: cleanup.redisKeysRemoved,
+    automaticProductionProofPassed: false,
+    freshAutomaticProofRequired: true,
+    productionChangedByReconciliation: true,
+    databaseChangeAfterCleanup: "two processed Stripe test-mode webhook leases retained",
+    externalResidueAfterCleanup: "immutable Stripe test objects, the manual test-mode reversal and ordinary provider telemetry retained",
+    providerConfigurationChanged: false,
+    liveMoneyMoved: false,
+    secretsRetained: false,
+  });
+}
+
+export function assertReconciliationEvidence(value, config) {
+  const hex = /^[a-f0-9]{64}$/;
+  const stripeHashes = ["accountSha256", "sessionSha256", "checkoutEventSha256", "paymentIntentSha256",
+    "chargeSha256", "transferSha256", "refundSha256", "refundEventSha256", "manualReversalSha256"];
+  const databaseHashes = ["localPaymentEventSha256", "signedPaymentEventSha256", "notificationSha256", "emailOutboxSha256"];
+  if (value?.phase !== "order-payment-event-blocked-checkout-transfer-reconciliation"
+    || value?.status !== "reconciled-failed-proof"
+    || value?.mode !== "test"
+    || value?.originalProofCommit !== config.expectedCommit
+    || value?.operatorCommit !== (config.operatorCommit ?? config.expectedCommit)
+    || String(value?.operatorCiRunId) !== String(config.operatorCiRunId ?? config.mainCiRunId)
+    || value?.applicationBinding?.deployedSourceCommit !== (config.applicationDeployedSourceCommit ?? config.deployedSourceCommit)
+    || String(value?.applicationBinding?.ciRunId) !== String(config.applicationMainCiRunId ?? config.mainCiRunId)
+    || value?.applicationBinding?.deploymentId !== (config.applicationDeploymentId ?? config.deploymentId)
+    || value?.failureClass !== "destination_transfer_visibility_race"
+    || !stripeHashes.every((key) => hex.test(value?.stripe?.[key] ?? ""))
+    || !databaseHashes.every((key) => hex.test(value?.database?.[key] ?? ""))
+    || value?.stripe?.buyerRefundAmountCents < PRICE_CENTS
+    || value?.stripe?.manuallyReconciledSellerAmountCents !== SELLER_TRANSFER_CENTS
+    || value?.stripe?.disposableConnectedAccountDeleted !== true
+    || value?.database?.retainedProcessedWebhookLeases !== 2
+    || !Number.isSafeInteger(value?.database?.expiredUnpaidSessionsClassified)
+    || value.database.expiredUnpaidSessionsClassified < 0
+    || value.database.expiredUnpaidSessionsClassified > MAX_EXPIRED_CHECKOUT_ATTEMPTS
+    || value?.database?.platformFundedRefundRecorded !== true
+    || value?.database?.temporaryApplicationRowsRemoved !== true
+    || value?.database?.operationalCanaryRestored !== true
+    || value?.clerkSessionsRevoked !== true
+    || value?.redisKeysRemoved !== true
+    || value?.automaticProductionProofPassed !== false
+    || value?.freshAutomaticProofRequired !== true
+    || value?.productionChangedByReconciliation !== true
+    || value?.providerConfigurationChanged !== false
+    || value?.liveMoneyMoved !== false
+    || value?.secretsRetained !== false) {
+    throw new Error("blocked-checkout reconciliation evidence drifted");
   }
   return Object.freeze(value);
 }
@@ -2517,6 +2857,220 @@ export async function verifyAndCleanupProof(config = validateConfiguration()) {
   }
 }
 
+async function readManualReconciliationProvider(stripeOps, state) {
+  const [session, refund, transfer, reversals] = await Promise.all([
+    stripeOps.retrieveSession(state.stripeSessionId),
+    stripeOps.retrieveRefund(state.refundId),
+    stripeOps.retrieveTransfer(state.transferId),
+    stripeOps.listTransferReversals(state.transferId),
+  ]);
+  return { refund, reversals, session, transfer };
+}
+
+export async function reconcileFailedProof(config = validateConfiguration()) {
+  if (existsSync(config.evidencePath)) {
+    throw new Error("blocked-checkout successful proof evidence already exists");
+  }
+  if (existsSync(config.reconciliationEvidencePath)) {
+    throw new Error("blocked-checkout reconciliation evidence already exists");
+  }
+  if (!existsSync(config.statePath)) {
+    throw new Error("blocked-checkout reconciliation requires preserved paid recovery state");
+  }
+
+  let state = assertState(
+    readPrivateJson(config.statePath, "blocked-checkout recovery state"),
+    config,
+  );
+  if (state.stage !== "payment-completed") {
+    throw new Error("blocked-checkout reconciliation requires the failed payment-completed checkpoint");
+  }
+  let reconciliation = existsSync(config.reconciliationPath)
+    ? assertReconciliationState(
+      readPrivateJson(config.reconciliationPath, "blocked-checkout reconciliation state"),
+      config,
+      state,
+    )
+    : null;
+
+  const context = await loadExecutionContext(config, state);
+  const { clerk, owner, redis, runtime, stripe, stripeSecret } = context;
+  try {
+    const stripeOps = stripeDependencies(stripe, stripeSecret, config, state);
+    const provider = await readProviderState(stripeOps);
+    if (provider.stage !== 4
+      || provider.platform?.url !== PLATFORM_WEBHOOK_URL
+      || provider.platform?.status !== "enabled") {
+      throw new Error("blocked-checkout reconciliation requires the active stage-4 platform webhook");
+    }
+
+    if (reconciliation?.stage === "cleanup-started") {
+      assertReconciliationProofState(state);
+    } else {
+      const createdAfter = Math.floor(Date.parse(state.startedAt) / 1000) - 5;
+      const checkoutEvents = await stripeOps.listCheckoutEvents(createdAfter);
+      const checkoutEvent = exactCheckoutEvent(checkoutEvents, state);
+      if (!checkoutEvent) {
+        throw new Error("blocked-checkout reconciliation Checkout event identity drifted");
+      }
+      const refundIdentity = await readRefundIdentity(owner, state);
+      if (!refundIdentity) {
+        throw new Error("blocked-checkout reconciliation durable refund identity drifted");
+      }
+      const refundEvents = await stripeOps.listRefundEvents(createdAfter);
+      const refundEvent = exactRefundEvent(refundEvents, {
+        ...state,
+        ...refundIdentity,
+      });
+      if (!refundEvent) {
+        throw new Error("blocked-checkout reconciliation refund event identity drifted");
+      }
+
+      const discovered = await readDeliverySnapshot(owner, {
+        ...state,
+        ...refundIdentity,
+        checkoutEventId: checkoutEvent.id,
+        refundEventId: refundEvent.id,
+      });
+      state = updateState(config, state, {
+        ...refundIdentity,
+        checkoutEventId: checkoutEvent.id,
+        refundEventId: refundEvent.id,
+        signedPaymentEventId: discovered?.signed_payment_id ?? null,
+        notificationId: discovered?.notification_id ?? null,
+        emailOutboxId: discovered?.outbox_id ?? null,
+      });
+      assertManualReconciliationDeliverySnapshot(
+        await readDeliverySnapshot(owner, state),
+        state,
+      );
+
+      const initialProvider = await readManualReconciliationProvider(stripeOps, state);
+      if (!reconciliation) {
+        assertManualReconciliationProvider(initialProvider, state, null);
+        reconciliation = createReconciliationState(config, state);
+      }
+
+      if (reconciliation.stage === "reversal-pending") {
+        let reversalId;
+        if (initialProvider.reversals.length === 0) {
+          assertManualReconciliationProvider(initialProvider, state, null);
+          const created = await stripeOps.createManualTransferReversal(state.transferId);
+          const exactRetry = await stripeOps.createManualTransferReversal(state.transferId);
+          if (created?.id !== exactRetry?.id) {
+            throw new Error("blocked-checkout reconciliation idempotent reversal retry drifted");
+          }
+          reversalId = created?.id;
+        } else {
+          reversalId = initialProvider.reversals[0]?.id;
+        }
+        assertManualReconciliationProvider(
+          await readManualReconciliationProvider(stripeOps, state),
+          state,
+          reversalId,
+        );
+        reconciliation = writeReconciliationState(config, state, {
+          ...reconciliation,
+          stage: "reversal-confirmed",
+          manualTransferReversalId: reversalId,
+        });
+      }
+
+      assertManualReconciliationProvider(
+        await readManualReconciliationProvider(stripeOps, state),
+        state,
+        reconciliation.manualTransferReversalId,
+      );
+      if (reconciliation.stage === "reversal-confirmed") {
+        reconciliation = writeReconciliationState(config, state, {
+          ...reconciliation,
+          stage: "cleanup-started",
+        });
+      }
+    }
+    if (reconciliation.stage !== "cleanup-started") {
+      throw new Error("blocked-checkout reconciliation reached an unsupported restart stage");
+    }
+
+    await revokeCanarySessions(clerk, state.buyerClerkId);
+    const beforeCleanup = await readCleanupSnapshot(owner, state);
+    if (Number(beforeCleanup.order_count) === 1) {
+      assertManualReconciliationProvider(
+        await readManualReconciliationProvider(stripeOps, state),
+        state,
+        reconciliation.manualTransferReversalId,
+      );
+      assertManualReconciliationDeliverySnapshot(
+        await readDeliverySnapshot(owner, state),
+        state,
+      );
+      await cleanupDeliveredRows(owner, state);
+    }
+    const cleanupSnapshot = assertCleanupSnapshot(
+      await readCleanupSnapshot(owner, state),
+    );
+    const redisKeysRemoved = await deleteExactRedisKeys(redis, state);
+    if (!redisKeysRemoved) {
+      throw new Error("blocked-checkout reconciliation Redis cleanup failed");
+    }
+    if (!await deleteDisposableAccount(stripeOps, config, state)) {
+      throw new Error("blocked-checkout reconciliation account cleanup failed");
+    }
+    const deletedAccount = await stripeOps.retrieveAccount(state.stripeAccountId);
+    if (deletedAccount?.deleted !== true || deletedAccount.id !== state.stripeAccountId) {
+      throw new Error("blocked-checkout reconciliation deleted account evidence drifted");
+    }
+
+    const cleanup = {
+      accountDeleted: true,
+      applicationRowsRemoved: true,
+      canaryCount: cleanupSnapshot.canary_count,
+      clerkSessionsRevoked: await revokeCanarySessions(clerk, state.buyerClerkId),
+      processedWebhookCount: cleanupSnapshot.processed_webhook_count,
+      redisKeysRemoved: await deleteExactRedisKeys(redis, state),
+    };
+    const evidence = assertReconciliationEvidence(
+      buildReconciliationEvidence(config, state, reconciliation, cleanup),
+      config,
+    );
+    const serialized = JSON.stringify(evidence);
+    for (const sensitive of [
+      context.database.ownerDatabaseUrl,
+      context.database.runtimeDatabaseUrl,
+      stripeSecret,
+      state.stripeClientSecret,
+      state.buyerId,
+      state.buyerClerkId,
+      state.buyerEmail,
+      state.sellerUserId,
+      state.sellerClerkId,
+      state.sellerEmail,
+      state.sellerProfileId,
+      state.listingId,
+      state.stripeAccountId,
+      state.stripeSessionId,
+      state.checkoutLockKey,
+      state.reservationId,
+      state.orderId,
+      state.orderItemId,
+      state.checkoutEventId,
+      state.refundEventId,
+      reconciliation.manualTransferReversalId,
+    ]) {
+      if (sensitive && serialized.includes(sensitive)) {
+        throw new Error("blocked-checkout reconciliation evidence retained a secret or raw identity");
+      }
+    }
+    writePrivateJson(config.reconciliationEvidencePath, evidence);
+    removeOnboardingRecord(config, state);
+    unlinkSync(config.reconciliationPath);
+    unlinkSync(config.statePath);
+    return evidence;
+  } finally {
+    await Promise.allSettled([owner.end(), runtime.end()]);
+  }
+}
+
 export async function cleanupUnpaidFixtures(owner, state) {
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
@@ -2626,6 +3180,16 @@ async function main() {
       const result = await verifyAndCleanupProof(config);
       process.stdout.write(`${JSON.stringify({ phase: result.phase, status: result.status, commit: result.commit,
         ciRunId: result.ciRunId, deploymentId: result.deploymentId })}\n`);
+    } else if (config.command === "reconcile") {
+      const result = await reconcileFailedProof(config);
+      process.stdout.write(`${JSON.stringify({
+        phase: result.phase,
+        status: result.status,
+        operatorCommit: result.operatorCommit,
+        operatorCiRunId: result.operatorCiRunId,
+        automaticProductionProofPassed: result.automaticProductionProofPassed,
+        freshAutomaticProofRequired: result.freshAutomaticProofRequired,
+      })}\n`);
     } else await cleanupProof(config);
   } catch (error) {
     process.stderr.write(`OrderPaymentEvent blocked-checkout production proof failed closed: ${safeError(error)}\n`);
