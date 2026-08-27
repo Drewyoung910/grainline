@@ -1186,13 +1186,17 @@ async function waitFor(read, accept, label, attempts = 60, delayMs = 1500) {
   throw new Error(`${label} did not reach the reviewed state`);
 }
 
-function findSingleRefundEvent(events, state) {
+export function findSingleRefundEvent(events, state) {
   const matches = events.filter((event) => (
     event?.type === "charge.refunded"
     && event?.livemode === false
     && event?.data?.object?.id === state.refundChargeId
-    && Array.isArray(event?.data?.object?.refunds?.data)
-    && event.data.object.refunds.data.some((refund) => refund?.id === state.refundId)
+    && event.data.object.refunded === true
+    && event.data.object.amount === REFUND_AMOUNT_CENTS
+    && event.data.object.amount_refunded === REFUND_AMOUNT_CENTS
+    && event.data.object.currency === "usd"
+    && event.data.object.payment_intent === state.refundPaymentIntentId
+    && event.data.object.transfer == null
   ));
   if (matches.length !== 1) return null;
   return matches[0];

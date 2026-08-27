@@ -183,6 +183,17 @@ completed alternative.
 > while predecessor deployment `dpl_AJanN3zfnubB39Aj14NFziHAhfeB` remains
 > `READY`. Preserved-fixture reconciliation, predecessor drain and
 > `OrderPaymentEvent` ENABLE/FORCE remain separate gates.
+> The first authorized reconciliation invocation from exact main
+> `bfcd1ce44e66e9d68e7db498901bc513ae76dc72` / CI `33113589947`
+> then failed closed before reversal, cleanup or journal mutation because its
+> event rediscovery assumed Clover's `charge.refunded` charge object retained
+> an embedded refund list. It does not. Read-only cross-provider proof found
+> one exact signed charge event, one exact refund-created event, the durable
+> 541-cent refund and the unreversed 475-cent transfer. The correction binds
+> charge and refund identities independently and rejects mismatch or duplicate
+> events. The fixture remains unreconciled, so fresh correction CI, separately
+> reviewed reconciliation, a completely fresh automatic provider proof and
+> predecessor drain still precede `OrderPaymentEvent` ENABLE/FORCE.
 
 ## Program Rules
 

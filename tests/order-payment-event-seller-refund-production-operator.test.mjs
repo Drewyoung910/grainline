@@ -16,6 +16,7 @@ import {
   buildConnectedAccountParams,
   buildEvidence,
   createInitialState,
+  findSingleRefundEvent,
   redact,
   validateConfiguration,
 } from "../scripts/order-payment-event-seller-refund-production-proof.mjs";
@@ -197,6 +198,29 @@ test("destination payment and provider refund prove exact reversal", () => {
   assert.throws(() => assertRefundProviderEvidence({ ...refund, amount: 499 }, state), /provider evidence drifted/);
 });
 
+test("signed refund event uses modern Stripe charge totals rather than the removed embedded refund list", () => {
+  const state = fullState();
+  const event = {
+    id: state.signedEventId,
+    type: "charge.refunded",
+    livemode: false,
+    data: { object: {
+      id: state.chargeId,
+      refunded: true,
+      amount: REFUND_AMOUNT_CENTS,
+      amount_refunded: REFUND_AMOUNT_CENTS,
+      currency: "usd",
+      payment_intent: state.paymentIntentId,
+      transfer: state.transferId,
+    } },
+  };
+  assert.equal(findSingleRefundEvent([event], state)?.id, state.signedEventId);
+  assert.equal(findSingleRefundEvent([{ ...event, data: { object: {
+    ...event.data.object, payment_intent: "pi_wrong",
+  } } }], state), null);
+  assert.equal(findSingleRefundEvent([event, { ...event, id: "evt_duplicate" }], state), null);
+});
+
 test("local and signed effects, replay, evidence and redaction fail closed", () => {
   const state = fullState();
   const first = assertProofSnapshot(snapshot(), state);
@@ -233,6 +257,8 @@ test("static operator contract remains test-only and production-configuration re
   assert.match(source, /"vacationMode"/);
   assert.match(source, /EMAIL_REFUND_ISSUED/);
   assert.match(source, /cleanupExactRows/);
+  assert.match(source, /listChargeRefunds: \(chargeId\) => listAll\(stripe\.refunds\.list/);
+  assert.doesNotMatch(source, /\.refunds\?\.data|\.refunds\.data/);
   assert.doesNotMatch(source, /sk_live_/);
   assert.doesNotMatch(source, /webhookEndpoints\.(?:create|update|del)/);
   assert.doesNotMatch(source, /vercel\s+(?:deploy|env|promote|remove)/i);

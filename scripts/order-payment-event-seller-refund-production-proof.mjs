@@ -477,8 +477,9 @@ function stripeDependencies(stripe, secretKey, config, state) {
       description: "Grainline seller refund authority proof",
       metadata: { grainline_order_payment_seller_refund_proof: markerFor(config, state) },
     }, idempotency("payment")),
-    retrieveCharge: (id) => stripe.charges.retrieve(id, { expand: ["transfer", "refunds.data.transfer_reversal"] }),
+    retrieveCharge: (id) => stripe.charges.retrieve(id, { expand: ["transfer"] }),
     retrieveRefund: (id) => stripe.refunds.retrieve(id, { expand: ["transfer_reversal"] }),
+    listChargeRefunds: (chargeId) => listAll(stripe.refunds.list({ charge: chargeId, limit: 100 })),
     listRefundEvents: (createdAfter) => listAll(stripe.events.list({ created: { gte: createdAfter }, limit: 100, type: "charge.refunded" })),
     retrieveBalance: (accountId) => stripe.balance.retrieve({}, { stripeAccount: accountId }),
     resendEvent(endpointId, eventId) {
@@ -778,10 +779,15 @@ async function waitFor(read, accept, label, attempts = 60, delayMs = 1500) {
   throw new Error(`${label} did not reach the reviewed state`);
 }
 
-function findSingleRefundEvent(events, state) {
+export function findSingleRefundEvent(events, state) {
   const matches = events.filter((event) => event?.type === "charge.refunded" && event?.livemode === false
     && event?.data?.object?.id === state.chargeId
-    && event.data.object.refunds?.data?.some((refund) => refund?.id === state.refundId));
+    && event.data.object.refunded === true
+    && event.data.object.amount === REFUND_AMOUNT_CENTS
+    && event.data.object.amount_refunded === REFUND_AMOUNT_CENTS
+    && event.data.object.currency === "usd"
+    && event.data.object.payment_intent === state.paymentIntentId
+    && event.data.object.transfer === state.transferId);
   return matches.length === 1 ? matches[0] : null;
 }
 
@@ -1242,8 +1248,7 @@ export async function runSellerRefundProductionProof(config = validateConfigurat
       const response = await fetchRefundRoute(state.orderId, session.jwt);
       let refundId = response.body?.refundId;
       if (response.status === 400 && response.body?.error === "A refund has already been issued for this order.") {
-        const charge = await stripeOps.retrieveCharge(state.chargeId);
-        const refunds = charge.refunds?.data ?? [];
+        const refunds = await stripeOps.listChargeRefunds(state.chargeId);
         if (refunds.length !== 1) throw new Error("seller refund lost-response recovery found the wrong refund count");
         refundId = refunds[0].id;
       } else if (

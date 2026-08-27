@@ -13,6 +13,7 @@ import {
   assertState,
   buildEvidence,
   disposableDatabaseIdentity,
+  findSingleRefundEvent,
   redact,
   shouldReadApplicationDelivery,
   validateConfiguration,
@@ -204,6 +205,29 @@ test("deterministic fixture identities and restart stages fail closed", () => {
   );
 });
 
+test("signed refund event binds modern Stripe charge totals without an embedded refund list", () => {
+  const value = state("refund-created");
+  const event = {
+    id: "evt_refund_proof",
+    type: "charge.refunded",
+    livemode: false,
+    data: { object: {
+      id: value.refundChargeId,
+      refunded: true,
+      amount: REFUND_AMOUNT_CENTS,
+      amount_refunded: REFUND_AMOUNT_CENTS,
+      currency: "usd",
+      payment_intent: value.refundPaymentIntentId,
+      transfer: null,
+    } },
+  };
+  assert.equal(findSingleRefundEvent([event], value)?.id, event.id);
+  assert.equal(findSingleRefundEvent([{ ...event, data: { object: {
+    ...event.data.object, amount_refunded: REFUND_AMOUNT_CENTS - 1,
+  } } }], value), null);
+  assert.equal(findSingleRefundEvent([event, { ...event, id: "evt_duplicate" }], value), null);
+});
+
 test("post-cleanup recovery never requires deleted application rows", () => {
   const cleaned = state("cleaned");
   assert.equal(shouldReadApplicationDelivery("dispute-delivered"), true);
@@ -333,6 +357,7 @@ test("static operator contract stays test-only, restart-safe and provider-config
   assert.doesNotMatch(source, /webhookEndpoints\.(create|update|del)\(/);
   assert.doesNotMatch(source, /eventDestinations\.(create|update|del)\(/);
   assert.doesNotMatch(source, /sk_live_/);
+  assert.doesNotMatch(source, /\.refunds\?\.data|\.refunds\.data/);
   assert.doesNotMatch(source, /DELETE FROM public\."StripeWebhookEvent"/);
   assert.match(documentation, /necessary but explicitly insufficient evidence/);
   assert.match(documentation, /seller-refund, blocked-checkout and staff Case refund live proofs/);
