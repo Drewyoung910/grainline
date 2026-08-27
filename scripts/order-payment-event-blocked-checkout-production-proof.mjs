@@ -31,6 +31,7 @@ import Stripe from "stripe";
 import { NOTIFICATION_CANARY_EXTERNAL_ID } from "./notification-operational-canary.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 import { readProviderState } from "./stripe-connect-provider-cutover.mjs";
+import { assertStripeRefundObject } from "./stripe-refund-object-proof.mjs";
 import {
   assertGitState,
   parseDatabaseUrls,
@@ -1680,9 +1681,9 @@ export function exactRefundCreationEvent(events, state) {
 }
 
 export function assertRefund(refund, state) {
+  assertStripeRefundObject(refund, "blocked-checkout Stripe refund");
   const reversal = typeof refund?.transfer_reversal === "object" ? refund.transfer_reversal : null;
-  if (!/^re_[A-Za-z0-9_]+$/.test(String(refund?.id ?? "")) || refund?.livemode !== false
-    || refund?.amount !== state.chargeAmountCents || refund?.currency !== "usd"
+  if (refund?.amount !== state.chargeAmountCents || refund?.currency !== "usd"
     || !["pending", "requires_action", "succeeded"].includes(refund?.status)
     || stripeObjectId(refund?.payment_intent) !== state.paymentIntentId || stripeObjectId(refund?.charge) !== state.chargeId
     || !/^trr_[A-Za-z0-9_]+$/.test(String(reversal?.id ?? ""))
@@ -1698,12 +1699,12 @@ export function assertManualReconciliationProvider(
   expectedReversalId = null,
 ) {
   const payment = assertCompletedSession(session, state);
+  assertStripeRefundObject(refund, "blocked-checkout manual reconciliation refund");
   if (payment.paymentIntentId !== state.paymentIntentId
     || payment.chargeId !== state.chargeId
     || payment.transferId !== state.transferId
     || payment.chargeAmountCents !== state.chargeAmountCents
     || refund?.id !== state.refundId
-    || refund?.livemode !== false
     || refund?.status !== "succeeded"
     || refund?.amount !== state.refundAmountCents
     || refund?.currency !== "usd"

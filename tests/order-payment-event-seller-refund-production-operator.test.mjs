@@ -191,7 +191,7 @@ test("destination payment and provider refund prove exact reversal", () => {
   assert.deepEqual(assertPayment(payment, charge, state.stripeAccountId), {
     paymentIntentId: state.paymentIntentId, chargeId: state.chargeId, transferId: state.transferId,
   });
-  const refund = { id: state.refundId, livemode: false, amount: 500, currency: "usd", status: "succeeded",
+  const refund = { id: state.refundId, object: "refund", amount: 500, currency: "usd", status: "succeeded",
     payment_intent: state.paymentIntentId, charge: state.chargeId,
     transfer_reversal: { id: state.transferReversalId, amount: TRANSFER_AMOUNT_CENTS, transfer: state.transferId } };
   assert.equal(assertRefundProviderEvidence(refund, state).transferReversalId, state.transferReversalId);

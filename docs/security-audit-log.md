@@ -3177,3 +3177,15 @@ Open work:
   `ACTIVE`; only the manual reconciliation call selects `SOLD_OUT`, and it
   rejects every other status before opening its serializable transaction.
   Disposable PostgreSQL coverage proves both paths and rollback on mismatch.
+- PR #295 merged those corrections as exact main
+  `350133a9e67295e09a9238df09444326442b6585`; CI `33120674371`
+  passed. The authorized reconciliation then failed before checkpoint,
+  reversal or cleanup because the provider predicate required
+  `Refund.livemode=false`, but Stripe's current OpenAPI Refund object has no
+  `livemode` field. Read-only proof confirmed the object is the exact test-mode
+  refund and the transfer remains unreversed with zero reversal objects. The
+  isolated correction uses the real `object='refund'` discriminator plus
+  exact ID and rejects explicit live-mode drift; validated test credentials,
+  Session, Charge, Transfer and Events retain the mode boundary. A shared
+  helper and class-wide guard correct the same dormant assumption in all three
+  production refund proof operators without changing application behavior.

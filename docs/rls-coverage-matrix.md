@@ -208,6 +208,16 @@ completed alternative.
 > defaults to exact `ACTIVE`, while only manual reconciliation requires exact
 > `SOLD_OUT`; every other status fails before transaction start. Reconciliation
 > remains a later separately authorized boundary after fresh correction CI.
+> PR #295 then merged the correction as exact main
+> `350133a9e67295e09a9238df09444326442b6585`; CI `33120674371`
+> passed. Its authorized reconciliation failed before checkpoint or mutation
+> because the proof required a `livemode` field that Stripe's current Refund
+> object does not contain. Read-only proof confirmed the exact test Refund and
+> zero reversals. The isolated class-wide correction pins `object='refund'`
+> plus the exact refund ID, rejects explicit live-mode drift, and retains test
+> mode through the validated test credential and surrounding Session, Charge,
+> Transfer and signed Events. Fresh correction CI and authorization still
+> precede reconciliation.
 
 ## Program Rules
 
