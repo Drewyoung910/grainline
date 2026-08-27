@@ -158,8 +158,12 @@ completed alternative.
 > The correction is now byte-pinned and guarded by a dedicated exact-main/CI
 > production runner plus an engine-read-only absent/exact-applied restart
 > verifier. The generic migration runner conditionally isolates it while
-> unapplied. This is release preparation only: production and the preserved
-> failed-proof fixture remain unchanged.
+> unapplied. Final head `a092e4a4bf1608ab1e7231633db3da36d2fbd391`
+> passed exact-head CI `33046657108` and merged as exact main
+> `ea12d220b9809ac113e9d79c7e8996e103d8d641`, whose CI `33088415834`
+> also passed. This is release preparation only: the migration remains
+> unapplied, the corrected app remains undeployed, and production plus the
+> preserved failed-proof fixture remain unchanged.
 
 ## Program Rules
 
