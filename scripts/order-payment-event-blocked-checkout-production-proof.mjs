@@ -926,6 +926,7 @@ function stripeDependencies(stripe, secretKey, config, state) {
     }, idempotency("manual-transfer-reconciliation-v1")),
     listCheckoutEvents: (createdAfter) => listAll(stripe.events.list({ created: { gte: createdAfter }, limit: 100, type: "checkout.session.completed" })),
     listRefundEvents: (createdAfter) => listAll(stripe.events.list({ created: { gte: createdAfter }, limit: 100, type: "charge.refunded" })),
+    listRefundCreationEvents: (createdAfter) => listAll(stripe.events.list({ created: { gte: createdAfter }, limit: 100, type: "refund.created" })),
     retrieveBalance: (accountId) => stripe.balance.retrieve({}, { stripeAccount: accountId }),
     resendEvent(endpointId, eventId) {
       const cliRoot = mkdtempSync(path.join(os.tmpdir(), "grainline-ope-blocked-cli-"));
@@ -1653,10 +1654,26 @@ function exactCheckoutEvent(events, state) {
   return matches.length === 1 ? matches[0] : null;
 }
 
-function exactRefundEvent(events, state) {
+export function exactRefundEvent(events, state) {
   const matches = events.filter((event) => event?.type === "charge.refunded" && event?.livemode === false
     && event?.data?.object?.id === state.chargeId
-    && event.data.object.refunds?.data?.some((refund) => refund?.id === state.refundId));
+    && event.data.object.refunded === true
+    && event.data.object.amount === state.chargeAmountCents
+    && event.data.object.amount_refunded === state.refundAmountCents
+    && event.data.object.currency === "usd"
+    && stripeObjectId(event.data.object.payment_intent) === state.paymentIntentId
+    && stripeObjectId(event.data.object.transfer) === state.transferId);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export function exactRefundCreationEvent(events, state) {
+  const matches = events.filter((event) => event?.type === "refund.created" && event?.livemode === false
+    && event?.data?.object?.id === state.refundId
+    && event.data.object.amount === state.refundAmountCents
+    && event.data.object.currency === "usd"
+    && ["pending", "requires_action", "succeeded"].includes(event.data.object.status)
+    && stripeObjectId(event.data.object.payment_intent) === state.paymentIntentId
+    && stripeObjectId(event.data.object.charge) === state.chargeId);
   return matches.length === 1 ? matches[0] : null;
 }
 
@@ -2780,6 +2797,11 @@ export async function verifyAndCleanupProof(config = validateConfiguration()) {
         "blocked-checkout signed refund event",
       );
       const refundEvent = exactRefundEvent(refundEvents, pendingState);
+      await waitFor(
+        () => stripeOps.listRefundCreationEvents(createdAfter),
+        (events) => Boolean(exactRefundCreationEvent(events, pendingState)),
+        "blocked-checkout refund creation event",
+      );
       const proofState = { ...pendingState, refundEventId: refundEvent.id };
       const snapshot = await waitFor(
         () => readDeliverySnapshot(owner, proofState),
@@ -2924,6 +2946,14 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
       });
       if (!refundEvent) {
         throw new Error("blocked-checkout reconciliation refund event identity drifted");
+      }
+      const refundCreationEvents = await stripeOps.listRefundCreationEvents(createdAfter);
+      const refundCreationEvent = exactRefundCreationEvent(refundCreationEvents, {
+        ...state,
+        ...refundIdentity,
+      });
+      if (!refundCreationEvent) {
+        throw new Error("blocked-checkout reconciliation refund creation identity drifted");
       }
 
       const discovered = await readDeliverySnapshot(owner, {

@@ -41,6 +41,8 @@ import {
   buildReconciliationEvidence,
   buildPaymentPage,
   createInitialState,
+  exactRefundCreationEvent,
+  exactRefundEvent,
   isCheckoutClientSecretForSession,
   redact,
   readOnboardingRecord,
@@ -727,6 +729,50 @@ test("failed-proof reconciliation stays distinct, exact and restart-safe", () =>
     /reconciliation evidence drifted/);
 });
 
+test("refund events bind exact modern Stripe charge and refund identities without embedded charge refunds", () => {
+  const value = state("payment-completed", { transferReversalId: null });
+  const chargeEvent = {
+    id: "evt_charge_refunded",
+    type: "charge.refunded",
+    livemode: false,
+    data: { object: {
+      id: value.chargeId,
+      refunded: true,
+      amount: value.chargeAmountCents,
+      amount_refunded: value.refundAmountCents,
+      currency: "usd",
+      payment_intent: value.paymentIntentId,
+      transfer: value.transferId,
+    } },
+  };
+  const creationEvent = {
+    id: "evt_refund_created",
+    type: "refund.created",
+    livemode: false,
+    data: { object: {
+      id: value.refundId,
+      amount: value.refundAmountCents,
+      currency: "usd",
+      status: "succeeded",
+      payment_intent: value.paymentIntentId,
+      charge: value.chargeId,
+      transfer_reversal: null,
+      source_transfer_reversal: null,
+    } },
+  };
+
+  assert.equal(exactRefundEvent([chargeEvent], value)?.id, chargeEvent.id);
+  assert.equal(exactRefundCreationEvent([creationEvent], value)?.id, creationEvent.id);
+  assert.equal(exactRefundEvent([{ ...chargeEvent, data: { object: {
+    ...chargeEvent.data.object, amount_refunded: value.refundAmountCents - 1,
+  } } }], value), null);
+  assert.equal(exactRefundCreationEvent([{ ...creationEvent, data: { object: {
+    ...creationEvent.data.object, id: "re_wrong",
+  } } }], value), null);
+  assert.equal(exactRefundEvent([chargeEvent, { ...chargeEvent, id: "evt_duplicate" }], value), null);
+  assert.equal(exactRefundCreationEvent([creationEvent, { ...creationEvent, id: "evt_duplicate" }], value), null);
+});
+
 test("static operator contract stays test-only, loopback-only, non-activating, and restart-safe", () => {
   const source = readFileSync(new URL("../scripts/order-payment-event-blocked-checkout-production-proof.mjs", import.meta.url), "utf8");
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND/);
@@ -765,6 +811,7 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.doesNotMatch(source, /else if \(state\.stage === "account-created"\)[\s\S]{0,300}DELETE FROM public\."SellerProfile"/);
   assert.doesNotMatch(source, /sk_live_[A-Za-z0-9]{8,}/);
   assert.doesNotMatch(source, /webhookEndpoints\.(?:create|update|del)/);
+  assert.doesNotMatch(source, /\.refunds\?\.data|\.refunds\.data/);
   assert.doesNotMatch(source, /payment_intent\.latest_charge\.refunds\.data\.transfer_reversal/);
   assert.doesNotMatch(source, /vercel\s+(?:deploy|env|promote|remove)/i);
   assert.doesNotMatch(source, /ALTER TABLE[\s\S]*ROW LEVEL SECURITY/i);

@@ -3138,3 +3138,20 @@ Open work:
   `dpl_AJanN3zfnubB39Aj14NFziHAhfeB` remains `READY`. No fixture reconciliation,
   migration, RLS activation, predecessor drain, provider-variable or
   credential change occurred.
+- The first authorized failed-proof reconciliation invocation from exact main
+  `bfcd1ce44e66e9d68e7db498901bc513ae76dc72` / CI `33113589947`
+  failed before any checkpoint write, transfer reversal or cleanup because its
+  Stripe event selector required `charge.refunded.data.object.refunds.data`.
+  The pinned Clover event shape omits that embedded collection. Engine-read-
+  only database inspection plus read-only Stripe test-mode inspection proved
+  one exact 541-cent durable refund, one exact 475-cent transfer with zero
+  reversals, one signed charge-refund lease, one unique matching
+  `charge.refunded` event and one unique matching `refund.created` event. The
+  mode-`0600` journal remains `payment-completed` and no reconciliation state or
+  evidence exists. The correction cross-binds the signed charge event by
+  charge/payment-intent/transfer/totals and independently binds the durable
+  refund ID through the exact refund-created event. Separate retrieved-refund
+  and transfer/reversal readers retain the money-movement proof; ambiguity and
+  mismatch still fail closed. The same stale embedded-list assumption is removed from
+  the seller-refund proof operator with regression coverage. No production or
+  provider state changed during diagnosis or candidate validation.

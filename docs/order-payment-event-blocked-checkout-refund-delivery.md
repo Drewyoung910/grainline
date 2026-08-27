@@ -615,3 +615,30 @@ and `productionChangedByProof=false`. Predecessor deployment
 `dpl_AJanN3zfnubB39Aj14NFziHAhfeB` remains `READY`. The preserved failed-proof
 fixture remains unreconciled; no migration, RLS activation, predecessor drain,
 provider-variable or credential change occurred during deployment.
+
+The first separately authorized reconciliation invocation from exact main
+`bfcd1ce44e66e9d68e7db498901bc513ae76dc72` and CI `33113589947`
+failed closed before journal mutation, transfer reversal or cleanup with
+`blocked-checkout reconciliation refund event identity drifted`. Read-only
+database and Stripe test-mode inspection proved the preserved journal remains
+mode `0600` at `payment-completed`, the exact 541-cent platform-funded refund
+and 475-cent transfer remain present, and the transfer still has zero
+reversals. The genuine `charge.refunded` event is unique and agrees on charge,
+payment intent, transfer, currency and full refunded total, but Stripe's pinned
+`2026-02-25.clover` charge-event representation omits the former embedded
+`refunds` collection. The old selector incorrectly required that absent
+collection to rediscover the durable refund ID.
+
+The correction keeps the signed `charge.refunded` event fail closed on exact
+charge/payment-intent/transfer identity and amounts, and independently requires
+one `refund.created` lifecycle event that binds the durable refund ID to the
+same charge, payment intent, amount, currency and lifecycle status. The
+separate retrieved-refund and transfer/reversal readers continue to prove the
+platform-funded or automatically reversed money-movement shape.
+Duplicate or mismatched charge and refund events remain rejected. The same
+removed-collection assumption in the completed seller-refund proof operator is
+corrected with class-equivalent fail-closed coverage. Read-only candidate
+validation against the preserved production fixture found exactly one matching
+event of each type and changed no production state. Reconciliation remains
+unexecuted until this correction passes the complete release gates; the failed
+attempt is not reconciliation evidence or automatic-proof evidence.
