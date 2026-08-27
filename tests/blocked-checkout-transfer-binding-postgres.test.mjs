@@ -29,8 +29,7 @@ async function createDatabase() {
       "stripeTransferId" varchar(255),
       "sellerRefundId" varchar(255),
       "sellerRefundLockedAt" timestamp(3) without time zone,
-      "refundClaimId" text,
-      "updatedAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+      "refundClaimId" text
     );
     CREATE TABLE public."OrderPaymentEvent" (
       id text PRIMARY KEY,

@@ -102,10 +102,7 @@ BEGIN
   END IF;
 
   UPDATE public."Order" AS orders
-     SET "stripeTransferId" = p_transfer_id,
-         "updatedAt" = (
-           pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
-         )::timestamp(3)
+     SET "stripeTransferId" = p_transfer_id
    WHERE orders.id = locked_order.id
      AND orders."stripeTransferId" IS NULL
      AND orders."sellerRefundId" IS NULL

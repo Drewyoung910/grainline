@@ -476,7 +476,7 @@ The isolated correction has two distinct boundaries:
 1. Application release migration
    `20260826010000_prepare_blocked_checkout_transfer_binding` (generated
    SHA-256
-   `c5a2f599a8b5ef711053e4cc8fb36e8fbfd080ecaebd4e7e27ff08ca016e3c06`)
+   `95fcb6a8dceeb116b96f4f6f3dc18ada055c91a931a88b0d22672ea2ed027e09`)
    adds one runtime-callable, owner-executed transfer-binding function. It
    locks the active signed `StripeWebhookEvent` generation and exact paid
    Order/Session/PaymentIntent/Charge, derives no target from an untrusted
@@ -534,3 +534,14 @@ the corrected exact head requires a fresh complete CI pass.
 After the correction, the focused transfer-binding suite passes 17/17 and the
 full repository suite passes 3,452 tests with zero failures and seven
 intentional skips; TypeScript, lint and diff checks also pass.
+
+Correction head `f456d912d24f8c7c8096adce8f77248c0ac2a664` then reached the
+same direct-runtime proof in exact-head CI `33046021218` and exposed a distinct
+candidate defect: the transfer-binding UPDATE referenced `Order.updatedAt`,
+but the production Prisma model and historical table do not have that column.
+The migration-only PGlite schema had incorrectly invented the column, masking
+the error. No migration was applied outside disposable CI. The candidate now
+updates only the durable `stripeTransferId`; its PGlite Order schema matches the
+real column boundary, the static contract rejects any `updatedAt` reference,
+and the migration is repinned to the SHA-256 above. This second failed run is
+also non-release evidence and requires another fresh exact-head CI pass.

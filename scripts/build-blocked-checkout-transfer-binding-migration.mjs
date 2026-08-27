@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 export const BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION =
   "20260826010000_prepare_blocked_checkout_transfer_binding";
 export const BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION_SHA256 =
-  "c5a2f599a8b5ef711053e4cc8fb36e8fbfd080ecaebd4e7e27ff08ca016e3c06";
+  "95fcb6a8dceeb116b96f4f6f3dc18ada055c91a931a88b0d22672ea2ed027e09";
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -119,10 +119,7 @@ BEGIN
   END IF;
 
   UPDATE public."Order" AS orders
-     SET "stripeTransferId" = p_transfer_id,
-         "updatedAt" = (
-           pg_catalog.clock_timestamp() AT TIME ZONE 'UTC'
-         )::timestamp(3)
+     SET "stripeTransferId" = p_transfer_id
    WHERE orders.id = locked_order.id
      AND orders."stripeTransferId" IS NULL
      AND orders."sellerRefundId" IS NULL

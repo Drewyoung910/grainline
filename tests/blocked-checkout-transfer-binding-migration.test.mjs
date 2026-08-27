@@ -44,6 +44,11 @@ test("blocked-checkout transfer binding is narrow, source-fenced and runtime-onl
   assert.match(migration, /arrived after refund authority/);
   assert.match(migration, /orders\."sellerRefundLockedAt" IS NULL/);
   assert.match(migration, /NOT EXISTS \([\s\S]*payment_event\."eventType" = 'REFUND'/);
+  assert.match(
+    migration,
+    /UPDATE public\."Order" AS orders\s+SET "stripeTransferId" = p_transfer_id\s+WHERE/,
+  );
+  assert.doesNotMatch(migration, /"updatedAt"/);
   assert.match(migration, /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, grainline_app_runtime/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION[\s\S]*TO grainline_app_runtime/);
   assert.doesNotMatch(migration, /GRANT (?:SELECT|INSERT|UPDATE|DELETE) ON/);

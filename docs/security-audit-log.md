@@ -3061,7 +3061,7 @@ Open work:
   EXECUTE and PUBLIC denial. The generic Production Migrations runner now
   isolates the candidate whenever it is unapplied, preventing accidental
   application outside the dedicated boundary. The final migration SHA-256 is
-  `c5a2f599a8b5ef711053e4cc8fb36e8fbfd080ecaebd4e7e27ff08ca016e3c06`;
+  `95fcb6a8dceeb116b96f4f6f3dc18ada055c91a931a88b0d22672ea2ed027e09`;
   its final UPDATE independently refuses refund locks, claims and ledger rows.
   Focused tests pass 44/44 and the full repository passes 3,451 tests with zero
   failures and seven intentional skips; TypeScript, lint and diff checks pass.
@@ -3079,3 +3079,11 @@ Open work:
   required. The corrected focused suite passes 17/17 and the full repository
   suite passes 3,452 tests with zero failures and seven intentional skips;
   TypeScript, lint and diff checks pass.
+- Correction head `f456d912d24f8c7c8096adce8f77248c0ac2a664` reached the same
+  direct-runtime proof in CI `33046021218` and found a separate real candidate
+  defect: the function attempted to update nonexistent `Order.updatedAt`.
+  The migration-only PGlite fixture had modeled that nonexistent column and
+  therefore masked the defect. Production remained untouched. The candidate
+  now writes only `stripeTransferId`, the lightweight schema no longer invents
+  `updatedAt`, and a static assertion rejects its reintroduction. The repinned
+  SHA-256 is recorded above; this second failed run is not release evidence.
