@@ -52,6 +52,8 @@ export const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.l
 export const RUNTIME_ROLE = "grainline_app_runtime";
 export const PRICE_CENTS = 500;
 export const SELLER_TRANSFER_CENTS = 475;
+export const FAILED_PROOF_REVIEW_NOTE =
+  "Additional Stripe refund was detected outside Grainline; local refund audit ID was preserved.";
 export const TERMS_VERSION = "2026-06-14";
 export const STRIPE_METADATA_KEY_MAX_LENGTH = 40;
 export const CONNECTED_ACCOUNT_MARKER_KEY = "grainline_blocked_checkout_proof";
@@ -1942,7 +1944,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || normalized.shippingAmount !== 0
     || normalized.itemsSubtotal + normalized.shippingAmount + normalized.taxAmount !== state.refundAmountCents
     || normalized.reviewNeeded !== true
-    || !normalized.reviewNote.includes("Seller entered vacation mode before payment completion.")
+    || normalized.reviewNote !== FAILED_PROOF_REVIEW_NOTE
     || normalized.claimCleared !== true
     || !/^[1-9][0-9]*$/.test(normalized.claimGeneration)
     || normalized.itemCount !== 1
@@ -1950,7 +1952,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || normalized.paymentCount !== 2
     || normalized.localPaymentId !== state.localPaymentEventId
     || normalized.signedPaymentId !== state.signedPaymentEventId
-    || !new Set(["local_refund_confirmed", "local_refund_pending_confirmation"]).has(normalized.signedReason)
+    || normalized.signedReason !== "additional_external_refund"
     || normalized.localBuyerRefund !== state.refundAmountCents
     || normalized.localTransferAmount !== SELLER_TRANSFER_CENTS
     || normalized.localReversalId !== null
@@ -1959,7 +1961,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || normalized.localPlatformFundedRefund !== state.refundAmountCents
     || String(normalized.localRequiresManualReconciliation) !== "true"
     || String(normalized.localRequiresManualFollowUp) !== "false"
-    || normalized.signedLatestRefund !== state.refundId
+    || normalized.signedLatestRefund !== null
     || normalized.signedTotalRefunded !== state.refundAmountCents
     || normalized.checkoutWebhookCount !== 1
     || normalized.refundWebhookCount !== 1
@@ -1967,7 +1969,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || !/^[1-9][0-9]*$/.test(normalized.refundGeneration)
     || normalized.reservationStatus !== "COMPLETED"
     || normalized.stock !== 1
-    || normalized.listingStatus !== "ACTIVE"
+    || normalized.listingStatus !== "SOLD_OUT"
     || normalized.vacationMode !== true
     || normalized.notificationCount !== 1
     || normalized.notificationId !== state.notificationId

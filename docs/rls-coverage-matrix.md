@@ -194,6 +194,17 @@ completed alternative.
 > events. The fixture remains unreconciled, so fresh correction CI, separately
 > reviewed reconciliation, a completely fresh automatic provider proof and
 > predecessor drain still precede `OrderPaymentEvent` ENABLE/FORCE.
+> PR #294 merged the event correction as exact main
+> `3b11d8f95f402675bed0446cf32dd2db374603bb`; CI `33117395241`
+> passed. The authorized reconciliation rerun failed closed before reversal or
+> cleanup because its manual-only database predicate expected the normal
+> automatic-success representation. Read-only proof found the exact preserved
+> shape instead: `additional_external_refund`, null signed `latestRefundId`,
+> the exact preserved-local-audit review note, and private-listing `SOLD_OUT`
+> with stock one. All other checks passed and the 475-cent transfer still has
+> zero reversals. The narrow correction accepts only that exact historical
+> shape; automatic-proof verification stays strict. Reconciliation remains a
+> later separately authorized boundary after fresh correction CI.
 
 ## Program Rules
 

@@ -642,3 +642,41 @@ validation against the preserved production fixture found exactly one matching
 event of each type and changed no production state. Reconciliation remains
 unexecuted until this correction passes the complete release gates; the failed
 attempt is not reconciliation evidence or automatic-proof evidence.
+
+PR #294 merged that event-identity correction as exact main
+`3b11d8f95f402675bed0446cf32dd2db374603bb`; exact-main CI
+`33117395241` passed the complete migration/RLS/PostgreSQL chain, TypeScript,
+lint, 3,455 tests, dependency audit and production build. The separately
+authorized reconciliation rerun then rediscovered and persisted only the
+existing fixture identities before failing closed, prior to a reconciliation
+checkpoint, transfer reversal or cleanup, with
+`blocked-checkout manual reconciliation database evidence drifted`.
+
+Engine-enforced read-only database inspection and read-only Stripe test-mode
+retrieval proved the remaining mismatch was an incorrect operator model of the
+preserved failed run, not fresh production drift. All other 44 database
+identity/scalar checks passed and the 475-cent transfer remained unreversed
+with zero reversal objects. The exact historical representation is:
+
+- the blocked-checkout local row retains the durable 541-cent refund and
+  manual-transfer-reconciliation accounting;
+- the later signed charge ledger is `additional_external_refund`, has a null
+  `latestRefundId`, and replaced the Order review note with exactly
+  `Additional Stripe refund was detected outside Grainline; local refund audit
+  ID was preserved.` because the pinned Clover charge event did not expose the
+  already-recorded refund identity;
+- the separately matched `refund.created` event and retrieved Refund still
+  bind the durable refund ID to the same charge and PaymentIntent; and
+- the private listing correctly remains `SOLD_OUT` with stock one. Private
+  reserved listings intentionally do not auto-transition back to `ACTIVE` on
+  restock.
+
+Only the manual failed-proof reconciliation predicate is corrected to require
+that exact four-field historical shape. Normal automatic-proof verification
+remains unchanged and strict. Unit regressions reject the normal-success
+review note, either local-refund reason, a non-null signed `latestRefundId`, or
+an `ACTIVE` listing in the reconciliation-only path. The fixture remains at
+the mode-`0600` `payment-completed` restart stage with rediscovered identities;
+no reconciliation state/evidence or automatic-success evidence exists. A new
+exact-main/CI-bound authorization is required after the correction passes all
+release gates.
