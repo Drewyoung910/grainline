@@ -3097,3 +3097,22 @@ Open work:
   not production-application evidence: no migration, deployment, fixture
   reconciliation, RLS activation or provider mutation occurred. The preserved
   paid failed-proof fixture remains the exact separate reconciliation target.
+- Guarded production run `33106083900`, bound to exact main
+  `855118f36d0a98d1bc376d35101f50e21e87d184` and CI `33096249263`,
+  applied only the byte-pinned transfer-binding migration. Migration status
+  and the global grant/RLS audit passed; the final read-only scope proof failed
+  because its source extractor stripped the two newlines PostgreSQL preserves
+  inside the function's dollar-quote delimiters. Sanitized read-only catalog
+  comparison proved every other ledger, ownership, function-posture and ACL
+  field exact and proved `"\n" + expected + "\n"` equals the stored source.
+  The extractor and real-PostgreSQL regression proof are corrected without
+  changing the sealed migration. Acceptance remains open pending a corrected
+  exact-main restart-safe read-only rerun. No deployment, fixture cleanup, RLS
+  activation, predecessor drain or provider change occurred.
+- With the extractor corrected, the same owner-credential production reader
+  passed locally inside an engine-attested repeatable-read/read-only
+  transaction: state `transfer-binding-compatible`, both candidates applied,
+  runtime EXECUTE only, payment RLS off, predecessor CRUD retained and
+  `productionChangedByProof=false`. This validates the diagnosis without
+  mutation but does not substitute for the exact-main/CI-bound GitHub restart
+  proof.

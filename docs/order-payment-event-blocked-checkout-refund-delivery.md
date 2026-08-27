@@ -561,3 +561,27 @@ boundary is the dedicated guarded application of only
 `20260826010000_prepare_blocked_checkout_transfer_binding`; deployment,
 fixture reconciliation, a fresh automatic paid proof, predecessor drain and
 RLS activation remain later separate boundaries in that order.
+
+Guarded production run `33106083900`, bound to exact main
+`855118f36d0a98d1bc376d35101f50e21e87d184` and CI `33096249263`,
+applied only `20260826010000_prepare_blocked_checkout_transfer_binding`.
+Migration status and the global grant/RLS audit passed. The final engine-read-
+only scope proof then failed closed because its extractor removed the newline
+immediately inside each dollar-quote delimiter, while PostgreSQL correctly
+retained both newlines in `pg_proc.prosrc`. A sanitized read-only comparison
+proved every security-relevant catalog field exact—the migration checksum and
+step count, function identity and owner, `SECURITY DEFINER`, pinned search
+path, language, volatility, parallel/leakproof posture, runtime-only EXECUTE
+and PUBLIC denial—and proved that adding exactly the two delimiter newlines
+makes the stored source hash equal the sealed function body. This is a
+postflight extraction defect, not function drift. The migration remains
+applied, but acceptance stays open until a corrected exact-main, CI-bound,
+restart-safe read-only rerun passes. No app deployment, fixture reconciliation,
+RLS activation, predecessor drain or provider change occurred.
+
+The corrected local owner-credential rerun then passed the same engine-enforced
+repeatable-read/read-only proof with state `transfer-binding-compatible`, both
+compatible migrations applied, runtime EXECUTE only, `OrderPaymentEvent` RLS
+still off, predecessor CRUD retained and `productionChangedByProof=false`.
+That confirms the diagnosis without mutation, but it does not replace the
+required exact-main/CI-bound GitHub restart proof.

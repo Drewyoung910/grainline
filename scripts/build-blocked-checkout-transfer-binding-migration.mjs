@@ -198,8 +198,8 @@ $grainline_blocked_checkout_transfer_bind_verify$;
 
 export function blockedCheckoutTransferBindingFunctionSource() {
   const migration = buildBlockedCheckoutTransferBindingMigration();
-  const opening = "AS $grainline_blocked_checkout_transfer_bind$\n";
-  const closing = "\n$grainline_blocked_checkout_transfer_bind$;";
+  const opening = "AS $grainline_blocked_checkout_transfer_bind$";
+  const closing = "$grainline_blocked_checkout_transfer_bind$;";
   const start = migration.indexOf(opening);
   const end = migration.indexOf(closing, start + opening.length);
   if (start < 0 || end < 0) {
