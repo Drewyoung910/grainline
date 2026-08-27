@@ -675,6 +675,8 @@ test("failed-proof reconciliation stays distinct, exact and restart-safe", () =>
     local_requires_manual_follow_up: "false",
   });
   assert.equal(assertManualReconciliationDeliverySnapshot(manualSnapshot, value).transferId, null);
+  const source = readFileSync(new URL("../scripts/order-payment-event-blocked-checkout-production-proof.mjs", import.meta.url), "utf8");
+  assert.match(source, /cleanupDeliveredRows\(owner, state, "SOLD_OUT"\)/);
   assert.throws(() => assertManualReconciliationDeliverySnapshot({
     ...manualSnapshot,
     local_requires_manual_reconciliation: "false",

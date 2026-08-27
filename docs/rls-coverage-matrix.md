@@ -203,8 +203,11 @@ completed alternative.
 > the exact preserved-local-audit review note, and private-listing `SOLD_OUT`
 > with stock one. All other checks passed and the 475-cent transfer still has
 > zero reversals. The narrow correction accepts only that exact historical
-> shape; automatic-proof verification stays strict. Reconciliation remains a
-> later separately authorized boundary after fresh correction CI.
+> shape; automatic-proof verification stays strict. A final cleanup-path audit
+> also found and corrected the shared cleanup fence: normal proof cleanup still
+> defaults to exact `ACTIVE`, while only manual reconciliation requires exact
+> `SOLD_OUT`; every other status fails before transaction start. Reconciliation
+> remains a later separately authorized boundary after fresh correction CI.
 
 ## Program Rules
 

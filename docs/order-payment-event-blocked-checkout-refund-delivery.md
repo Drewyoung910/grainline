@@ -680,3 +680,12 @@ the mode-`0600` `payment-completed` restart stage with rediscovered identities;
 no reconciliation state/evidence or automatic-success evidence exists. A new
 exact-main/CI-bound authorization is required after the correction passes all
 release gates.
+
+The same pre-merge audit found the shared cleanup fence still hard-coded the
+normal automatic-proof `ACTIVE` listing posture. That would have allowed the
+manual reversal to complete and then stopped before fixture cleanup. Cleanup
+now defaults to and strictly retains `ACTIVE` for the normal proof; only the
+manual reconciliation call supplies `SOLD_OUT`, and any other status is
+rejected before a transaction begins. Disposable PostgreSQL coverage proves
+the default rejects the historical fixture, the explicit historical fence
+removes it atomically, and an unsupported status cannot broaden cleanup.

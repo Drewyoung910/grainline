@@ -3170,3 +3170,10 @@ Open work:
   success predicate unchanged. The journal remains mode `0600` at
   `payment-completed`; no reconciliation evidence, automatic-proof evidence,
   reversal or cleanup exists.
+- A final cleanup-path review found the shared fixture deletion fence still
+  required the normal proof's `ACTIVE` listing. That would have made a corrected
+  reconciliation reverse the exact transfer and then fail before removing the
+  historical `SOLD_OUT` fixture. The cleanup function remains default-strict on
+  `ACTIVE`; only the manual reconciliation call selects `SOLD_OUT`, and it
+  rejects every other status before opening its serializable transaction.
+  Disposable PostgreSQL coverage proves both paths and rollback on mismatch.

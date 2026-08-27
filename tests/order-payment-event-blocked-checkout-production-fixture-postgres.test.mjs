@@ -250,6 +250,26 @@ test("blocked-checkout outcome is exact and removable while retaining two signed
   }
 });
 
+test("failed-proof cleanup accepts only its exact historical SOLD_OUT listing shape", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await createFixtures(db, value);
+    await seedOutcome(db, value);
+    await db.query(`UPDATE public."Listing" SET status='SOLD_OUT' WHERE id=$1`, [value.listingId]);
+    await assert.rejects(cleanupDeliveredRows(db, value), /cleanup listing relationship drifted/);
+    await assert.rejects(cleanupDeliveredRows(db, value, "DRAFT"), /listing status is unsupported/);
+    await cleanupDeliveredRows(db, value, "SOLD_OUT");
+    assert.deepEqual(assertCleanupSnapshot(await readCleanupSnapshot(db, value)), {
+      seller_user_count: 0, seller_count: 0, listing_count: 0, reservation_count: 0,
+      order_count: 0, item_count: 0, payment_count: 0, notification_count: 0, outbox_count: 0,
+      webhook_count: 2, processed_webhook_count: 2, canary_count: 1,
+    });
+  } finally {
+    await db.close();
+  }
+});
+
 test("fixture resume and cleanup reject marker drift without partial deletion", async () => {
   const db = await database();
   const value = state();

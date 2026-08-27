@@ -2026,7 +2026,10 @@ async function assertNoForeignKeyDependents(client, relation, id) {
   }
 }
 
-export async function cleanupDeliveredRows(owner, state) {
+export async function cleanupDeliveredRows(owner, state, expectedListingStatus = "ACTIVE") {
+  if (!new Set(["ACTIVE", "SOLD_OUT"]).has(expectedListingStatus)) {
+    throw new Error("blocked-checkout cleanup listing status is unsupported");
+  }
   await owner.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
   try {
     assertCanaryFenced(await lockCanaryFence(owner, state));
@@ -2042,7 +2045,7 @@ export async function cleanupDeliveredRows(owner, state) {
         (SELECT count(*)::integer FROM public."SellerProfile" WHERE id=$4 AND "userId"=$1 AND "stripeAccountId"=$5
           AND "displayName"='Grainline Blocked Checkout Proof' AND "vacationMode"=true) AS seller,
         (SELECT count(*)::integer FROM public."Listing" WHERE id=$6 AND "sellerId"=$4
-          AND title='blocked-checkout-production-proof' AND status='ACTIVE' AND "stockQuantity"=1
+          AND title='blocked-checkout-production-proof' AND status=$20 AND "stockQuantity"=1
           AND "isPrivate"=true AND "reservedForUserId"=$7) AS listing,
         (SELECT count(*)::integer FROM public."CheckoutStockReservation" WHERE id=$8 AND "stripeSessionId"=$9
           AND "buyerId"=$7 AND "sellerId"=$4 AND status='COMPLETED') AS reservation,
@@ -2062,7 +2065,8 @@ export async function cleanupDeliveredRows(owner, state) {
     `, [state.sellerUserId, state.sellerClerkId, state.sellerEmail, state.sellerProfileId, state.stripeAccountId,
       state.listingId, state.buyerId, state.reservationId, state.stripeSessionId, state.orderId, state.refundId,
       state.refundAmountCents, state.orderItemId, state.localPaymentEventId, state.signedPaymentEventId,
-      state.notificationId, state.emailOutboxId, state.checkoutEventId, state.refundEventId]);
+      state.notificationId, state.emailOutboxId, state.checkoutEventId, state.refundEventId,
+      expectedListingStatus]);
     const expected = { seller_user: 1, seller: 1, listing: 1, reservation: 1, order_row: 1, item: 1,
       payments: 2, notification: 1, outbox: 1, audits: 3, webhooks: 2 };
     for (const [key, count] of Object.entries(expected)) {
@@ -3036,7 +3040,7 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
         await readDeliverySnapshot(owner, state),
         state,
       );
-      await cleanupDeliveredRows(owner, state);
+      await cleanupDeliveredRows(owner, state, "SOLD_OUT");
     }
     const cleanupSnapshot = assertCleanupSnapshot(
       await readCleanupSnapshot(owner, state),
