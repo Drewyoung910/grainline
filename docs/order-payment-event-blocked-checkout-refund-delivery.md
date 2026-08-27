@@ -599,3 +599,19 @@ all passed. The transfer-binding compatibility migration is therefore
 accepted in production. The application remains undeployed, the preserved
 failed-proof fixture remains unreconciled, `OrderPaymentEvent` RLS remains off,
 the predecessor remains undrained and no provider state changed.
+
+PR #292 recorded that acceptance and merged as exact main
+`a09827e0a641ec2f7e228520661cd7e74625bb0d`; exact-main CI
+`33110954923` passed. Manual Vercel production deployment
+`dpl_8FMq11zfZT166Dve7Vf6sTJTXFzX`, bound to that main commit, CI and
+successful compatibility run `33109482365`, reached `READY`. The authenticated
+Vercel deployment API reports CLI source metadata with exact Git SHA
+`a09827e0a641ec2f7e228520661cd7e74625bb0d`; all four canonical aliases resolve
+to the new deployment and canonical `/api/health` returned `{"ok":true}`. The
+engine-read-only post-deployment proof remained exactly
+`transfer-binding-compatible`, with both compatibility migrations applied,
+runtime EXECUTE only, predecessor CRUD retained, `OrderPaymentEvent` RLS off
+and `productionChangedByProof=false`. Predecessor deployment
+`dpl_AJanN3zfnubB39Aj14NFziHAhfeB` remains `READY`. The preserved failed-proof
+fixture remains unreconciled; no migration, RLS activation, predecessor drain,
+provider-variable or credential change occurred during deployment.
