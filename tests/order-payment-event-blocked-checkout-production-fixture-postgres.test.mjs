@@ -143,7 +143,7 @@ async function database() {
 
 async function seedOutcome(db, value) {
   await db.query(`UPDATE public."SellerProfile" SET "vacationMode"=true WHERE id=$1`, [value.sellerProfileId]);
-  await db.query(`UPDATE public."Listing" SET "stockQuantity"=1,status='ACTIVE' WHERE id=$1`, [value.listingId]);
+  await db.query(`UPDATE public."Listing" SET "stockQuantity"=1,status='SOLD_OUT' WHERE id=$1`, [value.listingId]);
   await db.query(`INSERT INTO public."CheckoutStockReservation" (
     id,"checkoutLockKey","payloadHash","buyerId","sellerId","stripeSessionId",status,"reservedItems","restoredAt","restoreReason")
     VALUES
@@ -159,9 +159,10 @@ async function seedOutcome(db, value) {
     "itemsSubtotalCents","shippingAmountCents","taxAmountCents","sellerRefundId","sellerRefundAmountCents",
     "refundClaimGeneration","reviewNeeded","reviewNote","paidAt")
     VALUES ($1,$2,$3,$4,$5,$6,$7,500,0,40,$8,540,1,true,
-      'Seller entered vacation mode before payment completion. Order was held for staff review.',CURRENT_TIMESTAMP)`,
+      $9,CURRENT_TIMESTAMP)`,
   [value.orderId, value.buyerId, value.sellerProfileId, value.stripeSessionId, value.paymentIntentId,
-    value.chargeId, value.transferId, value.refundId]);
+    value.chargeId, value.transferId, value.refundId,
+    `Automatic full refund of ${value.refundAmountCents} cents via Stripe refund ${value.refundId} because checkout was no longer eligible.`]);
   await db.query(`INSERT INTO public."OrderItem" (id,"orderId","listingId","sellerProfileId",quantity,"priceCents","listingSnapshot")
     VALUES ($1,$2,$3,$4,1,500,'{}'::jsonb)`,
   [value.orderItemId, value.orderId, value.listingId, value.sellerProfileId]);
@@ -172,7 +173,9 @@ async function seedOutcome(db, value) {
     id,"orderId","stripeEventId","stripeObjectId","stripeObjectType","eventType","amountCents",currency,status,reason,metadata) VALUES
     ($1,$3,'local:blocked_checkout_refund_recorded:'||$4,$4,'refund','REFUND',540,'usd','succeeded','blocked_checkout',
       pg_catalog.jsonb_build_object('refundAccounting',pg_catalog.jsonb_build_object(
-        'buyerRefundAmountCents',540,'originalTransferAmountCents',475,'transferReversalId',$6::text))),
+        'buyerRefundAmountCents',540,'originalTransferAmountCents',475,'expectedTransferReversal',true,
+        'transferReversalId',$6::text,'transferReversalAmountCents',475,'platformFundedRefundCents',65),
+        'requiresManualTransferReconciliation',false,'requiresManualFollowUp',false)),
     ($2,$3,$5,$4,'refund','REFUND',540,'usd','succeeded','local_refund_confirmed',
       pg_catalog.jsonb_build_object('latestRefundId',$4,'totalRefundedCents',540))`,
   [value.localPaymentEventId, value.signedPaymentEventId, value.orderId, value.refundId,
@@ -239,7 +242,7 @@ test("blocked-checkout outcome is exact and removable while retaining two signed
     await seedOutcome(db, value);
     const proven = assertDeliverySnapshot(await readDeliverySnapshot(db, value), value);
     assert.equal(proven.wrongNotificationCount, 0);
-    await cleanupDeliveredRows(db, value);
+    await cleanupDeliveredRows(db, value, "SOLD_OUT");
     assert.deepEqual(assertCleanupSnapshot(await readCleanupSnapshot(db, value)), {
       seller_user_count: 0, seller_count: 0, listing_count: 0, reservation_count: 0,
       order_count: 0, item_count: 0, payment_count: 0, notification_count: 0, outbox_count: 0,
@@ -250,16 +253,16 @@ test("blocked-checkout outcome is exact and removable while retaining two signed
   }
 });
 
-test("failed-proof cleanup accepts only its exact historical SOLD_OUT listing shape", async () => {
+test("legacy ACTIVE cleanup remains explicit and cannot be confused with the private automatic-proof shape", async () => {
   const db = await database();
   const value = state();
   try {
     await createFixtures(db, value);
     await seedOutcome(db, value);
-    await db.query(`UPDATE public."Listing" SET status='SOLD_OUT' WHERE id=$1`, [value.listingId]);
     await assert.rejects(cleanupDeliveredRows(db, value), /cleanup listing relationship drifted/);
     await assert.rejects(cleanupDeliveredRows(db, value, "DRAFT"), /listing status is unsupported/);
-    await cleanupDeliveredRows(db, value, "SOLD_OUT");
+    await db.query(`UPDATE public."Listing" SET status='ACTIVE' WHERE id=$1`, [value.listingId]);
+    await cleanupDeliveredRows(db, value);
     assert.deepEqual(assertCleanupSnapshot(await readCleanupSnapshot(db, value)), {
       seller_user_count: 0, seller_count: 0, listing_count: 0, reservation_count: 0,
       order_count: 0, item_count: 0, payment_count: 0, notification_count: 0, outbox_count: 0,

@@ -885,3 +885,41 @@ database-derived correction in
 separate guarded migration boundary and prove it through the pooled runtime
 role. The historical reconciled evidence remains unchanged and must not be
 promoted to success.
+
+## Fresh automatic proof verifier correction (2026-08-28)
+
+Signed-refund compatibility was accepted before a new proof attempt. Exact
+main and deployed source
+`3431bb83fa16fabb9b9e18a729a7d138d48764d9`, CI `33211840251` and READY
+deployment `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S` then prepared a new
+commit-keyed fixture. One human-completed five-dollar Stripe test-mode payment
+produced the expected signed checkout and refund deliveries.
+
+The normal verifier failed closed before replay or cleanup and retained its
+mode-`0600` journal at `payment-completed`; it did not write automatic-success
+evidence. An engine-enforced repeatable-read/read-only diagnosis proved one
+Order, one OrderItem, two OrderPaymentEvent rows, one processed checkout lease,
+one processed refund lease, one refund notification, one skipped test email and
+the three expected audit rows. The exact buyer refund was 541 cents, the exact
+seller transfer and reversal were 475 cents, and the platform-funded remainder
+was 66 cents. Both manual-reconciliation flags were false. This is valid
+automatic delivery, not a payment or accounting defect.
+
+Two verifier assumptions were stale:
+
+- the fixed database authority replaces the pre-payment hold text with the
+  canonical automatic-refund note, but the verifier still required the old
+  vacation-mode sentence; and
+- stock restoration intentionally leaves a private listing `SOLD_OUT` while
+  restoring its quantity to one, but the verifier required `ACTIVE`. Only a
+  non-private restored listing is reactivated.
+
+The isolated correction requires the exact canonical note, private-listing
+flag, `SOLD_OUT` status and restored stock. It also promotes the already-read
+reversal amount, expected-reversal flag, platform-funded remainder and manual
+follow-up flags into mandatory assertions. Unit and disposable-PostgreSQL
+coverage reject the old note, public-listing drift, `ACTIVE` drift and every
+accounting-field mismatch. Production application/database/provider state is
+unchanged by the correction. The preserved journal must be resumed only after
+the correction has an exact reviewed merge and exact-main CI, using a separate
+operator recovery binding; do not create or charge another fixture.

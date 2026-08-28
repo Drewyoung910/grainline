@@ -3355,3 +3355,24 @@ Open work:
   `productionChangedByPostflight=false`. Compatibility is accepted. A fresh
   automatic paid provider proof, predecessor drain, remaining invariants and
   separate ENABLE/FORCE releases remain mandatory.
+
+## Fresh blocked-checkout verifier false negative (2026-08-28)
+
+- Exact main/deployed source
+  `3431bb83fa16fabb9b9e18a729a7d138d48764d9`, CI `33211840251` and
+  deployment `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S` produced a fresh genuine
+  Stripe test-mode payment and both expected signed webhook deliveries.
+- Verification failed closed before replay or cleanup. No automatic-success
+  evidence was written; the mode-`0600` journal remains at
+  `payment-completed`, and all marker-bound fixtures remain recoverable.
+- Engine-read-only diagnosis found correct 541-cent refund accounting, exact
+  475-cent transfer/reversal, 66-cent platform-funded remainder, no manual
+  reconciliation/follow-up, restored stock, one notification, one skipped
+  test email, three audits and two processed error-free webhook leases.
+- The verifier—not production behavior—was stale. The database correctly
+  writes its canonical automatic-refund note and intentionally leaves the
+  private listing `SOLD_OUT` with quantity one. The isolated correction pins
+  those semantics and additionally enforces every refund-accounting field.
+  Focused unit and disposable-PostgreSQL tests pass 25/25. No production or
+  provider state changed. Resume the existing journal only after exact merge
+  and exact-main CI; do not charge another fixture.
