@@ -3248,3 +3248,28 @@ Open work:
   malformed account rows, a listed target account or any other Stripe error
   fails closed. Reconciliation remains cleanup-only evidence and cannot satisfy
   the fresh automatic provider-proof activation gate.
+
+## Blocked-checkout failed-proof cleanup finalized (2026-08-27)
+
+- PR #300 merged the post-delete restart correction as exact main
+  `8f31857bc6ca0f26c4965dfaae64f85089c0ede3`; exact-main CI
+  `33137658339` passed. The authorized restart was additionally bound to the
+  preserved `cleanup-started` journal from exact main
+  `61ea7c0156838599d39ab621cdd4d93373c3c3ba` / CI `33135791154`.
+- The operator re-proved the exact test-mode Session, 541-cent Refund,
+  475-cent Transfer and sole 475-cent reversal. It required zero temporary
+  application rows, exactly two processed webhook leases, one restored canary,
+  removed exact Redis state and the reviewed exact account-absence predicate.
+  It wrote sanitized mode-`0600` evidence and removed both private restart
+  journals. The automatic-success evidence path remains absent.
+- Retain reconciliation evidence SHA-256
+  `d3a6ab9a109de1d607920e72ec92ba8811c3971104f079cde7e8525c504ba4f7`.
+  Its status is `reconciled-failed-proof`, with
+  `automaticProductionProofPassed=false` and
+  `freshAutomaticProofRequired=true`. Independent read-only complete-list
+  verification scanned 13 Stripe test-mode connected accounts and found no ID
+  matching the deleted account hash.
+- This closes the failed fixture only. It is not provider-path acceptance and
+  does not authorize predecessor drain or `OrderPaymentEvent` activation. A
+  completely fresh automatic paid blocked-checkout proof is the next mandatory
+  gate.
