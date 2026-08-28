@@ -774,6 +774,7 @@ jobs:
           node --test
           tests/order-payment-signed-refund-identity-migration.test.mjs
           tests/order-payment-signed-refund-identity-postgres.test.mjs
+          tests/order-payment-signed-refund-identity-production-postflight.test.mjs
           tests/order-payment-signed-refund-identity-release.test.mjs
       - name: Prove signed-refund identity through the real runtime login
         run: npm run audit:order-payment-signed-refund-identity-postgres

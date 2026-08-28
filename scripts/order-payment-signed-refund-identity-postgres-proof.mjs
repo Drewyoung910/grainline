@@ -8,6 +8,11 @@ import pg from "pg";
 import {
   orderPaymentSignedRefundIdentityFunctionSource,
 } from "./build-order-payment-signed-refund-identity-migration.mjs";
+import {
+  proveOrderPaymentSignedRefundIdentityRuntimeBoundaries,
+  proveOrderPaymentSignedRefundIdentityRuntimeCatalog,
+  verifyOrderPaymentSignedRefundIdentityRuntimeIdentity,
+} from "./order-payment-signed-refund-identity-production-postflight.mjs";
 
 const { Client } = pg;
 
@@ -206,6 +211,38 @@ async function removeFixture(owner, ids) {
   }
 }
 
+async function proveProductionPostflightContract(runtime) {
+  let transactionOpen = false;
+  try {
+    await runtime.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    transactionOpen = true;
+    const transaction = (await runtime.query(`
+      SELECT
+        pg_catalog.current_setting('transaction_isolation') AS isolation,
+        pg_catalog.current_setting('transaction_read_only') AS read_only
+    `)).rows;
+    assert.deepEqual(transaction, [{
+      isolation: "repeatable read",
+      read_only: "on",
+    }]);
+    await verifyOrderPaymentSignedRefundIdentityRuntimeIdentity(
+      runtime,
+      { databaseName: DATABASE_NAME, runtimeRole: RUNTIME_ROLE },
+      OWNER_ROLE,
+    );
+    const catalog = await proveOrderPaymentSignedRefundIdentityRuntimeCatalog(
+      runtime,
+      OWNER_ROLE,
+    );
+    await proveOrderPaymentSignedRefundIdentityRuntimeBoundaries(runtime);
+    await runtime.query("ROLLBACK");
+    transactionOpen = false;
+    return catalog;
+  } finally {
+    if (transactionOpen) await runtime.query("ROLLBACK").catch(() => {});
+  }
+}
+
 export async function runOrderPaymentSignedRefundIdentityPostgresProof(
   env = process.env,
 ) {
@@ -303,12 +340,16 @@ export async function runOrderPaymentSignedRefundIdentityPostgresProof(
       evidence_id: null,
     });
 
+    const postflight = await proveProductionPostflightContract(runtime);
+
     return Object.freeze({
       phase: "order-payment-signed-refund-identity-proven",
       exactLocalIdentityDerived: true,
       missingAuditRejectedAsLocalIdentity: true,
       exactReplayProven: true,
       generationForgeryRejected: true,
+      productionPostflightFunctionCount: postflight.functionCount,
+      productionPostflightReadOnly: true,
       runtimeRole: RUNTIME_ROLE,
       productionTouched: false,
     });

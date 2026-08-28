@@ -82,6 +82,15 @@ successful CI, one exact absent/applied migration ledger state, the exact
 predecessor or successor function body and the reviewed owner/runtime ACL. It
 is restart-safe and changes no RLS or table privilege.
 
+After application,
+`scripts/order-payment-signed-refund-identity-production-postflight.mjs` runs
+only through the pooled `grainline_app_runtime` credential in an
+engine-attested repeatable-read/read-only transaction. It verifies the actual
+restricted role, exact candidate function body and ACL, retained compatible
+`OrderPaymentEvent` grants/RLS-off posture, a direct empty read and the fixed
+function's read-only lock fence. It writes only fresh sanitized mode-0600
+evidence and cannot mutate production.
+
 ## Remaining release sequence
 
 1. Complete local/full CI and Extra-High authority review; merge the exact
