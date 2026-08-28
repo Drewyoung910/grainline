@@ -3304,3 +3304,22 @@ Open work:
   fixture now creates the full matching graph and teardown, with local
   regression coverage. The failed run is retained as negative evidence and
   cannot satisfy any release gate.
+
+## Signed refund compatibility production scope failure (2026-08-28)
+
+- PR #302 merged exact head
+  `f5b5b7f394b44b68145bb856458ae16be2baf936` as main
+  `f7491bf109a79ac7f34c29c604763c38396a7340`; exact-main CI
+  `33149665189` passed.
+- Guarded run `33176428000` applied only
+  `20260828010000_prepare_order_payment_signed_refund_identity`. Migration
+  status and the global grant/RLS audit passed. The final engine-read-only scope
+  step failed because its recursive predecessor verifier still required the old
+  signed-refund function body after the reviewed successor replaced that body.
+- Production therefore contains the compatible function, with RLS and table
+  grants unchanged, but the release remains unaccepted. The isolated proof fix
+  validates the real successor catalog first, requires the two read-only catalog
+  views to agree exactly, and substitutes only the byte-sealed predecessor body
+  while checking the older chain. Missing, duplicate or mismatched views fail
+  closed. Do not replay the migration or proceed to the pooled-runtime/provider
+  proof until corrected exact-main CI and restart-safe final scope pass.

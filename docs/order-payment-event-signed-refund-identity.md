@@ -1,7 +1,7 @@
 # OrderPaymentEvent signed-refund identity compatibility
 
-Status: isolated compatible candidate; not merged, production-applied, deployed
-or accepted as provider proof. Audited 2026-08-27 before the fresh automatic
+Status: compatible migration production-applied; final scope acceptance and
+pooled-runtime postflight pending. Audited 2026-08-27 before the fresh automatic
 blocked-checkout paid proof and before `OrderPaymentEvent` RLS design resumes.
 
 ## Finding
@@ -102,12 +102,33 @@ seller keys and totals, deletes that graph during teardown, and has a focused
 regression assertion for the real-schema fixture shape. A fresh exact-head CI
 run is required; the failed run is not release evidence.
 
+PR #302 merged exact head
+`f5b5b7f394b44b68145bb856458ae16be2baf936` as main
+`f7491bf109a79ac7f34c29c604763c38396a7340`; exact-main CI
+`33149665189` passed. Guarded production run `33176428000` applied only
+`20260828010000_prepare_order_payment_signed_refund_identity`; Prisma migration
+status and the global grant/RLS audit passed. Its final engine-read-only scope
+step failed after application because the successor verifier first compared
+the replaced signed-refund function to the sealed predecessor body. The
+candidate-specific comparison had not yet run. This is a proof-composition
+defect: the migration is applied, but the release is not accepted.
+
+The isolated correction validates the actual successor function and ACL first,
+requires the nested predecessor and candidate catalog reads to contain the same
+one function body, and substitutes only the locally byte-sealed predecessor
+body while recursively checking the older release chain. Missing, duplicate or
+different catalog views fail closed. Rerun only from the exact restart state;
+do not replay the migration, run the pooled-runtime postflight, spend another
+Stripe test payment or claim compatibility acceptance until corrected CI and
+the guarded final scope pass.
+
 ## Remaining release sequence
 
-1. Complete local/full CI and Extra-High authority review; merge the exact
-   candidate only after every required check passes.
-2. Apply only the compatible successor through the guarded production workflow
-   and retain its read-only scope proof.
+1. Complete local/full CI and Extra-High review of the successor-aware scope
+   correction; merge only the exact reviewed candidate.
+2. Rerun the restart-safe guarded workflow. It must classify the migration as
+   already applied, skip deployment and pass the corrected final read-only
+   scope plus migration/global audits.
 3. Run a distinct pooled-runtime read-only postflight against the applied
    function.
 4. Bind and deploy the exact compatible source if a deployment is needed for a

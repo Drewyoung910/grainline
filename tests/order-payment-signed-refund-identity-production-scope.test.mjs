@@ -16,7 +16,24 @@ import {
 const predecessorResult = Object.freeze({
   blockedCheckoutTransferBindingApplied: true,
 });
-const assertPredecessor = () => predecessorResult;
+const COMPATIBLE_FUNCTION_IDENTITY =
+  "grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)";
+
+function predecessorSnapshot(applied, overrides = {}) {
+  return {
+    blockedCheckoutRefundDelivery: {
+      orderPaymentEventCompatible: {
+        functions: [{
+          identity: COMPATIBLE_FUNCTION_IDENTITY,
+          function_source: applied
+            ? orderPaymentSignedRefundIdentityFunctionSource()
+            : predecessorOrderPaymentSignedRefundFunctionSource(),
+          ...overrides,
+        }],
+      },
+    },
+  };
+}
 
 function functionRow(applied, overrides = {}) {
   return {
@@ -52,8 +69,13 @@ function ledgerRow(overrides = {}) {
 }
 
 test("signed-refund identity scope accepts exact predecessor and applied states", () => {
+  const predecessorCalls = [];
+  const assertPredecessor = (snapshot, stage) => {
+    predecessorCalls.push({ snapshot, stage });
+    return predecessorResult;
+  };
   const before = assertOrderPaymentSignedRefundIdentityProductionScope({
-    blockedCheckoutTransferBinding: {},
+    blockedCheckoutTransferBinding: predecessorSnapshot(false),
     candidateLedgerRows: [],
     signedRefundFunction: functionRow(false),
   }, "before", { assertPredecessor });
@@ -61,7 +83,7 @@ test("signed-refund identity scope accepts exact predecessor and applied states"
   assert.equal(before.signedRefundIdentityApplied, false);
 
   const after = assertOrderPaymentSignedRefundIdentityProductionScope({
-    blockedCheckoutTransferBinding: {},
+    blockedCheckoutTransferBinding: predecessorSnapshot(true),
     candidateLedgerRows: [ledgerRow()],
     signedRefundFunction: functionRow(true),
   }, "after", { assertPredecessor });
@@ -69,9 +91,18 @@ test("signed-refund identity scope accepts exact predecessor and applied states"
   assert.equal(after.signedRefundIdentityApplied, true);
   assert.equal(after.orderPaymentEventRlsEnabled, false);
   assert.equal(after.predecessorRuntimeCrudRetained, true);
+  assert.equal(predecessorCalls.length, 2);
+  assert.equal(predecessorCalls[0].stage, "after");
+  assert.equal(predecessorCalls[1].stage, "after");
+  assert.equal(
+    predecessorCalls[1].snapshot.blockedCheckoutRefundDelivery
+      .orderPaymentEventCompatible.functions[0].function_source,
+    predecessorOrderPaymentSignedRefundFunctionSource(),
+  );
 });
 
 test("signed-refund identity scope is restart-safe but rejects ledger and catalog drift", () => {
+  const assertPredecessor = () => predecessorResult;
   assert.equal(assertOrderPaymentSignedRefundIdentityLedger([], "restart"), false);
   assert.equal(
     assertOrderPaymentSignedRefundIdentityLedger([ledgerRow()], "restart"),
@@ -85,7 +116,7 @@ test("signed-refund identity scope is restart-safe but rejects ledger and catalo
   );
   assert.throws(
     () => assertOrderPaymentSignedRefundIdentityProductionScope({
-      blockedCheckoutTransferBinding: {},
+      blockedCheckoutTransferBinding: predecessorSnapshot(true),
       candidateLedgerRows: [ledgerRow()],
       signedRefundFunction: functionRow(true, { public_can_execute: true }),
     }, "after", { assertPredecessor }),
@@ -93,11 +124,33 @@ test("signed-refund identity scope is restart-safe but rejects ledger and catalo
   );
   assert.throws(
     () => assertOrderPaymentSignedRefundIdentityProductionScope({
-      blockedCheckoutTransferBinding: {},
+      blockedCheckoutTransferBinding: predecessorSnapshot(false),
       candidateLedgerRows: [],
       signedRefundFunction: functionRow(true),
     }, "before", { assertPredecessor }),
     /function catalog drifted/,
+  );
+  assert.throws(
+    () => assertOrderPaymentSignedRefundIdentityProductionScope({
+      blockedCheckoutTransferBinding: predecessorSnapshot(true, {
+        function_source: `${orderPaymentSignedRefundIdentityFunctionSource()}\n-- drift`,
+      }),
+      candidateLedgerRows: [ledgerRow()],
+      signedRefundFunction: functionRow(true),
+    }, "after", { assertPredecessor }),
+    /predecessor and candidate catalog views drifted/,
+  );
+  const duplicate = predecessorSnapshot(true);
+  duplicate.blockedCheckoutRefundDelivery.orderPaymentEventCompatible.functions
+    .push({ ...duplicate.blockedCheckoutRefundDelivery
+      .orderPaymentEventCompatible.functions[0] });
+  assert.throws(
+    () => assertOrderPaymentSignedRefundIdentityProductionScope({
+      blockedCheckoutTransferBinding: duplicate,
+      candidateLedgerRows: [ledgerRow()],
+      signedRefundFunction: functionRow(true),
+    }, "after", { assertPredecessor }),
+    /predecessor and candidate catalog views drifted/,
   );
 });
 
@@ -122,4 +175,3 @@ test("production workflow is exact-main, restart-safe, and candidate-only", () =
   assert.match(workflow, /ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGE: after/);
   assert.doesNotMatch(workflow, /vercel deploy|stripe|ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/i);
 });
-
