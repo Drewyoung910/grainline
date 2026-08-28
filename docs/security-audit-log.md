@@ -3297,3 +3297,10 @@ Open work:
 - This is `FIX_BEFORE_ACTIVATION` and `BLOCKS_PROVIDER_PROOF`. Apply and
   postflight it separately before spending another Stripe test payment; then
   create an entirely new automatic-proof namespace.
+- Draft PR #302 exact-head CI run `33144446602` failed closed in the new real
+  runtime-login proof because its fixture omitted the Listing/OrderItem seller
+  graph required by the existing deferred durable-seller-key invariant. The
+  database rejected fixture setup before the candidate function ran. The proof
+  fixture now creates the full matching graph and teardown, with local
+  regression coverage. The failed run is retained as negative evidence and
+  cannot satisfy any release gate.

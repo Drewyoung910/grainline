@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  cpSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -80,3 +87,14 @@ test("real PostgreSQL proof accepts only separate loopback owner and runtime rol
   );
 });
 
+test("real PostgreSQL proof builds a complete durable Order seller graph", () => {
+  const proof = readFileSync(
+    "scripts/order-payment-signed-refund-identity-postgres-proof.mjs",
+    "utf8",
+  );
+  assert.match(proof, /INSERT INTO public\."Listing"/);
+  assert.match(proof, /INSERT INTO public\."OrderItem"/);
+  assert.match(proof, /"sellerProfileId"/);
+  assert.match(proof, /"itemsSubtotalCents"/);
+  assert.match(proof, /DELETE FROM public\."Listing"/);
+});

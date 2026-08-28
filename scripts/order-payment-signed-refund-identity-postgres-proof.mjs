@@ -64,7 +64,9 @@ function fixtureIds(label) {
     buyerId: `user_refund_identity_buyer_${suffix}`,
     sellerUserId: `user_refund_identity_seller_${suffix}`,
     sellerProfileId: `seller_refund_identity_${suffix}`,
+    listingId: `listing_refund_identity_${suffix}`,
     orderId: `order_refund_identity_${suffix}`,
+    orderItemId: `order_item_refund_identity_${suffix}`,
     chargeId: `ch_refundidentity${suffix}`,
     refundId: `re_refundidentity${suffix}`,
     localPaymentId: `local-refund-identity-payment-${suffix}`,
@@ -107,10 +109,22 @@ async function insertFixture(owner, ids, {
       )
     `, [ids.sellerProfileId, ids.sellerUserId]);
     await owner.query(`
+      INSERT INTO public."Listing" (
+        id, "sellerId", title, description, "priceCents", currency, status,
+        "listingType", "isPrivate", "reservedForUserId", "createdAt", "updatedAt"
+      ) VALUES (
+        $1, $2, 'refund-identity-proof',
+        'Disposable private signed-refund identity proof fixture',
+        $3, 'usd', 'ACTIVE', 'MADE_TO_ORDER', true, $4,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, [ids.listingId, ids.sellerProfileId, amount, ids.buyerId]);
+    await owner.query(`
       INSERT INTO public."Order" (
         id, "buyerId", "sellerProfileId", "stripeChargeId",
-        "sellerRefundId", "sellerRefundAmountCents", "reviewNeeded", "reviewNote"
-      ) VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+        "sellerRefundId", "sellerRefundAmountCents", "itemsSubtotalCents",
+        "shippingAmountCents", "taxAmountCents", "reviewNeeded", "reviewNote"
+      ) VALUES ($1, $2, $3, $4, $5, $6, $6, 0, 0, true, $7)
     `, [
       ids.orderId,
       ids.buyerId,
@@ -119,6 +133,24 @@ async function insertFixture(owner, ids, {
       ids.refundId,
       amount,
       `preserve-${ids.label}`,
+    ]);
+    await owner.query(`
+      INSERT INTO public."OrderItem" (
+        id, "orderId", "listingId", "sellerProfileId", quantity,
+        "priceCents", "listingSnapshot"
+      ) VALUES (
+        $1, $2, $3, $4, 1, $5,
+        pg_catalog.jsonb_build_object(
+          'title', 'refund-identity-proof',
+          'capturedAt', CURRENT_TIMESTAMP
+        )
+      )
+    `, [
+      ids.orderItemId,
+      ids.orderId,
+      ids.listingId,
+      ids.sellerProfileId,
+      amount,
     ]);
     await owner.query(`
       INSERT INTO public."StripeWebhookEvent" (
@@ -202,6 +234,7 @@ async function removeFixture(owner, ids) {
       DELETE FROM public."StripeWebhookEvent" WHERE id = $1
     `, [ids.eventId]);
     await owner.query(`DELETE FROM public."Order" WHERE id = $1`, [ids.orderId]);
+    await owner.query(`DELETE FROM public."Listing" WHERE id = $1`, [ids.listingId]);
     await owner.query(`DELETE FROM public."SellerProfile" WHERE id = $1`, [ids.sellerProfileId]);
     await owner.query(`DELETE FROM public."User" WHERE id IN ($1, $2)`, [ids.buyerId, ids.sellerUserId]);
     await owner.query("COMMIT");

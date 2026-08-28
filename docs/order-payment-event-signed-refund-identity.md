@@ -91,6 +91,17 @@ restricted role, exact candidate function body and ACL, retained compatible
 function's read-only lock fence. It writes only fresh sanitized mode-0600
 evidence and cannot mutate production.
 
+Exact-head PR CI run `33144446602` failed closed in the real PostgreSQL
+runtime-login proof before exercising the candidate function. The disposable
+fixture had created an Order without its required Listing/OrderItem seller
+graph, so the existing deferred durable-seller-key invariant rejected the
+transaction with `Order durable seller key is incomplete or inconsistent`.
+The candidate SQL did not fail and production was not contacted. The proof now
+creates the complete private Listing -> Order -> OrderItem graph with matching
+seller keys and totals, deletes that graph during teardown, and has a focused
+regression assertion for the real-schema fixture shape. A fresh exact-head CI
+run is required; the failed run is not release evidence.
+
 ## Remaining release sequence
 
 1. Complete local/full CI and Extra-High authority review; merge the exact
