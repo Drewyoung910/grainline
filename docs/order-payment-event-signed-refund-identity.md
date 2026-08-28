@@ -122,6 +122,16 @@ do not replay the migration, run the pooled-runtime postflight, spend another
 Stripe test payment or claim compatibility acceptance until corrected CI and
 the guarded final scope pass.
 
+Draft PR #303 exact-head CI run `33177740639` passed the full sealed migration,
+grant and real-login proof chain, then failed in the ordinary test step. The
+PGlite replay fixture recomputed the signed Stripe event timestamp from the
+wall clock for each invocation. When insert and replay crossed a one-second
+boundary, the fixed function correctly rejected the changed replay payload.
+The same race explains one first-pass local full-suite failure; a subsequent
+unchanged compact rerun passed. The fixture now pins one event timestamp across
+each insert/replay pair. This failure did not contact or change production and
+cannot serve as corrected release evidence.
+
 ## Remaining release sequence
 
 1. Complete local/full CI and Extra-High review of the successor-aware scope

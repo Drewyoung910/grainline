@@ -3323,3 +3323,10 @@ Open work:
   while checking the older chain. Missing, duplicate or mismatched views fail
   closed. Do not replay the migration or proceed to the pooled-runtime/provider
   proof until corrected exact-main CI and restart-safe final scope pass.
+- Draft PR #303 exact-head CI `33177740639` passed the sealed database and
+  real-login proof chain, then failed in the ordinary test step because the
+  PGlite replay fixture recomputed the signed event timestamp from `Date.now()`.
+  Crossing a one-second boundary made the replay payload genuinely different,
+  and the fixed function correctly rejected it. The fixture now reuses one
+  exact signed event timestamp across insert and replay. The failed CI did not
+  contact or mutate production and is retained only as negative test evidence.
