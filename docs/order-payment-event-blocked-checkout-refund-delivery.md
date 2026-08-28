@@ -843,3 +843,28 @@ SHA-256 matched the deleted account recorded in the evidence. This closes only
 the failed fixture and its recovery residue. A completely fresh automatic paid
 blocked-checkout proof, followed by predecessor drain, still precedes
 `OrderPaymentEvent` ENABLE/FORCE.
+
+## Fresh automatic-proof release boundary
+
+Do not reuse the reconciled attempt's `a6593516be9f` state/evidence namespace
+or recovery bindings. The operator intentionally refuses to start a new
+fixture when its operator commit differs from the proof commit and no preserved
+state exists; that is a recovery fence, not a reason to weaken validation.
+
+The clean next release is:
+
+1. select one exact `main` commit whose complete CI passed;
+2. confirm its runtime/schema/dependency diff from deployed source
+   `a09827e0a641ec2f7e228520661cd7e74625bb0d` is empty or separately reviewed;
+3. deploy that exact commit and verify READY, aliases, health and source
+   provenance while preserving the current deployment as predecessor;
+4. start `prepare` with the new exact commit, its CI and its deployment as the
+   single proof/application/operator binding, with no recovery or prior-
+   operator inputs; and
+5. require a new commit-keyed mode-`0600` state and, after genuine human Stripe
+   test checkout, a new automatic-success evidence file.
+
+The retained `a6593516be9f` reconciliation evidence is immutable historical
+failure recovery. It must remain distinct from the new state and can never be
+renamed, copied or interpreted as the fresh proof. Only the fresh operator's
+normal `verify` path may produce `automaticProductionProofPassed=true`.
