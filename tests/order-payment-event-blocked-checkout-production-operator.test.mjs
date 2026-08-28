@@ -147,7 +147,7 @@ function snapshot(overrides = {}) {
     shipping_amount: 0,
     tax_amount: 40,
     review_needed: true,
-    review_note: "Seller entered vacation mode before payment completion. Order was held for staff review.",
+    review_note: `Automatic full refund of ${value.refundAmountCents} cents via Stripe refund ${value.refundId} because checkout was no longer eligible.`,
     claim_cleared: true,
     claim_generation: "1",
     item_count: 1,
@@ -159,6 +159,11 @@ function snapshot(overrides = {}) {
     local_buyer_refund: "540",
     local_transfer_amount: "475",
     local_reversal_id: value.transferReversalId,
+    local_reversal_amount: "475",
+    local_expected_reversal: "true",
+    local_platform_funded_refund: "65",
+    local_requires_manual_reconciliation: "false",
+    local_requires_manual_follow_up: "false",
     signed_latest_refund: value.refundId,
     signed_total_refunded: "540",
     checkout_webhook_count: 1,
@@ -167,7 +172,8 @@ function snapshot(overrides = {}) {
     refund_generation: "1",
     reservation_status: "COMPLETED",
     stock: 1,
-    listing_status: "ACTIVE",
+    listing_status: "SOLD_OUT",
+    listing_private: true,
     vacation_mode: true,
     notification_count: 1,
     notification_id: value.notificationId,
@@ -711,7 +717,19 @@ test("delivery, exact replay, evidence, and redaction reject drift", () => {
   const delivered = assertDeliverySnapshot(snapshot(), value);
   assert.equal(delivered.wrongNotificationCount, 0);
   assert.deepEqual(assertReplayUnchanged(delivered, snapshot(), value), delivered);
-  assert.throws(() => assertDeliverySnapshot(snapshot({ wrong_notification_count: 1 }), value), /delivery effects drifted/);
+  for (const drift of [
+    { review_note: "Seller entered vacation mode before payment completion. Order was held for staff review." },
+    { listing_status: "ACTIVE" },
+    { listing_private: false },
+    { local_reversal_amount: "474" },
+    { local_expected_reversal: "false" },
+    { local_platform_funded_refund: "66" },
+    { local_requires_manual_reconciliation: "true" },
+    { local_requires_manual_follow_up: "true" },
+    { wrong_notification_count: 1 },
+  ]) {
+    assert.throws(() => assertDeliverySnapshot(snapshot(drift), value), /delivery effects drifted/);
+  }
   assert.throws(() => assertReplayUnchanged(delivered, snapshot({ checkout_generation: "2" }), value), /delivery effects drifted/);
   const cleanup = { accountDeleted: true, applicationRowsRemoved: true, canaryCount: 1,
     clerkSessionsRevoked: true, processedWebhookCount: 2, redisKeysRemoved: true };

@@ -1882,6 +1882,7 @@ export async function readDeliverySnapshot(owner, state) {
         (SELECT status FROM public."CheckoutStockReservation" WHERE id=$6 AND "stripeSessionId"=$1) AS reservation_status,
         (SELECT "stockQuantity" FROM public."Listing" WHERE id=$7) AS stock,
         (SELECT status::text FROM public."Listing" WHERE id=$7) AS listing_status,
+        (SELECT "isPrivate" FROM public."Listing" WHERE id=$7) AS listing_private,
         (SELECT "vacationMode" FROM public."SellerProfile" WHERE id=$8) AS vacation_mode,
         (SELECT count(*)::integer FROM public."Notification" WHERE "userId"=$9 AND type='REFUND_ISSUED'
           AND "sourceType"='order_payment' AND "sourceId"='local:blocked_checkout_refund_recorded:'||$2
@@ -1960,6 +1961,7 @@ function normalizeDeliverySnapshot(snapshot) {
     reservationStatus: snapshot?.reservation_status,
     stock: Number(snapshot?.stock),
     listingStatus: snapshot?.listing_status,
+    listingPrivate: snapshot?.listing_private,
     vacationMode: snapshot?.vacation_mode,
     notificationCount: Number(snapshot?.notification_count),
     notificationId: snapshot?.notification_id ?? null,
@@ -1975,23 +1977,31 @@ function normalizeDeliverySnapshot(snapshot) {
 
 export function assertDeliverySnapshot(snapshot, state, expected = {}) {
   const normalized = normalizeDeliverySnapshot(snapshot);
+  const canonicalReviewNote = `Automatic full refund of ${state.refundAmountCents} cents via Stripe refund ${state.refundId} because checkout was no longer eligible.`;
   if (!normalized.orderId || normalized.orderRefundId !== state.refundId
     || normalized.orderRefundAmount !== state.refundAmountCents || normalized.paymentIntentId !== state.paymentIntentId
     || normalized.chargeId !== state.chargeId || normalized.transferId !== state.transferId
     || normalized.buyerId !== state.buyerId || normalized.sellerId !== state.sellerProfileId
     || normalized.itemsSubtotal !== PRICE_CENTS || normalized.shippingAmount !== 0
     || normalized.itemsSubtotal + normalized.shippingAmount + normalized.taxAmount !== state.refundAmountCents
-    || normalized.reviewNeeded !== true || !normalized.reviewNote.includes("Seller entered vacation mode before payment completion.")
+    || normalized.reviewNeeded !== true || normalized.reviewNote !== canonicalReviewNote
     || normalized.claimCleared !== true || !/^[1-9][0-9]*$/.test(normalized.claimGeneration)
     || normalized.itemCount !== 1 || !normalized.itemId || normalized.paymentCount !== 2
     || !normalized.localPaymentId || !normalized.signedPaymentId
     || !new Set(["local_refund_confirmed", "local_refund_pending_confirmation"]).has(normalized.signedReason)
     || normalized.localBuyerRefund !== state.refundAmountCents || normalized.localTransferAmount !== SELLER_TRANSFER_CENTS
-    || normalized.localReversalId !== state.transferReversalId || normalized.signedLatestRefund !== state.refundId
+    || normalized.localReversalId !== state.transferReversalId
+    || normalized.localReversalAmount !== SELLER_TRANSFER_CENTS
+    || String(normalized.localExpectedReversal) !== "true"
+    || normalized.localPlatformFundedRefund !== state.refundAmountCents - SELLER_TRANSFER_CENTS
+    || String(normalized.localRequiresManualReconciliation) !== "false"
+    || String(normalized.localRequiresManualFollowUp) !== "false"
+    || normalized.signedLatestRefund !== state.refundId
     || normalized.signedTotalRefunded !== state.refundAmountCents
     || normalized.checkoutWebhookCount !== 1 || normalized.refundWebhookCount !== 1
     || !/^[1-9][0-9]*$/.test(normalized.checkoutGeneration) || !/^[1-9][0-9]*$/.test(normalized.refundGeneration)
-    || normalized.reservationStatus !== "COMPLETED" || normalized.stock !== 1 || normalized.listingStatus !== "ACTIVE"
+    || normalized.reservationStatus !== "COMPLETED" || normalized.stock !== 1
+    || normalized.listingStatus !== "SOLD_OUT" || normalized.listingPrivate !== true
     || normalized.vacationMode !== true || normalized.notificationCount !== 1 || !normalized.notificationId
     || normalized.wrongNotificationCount !== 0 || normalized.outboxCount !== 1 || !normalized.outboxId
     || normalized.wrongOutboxCount !== 0 || normalized.checkoutAuditCount !== 1
@@ -2049,6 +2059,7 @@ export function assertManualReconciliationDeliverySnapshot(snapshot, state) {
     || normalized.reservationStatus !== "COMPLETED"
     || normalized.stock !== 1
     || normalized.listingStatus !== "SOLD_OUT"
+    || normalized.listingPrivate !== true
     || normalized.vacationMode !== true
     || normalized.notificationCount !== 1
     || normalized.notificationId !== state.notificationId

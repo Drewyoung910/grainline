@@ -315,6 +315,19 @@ completed alternative.
 > off and predecessor CRUD retained. Fresh automatic provider proof,
 > predecessor drain, remaining invariants and separate ENABLE/FORCE releases
 > remain open.
+>
+> **Fresh automatic-proof update (2026-08-28):** exact deployed source
+> `3431bb83fa16fabb9b9e18a729a7d138d48764d9`, CI `33211840251` and
+> deployment `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S` completed a genuine Stripe
+> test-mode payment and correct signed refund/reversal delivery. Verification
+> failed closed before replay or cleanup because it still expected the old
+> pre-payment hold note and `ACTIVE` status; the fixed authority correctly
+> writes the canonical refund note and retains a private restored listing as
+> `SOLD_OUT` with stock one. The preserved journal remains at
+> `payment-completed`, automatic-success evidence is absent and production is
+> unchanged. An isolated correction now pins the canonical/private outcome and
+> all refund-accounting fields. Exact merge, exact-main CI and restart-safe
+> resumption of this same journal remain required; no second payment is needed.
 
 ## Program Rules
 
