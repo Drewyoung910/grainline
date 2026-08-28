@@ -47,7 +47,9 @@ import {
   isCheckoutClientSecretForSession,
   redact,
   readOnboardingRecord,
+  reconciliationUsesPreviousOperatorBinding,
   removeOnboardingRecord,
+  requiredExistingReversalForOperatorRebind,
   validateConfiguration,
   validateProviderCredentials,
   writeOnboardingRecord,
@@ -60,6 +62,8 @@ const DEPLOYMENT = "dpl_BlockedCheckoutProof";
 const RECOVERY_SOURCE = "d".repeat(40);
 const RECOVERY_CI = CI + 2;
 const RECOVERY_DEPLOYMENT = "dpl_BlockedCheckoutRecovery";
+const PREVIOUS_OPERATOR = "e".repeat(40);
+const PREVIOUS_OPERATOR_CI = CI + 3;
 const config = Object.freeze({
   expectedCommit: COMMIT,
   deployedSourceCommit: SOURCE,
@@ -211,6 +215,35 @@ test("configuration and restart state fail closed", () => {
   assert.equal(recovery.mainCiRunId, CI);
   assert.equal(recovery.operatorCommit, "c".repeat(40));
   assert.equal(recovery.operatorCiRunId, CI + 1);
+  assert.throws(() => validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "reconcile",
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_CONFIRM: RECONCILIATION_CONFIRMATION,
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_COMMIT: "c".repeat(40),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_CI_RUN_ID: String(CI + 1),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_COMMIT: PREVIOUS_OPERATOR,
+  })), /previous operator commit and CI must be supplied together/);
+  assert.throws(() => validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_COMMIT: PREVIOUS_OPERATOR,
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_CI_RUN_ID: String(PREVIOUS_OPERATOR_CI),
+  })), /previous operator binding is reconcile-only/);
+  assert.throws(() => validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "reconcile",
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_CONFIRM: RECONCILIATION_CONFIRMATION,
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_COMMIT: "c".repeat(40),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_CI_RUN_ID: String(CI + 1),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_COMMIT: "c".repeat(40),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_CI_RUN_ID: String(PREVIOUS_OPERATOR_CI),
+  })), /must replace both current operator commit and CI bindings/);
+  const reconciliationRebind = validateConfiguration(environment({
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND: "reconcile",
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_CONFIRM: RECONCILIATION_CONFIRMATION,
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_COMMIT: "c".repeat(40),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_OPERATOR_CI_RUN_ID: String(CI + 1),
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_COMMIT: PREVIOUS_OPERATOR,
+    ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_CI_RUN_ID: String(PREVIOUS_OPERATOR_CI),
+  }), "/repo");
+  assert.equal(reconciliationRebind.reconciliationPreviousOperatorCommit, PREVIOUS_OPERATOR);
+  assert.equal(reconciliationRebind.reconciliationPreviousOperatorCiRunId, PREVIOUS_OPERATOR_CI);
   assert.throws(() => validateConfiguration(environment({
     ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYED_SOURCE_COMMIT: RECOVERY_SOURCE,
   })), /commit, CI and deployment must be supplied together/);
@@ -736,6 +769,43 @@ test("failed-proof reconciliation stays distinct, exact and restart-safe", () =>
   assert.throws(() => assertReconciliationState({ ...reconciliation, stage: "cleanup-started",
     manualTransferReversalId: null }, config, value), /identity is missing/);
   assert.throws(() => assertReconciliationState({ ...reconciliation, extra: true }, config, value), /unknown field/);
+  const rebindConfig = Object.freeze({
+    ...config,
+    operatorCommit: "c".repeat(40),
+    operatorCiRunId: CI + 1,
+    reconciliationPreviousOperatorCommit: COMMIT,
+    reconciliationPreviousOperatorCiRunId: CI,
+  });
+  const previousPending = assertReconciliationState({
+    ...reconciliation,
+    stage: "reversal-pending",
+    manualTransferReversalId: null,
+  }, rebindConfig, value);
+  assert.equal(reconciliationUsesPreviousOperatorBinding(previousPending, rebindConfig), true);
+  assert.equal(requiredExistingReversalForOperatorRebind(previousPending, rebindConfig, [reversal]), reversalId);
+  assert.throws(
+    () => requiredExistingReversalForOperatorRebind(previousPending, rebindConfig, []),
+    /requires one existing reversal/,
+  );
+  assert.throws(
+    () => requiredExistingReversalForOperatorRebind(previousPending, rebindConfig, [reversal, { ...reversal, id: "trr_other" }]),
+    /requires one existing reversal/,
+  );
+  assert.throws(
+    () => assertReconciliationState(reconciliation, rebindConfig, value),
+    /previous operator restart boundary drifted/,
+  );
+  assert.throws(
+    () => assertReconciliationState({ ...previousPending, operatorCommit: PREVIOUS_OPERATOR }, rebindConfig, value),
+    /state binding drifted/,
+  );
+  const currentPending = assertReconciliationState({
+    ...previousPending,
+    operatorCommit: rebindConfig.operatorCommit,
+    operatorCiRunId: rebindConfig.operatorCiRunId,
+  }, rebindConfig, value);
+  assert.equal(reconciliationUsesPreviousOperatorBinding(currentPending, rebindConfig), false);
+  assert.equal(requiredExistingReversalForOperatorRebind(currentPending, rebindConfig, []), null);
   assert.equal(assertReconciliationProofState(value).orderId, value.orderId);
   assert.throws(() => assertReconciliationProofState({ ...value, notificationId: null }), /notificationId is missing/);
 

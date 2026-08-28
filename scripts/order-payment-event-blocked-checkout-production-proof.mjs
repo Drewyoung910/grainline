@@ -229,6 +229,30 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   if ((operatorCommit !== expectedCommit) !== (operatorCiRunId !== mainCiRunId)) {
     throw new Error("blocked-checkout operator recovery must replace both commit and CI bindings");
   }
+  const reconciliationPreviousOperatorCommitInput =
+    env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_COMMIT || null;
+  const reconciliationPreviousOperatorCiRunIdInput =
+    env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_CI_RUN_ID || null;
+  if (Boolean(reconciliationPreviousOperatorCommitInput)
+    !== Boolean(reconciliationPreviousOperatorCiRunIdInput)) {
+    throw new Error("blocked-checkout reconciliation previous operator commit and CI must be supplied together");
+  }
+  if (reconciliationPreviousOperatorCommitInput && command !== "reconcile") {
+    throw new Error("blocked-checkout reconciliation previous operator binding is reconcile-only");
+  }
+  const reconciliationPreviousOperatorCommit = reconciliationPreviousOperatorCommitInput || null;
+  const reconciliationPreviousOperatorCiRunId = reconciliationPreviousOperatorCiRunIdInput
+    ? positiveInteger(env, "ORDER_PAYMENT_BLOCKED_CHECKOUT_RECONCILIATION_PREVIOUS_OPERATOR_CI_RUN_ID")
+    : null;
+  if (reconciliationPreviousOperatorCommit !== null && (
+    !COMMIT_PATTERN.test(reconciliationPreviousOperatorCommit)
+    || reconciliationPreviousOperatorCommit === operatorCommit
+    || reconciliationPreviousOperatorCiRunId === operatorCiRunId
+  )) {
+    throw new Error(
+      "blocked-checkout reconciliation previous operator must replace both current operator commit and CI bindings",
+    );
+  }
   const recoveryDeployedSourceCommitInput = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYED_SOURCE_COMMIT || null;
   const recoveryMainCiRunIdInput = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_MAIN_CI_RUN_ID || null;
   const recoveryDeploymentIdInput = env.ORDER_PAYMENT_BLOCKED_CHECKOUT_RECOVERY_DEPLOYMENT_ID || null;
@@ -298,6 +322,8 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     operatorCiRunId,
     operatorCommit,
     port,
+    reconciliationPreviousOperatorCiRunId,
+    reconciliationPreviousOperatorCommit,
     reconciliationEvidencePath,
     reconciliationPath,
     statePath,
@@ -492,12 +518,14 @@ export function assertReconciliationState(value, config, proofState) {
   if (unknown.length) {
     throw new Error(`blocked-checkout reconciliation state contains unknown field ${unknown[0]}`);
   }
+  const currentOperatorBinding = value.operatorCommit === (config.operatorCommit ?? config.expectedCommit)
+    && String(value.operatorCiRunId) === String(config.operatorCiRunId ?? config.mainCiRunId);
+  const previousOperatorBinding = reconciliationUsesPreviousOperatorBinding(value, config);
   if (value.version !== 1
     || value.phase !== "order-payment-event-blocked-checkout-transfer-reconciliation"
     || !RECONCILIATION_STAGES.includes(value.stage)
     || value.expectedCommit !== config.expectedCommit
-    || value.operatorCommit !== (config.operatorCommit ?? config.expectedCommit)
-    || String(value.operatorCiRunId) !== String(config.operatorCiRunId ?? config.mainCiRunId)
+    || (!currentOperatorBinding && !previousOperatorBinding)
     || value.attemptId !== proofState.attemptId) {
     throw new Error("blocked-checkout reconciliation state binding drifted");
   }
@@ -508,7 +536,26 @@ export function assertReconciliationState(value, config, proofState) {
   if (value.stage !== "reversal-pending" && reversalId === null) {
     throw new Error("blocked-checkout reconciliation reversal identity is missing");
   }
+  if (previousOperatorBinding && (value.stage !== "reversal-pending" || reversalId !== null)) {
+    throw new Error("blocked-checkout reconciliation previous operator restart boundary drifted");
+  }
   return Object.freeze({ ...value, manualTransferReversalId: reversalId });
+}
+
+export function reconciliationUsesPreviousOperatorBinding(value, config) {
+  return typeof config?.reconciliationPreviousOperatorCommit === "string"
+    && Number.isSafeInteger(config?.reconciliationPreviousOperatorCiRunId)
+    && value?.operatorCommit === config.reconciliationPreviousOperatorCommit
+    && String(value?.operatorCiRunId) === String(config.reconciliationPreviousOperatorCiRunId);
+}
+
+export function requiredExistingReversalForOperatorRebind(reconciliation, config, reversals) {
+  if (!reconciliationUsesPreviousOperatorBinding(reconciliation, config)) return null;
+  if (!Array.isArray(reversals) || reversals.length !== 1
+    || !/^trr_[A-Za-z0-9_]+$/.test(String(reversals[0]?.id ?? ""))) {
+    throw new Error("blocked-checkout reconciliation operator rebind requires one existing reversal");
+  }
+  return reversals[0].id;
 }
 
 export function assertReconciliationProofState(state) {
@@ -776,11 +823,18 @@ function readGitHubCi(commit, runId) {
 
 function verifyGitHubCi(config) {
   const bindings = new Map();
-  for (const [commit, runId] of [
+  const candidates = [
     [config.expectedCommit, config.mainCiRunId],
     [config.operatorCommit, config.operatorCiRunId],
     [config.applicationDeployedSourceCommit, config.applicationMainCiRunId],
-  ]) {
+  ];
+  if (config.reconciliationPreviousOperatorCommit) {
+    candidates.push([
+      config.reconciliationPreviousOperatorCommit,
+      config.reconciliationPreviousOperatorCiRunId,
+    ]);
+  }
+  for (const [commit, runId] of candidates) {
     const existingRunId = bindings.get(commit);
     if (existingRunId !== undefined && existingRunId !== runId) {
       throw new Error("blocked-checkout CI binding assigns two runs to one exact commit");
@@ -2924,6 +2978,8 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
       state,
     )
     : null;
+  const requiresOperatorRebind = reconciliation !== null
+    && reconciliationUsesPreviousOperatorBinding(reconciliation, config);
 
   const context = await loadExecutionContext(config, state);
   const { clerk, owner, redis, runtime, stripe, stripeSecret } = context;
@@ -2993,7 +3049,14 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
 
       if (reconciliation.stage === "reversal-pending") {
         let reversalId;
-        if (initialProvider.reversals.length === 0) {
+        const existingRebindReversalId = requiredExistingReversalForOperatorRebind(
+          reconciliation,
+          config,
+          initialProvider.reversals,
+        );
+        if (existingRebindReversalId !== null) {
+          reversalId = existingRebindReversalId;
+        } else if (initialProvider.reversals.length === 0) {
           assertManualReconciliationProvider(initialProvider, state, null);
           const created = await stripeOps.createManualTransferReversal(state.transferId);
           const exactRetry = await stripeOps.createManualTransferReversal(state.transferId);
@@ -3012,6 +3075,8 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
         reconciliation = writeReconciliationState(config, state, {
           ...reconciliation,
           stage: "reversal-confirmed",
+          operatorCommit: requiresOperatorRebind ? config.operatorCommit : reconciliation.operatorCommit,
+          operatorCiRunId: requiresOperatorRebind ? config.operatorCiRunId : reconciliation.operatorCiRunId,
           manualTransferReversalId: reversalId,
         });
       }
