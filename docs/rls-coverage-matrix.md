@@ -315,6 +315,18 @@ completed alternative.
 > off and predecessor CRUD retained. Fresh automatic provider proof,
 > predecessor drain, remaining invariants and separate ENABLE/FORCE releases
 > remain open.
+>
+> PR #304 merged the accepted record as exact main
+> `3431bb83fa16fabb9b9e18a729a7d138d48764d9`; CI `33211840251`
+> passed. That exact source is now Vercel Production deployment
+> `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`: `READY`, all canonical aliases attached,
+> canonical and immutable health checks healthy, and authenticated deployment
+> metadata pinned to the exact Git SHA. Deployment
+> `dpl_8FMq11zfZT166Dve7Vf6sTJTXFzX` remains `READY` as predecessor. This is
+> application preparation only: no fixture/provider proof, migration, RLS,
+> grant, credential or provider-configuration state changed. A completely
+> fresh automatic paid proof still precedes predecessor drain and separate
+> `OrderPaymentEvent` ENABLE/FORCE.
 
 ## Program Rules
 

@@ -885,3 +885,29 @@ database-derived correction in
 separate guarded migration boundary and prove it through the pooled runtime
 role. The historical reconciled evidence remains unchanged and must not be
 promoted to success.
+
+## Fresh automatic-proof application deployment (2026-08-28)
+
+The signed-refund identity blocker above is now closed. PR #303 merged as
+exact main `4ea201c411afd5e065200f81dbbf18d9dd5044d1`; exact-main CI
+`33190374131`, restart-safe compatibility run `33194758799`, and the distinct
+pooled-runtime postflight all passed. PR #304 merged the accepted record as
+exact main `3431bb83fa16fabb9b9e18a729a7d138d48764d9`; exact-main CI
+`33211840251` passed.
+
+The exact PR #304 main commit was manually deployed to Vercel Production as
+`dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`. Vercel reports `READY`, all four canonical
+aliases resolve to that deployment, both the canonical and immutable
+deployment health endpoints returned `{ "ok": true }`, and authenticated
+deployment metadata reports exact `meta.gitCommitSha`
+`3431bb83fa16fabb9b9e18a729a7d138d48764d9`. The prior deployment
+`dpl_8FMq11zfZT166Dve7Vf6sTJTXFzX` remains `READY` and preserved as the
+predecessor. No migration, RLS, fixture, Stripe, grant, credential or provider
+configuration state changed in this deployment boundary.
+
+This closes only step 3 of the fresh automatic-proof release boundary. Next,
+the proof must start from a new commit-keyed state/evidence namespace and bind
+the operator, application, CI and deployment to this exact release. Do not
+reuse any reconciled `a6593516be9f` journal or evidence. Creating or paying the
+fresh fixture remains a separate production/provider operation; predecessor
+drain and `OrderPaymentEvent` ENABLE/FORCE remain later gates.

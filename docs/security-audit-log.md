@@ -3355,3 +3355,25 @@ Open work:
   `productionChangedByPostflight=false`. Compatibility is accepted. A fresh
   automatic paid provider proof, predecessor drain, remaining invariants and
   separate ENABLE/FORCE releases remain mandatory.
+
+## OrderPaymentEvent fresh-proof application deployment (2026-08-28)
+
+- PR #304 merged its accepted signed-refund compatibility record as exact main
+  `3431bb83fa16fabb9b9e18a729a7d138d48764d9`; exact-main CI
+  `33211840251` passed.
+- That exact commit was manually deployed to Vercel Production as
+  `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`. Vercel reports `READY`; canonical alias
+  inspection resolves `thegrainline.com`, `www.thegrainline.com`,
+  `grainline.vercel.app`, and the project alias to the new deployment.
+- Authenticated health checks returned `{ "ok": true }` through both the
+  canonical domain and immutable deployment URL. Authenticated deployment API
+  metadata reports `meta.gitCommitSha` exactly
+  `3431bb83fa16fabb9b9e18a729a7d138d48764d9`.
+- Prior deployment `dpl_8FMq11zfZT166Dve7Vf6sTJTXFzX` remains `READY` and
+  was not removed. No migration, RLS, grant, fixture, Stripe, credential,
+  variable or provider-configuration state changed.
+- The deployment closes only the application-release prerequisite for a new
+  automatic paid blocked-checkout proof. New fixture creation/payment,
+  predecessor drain, and `OrderPaymentEvent` ENABLE/FORCE remain separately
+  gated. Historical reconciliation evidence remains negative evidence and
+  must not be reused as fresh proof.
