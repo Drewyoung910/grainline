@@ -684,6 +684,22 @@ export function assertConnectedAccount(account, config, state, { requireTransfer
   return account;
 }
 
+export function assertDeletedConnectedAccountAbsence(error, accounts, expectedAccountId) {
+  const exactAccessFailure = error?.type === "StripePermissionError"
+    && error?.code === "account_invalid"
+    && error?.statusCode === 403
+    && error?.rawType === "api_error";
+  if (!/^acct_[A-Za-z0-9_]+$/.test(String(expectedAccountId ?? ""))
+    || !exactAccessFailure
+    || !Array.isArray(accounts)
+    || accounts.length > 1000
+    || accounts.some((account) => !/^acct_[A-Za-z0-9_]+$/.test(String(account?.id ?? "")))
+    || accounts.some((account) => account.id === expectedAccountId)) {
+    throw new Error("blocked-checkout deleted connected account absence is not proven");
+  }
+  return true;
+}
+
 export function buildConnectedAccountLinkParams(accountId) {
   if (typeof accountId !== "string" || !/^acct_[A-Za-z0-9_]+$/.test(accountId)) {
     throw new Error("blocked-checkout hosted onboarding requires an exact account ID");
@@ -971,6 +987,7 @@ function stripeDependencies(stripe, secretKey, config, state) {
       buildConnectedAccountLinkParams(accountId),
       idempotency(`hosted-onboarding-${randomUUID()}`),
     ),
+    listAccounts: () => listAll(stripe.accounts.list({ limit: 100 })),
     retrieveAccount: (id) => stripe.accounts.retrieve(id),
     deleteAccount: (id) => stripe.accounts.del(id),
     retrieveSession: (id) => stripe.checkout.sessions.retrieve(id, { expand: CHECKOUT_SESSION_EXPANDS }),
@@ -2227,6 +2244,12 @@ export function assertCleanupSnapshot(snapshot) {
   return Object.freeze(normalized);
 }
 
+export function classifyReconciliationCleanupRestart(snapshot) {
+  if (Number(snapshot?.order_count) === 1) return "fixture-intact";
+  assertCleanupSnapshot(snapshot);
+  return "application-cleaned";
+}
+
 function balanceTotal(balance) {
   return [...(balance?.available ?? []), ...(balance?.pending ?? [])]
     .reduce((sum, row) => sum + Number(row?.amount ?? 0), 0);
@@ -2469,7 +2492,16 @@ async function deleteExactRedisKeys(redis, state) {
 
 async function deleteDisposableAccount(stripeOps, config, state) {
   if (!state.stripeAccountId) return true;
-  const current = await stripeOps.retrieveAccount(state.stripeAccountId);
+  let current;
+  try {
+    current = await stripeOps.retrieveAccount(state.stripeAccountId);
+  } catch (error) {
+    return assertDeletedConnectedAccountAbsence(
+      error,
+      await stripeOps.listAccounts(),
+      state.stripeAccountId,
+    );
+  }
   if (current?.deleted === true) return current.id === state.stripeAccountId;
   assertConnectedAccount(current, config, state, { requireTransferActive: false });
   const balance = await stripeOps.retrieveBalance(state.stripeAccountId);
@@ -2917,10 +2949,6 @@ export async function verifyAndCleanupProof(config = validateConfiguration()) {
     }
     if (state.stage !== "cleaned") throw new Error("blocked-checkout verification reached an unsupported recovery stage");
     const cleanupSnapshot = assertCleanupSnapshot(await readCleanupSnapshot(owner, state));
-    const deletedAccount = await stripeOps.retrieveAccount(state.stripeAccountId);
-    if (deletedAccount?.deleted !== true || deletedAccount.id !== state.stripeAccountId) {
-      throw new Error("blocked-checkout cleaned account evidence drifted");
-    }
     const cleanup = {
       accountDeleted: true,
       applicationRowsRemoved: true,
@@ -3006,10 +3034,13 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
           rebindProvider.reversals,
         );
         assertManualReconciliationProvider(rebindProvider, state, existingReversalId);
-        assertManualReconciliationDeliverySnapshot(
-          await readDeliverySnapshot(owner, state),
-          state,
-        );
+        const restartSnapshot = await readCleanupSnapshot(owner, state);
+        if (classifyReconciliationCleanupRestart(restartSnapshot) === "fixture-intact") {
+          assertManualReconciliationDeliverySnapshot(
+            await readDeliverySnapshot(owner, state),
+            state,
+          );
+        }
         reconciliation = writeReconciliationState(config, state, {
           ...reconciliation,
           operatorCommit: config.operatorCommit,
@@ -3122,13 +3153,13 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
     }
 
     await revokeCanarySessions(clerk, state.buyerClerkId);
+    assertManualReconciliationProvider(
+      await readManualReconciliationProvider(stripeOps, state),
+      state,
+      reconciliation.manualTransferReversalId,
+    );
     const beforeCleanup = await readCleanupSnapshot(owner, state);
-    if (Number(beforeCleanup.order_count) === 1) {
-      assertManualReconciliationProvider(
-        await readManualReconciliationProvider(stripeOps, state),
-        state,
-        reconciliation.manualTransferReversalId,
-      );
+    if (classifyReconciliationCleanupRestart(beforeCleanup) === "fixture-intact") {
       assertManualReconciliationDeliverySnapshot(
         await readDeliverySnapshot(owner, state),
         state,
@@ -3144,10 +3175,6 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
     }
     if (!await deleteDisposableAccount(stripeOps, config, state)) {
       throw new Error("blocked-checkout reconciliation account cleanup failed");
-    }
-    const deletedAccount = await stripeOps.retrieveAccount(state.stripeAccountId);
-    if (deletedAccount?.deleted !== true || deletedAccount.id !== state.stripeAccountId) {
-      throw new Error("blocked-checkout reconciliation deleted account evidence drifted");
     }
 
     const cleanup = {
