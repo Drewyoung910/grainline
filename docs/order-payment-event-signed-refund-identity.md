@@ -138,24 +138,30 @@ Corrected PR #303 code head
 authority and real-login proofs, TypeScript, lint, 3,486-test suite, dependency
 audit and production build. The Vercel Preview failed only at the intentional
 missing-Preview-`DATABASE_URL` boundary and is not production or database
-release evidence. The branch still requires an exact reviewed merge, exact-main
-CI and the restart-safe no-replay production scope before acceptance.
+release evidence.
+
+PR #303 merged as exact main
+`4ea201c411afd5e065200f81dbbf18d9dd5044d1`; exact-main CI
+`33190374131` passed. Restart-safe guarded run `33194758799` classified the
+database as `signed-refund-identity-compatible`, skipped both predecessor
+migration status and migration deployment, then passed Prisma status, the
+global 65-table/179-function grant and RLS audit, and the corrected
+engine-read-only final scope. The distinct pooled `grainline_app_runtime`
+postflight passed from the same clean commit in a repeatable-read read-only
+transaction and wrote mode-`0600` sanitized evidence with SHA-256
+`7849c8383164ae46d94bd8522710c8dbfdd1037da1e23281db1c3ef3e5b9e477`.
+It proved the exact successor body and ACL, actual restricted runtime identity,
+predecessor CRUD retained, `OrderPaymentEvent` RLS off, and the expected
+read-only lock fence with no production mutation. Compatibility is accepted.
 
 ## Remaining release sequence
 
-1. Complete local/full CI and Extra-High review of the successor-aware scope
-   correction; merge only the exact reviewed candidate.
-2. Rerun the restart-safe guarded workflow. It must classify the migration as
-   already applied, skip deployment and pass the corrected final read-only
-   scope plus migration/global audits.
-3. Run a distinct pooled-runtime read-only postflight against the applied
-   function.
-4. Bind and deploy the exact compatible source if a deployment is needed for a
+1. Bind and deploy the exact compatible source if a deployment is needed for a
    new proof namespace.
-5. Run one completely fresh automatic blocked-checkout paid proof. Never reuse
+2. Run one completely fresh automatic blocked-checkout paid proof. Never reuse
    the reconciled `a6593516be9f` fixture or evidence namespace.
-6. Drain the predecessor only after the new proof passes, then resume the
+3. Drain the predecessor only after the new proof passes, then resume the
    remaining `OrderPaymentEvent` authority/invariant and ENABLE/FORCE gates.
 
-This candidate does not authorize a migration, deployment, Stripe operation,
-predecessor drain or RLS activation.
+This accepted compatibility record does not authorize a deployment, Stripe
+operation, predecessor drain or RLS activation.
