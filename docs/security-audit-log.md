@@ -3189,3 +3189,13 @@ Open work:
   Session, Charge, Transfer and Events retain the mode boundary. A shared
   helper and class-wide guard correct the same dormant assumption in all three
   production refund proof operators without changing application behavior.
+- PR #296 merged that correction as exact main
+  `c0f706e8d92087dc51da8b1fefba976bc867296b`; CI `33127595577`
+  passed. The authorized reconciliation created the exact idempotent 475-cent
+  Stripe test transfer reversal, then failed closed before cleanup or evidence
+  because `TransferReversal.livemode` is also absent from Stripe's current
+  object and generated type. Read-only inspection proved exactly one fully
+  bound reversal, a test-mode parent Transfer, intact application fixtures and
+  a private `reversal-pending` restart journal. The isolated proof-only fix
+  requires `object='transfer_reversal'` plus exact `trr_` identity and marker
+  metadata while rejecting any future explicit live-mode field.

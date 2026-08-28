@@ -32,6 +32,7 @@ import { NOTIFICATION_CANARY_EXTERNAL_ID } from "./notification-operational-cana
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 import { readProviderState } from "./stripe-connect-provider-cutover.mjs";
 import { assertStripeRefundObject } from "./stripe-refund-object-proof.mjs";
+import { assertStripeTransferReversalObject } from "./stripe-transfer-reversal-object-proof.mjs";
 import {
   assertGitState,
   parseDatabaseUrls,
@@ -1734,9 +1735,11 @@ export function assertManualReconciliationProvider(
     || reversals.length !== 1) {
     throw new Error("blocked-checkout manual reconciliation reversal cardinality drifted");
   }
-  const reversal = reversals[0];
+  const reversal = assertStripeTransferReversalObject(
+    reversals[0],
+    "blocked-checkout manual reconciliation transfer reversal",
+  );
   if (reversal?.id !== expectedReversalId
-    || reversal?.livemode !== false
     || reversal?.amount !== SELLER_TRANSFER_CENTS
     || stripeObjectId(reversal?.transfer) !== state.transferId
     || reversal?.metadata?.grainline_proof !== "blocked_checkout"

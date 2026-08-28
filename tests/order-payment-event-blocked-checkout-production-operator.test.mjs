@@ -708,7 +708,8 @@ test("failed-proof reconciliation stays distinct, exact and restart-safe", () =>
   assert.equal(assertManualReconciliationProvider({ refund, reversals: [], session, transfer }, value).reversalId, null);
 
   const reversalId = "trr_manualreconciliation";
-  const reversal = { id: reversalId, livemode: false, amount: SELLER_TRANSFER_CENTS, transfer: value.transferId,
+  const reversal = { id: reversalId, object: "transfer_reversal", amount: SELLER_TRANSFER_CENTS,
+    transfer: value.transferId,
     metadata: { grainline_proof: "blocked_checkout", reconciliation_reason: "transfer_visibility_race",
       attempt_sha256: "bd7662a5eeb41614e720d477abfcb2272e19a8a70a93b7e3bc8560d44ad326e9" } };
   const reversedTransfer = { ...transfer, amount_reversed: SELLER_TRANSFER_CENTS, reversed: true };
