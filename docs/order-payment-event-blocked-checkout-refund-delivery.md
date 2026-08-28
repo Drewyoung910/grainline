@@ -947,3 +947,36 @@ missing automatic-path argument. Focused operator/disposable-PostgreSQL tests
 pass 25/25 and the complete repository suite passes 3,479 with zero failures
 and seven skips. Resume only after exact merge and exact-main CI, using a new
 operator recovery binding; do not create or charge another fixture.
+
+## Fresh automatic proof accepted (2026-08-28)
+
+PR #307 merged the cleanup correction as exact main
+`2836e51d0ceb91ce05756dc5138e7c337e02a503`; exact-main CI `33220013251`
+passed. The restart remained bound to the original application proof commit
+`3431bb83fa16fabb9b9e18a729a7d138d48764d9`, CI `33211840251` and deployment
+`dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`, and used the merged main commit/CI only as
+the reviewed operator recovery binding.
+
+The cleanup-only restart passed. It re-proved the genuine five-dollar Stripe
+test-mode checkout, both signed deliveries and both exact retries; the
+541-cent buyer refund, 475-cent seller transfer/reversal and 66-cent
+platform-funded remainder; restored private stock with the expected
+`SOLD_OUT` state; one refund notification, one preference-skipped email, three
+audits and no wrong `NEW_ORDER` side effects. It then revoked canary sessions,
+restored the operational canary, deleted the marker-bound application rows and
+exact Redis keys, and deleted the disposable connected account. It retained
+only the two processed signed webhook leases plus ordinary immutable Stripe
+test objects and provider/observability telemetry. No live money moved, no
+provider configuration changed and no secret was retained.
+
+The mode-`0600` restart journal was removed. Sanitized automatic-success
+evidence is mode `0600` at
+`order-payment-event-blocked-checkout-proof-3431bb83fa16.json`; SHA-256:
+`dafb43dbe1de3e0b65da8a3554b465b1aaa74282ee56779f3fb34b209a6c27a7`.
+The evidence's legacy boolean name `stockRestoredAndReactivated` denotes the
+proved stock/state transition; the exact verifier requires private
+`SOLD_OUT`, not public reactivation. This closes the fresh automatic
+blocked-checkout provider-proof gate. It does not activate `OrderPaymentEvent`
+RLS or waive predecessor drain, the remaining authority-family proofs,
+append-only/taxonomy/currency/source invariants, actor-safe projections and
+aggregates, or the separate ENABLE/FORCE releases.
