@@ -712,3 +712,20 @@ three without changing application runtime behavior. Read-only validation
 against the preserved Stripe objects passes the corrected full provider-source
 predicate with zero reversals. A fresh exact-main/CI-bound authorization is
 still required before reconciliation is retried.
+
+PR #296 merged the Refund correction as exact main
+`c0f706e8d92087dc51da8b1fefba976bc867296b`; exact-main CI
+`33127595577` passed the complete release chain. The authorized reconciliation
+then created exactly one idempotent 475-cent test transfer reversal and failed
+closed during its immediate post-creation proof, before cleanup or evidence,
+because the proof also required a nonexistent `TransferReversal.livemode`
+field. Stripe's installed OpenAPI-generated `TransferReversal` type and the
+real retrieved reversal both omit that field. Read-only restart inspection
+proved the parent Transfer is test mode, fully reversed by exactly one
+475-cent reversal with the exact marker metadata, while the mode-`0600`
+reconciliation journal remains `reversal-pending` and the application fixture
+and disposable account remain intact. The isolated correction requires the
+real `object === "transfer_reversal"` discriminator and exact `trr_` identity,
+rejects any future explicit `livemode=true`, and retains test-mode authority
+through the validated `sk_test` credential and parent Transfer. A new
+exact-main/CI-bound authorization is required before restart-safe cleanup.

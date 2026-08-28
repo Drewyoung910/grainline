@@ -218,6 +218,15 @@ completed alternative.
 > mode through the validated test credential and surrounding Session, Charge,
 > Transfer and signed Events. Fresh correction CI and authorization still
 > precede reconciliation.
+> PR #296 merged that correction as exact main
+> `c0f706e8d92087dc51da8b1fefba976bc867296b`; CI `33127595577`
+> passed. Its authorized reconciliation created exactly one idempotent
+> 475-cent test transfer reversal, then failed closed before cleanup/evidence
+> on the same nonexistent-field assumption for `TransferReversal.livemode`.
+> Read-only proof found exactly one fully bound reversal, intact application
+> rows and a mode-`0600` `reversal-pending` journal. The isolated correction
+> pins the real transfer-reversal object discriminator and identity; fresh CI
+> and a separate restart authorization still precede cleanup.
 
 ## Program Rules
 
