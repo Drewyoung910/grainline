@@ -25,6 +25,10 @@ import {
   BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
   verifyBlockedCheckoutTransferBindingMigrationBytes,
 } from "./build-blocked-checkout-transfer-binding-migration.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+  verifyOrderPaymentSignedRefundIdentityMigrationBytes,
+} from "./build-order-payment-signed-refund-identity-migration.mjs";
 
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_PHASE =
   "order-refund-reconciliation-authority-prepared";
@@ -79,6 +83,24 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     );
     verifyBlockedCheckoutTransferBindingMigrationBytes(rootDirectory);
     reviewedSuccessors.push(BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION);
+  }
+  const signedRefundIdentitySuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+  );
+  if (fs.existsSync(signedRefundIdentitySuccessorPath)) {
+    assert.deepEqual(
+      reviewedSuccessors,
+      [
+        ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
+        BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+        BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+      ],
+      "Signed-refund identity requires its reviewed refund predecessors",
+    );
+    verifyOrderPaymentSignedRefundIdentityMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION);
   }
   const laterMigrations = fs.readdirSync(
     path.join(rootDirectory, "prisma/migrations"),

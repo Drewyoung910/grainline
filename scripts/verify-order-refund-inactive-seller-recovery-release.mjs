@@ -24,6 +24,10 @@ import {
   BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
   verifyBlockedCheckoutTransferBindingMigrationBytes,
 } from "./build-blocked-checkout-transfer-binding-migration.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+  verifyOrderPaymentSignedRefundIdentityMigrationBytes,
+} from "./build-order-payment-signed-refund-identity-migration.mjs";
 
 export const ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PHASE =
   "order-refund-inactive-seller-recovery-prepared";
@@ -75,6 +79,23 @@ export function verifyOrderRefundInactiveSellerRecoveryRelease(
     );
     verifyBlockedCheckoutTransferBindingMigrationBytes(rootDirectory);
     reviewedSuccessors.push(BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION);
+  }
+  const signedRefundIdentitySuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+  );
+  if (fs.existsSync(signedRefundIdentitySuccessorPath)) {
+    assert.deepEqual(
+      reviewedSuccessors,
+      [
+        BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+        BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+      ],
+      "Signed-refund identity requires the blocked-checkout successors",
+    );
+    verifyOrderPaymentSignedRefundIdentityMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION);
   }
   assert.deepEqual(
     laterMigrations,

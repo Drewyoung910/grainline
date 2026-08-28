@@ -3273,3 +3273,27 @@ Open work:
   does not authorize predecessor drain or `OrderPaymentEvent` activation. A
   completely fresh automatic paid blocked-checkout proof is the next mandatory
   gate.
+
+## Signed refund omitted-identity compatibility finding (2026-08-27)
+
+- The mandatory pre-RLS/domain audit found that the real pinned Stripe
+  `charge.refunded` object can omit `charge.refunds.data`. The route passes null
+  latest-refund fields, and the live compatible database function then records
+  the signed event as `external:<event-id>` / `additional_external_refund` even
+  when exact local refund evidence already exists. A new automatic paid proof
+  would therefore fail again for an independent accounting reason.
+- The isolated candidate replaces only the same-signature signed-refund
+  function. It derives the missing identity only from exactly one fixed local
+  `OrderPaymentEvent` plus its co-committed `SystemAuditLog`, with exact Order,
+  refund, amount, currency, reason, local action and canonical-event binding.
+  Missing, duplicate or mismatched evidence remains external. The three
+  allowed actions are seller, staff Case and blocked-checkout refund records.
+- Byte generation is bound to the sealed signed-authority predecessor.
+  Disposable PostgreSQL covers all three families, exact/legacy replay,
+  ambiguity and forgery denial. Separate owner/runtime PostgreSQL proof,
+  restart-safe read-only production scope checks, exact-main workflow binding
+  and global grant/RLS audit are wired. No migration, deployment, provider
+  operation, grant or RLS state changed during this candidate work.
+- This is `FIX_BEFORE_ACTIVATION` and `BLOCKS_PROVIDER_PROOF`. Apply and
+  postflight it separately before spending another Stripe test payment; then
+  create an entirely new automatic-proof namespace.

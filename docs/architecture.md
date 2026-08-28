@@ -336,6 +336,19 @@ Once applied, the same verifier requires its exact ledger checksum and exact
 runtime-only function catalog. This prevents migration visibility from
 silently broadening authorization.
 
+Signed refund identity is likewise provider-optional but not
+caller-authoritative. Under the pinned Stripe shape, `charge.refunded` may omit
+the nested refund collection while still signing the charge and cumulative
+refunded amount. When that occurs, the fixed refund function may derive the
+refund ID only from exactly one co-committed local refund ledger and audit that
+agree with the locked Order, amount, currency and one of the seller, staff-Case
+or blocked-checkout actions. Missing, duplicate or mismatched evidence remains
+external; historical fallback rows are replayable but never rewritten. This
+compatible successor is documented in
+`docs/order-payment-event-signed-refund-identity.md` and must precede another
+automatic paid proof. It changes no function signature, RLS posture or table
+grant.
+
 Self-service
 account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation

@@ -188,3 +188,20 @@ test-mode refund and dispute deliveries plus retry against the converted
 deployment. Production inspection, legacy classification, projections,
 remaining fixed families, invariants, exact grant convergence, policyless
 ENABLE and FORCE keep their separate gates.
+
+## Omitted nested-refund identity successor (2026-08-27)
+
+The first blocked-checkout paid proof established that the pinned Stripe
+`charge.refunded` charge can omit `refunds.data`. The compatible application
+therefore passes null latest-refund fields even though its signed charge and
+cumulative refunded amount are valid. The predecessor function represents that
+as `external:<event-id>`, which is wrong when an exact fixed local refund row
+and audit already bind the Order to the provider refund.
+
+The isolated successor described in
+`docs/order-payment-event-signed-refund-identity.md` corrects only this case.
+It derives an omitted ID from exactly one matching seller, staff-Case or
+blocked-checkout local ledger plus its co-committed audit; every ambiguity
+retains external-refund behavior. It preserves the same function signature,
+runtime ACL and legacy replay, changes no RLS/table grant and must be applied
+before another automatic paid proof. It is not yet production state.

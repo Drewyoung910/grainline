@@ -868,3 +868,20 @@ The retained `a6593516be9f` reconciliation evidence is immutable historical
 failure recovery. It must remain distinct from the new state and can never be
 renamed, copied or interpreted as the fresh proof. Only the fresh operator's
 normal `verify` path may produce `automaticProductionProofPassed=true`.
+
+## Pre-proof signed-refund identity blocker (2026-08-27)
+
+The post-cleanup domain audit found a second independent defect before another
+payment was attempted. Real pinned-API `charge.refunded` payloads can omit the
+nested refund collection. The current signed database authority consequently
+stores `external:<event-id>` and `additional_external_refund` even when the
+Order and one fixed local refund ledger already prove the same refund. That
+would make the otherwise-fresh automatic proof fail its normal local-
+confirmation assertion and would overwrite the correct Order review note.
+
+Do not run the fresh automatic proof yet. First complete the compatible,
+database-derived correction in
+`docs/order-payment-event-signed-refund-identity.md`, apply it through its
+separate guarded migration boundary and prove it through the pooled runtime
+role. The historical reconciled evidence remains unchanged and must not be
+promoted to success.
