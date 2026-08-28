@@ -729,3 +729,24 @@ real `object === "transfer_reversal"` discriminator and exact `trr_` identity,
 rejects any future explicit `livemode=true`, and retains test-mode authority
 through the validated `sk_test` credential and parent Transfer. A new
 exact-main/CI-bound authorization is required before restart-safe cleanup.
+
+PR #297 merged the transfer-reversal object correction as exact main
+`ad2a8546e9799a25bd77ae0dfae662da6ec2823f`; exact-main CI
+`33132430080` passed the complete release chain. The pre-execution restart
+validator then failed locally, before any provider or production call, because
+the private `reversal-pending` journal correctly retained the prior operator
+binding `c0f706e8d92087dc51da8b1fefba976bc867296b` / `33127595577`, while
+the corrected operator correctly required the new exact-main binding. Manually
+rewriting that journal would destroy provenance, and accepting arbitrary prior
+bindings would weaken the restart fence.
+
+The narrow restart correction therefore requires an explicit prior operator
+commit and CI pair, verifies both the prior and current exact CI bindings,
+accepts the prior binding only for `reversal-pending` with no persisted
+reversal ID, and requires exactly one already-existing `trr_` reversal before
+the path can continue. It cannot create a reversal while rebinding. The normal
+provider predicate must prove the reversal's amount, transfer, discriminator
+and marker metadata before one atomic mode-`0600` journal write records both
+the current operator binding and `reversal-confirmed`. Zero, duplicate, wrong
+or already-confirmed prior-bound states fail closed. Production, provider and
+preserved fixture state remain unchanged by this packaging correction.

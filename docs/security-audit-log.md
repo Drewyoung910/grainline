@@ -3199,3 +3199,14 @@ Open work:
   a private `reversal-pending` restart journal. The isolated proof-only fix
   requires `object='transfer_reversal'` plus exact `trr_` identity and marker
   metadata while rejecting any future explicit live-mode field.
+- PR #297 merged the transfer-reversal proof correction as exact main
+  `ad2a8546e9799a25bd77ae0dfae662da6ec2823f`; CI `33132430080`
+  passed. Its restart preflight stopped locally before external calls because
+  the private `reversal-pending` journal is intentionally bound to the prior
+  operator/CI. The isolated correction preserves that provenance: it accepts
+  only an explicitly supplied prior commit/CI pair, re-verifies prior and
+  current CI, permits the old binding only at `reversal-pending` with no stored
+  reversal ID, and requires exactly one existing marker-bound reversal. The
+  rebind path cannot create a reversal; after the full provider predicate
+  passes, it atomically records the current operator binding and
+  `reversal-confirmed`. No production or provider state changed.

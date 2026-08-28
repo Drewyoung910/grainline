@@ -227,6 +227,17 @@ completed alternative.
 > rows and a mode-`0600` `reversal-pending` journal. The isolated correction
 > pins the real transfer-reversal object discriminator and identity; fresh CI
 > and a separate restart authorization still precede cleanup.
+> PR #297 merged that proof correction as exact main
+> `ad2a8546e9799a25bd77ae0dfae662da6ec2823f`; CI `33132430080`
+> passed. The subsequent local restart preflight correctly refused to treat
+> the prior operator-bound journal as current. The isolated restart correction
+> requires the exact prior commit/CI, re-verifies old and new CI, accepts only
+> `reversal-pending` with no persisted reversal identity, and requires exactly
+> one existing marker-bound reversal before atomically advancing the journal
+> to the current operator plus `reversal-confirmed`. It cannot create another
+> reversal during rebind. Production remains unchanged; corrected restart,
+> exact cleanup evidence, a fresh automatic proof and predecessor drain still
+> precede `OrderPaymentEvent` ENABLE/FORCE.
 
 ## Program Rules
 
