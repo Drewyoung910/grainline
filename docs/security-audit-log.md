@@ -3330,3 +3330,11 @@ Open work:
   and the fixed function correctly rejected it. The fixture now reuses one
   exact signed event timestamp across insert and replay. The failed CI did not
   contact or mutate production and is retained only as negative test evidence.
+- Corrected PR #303 code head
+  `55a4efe6e40dae9ea09be9146aa53d77ed723e65` passed exact-head CI
+  `33178566813`: the sealed migration and real-login PostgreSQL chain, full
+  tests, TypeScript, lint, audit and production build all passed. Its Vercel
+  Preview failed only because Preview intentionally has no `DATABASE_URL`.
+  This validates the isolated correction but does not accept production; exact
+  reviewed merge, exact-main CI, restart-safe no-replay final scope and the
+  distinct pooled-runtime postflight remain open.

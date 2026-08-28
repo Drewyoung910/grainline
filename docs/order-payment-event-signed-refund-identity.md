@@ -132,6 +132,15 @@ unchanged compact rerun passed. The fixture now pins one event timestamp across
 each insert/replay pair. This failure did not contact or change production and
 cannot serve as corrected release evidence.
 
+Corrected PR #303 code head
+`55a4efe6e40dae9ea09be9146aa53d77ed723e65` passed exact-head CI
+`33178566813`, including the full sealed migration chain, disposable PostgreSQL
+authority and real-login proofs, TypeScript, lint, 3,486-test suite, dependency
+audit and production build. The Vercel Preview failed only at the intentional
+missing-Preview-`DATABASE_URL` boundary and is not production or database
+release evidence. The branch still requires an exact reviewed merge, exact-main
+CI and the restart-safe no-replay production scope before acceptance.
+
 ## Remaining release sequence
 
 1. Complete local/full CI and Extra-High review of the successor-aware scope

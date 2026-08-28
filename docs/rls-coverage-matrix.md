@@ -295,6 +295,14 @@ completed alternative.
 > release is not accepted. Corrected exact-main CI, a restart-safe no-replay
 > scope pass and the separate pooled-runtime postflight remain mandatory before
 > a fresh automatic paid proof.
+>
+> PR #303 code head `55a4efe6e40dae9ea09be9146aa53d77ed723e65`
+> passed exact-head CI `33178566813`, including the corrected successor-aware
+> scope tests, the full disposable PostgreSQL chain, ordinary tests and build.
+> Its expected Vercel Preview failure was caused only by the intentionally
+> absent Preview `DATABASE_URL`. Exact reviewed merge, exact-main CI,
+> restart-safe no-replay final scope and the distinct pooled-runtime postflight
+> remain required; no production state changed from this validation.
 
 ## Program Rules
 
