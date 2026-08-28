@@ -3227,3 +3227,24 @@ Open work:
   the persisted reversal ID matches the one exact provider object. A
   `cleanup-started` rebind additionally re-proves the complete database
   snapshot before atomically updating the operator pair.
+- PR #299 merged the catalog/restart correction as exact main
+  `61ea7c0156838599d39ab621cdd4d93373c3c3ba`; CI `33135791154`
+  passed. Its authorized restart committed the exact serializable database
+  cleanup, restored the canary, retained the two processed webhook leases and
+  removed every marker-bound Redis key. The exact zero-row post-cleanup
+  snapshot passed. Stripe account deletion also succeeded, but the operator
+  then issued an unsupported verification GET; Stripe returned exact
+  `StripePermissionError/account_invalid/403`. A complete read-only account
+  listing contained 13 test accounts and excluded the disposable ID. No
+  reconciliation or automatic-success evidence was written, and the private
+  state plus `cleanup-started` journal remain mode `0600`.
+- Stripe's account-deletion API documents the successful DELETE response as
+  the deleted-object proof and says a nonexistent account raises an error. The
+  correction therefore removes both redundant post-delete GETs. Restart
+  recovery accepts account absence only for the exact error tuple plus a
+  complete listing that excludes the expected ID. It always re-proves the
+  sole exact transfer reversal and requires either the complete intact failed
+  fixture or the complete cleaned aggregate snapshot; partial cleanup,
+  malformed account rows, a listed target account or any other Stripe error
+  fails closed. Reconciliation remains cleanup-only evidence and cannot satisfy
+  the fresh automatic provider-proof activation gate.

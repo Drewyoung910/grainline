@@ -783,3 +783,32 @@ reversal and the complete historical database snapshot, then atomically writes
 the current operator pair without changing the stage. A missing, duplicate or
 different reversal, missing stored identity, database drift or any other stage
 fails before cleanup.
+
+PR #299 merged the catalog/restart correction as exact main
+`61ea7c0156838599d39ab621cdd4d93373c3c3ba`; exact-main CI
+`33135791154` passed. The authorized restart re-proved the exact reversal and
+historical fixture, rebound the mode-`0600` journal, committed the serializable
+marker-bound database cleanup, restored the operational canary, retained the
+two processed webhook leases and removed all four exact Redis key families.
+It then failed closed after the Stripe account DELETE had succeeded: the
+operator made an unnecessary follow-up account GET, while Stripe documents the
+DELETE response itself as the successful deleted-object result and documents a
+missing account as an error in its
+[account-deletion API reference](https://docs.stripe.com/api/accounts/delete).
+The exact account now returns
+`StripePermissionError/account_invalid/403` and is absent from the complete
+test-mode connected-account listing. No reconciliation or automatic-success
+evidence was written, and both private restart files remain preserved.
+
+The isolated post-delete restart correction removes the unsupported follow-up
+GET. A normal deletion succeeds only from the exact deleted-object response.
+Crash recovery accepts an already-absent account only for the exact Stripe
+permission/error tuple and only when the complete connected-account listing
+excludes the expected ID. Reconciliation always re-proves the exact Session,
+Refund, Transfer and sole stored reversal. A prior-bound `cleanup-started`
+journal can be rebound only from either the complete historical fixture or the
+complete zero-row cleanup snapshot with exactly two processed leases and one
+restored canary; every partial shape fails closed. This recovery finalizes
+cleanup evidence only. It does not make the failed automatic proof acceptable:
+a completely fresh automatic paid proof and predecessor drain still precede
+`OrderPaymentEvent` activation.

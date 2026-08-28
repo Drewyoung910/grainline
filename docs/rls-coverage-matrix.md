@@ -253,6 +253,21 @@ completed alternative.
 > reversal ID; it re-proves provider and database state before atomically
 > rebinding cleanup. Exact cleanup, a fresh automatic provider proof and
 > predecessor drain still precede `OrderPaymentEvent` ENABLE/FORCE.
+> PR #299 merged the catalog/restart correction as exact main
+> `61ea7c0156838599d39ab621cdd4d93373c3c3ba`; CI `33135791154`
+> passed. Its authorized restart committed the exact marker-bound database
+> cleanup, restored the canary, retained both processed leases and removed the
+> exact Redis keys. Stripe deleted the disposable test account, then the
+> operator's redundant follow-up GET returned exact
+> `StripePermissionError/account_invalid/403`; the complete test-mode account
+> listing excludes the target. No evidence was written and the mode-`0600`
+> journal remains `cleanup-started`. The isolated correction trusts only the
+> exact successful DELETE response for the normal path and accepts restart
+> absence only under the exact error plus complete-list exclusion. It re-proves
+> the sole transfer reversal and accepts only the fully intact or fully cleaned
+> database snapshot. Finalized reconciliation evidence, a completely fresh
+> automatic provider proof and predecessor drain still precede
+> `OrderPaymentEvent` ENABLE/FORCE.
 
 ## Program Rules
 

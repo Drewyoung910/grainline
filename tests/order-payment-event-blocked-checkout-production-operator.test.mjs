@@ -20,6 +20,7 @@ import {
   assertAbortCleanupStage,
   assertCompletedSession,
   assertConnectedAccount,
+  assertDeletedConnectedAccountAbsence,
   assertDeliverySnapshot,
   assertEvidence,
   assertExpiredPaymentRenewal,
@@ -41,6 +42,7 @@ import {
   buildEvidence,
   buildReconciliationEvidence,
   buildPaymentPage,
+  classifyReconciliationCleanupRestart,
   createInitialState,
   exactRefundCreationEvent,
   exactRefundEvent,
@@ -354,6 +356,60 @@ test("disposable connected account is transfer-only and marker-bound", () => {
     ...CONNECTED_ACCOUNT_CONTROLLER, requirement_collection: "application",
   } }, config, pending), /"requirementsCollector":"application"/);
   assert.throws(() => assertConnectedAccount({ ...account, livemode: true }, config, pending), /account drifted/);
+});
+
+test("deleted connected-account recovery requires Stripe's exact absence response and a complete account listing", () => {
+  const accountId = "acct_proof";
+  const deletedAccess = {
+    type: "StripePermissionError",
+    code: "account_invalid",
+    statusCode: 403,
+    rawType: "api_error",
+  };
+  assert.equal(assertDeletedConnectedAccountAbsence(
+    deletedAccess,
+    [{ id: "acct_other" }],
+    accountId,
+  ), true);
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, [{ id: accountId }], accountId),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence({ ...deletedAccess, code: "permission_denied" }, [], accountId),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, [{ id: "not-an-account" }], accountId),
+    /absence is not proven/,
+  );
+});
+
+test("reconciliation cleanup restart accepts only the intact fixture or exact completed cleanup", () => {
+  const cleaned = {
+    seller_user_count: 0,
+    seller_count: 0,
+    listing_count: 0,
+    reservation_count: 0,
+    order_count: 0,
+    item_count: 0,
+    payment_count: 0,
+    notification_count: 0,
+    outbox_count: 0,
+    webhook_count: 2,
+    processed_webhook_count: 2,
+    canary_count: 1,
+  };
+  assert.equal(classifyReconciliationCleanupRestart({ ...cleaned, order_count: 1 }), "fixture-intact");
+  assert.equal(classifyReconciliationCleanupRestart(cleaned), "application-cleaned");
+  assert.throws(
+    () => classifyReconciliationCleanupRestart({ ...cleaned, listing_count: 1 }),
+    /cleanup is incomplete/,
+  );
+  assert.throws(
+    () => classifyReconciliationCleanupRestart({ ...cleaned, processed_webhook_count: 1 }),
+    /retained evidence or canary restoration drifted/,
+  );
 });
 
 test("hosted onboarding is production-shaped, attempt-bound, and freshness-checked", () => {
@@ -914,6 +970,9 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.match(source, /cleanupDeliveredRows/);
   assert.match(source, /assertAbortCleanupStage\(state\)/);
   assert.match(source, /manual-transfer-reconciliation-v1/);
+  assert.match(source, /listAccounts: \(\) => listAll\(stripe\.accounts\.list\(\{ limit: 100 \}\)\)/);
+  assert.match(source, /assertDeletedConnectedAccountAbsence/);
+  assert.doesNotMatch(source, /const deletedAccount = await stripeOps\.retrieveAccount/);
   assert.match(source, /array_agg\(child_attribute\.attname::text ORDER BY child_key_row\.ordinality\) AS child_columns/);
   assert.match(source, /array_agg\(parent_attribute\.attname::text ORDER BY child_key_row\.ordinality\) AS parent_columns/);
   assert.match(source, /automaticProductionProofPassed: false/);
