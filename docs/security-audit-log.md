@@ -3386,3 +3386,19 @@ Open work:
   absent. The isolated call-site correction and scoped regression pass 25/25
   focused tests and the full 3,479-test suite with zero failures. Resume the
   same journal only after exact merge/main CI under a new operator binding.
+- PR #307 merged the cleanup correction as exact main
+  `2836e51d0ceb91ce05756dc5138e7c337e02a503`; CI `33220013251` passed. The
+  exact cleanup-only restart then completed the genuine automatic provider
+  proof without another payment or fixture. It proved the two signed
+  deliveries/replays, 541-cent refund, 475-cent reversal, private `SOLD_OUT`
+  stock restoration, expected notification/skipped email/audits and absence of
+  wrong order side effects; removed the marker-bound application rows, Redis
+  keys, sessions and disposable test account; restored the canary; and retained
+  only two processed webhook leases plus normal immutable provider telemetry.
+  No live money moved, provider configuration changed or secret was retained.
+  The restart journal is removed. Sanitized mode-`0600` automatic-success
+  evidence SHA-256 is
+  `dafb43dbe1de3e0b65da8a3554b465b1aaa74282ee56779f3fb34b209a6c27a7`.
+  This closes only the fresh blocked-checkout provider-proof gate; the remaining
+  `OrderPaymentEvent` pre-activation gates and separate ENABLE/FORCE boundaries
+  remain open.
