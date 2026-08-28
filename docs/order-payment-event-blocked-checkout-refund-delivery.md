@@ -1,9 +1,10 @@
 # Blocked-checkout refund participant delivery
 
-Status: isolated compatibility correction and guarded production wiring under
-review. Nothing in this document authorizes merge, migration execution,
-deployment, a paid Checkout Session, provider changes or `OrderPaymentEvent`
-RLS activation.
+Status: compatible database and application corrections are live; the first
+paid proof failed safely and its exact fixture is now reconciled and removed.
+`OrderPaymentEvent` RLS remains off. A completely fresh automatic paid proof
+and predecessor drain remain mandatory before ENABLE/FORCE. Nothing in this
+document independently authorizes a production mutation.
 
 ## Finding
 
@@ -812,3 +813,33 @@ restored canary; every partial shape fails closed. This recovery finalizes
 cleanup evidence only. It does not make the failed automatic proof acceptable:
 a completely fresh automatic paid proof and predecessor drain still precede
 `OrderPaymentEvent` activation.
+
+## Failed-proof cleanup finalized (2026-08-27)
+
+PR #300 merged the post-delete restart correction as exact main
+`8f31857bc6ca0f26c4965dfaae64f85089c0ede3`; exact-main CI
+`33137658339` passed. The separately authorized finalization was bound to that
+main/CI pair and to the prior `cleanup-started` journal from exact main
+`61ea7c0156838599d39ab621cdd4d93373c3c3ba` / CI `33135791154`.
+
+The restart re-proved the exact test-mode Session, 541-cent Refund, 475-cent
+Transfer and sole 475-cent marker-bound reversal. It accepted only the complete
+post-cleanup database shape: zero marker-bound temporary application rows,
+exactly two processed webhook leases and one restored operational canary. It
+rechecked the exact Redis cleanup and accepted the already-deleted disposable
+account only under the reviewed
+`StripePermissionError/account_invalid/403/api_error` tuple plus complete
+connected-account-list exclusion. It then wrote the sanitized mode-`0600`
+`reconciled-failed-proof` evidence and removed both private restart journals.
+The distinct automatic-success evidence path remains absent.
+
+Retain evidence SHA-256
+`d3a6ab9a109de1d607920e72ec92ba8811c3971104f079cde7e8525c504ba4f7`.
+The evidence records `automaticProductionProofPassed=false`,
+`freshAutomaticProofRequired=true`, no provider-configuration change, no live
+money movement and no retained secret. A separate read-only, fully paginated
+Stripe test-mode account listing scanned 13 accounts and found zero IDs whose
+SHA-256 matched the deleted account recorded in the evidence. This closes only
+the failed fixture and its recovery residue. A completely fresh automatic paid
+blocked-checkout proof, followed by predecessor drain, still precedes
+`OrderPaymentEvent` ENABLE/FORCE.
