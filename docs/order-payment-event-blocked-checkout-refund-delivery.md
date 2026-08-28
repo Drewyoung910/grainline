@@ -750,3 +750,36 @@ and marker metadata before one atomic mode-`0600` journal write records both
 the current operator binding and `reversal-confirmed`. Zero, duplicate, wrong
 or already-confirmed prior-bound states fail closed. Production, provider and
 preserved fixture state remain unchanged by this packaging correction.
+
+PR #298 merged that restart correction as exact main
+`c19be00957555ba09251b9a7369ba4ec11fcf431`; exact-main CI
+`33134429864` passed. The resumed operator re-verified both CI bindings, the
+exact existing reversal and preserved database shape, atomically recorded the
+current operator plus `reversal-confirmed`, and advanced the private journal to
+`cleanup-started`. It revoked the operational canary's sessions as designed,
+then failed closed inside the serializable fixture-deletion transaction with
+`constraint.child_columns.map is not a function`. PostgreSQL exposes
+`pg_attribute.attname` as type `name`; `array_agg(name)` is not decoded to a
+JavaScript array by node-postgres, although PGlite returned an array in the
+disposable proof. The transaction rolled back every attempted row deletion.
+Read-only post-failure proof confirmed all marker-bound application rows and
+the disposable account remain, the transfer still has exactly one complete
+475-cent reversal, Redis/account cleanup did not run, and neither reconciliation
+nor automatic-success evidence exists.
+
+The cleanup catalog query now casts both aggregated identifier lists to
+`text[]`, whose node-postgres parser returns the array the join builder
+requires. An engine-enforced read-only production query through the real
+node-postgres driver confirmed arrays for every returned foreign-key row under
+the Order, Listing, SellerProfile and User cleanup roots. A class-wide search
+found the same latent assumption in the seller-refund and signed-payment proof
+operators; both are corrected and a repository-wide regression rejects any
+future uncast `array_agg(pg_attribute.attname)`. The restart fence also handles
+the now-valid later checkpoint: an
+explicit prior operator binding may be accepted at `reversal-confirmed` or
+`cleanup-started` only with its persisted exact reversal ID. Before rebinding a
+`cleanup-started` journal, the operator re-proves the one exact provider
+reversal and the complete historical database snapshot, then atomically writes
+the current operator pair without changing the stage. A missing, duplicate or
+different reversal, missing stored identity, database drift or any other stage
+fails before cleanup.

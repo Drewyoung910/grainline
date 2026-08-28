@@ -238,6 +238,21 @@ completed alternative.
 > reversal during rebind. Production remains unchanged; corrected restart,
 > exact cleanup evidence, a fresh automatic proof and predecessor drain still
 > precede `OrderPaymentEvent` ENABLE/FORCE.
+> PR #298 merged that restart correction as exact main
+> `c19be00957555ba09251b9a7369ba4ec11fcf431`; CI `33134429864`
+> passed. The restart proved the existing reversal and advanced the private
+> journal to `cleanup-started`, but the serializable deletion transaction
+> rolled back after node-postgres returned `array_agg(name)` in a non-array
+> representation. Read-only proof confirmed the fixture and disposable
+> account remain intact and no evidence exists. The isolated correction casts
+> the foreign-key catalog identifiers to `text[]`; engine-read-only production
+> proof through node-postgres confirmed array decoding across all four cleanup
+> roots. The same latent proof-only defect is corrected class-wide in the
+> seller-refund and signed-payment operators. The restart accepts a prior-bound
+> `reversal-confirmed` or `cleanup-started` journal only with the stored exact
+> reversal ID; it re-proves provider and database state before atomically
+> rebinding cleanup. Exact cleanup, a fresh automatic provider proof and
+> predecessor drain still precede `OrderPaymentEvent` ENABLE/FORCE.
 
 ## Program Rules
 

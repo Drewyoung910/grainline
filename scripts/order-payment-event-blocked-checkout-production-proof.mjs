@@ -536,7 +536,9 @@ export function assertReconciliationState(value, config, proofState) {
   if (value.stage !== "reversal-pending" && reversalId === null) {
     throw new Error("blocked-checkout reconciliation reversal identity is missing");
   }
-  if (previousOperatorBinding && (value.stage !== "reversal-pending" || reversalId !== null)) {
+  const previousOperatorRestartBoundary = (value.stage === "reversal-pending" && reversalId === null)
+    || (new Set(["reversal-confirmed", "cleanup-started"]).has(value.stage) && reversalId !== null);
+  if (previousOperatorBinding && !previousOperatorRestartBoundary) {
     throw new Error("blocked-checkout reconciliation previous operator restart boundary drifted");
   }
   return Object.freeze({ ...value, manualTransferReversalId: reversalId });
@@ -552,7 +554,9 @@ export function reconciliationUsesPreviousOperatorBinding(value, config) {
 export function requiredExistingReversalForOperatorRebind(reconciliation, config, reversals) {
   if (!reconciliationUsesPreviousOperatorBinding(reconciliation, config)) return null;
   if (!Array.isArray(reversals) || reversals.length !== 1
-    || !/^trr_[A-Za-z0-9_]+$/.test(String(reversals[0]?.id ?? ""))) {
+    || !/^trr_[A-Za-z0-9_]+$/.test(String(reversals[0]?.id ?? ""))
+    || (reconciliation.manualTransferReversalId !== null
+      && reversals[0].id !== reconciliation.manualTransferReversalId)) {
     throw new Error("blocked-checkout reconciliation operator rebind requires one existing reversal");
   }
   return reversals[0].id;
@@ -2059,8 +2063,8 @@ function resultCardinality(result) {
 async function assertNoForeignKeyDependents(client, relation, id) {
   const constraints = await client.query(`
     SELECT child_namespace.nspname AS schema_name, child.relname AS table_name,
-      pg_catalog.array_agg(child_attribute.attname ORDER BY child_key_row.ordinality) AS child_columns,
-      pg_catalog.array_agg(parent_attribute.attname ORDER BY child_key_row.ordinality) AS parent_columns
+      pg_catalog.array_agg(child_attribute.attname::text ORDER BY child_key_row.ordinality) AS child_columns,
+      pg_catalog.array_agg(parent_attribute.attname::text ORDER BY child_key_row.ordinality) AS parent_columns
     FROM pg_catalog.pg_constraint AS constraint_row
     JOIN pg_catalog.pg_class AS child ON child.oid=constraint_row.conrelid
     JOIN pg_catalog.pg_namespace AS child_namespace ON child_namespace.oid=child.relnamespace
@@ -2994,6 +2998,24 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
 
     if (reconciliation?.stage === "cleanup-started") {
       assertReconciliationProofState(state);
+      if (requiresOperatorRebind) {
+        const rebindProvider = await readManualReconciliationProvider(stripeOps, state);
+        const existingReversalId = requiredExistingReversalForOperatorRebind(
+          reconciliation,
+          config,
+          rebindProvider.reversals,
+        );
+        assertManualReconciliationProvider(rebindProvider, state, existingReversalId);
+        assertManualReconciliationDeliverySnapshot(
+          await readDeliverySnapshot(owner, state),
+          state,
+        );
+        reconciliation = writeReconciliationState(config, state, {
+          ...reconciliation,
+          operatorCommit: config.operatorCommit,
+          operatorCiRunId: config.operatorCiRunId,
+        });
+      }
     } else {
       const createdAfter = Math.floor(Date.parse(state.startedAt) / 1000) - 5;
       const checkoutEvents = await stripeOps.listCheckoutEvents(createdAfter);
@@ -3090,6 +3112,8 @@ export async function reconcileFailedProof(config = validateConfiguration()) {
         reconciliation = writeReconciliationState(config, state, {
           ...reconciliation,
           stage: "cleanup-started",
+          operatorCommit: requiresOperatorRebind ? config.operatorCommit : reconciliation.operatorCommit,
+          operatorCiRunId: requiresOperatorRebind ? config.operatorCiRunId : reconciliation.operatorCiRunId,
         });
       }
     }

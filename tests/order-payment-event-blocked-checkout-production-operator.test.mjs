@@ -791,8 +791,27 @@ test("failed-proof reconciliation stays distinct, exact and restart-safe", () =>
     () => requiredExistingReversalForOperatorRebind(previousPending, rebindConfig, [reversal, { ...reversal, id: "trr_other" }]),
     /requires one existing reversal/,
   );
+  const previousConfirmed = assertReconciliationState(reconciliation, rebindConfig, value);
+  assert.equal(reconciliationUsesPreviousOperatorBinding(previousConfirmed, rebindConfig), true);
+  assert.equal(requiredExistingReversalForOperatorRebind(
+    previousConfirmed,
+    rebindConfig,
+    [reversal],
+  ), reversalId);
+  const previousCleanup = assertReconciliationState({
+    ...reconciliation,
+    stage: "cleanup-started",
+  }, rebindConfig, value);
+  assert.equal(requiredExistingReversalForOperatorRebind(previousCleanup, rebindConfig, [reversal]), reversalId);
   assert.throws(
-    () => assertReconciliationState(reconciliation, rebindConfig, value),
+    () => requiredExistingReversalForOperatorRebind(previousCleanup, rebindConfig, [{
+      ...reversal,
+      id: "trr_wrong",
+    }]),
+    /requires one existing reversal/,
+  );
+  assert.throws(
+    () => assertReconciliationState({ ...previousPending, manualTransferReversalId: reversalId }, rebindConfig, value),
     /previous operator restart boundary drifted/,
   );
   assert.throws(
@@ -895,6 +914,8 @@ test("static operator contract stays test-only, loopback-only, non-activating, a
   assert.match(source, /cleanupDeliveredRows/);
   assert.match(source, /assertAbortCleanupStage\(state\)/);
   assert.match(source, /manual-transfer-reconciliation-v1/);
+  assert.match(source, /array_agg\(child_attribute\.attname::text ORDER BY child_key_row\.ordinality\) AS child_columns/);
+  assert.match(source, /array_agg\(parent_attribute\.attname::text ORDER BY child_key_row\.ordinality\) AS parent_columns/);
   assert.match(source, /automaticProductionProofPassed: false/);
   assert.match(source, /freshAutomaticProofRequired: true/);
   assert.doesNotMatch(source, /else if \(state\.stage === "account-created"\)[\s\S]{0,300}DELETE FROM public\."SellerProfile"/);

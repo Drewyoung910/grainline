@@ -3210,3 +3210,20 @@ Open work:
   rebind path cannot create a reversal; after the full provider predicate
   passes, it atomically records the current operator binding and
   `reversal-confirmed`. No production or provider state changed.
+- PR #298 merged that restart correction as exact main
+  `c19be00957555ba09251b9a7369ba4ec11fcf431`; CI `33134429864`
+  passed. The resumed test-mode reconciliation proved and persisted the exact
+  reversal, advanced to `cleanup-started`, and revoked canary sessions, then
+  failed inside the serializable cleanup transaction because node-postgres did
+  not decode `array_agg(pg_catalog.name)` as an array. The transaction rolled
+  back all row deletion; read-only proof found the application fixture and
+  disposable account intact, one unchanged reversal, and no evidence. The
+  isolated correction casts both catalog arrays to `text[]`; engine-read-only
+  production proof through node-postgres confirmed array decoding for every
+  returned foreign-key row across the four cleanup roots. The same latent
+  assumption is corrected in the seller-refund and signed-payment proof
+  operators, with a repository-wide recurrence guard. The restart permits an
+  explicit prior binding at `reversal-confirmed`/`cleanup-started` only when
+  the persisted reversal ID matches the one exact provider object. A
+  `cleanup-started` rebind additionally re-proves the complete database
+  snapshot before atomically updating the operator pair.
