@@ -2949,7 +2949,7 @@ export async function verifyAndCleanupProof(config = validateConfiguration()) {
     if (state.stage === "cleanup-started") {
       await revokeCanarySessions(clerk, state.buyerClerkId);
       const before = await readCleanupSnapshot(owner, state);
-      if (Number(before.order_count) === 1) await cleanupDeliveredRows(owner, state);
+      if (Number(before.order_count) === 1) await cleanupDeliveredRows(owner, state, "SOLD_OUT");
       assertCleanupSnapshot(await readCleanupSnapshot(owner, state));
       const redisKeysRemoved = await deleteExactRedisKeys(redis, state);
       if (!redisKeysRemoved) throw new Error("blocked-checkout Redis cleanup failed");

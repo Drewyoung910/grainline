@@ -3376,3 +3376,13 @@ Open work:
   Focused unit and disposable-PostgreSQL tests pass 25/25. No production or
   provider state changed. Resume the existing journal only after exact merge
   and exact-main CI; do not charge another fixture.
+- PR #306 merged that correction as exact main
+  `b3d11828e80723858c1e7ce59e90307f2615379f`; CI `33218192414` passed. Its
+  restart accepted the corrected delivery and exact replay, then failed closed
+  at `cleanup-started` because the automatic cleanup call still inherited the
+  helper's legacy `ACTIVE` default instead of explicitly requiring the private
+  listing's `SOLD_OUT` status. The serializable transaction rolled back before
+  row deletion; Redis/account cleanup was not reached and success evidence is
+  absent. The isolated call-site correction and scoped regression pass 25/25
+  focused tests and the full 3,479-test suite with zero failures. Resume the
+  same journal only after exact merge/main CI under a new operator binding.
