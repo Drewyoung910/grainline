@@ -232,6 +232,12 @@ defect. Each remaining path is classified:
   the pooled runtime role while predecessor CRUD remains present. It must run
   before activation and be excluded from post-activation CI/release phases;
   it is not evidence for the activated posture.
+- `scripts/order-payment-signed-refund-identity-postgres-proof.mjs` is a
+  loopback-only disposable PostgreSQL proof of the compatible signed-refund
+  identity correction. It uses separate owner and ordinary-runtime logins,
+  exercises the fixed function through its runtime grant, directly inspects
+  only synthetic proof rows, and rolls back the complete fixture. It is CI
+  proof, not production evidence or an ordinary application table-access path.
 - `scripts/buyer-deletion-stripe-replay-postgres-proof.mjs` is a loopback-only
   disposable PostgreSQL proof of the real Prisma interactive-transaction
   rollback behavior. It proves missing-row inserts and stale reclaims roll

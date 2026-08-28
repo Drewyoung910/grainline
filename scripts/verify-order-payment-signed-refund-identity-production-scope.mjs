@@ -5,25 +5,26 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
-  BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
-  BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION_SHA256,
-  blockedCheckoutTransferBindingFunctionSource,
-  verifyBlockedCheckoutTransferBindingMigrationBytes,
-} from "./build-blocked-checkout-transfer-binding-migration.mjs";
+  ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+  ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION_SHA256,
+  orderPaymentSignedRefundIdentityFunctionSource,
+  predecessorOrderPaymentSignedRefundFunctionSource,
+  verifyOrderPaymentSignedRefundIdentityMigrationBytes,
+} from "./build-order-payment-signed-refund-identity-migration.mjs";
 import {
-  assertBlockedCheckoutRefundDeliveryProductionScope,
-  parseBlockedCheckoutRefundDeliveryScopeEnvironment,
-  readBlockedCheckoutRefundDeliveryProductionSnapshotFromClient,
-} from "./verify-blocked-checkout-refund-delivery-production-scope.mjs";
+  assertBlockedCheckoutTransferBindingProductionScope,
+  parseBlockedCheckoutTransferBindingScopeEnvironment,
+  readBlockedCheckoutTransferBindingProductionSnapshotFromClient,
+} from "./verify-blocked-checkout-transfer-binding-production-scope.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
 const MIGRATION_ROLE = "neondb_owner";
 const RUNTIME_ROLE = "grainline_app_runtime";
 const FUNCTION_IDENTITY =
-  "public.grainline_blocked_checkout_transfer_bind(text,bigint,text,text,text,text,text)";
+  "public.grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)";
 
-export const BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGES = Object.freeze([
+export const ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGES = Object.freeze([
   "before",
   "after",
   "restart",
@@ -42,28 +43,28 @@ function sha256(value) {
 }
 
 function isAppliedRow(row) {
-  return row?.migration_name === BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION
-    && row.checksum === BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION_SHA256
+  return row?.migration_name === ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION
+    && row.checksum === ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION_SHA256
     && row.finished_at != null
     && row.rolled_back_at == null
     && Number(row.applied_steps_count) === 1;
 }
 
-export function parseBlockedCheckoutTransferBindingScopeEnvironment(
+export function parseOrderPaymentSignedRefundIdentityScopeEnvironment(
   env = process.env,
 ) {
   const stage = required(
     env,
-    "BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGE",
+    "ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGE",
   );
-  if (!BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGES.includes(stage)) {
+  if (!ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGES.includes(stage)) {
     throw new Error(
-      "blocked-checkout transfer binding scope stage must be before, after, or restart",
+      "signed-refund identity scope stage must be before, after, or restart",
     );
   }
-  const predecessor = parseBlockedCheckoutRefundDeliveryScopeEnvironment({
+  const predecessor = parseBlockedCheckoutTransferBindingScopeEnvironment({
     ...env,
-    BLOCKED_CHECKOUT_REFUND_DELIVERY_SCOPE_STAGE: "after",
+    BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGE: "after",
   });
   return Object.freeze({
     directUrl: predecessor.directUrl,
@@ -72,15 +73,15 @@ export function parseBlockedCheckoutTransferBindingScopeEnvironment(
   });
 }
 
-export function assertBlockedCheckoutTransferBindingLedger(rows, stage) {
+export function assertOrderPaymentSignedRefundIdentityLedger(rows, stage) {
   if (
     !Array.isArray(rows)
-    || !BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGES.includes(stage)
+    || !ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGES.includes(stage)
     || rows.some(
-      (row) => row?.migration_name !== BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+      (row) => row?.migration_name !== ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
     )
   ) {
-    throw new Error("blocked-checkout transfer binding ledger is invalid");
+    throw new Error("signed-refund identity ledger is invalid");
   }
   const applied = rows.length === 1 && isAppliedRow(rows[0]);
   if (
@@ -90,19 +91,21 @@ export function assertBlockedCheckoutTransferBindingLedger(rows, stage) {
     || (stage === "after" && !applied)
   ) {
     throw new Error(
-      "blocked-checkout transfer binding ledger is not at the exact reviewed stage",
+      "signed-refund identity ledger is not at the exact reviewed stage",
     );
   }
   return applied;
 }
 
-export function assertTransferBindingFunction(row, applied, migrationRole) {
-  if (!applied) {
-    if (row !== null) {
-      throw new Error("blocked-checkout transfer binding function exists before its migration");
-    }
-    return;
-  }
+export function assertOrderPaymentSignedRefundIdentityFunction(
+  row,
+  applied,
+  migrationRole = MIGRATION_ROLE,
+  root = process.cwd(),
+) {
+  const expectedSource = applied
+    ? orderPaymentSignedRefundIdentityFunctionSource(root)
+    : predecessorOrderPaymentSignedRefundFunctionSource(root);
   if (
     row?.identity !== FUNCTION_IDENTITY
     || row.owner_name !== migrationRole
@@ -118,60 +121,59 @@ export function assertTransferBindingFunction(row, applied, migrationRole) {
     || row.runtime_can_execute !== true
     || row.public_can_execute !== false
     || Number(row.invalid_acl_count) !== 0
-    || sha256(row.function_source ?? "")
-      !== sha256(blockedCheckoutTransferBindingFunctionSource())
+    || sha256(row.function_source ?? "") !== sha256(expectedSource)
   ) {
-    throw new Error("blocked-checkout transfer binding function catalog drifted");
+    throw new Error("signed-refund identity function catalog drifted");
   }
 }
 
-export function assertBlockedCheckoutTransferBindingProductionScope(
+export function assertOrderPaymentSignedRefundIdentityProductionScope(
   snapshot,
   stage,
   {
-    assertPredecessor = assertBlockedCheckoutRefundDeliveryProductionScope,
+    assertPredecessor = assertBlockedCheckoutTransferBindingProductionScope,
     migrationRole = MIGRATION_ROLE,
     runtimeRole = RUNTIME_ROLE,
     root = process.cwd(),
   } = {},
 ) {
   const predecessor = assertPredecessor(
-    snapshot?.blockedCheckoutRefundDelivery,
+    snapshot?.blockedCheckoutTransferBinding,
     "after",
     { migrationRole, runtimeRole, root },
   );
-  const applied = assertBlockedCheckoutTransferBindingLedger(
+  const applied = assertOrderPaymentSignedRefundIdentityLedger(
     snapshot?.candidateLedgerRows,
     stage,
   );
-  assertTransferBindingFunction(
-    snapshot?.transferBindingFunction ?? null,
+  assertOrderPaymentSignedRefundIdentityFunction(
+    snapshot?.signedRefundFunction ?? null,
     applied,
     migrationRole,
+    root,
   );
   return Object.freeze({
-    blockedCheckoutRefundDeliveryApplied:
-      predecessor.blockedCheckoutRefundDeliveryApplied,
-    blockedCheckoutTransferBindingApplied: applied,
-    runtimeExecuteOnly: applied,
+    blockedCheckoutTransferBindingApplied:
+      predecessor.blockedCheckoutTransferBindingApplied,
+    signedRefundIdentityApplied: applied,
+    runtimeExecuteOnly: true,
     orderPaymentEventRlsEnabled: false,
     predecessorRuntimeCrudRetained: true,
-    state: applied ? "transfer-binding-compatible" : "transfer-binding-predecessor",
+    state: applied
+      ? "signed-refund-identity-compatible"
+      : "signed-refund-identity-predecessor",
     productionChangedByProof: false,
   });
 }
 
-async function readTransferBindingFunction(client, runtimeRole) {
+async function readSignedRefundFunction(client, runtimeRole) {
   const rows = (await client.query(
     `SELECT
        pg_catalog.quote_ident(namespace.nspname)
          || '.' || pg_catalog.quote_ident(procedure.proname)
          || '(' || pg_catalog.replace(
-           pg_catalog.oidvectortypes(procedure.proargtypes),
-           ', ',
-           ','
-         ) || ')'
-         AS identity,
+           pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
+         ) || ')' AS identity,
        pg_catalog.pg_get_userbyid(procedure.proowner) AS owner_name,
        procedure.prosecdef AS security_definer,
        procedure.prokind AS function_kind,
@@ -186,19 +188,13 @@ async function readTransferBindingFunction(client, runtimeRole) {
        EXISTS (
          SELECT 1
            FROM pg_catalog.aclexplode(
-             COALESCE(
-               procedure.proacl,
-               pg_catalog.acldefault('f', procedure.proowner)
-             )
+             COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
            ) AS acl
           WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
        ) AS public_can_execute,
        (SELECT pg_catalog.count(*)::integer
           FROM pg_catalog.aclexplode(
-            COALESCE(
-              procedure.proacl,
-              pg_catalog.acldefault('f', procedure.proowner)
-            )
+            COALESCE(procedure.proacl, pg_catalog.acldefault('f', procedure.proowner))
           ) AS acl
          WHERE acl.privilege_type <> 'EXECUTE'
             OR acl.grantee = 0
@@ -217,58 +213,23 @@ async function readTransferBindingFunction(client, runtimeRole) {
      WHERE procedure.oid = pg_catalog.to_regprocedure($2)`,
     [runtimeRole, FUNCTION_IDENTITY],
   )).rows;
-  if (rows.length > 1) {
-    throw new Error("blocked-checkout transfer binding function is ambiguous");
+  if (rows.length !== 1) {
+    throw new Error("signed-refund identity function cardinality drifted");
   }
-  return rows[0] ?? null;
+  return rows[0];
 }
 
-export async function readBlockedCheckoutTransferBindingProductionSnapshotFromClient(
-  client,
-  {
-    runtimeRole = RUNTIME_ROLE,
-    root = process.cwd(),
-  } = {},
-) {
-  verifyBlockedCheckoutTransferBindingMigrationBytes(root);
-  const blockedCheckoutRefundDelivery =
-    await readBlockedCheckoutRefundDeliveryProductionSnapshotFromClient(
-      client,
-      { runtimeRole, root },
-    );
-  const candidateLedgerRows = (await client.query(
-    `SELECT migration_name, checksum, finished_at, rolled_back_at,
-            applied_steps_count
-       FROM public._prisma_migrations
-      WHERE migration_name = $1
-      ORDER BY started_at, id`,
-    [BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION],
-  )).rows;
-  const transferBindingFunction = await readTransferBindingFunction(
-    client,
-    runtimeRole,
-  );
-  return Object.freeze({
-    blockedCheckoutRefundDelivery,
-    candidateLedgerRows,
-    transferBindingFunction,
-  });
-}
-
-export async function readBlockedCheckoutTransferBindingProductionSnapshot(
+export async function readOrderPaymentSignedRefundIdentityProductionSnapshot(
   connectionString,
-  {
-    runtimeRole = RUNTIME_ROLE,
-    root = process.cwd(),
-  } = {},
+  { runtimeRole = RUNTIME_ROLE, root = process.cwd() } = {},
 ) {
-  verifyBlockedCheckoutTransferBindingMigrationBytes(root);
+  verifyOrderPaymentSignedRefundIdentityMigrationBytes(root);
   const client = new Client({
     connectionString,
     connectionTimeoutMillis: 10_000,
     statement_timeout: 30_000,
     query_timeout: 35_000,
-    application_name: "grainline-blocked-checkout-transfer-binding-scope-proof",
+    application_name: "grainline-signed-refund-identity-scope-proof",
     ...postgresChannelBindingClientOptions(new URL(connectionString)),
   });
   await client.connect();
@@ -282,31 +243,47 @@ export async function readBlockedCheckoutTransferBindingProductionSnapshot(
       "SELECT pg_catalog.current_setting('transaction_read_only') AS read_only",
     )).rows[0]?.read_only;
     if (readOnly !== "on") throw new Error("scope transaction is not read-only");
-    const snapshot =
+    const blockedCheckoutTransferBinding =
       await readBlockedCheckoutTransferBindingProductionSnapshotFromClient(
         client,
         { runtimeRole, root },
       );
+    const candidateLedgerRows = (await client.query(
+      `SELECT migration_name, checksum, finished_at, rolled_back_at,
+              applied_steps_count
+         FROM public._prisma_migrations
+        WHERE migration_name = $1
+        ORDER BY started_at, id`,
+      [ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION],
+    )).rows;
+    const signedRefundFunction = await readSignedRefundFunction(
+      client,
+      runtimeRole,
+    );
     await client.query("ROLLBACK");
     open = false;
-    return snapshot;
+    return Object.freeze({
+      blockedCheckoutTransferBinding,
+      candidateLedgerRows,
+      signedRefundFunction,
+    });
   } finally {
     if (open) await client.query("ROLLBACK").catch(() => {});
     await client.end();
   }
 }
 
-export async function verifyBlockedCheckoutTransferBindingProductionScope(
+export async function verifyOrderPaymentSignedRefundIdentityProductionScope(
   config,
   {
-    assertPredecessor = assertBlockedCheckoutRefundDeliveryProductionScope,
-    readSnapshot = readBlockedCheckoutTransferBindingProductionSnapshot,
+    readSnapshot = readOrderPaymentSignedRefundIdentityProductionSnapshot,
+    assertPredecessor = assertBlockedCheckoutTransferBindingProductionScope,
     migrationRole = MIGRATION_ROLE,
     runtimeRole = RUNTIME_ROLE,
     root = process.cwd(),
   } = {},
 ) {
-  return assertBlockedCheckoutTransferBindingProductionScope(
+  return assertOrderPaymentSignedRefundIdentityProductionScope(
     await readSnapshot(config.directUrl, { runtimeRole, root }),
     config.stage,
     { assertPredecessor, migrationRole, runtimeRole, root },
@@ -315,14 +292,14 @@ export async function verifyBlockedCheckoutTransferBindingProductionScope(
 
 async function main() {
   try {
-    const config = parseBlockedCheckoutTransferBindingScopeEnvironment();
-    const result = await verifyBlockedCheckoutTransferBindingProductionScope(
+    const config = parseOrderPaymentSignedRefundIdentityScopeEnvironment();
+    const result = await verifyOrderPaymentSignedRefundIdentityProductionScope(
       config,
     );
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch {
     process.stderr.write(
-      "Blocked-checkout transfer binding production scope proof failed closed.\n",
+      "Signed-refund identity production scope proof failed closed.\n",
     );
     process.exitCode = 1;
   }

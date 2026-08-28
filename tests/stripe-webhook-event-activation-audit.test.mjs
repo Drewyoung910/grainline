@@ -124,6 +124,7 @@ test("all remaining script-level direct access is explicitly classified", () => 
     "scripts/order-payment-event-signed-production-proof.mjs",
     "scripts/order-payment-shipping-compatible-production-postflight.mjs",
     "scripts/order-payment-shipping-legacy-inspect.mjs",
+    "scripts/order-payment-signed-refund-identity-postgres-proof.mjs",
     "scripts/order-refund-reconciliation-authority-postgres-proof.mjs",
     "scripts/seller-payout-event-activation-postgres-proof.mjs",
     "scripts/seller-payout-event-authority-postgres-proof.mjs",

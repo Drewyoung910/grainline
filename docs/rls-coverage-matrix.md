@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-25
+Last updated: 2026-08-27
 
 ## Purpose And Scope
 
@@ -441,6 +441,18 @@ preclude a later reviewed policy or grant migration.
    live-mode provider topology and
    signed delivery as distinct mandatory launch gates; the v2 route shares the
    fixed lease functions and does not reopen the Phase-A database boundary.
+   `OrderPaymentEvent` is now the active next table. Its compatibility stack is
+   live with RLS still off. The first paid blocked-checkout proof failed on a
+   destination-transfer visibility race; that fixture is fully reconciled and
+   removed, but its evidence explicitly remains a failed proof. The mandatory
+   pre-RLS/domain audit then found that pinned `charge.refunded` payloads can
+   omit the nested refund identity, causing the live signed function to
+   misclassify an exact local confirmation. The isolated fail-closed successor
+   is documented in
+   `docs/order-payment-event-signed-refund-identity.md`. It must merge, apply
+   and pass its pooled-runtime postflight before a new automatic paid proof.
+   Only a completely fresh proof, predecessor drain and the remaining
+   invariant/projection gates may lead to separate ENABLE and FORCE releases.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger

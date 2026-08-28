@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify signed-refund identity compatibility release
+        run: npm run audit:order-payment-signed-refund-identity-release
+      - name: Isolate signed-refund identity until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260828010000_prepare_order_payment_signed_refund_identity
+          "$RUNNER_TEMP/order-payment-signed-refund-identity-release"
       - name: Verify blocked-checkout transfer binding release
         run: npm run audit:order-payment-blocked-checkout-transfer-binding-release
       - name: Isolate blocked-checkout transfer binding until its predecessors pass
@@ -751,6 +758,29 @@ jobs:
         env:
           BLOCKED_CHECKOUT_TRANSFER_BINDING_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           BLOCKED_CHECKOUT_TRANSFER_BINDING_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore signed-refund identity compatibility release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-signed-refund-identity-release"
+          prisma/migrations/20260828010000_prepare_order_payment_signed_refund_identity
+      - name: Apply signed-refund identity compatibility
+        run: npx prisma migrate deploy
+      - name: Verify signed-refund identity migration status
+        run: npx prisma migrate status
+      - name: Audit signed-refund identity grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove signed-refund identity compatibility in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-signed-refund-identity-migration.test.mjs
+          tests/order-payment-signed-refund-identity-postgres.test.mjs
+          tests/order-payment-signed-refund-identity-production-postflight.test.mjs
+          tests/order-payment-signed-refund-identity-release.test.mjs
+      - name: Prove signed-refund identity through the real runtime login
+        run: npm run audit:order-payment-signed-refund-identity-postgres
+        env:
+          ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:
