@@ -3304,3 +3304,37 @@ Open work:
   fixture now creates the full matching graph and teardown, with local
   regression coverage. The failed run is retained as negative evidence and
   cannot satisfy any release gate.
+
+## Signed refund compatibility production scope failure (2026-08-28)
+
+- PR #302 merged exact head
+  `f5b5b7f394b44b68145bb856458ae16be2baf936` as main
+  `f7491bf109a79ac7f34c29c604763c38396a7340`; exact-main CI
+  `33149665189` passed.
+- Guarded run `33176428000` applied only
+  `20260828010000_prepare_order_payment_signed_refund_identity`. Migration
+  status and the global grant/RLS audit passed. The final engine-read-only scope
+  step failed because its recursive predecessor verifier still required the old
+  signed-refund function body after the reviewed successor replaced that body.
+- Production therefore contains the compatible function, with RLS and table
+  grants unchanged, but the release remains unaccepted. The isolated proof fix
+  validates the real successor catalog first, requires the two read-only catalog
+  views to agree exactly, and substitutes only the byte-sealed predecessor body
+  while checking the older chain. Missing, duplicate or mismatched views fail
+  closed. Do not replay the migration or proceed to the pooled-runtime/provider
+  proof until corrected exact-main CI and restart-safe final scope pass.
+- Draft PR #303 exact-head CI `33177740639` passed the sealed database and
+  real-login proof chain, then failed in the ordinary test step because the
+  PGlite replay fixture recomputed the signed event timestamp from `Date.now()`.
+  Crossing a one-second boundary made the replay payload genuinely different,
+  and the fixed function correctly rejected it. The fixture now reuses one
+  exact signed event timestamp across insert and replay. The failed CI did not
+  contact or mutate production and is retained only as negative test evidence.
+- Corrected PR #303 code head
+  `55a4efe6e40dae9ea09be9146aa53d77ed723e65` passed exact-head CI
+  `33178566813`: the sealed migration and real-login PostgreSQL chain, full
+  tests, TypeScript, lint, audit and production build all passed. Its Vercel
+  Preview failed only because Preview intentionally has no `DATABASE_URL`.
+  This validates the isolated correction but does not accept production; exact
+  reviewed merge, exact-main CI, restart-safe no-replay final scope and the
+  distinct pooled-runtime postflight remain open.

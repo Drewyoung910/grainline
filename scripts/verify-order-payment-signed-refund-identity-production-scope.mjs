@@ -23,6 +23,7 @@ const MIGRATION_ROLE = "neondb_owner";
 const RUNTIME_ROLE = "grainline_app_runtime";
 const FUNCTION_IDENTITY =
   "public.grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)";
+const COMPATIBLE_FUNCTION_IDENTITY = FUNCTION_IDENTITY.replace(/^public\./u, "");
 
 export const ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGES = Object.freeze([
   "before",
@@ -127,6 +128,52 @@ export function assertOrderPaymentSignedRefundIdentityFunction(
   }
 }
 
+function predecessorSnapshotWithReviewedSignedRefundSource(
+  snapshot,
+  signedRefundFunction,
+  applied,
+  root,
+) {
+  if (!applied) return snapshot;
+
+  const deliverySnapshot = snapshot?.blockedCheckoutRefundDelivery;
+  const compatibleSnapshot = deliverySnapshot?.orderPaymentEventCompatible;
+  const functions = compatibleSnapshot?.functions;
+  const matches = Array.isArray(functions)
+    ? functions.filter(
+      (entry) => entry?.identity === COMPATIBLE_FUNCTION_IDENTITY,
+    )
+    : [];
+  if (
+    matches.length !== 1
+    || sha256(matches[0]?.function_source ?? "")
+      !== sha256(signedRefundFunction?.function_source ?? "")
+  ) {
+    throw new Error(
+      "signed-refund identity predecessor and candidate catalog views drifted",
+    );
+  }
+
+  return {
+    ...snapshot,
+    blockedCheckoutRefundDelivery: {
+      ...deliverySnapshot,
+      orderPaymentEventCompatible: {
+        ...compatibleSnapshot,
+        functions: functions.map((entry) =>
+          entry.identity === COMPATIBLE_FUNCTION_IDENTITY
+            ? {
+              ...entry,
+              function_source:
+                predecessorOrderPaymentSignedRefundFunctionSource(root),
+            }
+            : entry
+        ),
+      },
+    },
+  };
+}
+
 export function assertOrderPaymentSignedRefundIdentityProductionScope(
   snapshot,
   stage,
@@ -137,11 +184,6 @@ export function assertOrderPaymentSignedRefundIdentityProductionScope(
     root = process.cwd(),
   } = {},
 ) {
-  const predecessor = assertPredecessor(
-    snapshot?.blockedCheckoutTransferBinding,
-    "after",
-    { migrationRole, runtimeRole, root },
-  );
   const applied = assertOrderPaymentSignedRefundIdentityLedger(
     snapshot?.candidateLedgerRows,
     stage,
@@ -151,6 +193,16 @@ export function assertOrderPaymentSignedRefundIdentityProductionScope(
     applied,
     migrationRole,
     root,
+  );
+  const predecessor = assertPredecessor(
+    predecessorSnapshotWithReviewedSignedRefundSource(
+      snapshot?.blockedCheckoutTransferBinding,
+      snapshot?.signedRefundFunction ?? null,
+      applied,
+      root,
+    ),
+    "after",
+    { migrationRole, runtimeRole, root },
   );
   return Object.freeze({
     blockedCheckoutTransferBindingApplied:

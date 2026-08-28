@@ -190,13 +190,24 @@ async function seedLease(database, suffix, generation = 1) {
   `, [`evt_${suffix}`, `ch_${suffix}`, generation]);
 }
 
-async function applyOmittedRefund(database, suffix, amount = 11800, generation = 1) {
-  const now = Math.floor(Date.now() / 1000) - 2;
+async function applyOmittedRefund(
+  database,
+  suffix,
+  amount = 11800,
+  generation = 1,
+  eventCreatedSeconds = Math.floor(Date.now() / 1000) - 2,
+) {
   return (await database.query(`
     SELECT * FROM public.grainline_order_payment_signed_refund_apply(
       $1, $2, $3, $4, $5, 'usd', NULL, NULL, NULL, NULL, NULL
     )
-  `, [`evt_${suffix}`, generation, `ch_${suffix}`, now, amount])).rows[0];
+  `, [
+    `evt_${suffix}`,
+    generation,
+    `ch_${suffix}`,
+    eventCreatedSeconds,
+    amount,
+  ])).rows[0];
 }
 
 const families = [
@@ -212,7 +223,14 @@ test("disposable PostgreSQL derives omitted refund identity for all fixed local 
       await seedOrder(database, suffix);
       const localPaymentId = await seedLocalEvidence(database, { suffix, action, reason });
       await seedLease(database, suffix);
-      const inserted = await applyOmittedRefund(database, suffix);
+      const eventCreatedSeconds = Math.floor(Date.now() / 1000) - 2;
+      const inserted = await applyOmittedRefund(
+        database,
+        suffix,
+        11800,
+        1,
+        eventCreatedSeconds,
+      );
       assert.equal(inserted.action, "inserted");
       assert.equal(inserted.orderId, `order-${suffix}`);
       assert.equal(inserted.orderUpdated, false);
@@ -238,7 +256,13 @@ test("disposable PostgreSQL derives omitted refund identity for all fixed local 
       assert.equal(order.sellerRefundAmountCents, 11800);
       assert.equal(order.reviewNote, `preserve-${suffix}`);
 
-      const replay = await applyOmittedRefund(database, suffix);
+      const replay = await applyOmittedRefund(
+        database,
+        suffix,
+        11800,
+        1,
+        eventCreatedSeconds,
+      );
       assert.equal(replay.action, "replay");
       assert.equal(replay.orderUpdated, false);
       assert.equal(replay.paymentEventId, inserted.paymentEventId);
