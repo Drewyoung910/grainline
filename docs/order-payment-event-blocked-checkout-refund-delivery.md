@@ -923,3 +923,27 @@ accounting-field mismatch. Production application/database/provider state is
 unchanged by the correction. The preserved journal must be resumed only after
 the correction has an exact reviewed merge and exact-main CI, using a separate
 operator recovery binding; do not create or charge another fixture.
+
+## Fresh automatic proof cleanup correction (2026-08-28)
+
+PR #306 merged the delivery-verifier correction as exact main
+`b3d11828e80723858c1e7ce59e90307f2615379f`; exact-main CI `33218192414`
+passed. A restart bound to that operator commit and CI rediscovered the exact
+signed checkout/refund identities, accepted the corrected accounting snapshot
+and completed both exact replay checks. It advanced the mode-`0600` journal to
+`cleanup-started`, then failed closed inside the serializable deletion
+transaction because the normal automatic cleanup call still used the helper's
+legacy `ACTIVE` default. The helper and the separate failed-proof reconciliation
+path already supported the correct private-listing `SOLD_OUT` shape, so this was
+one missed call-site argument rather than application, payment or database
+drift.
+
+The transaction rolled back before deleting application rows. Redis and the
+disposable Stripe account were not reached, automatic-success evidence remains
+absent, and the exact restart journal is preserved. The isolated correction
+passes `"SOLD_OUT"` explicitly from the automatic path and includes a scoped
+source-contract regression so the reconciliation call can no longer mask a
+missing automatic-path argument. Focused operator/disposable-PostgreSQL tests
+pass 25/25 and the complete repository suite passes 3,479 with zero failures
+and seven skips. Resume only after exact merge and exact-main CI, using a new
+operator recovery binding; do not create or charge another fixture.

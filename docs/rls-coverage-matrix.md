@@ -328,6 +328,18 @@ completed alternative.
 > unchanged. An isolated correction now pins the canonical/private outcome and
 > all refund-accounting fields. Exact merge, exact-main CI and restart-safe
 > resumption of this same journal remain required; no second payment is needed.
+>
+> PR #306 merged that correction as exact main
+> `b3d11828e80723858c1e7ce59e90307f2615379f`; CI `33218192414` passed. The
+> restart accepted delivery and both exact replays, then failed closed at
+> `cleanup-started`: the automatic call site still inherited the cleanup
+> helper's legacy `ACTIVE` default instead of explicitly requiring the private
+> listing's `SOLD_OUT` status. Its serializable transaction rolled back before
+> application-row deletion, Redis/account cleanup was not reached, success
+> evidence is absent and the journal remains restartable. The isolated fix
+> makes the automatic status explicit and adds a scoped regression so the
+> separate reconciliation call cannot mask this omission. Exact merge/main CI
+> and restart-safe completion remain required; no second payment is needed.
 
 ## Program Rules
 

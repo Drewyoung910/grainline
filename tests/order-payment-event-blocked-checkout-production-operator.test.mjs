@@ -957,6 +957,12 @@ test("refund events bind exact modern Stripe charge and refund identities withou
 
 test("static operator contract stays test-only, loopback-only, non-activating, and restart-safe", () => {
   const source = readFileSync(new URL("../scripts/order-payment-event-blocked-checkout-production-proof.mjs", import.meta.url), "utf8");
+  const automaticProof = source.slice(
+    source.indexOf("export async function verifyAndCleanupProof"),
+    source.indexOf("async function readManualReconciliationProvider"),
+  );
+  assert.match(automaticProof, /cleanupDeliveredRows\(owner, state, "SOLD_OUT"\)/);
+  assert.doesNotMatch(automaticProof, /cleanupDeliveredRows\(owner, state\)(?!,)/);
   assert.match(source, /ORDER_PAYMENT_BLOCKED_CHECKOUT_COMMAND/);
   assert.match(source, /new Set\(\["prepare", "onboard", "renew", "serve", "verify", "reconcile", "cleanup"\]\)/);
   assert.match(source, /controller: CONNECTED_ACCOUNT_CONTROLLER/);
