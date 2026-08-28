@@ -668,8 +668,8 @@ async function assertNoForeignKeyDependents(client, relation, id) {
     SELECT
       child_namespace.nspname AS "schemaName",
       child.relname AS "tableName",
-      pg_catalog.array_agg(child_attribute.attname ORDER BY child_key_row.ordinality) AS "childColumns",
-      pg_catalog.array_agg(parent_attribute.attname ORDER BY child_key_row.ordinality) AS "parentColumns"
+      pg_catalog.array_agg(child_attribute.attname::text ORDER BY child_key_row.ordinality) AS "childColumns",
+      pg_catalog.array_agg(parent_attribute.attname::text ORDER BY child_key_row.ordinality) AS "parentColumns"
     FROM pg_catalog.pg_constraint AS constraint_row
     JOIN pg_catalog.pg_class AS child ON child.oid = constraint_row.conrelid
     JOIN pg_catalog.pg_namespace AS child_namespace ON child_namespace.oid = child.relnamespace
