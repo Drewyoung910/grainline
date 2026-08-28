@@ -3338,3 +3338,20 @@ Open work:
   This validates the isolated correction but does not accept production; exact
   reviewed merge, exact-main CI, restart-safe no-replay final scope and the
   distinct pooled-runtime postflight remain open.
+- PR #303 merged as exact main
+  `4ea201c411afd5e065200f81dbbf18d9dd5044d1`; exact-main CI
+  `33190374131` passed. Restart-safe production run `33194758799` classified
+  the already-applied successor as `signed-refund-identity-compatible` and
+  skipped migration deployment. Prisma status, the global 65-table/
+  179-function grant and RLS audit, and corrected engine-read-only scope all
+  passed with `productionChangedByProof=false`.
+- The distinct pooled `grainline_app_runtime` postflight passed from the same
+  clean commit inside an engine-attested repeatable-read read-only transaction.
+  It proved the actual NOBYPASSRLS runtime identity, exact successor body and
+  ACL, predecessor CRUD retained, `OrderPaymentEvent` RLS off, direct empty
+  read and expected read-only lock fence. Sanitized mode-`0600` evidence
+  SHA-256 is
+  `7849c8383164ae46d94bd8522710c8dbfdd1037da1e23281db1c3ef3e5b9e477`;
+  `productionChangedByPostflight=false`. Compatibility is accepted. A fresh
+  automatic paid provider proof, predecessor drain, remaining invariants and
+  separate ENABLE/FORCE releases remain mandatory.
