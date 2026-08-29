@@ -79,3 +79,23 @@ Before resuming the preserved provider journal:
 This correction does not activate `OrderPaymentEvent` RLS. Predecessor drain,
 remaining authority/invariant/projection gates, policyless ENABLE and separate
 FORCE remain later boundaries.
+
+## Exact-head CI packaging correction (2026-08-28)
+
+Exact-head CI run `33224938302` failed after all release byte checks and the
+database migration chain through the signed-authority predecessor passed. The
+failure was not PostgreSQL behavior: CI had intentionally moved the new
+successor directory out of the migration tree while proving predecessors, but
+the strengthened PGlite authority test tried to read that temporarily absent
+file directly.
+
+The test now derives the exact successor SQL from the sealed predecessor using
+`buildOrderPaymentSignedDisputeIdentityMigration()`. The release verifier still
+proves that the committed migration bytes equal that generated SQL before CI
+isolates the directory. This preserves predecessor isolation, removes a test
+filesystem-order dependency, and keeps the canonical `du_` / rejected `dp_`
+behavior proof identical before the candidate is applied to the CI database.
+
+The associated Vercel Preview compiled and passed TypeScript, then failed at
+page-data collection solely because Preview intentionally has no
+`DATABASE_URL`; that remains the expected fail-closed Preview posture.

@@ -3,14 +3,16 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
+import {
+  buildOrderPaymentSignedDisputeIdentityMigration,
+} from "../scripts/build-order-payment-signed-dispute-identity-migration.mjs";
+
 const migration = readFileSync(
   "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
   "utf8",
 );
-const disputeIdentityMigration = readFileSync(
-  "prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity/migration.sql",
-  "utf8",
-);
+const disputeIdentityMigration =
+  buildOrderPaymentSignedDisputeIdentityMigration();
 
 async function createDatabase() {
   const database = new PGlite();
