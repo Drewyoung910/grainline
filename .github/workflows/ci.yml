@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify signed-dispute identity compatibility release
+        run: npm run audit:order-payment-signed-dispute-identity-release
+      - name: Isolate signed-dispute identity until its predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity
+          "$RUNNER_TEMP/order-payment-signed-dispute-identity-release"
       - name: Verify signed-refund identity compatibility release
         run: npm run audit:order-payment-signed-refund-identity-release
       - name: Isolate signed-refund identity until its predecessors pass
@@ -781,6 +788,24 @@ jobs:
         env:
           ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore signed-dispute identity compatibility release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-signed-dispute-identity-release"
+          prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity
+      - name: Apply signed-dispute identity compatibility
+        run: npx prisma migrate deploy
+      - name: Verify signed-dispute identity migration status
+        run: npx prisma migrate status
+      - name: Audit signed-dispute identity grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove canonical signed-dispute identity in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-signed-dispute-identity-migration.test.mjs
+          tests/order-payment-signed-dispute-identity-production-scope.test.mjs
+          tests/order-payment-signed-dispute-identity-release.test.mjs
+          tests/order-payment-event-signed-authority-postgres-proof.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

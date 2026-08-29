@@ -110,7 +110,7 @@ function state(stage, overrides = {}) {
     disputeChargeId: "ch_dispute_proof",
   });
   if (reached("dispute-event-ready")) Object.assign(value, {
-    disputeId: "dp_dispute_proof",
+    disputeId: "du_dispute_proof",
     disputeEventId: "evt_dispute_proof",
   });
   if (reached("dispute-delivered")) Object.assign(value, {

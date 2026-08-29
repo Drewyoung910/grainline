@@ -3418,3 +3418,28 @@ Open work:
   several catalog reads concurrently on one owner client. The correction runs
   those reads sequentially; this does not change the proof boundary, but makes
   database-check ordering explicit and removes that avoidable warning.
+
+## Signed dispute identifier compatibility failure (2026-08-28)
+
+- The corrected signed refund/dispute proof resumed the exact original journal;
+  the refund delivery and exact replay passed. It then created the bounded
+  second charge, dispute fixture and genuine signed `charge.dispute.created`
+  event.
+- Delivery failed closed at `dispute-delivery-resend-pending`. One lease is
+  retained as unprocessed with the redacted SQLSTATE `23514` input error. There
+  are zero dispute payment rows, Case applications, Cases, Notifications or
+  audit rows, and no success evidence.
+- Sanitized immutable-provider comparison proved the genuine Stripe Dispute ID
+  has canonical `du_` prefix. The predecessor SQL admitted only `dp_`; every
+  other signed scalar check passed. Stripe's API reference independently uses
+  `du_` identifiers. This is a database compatibility defect, not a bad fixture
+  or RLS regression.
+- Isolated migration
+  `20260828020000_correct_order_payment_signed_dispute_identity`, SHA-256
+  `7bd8c9be14e8095f0d4952401a2331abde3149e87a4bce8a9e44235ae2ec2bcd`,
+  replaces only the exact dispute function and preserves runtime-only execute,
+  table grants and RLS-off posture. Focused disposable PostgreSQL and release
+  tests pass 20/20. Production was not mutated by diagnosis or candidate work.
+- Do not retry the retained event until exact merge/main CI and the dedicated
+  restart-safe migration workflow accept the corrected catalog. Then resume
+  this same journal; do not create a third payment or dispute.

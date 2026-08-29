@@ -152,6 +152,32 @@ through the explicit preparation binding. Unit coverage proves embedded,
 omitted, malformed and restart-binding cases. The journal remains mode `0600`;
 success evidence is absent. Resume only after corrected exact-main CI.
 
+## Resumed production execution finding (2026-08-28)
+
+The corrected verifier resumed the exact original journal. The signed refund
+delivery and its required exact replay passed. It then created the second $5
+test PaymentIntent/charge, marker-bound dispute fixture and genuine Stripe
+test-mode `charge.dispute.created` event. Signed delivery failed closed with
+SQLSTATE `23514` before any dispute application side effect.
+
+Engine-read-only diagnosis found exactly one matching webhook lease with
+`processed=false`, a redacted `Signed dispute input is invalid` error, and zero
+dispute `OrderPaymentEvent`, Case application, Case, Notification or audit
+rows. The immutable event comparison proved every scalar input passed except
+the Dispute identifier: Stripe supplied its canonical `du_` object ID, while
+the compatible SQL function accepted only the mistaken synthetic `dp_` prefix.
+Stripe's API reference independently shows `du_` Dispute identifiers.
+
+The mode-`0600` journal remains at `dispute-delivery-resend-pending`; no success
+evidence exists and no speculative retry or cleanup ran. The isolated additive
+successor
+`20260828020000_correct_order_payment_signed_dispute_identity` changes only
+that exact predicate while retaining source binding, function authority,
+grants and RLS-off compatibility. Resume the same journal only after the
+byte-pinned correction merges, exact-main CI passes, and its guarded migration
+plus read-only final scope are accepted. See
+`docs/order-payment-event-signed-dispute-identity.md`.
+
 ## Local proof coverage
 
 - `tests/order-payment-event-signed-production-operator.test.mjs` covers exact

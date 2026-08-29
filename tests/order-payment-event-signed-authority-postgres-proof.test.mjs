@@ -7,6 +7,10 @@ const migration = readFileSync(
   "prisma/migrations/20260824030000_prepare_order_payment_signed_authority/migration.sql",
   "utf8",
 );
+const disputeIdentityMigration = readFileSync(
+  "prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity/migration.sql",
+  "utf8",
+);
 
 async function createDatabase() {
   const database = new PGlite();
@@ -120,6 +124,7 @@ async function createDatabase() {
   }
   try {
     await database.exec(migration);
+    await database.exec(disputeIdentityMigration);
   } catch (error) {
     await database.close();
     throw new Error(
@@ -190,7 +195,7 @@ async function applyDispute(database, {
   eventId,
   eventCreated,
   chargeId = "ch_1",
-  disputeId = "dp_1",
+  disputeId = "du_1",
   amount = 11800,
   status = "needs_response",
   reason = "fraudulent",
@@ -288,9 +293,23 @@ test("disposable PostgreSQL proves dispute ordering as a set, Case binding and f
   const now = Math.floor(Date.now() / 1000);
   try {
     await seedLease(database, {
+      eventId: "evt_dispute_noncanonical_prefix",
+      type: "charge.dispute.created",
+      sourceObjectId: "dp_legacy",
+    });
+    await assert.rejects(
+      applyDispute(database, {
+        eventId: "evt_dispute_noncanonical_prefix",
+        disputeId: "dp_legacy",
+        eventCreated: now - 5,
+      }),
+      /Signed dispute input is invalid/,
+    );
+
+    await seedLease(database, {
       eventId: "evt_dispute_created",
       type: "charge.dispute.created",
-      sourceObjectId: "dp_1",
+      sourceObjectId: "du_1",
     });
     const applied = await applyDispute(database, {
       eventId: "evt_dispute_created",
@@ -313,7 +332,7 @@ test("disposable PostgreSQL proves dispute ordering as a set, Case binding and f
     await seedLease(database, {
       eventId: "evt_dispute_stale",
       type: "charge.dispute.updated",
-      sourceObjectId: "dp_1",
+      sourceObjectId: "du_1",
     });
     const stale = await applyDispute(database, {
       eventId: "evt_dispute_stale",
@@ -326,7 +345,7 @@ test("disposable PostgreSQL proves dispute ordering as a set, Case binding and f
     await seedLease(database, {
       eventId: "evt_dispute_same",
       type: "charge.dispute.created",
-      sourceObjectId: "dp_1",
+      sourceObjectId: "du_1",
     });
     const sameSecond = await applyDispute(database, {
       eventId: "evt_dispute_same",
@@ -338,7 +357,7 @@ test("disposable PostgreSQL proves dispute ordering as a set, Case binding and f
     await seedLease(database, {
       eventId: "evt_dispute_type_conflict",
       type: "charge.dispute.updated",
-      sourceObjectId: "dp_1",
+      sourceObjectId: "du_1",
     });
     const typeConflict = await applyDispute(database, {
       eventId: "evt_dispute_type_conflict",
@@ -350,7 +369,7 @@ test("disposable PostgreSQL proves dispute ordering as a set, Case binding and f
     await seedLease(database, {
       eventId: "evt_dispute_conflict",
       type: "charge.dispute.updated",
-      sourceObjectId: "dp_1",
+      sourceObjectId: "du_1",
     });
     const conflict = await applyDispute(database, {
       eventId: "evt_dispute_conflict",
@@ -364,7 +383,7 @@ test("disposable PostgreSQL proves dispute ordering as a set, Case binding and f
     await seedLease(database, {
       eventId: "evt_dispute_third",
       type: "charge.dispute.updated",
-      sourceObjectId: "dp_1",
+      sourceObjectId: "du_1",
     });
     const thirdAtConflictSecond = await applyDispute(database, {
       eventId: "evt_dispute_third",
@@ -376,7 +395,7 @@ test("disposable PostgreSQL proves dispute ordering as a set, Case binding and f
     await seedLease(database, {
       eventId: "evt_dispute_newer",
       type: "charge.dispute.updated",
-      sourceObjectId: "dp_1",
+      sourceObjectId: "du_1",
     });
     const newer = await applyDispute(database, {
       eventId: "evt_dispute_newer",
@@ -399,7 +418,7 @@ test("disposable PostgreSQL proves dispute ordering as a set, Case binding and f
     await seedLease(database, {
       eventId: "evt_dispute_wrong_generation",
       type: "charge.dispute.updated",
-      sourceObjectId: "dp_1",
+      sourceObjectId: "du_1",
       generation: 2,
     });
     await assert.rejects(

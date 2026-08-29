@@ -18,9 +18,14 @@ import {
 import {
   parseOrderPaymentSignedRefundIdentityProofConfig,
 } from "../scripts/order-payment-signed-refund-identity-postgres-proof.mjs";
+import {
+  repositoryAtOrderPaymentSignedRefundIdentityRelease,
+} from "./helpers/release-verifier-root.mjs";
 
 test("signed-refund identity release proves its exact compatible scope", () => {
-  const proof = verifyOrderPaymentSignedRefundIdentityRelease();
+  const proof = verifyOrderPaymentSignedRefundIdentityRelease(
+    repositoryAtOrderPaymentSignedRefundIdentityRelease(),
+  );
   assert.deepEqual({
     phase: proof.phase,
     runtimeFunctionsReplaced: proof.runtimeFunctionsReplaced,
@@ -40,9 +45,16 @@ test("signed-refund identity release refuses an unreviewed successor", () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "signed-refund-identity-release-"));
   try {
     mkdirSync(path.join(root, "prisma"), { recursive: true });
-    cpSync("prisma/migrations", path.join(root, "prisma/migrations"), {
+    cpSync(
+      path.join(
+        repositoryAtOrderPaymentSignedRefundIdentityRelease(),
+        "prisma/migrations",
+      ),
+      path.join(root, "prisma/migrations"),
+      {
       recursive: true,
-    });
+      },
+    );
     const successor = path.join(
       root,
       "prisma/migrations/20260828010001_unreviewed_successor",

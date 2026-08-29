@@ -24,7 +24,7 @@ function proofState() {
     refundPaymentEventId: "ope_refund_fixture",
     disputePaymentIntentId: "pi_dispute_fixture",
     disputeChargeId: "ch_dispute_fixture",
-    disputeId: "dp_dispute_fixture",
+    disputeId: "du_dispute_fixture",
     disputeEventId: "evt_dispute_fixture",
     disputePaymentEventId: "ope_dispute_fixture",
     caseId: "case_dispute_fixture",
