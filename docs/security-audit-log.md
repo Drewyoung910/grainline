@@ -3720,3 +3720,22 @@ Open work:
   `headBranch`. The follow-up audits every imported proof-helper signature,
   supplies the exact positional inputs and directly regression-tests both
   shared parsers. Neither failed invocation is acceptance evidence.
+
+## OrderPaymentEvent staff Case-refund catalog correction (2026-08-29)
+
+- The explicitly authorized invocation from exact main
+  `8171ebd82a7f7055bd15b3c39c54949f7fbe5819` / CI `33272773923` passed the
+  real exact-main binding preflight, then failed closed at the production
+  function-catalog boundary with five expected signatures but four valid.
+  It created no restart journal, onboarding record or success evidence and did
+  not reach Stripe, Clerk or application-row mutation.
+- A separate engine-enforced repeatable-read read-only catalog diagnostic
+  identified the sole mismatch. The operator invented
+  `grainline_notification_create_case_message`; the application and sealed
+  Notification migration intentionally dispatch both Case and CaseMessage
+  sources through `grainline_notification_create_case_event`.
+- The correction exports and parameterizes the exact four-function dependency
+  contract and tests it against the application dispatcher. The live diagnostic
+  confirmed all four real functions exist as volatile, parallel-unsafe
+  `SECURITY DEFINER` routines with pinned `search_path`, runtime execution and
+  no `PUBLIC` execution. No production posture was changed.
