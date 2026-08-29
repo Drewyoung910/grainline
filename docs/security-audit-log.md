@@ -3571,3 +3571,31 @@ Open work:
   sanitized evidence; either missing paired operator input or any cross-pair
   mismatch fails closed. No retry or production/provider mutation occurred
   while making this correction.
+
+## Seller-refund Connect responsibility correction (2026-08-29)
+
+- The sole preserved seller full-refund attempt resumed from original main
+  `877610cbb12491d6ae67e56ddb745ace146e1ed3` / CI `33231868504` through
+  corrected operator/main `232f4b6f725caa193af51f214395f6019cddde63`
+  / CI `33233774693`. Stripe rejected the legacy Custom/application-collected
+  account request at `account-create-pending`; no provider object, payment or
+  application fixture was created.
+- A complete read-only Stripe test-account scan exhausted all 13 accounts and
+  found zero marker matches. The private mode-`0600` journal remains the only
+  accepted attempt. Provider configuration, platform responsibilities,
+  deployment, database, grants and RLS posture were unchanged.
+- The defect is isolated to the proof operator. The corrected design reuses
+  the production-aligned Express controller already proven by the
+  blocked-checkout path: application pays fees and losses, Stripe collects
+  requirements, and the Express dashboard is used. Legacy `type`,
+  `business_type`, `individual` and direct `tos_acceptance` fields are absent;
+  only the transfers capability is requested.
+- If transfers require onboarding, one expiring Stripe-hosted URL is written
+  only to a fixed mode-`0600` record bound to the original attempt and exact
+  connected account. It is never printed, committed or copied into sanitized
+  evidence. A distinct `onboard` command re-verifies both exact commit/CI
+  bindings and opens the private URL without output; normal execution cannot
+  create a payment until that same account's transfers capability is active.
+- This correction does not authorize retry, platform-profile changes,
+  predecessor drain, `OrderPaymentEvent` RLS activation or any other
+  authority-family proof.

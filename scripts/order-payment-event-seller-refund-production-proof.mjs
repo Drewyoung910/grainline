@@ -51,6 +51,12 @@ export const REFUND_AMOUNT_CENTS = 500;
 export const TRANSFER_AMOUNT_CENTS = 475;
 export const STRIPE_METADATA_KEY_MAX_LENGTH = 40;
 export const STRIPE_PROOF_METADATA_KEY = "grainline_seller_refund_proof";
+export const CONNECTED_ACCOUNT_CONTROLLER = Object.freeze({
+  fees: Object.freeze({ payer: "application" }),
+  losses: Object.freeze({ payments: "application" }),
+  requirement_collection: "stripe",
+  stripe_dashboard: Object.freeze({ type: "express" }),
+});
 export const REQUIRED_ALIASES = Object.freeze([
   "thegrainline.com",
   "www.thegrainline.com",
@@ -70,6 +76,7 @@ const STRIPE_SECRET_PATTERN = /\b(?:sk_(?:live|test)_[A-Za-z0-9_]+|whsec_[A-Za-z
 const STRIPE_OBJECT_PATTERN = /\b(?:acct|ch|evt|pi|re|tr|trr|we)_[A-Za-z0-9_]+\b/g;
 const DATABASE_URL_PATTERN = /postgres(?:ql)?:\/\/[^\s"']+/gi;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
+const CONNECT_ONBOARDING_URL_PATTERN = /https:\/\/connect\.stripe\.com\/setup\/[^\s"']+/gi;
 const FIXTURE_PATTERN = /\bopesr_[a-f0-9]{32}(?:_[a-z]+)?\b/g;
 const EXPECTED_PROJECT = Object.freeze({
   orgId: "team_wvQeQHZGwCSwinC1uB7xbpjr",
@@ -117,6 +124,7 @@ export function redact(value) {
     .replace(STRIPE_SECRET_PATTERN, "[redacted-stripe-secret]")
     .replace(STRIPE_OBJECT_PATTERN, "[redacted-stripe-object]")
     .replace(BEARER_PATTERN, "Bearer [redacted-token]")
+    .replace(CONNECT_ONBOARDING_URL_PATTERN, "[redacted-onboarding-url]")
     .replace(FIXTURE_PATTERN, "[redacted-fixture-id]");
 }
 
@@ -161,6 +169,10 @@ function loadPrivateEnvironment(filePath, label) {
 }
 
 export function validateConfiguration(env = process.env, cwd = process.cwd()) {
+  const command = env.ORDER_PAYMENT_SELLER_REFUND_COMMAND || "run";
+  if (!new Set(["run", "onboard"]).has(command)) {
+    throw new Error("seller refund proof command is invalid");
+  }
   const expectedCommit = required(env, "ORDER_PAYMENT_SELLER_REFUND_EXPECTED_COMMIT");
   const hasOperatorCommit = env.ORDER_PAYMENT_SELLER_REFUND_OPERATOR_COMMIT !== undefined;
   const hasOperatorCiRunId = env.ORDER_PAYMENT_SELLER_REFUND_OPERATOR_CI_RUN_ID !== undefined;
@@ -188,6 +200,7 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   const suffix = expectedCommit.slice(0, 12);
   return Object.freeze({
     cwd,
+    command,
     expectedCommit,
     operatorCommit,
     deployedSourceCommit,
@@ -201,6 +214,10 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     signedEvidencePath: required(env, "ORDER_PAYMENT_SELLER_REFUND_SIGNED_EVIDENCE_PATH"),
     statePath: env.ORDER_PAYMENT_SELLER_REFUND_STATE_PATH
       || path.join(EVIDENCE_DIRECTORY, `order-payment-event-seller-refund-state-${suffix}.json`),
+    onboardingPath: path.join(
+      EVIDENCE_DIRECTORY,
+      `order-payment-event-seller-refund-onboarding-${suffix}.json`,
+    ),
     evidencePath: env.ORDER_PAYMENT_SELLER_REFUND_EVIDENCE_PATH
       || path.join(EVIDENCE_DIRECTORY, `order-payment-event-seller-refund-proof-${suffix}.json`),
   });
@@ -531,7 +548,14 @@ function stripeDependencies(stripe, secretKey, config, state) {
   return {
     listClassicEndpoints: () => listAll(stripe.webhookEndpoints.list({ limit: 100 })),
     listV2Destinations: () => listAll(stripe.v2.core.eventDestinations.list({ include: ["webhook_endpoint.url"], limit: 100 })),
-    createAccount: () => stripe.accounts.create(buildConnectedAccountParams(config, state), idempotency("account")),
+    createAccount: () => stripe.accounts.create(
+      buildConnectedAccountParams(config, state),
+      idempotency("account-v2-express-stripe-collector"),
+    ),
+    createOnboardingLink: (accountId) => stripe.accountLinks.create(
+      buildConnectedAccountLinkParams(accountId),
+      idempotency(`hosted-onboarding-v1-${randomUUID()}`),
+    ),
     listAccounts: () => listAccountsBounded((params) => stripe.accounts.list(params)),
     retrieveAccount: (id) => stripe.accounts.retrieve(id),
     deleteAccount: (id) => stripe.accounts.del(id),
@@ -582,30 +606,19 @@ export function buildStripeProofMetadata(config, state) {
 }
 
 export function buildConnectedAccountParams(config, state, now = new Date()) {
+  void now;
   return {
-    type: "custom",
     country: "US",
     default_currency: "usd",
-    business_type: "individual",
     email: "provider-canary@thegrainline.com",
     capabilities: { transfers: { requested: true } },
+    controller: CONNECTED_ACCOUNT_CONTROLLER,
     business_profile: {
       mcc: "5712",
       name: "Grainline Seller Refund Canary",
       product_description: "Disposable Stripe test-mode refund reversal proof",
       url: "https://thegrainline.com",
     },
-    individual: {
-      first_name: "Jenny",
-      last_name: "Rosen",
-      email: "provider-canary@thegrainline.com",
-      phone: "0000000000",
-      dob: { day: 1, month: 1, year: 1902 },
-      id_number: "000000000",
-      ssn_last_4: "0000",
-      address: { line1: "address_full_match", city: "Chicago", state: "IL", postal_code: "60601", country: "US" },
-    },
-    tos_acceptance: { date: Math.floor(now.getTime() / 1000), ip: "8.8.8.8" },
     external_account: {
       object: "bank_account",
       country: "US",
@@ -620,22 +633,123 @@ export function buildConnectedAccountParams(config, state, now = new Date()) {
   };
 }
 
-function assertConnectedAccountIdentity(account, config, state) {
-  if (
-    !account || account.deleted === true || !/^acct_[A-Za-z0-9_]+$/.test(String(account.id ?? ""))
-    || account.metadata?.[STRIPE_PROOF_METADATA_KEY] !== markerFor(config, state)
-    || account.country !== "US" || account.default_currency !== "usd"
-    || account.type !== "custom"
-  ) throw new Error("seller refund disposable connected account drifted");
+function connectedAccountDiagnostics(account, config, state) {
+  return Object.freeze({
+    controller: Object.freeze({
+      dashboardType: account?.controller?.stripe_dashboard?.type ?? null,
+      feesPayer: account?.controller?.fees?.payer ?? null,
+      lossesPayments: account?.controller?.losses?.payments ?? null,
+      requirementsCollector: account?.controller?.requirement_collection ?? null,
+    }),
+    country: account?.country ?? null,
+    defaultCurrency: account?.default_currency ?? null,
+    deleted: account?.deleted === true,
+    idPresent: typeof account?.id === "string",
+    livemode: Object.hasOwn(account ?? {}, "livemode") ? account.livemode : null,
+    markerMatches: account?.metadata?.[STRIPE_PROOF_METADATA_KEY] === markerFor(config, state),
+    transfers: account?.capabilities?.transfers ?? null,
+  });
+}
+
+export function assertConnectedAccount(account, config, state, { requireTransferActive = true } = {}) {
+  const diagnostics = connectedAccountDiagnostics(account, config, state);
+  if (!account || diagnostics.deleted === true || diagnostics.livemode === true
+    || !/^acct_[A-Za-z0-9_]+$/.test(String(account.id ?? ""))
+    || diagnostics.markerMatches !== true
+    || diagnostics.country !== "US" || diagnostics.defaultCurrency !== "usd"
+    || diagnostics.controller.feesPayer !== "application"
+    || diagnostics.controller.lossesPayments !== "application"
+    || diagnostics.controller.requirementsCollector !== "stripe"
+    || diagnostics.controller.dashboardType !== "express"
+    || (requireTransferActive && diagnostics.transfers !== "active")) {
+    throw new Error(`seller refund disposable connected account drifted: ${JSON.stringify(diagnostics)}`);
+  }
   return account;
 }
 
-export function assertConnectedAccount(account, config, state) {
-  assertConnectedAccountIdentity(account, config, state);
-  if (account.capabilities?.transfers !== "active") {
-    throw new Error("seller refund disposable connected account transfer capability is not active");
+export function buildConnectedAccountLinkParams(accountId) {
+  if (typeof accountId !== "string" || !/^acct_[A-Za-z0-9_]+$/.test(accountId)) {
+    throw new Error("seller refund hosted onboarding requires an exact account ID");
   }
-  return account;
+  return {
+    account: accountId,
+    collection_options: { fields: "eventually_due" },
+    refresh_url: `${PRODUCTION_ORIGIN}/?seller_refund_canary=refresh`,
+    return_url: `${PRODUCTION_ORIGIN}/?seller_refund_canary=return`,
+    type: "account_onboarding",
+  };
+}
+
+export function assertOnboardingLink(link, { requireFresh = true } = {}) {
+  let parsed;
+  try {
+    parsed = new URL(link?.url);
+  } catch {
+    throw new Error("seller refund Stripe hosted-onboarding link is invalid");
+  }
+  if (link?.object !== "account_link" || parsed.protocol !== "https:"
+    || parsed.hostname !== "connect.stripe.com" || !parsed.pathname.startsWith("/setup/")
+    || !Number.isSafeInteger(link?.expires_at) || link.expires_at <= 0
+    || (requireFresh && link.expires_at <= Math.floor(Date.now() / 1000))) {
+    throw new Error("seller refund Stripe hosted-onboarding link is outside the reviewed boundary");
+  }
+  return link;
+}
+
+export function assertOnboardingRecord(payload, config, state, { requireFresh = true } = {}) {
+  const link = assertOnboardingLink({
+    object: "account_link",
+    url: payload?.accountLinkUrl,
+    expires_at: payload?.accountLinkExpiresAt,
+  }, { requireFresh });
+  if (payload?.version !== 1
+    || payload?.phase !== "order-payment-event-seller-refund-onboarding"
+    || payload?.status !== "onboarding-required"
+    || payload?.expectedCommit !== config.expectedCommit
+    || payload?.deploymentId !== config.deploymentId
+    || payload?.attemptId !== state.attemptId
+    || payload?.stripeAccountId !== state.stripeAccountId) {
+    throw new Error("seller refund hosted-onboarding record does not bind the preserved attempt");
+  }
+  return Object.freeze({ ...payload, accountLinkExpiresAt: link.expires_at });
+}
+
+export function readOnboardingRecord(config, state, { required: isRequired = true, requireFresh = true } = {}) {
+  if (!existsSync(config.onboardingPath)) {
+    if (isRequired) throw new Error("seller refund hosted-onboarding record does not exist");
+    return null;
+  }
+  return assertOnboardingRecord(
+    readPrivateJson(config.onboardingPath, "seller refund hosted-onboarding record"),
+    config,
+    state,
+    { requireFresh },
+  );
+}
+
+export function writeOnboardingRecord(config, state, link) {
+  const record = assertOnboardingRecord({
+    version: 1,
+    phase: "order-payment-event-seller-refund-onboarding",
+    status: "onboarding-required",
+    expectedCommit: config.expectedCommit,
+    deploymentId: config.deploymentId,
+    attemptId: state.attemptId,
+    stripeAccountId: state.stripeAccountId,
+    accountLinkUrl: link.url,
+    accountLinkExpiresAt: link.expires_at,
+  }, config, state);
+  if (existsSync(config.onboardingPath)) {
+    readOnboardingRecord(config, state, { requireFresh: false });
+  }
+  writePrivateJson(config.onboardingPath, record);
+  return record;
+}
+
+export function removeOnboardingRecord(config, state) {
+  if (!existsSync(config.onboardingPath)) return;
+  readOnboardingRecord(config, state, { requireFresh: false });
+  unlinkSync(config.onboardingPath);
 }
 
 export function assertDeletedConnectedAccountAbsence(error, listing, expectedAccountId) {
@@ -1298,6 +1412,41 @@ export function assertEvidence(payload, config) {
   return Object.freeze(payload);
 }
 
+export function openHostedOnboarding(config = validateConfiguration(), dependencies = {}) {
+  (dependencies.verifyExecutionBindings ?? verifyExecutionBindings)(config);
+  assertSignedPredecessorEvidence(
+    readPrivateJson(config.signedEvidencePath, "signed payment predecessor evidence"),
+    config,
+  );
+  const state = assertState(
+    readPrivateJson(config.statePath, "seller refund recovery state"),
+    config,
+  );
+  if (state.stage !== "account-created" || !state.stripeAccountId) {
+    throw new Error("seller refund hosted onboarding requires account-created state");
+  }
+  const onboarding = assertOnboardingRecord(
+    readPrivateJson(config.onboardingPath, "seller refund hosted-onboarding record"),
+    config,
+    state,
+  );
+  const openUrl = dependencies.openUrl ?? ((url) => spawnSync(
+    "/usr/bin/open",
+    [url],
+    { env: childEnvironment(), stdio: "ignore" },
+  ));
+  const opened = openUrl(onboarding.accountLinkUrl);
+  if (opened?.error || opened?.status !== 0 || opened?.signal) {
+    throw new Error("seller refund hosted-onboarding browser launch failed");
+  }
+  return Object.freeze({
+    phase: "order-payment-event-seller-refund-production-proof",
+    status: "onboarding-opened",
+    rawProviderIdsPersistedInOutput: false,
+    secretsPersistedInOutput: false,
+  });
+}
+
 export async function runSellerRefundProductionProof(config = validateConfiguration(), dependencies = {}) {
   (dependencies.verifyExecutionBindings ?? verifyExecutionBindings)(config);
   assertSignedPredecessorEvidence(readPrivateJson(config.signedEvidencePath, "signed payment predecessor evidence"), config);
@@ -1331,20 +1480,51 @@ export async function runSellerRefundProductionProof(config = validateConfigurat
     }
     if (state.stage === "reserved") state = updateState(config, state, { stage: "account-create-pending" });
     if (state.stage === "account-create-pending") {
-      const created = assertConnectedAccountIdentity(await stripeOps.createAccount(), config, state);
+      const created = await stripeOps.createAccount();
       const account = await waitFor(
         () => stripeOps.retrieveAccount(created.id),
         (candidate) => {
-          try { assertConnectedAccount(candidate, config, state); return true; } catch { return false; }
+          try {
+            assertConnectedAccount(candidate, config, state, { requireTransferActive: false });
+            return true;
+          } catch {
+            return false;
+          }
         },
-        "seller refund disposable transfer capability",
+        "seller refund production-aligned connected account",
         40,
         1500,
       );
-      assertConnectedAccount(account, config, state);
+      assertConnectedAccount(account, config, state, { requireTransferActive: false });
       state = updateState(config, state, { stage: "account-created", stripeAccountId: account.id });
     }
-    if (state.stage === "account-created") state = updateState(config, state, { stage: "payment-create-pending" });
+    if (state.stage === "account-created") {
+      const account = assertConnectedAccount(
+        await stripeOps.retrieveAccount(state.stripeAccountId),
+        config,
+        state,
+        { requireTransferActive: false },
+      );
+      if (account.capabilities?.transfers !== "active") {
+        const existing = readOnboardingRecord(config, state, { required: false, requireFresh: false });
+        let onboarding = existing;
+        if (!onboarding || onboarding.accountLinkExpiresAt <= Math.floor(Date.now() / 1000)) {
+          const link = assertOnboardingLink(await stripeOps.createOnboardingLink(state.stripeAccountId));
+          onboarding = writeOnboardingRecord(config, state, link);
+        }
+        assertOnboardingRecord(onboarding, config, state);
+        return Object.freeze({
+          phase: "order-payment-event-seller-refund-production-proof",
+          status: "onboarding-required",
+          next: "ORDER_PAYMENT_SELLER_REFUND_COMMAND=onboard ... node scripts/order-payment-event-seller-refund-production-proof.mjs",
+          accountCreated: true,
+          rawProviderIdsPersistedInOutput: false,
+          secretsPersistedInOutput: false,
+        });
+      }
+      removeOnboardingRecord(config, state);
+      state = updateState(config, state, { stage: "payment-create-pending" });
+    }
     if (state.stage === "payment-create-pending") {
       const account = assertConnectedAccount(await stripeOps.retrieveAccount(state.stripeAccountId), config, state);
       const payment = await stripeOps.createPayment(account.id);
@@ -1421,6 +1601,7 @@ export async function runSellerRefundProductionProof(config = validateConfigurat
       if (!await deleteDisposableAccount(stripeOps, config, state)) {
         throw new Error("seller refund disposable account deletion failed");
       }
+      removeOnboardingRecord(config, state);
       state = updateState(config, state, { stage: "cleaned" });
     }
     if (state.stage === "cleaned") {
@@ -1451,8 +1632,25 @@ export async function runSellerRefundProductionProof(config = validateConfigurat
 
 async function main() {
   try {
-    const result = await runSellerRefundProductionProof();
-    process.stdout.write(`${JSON.stringify({ phase: result.phase, status: result.status, commit: result.commit, ciRunId: result.ciRunId, deploymentId: result.deploymentId })}\n`);
+    const config = validateConfiguration();
+    const result = config.command === "onboard"
+      ? openHostedOnboarding(config)
+      : await runSellerRefundProductionProof(config);
+    process.stdout.write(`${JSON.stringify({
+      phase: result.phase,
+      status: result.status,
+      ...(result.commit ? { commit: result.commit } : {}),
+      ...(result.ciRunId ? { ciRunId: result.ciRunId } : {}),
+      ...(result.deploymentId ? { deploymentId: result.deploymentId } : {}),
+      ...(result.next ? { next: result.next } : {}),
+      ...(Object.hasOwn(result, "accountCreated") ? { accountCreated: result.accountCreated } : {}),
+      ...(Object.hasOwn(result, "rawProviderIdsPersistedInOutput")
+        ? { rawProviderIdsPersistedInOutput: result.rawProviderIdsPersistedInOutput }
+        : {}),
+      ...(Object.hasOwn(result, "secretsPersistedInOutput")
+        ? { secretsPersistedInOutput: result.secretsPersistedInOutput }
+        : {}),
+    })}\n`);
   } catch (error) {
     process.stderr.write(`OrderPaymentEvent seller refund production proof failed closed: ${safeError(error)}\n`);
     process.exitCode = 1;

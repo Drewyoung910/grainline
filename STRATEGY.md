@@ -692,6 +692,18 @@ seller route and disposable test destination charge, prove the local/signed
 two-row confirmation model plus atomic Case/stock/delivery effects, and clean
 all temporary application identity without authenticating a real seller.
 
+Its first two executions both failed closed before account creation. Exact
+attempt main `877610cbb12491d6ae67e56ddb745ace146e1ed3` / CI `33231868504`
+first exposed the Stripe 40-character metadata-key limit; corrected
+operator/main `232f4b6f725caa193af51f214395f6019cddde63` / CI `33233774693`
+then exposed the same legacy Custom/application-collected responsibility
+regression already resolved for blocked checkout. Preserve the one
+`account-create-pending` journal and do not change the Stripe platform profile.
+Reuse the production-aligned Express/Stripe-collected controller and a private,
+mode-`0600`, marker-bound hosted-onboarding handoff. Payment creation remains
+blocked until the exact account's transfer capability is active. Review or
+merge of that correction is not proof execution or RLS activation authority.
+
 The blocked-checkout product audit found one delivery correction that must land
 before its live proof: the automatic refund was classified as `NEW_ORDER` and
 had no durable refund-email reservation. Follow
