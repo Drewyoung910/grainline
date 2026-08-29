@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   CONFIRMATION,
   REFUND_AMOUNT_CENTS,
+  STRIPE_METADATA_KEY_MAX_LENGTH,
+  STRIPE_PROOF_METADATA_KEY,
   TRANSFER_AMOUNT_CENTS,
   assertConnectedAccount,
   assertDeletedConnectedAccountAbsence,
@@ -16,6 +18,7 @@ import {
   assertState,
   buildConnectedAccountParams,
   buildEvidence,
+  buildStripeProofMetadata,
   createInitialState,
   deleteDisposableAccount,
   findSingleRefundEvent,
@@ -180,6 +183,9 @@ test("disposable account requests only transfer authority and is marker-bound", 
   assert.equal(params.capabilities.card_payments, undefined);
   assert.equal(params.type, "custom");
   assert.equal(params.tos_acceptance.date, 1787616000);
+  assert.equal(STRIPE_PROOF_METADATA_KEY.length <= STRIPE_METADATA_KEY_MAX_LENGTH, true);
+  assert.deepEqual(params.metadata, buildStripeProofMetadata(config, state));
+  assert.equal(params.metadata.grainline_order_payment_seller_refund_proof, undefined);
   const account = { id: "acct_proof", deleted: false, country: "US", default_currency: "usd", type: "custom",
     capabilities: { transfers: "active" }, metadata: params.metadata };
   assert.equal(assertConnectedAccount(account, config, state).id, "acct_proof");
