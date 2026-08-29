@@ -971,3 +971,19 @@ sanitized mode-`0600` evidence with SHA-256
 `dafb43dbe1de3e0b65da8a3554b465b1aaa74282ee56779f3fb34b209a6c27a7`.
 This closes the fresh automatic blocked-checkout provider gate only and does
 not by itself authorize predecessor drain or RLS activation.
+
+## Post-proof cleanup scanner hardening (2026-08-28)
+
+A class-wide review performed before the separate seller-refund proof found
+that this retained operator's already-deleted-account recovery used
+`autoPagingToArray({ limit: 1000 })`. Although the accepted proof scanned only
+13 test-mode accounts and found the exact target absent, that helper did not
+itself prove provider exhaustion if a future platform grows beyond its cap.
+
+Future use now pages the Accounts API explicitly, validates every page and
+cursor, and returns an exhaustion certificate only after observing
+`has_more=false`. Reaching 1,000 accounts while `has_more=true`, a malformed
+page, an invalid account ID or a retained target fails closed. The exact Stripe
+`StripePermissionError/account_invalid/403/api_error` tuple remains mandatory.
+This post-proof operator hardening neither reinterprets nor reruns the accepted
+proof and changes no application, database, deployment or provider state.

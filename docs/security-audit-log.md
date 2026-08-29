@@ -3526,3 +3526,29 @@ Open work:
 - Their status headers now reflect the verified release state. The remaining
   asynchronous export scale work and typed dispute-time/index invariant stay
   explicitly open; no code, database, deployment or provider state changed.
+
+## OrderPaymentEvent provider-proof cleanup hardening (2026-08-28)
+
+- The pre-execution authority review found two defects in the isolated seller
+  full-refund operator; neither had reached production or provider execution.
+- Production catalog checks had issued concurrent queries through one
+  `node-postgres` owner client. They now run in explicit sequence, so protocol
+  ordering is deterministic before any proof mutation.
+- Cleanup assumed Stripe would return a deleted Account object after account
+  deletion. The current provider can instead return the exact
+  `StripePermissionError` / `account_invalid` / HTTP 403 / `api_error` shape.
+  Restart now accepts that tuple only with a bounded, well-formed account scan
+  that explicitly paginates to provider `has_more=false` and excludes the exact
+  account ID. Reaching the bound before exhaustion, every other response, error
+  code, malformed listing or retained target fails closed.
+- The same helper governs both `cleanup-started` and `cleaned`, closing the
+  crash window after provider deletion but before the private journal advances.
+  Focused unit/static coverage proves the accepted and rejected restart shapes.
+  Review or merge remains non-executing and does not authorize production,
+  provider, grant or RLS changes.
+- A class-wide scan found the retained blocked-checkout proof used the same
+  post-deletion tuple with an SDK array helper capped at 1,000 rows. Its
+  accepted run had scanned only 13 test-mode accounts, so its result remains
+  factual, but future reuse now requires the same explicit pagination and
+  provider-exhaustion certificate. This is operator hardening, not a replay or
+  retroactive production-state claim.

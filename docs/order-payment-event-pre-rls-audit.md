@@ -600,23 +600,22 @@ Provider proof is required for this table: it changes a hot signed-event path,
 refund money movement and lock/generation behavior. Ephemeral PostgreSQL alone
 cannot establish Stripe delivery/retry or serverless overlap correctness.
 
-The signed refund/dispute portion of step 6 now has a restart-safe isolated
-operator and local proof package in
-`docs/order-payment-event-signed-production-proof.md`. It uses two independent
-Stripe test charges, retains only processed replay leases after exact cleanup,
-and never changes provider configuration. It is not yet executed and cannot
-stand in for the still-separate seller, blocked-checkout or staff Case refund
-proofs. Do not interpret its eventual success as permission to skip the
-remaining activation sequence.
+The signed refund/dispute portion of step 6 is accepted with sanitized evidence
+recorded in `docs/order-payment-event-signed-production-proof.md`. The distinct
+fresh automatic blocked-checkout proof is also accepted. Those proofs cannot
+stand in for the still-separate seller or staff Case refund proofs and do not
+permit skipping the remaining activation sequence.
 
-The next isolated package is the authenticated seller full-refund proof in
+The active isolated package is the authenticated seller full-refund proof in
 `docs/order-payment-event-seller-refund-production-proof.md`. It uses the
 retained operational Clerk canary only as a temporary vacation-mode seller,
 one synthetic email-opted-out buyer and one disposable Stripe test-mode
 transfer-capable account. It must prove the exact 500-cent buyer refund,
 475-cent reversal, local plus signed payment evidence, Case, Notification,
-skipped outbox, stock and retry boundaries before exact cleanup. It does not
-authorize execution or RLS activation.
+skipped outbox, stock and retry boundaries before exact cleanup. Its hard
+review corrected same-client PostgreSQL query concurrency and the exact Stripe
+post-deletion 403 restart shape. It does not authorize execution or RLS
+activation.
 
 ## Exit criteria
 

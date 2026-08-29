@@ -6,6 +6,7 @@ import {
   REFUND_AMOUNT_CENTS,
   TRANSFER_AMOUNT_CENTS,
   assertConnectedAccount,
+  assertDeletedConnectedAccountAbsence,
   assertEvidence,
   assertPayment,
   assertProofSnapshot,
@@ -16,7 +17,9 @@ import {
   buildConnectedAccountParams,
   buildEvidence,
   createInitialState,
+  deleteDisposableAccount,
   findSingleRefundEvent,
+  listAccountsBounded,
   redact,
   validateConfiguration,
 } from "../scripts/order-payment-event-seller-refund-production-proof.mjs";
@@ -183,6 +186,121 @@ test("disposable account requests only transfer authority and is marker-bound", 
   assert.throws(() => assertConnectedAccount({ ...account, capabilities: { transfers: "pending" } }, config, state), /transfer capability is not active/);
 });
 
+test("deleted connected-account restart requires Stripe's exact absence response and a complete account listing", async () => {
+  const accountId = "acct_sellerrefundproof";
+  const deletedAccess = {
+    type: "StripePermissionError",
+    code: "account_invalid",
+    statusCode: 403,
+    rawType: "api_error",
+  };
+  const listing = (accounts) => ({ accounts, exhausted: true });
+  assert.equal(assertDeletedConnectedAccountAbsence(deletedAccess, listing([{ id: "acct_other" }]), accountId), true);
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, listing([{ id: accountId }]), accountId),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence({ ...deletedAccess, code: "permission_denied" }, listing([]), accountId),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, listing([{ id: "not-an-account" }]), accountId),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(
+      deletedAccess,
+      listing(Array.from({ length: 1001 }, (_, index) => ({ id: `acct_other_${index}` }))),
+      accountId,
+    ),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, { accounts: [], exhausted: false }, accountId),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, [], accountId),
+    /absence is not proven/,
+  );
+
+  let deletionAttempted = false;
+  const proven = await deleteDisposableAccount({
+    async retrieveAccount() { throw deletedAccess; },
+    async listAccounts() { return listing([{ id: "acct_other" }]); },
+    async retrieveBalance() { throw new Error("balance must not be read after proven deletion"); },
+    async deleteAccount() { deletionAttempted = true; },
+  }, config, fullState());
+  assert.equal(proven, true);
+  assert.equal(deletionAttempted, false);
+
+  await assert.rejects(
+    deleteDisposableAccount({
+      async retrieveAccount() { throw deletedAccess; },
+      async listAccounts() { return listing([{ id: accountId }]); },
+    }, config, fullState()),
+    /absence is not proven/,
+  );
+
+  const state = fullState();
+  const params = buildConnectedAccountParams(config, state);
+  const activeAccount = {
+    id: accountId,
+    deleted: false,
+    country: "US",
+    default_currency: "usd",
+    type: "custom",
+    capabilities: { transfers: "active" },
+    metadata: params.metadata,
+  };
+  let deletedId = null;
+  assert.equal(await deleteDisposableAccount({
+    async retrieveAccount() { return activeAccount; },
+    async retrieveBalance() { return { available: [{ amount: 0 }], pending: [] }; },
+    async deleteAccount(id) { deletedId = id; return { id, deleted: true }; },
+  }, config, state), true);
+  assert.equal(deletedId, accountId);
+  await assert.rejects(
+    deleteDisposableAccount({
+      async retrieveAccount() { return activeAccount; },
+      async retrieveBalance() { return { available: [{ amount: 1 }], pending: [] }; },
+    }, config, state),
+    /retained a nonzero balance/,
+  );
+});
+
+test("connected-account listing proves provider exhaustion rather than silently truncating at its bound", async () => {
+  const requests = [];
+  const pages = [
+    { data: [{ id: "acct_first" }], has_more: true },
+    { data: [{ id: "acct_second" }], has_more: false },
+  ];
+  const accounts = await listAccountsBounded(async (params) => {
+    requests.push(params);
+    return pages.shift();
+  }, 2);
+  assert.equal(accounts.exhausted, true);
+  assert.deepEqual(accounts.accounts.map(({ id }) => id), ["acct_first", "acct_second"]);
+  assert.deepEqual(requests, [
+    { limit: 100 },
+    { limit: 100, starting_after: "acct_first" },
+  ]);
+
+  await assert.rejects(
+    listAccountsBounded(async () => ({ data: [{ id: "acct_only" }], has_more: true }), 1),
+    /did not prove exhaustion/,
+  );
+  await assert.rejects(
+    listAccountsBounded(async () => ({ data: [], has_more: true }), 2),
+    /did not prove exhaustion/,
+  );
+  await assert.rejects(
+    listAccountsBounded(async () => ({ data: [{ id: "not-an-account" }], has_more: false }), 2),
+    /page drifted/,
+  );
+});
+
 test("destination payment and provider refund prove exact reversal", () => {
   const state = fullState();
   const payment = { id: state.paymentIntentId, livemode: false, status: "succeeded", amount: 500, currency: "usd", latest_charge: state.chargeId };
@@ -250,6 +368,10 @@ test("static operator contract remains test-only and production-configuration re
     import.meta.url,
   ), "utf8");
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const databaseBoundaryStart = source.indexOf("async function verifyDatabaseBoundary");
+  const databaseBoundaryEnd = source.indexOf("async function listAll", databaseBoundaryStart);
+  assert.ok(databaseBoundaryStart >= 0 && databaseBoundaryEnd > databaseBoundaryStart);
+  const databaseBoundary = source.slice(databaseBoundaryStart, databaseBoundaryEnd);
   assert.match(source, /validateStripeSecret\(localValues\)/);
   assert.match(source, /provider\.stage !== 4/);
   assert.match(source, /type: "custom"/);
@@ -257,6 +379,9 @@ test("static operator contract remains test-only and production-configuration re
   assert.match(source, /"vacationMode"/);
   assert.match(source, /EMAIL_REFUND_ISSUED/);
   assert.match(source, /cleanupExactRows/);
+  assert.match(source, /listAccounts: \(\) => listAccountsBounded\(\(params\) => stripe\.accounts\.list\(params\)\)/);
+  assert.match(source, /assertDeletedConnectedAccountAbsence/);
+  assert.doesNotMatch(databaseBoundary, /Promise\.all/);
   assert.match(source, /listChargeRefunds: \(chargeId\) => listAll\(stripe\.refunds\.list/);
   assert.doesNotMatch(source, /\.refunds\?\.data|\.refunds\.data/);
   assert.doesNotMatch(source, /sk_live_/);
