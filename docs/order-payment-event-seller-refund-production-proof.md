@@ -1,9 +1,9 @@
 # OrderPaymentEvent seller full-refund production proof
 
-Status: second execution attempt failed closed before provider-object creation;
-an isolated production-aligned Express/Stripe-collected onboarding correction
-and the preserved restart journal are under review. Review or merge does not
-authorize execution or retry.
+Status: third execution attempt failed closed after one exact idempotent test
+payment and before application-fixture creation; an isolated retrieved-payment
+recovery correction and the preserved restart journal are under review. Review
+or merge does not authorize execution or retry.
 `OrderPaymentEvent` RLS remains off and predecessor CRUD must remain available
 throughout this proof.
 
@@ -191,15 +191,38 @@ active. Expired links are replaced only for the same preserved account; the
 private handoff record is removed after capability activation and during
 cleanup.
 
+## Third execution attempt failed closed (2026-08-29)
+
+The preserved attempt resumed from operator/main
+`792a088c7ab677942360176c6709481fd4548fcd` and CI `33242951704`.
+The production-aligned Express account was created, its private hosted
+onboarding completed, and its transfers capability became active. Stripe then
+created exactly one marker-bound 500-cent test PaymentIntent with one exact
+475-cent destination transfer, but the operator asserted the immediate create
+response and failed closed on its transient projection before writing the
+payment identities to the journal. No production application fixture, refund,
+signed refund event or cleanup mutation was created. The mode-`0600` journal
+remains at `payment-create-pending`; the exact connected account and payment
+are retained solely for restart-safe recovery.
+
+A read-only marker search found exactly one PaymentIntent and no additional
+matches. Fresh retrieval proved test mode, succeeded status, 500-cent charge,
+475-cent transfer and the exact marker-bound destination; those retrieved
+objects pass the unchanged full payment assertion. The correction keeps the
+same idempotency key, reissues the create only to recover the same object, then
+boundedly re-retrieves the PaymentIntent and expanded Charge/Transfer before
+advancing the journal. It cannot create a competing payment and does not
+weaken any amount, destination, mode or identity assertion.
+
 ## Sequencing
 
 1. Retain the accepted distinct signed refund/dispute proof.
 2. Merge this reviewed operator from an exact main commit and require exact-main CI.
 3. Merge the production-aligned Express/hosted-onboarding correction and pass
    its exact-main CI.
-4. Resume the exact preserved first attempt. If it pauses for hosted
-   onboarding, open only the private marker-bound link, complete Stripe's test
-   onboarding, and resume the same account and journal.
-5. Record sanitized evidence and cleanup outcome.
-6. Continue with the still-separate staff Case refund live proof. Do not
+4. Merge the retrieved-payment recovery correction and pass exact-main CI.
+5. Resume the exact preserved attempt from `payment-create-pending`; recover
+   only the idempotent existing payment before any application fixture.
+6. Record sanitized evidence and cleanup outcome.
+7. Continue with the still-separate staff Case refund live proof. Do not
    bundle those authorities or infer them from this seller proof.

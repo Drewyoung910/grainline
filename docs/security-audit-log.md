@@ -3603,3 +3603,24 @@ Open work:
 - This correction does not authorize retry, platform-profile changes,
   predecessor drain, `OrderPaymentEvent` RLS activation or any other
   authority-family proof.
+
+## Seller-refund payment projection correction (2026-08-29)
+
+- Operator/main `792a088c7ab677942360176c6709481fd4548fcd` / CI
+  `33242951704` resumed the sole preserved attempt, created one exact
+  production-aligned Express test account, paused for private Stripe-hosted
+  onboarding, and resumed only after transfers became active.
+- Stripe created exactly one marker-bound 500-cent test PaymentIntent and one
+  475-cent destination transfer. The operator failed closed before application
+  fixture creation because it asserted the transient create response. No
+  refund, signed refund event, application row, deployment, migration, grant,
+  RLS or provider-configuration change occurred.
+- Read-only marker search returned exactly one PaymentIntent. Fresh retrieval
+  proved the exact test-mode amount, charge, transfer and destination and
+  passed the unchanged full assertion. The mode-`0600` journal remains at
+  `payment-create-pending`; the account and payment are retained only for the
+  same restart-safe attempt.
+- The correction preserves the original payment idempotency key, re-retrieves
+  the PaymentIntent and expanded Charge/Transfer with bounded waits, and
+  advances the journal only after the existing exact assertion passes. It does
+  not permit a second payment or weaken provider identity checks.

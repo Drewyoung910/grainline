@@ -569,6 +569,7 @@ function stripeDependencies(stripe, secretKey, config, state) {
       description: "Grainline seller refund authority proof",
       metadata: buildStripeProofMetadata(config, state),
     }, idempotency("payment")),
+    retrievePayment: (id) => stripe.paymentIntents.retrieve(id),
     retrieveCharge: (id) => stripe.charges.retrieve(id, { expand: ["transfer"] }),
     retrieveRefund: (id) => stripe.refunds.retrieve(id, { expand: ["transfer_reversal"] }),
     listChargeRefunds: (chargeId) => listAll(stripe.refunds.list({ charge: chargeId, limit: 100 })),
@@ -786,6 +787,43 @@ export function assertPayment(payment, charge, accountId) {
     || transfer.amount !== TRANSFER_AMOUNT_CENTS || destination !== accountId
   ) throw new Error("seller refund destination payment drifted");
   return Object.freeze({ paymentIntentId: payment.id, chargeId, transferId });
+}
+
+export async function createAndRecoverDestinationPayment(stripeOps, accountId) {
+  const created = await stripeOps.createPayment(accountId);
+  if (!/^pi_[A-Za-z0-9_]+$/.test(String(created?.id ?? ""))) {
+    throw new Error("seller refund destination payment creation returned an invalid identity");
+  }
+  const payment = await waitFor(
+    () => stripeOps.retrievePayment(created.id),
+    (candidate) => {
+      const chargeId = typeof candidate?.latest_charge === "string"
+        ? candidate.latest_charge
+        : candidate?.latest_charge?.id;
+      return candidate?.status === "succeeded" && /^ch_[A-Za-z0-9_]+$/.test(String(chargeId ?? ""));
+    },
+    "seller refund destination payment retrieval",
+    20,
+    1000,
+  );
+  const chargeId = typeof payment.latest_charge === "string"
+    ? payment.latest_charge
+    : payment.latest_charge?.id;
+  const charge = await waitFor(
+    () => stripeOps.retrieveCharge(chargeId),
+    (candidate) => {
+      try {
+        assertPayment(payment, candidate, accountId);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    "seller refund destination transfer retrieval",
+    20,
+    1000,
+  );
+  return assertPayment(payment, charge, accountId);
 }
 
 async function selectCanary(clerk, owner, state = null) {
@@ -1527,10 +1565,7 @@ export async function runSellerRefundProductionProof(config = validateConfigurat
     }
     if (state.stage === "payment-create-pending") {
       const account = assertConnectedAccount(await stripeOps.retrieveAccount(state.stripeAccountId), config, state);
-      const payment = await stripeOps.createPayment(account.id);
-      const chargeId = typeof payment.latest_charge === "string" ? payment.latest_charge : payment.latest_charge?.id;
-      const charge = await stripeOps.retrieveCharge(chargeId);
-      const identity = assertPayment(payment, charge, account.id);
+      const identity = await createAndRecoverDestinationPayment(stripeOps, account.id);
       state = updateState(config, state, { stage: "payment-created", ...identity });
     }
     if (state.stage === "payment-created") {

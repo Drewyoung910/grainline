@@ -26,6 +26,7 @@ import {
   buildConnectedAccountParams,
   buildEvidence,
   buildStripeProofMetadata,
+  createAndRecoverDestinationPayment,
   createInitialState,
   deleteDisposableAccount,
   findSingleRefundEvent,
@@ -524,6 +525,53 @@ test("destination payment and provider refund prove exact reversal", () => {
   assert.throws(() => assertRefundProviderEvidence({ ...refund, amount: 499 }, state), /provider evidence drifted/);
 });
 
+test("destination payment is re-retrieved after an incomplete create response", async () => {
+  const state = fullState();
+  const calls = [];
+  const identity = await createAndRecoverDestinationPayment({
+    async createPayment(accountId) {
+      calls.push(["create", accountId]);
+      return { id: state.paymentIntentId, status: "succeeded", latest_charge: state.chargeId };
+    },
+    async retrievePayment(paymentIntentId) {
+      calls.push(["retrieve-payment", paymentIntentId]);
+      return {
+        id: state.paymentIntentId,
+        livemode: false,
+        status: "succeeded",
+        amount: REFUND_AMOUNT_CENTS,
+        currency: "usd",
+        latest_charge: state.chargeId,
+      };
+    },
+    async retrieveCharge(chargeId) {
+      calls.push(["retrieve-charge", chargeId]);
+      return {
+        id: state.chargeId,
+        livemode: false,
+        paid: true,
+        amount: REFUND_AMOUNT_CENTS,
+        currency: "usd",
+        transfer: {
+          id: state.transferId,
+          amount: TRANSFER_AMOUNT_CENTS,
+          destination: state.stripeAccountId,
+        },
+      };
+    },
+  }, state.stripeAccountId);
+  assert.deepEqual(identity, {
+    paymentIntentId: state.paymentIntentId,
+    chargeId: state.chargeId,
+    transferId: state.transferId,
+  });
+  assert.deepEqual(calls, [
+    ["create", state.stripeAccountId],
+    ["retrieve-payment", state.paymentIntentId],
+    ["retrieve-charge", state.chargeId],
+  ]);
+});
+
 test("signed refund event uses modern Stripe charge totals rather than the removed embedded refund list", () => {
   const state = fullState();
   const event = {
@@ -596,6 +644,8 @@ test("static operator contract remains test-only and production-configuration re
   assert.match(source, /stripe_dashboard: Object\.freeze\(\{ type: "express" \}\)/);
   assert.match(source, /capabilities: \{ transfers: \{ requested: true \} \}/);
   assert.match(source, /account-v2-express-stripe-collector/);
+  assert.match(source, /retrievePayment: \(id\) => stripe\.paymentIntents\.retrieve\(id\)/);
+  assert.match(source, /createAndRecoverDestinationPayment\(stripeOps, account\.id\)/);
   assert.match(source, /ORDER_PAYMENT_SELLER_REFUND_COMMAND/);
   assert.match(source, /\/usr\/bin\/open/);
   assert.doesNotMatch(source, /type: "custom"/);
