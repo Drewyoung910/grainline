@@ -111,6 +111,23 @@ signatures, requests the complete CI binding fields and directly exercises the
 shared Git and CI parsers in regression coverage. No journal or external
 mutation was created by either failed invocation.
 
+The next explicitly authorized invocation from exact main
+`8171ebd82a7f7055bd15b3c39c54949f7fbe5819` / CI `33272773923` passed the
+complete execution-binding preflight but failed closed at the production
+function-catalog check, again before creating a restart journal or touching
+Stripe, Clerk or application rows. The proof incorrectly required a fifth
+`grainline_notification_create_case_message` function. That function is not a
+production dependency: both `case` and `case_message` sources intentionally
+route through the single source-validating
+`grainline_notification_create_case_event` function. The corrected catalog is
+an exported four-signature contract, is passed to PostgreSQL as data rather
+than duplicated in the SQL text, and is regression-checked against the actual
+application dispatch. A live engine-enforced read-only diagnostic independently
+confirmed all four real functions retain `SECURITY DEFINER`, pinned
+`search_path`, runtime-only execution and revoked `PUBLIC` execution. This
+failed invocation is not acceptance evidence and created no resumable provider
+or database state.
+
 The admin resolution panel also now asks for an action-specific confirmation
 before Full Refund, Partial Refund or Dismiss. That client guard is additional
 product safety; server, PIN and database authority remain mandatory.

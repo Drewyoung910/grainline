@@ -48,6 +48,12 @@ const { Client } = pg;
 export const CONFIRMATION = "reviewed-order-payment-case-refund-production-proof";
 export const PRODUCTION_ORIGIN = "https://thegrainline.com";
 export const PLATFORM_WEBHOOK_URL = `${PRODUCTION_ORIGIN}/api/stripe/webhook`;
+export const CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES = Object.freeze([
+  'public.grainline_case_staff_resolution_prepare(text,text,public."CaseResolution",integer,jsonb)',
+  'public.grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)',
+  'public.grainline_case_staff_resolution_finalize(text,text)',
+  'public.grainline_notification_create_case_event(text,text,public."NotificationType",text,text,text)',
+]);
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 export const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 export const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.local";
@@ -442,12 +448,8 @@ async function verifyDatabaseBoundary(owner, runtime) {
     WHERE namespace.nspname = 'public' AND relation.relname = 'OrderPaymentEvent'
   `);
   const functions = await owner.query(`
-    WITH expected(signature) AS (VALUES
-      ('public.grainline_case_staff_resolution_prepare(text,text,public."CaseResolution",integer,jsonb)'),
-      ('public.grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)'),
-      ('public.grainline_case_staff_resolution_finalize(text,text)'),
-      ('public.grainline_notification_create_case_event(text,text,public."NotificationType",text,text,text)'),
-      ('public.grainline_notification_create_case_message(text,text,public."NotificationType",text,text,text)')
+    WITH expected(signature) AS (
+      SELECT pg_catalog.unnest($1::text[])
     )
     SELECT pg_catalog.count(*)::integer AS count,
       pg_catalog.count(*) FILTER (WHERE routine.oid IS NOT NULL AND routine.prosecdef = true
@@ -462,11 +464,14 @@ async function verifyDatabaseBoundary(owner, runtime) {
       SELECT procedure_row.* FROM pg_catalog.pg_proc AS procedure_row
       WHERE procedure_row.oid = pg_catalog.to_regprocedure(expected.signature)
     ) AS routine ON true
-  `);
+  `, [CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES]);
   assert.deepEqual(ownerIdentity.rows, [{ role: "neondb_owner", database: PRODUCTION_DATABASE_NAME }]);
   assert.deepEqual(runtimeIdentity.rows, [{ role: RUNTIME_ROLE, database: PRODUCTION_DATABASE_NAME }]);
   assert.deepEqual(posture.rows, [{ enabled: false, forced: false, can_select: true, can_insert: true, can_update: true, can_delete: true }]);
-  assert.deepEqual(functions.rows, [{ count: 5, valid: 5 }]);
+  assert.deepEqual(functions.rows, [{
+    count: CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES.length,
+    valid: CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES.length,
+  }]);
 }
 
 function markerFor(config, state) {

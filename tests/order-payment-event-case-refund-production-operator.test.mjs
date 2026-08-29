@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
+  CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES,
   CONFIRMATION,
   REFUND_AMOUNT_CENTS,
   TRANSFER_AMOUNT_CENTS,
@@ -130,6 +131,28 @@ function proofSnapshot() {
 }
 
 describe("OrderPaymentEvent staff Case refund production operator", () => {
+  it("pins the four real staff-resolution and case-notification functions", () => {
+    assert.deepEqual(CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES, [
+      'public.grainline_case_staff_resolution_prepare(text,text,public."CaseResolution",integer,jsonb)',
+      'public.grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)',
+      'public.grainline_case_staff_resolution_finalize(text,text)',
+      'public.grainline_notification_create_case_event(text,text,public."NotificationType",text,text,text)',
+    ]);
+    assert.equal(
+      CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES.some((signature) => (
+        signature.includes("grainline_notification_create_case_message")
+      )),
+      false,
+    );
+
+    const service = readFileSync("src/lib/notificationServiceAccess.ts", "utf8");
+    assert.match(service, /const caseSource =[^;]+NOTIFICATION_SOURCE_TYPES\.CASE_MESSAGE/s);
+    assert.match(
+      service,
+      /else if \(caseSource\) \{[\s\S]*grainline_notification_create_case_event\(/,
+    );
+  });
+
   it("reports the real repository head using the shared verifier contract", () => {
     const state = readGitState(process.cwd());
     assert.match(state.head, /^[a-f0-9]{40}$/);
