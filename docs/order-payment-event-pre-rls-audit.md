@@ -611,9 +611,13 @@ and removed all bounded temporary identity. Exact corrected operator/main was
 `35d13b9513e49c2f1ca101a0f9f2a1e5207520e28b845a03b99e2e2d1b76c9d4`.
 
 Those three accepted proofs cannot stand in for the still-separate staff Case
-refund proof. Remaining invariant/projection work, zero-direct-access
-conversion, predecessor drain, policyless ENABLE and posture-only FORCE also
-remain mandatory. See
+refund proof. Its isolated operator and PostgreSQL cleanup proof are now
+prepared but unexecuted: they use the normal Clerk plus session-bound
+Admin-PIN route, keep the operational canary at `USER` outside brief
+`finally`-guarded calls, and require exact 500-cent refund/475-cent reversal,
+participant-delivery and replay evidence. Remaining invariant/projection work,
+zero-direct-access conversion, predecessor drain, policyless ENABLE and
+posture-only FORCE also remain mandatory. See
 `docs/order-payment-event-seller-refund-production-proof.md` for the complete
 failed-attempt chronology, correction rationale and cleanup certificate.
 

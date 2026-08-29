@@ -10,6 +10,90 @@ staff Case provider/replay proof remains outstanding.
 Audited: 2026-08-24 after the evidence-bound refund-reconciliation and
 inactive-seller recovery candidates.
 
+## Pre-proof re-audit (2026-08-29)
+
+The separate production-proof review re-read the complete admin page, client
+panel, authenticated route, TypeScript result validators, fixed PostgreSQL
+prepare/provider/finalize functions, marketplace-refund helper, participant
+delivery transaction and existing PostgreSQL proof. The financial and
+authority design remains the intended design:
+
+- current `EMPLOYEE` or `ADMIN`, same-session Admin-PIN possession, origin
+  rejection and the refund rate limit precede every resolution attempt;
+- PostgreSQL derives and locks the Case, Order, single seller, buyer, full
+  refund amount, currency, stock plan, payment intent, transfer eligibility,
+  claim ID and idempotency scope;
+- Stripe stays outside the database transaction, while ambiguous provider
+  outcomes enter an administrator-only reconciliation state instead of being
+  guessed or retried under a new scope;
+- finalization revalidates the exact claim-linked payment evidence and commits
+  the Case transition, staff message, stock, audit, participant Notifications
+  and versioned email-outbox reservation atomically; and
+- full refunds restore eligible unfulfilled in-stock inventory automatically,
+  while partial stock restoration remains an explicit staff decision bounded
+  by purchased quantities and rejected after fulfillment.
+
+The review did not treat a transfer-reversal ID paired with a null amount as
+malformed. Stripe can return an unexpanded string reversal even when the
+request asked for expansion, and the shared refund contract intentionally
+retains that provider shape. The production acceptance proof is stricter: it
+must retrieve the expanded reversal and prove the exact expected amount before
+acceptance.
+
+One product-safety defect was found outside the database protocol: the admin
+panel previously issued a Full Refund or Dismiss resolution on the first
+click. The panel now requires an action-specific confirmation before any
+request, including the exact formatted amount for a partial refund. This does
+not weaken or replace server authorization.
+
+No broader Case feature redesign is required before this authority proof.
+Staff outreach remains the separately planned support-thread system; it must
+not be smuggled into the dispute-resolution authority.
+
+## Prepared authenticated acceptance operator (2026-08-29)
+
+The isolated candidate adds
+`scripts/order-payment-event-case-refund-production-proof.mjs` and its unit
+plus real-PGlite PostgreSQL coverage. Review or merge does not authorize the
+operator. A later execution must be bound to one exact main commit, successful
+exact-main CI, the currently deployed compatible source/deployment, and the
+accepted seller-refund evidence file plus its SHA-256 digest.
+
+The restart-safe journal uses explicit pending stages before account, payment,
+fixture, refund and signed-event replay mutations. It creates one private,
+vacation-hidden synthetic seller/Listing/Order/Case graph and one disposable
+Stripe test-mode Express destination account. The Case and its buyer-authored
+opening `CaseMessage` are created atomically. Every pre-existing collision,
+partial fixture, provider identity, refund/reversal amount, source-bound
+payment row, claim, resolution message, Notification, skipped email, audit,
+stock transition and replay identity fails closed.
+
+The proof uses the normal production authentication and Admin-PIN routes. The
+raw PIN is accepted only by a nonce-bound `127.0.0.1` form and retained in
+memory just long enough to obtain the normal session-bound signed cookie. It
+is never logged, written to the restart journal or included in evidence. To
+minimize temporary authority, the retained non-customer operational canary
+stays `USER` while Stripe/account/fixture work runs. It is promoted to
+`EMPLOYEE` only around the PIN verification or Case API call and restored to
+`USER` in that operation's `finally` path. `restore-canary` is a separate
+restart-safe recovery command that revokes its active sessions and restores
+the exact role without discarding the proof journal. If the production
+per-user PIN map does not include this canary, the PIN route must fail closed;
+the operator must stop rather than changing provider variables inside the
+proof.
+
+Cleanup is intentionally exact rather than broad: each marker-bound row is
+verified, deleted with an asserted cardinality and rechecked as absent. The
+disposable account must have zero balance before deletion. Exactly one
+processed `charge.refunded` lease, immutable Stripe test objects, the normal
+Admin-PIN security audit and bounded-TTL rate-limit/provider telemetry remain.
+The operator does not guess or delete Upstash internal key names. Sanitized
+mode-`0600` evidence records hashes and counts only.
+
+The admin resolution panel also now asks for an action-specific confirmation
+before Full Refund, Partial Refund or Dismiss. That client guard is additional
+product safety; server, PIN and database authority remain mandatory.
+
 ## Finding
 
 The existing staff Case protocol correctly separates the provider request from
@@ -62,11 +146,12 @@ best-effort work, the pre-existing Case authority catalog and Notification
 inventory. TypeScript must also accept the Prisma transaction client across
 the fixed function, Notification and EmailOutbox helpers.
 
-This closes the application crash gap only. It is not `OrderPaymentEvent` RLS
-activation evidence and does not replace:
+This closes the application crash gap and prepares the live proof only. The
+operator has not run and is not `OrderPaymentEvent` RLS activation evidence.
+It does not replace:
 
-- disposable PostgreSQL and converted-deployment staff refund replay proof;
-- signed Stripe test-mode delivery/retry proof;
+- execution and acceptance of the converted-deployment staff refund provider,
+  authenticated-route and replay proof;
 - fresh aggregate-only production data classification;
 - remaining append-only, taxonomy, currency and source invariants;
 - actor-safe participant/staff projections and bounded aggregates;

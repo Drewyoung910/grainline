@@ -2,7 +2,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { parseMoneyInputToCents } from "@/lib/money";
+import { formatCurrencyCents, parseMoneyInputToCents } from "@/lib/money";
 
 export default function CaseResolutionPanel({
   caseId,
@@ -25,10 +25,24 @@ export default function CaseResolutionPanel({
   type RestoreStockRequest = Array<{ listingId: string; quantity: number }>;
 
   async function resolve(
-    resolution: string,
+    resolution: "REFUND_FULL" | "REFUND_PARTIAL" | "DISMISSED",
     refundAmountCents?: number,
     restoreStock?: RestoreStockRequest,
   ) {
+    let confirmation: string;
+    if (resolution === "REFUND_FULL") {
+      confirmation = "Issue the full refund and resolve this case? Stripe refunds cannot be undone.";
+    } else if (resolution === "REFUND_PARTIAL") {
+      if (refundAmountCents == null) {
+        setError("Enter a valid refund amount.");
+        return;
+      }
+      confirmation = `Issue a ${formatCurrencyCents(refundAmountCents, currency)} partial refund and resolve this case? Stripe refunds cannot be undone.`;
+    } else {
+      confirmation = "Dismiss this case in the seller's favor without a refund? This resolves the case.";
+    }
+    if (!window.confirm(confirmation)) return;
+
     setLoading(true);
     setError(null);
     try {

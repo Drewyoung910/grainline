@@ -5,6 +5,7 @@ import { assertStripeRefundObject } from "../scripts/stripe-refund-object-proof.
 
 const OPERATORS = [
   "order-payment-event-blocked-checkout-production-proof.mjs",
+  "order-payment-event-case-refund-production-proof.mjs",
   "order-payment-event-seller-refund-production-proof.mjs",
   "order-payment-event-signed-production-proof.mjs",
 ];

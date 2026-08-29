@@ -3671,3 +3671,30 @@ Open work:
   not change. This accepts only the seller full-refund provider family; the
   separate staff Case refund proof and all remaining activation gates stay
   open.
+
+## OrderPaymentEvent staff Case-refund proof preparation (2026-08-29)
+
+- Re-read the complete admin resolution panel, origin/auth/PIN/rate-limit
+  route, fixed prepare/provider/finalize functions, marketplace-refund helper,
+  participant-delivery transaction and PostgreSQL proof. No authority or
+  accounting redesign was required. An unexpanded string reversal with no
+  amount remains a valid application input shape; acceptance must separately
+  retrieve and prove the expanded 475-cent reversal.
+- Fixed one product-safety defect before the proof: Full Refund, Partial
+  Refund and Dismiss now require action-specific confirmation before the
+  request. Server-side and database authorization remain unchanged.
+- Prepared a separate restart-safe test-mode operator, unit contract and real
+  PGlite PostgreSQL fixture/cleanup proof. It byte-binds the accepted seller
+  predecessor evidence, exact main/CI/deployment and every synthetic/provider
+  identity; pending stages precede mutations; partial fixtures and cleanup
+  marker drift roll back.
+- The raw Admin PIN is accepted only by a nonce-bound loopback form and never
+  persisted. The operational canary remains `USER` during provider and fixture
+  work, becomes `EMPLOYEE` only inside short PIN/API windows, and is restored
+  in `finally`. A separate `restore-canary` command revokes sessions and
+  restores its role while retaining restart state.
+- Cleanup asserts every marker-bound deletion cardinality and retains only one
+  processed signed webhook lease, immutable Stripe test objects, ordinary
+  Admin-PIN security audit and expiring provider/rate-limit telemetry. It does
+  not guess Upstash internal keys. This candidate is unexecuted and makes no
+  production, provider, migration, grant or RLS change.

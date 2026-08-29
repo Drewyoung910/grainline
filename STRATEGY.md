@@ -709,6 +709,17 @@ Do not infer it from seller authority or use the seller proof to skip remaining
 invariant/projection work, predecessor drain, policyless ENABLE or posture-only
 FORCE.
 
+That next boundary now has an isolated, unexecuted operator candidate. It
+re-audits the existing staff Case protocol, adds action-specific confirmation
+to the admin panel, and pins the real Clerk/Admin-PIN route, exact test-mode
+refund/reversal, source-bound local plus signed evidence, participant delivery,
+replay and cleanup. Preserve the operational canary as `USER` except for the
+short `finally`-guarded PIN/API windows; retain the separate `restore-canary`
+recovery command and never persist the raw PIN. Review/merge still cannot be
+treated as provider proof acceptance. After a separately authorized exact-main
+execution passes and is documented, continue the remaining invariants,
+projections and predecessor drain rather than jumping directly to RLS.
+
 The blocked-checkout product audit found one delivery correction that must land
 before its live proof: the automatic refund was classified as `NEW_ORDER` and
 had no durable refund-email reservation. Follow
