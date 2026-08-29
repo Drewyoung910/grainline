@@ -3443,3 +3443,27 @@ Open work:
 - Do not retry the retained event until exact merge/main CI and the dedicated
   restart-safe migration workflow accept the corrected catalog. Then resume
   this same journal; do not create a third payment or dispute.
+
+## Signed dispute identifier compatibility accepted (2026-08-28)
+
+- PR #310 corrected head
+  `d9a8069bf7422f68d01fb7499dcbfc3fe66d3da7` merged as exact main
+  `72cac67e2b375f065a36821dcdccd76836b515df`; exact-main CI
+  `33225769878` passed all PostgreSQL/RLS release proofs, 3,492 tests,
+  TypeScript, lint, dependency audit and production build.
+- Guarded production run `33227729046` classified the starting catalog as
+  `signed-dispute-identity-predecessor`, applied only migration
+  `20260828020000_correct_order_payment_signed_dispute_identity`, then passed
+  migration status and the global audit for 65 tables, 22 enums, 179
+  `grainline_*` functions, one extension, four RLS policy tables and zero
+  sequence references.
+- The engine-read-only final scope returned exactly
+  `signed-dispute-identity-compatible`: signed-refund and signed-dispute
+  successors applied, runtime-only execute exact, predecessor runtime CRUD
+  retained, `OrderPaymentEvent` RLS off and
+  `productionChangedByProof=false`.
+- No deployment, provider action, RLS activation, predecessor drain or journal
+  replay occurred. The mode-`0600` journal remains at
+  `dispute-delivery-resend-pending`. Resume that exact event only; do not create
+  a third payment/refund/dispute. Provider delivery/replay, bounded cleanup and
+  sanitized success evidence remain the next gate.
