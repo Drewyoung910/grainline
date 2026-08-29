@@ -214,6 +214,30 @@ boundedly re-retrieves the PaymentIntent and expanded Charge/Transfer before
 advancing the journal. It cannot create a competing payment and does not
 weaken any amount, destination, mode or identity assertion.
 
+## Fourth execution attempt failed closed (2026-08-29)
+
+Exact corrected operator/main
+`7131b586374758464db93659a51550f1044e0ab4` and CI `33264246072`
+recovered the already-created PaymentIntent, expanded Charge and 475-cent
+destination transfer under the original idempotency namespace. The private
+journal advanced to `payment-created`. The following serializable fixture
+transaction then failed at commit because the synthetic Case had neither its
+required human opening `CaseMessage` nor durable webhook opening source.
+PostgreSQL raised `Case has no human or durable webhook opening evidence` and
+rolled the entire application-fixture transaction back. No refund, reversal,
+signed refund event, notification, email or temporary application row was
+created. The exact test account, payment and mode-`0600` journal remain the
+only restart state; no new payment is permitted.
+
+This was an operator-fixture defect, not a production Case or refund defect.
+The correction inserts the Case and its buyer-authored opening message in the
+same serializable transaction, requires the exact message during restart and
+cleanup audits, and verifies cascade removal through the parent Case. The
+disposable database test now installs a production-equivalent deferred Case
+opening trigger and proves that a Case without its opening message fails at
+commit. The class-wide Case-fixture guard now inventories this operator so a
+future direct Case fixture cannot silently omit durable opening evidence.
+
 ## Sequencing
 
 1. Retain the accepted distinct signed refund/dispute proof.
@@ -221,8 +245,8 @@ weaken any amount, destination, mode or identity assertion.
 3. Merge the production-aligned Express/hosted-onboarding correction and pass
    its exact-main CI.
 4. Merge the retrieved-payment recovery correction and pass exact-main CI.
-5. Resume the exact preserved attempt from `payment-create-pending`; recover
-   only the idempotent existing payment before any application fixture.
+5. Resume the exact preserved attempt from `payment-created`; create the Case
+   and its human opening evidence atomically before invoking the refund route.
 6. Record sanitized evidence and cleanup outcome.
 7. Continue with the still-separate staff Case refund live proof. Do not
    bundle those authorities or infer them from this seller proof.

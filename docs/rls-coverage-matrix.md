@@ -422,6 +422,16 @@ state and supersede earlier inline chronology in its matrix summary.
 > objects pass the exact payment assertion. Keep the sole journal at
 > `payment-create-pending`, retain the same idempotency namespace, and resume
 > only after the retrieved-payment recovery correction passes exact-main CI.
+> That corrected execution from exact operator/main
+> `7131b586374758464db93659a51550f1044e0ab4` / CI `33264246072`
+> recovered the same payment and advanced the journal to `payment-created`,
+> then failed closed because the synthetic Case lacked its mandatory human or
+> durable webhook opening evidence. PostgreSQL rolled back the whole fixture
+> transaction; no refund or application fixture survived. The correction
+> atomically inserts a buyer opening `CaseMessage`, audits it on restart and
+> cleanup, and adds a production-equivalent deferred-trigger regression plus
+> class-wide Case-fixture coverage. Preserve the same account, payment and
+> journal; do not create another payment.
 > This does not authorize provider execution, predecessor drain, ENABLE or
 > FORCE.
 

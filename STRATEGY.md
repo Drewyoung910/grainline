@@ -715,6 +715,17 @@ and the same idempotency namespace; re-retrieve the existing PaymentIntent and
 expanded Charge/Transfer before advancing. Do not create a competing payment
 or infer provider-proof success from the retained test objects.
 
+The retrieved-payment correction passed exact-main CI at
+`7131b586374758464db93659a51550f1044e0ab4` / `33264246072` and recovered
+that same payment, but the fourth execution exposed a separate synthetic Case
+fixture defect: it omitted the mandatory human or durable webhook opening
+evidence. The production deferred invariant correctly rolled back the entire
+fixture transaction before any refund. Preserve the journal at
+`payment-created`; seed the Case and buyer-authored opening message atomically,
+prove the invariant in the disposable database and keep this operator in the
+class-wide Case-fixture inventory before any further resume. Do not weaken the
+Case invariant or replace human opening evidence with caller-controlled data.
+
 The blocked-checkout product audit found one delivery correction that must land
 before its live proof: the automatic refund was classified as `NEW_ORDER` and
 had no durable refund-email reservation. Follow
