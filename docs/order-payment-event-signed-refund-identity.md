@@ -1,8 +1,9 @@
 # OrderPaymentEvent signed-refund identity compatibility
 
-Status: compatible migration production-applied; final scope acceptance and
-pooled-runtime postflight pending. Audited 2026-08-27 before the fresh automatic
-blocked-checkout paid proof and before `OrderPaymentEvent` RLS design resumes.
+Status: compatible migration, restart-safe final scope and pooled-runtime
+postflight accepted in production. The distinct fresh automatic blocked-
+checkout proof also passed. `OrderPaymentEvent` RLS remains off and predecessor
+CRUD remains live while the remaining release gates continue.
 
 ## Finding
 
@@ -156,12 +157,14 @@ read-only lock fence with no production mutation. Compatibility is accepted.
 
 ## Remaining release sequence
 
-1. Bind and deploy the exact compatible source if a deployment is needed for a
-   new proof namespace.
-2. Run one completely fresh automatic blocked-checkout paid proof. Never reuse
-   the reconciled `a6593516be9f` fixture or evidence namespace.
-3. Drain the predecessor only after the new proof passes, then resume the
-   remaining `OrderPaymentEvent` authority/invariant and ENABLE/FORCE gates.
+The compatible source, restart-safe final scope, pooled-runtime postflight and
+distinct fresh automatic blocked-checkout paid proof are accepted. Never reuse
+the reconciled `a6593516be9f` fixture or evidence namespace.
+
+Next, complete the other authority-family proofs, typed dispute-time and
+append-only/source invariants, actor-safe projections and aggregates. Drain the
+predecessor only after every compatible application path is proven, then stage
+the separate policyless ENABLE and FORCE releases.
 
 This accepted compatibility record does not authorize a deployment, Stripe
 operation, predecessor drain or RLS activation.

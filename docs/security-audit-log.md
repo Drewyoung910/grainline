@@ -3494,3 +3494,35 @@ Open work:
   authority-family proofs, participant/staff projections, invariants,
   predecessor drain, fresh aggregate inspection, policyless ENABLE and
   separate FORCE are still mandatory.
+
+## Fresh automatic blocked-checkout proof accepted (2026-08-28)
+
+- The distinct fresh proof against deployed source
+  `3431bb83fa16fabb9b9e18a729a7d138d48764d9`, CI `33211840251`, deployment
+  `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S` and corrected operator/main
+  `2836e51d0ceb91ce05756dc5138e7c337e02a503` / CI `33220013251` completed one
+  genuine human-paid Stripe test-mode blocked-checkout flow.
+- It proved the exact 541-cent buyer refund, 475-cent seller transfer/reversal,
+  restored stock, correct `REFUND_ISSUED` Notification, skipped preference-
+  bound test email, absence of wrong `NEW_ORDER` delivery and exact replay.
+- Bounded cleanup removed the synthetic application rows, exact Redis keys and
+  disposable account; restored the operational canary; revoked temporary Clerk
+  sessions; and retained only two processed webhook leases plus immutable test
+  objects. No live money or provider configuration changed.
+- Retain sanitized mode-`0600` evidence SHA-256
+  `dafb43dbe1de3e0b65da8a3554b465b1aaa74282ee56779f3fb34b209a6c27a7`.
+  This accepts the fresh automatic-provider gate only; it is not an RLS
+  activation or predecessor-drain authorization.
+
+## OrderPaymentEvent stale status reconciliation (2026-08-28)
+
+- Documentation review after the two accepted provider proofs found three
+  stale top-level status summaries, not implementation or production drift.
+- Signed-refund compatibility already had an accepted restart-safe final scope
+  and pooled-runtime postflight. Account-export correction commit
+  `382e47a4526af0d7e4a36d4e3e41acd842e3361a` and dispute-state correction
+  commit `374c650f23cdc0738be8ca1a41ba26712a0488d2` are merged ancestors of the
+  deployed source `3431bb83fa16fabb9b9e18a729a7d138d48764d9`.
+- Their status headers now reflect the verified release state. The remaining
+  asynchronous export scale work and typed dispute-time/index invariant stay
+  explicitly open; no code, database, deployment or provider state changed.

@@ -1,7 +1,11 @@
 # OrderPaymentEvent latest-dispute state correction
 
-Status: compatible application correction prepared on an isolated branch; not
-merged or deployed. No schema, migration, provider or production state changed.
+Status: compatible application correction merged and live in the currently
+deployed source. Commit `374c650f23cdc0738be8ca1a41ba26712a0488d2`
+is an ancestor of deployed source
+`3431bb83fa16fabb9b9e18a729a7d138d48764d9`. The typed signed-event-time
+column, deterministic equal-provider-second rule and supporting index remain
+pre-activation schema gates.
 
 Audited: 2026-08-23 after the seller refund product correction.
 

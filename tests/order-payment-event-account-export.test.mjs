@@ -60,6 +60,8 @@ describe("OrderPaymentEvent account-export projection", () => {
     const plan = fs.readFileSync("docs/order-payment-event-account-export.md", "utf8");
     assert.match(plan, /distinct actor-bound, keyset-paged database export/);
     assert.match(plan, /does not authorize silent truncation/);
-    assert.match(plan, /not\s+merged or deployed/);
+    assert.match(plan, /382e47a4526af0d7e4a36d4e3e41acd842e3361a/);
+    assert.match(plan, /ancestor of deployed source/);
+    assert.match(plan, /asynchronous export upgrade remain separate gates/);
   });
 });
