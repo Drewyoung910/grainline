@@ -357,22 +357,18 @@ export function readGitState(cwd) {
 }
 
 function readGitHubCiRun(runId) {
-  return JSON.parse(command("gh", ["run", "view", String(runId), "--json", "databaseId,status,conclusion,headSha,event,name,url"], {
+  return JSON.parse(command("gh", ["run", "view", String(runId), "--json", "databaseId,status,conclusion,headSha,event,workflowName,headBranch,url"], {
     label: "Case refund exact-main CI lookup",
   }));
 }
 
 function verifyExecutionBindings(config) {
-  assertGitState(readGitState(config.cwd), {
-    branch: "main",
-    commit: config.expectedCommit,
-    clean: true,
-  });
-  parseGitHubCiRun(readGitHubCiRun(config.mainCiRunId), {
-    runId: config.mainCiRunId,
-    headSha: config.expectedCommit,
-    branch: "main",
-  });
+  assertGitState(readGitState(config.cwd), config.expectedCommit);
+  parseGitHubCiRun(
+    readGitHubCiRun(config.mainCiRunId),
+    config.expectedCommit,
+    config.mainCiRunId,
+  );
 }
 
 function assertVercelProject(config) {

@@ -3711,3 +3711,12 @@ Open work:
   the reader for a regression that exercises the real repository command
   path. No binding, provider, fixture, cleanup, grant or RLS constraint is
   weakened.
+- The explicitly authorized retry from corrected exact main
+  `8d13968afcfdc4b15dda090a9502b2d09369bf56` / CI `33271679657` exposed the
+  remainder of the same interface mismatch and again failed before creating a
+  journal or reaching any external mutation. The Case operator passed obsolete
+  object-shaped expectations to the shared positional Git and GitHub-CI
+  parsers, and its `gh run view` field list omitted `workflowName` and
+  `headBranch`. The follow-up audits every imported proof-helper signature,
+  supplies the exact positional inputs and directly regression-tests both
+  shared parsers. Neither failed invocation is acceptance evidence.

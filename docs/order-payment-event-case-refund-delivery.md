@@ -100,6 +100,17 @@ reader, so mocked execution bindings cannot hide the mismatch again. The
 failed invocation is not acceptance evidence and does not authorize a broader
 retry.
 
+The explicitly authorized corrected invocation from exact main
+`8d13968afcfdc4b15dda090a9502b2d09369bf56` / CI `33271679657` also failed at
+the same pre-side-effect boundary. The caller still supplied the shared Git
+and GitHub-CI parsers with obsolete object-shaped expectations, while their
+exported contracts accept positional commit/run inputs; its CI reader also
+omitted the `workflowName` and `headBranch` fields those parsers require. The
+complete correction audits every imported proof helper, uses the exact current
+signatures, requests the complete CI binding fields and directly exercises the
+shared Git and CI parsers in regression coverage. No journal or external
+mutation was created by either failed invocation.
+
 The admin resolution panel also now asks for an action-specific confirmation
 before Full Refund, Partial Refund or Dismiss. That client guard is additional
 product safety; server, PIN and database authority remain mandatory.
