@@ -1,10 +1,10 @@
 # OrderPaymentEvent signed production proof
 
-Status: first production execution failed closed on a proof-contract defect;
-the exact fixture is preserved for restart after the isolated correction merges.
-Reviewing or merging this package does not authorize Stripe or production
-database mutations. `OrderPaymentEvent` RLS remains off with predecessor CRUD
-until every activation gate is accepted.
+Status: `SIGNED_PROVIDER_PROOF_ACCEPTED`; the restart-safe production proof
+passed from the corrected exact-main operator, removed its bounded temporary
+application fixtures, and retained only the reviewed webhook/provider residue.
+`OrderPaymentEvent` RLS remains off with predecessor CRUD until every later
+activation gate is accepted.
 
 The compatible application is live from exact source
 `3431bb83fa16fabb9b9e18a729a7d138d48764d9` in production deployment
@@ -177,6 +177,36 @@ grants and RLS-off compatibility. Resume the same journal only after the
 byte-pinned correction merges, exact-main CI passes, and its guarded migration
 plus read-only final scope are accepted. See
 `docs/order-payment-event-signed-dispute-identity.md`.
+
+## Successful restart and acceptance (2026-08-28)
+
+After guarded production run `33227729046` accepted the canonical `du_`
+successor, the proof resumed from exact operator/main
+`b37246d06e65a37fd163484f07390b9044689379`, CI `33228466974`, while retaining
+the original preparation binding `2836e51d0ceb91ce05756dc5138e7c337e02a503`
+/ CI `33220013251` and deployed source/deployment
+`3431bb83fa16fabb9b9e18a729a7d138d48764d9` /
+`dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`.
+
+The restart created no payment, refund or dispute. It resent the existing
+genuine signed dispute event, proved its source-bound Case/Notification/payment
+effects, resent it once more, and proved exact replay left every application
+identity unchanged. Across both signed families the completed proof records
+three required resend transitions and two exact replay proofs.
+
+Exact cleanup removed two Users, one SellerProfile, two Listings, two Orders,
+two OrderItems, two OrderPaymentEvents, one Case and one Notification. Exactly
+two processed, error-free Stripe webhook leases remain as intentional replay
+evidence. Stripe retains its immutable test objects and ordinary delivery
+telemetry. Provider configuration did not change, no live money moved, the
+mode-`0600` restart journal was removed, and sanitized success evidence was
+written with SHA-256
+`fda2a7570525fbd927498439f527584cf7724b32c075edc0136d8260290cdfaa`.
+
+This accepts the two signed Stripe families only. It is not sufficient by
+itself for RLS activation; remaining authority-family proofs, projections,
+invariants, predecessor drain, policyless ENABLE and separate FORCE remain
+distinct gates.
 
 ## Local proof coverage
 

@@ -1,10 +1,11 @@
 # Blocked-checkout refund participant delivery
 
-Status: compatible database and application corrections are live; the first
-paid proof failed safely and its exact fixture is now reconciled and removed.
-`OrderPaymentEvent` RLS remains off. A completely fresh automatic paid proof
-and predecessor drain remain mandatory before ENABLE/FORCE. Nothing in this
-document independently authorizes a production mutation.
+Status: compatible database and application corrections are live; the failed
+historical fixture is reconciled and removed, and the distinct fresh automatic
+paid proof is accepted. `OrderPaymentEvent` RLS remains off. Predecessor drain
+and the remaining authority, invariant, projection and release gates still
+precede ENABLE/FORCE. Nothing in this document independently authorizes a
+production mutation.
 
 ## Finding
 
@@ -947,3 +948,26 @@ missing automatic-path argument. Focused operator/disposable-PostgreSQL tests
 pass 25/25 and the complete repository suite passes 3,479 with zero failures
 and seven skips. Resume only after exact merge and exact-main CI, using a new
 operator recovery binding; do not create or charge another fixture.
+
+## Fresh automatic provider proof accepted (2026-08-28)
+
+The restart-safe proof completed from exact deployed source
+`3431bb83fa16fabb9b9e18a729a7d138d48764d9`, CI `33211840251`, deployment
+`dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S` and corrected operator/main
+`2836e51d0ceb91ce05756dc5138e7c337e02a503` / CI `33220013251`.
+
+One genuine human-completed five-dollar Stripe test-mode Checkout produced
+the signed blocked-checkout refund flow. The accepted proof verified the exact
+541-cent buyer refund, 475-cent seller transfer and reversal, stock restoration,
+canonical `REFUND_ISSUED` Notification, skipped preference-bound test email,
+and absence of wrong `NEW_ORDER` side effects. Both signed events were replayed
+exactly without changing application identities.
+
+Cleanup removed only the marker-bound application fixtures, exact Redis keys
+and disposable connected account; restored the operational canary; revoked its
+temporary Clerk sessions; and retained exactly two processed webhook leases as
+replay evidence. No live money or provider configuration changed. Retain the
+sanitized mode-`0600` evidence with SHA-256
+`dafb43dbe1de3e0b65da8a3554b465b1aaa74282ee56779f3fb34b209a6c27a7`.
+This closes the fresh automatic blocked-checkout provider gate only and does
+not by itself authorize predecessor drain or RLS activation.

@@ -3467,3 +3467,62 @@ Open work:
   `dispute-delivery-resend-pending`. Resume that exact event only; do not create
   a third payment/refund/dispute. Provider delivery/replay, bounded cleanup and
   sanitized success evidence remain the next gate.
+
+## OrderPaymentEvent signed provider proof accepted (2026-08-28)
+
+- Exact operator/main `b37246d06e65a37fd163484f07390b9044689379`,
+  CI `33228466974`, resumed the original preparation
+  `2836e51d0ceb91ce05756dc5138e7c337e02a503` / CI `33220013251` against
+  deployed source `3431bb83fa16fabb9b9e18a729a7d138d48764d9` and deployment
+  `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`, in Stripe test mode only.
+- The restart created no payment, refund or dispute. The existing genuine
+  dispute event processed through the canonical `du_` function, and its exact
+  retry left the payment, Case and Notification identities unchanged. Both
+  signed families passed; the proof recorded three required resend transitions
+  and two exact replay proofs.
+- Exact cleanup removed the two marker-bound Users, one SellerProfile, two
+  Listings, two Orders, two OrderItems, two OrderPaymentEvents, one Case and
+  one Notification. Two processed, error-free Stripe webhook leases remain as
+  deliberate replay evidence; immutable Stripe test objects and ordinary
+  delivery telemetry are the only external residue.
+- The private restart journal was removed. Sanitized mode-`0600` evidence
+  SHA-256 is
+  `fda2a7570525fbd927498439f527584cf7724b32c075edc0136d8260290cdfaa`.
+  Provider configuration, deployment, grants and RLS posture were unchanged;
+  no live money moved and `activationReadyFromThisProofAlone=false`.
+- This closes only the signed refund/dispute provider boundary. Remaining
+  authority-family proofs, participant/staff projections, invariants,
+  predecessor drain, fresh aggregate inspection, policyless ENABLE and
+  separate FORCE are still mandatory.
+
+## Fresh automatic blocked-checkout proof accepted (2026-08-28)
+
+- The distinct fresh proof against deployed source
+  `3431bb83fa16fabb9b9e18a729a7d138d48764d9`, CI `33211840251`, deployment
+  `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S` and corrected operator/main
+  `2836e51d0ceb91ce05756dc5138e7c337e02a503` / CI `33220013251` completed one
+  genuine human-paid Stripe test-mode blocked-checkout flow.
+- It proved the exact 541-cent buyer refund, 475-cent seller transfer/reversal,
+  restored stock, correct `REFUND_ISSUED` Notification, skipped preference-
+  bound test email, absence of wrong `NEW_ORDER` delivery and exact replay.
+- Bounded cleanup removed the synthetic application rows, exact Redis keys and
+  disposable account; restored the operational canary; revoked temporary Clerk
+  sessions; and retained only two processed webhook leases plus immutable test
+  objects. No live money or provider configuration changed.
+- Retain sanitized mode-`0600` evidence SHA-256
+  `dafb43dbe1de3e0b65da8a3554b465b1aaa74282ee56779f3fb34b209a6c27a7`.
+  This accepts the fresh automatic-provider gate only; it is not an RLS
+  activation or predecessor-drain authorization.
+
+## OrderPaymentEvent stale status reconciliation (2026-08-28)
+
+- Documentation review after the two accepted provider proofs found three
+  stale top-level status summaries, not implementation or production drift.
+- Signed-refund compatibility already had an accepted restart-safe final scope
+  and pooled-runtime postflight. Account-export correction commit
+  `382e47a4526af0d7e4a36d4e3e41acd842e3361a` and dispute-state correction
+  commit `374c650f23cdc0738be8ca1a41ba26712a0488d2` are merged ancestors of the
+  deployed source `3431bb83fa16fabb9b9e18a729a7d138d48764d9`.
+- Their status headers now reflect the verified release state. The remaining
+  asynchronous export scale work and typed dispute-time/index invariant stay
+  explicitly open; no code, database, deployment or provider state changed.

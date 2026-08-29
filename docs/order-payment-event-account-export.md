@@ -1,7 +1,10 @@
 # OrderPaymentEvent account-export privacy correction
 
-Status: compatible application correction prepared on an isolated branch; not
-merged or deployed. No schema, migration, provider or production state changed.
+Status: compatible application correction merged and live in the currently
+deployed source. Commit `382e47a4526af0d7e4a36d4e3e41acd842e3361a`
+is an ancestor of deployed source
+`3431bb83fa16fabb9b9e18a729a7d138d48764d9`. Database authority conversion
+and the large-history asynchronous export upgrade remain separate gates.
 
 Audited: 2026-08-23 after the OrderPaymentEvent pre-RLS domain audit.
 

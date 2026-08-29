@@ -143,6 +143,9 @@ completed alternative.
 | `Block` | `BLOCKED_DESIGN` | Aggregate and fanout | Bidirectional safety relationship; blocker, blocked user and fanout filters | Bidirectional read policy and service filtering without revealing unsafe detail |
 | `UserReport` | `BLOCKED_DESIGN` | Admin security | Reporter details, target and resolution notes; reporter and staff | Reporter submission or status projection, staff-only investigation fields and retention rules |
 
+The dated `OrderPaymentEvent` updates below are the authoritative current gate
+state and supersede earlier inline chronology in its matrix summary.
+
 > **OrderPaymentEvent superseding gate update (2026-08-26):** the
 > blocked-checkout delivery compatibility migration and corrected application
 > are live, and the real authenticated provider proof reached a genuine paid
@@ -370,6 +373,35 @@ completed alternative.
 > create another payment, refund or dispute. Signed delivery/replay, bounded
 > cleanup, a fresh automatic paid proof, remaining invariants/projections,
 > predecessor drain and separate ENABLE/FORCE releases remain open.
+>
+> **Signed-provider proof acceptance (2026-08-28):** exact operator/main
+> `b37246d06e65a37fd163484f07390b9044689379`, CI `33228466974`, resumed only
+> the original `dispute-delivery-resend-pending` journal after compatibility
+> run `33227729046`. The existing genuine `du_` event delivered, its exact
+> retry was idempotent, both signed payment families verified and all bounded
+> temporary application fixtures were removed. Exactly two processed webhook
+> leases plus immutable Stripe test objects remain intentionally. The restart
+> journal is gone; sanitized mode-`0600` evidence SHA-256 is
+> `fda2a7570525fbd927498439f527584cf7724b32c075edc0136d8260290cdfaa`.
+> No live money, deployment, provider configuration, grants or RLS posture
+> changed. This closes the signed-provider gate only; other family proofs,
+> invariants/projections, predecessor drain and separate ENABLE/FORCE remain.
+>
+> **Fresh automatic blocked-checkout acceptance (2026-08-28):** the distinct
+> paid proof against exact deployed source
+> `3431bb83fa16fabb9b9e18a729a7d138d48764d9`, CI `33211840251` and deployment
+> `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S` passed the full automatic path: genuine
+> Stripe test payment, 541-cent buyer refund, exact 475-cent seller transfer
+> reversal, stock restoration, `REFUND_ISSUED` delivery, skipped test email and
+> exact replay. Cleanup removed only marker-bound rows, Redis keys and the
+> disposable account; restored the canary; revoked temporary sessions; and
+> intentionally retained two processed leases. Sanitized mode-`0600` evidence
+> SHA-256 is
+> `dafb43dbe1de3e0b65da8a3554b465b1aaa74282ee56779f3fb34b209a6c27a7`.
+> This supersedes the earlier failed-proof state as the automatic-provider gate
+> result; it does not convert the historical reconciliation into success or
+> authorize predecessor drain, remaining invariant/projection work, ENABLE or
+> FORCE.
 
 ## Program Rules
 

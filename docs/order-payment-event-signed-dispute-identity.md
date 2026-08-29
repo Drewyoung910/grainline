@@ -1,8 +1,8 @@
 # OrderPaymentEvent Signed Dispute Identity Correction
 
 Status: `COMPATIBLE_PRODUCTION_ACCEPTED`; production has the canonical `du_`
-correction, `OrderPaymentEvent` RLS remains off, predecessor runtime CRUD
-remains live, and the preserved provider journal has not yet been resumed.
+correction and the preserved signed provider proof subsequently passed.
+`OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains live.
 
 ## Finding
 
@@ -123,3 +123,16 @@ page-data collection solely because Preview intentionally has no
   dispute may be created when it resumes. Exact signed delivery, replay,
   bounded cleanup and sanitized success evidence remain required before this
   provider authority family is complete.
+
+## Provider-proof completion (2026-08-28)
+
+Exact operator/main `b37246d06e65a37fd163484f07390b9044689379`
+with CI `33228466974` resumed only the original journal. The existing genuine
+`du_` dispute delivered, its exact retry was idempotent, both signed families
+verified, and the bounded application fixtures were removed. Two processed
+webhook leases and immutable Stripe test objects remain intentionally. The
+restart journal is absent and sanitized mode-`0600` evidence SHA-256 is
+`fda2a7570525fbd927498439f527584cf7724b32c075edc0136d8260290cdfaa`.
+No live money, provider configuration, deployment, grants or RLS posture
+changed. Signed-provider compatibility is accepted; later activation gates
+remain separate.
