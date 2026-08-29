@@ -90,6 +90,16 @@ Admin-PIN security audit and bounded-TTL rate-limit/provider telemetry remain.
 The operator does not guess or delete Upstash internal key names. Sanitized
 mode-`0600` evidence records hashes and counts only.
 
+The first authorized invocation from exact main
+`b53a1c4d8d6cc19a1fabb6144320cd4527e1b37c` / CI `33270465433` failed closed
+before creating a restart journal or touching Stripe, Clerk or PostgreSQL. Its
+local Git reader returned the current revision as `commit`, while the shared
+reviewed-main verifier requires the field name `head`. The correction aligns
+that internal interface and adds a regression that executes the real Git
+reader, so mocked execution bindings cannot hide the mismatch again. The
+failed invocation is not acceptance evidence and does not authorize a broader
+retry.
+
 The admin resolution panel also now asks for an action-specific confirmation
 before Full Refund, Partial Refund or Dismiss. That client guard is additional
 product safety; server, PIN and database authority remain mandatory.

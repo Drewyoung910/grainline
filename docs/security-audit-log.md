@@ -3698,3 +3698,16 @@ Open work:
   Admin-PIN security audit and expiring provider/rate-limit telemetry. It does
   not guess Upstash internal keys. This candidate is unexecuted and makes no
   production, provider, migration, grant or RLS change.
+
+## OrderPaymentEvent staff Case-refund Git binding correction (2026-08-29)
+
+- The first separately authorized invocation from exact main
+  `b53a1c4d8d6cc19a1fabb6144320cd4527e1b37c` / CI `33270465433` failed closed
+  at the initial local provenance check. It created no restart journal and did
+  not reach Stripe, Clerk or PostgreSQL mutations.
+- Root cause was an internal field-name mismatch: the operator's real Git
+  reader returned `commit`, while the imported exact-main verifier reads
+  `head`. The correction returns the established `head` contract and exports
+  the reader for a regression that exercises the real repository command
+  path. No binding, provider, fixture, cleanup, grant or RLS constraint is
+  weakened.

@@ -20,6 +20,7 @@ import {
   createInitialState,
   extractAdminPinCookie,
   findSingleRefundEvent,
+  readGitState,
   validateConfiguration,
 } from "../scripts/order-payment-event-case-refund-production-proof.mjs";
 
@@ -125,6 +126,14 @@ function proofSnapshot() {
 }
 
 describe("OrderPaymentEvent staff Case refund production operator", () => {
+  it("reports the real repository head using the shared verifier contract", () => {
+    const state = readGitState(process.cwd());
+    assert.match(state.head, /^[a-f0-9]{40}$/);
+    assert.equal(typeof state.branch, "string");
+    assert.equal(typeof state.status, "string");
+    assert.equal(Object.hasOwn(state, "commit"), false);
+  });
+
   it("pins every execution, deployment, predecessor, evidence and confirmation input", () => {
     const config = configuration();
     assert.equal(config.expectedCommit, environment.ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT);
