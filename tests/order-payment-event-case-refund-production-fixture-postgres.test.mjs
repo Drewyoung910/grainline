@@ -161,7 +161,7 @@ async function database() {
 async function seedOutcome(db, value) {
   await db.query(`UPDATE public."Order" SET "sellerRefundId"=$2,"sellerRefundAmountCents"=500,
     "reviewNeeded"=true,"caseResolutionClaimId"=NULL WHERE id=$1`, [value.orderId, value.refundId]);
-  await db.query(`UPDATE public."Listing" SET "stockQuantity"=1,status='ACTIVE' WHERE id=$1`, [value.listingId]);
+  await db.query(`UPDATE public."Listing" SET "stockQuantity"=1,status='SOLD_OUT' WHERE id=$1`, [value.listingId]);
   await db.query(`UPDATE public."Case" SET status='RESOLVED',resolution='REFUND_FULL',"refundAmountCents"=500,
     "stripeRefundId"=$2,"resolvedById"=$3,"resolvedAt"=CURRENT_TIMESTAMP WHERE id=$1`,
   [value.caseId, value.refundId, value.staffUserId]);
@@ -208,6 +208,7 @@ test("staff Case refund fixtures, effects and cleanup are exact in real PostgreS
     await seedOutcome(db, value);
     const proof = assertProofSnapshot(await readProofSnapshot(db, value), value);
     assert.equal(proof.claimId, value.claimId);
+    assert.equal(proof.listingStatus, "SOLD_OUT");
     await cleanupExactRows(db, value);
     const cleanup = assertCleanupSnapshot(await readCleanupSnapshot(db, value));
     assert.equal(cleanup.processedWebhookCount, 1);

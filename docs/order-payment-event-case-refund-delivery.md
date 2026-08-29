@@ -157,6 +157,30 @@ and evidence, while separately verifying the current operator's exact main
 commit and CI. Existing version-1 journals remain valid without editing or
 renaming; no provider or application identity can be rebound to a correction.
 
+## Private-listing proof contract correction (2026-08-29)
+
+The authorized restart from corrected exact main
+`d1be35d22051d4bfd60fc701eeb8e4f1b71403bc` / CI `33277175761`
+completed the authenticated staff full-refund request and proved the exact
+500-cent Stripe test refund plus 475-cent transfer reversal. Its first bounded
+signed-event wait ended before the event became visible and preserved the sole
+journal at `refund-returned`. A later read-only provider check found exactly
+one fully bound `charge.refunded` event with delivery complete. Resuming the
+same journal proved every payment, webhook, claim, Case, message,
+Notification, skipped-email, audit, refund, reversal and stock-count invariant,
+but failed closed because the proof expected the private Listing to become
+`ACTIVE`.
+
+That expectation contradicted the existing refund domain rule and its prior
+accepted production proofs. A full refund restores eligible private in-stock
+quantity, but intentionally retains `SOLD_OUT`; only a non-private restored
+Listing is automatically republished as `ACTIVE`. The correction changes only
+the production operator, its exact cleanup fence, and unit/real-PostgreSQL
+coverage to require private `SOLD_OUT` with stock one. It does not change
+application behavior, migrations, grants, RLS or provider state. The existing
+account, refund, reversal, fixtures and journal remain the only permitted
+attempt; no second payment or refund is required.
+
 ## Finding
 
 The existing staff Case protocol correctly separates the provider request from

@@ -3775,3 +3775,23 @@ Open work:
   operator identity must independently pass the shared exact-main verifier.
   Accepted evidence records both pairs. Version-1 restart files retain their
   original fields and require no unsafe journal mutation.
+
+## OrderPaymentEvent staff Case-refund private-listing proof correction (2026-08-29)
+
+- The authorized resume from corrected exact main
+  `d1be35d22051d4bfd60fc701eeb8e4f1b71403bc` / CI `33277175761`
+  completed the authenticated route and exact 500-cent test refund/475-cent
+  reversal, then preserved its sole journal at `refund-returned` when the
+  signed event was not visible inside the first bounded wait. Read-only Stripe
+  inspection later proved one exact delivered `charge.refunded` event.
+- A restart bound that event and then failed closed at the final atomic-effect
+  assertion. Engine-enforced read-only production inspection proved every
+  payment, webhook, claim, Case, message, Notification, skipped-email, audit,
+  refund, reversal and quantity check exact. The only mismatch was the proof's
+  `ACTIVE` expectation versus the correct private-listing outcome:
+  `SOLD_OUT` with stock one.
+- Existing application and database contracts intentionally reactivate only
+  non-private refunded listings. The isolated correction aligns the operator,
+  exact cleanup fence and unit/real-PostgreSQL proof with that established
+  rule. No production/provider state, migration, grant or RLS posture changes;
+  the same journal must resume without another payment or refund.
