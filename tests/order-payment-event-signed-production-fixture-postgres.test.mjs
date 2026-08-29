@@ -170,10 +170,14 @@ async function seedDelivery(database, state) {
   await database.query(`
     INSERT INTO public."OrderPaymentEvent" (
       id, "orderId", "stripeEventId", "stripeObjectId", "stripeObjectType",
-      "eventType", "amountCents", currency, status
+      "eventType", "amountCents", currency, status, reason, metadata
     ) VALUES
-      ($1, $2, $3, $4, 'refund', 'REFUND', 500, 'usd', 'succeeded'),
-      ($5, $6, $7, $8, 'dispute', 'DISPUTE', 500, 'usd', 'needs_response')
+      ($1, $2, $3, $4::varchar(255), 'refund', 'REFUND', 500, 'usd', 'succeeded',
+        'external_refund', pg_catalog.jsonb_build_object(
+          'latestRefundId', $4::varchar(255)
+        )),
+      ($5, $6, $7, $8, 'dispute', 'DISPUTE', 500, 'usd', 'needs_response',
+        NULL, '{}'::jsonb)
   `, [
     state.refundPaymentEventId, state.refundOrderId, state.refundEventId, state.refundId,
     state.disputePaymentEventId, state.disputeOrderId, state.disputeEventId, state.disputeId,
@@ -221,8 +225,13 @@ test("disposable PostgreSQL restart-safely creates, proves and exactly cleans bo
     await createDisposableDatabaseFixtures(database, state, "dispute");
     await createDisposableDatabaseFixtures(database, state, "dispute");
     await seedDelivery(database, state);
-    const delivered = assertDeliverySnapshot(await readDeliverySnapshot(database, state), {
-      refundId: state.refundId,
+    const delivered = assertDeliverySnapshot(await readDeliverySnapshot(
+      database,
+      state,
+      state.refundId,
+    ), {
+      refundObjectId: state.refundId,
+      refundRepresentation: "provider_refund",
     });
     assert.equal(delivered.refundPaymentEventId, state.refundPaymentEventId);
     assert.equal(delivered.disputePaymentEventId, state.disputePaymentEventId);

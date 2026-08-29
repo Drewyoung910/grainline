@@ -206,13 +206,22 @@ export function validateConfiguration(env = process.env) {
     throw new Error("signed payment proof confirmation is invalid");
   }
   const expectedCommit = required(env, "ORDER_PAYMENT_SIGNED_PROOF_EXPECTED_COMMIT");
+  const preparationCommit = env.ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_COMMIT
+    ? required(env, "ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_COMMIT")
+    : expectedCommit;
   const deployedSourceCommit = required(
     env,
     "ORDER_PAYMENT_SIGNED_PROOF_DEPLOYED_SOURCE_COMMIT",
   );
   const mainCiRunId = positiveInteger(env, "ORDER_PAYMENT_SIGNED_PROOF_CI_RUN_ID");
+  const preparationCiRunId = env.ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_CI_RUN_ID
+    ? positiveInteger(env, "ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_CI_RUN_ID")
+    : mainCiRunId;
   const deploymentId = required(env, "ORDER_PAYMENT_SIGNED_PROOF_DEPLOYMENT_ID");
   if (!COMMIT_PATTERN.test(expectedCommit)) throw new Error("expected commit is invalid");
+  if (!COMMIT_PATTERN.test(preparationCommit)) {
+    throw new Error("preparation commit is invalid");
+  }
   if (!COMMIT_PATTERN.test(deployedSourceCommit)) {
     throw new Error("deployed source commit is invalid");
   }
@@ -225,7 +234,7 @@ export function validateConfiguration(env = process.env) {
   ) throw new Error("signed payment proof evidence path is not fresh and exact");
   const statePath = path.join(
     EVIDENCE_DIRECTORY,
-    `order-payment-event-signed-production-proof-state-${expectedCommit}.json`,
+    `order-payment-event-signed-production-proof-state-${preparationCommit}.json`,
   );
   const vercelProjectDirectory = path.resolve(
     required(env, "ORDER_PAYMENT_SIGNED_PROOF_VERCEL_PROJECT_DIRECTORY"),
@@ -239,6 +248,8 @@ export function validateConfiguration(env = process.env) {
     evidencePath,
     expectedCommit,
     mainCiRunId,
+    preparationCiRunId,
+    preparationCommit,
     statePath,
     stripeCliPath,
     vercelProjectDirectory,
@@ -285,9 +296,9 @@ export function assertState(value, config) {
   if (
     value?.phase !== "order-payment-event-signed-production-proof-state"
     || !STAGES.includes(value?.stage)
-    || value?.commit !== config.expectedCommit
+    || value?.commit !== config.preparationCommit
     || value?.deployedSourceCommit !== config.deployedSourceCommit
-    || Number(value?.ciRunId) !== config.mainCiRunId
+    || Number(value?.ciRunId) !== config.preparationCiRunId
     || value?.deploymentId !== config.deploymentId
     || !UUID_V4_PATTERN.test(String(value?.attemptId ?? ""))
     || !Number.isSafeInteger(value?.startedSeconds)
@@ -330,9 +341,9 @@ function stateWithIdentity(config) {
   return assertState({
     phase: "order-payment-event-signed-production-proof-state",
     stage: "reserved",
-    commit: config.expectedCommit,
+    commit: config.preparationCommit,
     deployedSourceCommit: config.deployedSourceCommit,
-    ciRunId: config.mainCiRunId,
+    ciRunId: config.preparationCiRunId,
     deploymentId: config.deploymentId,
     attemptId,
     startedSeconds: Math.floor(Date.now() / 1000) - 5,
@@ -479,7 +490,7 @@ export async function createDisposableDatabaseFixtures(owner, state, family) {
   }
 }
 
-export async function readDeliverySnapshot(owner, state) {
+export async function readDeliverySnapshot(owner, state, refundObjectId = state.refundId) {
   await owner.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
   try {
     const result = await owner.query(`
@@ -500,6 +511,13 @@ export async function readDeliverySnapshot(owner, state) {
           WHERE "stripeEventId" = $10 AND "orderId" = $6 AND "eventType" = 'REFUND'
             AND "stripeObjectType" = 'refund' AND "stripeObjectId" = $12) AS "refundPaymentCount",
         (SELECT id FROM public."OrderPaymentEvent" WHERE "stripeEventId" = $10) AS "refundPaymentEventId",
+        (SELECT reason FROM public."OrderPaymentEvent" WHERE "stripeEventId" = $10) AS "refundReason",
+        (SELECT metadata->>'latestRefundId'
+          FROM public."OrderPaymentEvent" WHERE "stripeEventId" = $10) AS "refundLatestRefundId",
+        (SELECT metadata->>'localRefundEvidenceId'
+          FROM public."OrderPaymentEvent" WHERE "stripeEventId" = $10) AS "refundEvidenceId",
+        (SELECT metadata->>'localRefundEvidenceAction'
+          FROM public."OrderPaymentEvent" WHERE "stripeEventId" = $10) AS "refundEvidenceAction",
         (SELECT count(*)::integer FROM public."SystemAuditLog"
           WHERE "actorId" = $10 AND action = 'STRIPE_REFUND_RECORDED'
             AND "targetType" = 'ORDER' AND "targetId" = $6) AS "refundAuditCount",
@@ -557,7 +575,7 @@ export async function readDeliverySnapshot(owner, state) {
       state.disputeOrderItemId,
       state.refundEventId ?? null,
       state.refundChargeId ?? null,
-      state.refundId ?? null,
+      refundObjectId ?? null,
       state.disputeEventId ?? null,
       state.disputeId ?? null,
     ]);
@@ -570,6 +588,16 @@ export async function readDeliverySnapshot(owner, state) {
 }
 
 export function assertDeliverySnapshot(snapshot, expected = {}) {
+  const expectedRefundObjectId = exactString(
+    expected.refundObjectId,
+    "expected signed refund object",
+  );
+  if (!new Set(["external_event", "provider_refund"]).has(expected.refundRepresentation)) {
+    throw new Error("expected signed refund representation is invalid");
+  }
+  const expectedLatestRefundId = expected.refundRepresentation === "provider_refund"
+    ? expectedRefundObjectId
+    : null;
   const normalized = {
     userCount: Number(snapshot?.userCount),
     sellerCount: Number(snapshot?.sellerCount),
@@ -583,6 +611,10 @@ export function assertDeliverySnapshot(snapshot, expected = {}) {
     refundWebhookEpoch: exactString(snapshot?.refundWebhookEpoch, "refund webhook epoch"),
     refundPaymentCount: Number(snapshot?.refundPaymentCount),
     refundPaymentEventId: exactString(snapshot?.refundPaymentEventId, "refund payment event"),
+    refundReason: snapshot?.refundReason ?? null,
+    refundLatestRefundId: snapshot?.refundLatestRefundId ?? null,
+    refundEvidenceId: snapshot?.refundEvidenceId ?? null,
+    refundEvidenceAction: snapshot?.refundEvidenceAction ?? null,
     refundAuditCount: Number(snapshot?.refundAuditCount),
     orderRefundId: exactString(snapshot?.orderRefundId, "Order refund id"),
     orderRefundAmount: Number(snapshot?.orderRefundAmount),
@@ -614,8 +646,12 @@ export function assertDeliverySnapshot(snapshot, expected = {}) {
     || normalized.refundErrorClear !== true
     || !/^[1-9][0-9]*$/.test(normalized.refundGeneration)
     || normalized.refundPaymentCount !== 1
+    || normalized.refundReason !== "external_refund"
+    || normalized.refundLatestRefundId !== expectedLatestRefundId
+    || normalized.refundEvidenceId !== null
+    || normalized.refundEvidenceAction !== null
     || normalized.refundAuditCount !== 1
-    || normalized.orderRefundId !== expected.refundId
+    || normalized.orderRefundId !== expectedRefundObjectId
     || normalized.orderRefundAmount !== REFUND_AMOUNT_CENTS
     || normalized.refundReviewNeeded !== true
     || normalized.disputeWebhookCount !== 1
@@ -1028,10 +1064,15 @@ function postgresClient(connectionString, applicationName) {
 }
 
 async function verifyDatabaseBoundary(owner, runtime) {
-  const [ownerIdentity, runtimeIdentity, posture, functions] = await Promise.all([
-    owner.query("SELECT current_user AS role, current_database() AS database"),
-    runtime.query("SELECT current_user AS role, current_database() AS database"),
-    owner.query(`
+  // node-postgres clients serialize queries; issuing multiple owner queries on
+  // one client concurrently is deprecated and can make proof ordering opaque.
+  const ownerIdentity = await owner.query(
+    "SELECT current_user AS role, current_database() AS database",
+  );
+  const runtimeIdentity = await runtime.query(
+    "SELECT current_user AS role, current_database() AS database",
+  );
+  const posture = await owner.query(`
       SELECT
         relation.relrowsecurity AS enabled,
         relation.relforcerowsecurity AS forced,
@@ -1042,8 +1083,8 @@ async function verifyDatabaseBoundary(owner, runtime) {
       FROM pg_catalog.pg_class AS relation
       JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
       WHERE namespace.nspname = 'public' AND relation.relname = 'OrderPaymentEvent'
-    `),
-    owner.query(`
+    `);
+  const functions = await owner.query(`
       WITH expected(signature) AS (
         VALUES
           ('public.grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)'),
@@ -1077,8 +1118,7 @@ async function verifyDatabaseBoundary(owner, runtime) {
           FROM pg_catalog.pg_proc AS procedure_row
          WHERE procedure_row.oid = pg_catalog.to_regprocedure(expected.signature)
       ) AS routine ON true
-    `),
-  ]);
+    `);
   assert.deepEqual(ownerIdentity.rows, [{ role: "neondb_owner", database: PRODUCTION_DATABASE_NAME }]);
   assert.deepEqual(runtimeIdentity.rows, [{ role: RUNTIME_ROLE, database: PRODUCTION_DATABASE_NAME }]);
   assert.deepEqual(posture.rows, [{
@@ -1103,7 +1143,7 @@ async function listAll(listPromise) {
 
 function stripeDependencies(stripe, secretKey, config, attemptId) {
   const idempotency = (key) => ({
-    idempotencyKey: `grainline-ope-signed-${config.expectedCommit}-${attemptId}-${key}`,
+    idempotencyKey: `grainline-ope-signed-${config.preparationCommit}-${attemptId}-${key}`,
   });
   return {
     listClassicEndpoints: () => listAll(stripe.webhookEndpoints.list({ limit: 100 })),
@@ -1117,12 +1157,12 @@ function stripeDependencies(stripe, secretKey, config, attemptId) {
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
       description: "Grainline signed refund authority proof",
-      metadata: { grainline_order_payment_proof: sha256(`${config.expectedCommit}:${attemptId}:refund`) },
+      metadata: { grainline_order_payment_proof: sha256(`${config.preparationCommit}:${attemptId}:refund`) },
     }, idempotency("refund-payment-intent")),
     createRefund: (chargeId) => stripe.refunds.create({
       charge: chargeId,
       amount: REFUND_AMOUNT_CENTS,
-      metadata: { grainline_order_payment_proof: sha256(`${config.expectedCommit}:${attemptId}:refund`) },
+      metadata: { grainline_order_payment_proof: sha256(`${config.preparationCommit}:${attemptId}:refund`) },
     }, idempotency("refund")),
     createDisputePaymentIntent: () => stripe.paymentIntents.create({
       amount: DISPUTE_AMOUNT_CENTS,
@@ -1131,11 +1171,12 @@ function stripeDependencies(stripe, secretKey, config, attemptId) {
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
       description: "Grainline signed dispute authority proof",
-      metadata: { grainline_order_payment_proof: sha256(`${config.expectedCommit}:${attemptId}:dispute`) },
+      metadata: { grainline_order_payment_proof: sha256(`${config.preparationCommit}:${attemptId}:dispute`) },
     }, idempotency("dispute-payment-intent")),
     listRefundEvents: (createdAfter) => listAll(stripe.events.list({
       created: { gte: createdAfter }, limit: 100, type: "charge.refunded",
     })),
+    retrieveEvent: (eventId) => stripe.events.retrieve(eventId),
     listDisputeEvents: (createdAfter) => listAll(stripe.events.list({
       created: { gte: createdAfter }, limit: 100, type: "charge.dispute.created",
     })),
@@ -1203,6 +1244,46 @@ export function findSingleRefundEvent(events, state) {
   return matches[0];
 }
 
+export function signedRefundSourceIdentity(event, state) {
+  if (
+    event?.id !== state.refundEventId
+    || !Number.isSafeInteger(event?.created)
+    || event.created <= 0
+    || findSingleRefundEvent([event], state) !== event
+  ) {
+    throw new Error("signed refund source event identity drifted");
+  }
+  const refundCollection = event.data.object.refunds;
+  const refunds = refundCollection == null ? [] : refundCollection.data;
+  if (!Array.isArray(refunds)) {
+    throw new Error("signed refund source collection is malformed");
+  }
+  const successful = refunds
+    .filter((refund) => String(refund?.status ?? "").toLowerCase() === "succeeded")
+    .sort((left, right) => Number(right?.created ?? 0) - Number(left?.created ?? 0));
+  if (successful.length === 0) {
+    return Object.freeze({
+      objectId: `external:${state.refundEventId}`,
+      representation: "external_event",
+    });
+  }
+  if (successful.length !== 1) {
+    throw new Error("signed refund embedded identity is ambiguous");
+  }
+  const refund = successful[0];
+  if (
+    refund?.id !== state.refundId
+    || refund?.amount !== REFUND_AMOUNT_CENTS
+    || !Number.isSafeInteger(refund?.created)
+    || refund.created <= 0
+    || refund.created > event.created
+  ) throw new Error("signed refund embedded identity drifted");
+  return Object.freeze({
+    objectId: refund.id,
+    representation: "provider_refund",
+  });
+}
+
 function findSingleDisputeEvent(events, state) {
   const matches = events.filter((event) => {
     const chargeId = typeof event?.data?.object?.charge === "string"
@@ -1216,13 +1297,15 @@ function findSingleDisputeEvent(events, state) {
   return matches[0];
 }
 
-export function buildEvidence(config, state, cleanup, provider) {
+export function buildEvidence(config, state, cleanup, provider, refundIdentity) {
   return Object.freeze({
     generatedAt: new Date().toISOString(),
     phase: "order-payment-event-signed-production-proof",
     status: "passed",
     mode: "test",
     commit: config.expectedCommit,
+    preparationCommit: config.preparationCommit,
+    preparationCiRunId: config.preparationCiRunId,
     deployedSourceCommit: config.deployedSourceCommit,
     ciRunId: config.mainCiRunId,
     deploymentId: config.deploymentId,
@@ -1232,6 +1315,8 @@ export function buildEvidence(config, state, cleanup, provider) {
       refundChargeSha256: sha256(state.refundChargeId),
       refundIdSha256: sha256(state.refundId),
       refundEventSha256: sha256(state.refundEventId),
+      signedRefundObjectSha256: sha256(refundIdentity.objectId),
+      signedRefundIdentityRepresentation: refundIdentity.representation,
       disputePaymentIntentSha256: sha256(state.disputePaymentIntentId),
       disputeChargeSha256: sha256(state.disputeChargeId),
       disputeIdSha256: sha256(state.disputeId),
@@ -1281,6 +1366,7 @@ function assertEvidence(value, config) {
     value?.stripe?.refundChargeSha256,
     value?.stripe?.refundIdSha256,
     value?.stripe?.refundEventSha256,
+    value?.stripe?.signedRefundObjectSha256,
     value?.stripe?.disputePaymentIntentSha256,
     value?.stripe?.disputeChargeSha256,
     value?.stripe?.disputeIdSha256,
@@ -1295,12 +1381,17 @@ function assertEvidence(value, config) {
     || value?.status !== "passed"
     || value?.mode !== "test"
     || value?.commit !== config.expectedCommit
+    || value?.preparationCommit !== config.preparationCommit
+    || Number(value?.preparationCiRunId) !== config.preparationCiRunId
     || value?.deployedSourceCommit !== config.deployedSourceCommit
     || Number(value?.ciRunId) !== config.mainCiRunId
     || value?.deploymentId !== config.deploymentId
     || value?.providerStage !== 4
     || hashes.some((hash) => !hex.test(String(hash ?? "")))
     || value?.stripe?.refundAmountCents !== REFUND_AMOUNT_CENTS
+    || !new Set(["external_event", "provider_refund"]).has(
+      value?.stripe?.signedRefundIdentityRepresentation,
+    )
     || value?.stripe?.disputeAmountCents !== DISPUTE_AMOUNT_CENTS
     || value?.stripe?.requiredResendTransitionsCompleted !== 3
     || value?.stripe?.exactReplayProofs !== 2
@@ -1385,6 +1476,15 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
     const stripe = dependencies.stripe ?? new Stripe(secretKey, { apiVersion: STRIPE_API_VERSION });
     const stripeOps = dependencies.stripeOps
       ?? stripeDependencies(stripe, secretKey, config, state.attemptId);
+    let refundIdentity;
+    const resolveRefundIdentity = async () => {
+      if (refundIdentity) return refundIdentity;
+      refundIdentity = signedRefundSourceIdentity(
+        await stripeOps.retrieveEvent(state.refundEventId),
+        state,
+      );
+      return refundIdentity;
+    };
     const provider = await readProviderState(stripeOps);
     if (
       provider.stage !== 4
@@ -1431,8 +1531,9 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
     }
     let refundDelivery;
     if (state.stage === "refund-event-ready") {
+      const expectedRefund = await resolveRefundIdentity();
       refundDelivery = await waitFor(
-        () => readDeliverySnapshot(owner, state),
+        () => readDeliverySnapshot(owner, state, expectedRefund.objectId),
         (row) => Number(row?.refundPaymentCount) === 1 && row?.refundProcessed === true,
         "signed refund delivery",
       );
@@ -1440,7 +1541,15 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
         Number(refundDelivery?.refundWebhookCount) !== 1
         || refundDelivery?.refundErrorClear !== true
         || Number(refundDelivery?.refundAuditCount) !== 1
-        || refundDelivery?.orderRefundId !== state.refundId
+        || refundDelivery?.refundReason !== "external_refund"
+        || refundDelivery?.refundLatestRefundId !== (
+          expectedRefund.representation === "provider_refund"
+            ? expectedRefund.objectId
+            : null
+        )
+        || refundDelivery?.refundEvidenceId != null
+        || refundDelivery?.refundEvidenceAction != null
+        || refundDelivery?.orderRefundId !== expectedRefund.objectId
         || Number(refundDelivery?.orderRefundAmount) !== REFUND_AMOUNT_CENTS
         || refundDelivery?.refundReviewNeeded !== true
       ) throw new Error("signed refund delivery did not reach the exact reviewed state");
@@ -1456,10 +1565,11 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
       state = updateState(config, state, { stage: "refund-replay-pending" });
     }
     if (state.stage === "refund-replay-pending") {
-      const before = await readDeliverySnapshot(owner, state);
+      const expectedRefund = await resolveRefundIdentity();
+      const before = await readDeliverySnapshot(owner, state, expectedRefund.objectId);
       await stripeOps.resendEvent(provider.platform.id, state.refundEventId);
       const after = await waitFor(
-        () => readDeliverySnapshot(owner, state),
+        () => readDeliverySnapshot(owner, state, expectedRefund.objectId),
         (row) => row?.refundProcessed === true,
         "signed refund exact retry",
         20,
@@ -1506,12 +1616,16 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
     if (state.stage === "dispute-delivery-resend-pending") {
       // The special test payment may emit before its Order fixture exists.
       // An exact resend after fixture insertion makes delivery deterministic.
+      const expectedRefund = await resolveRefundIdentity();
       await stripeOps.resendEvent(provider.platform.id, state.disputeEventId);
       delivered = assertDeliverySnapshot(await waitFor(
-        () => readDeliverySnapshot(owner, state),
+        () => readDeliverySnapshot(owner, state, expectedRefund.objectId),
         (row) => Number(row?.disputePaymentCount) === 1 && row?.disputeProcessed === true,
         "signed dispute delivery",
-      ), { refundId: state.refundId });
+      ), {
+        refundObjectId: expectedRefund.objectId,
+        refundRepresentation: expectedRefund.representation,
+      });
       state = updateState(config, state, {
         stage: "dispute-delivered",
         disputePaymentEventId: delivered.disputePaymentEventId,
@@ -1520,8 +1634,14 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
       });
     }
     if (!delivered && shouldReadApplicationDelivery(state.stage)) {
-      delivered = assertDeliverySnapshot(await readDeliverySnapshot(owner, state), {
-        refundId: state.refundId,
+      const expectedRefund = await resolveRefundIdentity();
+      delivered = assertDeliverySnapshot(await readDeliverySnapshot(
+        owner,
+        state,
+        expectedRefund.objectId,
+      ), {
+        refundObjectId: expectedRefund.objectId,
+        refundRepresentation: expectedRefund.representation,
         refundPaymentEventId: state.refundPaymentEventId,
         disputePaymentEventId: state.disputePaymentEventId,
         caseId: state.caseId,
@@ -1532,12 +1652,16 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
       state = updateState(config, state, { stage: "dispute-replay-pending" });
     }
     if (state.stage === "dispute-replay-pending") {
+      const expectedRefund = await resolveRefundIdentity();
       await stripeOps.resendEvent(provider.platform.id, state.disputeEventId);
       const replay = await waitFor(
-        () => readDeliverySnapshot(owner, state),
+        () => readDeliverySnapshot(owner, state, expectedRefund.objectId),
         (row) => {
           try {
-            assertReplayUnchanged(delivered, row, { refundId: state.refundId });
+            assertReplayUnchanged(delivered, row, {
+              refundObjectId: expectedRefund.objectId,
+              refundRepresentation: expectedRefund.representation,
+            });
             return true;
           } catch {
             return false;
@@ -1547,7 +1671,10 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
         20,
         1000,
       );
-      assertReplayUnchanged(delivered, replay, { refundId: state.refundId });
+      assertReplayUnchanged(delivered, replay, {
+        refundObjectId: expectedRefund.objectId,
+        refundRepresentation: expectedRefund.representation,
+      });
       state = updateState(config, state, { stage: "dispute-replayed" });
     }
     if (state.stage === "dispute-replayed") {
@@ -1580,7 +1707,11 @@ export async function runOrderPaymentSignedProductionProof({ env = process.env, 
       throw new Error("provider topology drifted during signed payment proof");
     }
     await (dependencies.verifyDeployment ?? verifyDeployment)(config);
-    const evidence = assertEvidence(buildEvidence(config, state, cleanup, finalProvider), config);
+    const expectedRefund = await resolveRefundIdentity();
+    const evidence = assertEvidence(
+      buildEvidence(config, state, cleanup, finalProvider, expectedRefund),
+      config,
+    );
     writePrivateJson(config.evidencePath, evidence);
     unlinkSync(config.statePath);
     return evidence;

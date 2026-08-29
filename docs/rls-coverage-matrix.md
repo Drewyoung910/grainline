@@ -340,6 +340,22 @@ completed alternative.
 > makes the automatic status explicit and adds a scoped regression so the
 > separate reconciliation call cannot mask this omission. Exact merge/main CI
 > and restart-safe completion remain required; no second payment is needed.
+>
+> **Signed-family proof update (2026-08-28):** the first signed
+> refund/dispute proof ran from exact operator main
+> `2836e51d0ceb91ce05756dc5138e7c337e02a503`, CI `33220013251`, against
+> deployed source `3431bb83fa16fabb9b9e18a729a7d138d48764d9` and deployment
+> `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`. The genuine $5 test refund processed
+> cleanly, but verification failed at `refund-event-ready` because the proof
+> demanded the separately created `re_` ID even though the signed event omitted
+> its nested refund list. With no prior fixed local refund evidence, production
+> correctly used `external:<event-id>` under the accepted compatibility design.
+> No dispute charge was created, success evidence is absent and the exact
+> mode-`0600` journal is preserved. The isolated correction derives identity
+> from the immutable source event and separates corrected operator/CI binding
+> from the original journal/idempotency binding. Merge, exact-main CI and an
+> exact restart remain required; this is not signed-family acceptance or RLS
+> activation evidence.
 
 ## Program Rules
 

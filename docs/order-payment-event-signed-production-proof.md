@@ -1,14 +1,15 @@
 # OrderPaymentEvent signed production proof
 
-Status: restart-safe operator implemented and locally proven; not executed.
+Status: first production execution failed closed on a proof-contract defect;
+the exact fixture is preserved for restart after the isolated correction merges.
 Reviewing or merging this package does not authorize Stripe or production
 database mutations. `OrderPaymentEvent` RLS remains off with predecessor CRUD
 until every activation gate is accepted.
 
 The compatible application is live from exact source
-`2820986538c0d64f035defce052ba4ad0de1b3fb` in production deployment
-`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`. This proof must run from a later exact-main
-operator commit with its own successful exact-main CI binding.
+`3431bb83fa16fabb9b9e18a729a7d138d48764d9` in production deployment
+`dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`. The first operator binding was exact main
+`2836e51d0ceb91ce05756dc5138e7c337e02a503`, CI `33220013251`.
 
 ## Why this is a separate proof
 
@@ -69,6 +70,13 @@ provider object and durable Order relationship. The operator verifies exactly:
 - unchanged webhook generation/timestamp and all side-effect identities after
   each post-success exact replay.
 
+The refund identity assertion is derived from the exact immutable Stripe event
+that the application received. If the signed charge embeds a successful refund,
+the proof requires that exact `re_` identity. If the pinned event omits the
+nested refund collection, the proof requires the reviewed
+`external:<event-id>` representation. It never substitutes the separately
+created Refund object's ID for an identity absent from the signed payload.
+
 The proof never creates, updates, enables, disables or deletes a Stripe
 webhook endpoint or v2 destination. It never touches Stripe live mode and does
 not move live money.
@@ -109,6 +117,41 @@ the exact zero-residue snapshot before writing evidence. The final
 mode-`0600` evidence contains hashes, counts, release bindings and explicit
 residual gates; it contains no database URL, secret or raw identifier.
 
+A correction may resume an already-created attempt only with two exact commit
+bindings: `ORDER_PAYMENT_SIGNED_PROOF_EXPECTED_COMMIT` identifies the clean
+corrected operator and its CI run, while
+`ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_COMMIT` identifies the original
+mode-`0600` journal and all provider idempotency keys. Its paired
+`ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_CI_RUN_ID` must also match the CI run
+sealed in that journal. Both preparation values default to the corrected
+operator values for a fresh run. This split cannot create a second fixture or
+silently adopt another journal.
+
+## First production execution finding (2026-08-28)
+
+The authorized test-mode run created one $5 PaymentIntent/charge, one exact $5
+Refund and the marker-bound refund database fixture. Stripe delivered the
+genuine signed `charge.refunded` event; its lease processed cleanly, the Order
+recorded a $5 refund/review state, one audit existed and one
+`OrderPaymentEvent` existed. No dispute fixture or second charge was created.
+
+The verifier then failed closed at `refund-event-ready`. Engine-enforced
+read-only diagnosis proved that the real event omitted its nested refund list.
+The production function therefore correctly used `external:<event-id>` for
+both the signed ledger object and Order refund identity because this direct
+provider refund had no prior fixed local Grainline evidence. The verifier had
+incorrectly required the separately returned `re_` ID. This is a verifier bug,
+not an application/accounting regression and not a reason to weaken the
+signed-refund compatibility function.
+
+The isolated correction retrieves the exact event, validates the complete
+charge/payment tuple, derives one of the two reviewed identity representations,
+uses that identity for delivery and replay checks, records only its hash and
+representation in sanitized evidence, and preserves the original attempt/keys
+through the explicit preparation binding. Unit coverage proves embedded,
+omitted, malformed and restart-binding cases. The journal remains mode `0600`;
+success evidence is absent. Resume only after corrected exact-main CI.
+
 ## Local proof coverage
 
 - `tests/order-payment-event-signed-production-operator.test.mjs` covers exact
@@ -131,9 +174,11 @@ exact-main CI succeeds:
 ```bash
 ORDER_PAYMENT_SIGNED_PROOF_CONFIRM=reviewed-order-payment-signed-production-proof \
 ORDER_PAYMENT_SIGNED_PROOF_EXPECTED_COMMIT=<exact-main-operator-commit> \
-ORDER_PAYMENT_SIGNED_PROOF_DEPLOYED_SOURCE_COMMIT=2820986538c0d64f035defce052ba4ad0de1b3fb \
+ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_COMMIT=<original-attempt-commit-or-same-commit> \
+ORDER_PAYMENT_SIGNED_PROOF_DEPLOYED_SOURCE_COMMIT=3431bb83fa16fabb9b9e18a729a7d138d48764d9 \
 ORDER_PAYMENT_SIGNED_PROOF_CI_RUN_ID=<successful-exact-main-ci-run> \
-ORDER_PAYMENT_SIGNED_PROOF_DEPLOYMENT_ID=dpl_73aR913b9hfgkcdfBv2MwMyypR5a \
+ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_CI_RUN_ID=<original-attempt-ci-or-same-ci> \
+ORDER_PAYMENT_SIGNED_PROOF_DEPLOYMENT_ID=dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S \
 ORDER_PAYMENT_SIGNED_PROOF_EVIDENCE_PATH=/Users/drewyoung/grainline-rollout-evidence/order-payment-event-signed-production-proof-<exact-main-operator-commit>.json \
 ORDER_PAYMENT_SIGNED_PROOF_VERCEL_PROJECT_DIRECTORY=/private/tmp/<clean-exact-main-worktree> \
 npm run ops:order-payment-event-signed-production-proof
