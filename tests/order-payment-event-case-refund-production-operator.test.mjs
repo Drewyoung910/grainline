@@ -285,6 +285,20 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     assert.rejects(() => acquireAdminPinInput({ pin: "" }), /PIN input drifted/);
   });
 
+  it("reuses the production-proven Clerk one-use ticket exchange contract", () => {
+    const source = readFileSync("scripts/order-payment-event-case-refund-production-proof.mjs", "utf8");
+    assert.match(
+      source,
+      /fetch\(`https:\/\/\$\{CLERK_FRONTEND_API\}\/v1\/client`, \{[\s\S]*?body: "",[\s\S]*?method: "POST",[\s\S]*?redirect: "manual"/,
+    );
+    assert.match(
+      source,
+      /fetch\(`https:\/\/\$\{CLERK_FRONTEND_API\}\/v1\/client\/sign_ins`, \{[\s\S]*?new URLSearchParams\(\{ strategy: "ticket", ticket: signInToken\.token \}\)[\s\S]*?redirect: "manual"/,
+    );
+    assert.doesNotMatch(source, /\/v1\/client\/sign_ins\/tickets/);
+    assert.doesNotMatch(source, /_clerk_js_version=5\.0\.0/);
+  });
+
   it("builds sanitized evidence with bounded retained audit telemetry", () => {
     const config = configuration();
     const state = provenState();

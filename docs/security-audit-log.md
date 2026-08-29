@@ -3739,3 +3739,24 @@ Open work:
   confirmed all four real functions exist as volatile, parallel-unsafe
   `SECURITY DEFINER` routines with pinned `search_path`, runtime execution and
   no `PUBLIC` execution. No production posture was changed.
+
+## OrderPaymentEvent staff Case-refund Clerk exchange correction (2026-08-29)
+
+- The invocation from exact main
+  `711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14` / CI `33274185617` reused the
+  accepted seller-refund predecessor, created one bounded Stripe test account
+  and 500-cent payment, completed hosted onboarding, and atomically created the
+  private fixtures. It then failed closed before calling the authenticated
+  Case-resolution route.
+- Root cause was local proof tooling: the new operator used the unproven Clerk
+  Frontend API path `/v1/client/sign_ins/tickets` instead of Grainline's
+  established one-use ticket flow. The operator `finally` path revoked active
+  canary sessions and restored the operational canary to `USER`. The exact
+  mode-`0600` journal remains at `fixtures-created`; no competing account,
+  payment or application fixture is permitted.
+- The correction reuses the production-proven empty `POST /v1/client`
+  handshake followed by `POST /v1/client/sign_ins` with `strategy=ticket`,
+  restores the 60-second token bound, validates token shape and adds a
+  regression forbidding the unproven endpoint. No refund, reversal, provider
+  configuration, deployment, migration, grant or RLS change occurred. This
+  failed execution is not acceptance evidence.

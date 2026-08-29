@@ -132,6 +132,21 @@ The admin resolution panel also now asks for an action-specific confirmation
 before Full Refund, Partial Refund or Dismiss. That client guard is additional
 product safety; server, PIN and database authority remain mandatory.
 
+The first invocation after the four-function catalog correction, from exact
+main `711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14` / CI `33274185617`, reused the
+accepted seller-refund predecessor, created one bounded Stripe test account and
+payment, completed hosted onboarding, and atomically created the private
+application fixtures. It then failed closed before the authenticated Case
+route because this new operator used an unproven Clerk Frontend API path
+(`/v1/client/sign_ins/tickets`) instead of Grainline's already accepted
+one-use ticket exchange. Its `finally` recovery revoked the canary sessions and
+restored the canary to `USER`; the restart journal remains at
+`fixtures-created`, so no competing provider or application attempt is
+permitted. The correction reuses the established `POST /v1/client` handshake
+and `POST /v1/client/sign_ins` request with `strategy=ticket`, pins the ticket
+and cookie bounds, and adds a regression forbidding the unproven endpoint. The
+failed invocation is not acceptance evidence and does not authorize RLS.
+
 ## Finding
 
 The existing staff Case protocol correctly separates the provider request from

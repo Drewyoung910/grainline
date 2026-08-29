@@ -462,6 +462,18 @@ state and supersede earlier inline chronology in its matrix summary.
 > possible PIN/API windows, has a dedicated role/session recovery command, and
 > the raw PIN is loopback/memory-only. Preparation is not execution or
 > acceptance; the staff family and every later activation gate remain open.
+>
+> **Staff Case-refund proof correction (2026-08-29):** exact main
+> `711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14` / CI `33274185617` reused the
+> accepted seller predecessor and advanced its sole restart-safe journal to
+> `fixtures-created`, then failed closed before the authenticated route because
+> the new operator used an unproven Clerk ticket endpoint. Sessions were
+> revoked and the canary role restored. The correction reuses the already
+> accepted `POST /v1/client` plus `POST /v1/client/sign_ins` one-use ticket
+> contract and forbids the divergent endpoint in regression coverage. The
+> existing account, payment and private fixtures remain bounded to that one
+> journal; no second attempt is permitted. This is not proof acceptance or RLS
+> activation.
 
 ## Program Rules
 
