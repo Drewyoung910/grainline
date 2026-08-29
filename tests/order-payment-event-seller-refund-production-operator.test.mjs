@@ -19,6 +19,7 @@ import {
   createInitialState,
   deleteDisposableAccount,
   findSingleRefundEvent,
+  listAccountsBounded,
   redact,
   validateConfiguration,
 } from "../scripts/order-payment-event-seller-refund-production-proof.mjs";
@@ -193,32 +194,41 @@ test("deleted connected-account restart requires Stripe's exact absence response
     statusCode: 403,
     rawType: "api_error",
   };
-  assert.equal(assertDeletedConnectedAccountAbsence(deletedAccess, [{ id: "acct_other" }], accountId), true);
+  const listing = (accounts) => ({ accounts, exhausted: true });
+  assert.equal(assertDeletedConnectedAccountAbsence(deletedAccess, listing([{ id: "acct_other" }]), accountId), true);
   assert.throws(
-    () => assertDeletedConnectedAccountAbsence(deletedAccess, [{ id: accountId }], accountId),
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, listing([{ id: accountId }]), accountId),
     /absence is not proven/,
   );
   assert.throws(
-    () => assertDeletedConnectedAccountAbsence({ ...deletedAccess, code: "permission_denied" }, [], accountId),
+    () => assertDeletedConnectedAccountAbsence({ ...deletedAccess, code: "permission_denied" }, listing([]), accountId),
     /absence is not proven/,
   );
   assert.throws(
-    () => assertDeletedConnectedAccountAbsence(deletedAccess, [{ id: "not-an-account" }], accountId),
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, listing([{ id: "not-an-account" }]), accountId),
     /absence is not proven/,
   );
   assert.throws(
     () => assertDeletedConnectedAccountAbsence(
       deletedAccess,
-      Array.from({ length: 1001 }, (_, index) => ({ id: `acct_other_${index}` })),
+      listing(Array.from({ length: 1001 }, (_, index) => ({ id: `acct_other_${index}` }))),
       accountId,
     ),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, { accounts: [], exhausted: false }, accountId),
+    /absence is not proven/,
+  );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(deletedAccess, [], accountId),
     /absence is not proven/,
   );
 
   let deletionAttempted = false;
   const proven = await deleteDisposableAccount({
     async retrieveAccount() { throw deletedAccess; },
-    async listAccounts() { return [{ id: "acct_other" }]; },
+    async listAccounts() { return listing([{ id: "acct_other" }]); },
     async retrieveBalance() { throw new Error("balance must not be read after proven deletion"); },
     async deleteAccount() { deletionAttempted = true; },
   }, config, fullState());
@@ -228,7 +238,7 @@ test("deleted connected-account restart requires Stripe's exact absence response
   await assert.rejects(
     deleteDisposableAccount({
       async retrieveAccount() { throw deletedAccess; },
-      async listAccounts() { return [{ id: accountId }]; },
+      async listAccounts() { return listing([{ id: accountId }]); },
     }, config, fullState()),
     /absence is not proven/,
   );
@@ -257,6 +267,37 @@ test("deleted connected-account restart requires Stripe's exact absence response
       async retrieveBalance() { return { available: [{ amount: 1 }], pending: [] }; },
     }, config, state),
     /retained a nonzero balance/,
+  );
+});
+
+test("connected-account listing proves provider exhaustion rather than silently truncating at its bound", async () => {
+  const requests = [];
+  const pages = [
+    { data: [{ id: "acct_first" }], has_more: true },
+    { data: [{ id: "acct_second" }], has_more: false },
+  ];
+  const accounts = await listAccountsBounded(async (params) => {
+    requests.push(params);
+    return pages.shift();
+  }, 2);
+  assert.equal(accounts.exhausted, true);
+  assert.deepEqual(accounts.accounts.map(({ id }) => id), ["acct_first", "acct_second"]);
+  assert.deepEqual(requests, [
+    { limit: 100 },
+    { limit: 100, starting_after: "acct_first" },
+  ]);
+
+  await assert.rejects(
+    listAccountsBounded(async () => ({ data: [{ id: "acct_only" }], has_more: true }), 1),
+    /did not prove exhaustion/,
+  );
+  await assert.rejects(
+    listAccountsBounded(async () => ({ data: [], has_more: true }), 2),
+    /did not prove exhaustion/,
+  );
+  await assert.rejects(
+    listAccountsBounded(async () => ({ data: [{ id: "not-an-account" }], has_more: false }), 2),
+    /page drifted/,
   );
 });
 
@@ -338,7 +379,7 @@ test("static operator contract remains test-only and production-configuration re
   assert.match(source, /"vacationMode"/);
   assert.match(source, /EMAIL_REFUND_ISSUED/);
   assert.match(source, /cleanupExactRows/);
-  assert.match(source, /listAccounts: \(\) => listAll\(stripe\.accounts\.list/);
+  assert.match(source, /listAccounts: \(\) => listAccountsBounded\(\(params\) => stripe\.accounts\.list\(params\)\)/);
   assert.match(source, /assertDeletedConnectedAccountAbsence/);
   assert.doesNotMatch(databaseBoundary, /Promise\.all/);
   assert.match(source, /listChargeRefunds: \(chargeId\) => listAll\(stripe\.refunds\.list/);

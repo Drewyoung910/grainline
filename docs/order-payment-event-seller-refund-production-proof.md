@@ -116,8 +116,10 @@ database catalog reads no longer issue concurrent queries through one
 `node-postgres` client, and deleted connected-account recovery no longer
 assumes `accounts.retrieve` returns a deleted object. Stripe can instead return
 the exact `StripePermissionError` / `account_invalid` / HTTP 403 / `api_error`
-tuple after deletion. That tuple proves deletion only when a bounded complete
-account listing is well formed and excludes the exact marker-bound account.
+tuple after deletion. That tuple proves deletion only when an explicitly
+paginated, bounded account listing is well formed, reaches `has_more=false`
+and excludes the exact marker-bound account; reaching the bound before provider
+exhaustion fails closed instead of silently accepting a truncated listing.
 Every other error or listing shape fails closed, including restart from either
 `cleanup-started` or `cleaned`.
 
