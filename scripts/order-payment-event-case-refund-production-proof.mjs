@@ -807,14 +807,20 @@ function clerkCookieHeader(jar) {
 async function createCanarySession(clerk, clerkUserId) {
   const active = await clerk.sessions.getSessionList({ limit: 100, status: "active", userId: clerkUserId });
   for (const session of active.data) await clerk.sessions.revokeSession(session.id);
-  const signInToken = await clerk.signInTokens.createSignInToken({ userId: clerkUserId, expiresInSeconds: 300 });
-  if (!signInToken?.id || !signInToken?.token || signInToken.userId !== clerkUserId) {
+  const signInToken = await clerk.signInTokens.createSignInToken({ userId: clerkUserId, expiresInSeconds: 60 });
+  if (!/^sit_[A-Za-z0-9]+$/.test(String(signInToken?.id ?? ""))
+    || signInToken.userId !== clerkUserId
+    || typeof signInToken.token !== "string"
+    || signInToken.token.length < 32
+    || signInToken.token.length > 4_096) {
     throw new Error("Case refund Clerk ticket creation failed");
   }
   const jar = new Map();
-  const clientResponse = await fetch(`https://${CLERK_FRONTEND_API}/v1/client?_clerk_js_version=5.0.0`, {
-    headers: { origin: PRODUCTION_ORIGIN },
-    redirect: "error",
+  const clientResponse = await fetch(`https://${CLERK_FRONTEND_API}/v1/client`, {
+    body: "",
+    headers: { "content-type": "application/x-www-form-urlencoded", origin: PRODUCTION_ORIGIN },
+    method: "POST",
+    redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
   absorbClerkResponseCookies(clientResponse, jar);
@@ -822,15 +828,15 @@ async function createCanarySession(clerk, clerkUserId) {
   if (clientResponse.status !== 200 || (clientPayload.response ?? clientPayload).object !== "client") {
     throw new Error("Case refund Clerk handshake failed");
   }
-  const exchange = await fetch(`https://${CLERK_FRONTEND_API}/v1/client/sign_ins/tickets?_clerk_js_version=5.0.0`, {
+  const exchange = await fetch(`https://${CLERK_FRONTEND_API}/v1/client/sign_ins`, {
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",
       cookie: clerkCookieHeader(jar),
       origin: PRODUCTION_ORIGIN,
     },
-    body: new URLSearchParams({ ticket: signInToken.token }),
-    redirect: "error",
+    body: new URLSearchParams({ strategy: "ticket", ticket: signInToken.token }),
+    redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
   absorbClerkResponseCookies(exchange, jar);
