@@ -693,7 +693,7 @@ two-row confirmation model plus atomic Case/stock/delivery effects, and clean
 all temporary application identity without authenticating a real seller.
 
 Its first two executions both failed closed before account creation. Exact
-attempt main `877610cbb12491d6ae67e56ddb745ace146e1ed3` / CI `33231868504`
+attempt main `877610cbb12491d8e788e6948a3c9c31aced1e70` / CI `33231868504`
 first exposed the Stripe 40-character metadata-key limit; corrected
 operator/main `232f4b6f725caa193af51f214395f6019cddde63` / CI `33233774693`
 then exposed the same legacy Custom/application-collected responsibility

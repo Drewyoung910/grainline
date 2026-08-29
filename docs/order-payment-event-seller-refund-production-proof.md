@@ -132,7 +132,7 @@ Every other error or listing shape fails closed, including restart from either
 
 ## First execution attempt failed closed (2026-08-28)
 
-Exact main `877610cbb12491d6ae67e56ddb745ace146e1ed3` and CI
+Exact main `877610cbb12491d8e788e6948a3c9c31aced1e70` and CI
 `33231868504` passed every repository gate, but Stripe rejected the first
 account-create request before object creation because the proof metadata key
 was 43 characters and Stripe permits at most 40. The private mode-`0600`
@@ -163,7 +163,7 @@ operator variables must be supplied together or the retry fails closed.
 
 The preserved attempt resumed from corrected operator/main
 `232f4b6f725caa193af51f214395f6019cddde63` and CI `33233774693`, while
-retaining original attempt main `877610cbb12491d6ae67e56ddb745ace146e1ed3`
+retaining original attempt main `877610cbb12491d8e788e6948a3c9c31aced1e70`
 and CI `33231868504`. Stripe rejected account creation because the operator's
 legacy Custom/application-collected responsibility fields conflict with the
 platform's current Connect responsibility profile. The journal remained at
