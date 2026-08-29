@@ -434,6 +434,23 @@ state and supersede earlier inline chronology in its matrix summary.
 > journal; do not create another payment.
 > This does not authorize provider execution, predecessor drain, ENABLE or
 > FORCE.
+>
+> **Seller full-refund proof acceptance (2026-08-29):** exact corrected
+> operator/main `0c5739e7a48ce361298a6d2af571de093fb2b01b` and exact-main
+> CI `33265745679` resumed only original attempt
+> `877610cbb12491d8e788e6948a3c9c31aced1e70` / CI `33231868504` and reused
+> its sole idempotent 500-cent Stripe test payment/account. It atomically
+> created the Case and buyer opening message, passed the exact 500-cent refund,
+> 475-cent reversal, local/signed evidence, Case, stock, Notification,
+> skipped-email and replay checks, and removed all bounded temporary rows,
+> keys, sessions and the disposable account. Exactly one processed test
+> `charge.refunded` lease remains as replay evidence. Sanitized mode-`0600`
+> evidence SHA-256 is
+> `35d13b9513e49c2f1ca101a0f9f2a1e5207520e28b845a03b99e2e2d1b76c9d4`.
+> This supersedes the preceding correction gate as the current seller-family
+> result. The separate staff Case refund proof, remaining invariants and
+> projections, zero-direct-access conversion, predecessor drain, policyless
+> ENABLE and posture-only FORCE remain open.
 
 ## Program Rules
 

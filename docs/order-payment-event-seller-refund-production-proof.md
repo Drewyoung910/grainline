@@ -238,15 +238,46 @@ opening trigger and proves that a Case without its opening message fails at
 commit. The class-wide Case-fixture guard now inventories this operator so a
 future direct Case fixture cannot silently omit durable opening evidence.
 
+## Accepted production proof (2026-08-29)
+
+Exact corrected operator/main
+`0c5739e7a48ce361298a6d2af571de093fb2b01b` and exact-main CI
+`33265745679` resumed only the original attempt
+`877610cbb12491d8e788e6948a3c9c31aced1e70` / CI `33231868504`.
+It reused the existing idempotent Stripe test payment and connected account;
+no second payment or competing attempt was created. The operator created the
+synthetic Case and buyer-authored opening `CaseMessage` atomically, then
+completed the authenticated seller full-refund route.
+
+The accepted run proved all of the following:
+
+- Stripe test mode only, with a 500-cent buyer refund and exact 475-cent
+  destination-transfer reversal;
+- source-bound local and signed payment evidence with exact replay stability;
+- the reviewed Case, stock, `REFUND_ISSUED` Notification and skipped-email
+  outcomes;
+- exact temporary-row, Redis-key, Clerk-session and disposable-account
+  cleanup; and
+- unchanged deployment, provider configuration, grants, credentials and RLS
+  posture.
+
+Exactly one processed test `charge.refunded` webhook lease remains as durable
+replay evidence, together with immutable Stripe test objects and ordinary
+provider telemetry. The operational canary remains, while the proof account,
+temporary application identity and private restart/onboarding journals are
+absent. Sanitized mode-`0600` evidence is retained at
+`order-payment-event-seller-refund-proof-877610cbb124.json`, SHA-256
+`35d13b9513e49c2f1ca101a0f9f2a1e5207520e28b845a03b99e2e2d1b76c9d4`.
+
+This closes only the seller full-refund provider boundary. It does not prove
+the separately authenticated staff Case refund path, drain predecessor
+authority or authorize `OrderPaymentEvent` ENABLE/FORCE.
+
 ## Sequencing
 
 1. Retain the accepted distinct signed refund/dispute proof.
-2. Merge this reviewed operator from an exact main commit and require exact-main CI.
-3. Merge the production-aligned Express/hosted-onboarding correction and pass
-   its exact-main CI.
-4. Merge the retrieved-payment recovery correction and pass exact-main CI.
-5. Resume the exact preserved attempt from `payment-created`; create the Case
-   and its human opening evidence atomically before invoking the refund route.
-6. Record sanitized evidence and cleanup outcome.
-7. Continue with the still-separate staff Case refund live proof. Do not
+2. Retain the accepted seller full-refund proof and its sanitized evidence.
+3. Continue with the still-separate staff Case refund live proof. Do not
    bundle those authorities or infer them from this seller proof.
+4. Complete the remaining invariant/projection and predecessor-drain gates
+   before separate policyless ENABLE and posture-only FORCE releases.

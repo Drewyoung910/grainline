@@ -600,22 +600,22 @@ Provider proof is required for this table: it changes a hot signed-event path,
 refund money movement and lock/generation behavior. Ephemeral PostgreSQL alone
 cannot establish Stripe delivery/retry or serverless overlap correctness.
 
-The signed refund/dispute portion of step 6 is accepted with sanitized evidence
-recorded in `docs/order-payment-event-signed-production-proof.md`. The distinct
-fresh automatic blocked-checkout proof is also accepted. Those proofs cannot
-stand in for the still-separate seller or staff Case refund proofs and do not
-permit skipping the remaining activation sequence.
+The signed refund/dispute, fresh automatic blocked-checkout and authenticated
+seller full-refund portions of step 6 are accepted with sanitized evidence in
+their dedicated proof records. The seller proof reused its sole idempotent
+500-cent test payment, proved the exact 475-cent reversal plus atomic
+Case/opening-message, stock, Notification, skipped-email and replay outcomes,
+and removed all bounded temporary identity. Exact corrected operator/main was
+`0c5739e7a48ce361298a6d2af571de093fb2b01b`, exact-main CI was
+`33265745679`, and retained evidence SHA-256 is
+`35d13b9513e49c2f1ca101a0f9f2a1e5207520e28b845a03b99e2e2d1b76c9d4`.
 
-The active isolated package is the authenticated seller full-refund proof in
-`docs/order-payment-event-seller-refund-production-proof.md`. It uses the
-retained operational Clerk canary only as a temporary vacation-mode seller,
-one synthetic email-opted-out buyer and one disposable Stripe test-mode
-transfer-capable account. It must prove the exact 500-cent buyer refund,
-475-cent reversal, local plus signed payment evidence, Case, Notification,
-skipped outbox, stock and retry boundaries before exact cleanup. Its hard
-review corrected same-client PostgreSQL query concurrency and the exact Stripe
-post-deletion 403 restart shape. It does not authorize execution or RLS
-activation.
+Those three accepted proofs cannot stand in for the still-separate staff Case
+refund proof. Remaining invariant/projection work, zero-direct-access
+conversion, predecessor drain, policyless ENABLE and posture-only FORCE also
+remain mandatory. See
+`docs/order-payment-event-seller-refund-production-proof.md` for the complete
+failed-attempt chronology, correction rationale and cleanup certificate.
 
 ## Exit criteria
 
