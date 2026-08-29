@@ -206,6 +206,14 @@ test("deleted connected-account restart requires Stripe's exact absence response
     () => assertDeletedConnectedAccountAbsence(deletedAccess, [{ id: "not-an-account" }], accountId),
     /absence is not proven/,
   );
+  assert.throws(
+    () => assertDeletedConnectedAccountAbsence(
+      deletedAccess,
+      Array.from({ length: 1001 }, (_, index) => ({ id: `acct_other_${index}` })),
+      accountId,
+    ),
+    /absence is not proven/,
+  );
 
   let deletionAttempted = false;
   const proven = await deleteDisposableAccount({
@@ -319,6 +327,10 @@ test("static operator contract remains test-only and production-configuration re
     import.meta.url,
   ), "utf8");
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const databaseBoundaryStart = source.indexOf("async function verifyDatabaseBoundary");
+  const databaseBoundaryEnd = source.indexOf("async function listAll", databaseBoundaryStart);
+  assert.ok(databaseBoundaryStart >= 0 && databaseBoundaryEnd > databaseBoundaryStart);
+  const databaseBoundary = source.slice(databaseBoundaryStart, databaseBoundaryEnd);
   assert.match(source, /validateStripeSecret\(localValues\)/);
   assert.match(source, /provider\.stage !== 4/);
   assert.match(source, /type: "custom"/);
@@ -328,7 +340,7 @@ test("static operator contract remains test-only and production-configuration re
   assert.match(source, /cleanupExactRows/);
   assert.match(source, /listAccounts: \(\) => listAll\(stripe\.accounts\.list/);
   assert.match(source, /assertDeletedConnectedAccountAbsence/);
-  assert.doesNotMatch(source, /const \[ownerIdentity, runtimeIdentity, posture, functions\] = await Promise\.all/);
+  assert.doesNotMatch(databaseBoundary, /Promise\.all/);
   assert.match(source, /listChargeRefunds: \(chargeId\) => listAll\(stripe\.refunds\.list/);
   assert.doesNotMatch(source, /\.refunds\?\.data|\.refunds\.data/);
   assert.doesNotMatch(source, /sk_live_/);
