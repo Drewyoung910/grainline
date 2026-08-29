@@ -162,10 +162,18 @@ function loadPrivateEnvironment(filePath, label) {
 
 export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   const expectedCommit = required(env, "ORDER_PAYMENT_SELLER_REFUND_EXPECTED_COMMIT");
+  const hasOperatorCommit = env.ORDER_PAYMENT_SELLER_REFUND_OPERATOR_COMMIT !== undefined;
+  const hasOperatorCiRunId = env.ORDER_PAYMENT_SELLER_REFUND_OPERATOR_CI_RUN_ID !== undefined;
+  if (hasOperatorCommit !== hasOperatorCiRunId) {
+    throw new Error("seller refund operator commit and CI inputs must be supplied together");
+  }
+  const operatorCommit = hasOperatorCommit
+    ? required(env, "ORDER_PAYMENT_SELLER_REFUND_OPERATOR_COMMIT")
+    : expectedCommit;
   const deployedSourceCommit = required(env, "ORDER_PAYMENT_SELLER_REFUND_DEPLOYED_SOURCE_COMMIT");
   const signedProofCommit = required(env, "ORDER_PAYMENT_SELLER_REFUND_SIGNED_PROOF_COMMIT");
   const deploymentId = required(env, "ORDER_PAYMENT_SELLER_REFUND_DEPLOYMENT_ID");
-  if (![expectedCommit, deployedSourceCommit, signedProofCommit].every((value) => COMMIT_PATTERN.test(value))) {
+  if (![expectedCommit, operatorCommit, deployedSourceCommit, signedProofCommit].every((value) => COMMIT_PATTERN.test(value))) {
     throw new Error("seller refund proof commit input is invalid");
   }
   if (!DEPLOYMENT_PATTERN.test(deploymentId)) throw new Error("seller refund deployment id is invalid");
@@ -173,14 +181,19 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     throw new Error("seller refund proof confirmation is invalid");
   }
   const mainCiRunId = positiveInteger(env, "ORDER_PAYMENT_SELLER_REFUND_MAIN_CI_RUN_ID");
+  const operatorCiRunId = hasOperatorCiRunId
+    ? positiveInteger(env, "ORDER_PAYMENT_SELLER_REFUND_OPERATOR_CI_RUN_ID")
+    : mainCiRunId;
   const signedProofCiRunId = positiveInteger(env, "ORDER_PAYMENT_SELLER_REFUND_SIGNED_PROOF_CI_RUN_ID");
   const suffix = expectedCommit.slice(0, 12);
   return Object.freeze({
     cwd,
     expectedCommit,
+    operatorCommit,
     deployedSourceCommit,
     signedProofCommit,
     mainCiRunId,
+    operatorCiRunId,
     signedProofCiRunId,
     deploymentId,
     stripeCliPath: required(env, "ORDER_PAYMENT_SELLER_REFUND_STRIPE_CLI_PATH"),
@@ -360,15 +373,37 @@ function command(name, args, { cwd, env, label = name, timeout = 60_000 } = {}) 
   return result.stdout;
 }
 
-function verifyGitHubCi(config) {
-  const raw = execFileSync("gh", [
-    "run", "view", String(config.mainCiRunId), "--json",
+function readGitHubCiRun(runId) {
+  return execFileSync("gh", [
+    "run", "view", String(runId), "--json",
     "databaseId,headSha,conclusion,status,workflowName,headBranch,event",
   ], { encoding: "utf8", env: childEnvironment({
     ...(process.env.GH_TOKEN ? { GH_TOKEN: process.env.GH_TOKEN } : {}),
     ...(process.env.GITHUB_TOKEN ? { GITHUB_TOKEN: process.env.GITHUB_TOKEN } : {}),
   }), stdio: ["ignore", "pipe", "pipe"] });
-  return parseGitHubCiRun(raw, config.expectedCommit, config.mainCiRunId);
+}
+
+export function assertExecutionBindings(gitState, attemptCi, operatorCi, config) {
+  const operatorCommit = config.operatorCommit ?? config.expectedCommit;
+  const operatorCiRunId = config.operatorCiRunId ?? config.mainCiRunId;
+  assertGitState(gitState, operatorCommit);
+  parseGitHubCiRun(attemptCi, config.expectedCommit, config.mainCiRunId);
+  parseGitHubCiRun(operatorCi, operatorCommit, operatorCiRunId);
+  return Object.freeze({
+    attemptCommit: config.expectedCommit,
+    attemptCiRunId: config.mainCiRunId,
+    operatorCommit,
+    operatorCiRunId,
+  });
+}
+
+function verifyExecutionBindings(config) {
+  const operatorCiRunId = config.operatorCiRunId ?? config.mainCiRunId;
+  const attemptCi = readGitHubCiRun(config.mainCiRunId);
+  const operatorCi = operatorCiRunId === config.mainCiRunId
+    ? attemptCi
+    : readGitHubCiRun(operatorCiRunId);
+  return assertExecutionBindings(readGitState(config.cwd), attemptCi, operatorCi, config);
 }
 
 function assertVercelProject(config) {
@@ -1178,14 +1213,18 @@ export async function deleteDisposableAccount(stripeOps, config, state) {
 }
 
 export function buildEvidence(config, state, cleanup) {
+  const operatorCommit = config.operatorCommit ?? config.expectedCommit;
+  const operatorCiRunId = config.operatorCiRunId ?? config.mainCiRunId;
   return Object.freeze({
     generatedAt: new Date().toISOString(),
     phase: "order-payment-event-seller-refund-production-proof",
     status: "passed",
     mode: "test",
     commit: config.expectedCommit,
+    operatorCommit,
     deployedSourceCommit: config.deployedSourceCommit,
     ciRunId: config.mainCiRunId,
+    operatorCiRunId,
     deploymentId: config.deploymentId,
     signedPredecessorCommit: config.signedProofCommit,
     signedPredecessorCiRunId: config.signedProofCiRunId,
@@ -1228,6 +1267,8 @@ export function buildEvidence(config, state, cleanup) {
 }
 
 export function assertEvidence(payload, config) {
+  const operatorCommit = config.operatorCommit ?? config.expectedCommit;
+  const operatorCiRunId = config.operatorCiRunId ?? config.mainCiRunId;
   const hex = /^[a-f0-9]{64}$/;
   const stripeHashes = [
     "connectedAccountSha256", "paymentIntentSha256", "chargeSha256",
@@ -1241,6 +1282,7 @@ export function assertEvidence(payload, config) {
     payload?.phase !== "order-payment-event-seller-refund-production-proof" || payload?.status !== "passed" || payload?.mode !== "test"
     || payload?.commit !== config.expectedCommit || payload?.deployedSourceCommit !== config.deployedSourceCommit
     || String(payload?.ciRunId) !== String(config.mainCiRunId) || payload?.deploymentId !== config.deploymentId
+    || payload?.operatorCommit !== operatorCommit || String(payload?.operatorCiRunId) !== String(operatorCiRunId)
     || payload?.signedPredecessorCommit !== config.signedProofCommit || String(payload?.signedPredecessorCiRunId) !== String(config.signedProofCiRunId)
     || !stripeHashes.every((key) => hex.test(payload?.stripe?.[key] ?? ""))
     || !databaseHashes.every((key) => hex.test(payload?.database?.[key] ?? ""))
@@ -1257,8 +1299,7 @@ export function assertEvidence(payload, config) {
 }
 
 export async function runSellerRefundProductionProof(config = validateConfiguration(), dependencies = {}) {
-  assertGitState(readGitState(config.cwd), config.expectedCommit);
-  (dependencies.verifyGitHubCi ?? verifyGitHubCi)(config);
+  (dependencies.verifyExecutionBindings ?? verifyExecutionBindings)(config);
   assertSignedPredecessorEvidence(readPrivateJson(config.signedEvidencePath, "signed payment predecessor evidence"), config);
   const localValues = loadPrivateEnvironment(LOCAL_ENV_PATH, "local environment file");
   const ownerValues = loadPrivateEnvironment(OWNER_ENV_PATH, "migration-owner environment file");
