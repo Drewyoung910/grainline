@@ -10,6 +10,7 @@ import {
   assertConnectedAccount,
   assertDeletedConnectedAccountAbsence,
   assertEvidence,
+  assertExecutionBindings,
   assertPayment,
   assertProofSnapshot,
   assertRefundProviderEvidence,
@@ -30,8 +31,10 @@ import {
 const COMMIT = "a".repeat(40);
 const SOURCE = "b".repeat(40);
 const SIGNED = "c".repeat(40);
+const OPERATOR = "d".repeat(40);
 const CI = 32810000001;
 const SIGNED_CI = 32810000002;
+const OPERATOR_CI = 32810000003;
 const DEPLOYMENT = "dpl_OrderPaymentSellerRefundProof";
 const config = Object.freeze({
   expectedCommit: COMMIT,
@@ -54,6 +57,18 @@ function environment(overrides = {}) {
     ORDER_PAYMENT_SELLER_REFUND_STRIPE_CLI_PATH: "/opt/homebrew/bin/stripe",
     ORDER_PAYMENT_SELLER_REFUND_SIGNED_EVIDENCE_PATH: "/private/tmp/signed.json",
     ...overrides,
+  };
+}
+
+function successfulCi(commit, runId) {
+  return {
+    databaseId: runId,
+    headSha: commit,
+    conclusion: "success",
+    status: "completed",
+    workflowName: "CI",
+    headBranch: "main",
+    event: "push",
   };
 }
 
@@ -140,10 +155,43 @@ function snapshot(overrides = {}) {
 test("seller refund proof configuration and predecessor are exact", () => {
   const parsed = validateConfiguration(environment(), "/repo");
   assert.equal(parsed.expectedCommit, COMMIT);
+  assert.equal(parsed.operatorCommit, COMMIT);
+  assert.equal(parsed.operatorCiRunId, CI);
   assert.equal(parsed.signedProofCommit, SIGNED);
   assert.equal(parsed.signedProofCiRunId, SIGNED_CI);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_SELLER_REFUND_CONFIRM: "wrong" })), /confirmation is invalid/);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_SELLER_REFUND_SIGNED_PROOF_COMMIT: "bad" })), /commit input is invalid/);
+  assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_SELLER_REFUND_OPERATOR_COMMIT: OPERATOR })), /must be supplied together/);
+  const restarted = validateConfiguration(environment({
+    ORDER_PAYMENT_SELLER_REFUND_OPERATOR_COMMIT: OPERATOR,
+    ORDER_PAYMENT_SELLER_REFUND_OPERATOR_CI_RUN_ID: String(OPERATOR_CI),
+  }), "/repo");
+  assert.equal(restarted.expectedCommit, COMMIT);
+  assert.equal(restarted.operatorCommit, OPERATOR);
+  assert.equal(restarted.operatorCiRunId, OPERATOR_CI);
+  assert.deepEqual(assertExecutionBindings(
+    { branch: "main", head: OPERATOR, status: "" },
+    successfulCi(COMMIT, CI),
+    successfulCi(OPERATOR, OPERATOR_CI),
+    restarted,
+  ), {
+    attemptCommit: COMMIT,
+    attemptCiRunId: CI,
+    operatorCommit: OPERATOR,
+    operatorCiRunId: OPERATOR_CI,
+  });
+  assert.throws(() => assertExecutionBindings(
+    { branch: "main", head: COMMIT, status: "" },
+    successfulCi(COMMIT, CI),
+    successfulCi(OPERATOR, OPERATOR_CI),
+    restarted,
+  ), /requires exact clean reviewed main/);
+  assert.throws(() => assertExecutionBindings(
+    { branch: "main", head: OPERATOR, status: "" },
+    successfulCi(COMMIT, CI),
+    successfulCi(COMMIT, OPERATOR_CI),
+    restarted,
+  ), /exact-main CI binding did not pass/);
   const predecessor = {
     phase: "order-payment-event-signed-production-proof",
     status: "passed",
@@ -360,6 +408,14 @@ test("local and signed effects, replay, evidence and redaction fail closed", () 
   const evidence = buildEvidence(config, state, cleanup);
   assert.equal(assertEvidence(evidence, config).database.retainedProcessedWebhookLeases, 1);
   assert.match(evidence.stripe.refundSha256, /^[a-f0-9]{64}$/);
+  const restartedConfig = { ...config, operatorCommit: OPERATOR, operatorCiRunId: OPERATOR_CI };
+  const restartedEvidence = buildEvidence(restartedConfig, state, cleanup);
+  assert.equal(assertEvidence(restartedEvidence, restartedConfig).operatorCommit, OPERATOR);
+  assert.equal(restartedEvidence.operatorCiRunId, OPERATOR_CI);
+  assert.throws(
+    () => assertEvidence({ ...restartedEvidence, operatorCommit: COMMIT }, restartedConfig),
+    /sanitized evidence drifted/,
+  );
   assert.equal(redact("sk_test_secret acct_123 postgres://owner:secret@db Bearer token"),
     "[redacted-stripe-secret] [redacted-stripe-object] [redacted-database-url] Bearer [redacted-token]");
 });

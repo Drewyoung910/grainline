@@ -142,6 +142,18 @@ metadata key against the provider limit before any request. The preserved
 journal remains the only valid retry identity. No deployment, migration,
 grant, RLS or provider configuration changed.
 
+The post-merge restart review then found that the first operator version used
+one commit/CI pair for two distinct identities: the preserved attempt and the
+currently executing corrected code. Requiring the corrected checkout while
+also requiring the journal's original commit was impossible without rewriting
+the journal, which is forbidden. Retry configuration now keeps
+`EXPECTED_COMMIT` / `MAIN_CI_RUN_ID` bound to the original attempt and adds a
+paired `OPERATOR_COMMIT` / `OPERATOR_CI_RUN_ID` bound to the clean corrected
+main checkout. Both successful exact-main CI records are verified, operator
+metadata and sanitized evidence retain both identities, and the original
+journal, marker and Stripe idempotency namespace remain unchanged. The two
+operator variables must be supplied together or the retry fails closed.
+
 ## Sequencing
 
 1. Retain the accepted distinct signed refund/dispute proof.

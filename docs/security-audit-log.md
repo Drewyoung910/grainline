@@ -3561,3 +3561,13 @@ Open work:
   both account and PaymentIntent metadata and validates all emitted keys
   against Stripe's 40-character maximum before either provider request. The
   private mode-`0600` journal is retained for the sole restart-safe retry.
+- Post-merge restart review found a separate identity-binding defect before
+  retry: the original operator required the checked-out Git commit to equal the
+  commit embedded in the preserved journal. A corrected commit therefore could
+  not resume that journal without an unsafe rewrite. The operator now keeps
+  the original attempt commit/CI bound to the journal, marker and idempotency
+  namespace while separately requiring the clean corrected operator commit and
+  its successful exact-main CI. Both bindings are verified and retained in
+  sanitized evidence; either missing paired operator input or any cross-pair
+  mismatch fails closed. No retry or production/provider mutation occurred
+  while making this correction.
