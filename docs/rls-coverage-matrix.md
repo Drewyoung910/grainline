@@ -474,6 +474,12 @@ state and supersede earlier inline chronology in its matrix summary.
 > existing account, payment and private fixtures remain bounded to that one
 > journal; no second attempt is permitted. This is not proof acceptance or RLS
 > activation.
+>
+> The restart contract now keeps the original attempt commit/CI immutable while
+> independently verifying the current corrected operator commit/CI. The
+> original identity continues to derive the journal path, Stripe marker and
+> idempotency namespace; evidence records both. This fixes provenance without
+> editing the private journal or broadening execution authority.
 
 ## Program Rules
 
