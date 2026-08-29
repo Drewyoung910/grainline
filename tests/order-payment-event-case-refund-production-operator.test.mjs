@@ -23,6 +23,10 @@ import {
   readGitState,
   validateConfiguration,
 } from "../scripts/order-payment-event-case-refund-production-proof.mjs";
+import {
+  assertGitState as assertReviewedGitState,
+  parseGitHubCiRun as parseReviewedGitHubCiRun,
+} from "../scripts/seller-payout-event-linked-production-proof.mjs";
 
 const commit = (character) => character.repeat(40);
 const evidenceDigest = "e".repeat(64);
@@ -132,6 +136,25 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     assert.equal(typeof state.branch, "string");
     assert.equal(typeof state.status, "string");
     assert.equal(Object.hasOwn(state, "commit"), false);
+    assert.deepEqual(
+      assertReviewedGitState({ ...state, branch: "", status: "" }, state.head),
+      { clean: true, head: state.head },
+    );
+
+    const runId = 33271679657;
+    assert.deepEqual(parseReviewedGitHubCiRun({
+      databaseId: runId,
+      headSha: state.head,
+      conclusion: "success",
+      status: "completed",
+      workflowName: "CI",
+      headBranch: "main",
+      event: "push",
+    }, state.head, runId), { passed: true, runId });
+
+    const source = readFileSync("scripts/order-payment-event-case-refund-production-proof.mjs", "utf8");
+    assert.match(source, /assertGitState\(readGitState\(config\.cwd\), config\.expectedCommit\)/);
+    assert.match(source, /parseGitHubCiRun\([\s\S]*config\.expectedCommit,[\s\S]*config\.mainCiRunId/);
   });
 
   it("pins every execution, deployment, predecessor, evidence and confirmation input", () => {
