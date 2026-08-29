@@ -1,7 +1,8 @@
 # OrderPaymentEvent Signed Dispute Identity Correction
 
-Status: `ISOLATED_CANDIDATE`; production remains on the compatible predecessor,
-`OrderPaymentEvent` RLS remains off, and predecessor runtime CRUD remains live.
+Status: `COMPATIBLE_PRODUCTION_ACCEPTED`; production has the canonical `du_`
+correction, `OrderPaymentEvent` RLS remains off, predecessor runtime CRUD
+remains live, and the preserved provider journal has not yet been resumed.
 
 ## Finding
 
@@ -99,3 +100,26 @@ behavior proof identical before the candidate is applied to the CI database.
 The associated Vercel Preview compiled and passed TypeScript, then failed at
 page-data collection solely because Preview intentionally has no
 `DATABASE_URL`; that remains the expected fail-closed Preview posture.
+
+## Production acceptance (2026-08-28)
+
+- PR #310 merged exact corrected head
+  `d9a8069bf7422f68d01fb7499dcbfc3fe66d3da7` as main
+  `72cac67e2b375f065a36821dcdccd76836b515df`.
+- Exact-main CI `33225769878` passed the full migration/RLS/PostgreSQL chain,
+  3,492 tests, TypeScript, lint, the high-severity dependency audit and the
+  production build.
+- Guarded production run `33227729046` started from exact state
+  `signed-dispute-identity-predecessor`, applied only
+  `20260828020000_correct_order_payment_signed_dispute_identity`, then passed
+  Prisma migration status and the global runtime grant/RLS audit.
+- The audit covered 65 tables, 22 enums, 179 `grainline_*` functions, one
+  extension, four RLS policy tables and zero sequence references. The final
+  engine-read-only scope was exactly `signed-dispute-identity-compatible` with
+  runtime-only function execution, predecessor CRUD retained,
+  `OrderPaymentEvent` RLS off and `productionChangedByProof=false`.
+- This accepts only database compatibility. The original mode-`0600` journal
+  remains at `dispute-delivery-resend-pending`; no new payment, refund or
+  dispute may be created when it resumes. Exact signed delivery, replay,
+  bounded cleanup and sanitized success evidence remain required before this
+  provider authority family is complete.

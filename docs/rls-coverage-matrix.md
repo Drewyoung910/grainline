@@ -356,6 +356,20 @@ completed alternative.
 > from the original journal/idempotency binding. Merge, exact-main CI and an
 > exact restart remain required; this is not signed-family acceptance or RLS
 > activation evidence.
+>
+> **Signed-dispute compatibility acceptance (2026-08-28):** PR #310 merged
+> corrected head `d9a8069bf7422f68d01fb7499dcbfc3fe66d3da7` as exact main
+> `72cac67e2b375f065a36821dcdccd76836b515df`; exact-main CI
+> `33225769878` passed. Guarded production run `33227729046` started from the
+> exact signed-refund-compatible predecessor, applied only
+> `20260828020000_correct_order_payment_signed_dispute_identity`, and passed
+> migration status, the global 65-table/179-function grant and RLS audit, and
+> the final engine-read-only `signed-dispute-identity-compatible` scope.
+> Runtime-only execute, predecessor CRUD and RLS-off posture are unchanged.
+> Resume only the preserved `dispute-delivery-resend-pending` journal; do not
+> create another payment, refund or dispute. Signed delivery/replay, bounded
+> cleanup, a fresh automatic paid proof, remaining invariants/projections,
+> predecessor drain and separate ENABLE/FORCE releases remain open.
 
 ## Program Rules
 
