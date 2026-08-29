@@ -3760,3 +3760,18 @@ Open work:
   regression forbidding the unproven endpoint. No refund, reversal, provider
   configuration, deployment, migration, grant or RLS change occurred. This
   failed execution is not acceptance evidence.
+
+## OrderPaymentEvent staff Case-refund restart binding correction (2026-08-29)
+
+- After exact-main CI passed for the Clerk correction, the preserved journal
+  correctly remained bound to original attempt
+  `711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14` / CI `33274185617`; the corrected
+  executable was exact main `1ec1acf35e382de716a0da53a23a9eec709a3084` /
+  CI `33276155598`. The operator incorrectly represented both as one identity,
+  so it was not resumed and no new external call occurred.
+- The corrected contract separates immutable attempt commit/CI from current
+  operator commit/CI. Attempt identity continues to derive the state filename,
+  provider marker, idempotency keys and private onboarding record; current
+  operator identity must independently pass the shared exact-main verifier.
+  Accepted evidence records both pairs. Version-1 restart files retain their
+  original fields and require no unsafe journal mutation.

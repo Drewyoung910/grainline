@@ -193,6 +193,20 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
       () => validateConfiguration({ ...environment, ORDER_PAYMENT_CASE_REFUND_CONFIRM: "yes" }),
       /confirmation is invalid/,
     );
+
+    const corrected = validateConfiguration({
+      ...environment,
+      ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT: commit("9"),
+      ORDER_PAYMENT_CASE_REFUND_MAIN_CI_RUN_ID: "33276155598",
+      ORDER_PAYMENT_CASE_REFUND_ATTEMPT_COMMIT: environment.ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT,
+      ORDER_PAYMENT_CASE_REFUND_ATTEMPT_MAIN_CI_RUN_ID: environment.ORDER_PAYMENT_CASE_REFUND_MAIN_CI_RUN_ID,
+    }, "/private/tmp/grainline-proof");
+    assert.equal(corrected.expectedCommit, commit("9"));
+    assert.equal(corrected.mainCiRunId, 33276155598);
+    assert.equal(corrected.attemptCommit, environment.ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT);
+    assert.equal(corrected.attemptMainCiRunId, Number(environment.ORDER_PAYMENT_CASE_REFUND_MAIN_CI_RUN_ID));
+    assert.equal(corrected.statePath.endsWith(`-${commit("a").slice(0, 12)}.json`), true);
+    assert.equal(assertState(baseState(), corrected).expectedCommit, corrected.attemptCommit);
   });
 
   it("binds restart state and only permits forward, complete stages", () => {
@@ -312,6 +326,8 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
       canaryCount: 1,
     };
     const evidence = assertEvidence(buildEvidence(config, state, cleanup), config);
+    assert.equal(evidence.attemptCommit, config.attemptCommit);
+    assert.equal(evidence.attemptCiRunId, config.attemptMainCiRunId);
     assert.equal(evidence.database.retainedAdminPinAuditRows, 2);
     assert.equal(evidence.database.operationalCanaryRoleRestored, true);
     assert.equal(evidence.rateLimitTelemetry, "bounded TTL entries retained");

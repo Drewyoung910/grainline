@@ -182,11 +182,12 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     throw new Error("Case refund proof command is invalid");
   }
   const expectedCommit = required(env, "ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT");
+  const attemptCommit = env.ORDER_PAYMENT_CASE_REFUND_ATTEMPT_COMMIT || expectedCommit;
   const deployedSourceCommit = required(env, "ORDER_PAYMENT_CASE_REFUND_DEPLOYED_SOURCE_COMMIT");
   const sellerProofAttemptCommit = required(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_ATTEMPT_COMMIT");
   const sellerProofOperatorCommit = required(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_OPERATOR_COMMIT");
   const sellerProofSignedCommit = required(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_SIGNED_COMMIT");
-  if (![expectedCommit, deployedSourceCommit, sellerProofAttemptCommit, sellerProofOperatorCommit, sellerProofSignedCommit]
+  if (![expectedCommit, attemptCommit, deployedSourceCommit, sellerProofAttemptCommit, sellerProofOperatorCommit, sellerProofSignedCommit]
     .every((value) => COMMIT_PATTERN.test(value))) {
     throw new Error("Case refund proof commit input is invalid");
   }
@@ -196,6 +197,9 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     throw new Error("Case refund proof confirmation is invalid");
   }
   const mainCiRunId = positiveInteger(env, "ORDER_PAYMENT_CASE_REFUND_MAIN_CI_RUN_ID");
+  const attemptMainCiRunId = env.ORDER_PAYMENT_CASE_REFUND_ATTEMPT_MAIN_CI_RUN_ID
+    ? positiveInteger(env, "ORDER_PAYMENT_CASE_REFUND_ATTEMPT_MAIN_CI_RUN_ID")
+    : mainCiRunId;
   const sellerProofAttemptCiRunId = positiveInteger(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_ATTEMPT_CI_RUN_ID");
   const sellerProofOperatorCiRunId = positiveInteger(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_OPERATOR_CI_RUN_ID");
   const sellerProofSignedCiRunId = positiveInteger(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_SIGNED_CI_RUN_ID");
@@ -203,14 +207,16 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   if (!/^[a-f0-9]{64}$/.test(sellerProofEvidenceSha256)) {
     throw new Error("Case refund seller predecessor evidence digest is invalid");
   }
-  const suffix = expectedCommit.slice(0, 12);
+  const suffix = attemptCommit.slice(0, 12);
   return Object.freeze({
     cwd,
     command: commandName,
     expectedCommit,
+    attemptCommit,
     deployedSourceCommit,
     deploymentId,
     mainCiRunId,
+    attemptMainCiRunId,
     stripeCliPath: required(env, "ORDER_PAYMENT_CASE_REFUND_STRIPE_CLI_PATH"),
     vercelProjectDirectory: env.VERCEL_PROJECT_DIRECTORY || "/Users/drewyoung/grainline",
     sellerProofAttemptCommit,
@@ -243,9 +249,9 @@ export function createInitialState(config, canary) {
     version: 1,
     phase: "order-payment-event-case-refund-production-proof",
     attemptId,
-    expectedCommit: config.expectedCommit,
+    expectedCommit: config.attemptCommit,
     deployedSourceCommit: config.deployedSourceCommit,
-    mainCiRunId: config.mainCiRunId,
+    mainCiRunId: config.attemptMainCiRunId,
     deploymentId: config.deploymentId,
     sellerProofOperatorCommit: config.sellerProofOperatorCommit,
     sellerProofOperatorCiRunId: config.sellerProofOperatorCiRunId,
@@ -278,8 +284,8 @@ function nullableStripeId(value, prefix) {
 export function assertState(value, config) {
   if (!value || typeof value !== "object" || Array.isArray(value)
     || value.version !== 1 || value.phase !== "order-payment-event-case-refund-production-proof"
-    || value.expectedCommit !== config.expectedCommit || value.deployedSourceCommit !== config.deployedSourceCommit
-    || String(value.mainCiRunId) !== String(config.mainCiRunId) || value.deploymentId !== config.deploymentId
+    || value.expectedCommit !== config.attemptCommit || value.deployedSourceCommit !== config.deployedSourceCommit
+    || String(value.mainCiRunId) !== String(config.attemptMainCiRunId) || value.deploymentId !== config.deploymentId
     || value.sellerProofOperatorCommit !== config.sellerProofOperatorCommit
     || String(value.sellerProofOperatorCiRunId) !== String(config.sellerProofOperatorCiRunId)
     || !/^[a-f0-9]{32}$/.test(String(value.attemptId ?? ""))
@@ -475,7 +481,7 @@ async function verifyDatabaseBoundary(owner, runtime) {
 }
 
 function markerFor(config, state) {
-  return sha256(`${config.expectedCommit}:${state.attemptId}:case-refund`);
+  return sha256(`${config.attemptCommit}:${state.attemptId}:case-refund`);
 }
 
 export function buildStripeProofMetadata(config, state) {
@@ -547,7 +553,7 @@ function assertOnboardingRecord(value, config, state, requireFresh = true) {
   let parsed;
   try { parsed = new URL(value?.url); } catch { throw new Error("Case refund onboarding URL drifted"); }
   if (value?.version !== 1 || value?.phase !== "order-payment-event-case-refund-onboarding"
-    || value?.attemptId !== state.attemptId || value?.expectedCommit !== config.expectedCommit
+    || value?.attemptId !== state.attemptId || value?.expectedCommit !== config.attemptCommit
     || value?.stripeAccountId !== state.stripeAccountId
     || parsed.protocol !== "https:" || parsed.hostname !== "connect.stripe.com" || !parsed.pathname.startsWith("/setup/")
     || !Number.isSafeInteger(value?.expiresAt) || value.expiresAt <= 0
@@ -561,7 +567,7 @@ function writeOnboardingRecord(config, state, link) {
   const value = assertOnboardingRecord({
     version: 1,
     phase: "order-payment-event-case-refund-onboarding",
-    expectedCommit: config.expectedCommit,
+    expectedCommit: config.attemptCommit,
     attemptId: state.attemptId,
     stripeAccountId: state.stripeAccountId,
     url: link.url,
@@ -587,7 +593,7 @@ function listAll(listPromise) {
 }
 
 function stripeDependencies(stripe, secretKey, config, state) {
-  const idempotency = (key) => ({ idempotencyKey: `grainline-ope-case-refund-${config.expectedCommit}-${state.attemptId}-${key}` });
+  const idempotency = (key) => ({ idempotencyKey: `grainline-ope-case-refund-${config.attemptCommit}-${state.attemptId}-${key}` });
   return {
     listClassicEndpoints: () => listAll(stripe.webhookEndpoints.list({ limit: 100 })),
     listV2Destinations: () => listAll(stripe.v2.core.eventDestinations.list({ include: ["webhook_endpoint.url"], limit: 100 })),
@@ -1432,8 +1438,10 @@ export function buildEvidence(config, state, cleanup) {
     status: "passed",
     mode: "test",
     commit: config.expectedCommit,
+    attemptCommit: config.attemptCommit,
     deployedSourceCommit: config.deployedSourceCommit,
     ciRunId: config.mainCiRunId,
+    attemptCiRunId: config.attemptMainCiRunId,
     deploymentId: config.deploymentId,
     sellerRefundPredecessorOperatorCommit: config.sellerProofOperatorCommit,
     sellerRefundPredecessorOperatorCiRunId: config.sellerProofOperatorCiRunId,
@@ -1494,8 +1502,11 @@ export function assertEvidence(payload, config) {
   ];
   if (payload?.phase !== "order-payment-event-case-refund-production-proof"
     || payload?.status !== "passed" || payload?.mode !== "test"
-    || payload?.commit !== config.expectedCommit || payload?.deployedSourceCommit !== config.deployedSourceCommit
-    || String(payload?.ciRunId) !== String(config.mainCiRunId) || payload?.deploymentId !== config.deploymentId
+    || payload?.commit !== config.expectedCommit || payload?.attemptCommit !== config.attemptCommit
+    || payload?.deployedSourceCommit !== config.deployedSourceCommit
+    || String(payload?.ciRunId) !== String(config.mainCiRunId)
+    || String(payload?.attemptCiRunId) !== String(config.attemptMainCiRunId)
+    || payload?.deploymentId !== config.deploymentId
     || payload?.sellerRefundPredecessorOperatorCommit !== config.sellerProofOperatorCommit
     || String(payload?.sellerRefundPredecessorOperatorCiRunId) !== String(config.sellerProofOperatorCiRunId)
     || !hashes.every((value) => hex.test(value ?? ""))

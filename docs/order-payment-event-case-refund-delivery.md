@@ -147,6 +147,16 @@ and `POST /v1/client/sign_ins` request with `strategy=ticket`, pins the ticket
 and cookie bounds, and adds a regression forbidding the unproven endpoint. The
 failed invocation is not acceptance evidence and does not authorize RLS.
 
+Restart after that correction also exposed a provenance-model defect before a
+second external call: the operator used one commit/CI pair both for the
+immutable original attempt and for the currently executing corrected source.
+Those identities must differ after any restart-safe code correction. The
+contract now binds `attemptCommit` plus `attemptCiRunId` permanently to the
+existing journal, Stripe metadata, idempotency namespace, onboarding record
+and evidence, while separately verifying the current operator's exact main
+commit and CI. Existing version-1 journals remain valid without editing or
+renaming; no provider or application identity can be rebound to a correction.
+
 ## Finding
 
 The existing staff Case protocol correctly separates the provider request from
