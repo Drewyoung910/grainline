@@ -16,6 +16,7 @@ import {
   findSingleRefundEvent,
   redact,
   shouldReadApplicationDelivery,
+  signedRefundSourceIdentity,
   validateConfiguration,
 } from "../scripts/order-payment-event-signed-production-proof.mjs";
 
@@ -28,6 +29,8 @@ const config = Object.freeze({
   deploymentId: DEPLOYMENT_ID,
   expectedCommit: COMMIT,
   mainCiRunId: CI_RUN_ID,
+  preparationCiRunId: CI_RUN_ID,
+  preparationCommit: COMMIT,
 });
 
 function environment(overrides = {}) {
@@ -132,6 +135,10 @@ function delivery(overrides = {}) {
     refundWebhookEpoch: "1787700001.1",
     refundPaymentCount: 1,
     refundPaymentEventId: "ope_refund_proof",
+    refundReason: "external_refund",
+    refundLatestRefundId: "re_refund_proof",
+    refundEvidenceId: null,
+    refundEvidenceAction: null,
     refundAuditCount: 1,
     orderRefundId: "re_refund_proof",
     orderRefundAmount: REFUND_AMOUNT_CENTS,
@@ -158,10 +165,18 @@ function delivery(overrides = {}) {
 test("signed production proof requires an exact release binding", () => {
   const parsed = validateConfiguration(environment());
   assert.equal(parsed.expectedCommit, COMMIT);
+  assert.equal(parsed.preparationCommit, COMMIT);
   assert.equal(parsed.deployedSourceCommit, DEPLOYED_SOURCE_COMMIT);
   assert.equal(parsed.mainCiRunId, CI_RUN_ID);
   assert.equal(parsed.deploymentId, DEPLOYMENT_ID);
   assert.match(parsed.statePath, new RegExp(`${COMMIT}\\.json$`));
+  const resumed = validateConfiguration(environment({
+    ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_COMMIT: "c".repeat(40),
+    ORDER_PAYMENT_SIGNED_PROOF_PREPARATION_CI_RUN_ID: "32808888888",
+  }));
+  assert.equal(resumed.preparationCommit, "c".repeat(40));
+  assert.equal(resumed.preparationCiRunId, 32808888888);
+  assert.match(resumed.statePath, new RegExp(`${"c".repeat(40)}\\.json$`));
   assert.throws(
     () => validateConfiguration(environment({ ORDER_PAYMENT_SIGNED_PROOF_CONFIRM: "wrong" })),
     /confirmation is invalid/,
@@ -209,6 +224,7 @@ test("signed refund event binds modern Stripe charge totals without an embedded 
   const value = state("refund-created");
   const event = {
     id: "evt_refund_proof",
+    created: 1787700002,
     type: "charge.refunded",
     livemode: false,
     data: { object: {
@@ -222,6 +238,50 @@ test("signed refund event binds modern Stripe charge totals without an embedded 
     } },
   };
   assert.equal(findSingleRefundEvent([event], value)?.id, event.id);
+  assert.deepEqual(signedRefundSourceIdentity(event, {
+    ...value,
+    refundEventId: event.id,
+  }), {
+    objectId: `external:${event.id}`,
+    representation: "external_event",
+  });
+  assert.deepEqual(signedRefundSourceIdentity({
+    ...event,
+    data: { object: {
+      ...event.data.object,
+      refunds: { data: [{
+        id: value.refundId,
+        amount: REFUND_AMOUNT_CENTS,
+        status: "succeeded",
+        created: 1787700001,
+      }] },
+    } },
+  }, { ...value, refundEventId: event.id }), {
+    objectId: value.refundId,
+    representation: "provider_refund",
+  });
+  assert.throws(
+    () => signedRefundSourceIdentity({
+      ...event,
+      data: { object: { ...event.data.object, refunds: { data: {} } } },
+    }, { ...value, refundEventId: event.id }),
+    /collection is malformed/,
+  );
+  assert.throws(
+    () => signedRefundSourceIdentity({
+      ...event,
+      data: { object: {
+        ...event.data.object,
+        refunds: { data: [{
+          id: "re_wrong",
+          amount: REFUND_AMOUNT_CENTS,
+          status: "succeeded",
+          created: 1787700001,
+        }] },
+      } },
+    }, { ...value, refundEventId: event.id }),
+    /embedded identity drifted/,
+  );
   assert.equal(findSingleRefundEvent([{ ...event, data: { object: {
     ...event.data.object, amount_refunded: REFUND_AMOUNT_CENTS - 1,
   } } }], value), null);
@@ -246,7 +306,15 @@ test("post-cleanup recovery never requires deleted application rows", () => {
     notificationCount: 0,
     webhookCount: 2,
     processedWebhookCount: 2,
-  }, { stage: 4 });
+  }, { stage: 4 }, {
+    objectId: "external:evt_refund_proof",
+    representation: "external_event",
+  });
+  assert.equal(evidence.commit, COMMIT);
+  assert.equal(evidence.preparationCommit, COMMIT);
+  assert.equal(evidence.ciRunId, CI_RUN_ID);
+  assert.equal(evidence.preparationCiRunId, CI_RUN_ID);
+  assert.equal(evidence.stripe.signedRefundIdentityRepresentation, "external_event");
   assert.match(evidence.database.refundPaymentEventSha256, /^[a-f0-9]{64}$/);
   assert.match(evidence.database.disputePaymentEventSha256, /^[a-f0-9]{64}$/);
   assert.equal(evidence.database.temporaryApplicationRowsRemoved, true);
@@ -270,22 +338,28 @@ test("crash-left pending state accepts only one adjacent sealed transition", () 
 });
 
 test("delivery, replay and cleanup snapshots preserve exact identities", () => {
-  const first = assertDeliverySnapshot(delivery(), { refundId: "re_refund_proof" });
+  const expectedRefund = {
+    refundObjectId: "re_refund_proof",
+    refundRepresentation: "provider_refund",
+  };
+  const first = assertDeliverySnapshot(delivery(), expectedRefund);
   assert.equal(first.orderRefundAmount, REFUND_AMOUNT_CENTS);
   assert.equal(DISPUTE_AMOUNT_CENTS, 500);
   assert.deepEqual(
-    assertReplayUnchanged(first, delivery(), { refundId: "re_refund_proof" }),
+    assertReplayUnchanged(first, delivery(), expectedRefund),
     first,
   );
   assert.throws(
     () => assertReplayUnchanged(first, delivery({ disputeGeneration: "3" }), {
-      refundId: "re_refund_proof",
+      refundObjectId: "re_refund_proof",
+      refundRepresentation: "provider_refund",
     }),
     /changed disputeGeneration/,
   );
   assert.throws(
     () => assertDeliverySnapshot(delivery({ notificationCount: 2 }), {
-      refundId: "re_refund_proof",
+      refundObjectId: "re_refund_proof",
+      refundRepresentation: "provider_refund",
     }),
     /did not reach the exact reviewed state/,
   );
@@ -353,6 +427,8 @@ test("static operator contract stays test-only, restart-safe and provider-config
   assert.match(source, /two processed Stripe test-mode webhook replay leases retained/);
   assert.match(source, /ordinary signed-delivery and observability telemetry retained/);
   assert.match(source, /shouldReadApplicationDelivery\(state\.stage\)/);
+  assert.match(source, /config\.preparationCommit/);
+  assert.doesNotMatch(source, /const \[ownerIdentity, runtimeIdentity, posture, functions\] = await Promise\.all/);
   assert.doesNotMatch(source, /STAGES\.indexOf\(state\.stage\) >= STAGES\.indexOf\("dispute-delivered"\)/);
   assert.doesNotMatch(source, /webhookEndpoints\.(create|update|del)\(/);
   assert.doesNotMatch(source, /eventDestinations\.(create|update|del)\(/);

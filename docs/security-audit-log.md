@@ -3386,3 +3386,35 @@ Open work:
   absent. The isolated call-site correction and scoped regression pass 25/25
   focused tests and the full 3,479-test suite with zero failures. Resume the
   same journal only after exact merge/main CI under a new operator binding.
+
+## Signed refund production proof identity false negative (2026-08-28)
+
+- The first signed refund/dispute production proof was bound to operator main
+  `2836e51d0ceb91ce05756dc5138e7c337e02a503`, CI `33220013251`, deployed
+  source `3431bb83fa16fabb9b9e18a729a7d138d48764d9` and deployment
+  `dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`. It ran in Stripe test mode only.
+- The run created one $5 refund charge/Refund and its exact temporary refund
+  fixture. The genuine `charge.refunded` lease processed once without error;
+  the Order recorded 500 cents plus review state, one refund audit and one
+  signed `OrderPaymentEvent` existed. The run created no dispute charge or
+  fixture, wrote no success evidence and preserved its mode-`0600` journal at
+  `refund-event-ready`.
+- Engine-read-only diagnosis found a proof-contract defect. The pinned signed
+  event omitted its nested refund collection. With no prior fixed local refund
+  evidence, the production function correctly represented this direct provider
+  refund as `external:<event-id>`. The verifier incorrectly queried and compared
+  against the separately created `re_` Refund ID. Production behavior matches
+  the accepted signed-refund identity design; no app/database correction or
+  weakening is warranted.
+- The isolated correction derives the expected identity from the exact
+  immutable Stripe event: a valid embedded successful refund requires its
+  exact `re_` ID, while omission requires `external:<event-id>`. It uses that
+  source-derived identity for ledger, Order and replay checks and retains only
+  its hash/representation in sanitized evidence. An explicit preparation
+  commit binds the old journal and idempotency namespace while a separate exact
+  operator/CI commit binds corrected code. Missing, malformed, different or
+  unreviewed state fails closed; no second refund attempt is allowed.
+- The failed run also exposed a node-postgres deprecation warning from issuing
+  several catalog reads concurrently on one owner client. The correction runs
+  those reads sequentially; this does not change the proof boundary, but makes
+  database-check ordering explicit and removes that avoidable warning.
