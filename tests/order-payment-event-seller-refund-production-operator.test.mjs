@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
+  CONNECTED_ACCOUNT_CONTROLLER,
   CONFIRMATION,
   REFUND_AMOUNT_CENTS,
   STRIPE_METADATA_KEY_MAX_LENGTH,
@@ -11,12 +14,15 @@ import {
   assertDeletedConnectedAccountAbsence,
   assertEvidence,
   assertExecutionBindings,
+  assertOnboardingLink,
+  assertOnboardingRecord,
   assertPayment,
   assertProofSnapshot,
   assertRefundProviderEvidence,
   assertReplayUnchanged,
   assertSignedPredecessorEvidence,
   assertState,
+  buildConnectedAccountLinkParams,
   buildConnectedAccountParams,
   buildEvidence,
   buildStripeProofMetadata,
@@ -24,8 +30,12 @@ import {
   deleteDisposableAccount,
   findSingleRefundEvent,
   listAccountsBounded,
+  openHostedOnboarding,
+  readOnboardingRecord,
   redact,
+  removeOnboardingRecord,
   validateConfiguration,
+  writeOnboardingRecord,
 } from "../scripts/order-payment-event-seller-refund-production-proof.mjs";
 
 const COMMIT = "a".repeat(40);
@@ -157,11 +167,14 @@ test("seller refund proof configuration and predecessor are exact", () => {
   assert.equal(parsed.expectedCommit, COMMIT);
   assert.equal(parsed.operatorCommit, COMMIT);
   assert.equal(parsed.operatorCiRunId, CI);
+  assert.equal(parsed.command, "run");
   assert.equal(parsed.signedProofCommit, SIGNED);
   assert.equal(parsed.signedProofCiRunId, SIGNED_CI);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_SELLER_REFUND_CONFIRM: "wrong" })), /confirmation is invalid/);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_SELLER_REFUND_SIGNED_PROOF_COMMIT: "bad" })), /commit input is invalid/);
   assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_SELLER_REFUND_OPERATOR_COMMIT: OPERATOR })), /must be supplied together/);
+  assert.equal(validateConfiguration(environment({ ORDER_PAYMENT_SELLER_REFUND_COMMAND: "onboard" })).command, "onboard");
+  assert.throws(() => validateConfiguration(environment({ ORDER_PAYMENT_SELLER_REFUND_COMMAND: "abort" })), /command is invalid/);
   const restarted = validateConfiguration(environment({
     ORDER_PAYMENT_SELLER_REFUND_OPERATOR_COMMIT: OPERATOR,
     ORDER_PAYMENT_SELLER_REFUND_OPERATOR_CI_RUN_ID: String(OPERATOR_CI),
@@ -229,15 +242,155 @@ test("disposable account requests only transfer authority and is marker-bound", 
   const params = buildConnectedAccountParams(config, state, new Date("2026-08-25T00:00:00Z"));
   assert.deepEqual(params.capabilities, { transfers: { requested: true } });
   assert.equal(params.capabilities.card_payments, undefined);
-  assert.equal(params.type, "custom");
-  assert.equal(params.tos_acceptance.date, 1787616000);
+  assert.deepEqual(params.controller, CONNECTED_ACCOUNT_CONTROLLER);
+  assert.equal(params.type, undefined);
+  assert.equal(params.business_type, undefined);
+  assert.equal(params.individual, undefined);
+  assert.equal(params.tos_acceptance, undefined);
   assert.equal(STRIPE_PROOF_METADATA_KEY.length <= STRIPE_METADATA_KEY_MAX_LENGTH, true);
   assert.deepEqual(params.metadata, buildStripeProofMetadata(config, state));
   assert.equal(params.metadata.grainline_order_payment_seller_refund_proof, undefined);
-  const account = { id: "acct_proof", deleted: false, country: "US", default_currency: "usd", type: "custom",
+  const account = { id: "acct_proof", deleted: false, livemode: false, country: "US", default_currency: "usd",
+    controller: CONNECTED_ACCOUNT_CONTROLLER,
     capabilities: { transfers: "active" }, metadata: params.metadata };
   assert.equal(assertConnectedAccount(account, config, state).id, "acct_proof");
-  assert.throws(() => assertConnectedAccount({ ...account, capabilities: { transfers: "pending" } }, config, state), /transfer capability is not active/);
+  const pending = { ...account, capabilities: { transfers: "pending" } };
+  assert.equal(assertConnectedAccount(pending, config, state, { requireTransferActive: false }).id, "acct_proof");
+  assert.throws(() => assertConnectedAccount(pending, config, state), /connected account drifted/);
+  assert.throws(() => assertConnectedAccount({ ...account, livemode: true }, config, state), /connected account drifted/);
+  assert.throws(() => assertConnectedAccount({ ...account, controller: {
+    ...CONNECTED_ACCOUNT_CONTROLLER,
+    requirement_collection: "application",
+  } }, config, state), /connected account drifted/);
+});
+
+test("hosted onboarding is source-bound, private, expiring and never caller-routed", () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "grainline-seller-refund-onboarding-"));
+  try {
+    const state = fullState("account-created", {
+      paymentIntentId: null,
+      chargeId: null,
+      transferId: null,
+      refundId: null,
+      transferReversalId: null,
+      signedEventId: null,
+      localPaymentEventId: null,
+      signedPaymentEventId: null,
+      caseApplicationId: null,
+      notificationId: null,
+      emailOutboxId: null,
+    });
+    const scopedConfig = {
+      ...config,
+      onboardingPath: path.join(directory, "onboarding.json"),
+    };
+    assert.deepEqual(buildConnectedAccountLinkParams(state.stripeAccountId), {
+      account: state.stripeAccountId,
+      collection_options: { fields: "eventually_due" },
+      refresh_url: "https://thegrainline.com/?seller_refund_canary=refresh",
+      return_url: "https://thegrainline.com/?seller_refund_canary=return",
+      type: "account_onboarding",
+    });
+    assert.throws(() => buildConnectedAccountLinkParams("acct_invalid/path"), /exact account ID/);
+    const link = {
+      object: "account_link",
+      url: "https://connect.stripe.com/setup/s/test-proof-token",
+      expires_at: Math.floor(Date.now() / 1000) + 300,
+    };
+    assert.equal(assertOnboardingLink(link).url, link.url);
+    assert.throws(
+      () => assertOnboardingLink({ ...link, url: "https://example.com/setup/s/test" }),
+      /outside the reviewed boundary/,
+    );
+    assert.throws(
+      () => assertOnboardingLink({ ...link, expires_at: 1 }),
+      /outside the reviewed boundary/,
+    );
+    const written = writeOnboardingRecord(scopedConfig, state, link);
+    assert.equal(assertOnboardingRecord(written, scopedConfig, state).status, "onboarding-required");
+    assert.equal(readOnboardingRecord(scopedConfig, state).stripeAccountId, state.stripeAccountId);
+    assert.equal(statSync(scopedConfig.onboardingPath).mode & 0o077, 0);
+    assert.throws(
+      () => assertOnboardingRecord({
+        ...written,
+        attemptId: "22222222-2222-4222-8222-222222222222",
+      }, scopedConfig, state),
+      /does not bind the preserved attempt/,
+    );
+    removeOnboardingRecord(scopedConfig, state);
+    assert.equal(readOnboardingRecord(scopedConfig, state, { required: false }), null);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("hosted onboarding opener verifies the preserved attempt and never returns its URL", () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "grainline-seller-refund-open-"));
+  try {
+    const state = fullState("account-created", {
+      paymentIntentId: null,
+      chargeId: null,
+      transferId: null,
+      refundId: null,
+      transferReversalId: null,
+      signedEventId: null,
+      localPaymentEventId: null,
+      signedPaymentEventId: null,
+      caseApplicationId: null,
+      notificationId: null,
+      emailOutboxId: null,
+    });
+    const scopedConfig = {
+      ...config,
+      statePath: path.join(directory, "state.json"),
+      onboardingPath: path.join(directory, "onboarding.json"),
+      signedEvidencePath: path.join(directory, "signed.json"),
+    };
+    const signed = {
+      phase: "order-payment-event-signed-production-proof",
+      status: "passed",
+      mode: "test",
+      commit: SIGNED,
+      ciRunId: SIGNED_CI,
+      deployedSourceCommit: SOURCE,
+      deploymentId: DEPLOYMENT,
+      providerStage: 4,
+      stripe: { requiredResendTransitionsCompleted: 3, exactReplayProofs: 2 },
+      database: {
+        retainedProcessedWebhookLeases: 2,
+        temporaryApplicationRowsRemoved: true,
+        exactRetriesLeftApplicationIdentitiesUnchanged: true,
+      },
+      providerConfigurationChanged: false,
+      liveMoneyMoved: false,
+    };
+    writeFileSync(scopedConfig.statePath, `${JSON.stringify(state)}\n`, { mode: 0o600 });
+    writeFileSync(scopedConfig.signedEvidencePath, `${JSON.stringify(signed)}\n`, { mode: 0o600 });
+    const link = {
+      object: "account_link",
+      url: "https://connect.stripe.com/setup/s/test-open-token",
+      expires_at: Math.floor(Date.now() / 1000) + 300,
+    };
+    writeOnboardingRecord(scopedConfig, state, link);
+    let openedUrl = null;
+    const result = openHostedOnboarding(scopedConfig, {
+      verifyExecutionBindings() {},
+      openUrl(url) {
+        openedUrl = url;
+        return { status: 0 };
+      },
+    });
+    assert.equal(openedUrl, link.url);
+    assert.deepEqual(result, {
+      phase: "order-payment-event-seller-refund-production-proof",
+      status: "onboarding-opened",
+      rawProviderIdsPersistedInOutput: false,
+      secretsPersistedInOutput: false,
+    });
+    assert.doesNotMatch(JSON.stringify(result), /connect\.stripe\.com|test-open-token/);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
 });
 
 test("deleted connected-account restart requires Stripe's exact absence response and a complete account listing", async () => {
@@ -302,9 +455,10 @@ test("deleted connected-account restart requires Stripe's exact absence response
   const activeAccount = {
     id: accountId,
     deleted: false,
+    livemode: false,
     country: "US",
     default_currency: "usd",
-    type: "custom",
+    controller: CONNECTED_ACCOUNT_CONTROLLER,
     capabilities: { transfers: "active" },
     metadata: params.metadata,
   };
@@ -416,8 +570,10 @@ test("local and signed effects, replay, evidence and redaction fail closed", () 
     () => assertEvidence({ ...restartedEvidence, operatorCommit: COMMIT }, restartedConfig),
     /sanitized evidence drifted/,
   );
-  assert.equal(redact("sk_test_secret acct_123 postgres://owner:secret@db Bearer token"),
-    "[redacted-stripe-secret] [redacted-stripe-object] [redacted-database-url] Bearer [redacted-token]");
+  assert.equal(
+    redact("sk_test_secret acct_123 postgres://owner:secret@db Bearer token https://connect.stripe.com/setup/s/secret"),
+    "[redacted-stripe-secret] [redacted-stripe-object] [redacted-database-url] Bearer [redacted-token] [redacted-onboarding-url]",
+  );
 });
 
 test("static operator contract remains test-only and production-configuration read-only", () => {
@@ -436,8 +592,16 @@ test("static operator contract remains test-only and production-configuration re
   const databaseBoundary = source.slice(databaseBoundaryStart, databaseBoundaryEnd);
   assert.match(source, /validateStripeSecret\(localValues\)/);
   assert.match(source, /provider\.stage !== 4/);
-  assert.match(source, /type: "custom"/);
+  assert.match(source, /requirement_collection: "stripe"/);
+  assert.match(source, /stripe_dashboard: Object\.freeze\(\{ type: "express" \}\)/);
   assert.match(source, /capabilities: \{ transfers: \{ requested: true \} \}/);
+  assert.match(source, /account-v2-express-stripe-collector/);
+  assert.match(source, /ORDER_PAYMENT_SELLER_REFUND_COMMAND/);
+  assert.match(source, /\/usr\/bin\/open/);
+  assert.doesNotMatch(source, /type: "custom"/);
+  assert.doesNotMatch(source, /business_type:/);
+  assert.doesNotMatch(source, /tos_acceptance:/);
+  assert.doesNotMatch(source, /individual:/);
   assert.match(source, /"vacationMode"/);
   assert.match(source, /EMAIL_REFUND_ISSUED/);
   assert.match(source, /cleanupExactRows/);

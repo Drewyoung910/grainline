@@ -1,8 +1,9 @@
 # OrderPaymentEvent seller full-refund production proof
 
-Status: first execution attempt failed closed before provider-object creation;
-an isolated metadata-limit correction and the preserved restart journal are
-under review. Review or merge does not authorize execution or retry.
+Status: second execution attempt failed closed before provider-object creation;
+an isolated production-aligned Express/Stripe-collected onboarding correction
+and the preserved restart journal are under review. Review or merge does not
+authorize execution or retry.
 `OrderPaymentEvent` RLS remains off and predecessor CRUD must remain available
 throughout this proof.
 
@@ -32,6 +33,10 @@ removed. It is not RLS activation evidence by itself.
   commit atomically and finish as `SKIPPED`; the proof sends no email.
 - Create one disposable Stripe **test-mode** platform-controlled connected
   account with only the `transfers` capability needed by a destination charge.
+  Use the same Express controller and Stripe-collected responsibility boundary
+  as Grainline's accepted blocked-checkout proof. Do not change the Stripe
+  platform profile to accommodate the proof and do not submit legacy Custom,
+  application-collected identity or direct TOS fields.
   This proof does not represent production seller onboarding or a live-mode
   account. The account must be marker-bound, receive exactly one 475-cent
   destination transfer, return to zero after reversal and be deleted during
@@ -127,7 +132,7 @@ Every other error or listing shape fails closed, including restart from either
 
 ## First execution attempt failed closed (2026-08-28)
 
-Exact main `877610cbb12491d8e788e6948a3c9c31aced1e70` and CI
+Exact main `877610cbb12491d6ae67e56ddb745ace146e1ed3` and CI
 `33231868504` passed every repository gate, but Stripe rejected the first
 account-create request before object creation because the proof metadata key
 was 43 characters and Stripe permits at most 40. The private mode-`0600`
@@ -154,12 +159,47 @@ metadata and sanitized evidence retain both identities, and the original
 journal, marker and Stripe idempotency namespace remain unchanged. The two
 operator variables must be supplied together or the retry fails closed.
 
+## Second execution attempt failed closed (2026-08-29)
+
+The preserved attempt resumed from corrected operator/main
+`232f4b6f725caa193af51f214395f6019cddde63` and CI `33233774693`, while
+retaining original attempt main `877610cbb12491d6ae67e56ddb745ace146e1ed3`
+and CI `33231868504`. Stripe rejected account creation because the operator's
+legacy Custom/application-collected responsibility fields conflict with the
+platform's current Connect responsibility profile. The journal remained at
+`account-create-pending`. A complete read-only test-account scan again reached
+provider `has_more=false` after 13 accounts and found zero accounts with the
+attempt marker. No account, PaymentIntent, application fixture, provider
+configuration, deployment, migration, grant or RLS change was created.
+
+The correction deliberately changes the operator rather than the Stripe
+platform profile. Account creation now uses the already-proven
+application-fee/application-loss, Stripe-collected, Express-dashboard
+controller, requests only transfers and omits `type`, `business_type`,
+`individual` and `tos_acceptance`. A versioned account idempotency suffix
+distinguishes this corrected request while the original attempt, journal,
+marker and overall idempotency namespace remain unchanged.
+
+If Stripe requires onboarding, the operator persists the marker-bound account
+first, creates one expiring Stripe-hosted link, stores it only in a fixed
+mode-`0600` file and returns a sanitized `onboarding-required` result without
+an account ID, URL or secret. A separate `onboard` command re-verifies both
+commit/CI bindings, predecessor evidence, the exact journal and link binding,
+then opens the URL without printing it. The normal command will advance to
+payment creation only after the exact account's transfers capability is
+active. Expired links are replaced only for the same preserved account; the
+private handoff record is removed after capability activation and during
+cleanup.
+
 ## Sequencing
 
 1. Retain the accepted distinct signed refund/dispute proof.
 2. Merge this reviewed operator from an exact main commit and require exact-main CI.
-3. Resume the exact preserved first attempt only after the metadata correction
-   merges and its exact-main CI passes.
-4. Record sanitized evidence and cleanup outcome.
-5. Continue with the still-separate staff Case refund live proof. Do not
+3. Merge the production-aligned Express/hosted-onboarding correction and pass
+   its exact-main CI.
+4. Resume the exact preserved first attempt. If it pauses for hosted
+   onboarding, open only the private marker-bound link, complete Stripe's test
+   onboarding, and resume the same account and journal.
+5. Record sanitized evidence and cleanup outcome.
+6. Continue with the still-separate staff Case refund live proof. Do not
    bundle those authorities or infer them from this seller proof.
