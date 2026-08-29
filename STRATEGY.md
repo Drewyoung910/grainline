@@ -692,39 +692,22 @@ seller route and disposable test destination charge, prove the local/signed
 two-row confirmation model plus atomic Case/stock/delivery effects, and clean
 all temporary application identity without authenticating a real seller.
 
-Its first two executions both failed closed before account creation. Exact
-attempt main `877610cbb12491d8e788e6948a3c9c31aced1e70` / CI `33231868504`
-first exposed the Stripe 40-character metadata-key limit; corrected
-operator/main `232f4b6f725caa193af51f214395f6019cddde63` / CI `33233774693`
-then exposed the same legacy Custom/application-collected responsibility
-regression already resolved for blocked checkout. Preserve the one
-`account-create-pending` journal and do not change the Stripe platform profile.
-Reuse the production-aligned Express/Stripe-collected controller and a private,
-mode-`0600`, marker-bound hosted-onboarding handoff. Payment creation remains
-blocked until the exact account's transfer capability is active. Review or
-merge of that correction is not proof execution or RLS activation authority.
+That boundary is now accepted. Exact corrected operator/main
+`0c5739e7a48ce361298a6d2af571de093fb2b01b` and exact-main CI
+`33265745679` resumed only the original attempt and reused its sole idempotent
+500-cent test payment/account. It atomically inserted the Case and buyer
+opening message, proved the exact 500-cent refund and 475-cent reversal plus
+local/signed evidence, Case, stock, Notification, skipped-email and replay
+outcomes, then removed all bounded application/provider identity. Retain
+sanitized evidence SHA-256
+`35d13b9513e49c2f1ca101a0f9f2a1e5207520e28b845a03b99e2e2d1b76c9d4`.
+The failed attempts remain documented because each exposed and closed a real
+operator/test-fixture class. They are history, not current restart state.
 
-A third execution from operator/main
-`792a088c7ab677942360176c6709481fd4548fcd` / CI `33242951704`
-completed private hosted onboarding and created exactly one 500-cent Stripe
-test payment with the exact 475-cent destination transfer, then failed closed
-before application-fixture creation because it asserted Stripe's transient
-create response. Read-only retrieval proves the retained objects are exact and
-pass the full assertion. Preserve the sole journal at `payment-create-pending`
-and the same idempotency namespace; re-retrieve the existing PaymentIntent and
-expanded Charge/Transfer before advancing. Do not create a competing payment
-or infer provider-proof success from the retained test objects.
-
-The retrieved-payment correction passed exact-main CI at
-`7131b586374758464db93659a51550f1044e0ab4` / `33264246072` and recovered
-that same payment, but the fourth execution exposed a separate synthetic Case
-fixture defect: it omitted the mandatory human or durable webhook opening
-evidence. The production deferred invariant correctly rolled back the entire
-fixture transaction before any refund. Preserve the journal at
-`payment-created`; seed the Case and buyer-authored opening message atomically,
-prove the invariant in the disposable database and keep this operator in the
-class-wide Case-fixture inventory before any further resume. Do not weaken the
-Case invariant or replace human opening evidence with caller-controlled data.
+Proceed next to the separately authenticated staff Case refund live proof.
+Do not infer it from seller authority or use the seller proof to skip remaining
+invariant/projection work, predecessor drain, policyless ENABLE or posture-only
+FORCE.
 
 The blocked-checkout product audit found one delivery correction that must land
 before its live proof: the automatic refund was classified as `NEW_ORDER` and

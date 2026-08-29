@@ -3646,3 +3646,28 @@ Open work:
   class-wide Case-fixture compatibility inventory. The exact account, payment
   and mode-`0600` journal remain preserved; this correction does not authorize
   another execution or any production configuration/RLS change.
+
+## OrderPaymentEvent seller full-refund proof accepted (2026-08-29)
+
+- Exact corrected operator/main
+  `0c5739e7a48ce361298a6d2af571de093fb2b01b` and exact-main CI
+  `33265745679` resumed only original attempt
+  `877610cbb12491d8e788e6948a3c9c31aced1e70` / CI `33231868504`.
+- The run reused the existing marker-bound, idempotent 500-cent Stripe test
+  payment and account. It created no second payment. Case plus buyer opening
+  message were committed atomically before the authenticated seller route
+  issued the refund.
+- The proof passed the exact 500-cent buyer refund, 475-cent transfer reversal,
+  local/signed payment evidence, Case, stock, `REFUND_ISSUED` Notification,
+  skipped-email and exact-replay checks.
+- Bounded cleanup removed every temporary application row, exact Redis key,
+  temporary Clerk session and disposable account. The operational canary was
+  retained; the private restart and onboarding journals are absent. Exactly
+  one processed test `charge.refunded` webhook lease plus immutable Stripe
+  test objects and ordinary provider telemetry remain intentionally.
+- Sanitized mode-`0600` evidence SHA-256 is
+  `35d13b9513e49c2f1ca101a0f9f2a1e5207520e28b845a03b99e2e2d1b76c9d4`.
+  Deployment, provider configuration, grants, credentials and RLS posture did
+  not change. This accepts only the seller full-refund provider family; the
+  separate staff Case refund proof and all remaining activation gates stay
+  open.
