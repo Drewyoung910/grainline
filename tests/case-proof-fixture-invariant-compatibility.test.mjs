@@ -16,6 +16,7 @@ const PROOFS_WITH_DIRECT_CASE_FIXTURES = Object.freeze([
   "scripts/notification-rls-ephemeral-proof.mjs",
   "scripts/direct-upload-activation-postgres-proof.mjs",
   "scripts/direct-upload-authority-postgres-proof.mjs",
+  "scripts/order-payment-event-case-refund-production-proof.mjs",
   "scripts/order-payment-event-seller-refund-production-proof.mjs",
 ]);
 

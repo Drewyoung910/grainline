@@ -285,6 +285,17 @@ and its signed `charge.refunded` confirmation without duplicating stock, Case,
 Notification or outbox effects. Cleanup retains only the processed signed
 webhook lease and immutable provider/observability evidence.
 
+The distinct staff Case-refund acceptance contract is recorded in
+`docs/order-payment-event-case-refund-delivery.md`. It exercises the normal
+origin, Clerk session, current staff role, session-bound Admin-PIN, rate-limit,
+fixed prepare/provider/finalize and signed-webhook boundaries. Its operational
+canary remains an ordinary `USER` except for short, `finally`-guarded windows
+around PIN verification and the authenticated API call; the raw PIN is
+loopback-only and memory-only. The restart journal, `restore-canary` recovery,
+private vacation-hidden fixtures, exact 500-cent refund/475-cent reversal and
+cardinality-checked cleanup are independently tested. Merge or preparation is
+not provider acceptance and does not authorize `OrderPaymentEvent` RLS.
+
 Automatic blocked-checkout refunds use the same durable participant-delivery
 class as other refunds: one `REFUND_ISSUED` in-app row plus one deterministic
 `refund_issued` EmailOutbox reservation commit with the fixed payment

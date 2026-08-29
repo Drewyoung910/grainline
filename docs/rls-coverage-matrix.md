@@ -451,6 +451,17 @@ state and supersede earlier inline chronology in its matrix summary.
 > result. The separate staff Case refund proof, remaining invariants and
 > projections, zero-direct-access conversion, predecessor drain, policyless
 > ENABLE and posture-only FORCE remain open.
+>
+> **Staff Case-refund proof preparation (2026-08-29):** the isolated candidate
+> re-audits the complete PIN-gated Case-resolution path, adds explicit client
+> confirmation for each irreversible resolution, and prepares a separate
+> restart-safe authenticated production operator. Unit and real PostgreSQL
+> coverage pin private fixtures, exact 500-cent refund/475-cent reversal,
+> source-bound local/signed evidence, participant delivery, replay and
+> cardinality-checked cleanup. The canary stays `USER` outside the shortest
+> possible PIN/API windows, has a dedicated role/session recovery command, and
+> the raw PIN is loopback/memory-only. Preparation is not execution or
+> acceptance; the staff family and every later activation gate remain open.
 
 ## Program Rules
 

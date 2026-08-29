@@ -290,6 +290,18 @@ defect. Each remaining path is classified:
   deployed seller-refund route; the operator grants no table authority,
   exports only hashes/counts, is not an ordinary application path, and must
   run before `OrderPaymentEvent` activation revokes predecessor table access.
+- `scripts/order-payment-event-case-refund-production-proof.mjs` is the
+  protected, restart-safe staff Case full-refund acceptance proof. It invokes
+  the deployed same-origin, Clerk-session and Admin-PIN-gated route while the
+  operational canary holds temporary staff authority only around each bounded
+  authenticated request. Its direct `StripeWebhookEvent` reads use only the
+  protected owner connection in engine-enforced read-only snapshots to bind
+  the exact locally recorded refund and signed `charge.refunded` leases and
+  verify replay stability. It grants no table authority, exports only
+  hashes/counts, removes its exact application fixtures, retains only the
+  immutable processed signed lease and ordinary bounded audit telemetry, and
+  must run before `OrderPaymentEvent` activation revokes predecessor table
+  access.
 - `scripts/order-payment-event-blocked-checkout-production-proof.mjs` is the
   protected, restart-safe blocked-checkout acceptance proof. It creates one
   Session through the deployed authenticated checkout route and requires real

@@ -14,6 +14,10 @@ const finalization = readFileSync(
   "src/lib/caseStaffResolutionFinalization.ts",
   "utf8",
 );
+const panel = readFileSync(
+  "src/components/CaseResolutionPanel.tsx",
+  "utf8",
+);
 const migration = readFileSync(
   "prisma/migrations/20260729045000_prepare_case_staff_resolution_authority/migration.sql",
   "utf8",
@@ -31,6 +35,18 @@ function assertOrdered(source, markers) {
 }
 
 describe("Case staff-resolution application authority", () => {
+  it("requires an explicit action-specific confirmation before irreversible staff resolution", () => {
+    assert.match(panel, /resolution === "REFUND_FULL"[\s\S]*Stripe refunds cannot be undone/);
+    assert.match(panel, /resolution === "REFUND_PARTIAL"[\s\S]*formatCurrencyCents\(refundAmountCents, currency\)/);
+    assert.match(panel, /Dismiss this case in the seller's favor without a refund/);
+    assert.match(panel, /if \(!window\.confirm\(confirmation\)\) return/);
+    assert.ok(
+      panel.indexOf("if (!window.confirm(confirmation)) return")
+        < panel.indexOf("setLoading(true)"),
+      "confirmation must precede the request state transition",
+    );
+  });
+
   it("keeps the PIN-gated route on the fixed prepare-provider-finalize protocol", () => {
     assertOrdered(route, [
       ["origin guard", "getExplicitCrossOriginPostRejection(req)"],

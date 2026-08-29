@@ -193,6 +193,7 @@
     "ops:seller-payout-event-linked-production-proof": "node scripts/seller-payout-event-linked-production-proof.mjs",
     "ops:order-payment-event-signed-production-proof": "node scripts/order-payment-event-signed-production-proof.mjs",
     "ops:order-payment-event-seller-refund-production-proof": "node scripts/order-payment-event-seller-refund-production-proof.mjs",
+    "ops:order-payment-event-case-refund-production-proof": "node scripts/order-payment-event-case-refund-production-proof.mjs",
     "ops:order-payment-event-blocked-checkout-production-proof": "node scripts/order-payment-event-blocked-checkout-production-proof.mjs",
     "audit:stripe-money": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/stripe-money-movement-proof.mjs",
     "audit:dependencies": "node scripts/audit-dependencies.mjs",
