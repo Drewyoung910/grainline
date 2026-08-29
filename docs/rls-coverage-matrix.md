@@ -480,6 +480,18 @@ state and supersede earlier inline chronology in its matrix summary.
 > original identity continues to derive the journal path, Stripe marker and
 > idempotency namespace; evidence records both. This fixes provenance without
 > editing the private journal or broadening execution authority.
+>
+> The authorized resume from corrected exact main
+> `d1be35d22051d4bfd60fc701eeb8e4f1b71403bc` / CI `33277175761`
+> completed the exact 500-cent refund and 475-cent reversal. After a bounded
+> event-visibility timeout, the same journal found the one delivered signed
+> event and proved every reviewed database effect except the operator's stale
+> `ACTIVE` listing expectation. Engine-read-only inspection confirmed the
+> established private-listing outcome is `SOLD_OUT` with stock one; only
+> non-private refunded listings reactivate. The isolated proof/cleanup
+> correction changes no application, migration, grant, RLS or provider state.
+> Staff acceptance remains open and must resume this exact journal without a
+> second payment or refund.
 
 ## Program Rules
 

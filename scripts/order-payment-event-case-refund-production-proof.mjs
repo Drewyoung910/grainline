@@ -1246,7 +1246,7 @@ export function assertProofSnapshot(snapshot, state, expected = {}) {
     || normalized.signedTotalRefunded !== REFUND_AMOUNT_CENTS
     || normalized.orderRefundId !== state.refundId || normalized.orderRefundAmount !== REFUND_AMOUNT_CENTS
     || normalized.orderLeaseCleared !== true || normalized.reviewNeeded !== true
-    || normalized.stock !== 1 || normalized.listingStatus !== "ACTIVE"
+    || normalized.stock !== 1 || normalized.listingStatus !== "SOLD_OUT"
     || normalized.caseStatus !== "RESOLVED" || normalized.caseResolution !== "REFUND_FULL"
     || normalized.caseRefundAmount !== REFUND_AMOUNT_CENTS || normalized.caseRefundId !== state.refundId
     || normalized.caseResolvedBy !== state.staffUserId || normalized.claimStatus !== "FINALIZED"
@@ -1318,7 +1318,7 @@ export async function cleanupExactRows(owner, state) {
           AND "displayName"='Grainline Case Refund Proof' AND "vacationMode"=true) AS seller_profile,
         (SELECT count(*)::integer FROM public."Listing" WHERE id=$9 AND "sellerId"=$7
           AND title='case-refund-production-proof' AND "priceCents"=500 AND "stockQuantity"=1
-          AND status='ACTIVE' AND "isPrivate"=true) AS listing,
+          AND status='SOLD_OUT' AND "isPrivate"=true) AS listing,
         (SELECT count(*)::integer FROM public."Order" WHERE id=$10 AND "buyerId"=$4 AND "sellerProfileId"=$7
           AND "stripePaymentIntentId"=$11 AND "stripeChargeId"=$12 AND "stripeTransferId"=$13
           AND "sellerRefundId"=$14 AND "sellerRefundAmountCents"=500) AS order_row,

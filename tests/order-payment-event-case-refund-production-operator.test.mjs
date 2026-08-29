@@ -108,7 +108,7 @@ function proofSnapshot() {
     orderLeaseCleared: true,
     reviewNeeded: true,
     stock: 1,
-    listingStatus: "ACTIVE",
+    listingStatus: "SOLD_OUT",
     caseStatus: "RESOLVED",
     caseResolution: "REFUND_FULL",
     caseRefundAmount: REFUND_AMOUNT_CENTS,
@@ -282,9 +282,14 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     const state = provenState();
     const first = assertProofSnapshot(proofSnapshot(), state);
     assert.equal(first.stock, 1);
+    assert.equal(first.listingStatus, "SOLD_OUT");
     assert.equal(assertReplayUnchanged(proofSnapshot(), proofSnapshot(), state).claimId, state.claimId);
     assert.throws(
       () => assertProofSnapshot({ ...proofSnapshot(), buyerNotificationCount: 2 }, state),
+      /production effects drifted/,
+    );
+    assert.throws(
+      () => assertProofSnapshot({ ...proofSnapshot(), listingStatus: "ACTIVE" }, state),
       /production effects drifted/,
     );
   });
