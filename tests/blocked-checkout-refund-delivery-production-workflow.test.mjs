@@ -28,6 +28,9 @@ import {
 import {
   ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
 } from "../scripts/build-order-payment-signed-refund-identity-migration.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
+} from "../scripts/build-order-payment-signed-dispute-identity-migration.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/blocked-checkout-refund-delivery-production.yml",
@@ -140,6 +143,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION);
     remove(ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION);
     remove("20260826010000_prepare_blocked_checkout_transfer_binding");
     remove("20260825010000_prepare_blocked_checkout_refund_delivery");

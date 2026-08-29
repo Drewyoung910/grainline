@@ -127,6 +127,8 @@
     "audit:order-payment-signed-refund-identity-postgres": "node scripts/order-payment-signed-refund-identity-postgres-proof.mjs",
     "audit:order-payment-signed-refund-identity-production-scope": "node scripts/verify-order-payment-signed-refund-identity-production-scope.mjs",
     "ops:order-payment-signed-refund-identity-postflight": "node scripts/order-payment-signed-refund-identity-production-postflight.mjs",
+    "audit:order-payment-signed-dispute-identity-release": "node scripts/verify-order-payment-signed-dispute-identity-release.mjs",
+    "audit:order-payment-signed-dispute-identity-production-scope": "node scripts/verify-order-payment-signed-dispute-identity-production-scope.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope": "node scripts/verify-blocked-checkout-refund-delivery-production-scope.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres": "node scripts/blocked-checkout-refund-delivery-production-scope-postgres-proof.mjs",
     "audit:order-payment-compatible-production-scope": "node scripts/verify-order-payment-event-compatible-production-scope.mjs",

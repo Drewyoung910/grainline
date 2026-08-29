@@ -28,6 +28,10 @@ import {
   ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
   verifyOrderPaymentSignedRefundIdentityMigrationBytes,
 } from "./build-order-payment-signed-refund-identity-migration.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
+  verifyOrderPaymentSignedDisputeIdentityMigrationBytes,
+} from "./build-order-payment-signed-dispute-identity-migration.mjs";
 
 export const ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PHASE =
   "order-refund-inactive-seller-recovery-prepared";
@@ -96,6 +100,24 @@ export function verifyOrderRefundInactiveSellerRecoveryRelease(
     );
     verifyOrderPaymentSignedRefundIdentityMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION);
+  }
+  const signedDisputeIdentitySuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
+  );
+  if (fs.existsSync(signedDisputeIdentitySuccessorPath)) {
+    assert.deepEqual(
+      reviewedSuccessors,
+      [
+        BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+        BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+        ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+      ],
+      "Signed-dispute identity requires the signed-refund successor",
+    );
+    verifyOrderPaymentSignedDisputeIdentityMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION);
   }
   assert.deepEqual(
     laterMigrations,

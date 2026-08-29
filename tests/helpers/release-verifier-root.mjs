@@ -25,6 +25,7 @@ function repositoryWithMigrationFilter(cacheKey, includeMigration) {
       entry.name === "prisma"
       || entry.name === ".git"
       || entry.name === ".next"
+      || entry.name === ".vercel"
       || entry.name === "node_modules"
       || entry.name === "tests"
       || entry.name.startsWith(".env")
@@ -90,6 +91,15 @@ export function repositoryBeforeRefundReconciliation() {
 export function repositoryAtOrderRefundRecordRelease() {
   const finalMigration =
     "20260824020000_prepare_order_refund_record_authority";
+  return repositoryWithMigrationFilter(
+    `through:${finalMigration}`,
+    (name) => name <= finalMigration,
+  );
+}
+
+export function repositoryAtOrderPaymentSignedRefundIdentityRelease() {
+  const finalMigration =
+    "20260828010000_prepare_order_payment_signed_refund_identity";
   return repositoryWithMigrationFilter(
     `through:${finalMigration}`,
     (name) => name <= finalMigration,

@@ -5,27 +5,27 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
-  ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
-  ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION_SHA256,
-  orderPaymentSignedRefundIdentityFunctionSource,
-  predecessorOrderPaymentSignedRefundFunctionSource,
-  verifyOrderPaymentSignedRefundIdentityMigrationBytes,
-} from "./build-order-payment-signed-refund-identity-migration.mjs";
+  ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
+  ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION_SHA256,
+  orderPaymentSignedDisputeIdentityFunctionSource,
+  predecessorOrderPaymentSignedDisputeFunctionSource,
+  verifyOrderPaymentSignedDisputeIdentityMigrationBytes,
+} from "./build-order-payment-signed-dispute-identity-migration.mjs";
 import {
-  assertBlockedCheckoutTransferBindingProductionScope,
-  parseBlockedCheckoutTransferBindingScopeEnvironment,
-  readBlockedCheckoutTransferBindingProductionSnapshotFromClient,
-} from "./verify-blocked-checkout-transfer-binding-production-scope.mjs";
+  assertOrderPaymentSignedRefundIdentityProductionScope,
+  parseOrderPaymentSignedRefundIdentityScopeEnvironment,
+  readOrderPaymentSignedRefundIdentityProductionSnapshotFromClient,
+} from "./verify-order-payment-signed-refund-identity-production-scope.mjs";
 import { postgresChannelBindingClientOptions } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
 const MIGRATION_ROLE = "neondb_owner";
 const RUNTIME_ROLE = "grainline_app_runtime";
 const FUNCTION_IDENTITY =
-  "public.grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)";
+  "public.grainline_order_payment_signed_dispute_apply(text,bigint,text,text,bigint,integer,text,text,text)";
 const COMPATIBLE_FUNCTION_IDENTITY = FUNCTION_IDENTITY.replace(/^public\./u, "");
 
-export const ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGES = Object.freeze([
+export const ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_SCOPE_STAGES = Object.freeze([
   "before",
   "after",
   "restart",
@@ -44,28 +44,28 @@ function sha256(value) {
 }
 
 function isAppliedRow(row) {
-  return row?.migration_name === ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION
-    && row.checksum === ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION_SHA256
+  return row?.migration_name === ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION
+    && row.checksum === ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION_SHA256
     && row.finished_at != null
     && row.rolled_back_at == null
     && Number(row.applied_steps_count) === 1;
 }
 
-export function parseOrderPaymentSignedRefundIdentityScopeEnvironment(
+export function parseOrderPaymentSignedDisputeIdentityScopeEnvironment(
   env = process.env,
 ) {
   const stage = required(
     env,
-    "ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGE",
+    "ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_SCOPE_STAGE",
   );
-  if (!ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGES.includes(stage)) {
+  if (!ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_SCOPE_STAGES.includes(stage)) {
     throw new Error(
-      "signed-refund identity scope stage must be before, after, or restart",
+      "signed-dispute identity scope stage must be before, after, or restart",
     );
   }
-  const predecessor = parseBlockedCheckoutTransferBindingScopeEnvironment({
+  const predecessor = parseOrderPaymentSignedRefundIdentityScopeEnvironment({
     ...env,
-    BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGE: "after",
+    ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGE: "after",
   });
   return Object.freeze({
     directUrl: predecessor.directUrl,
@@ -74,15 +74,16 @@ export function parseOrderPaymentSignedRefundIdentityScopeEnvironment(
   });
 }
 
-export function assertOrderPaymentSignedRefundIdentityLedger(rows, stage) {
+export function assertOrderPaymentSignedDisputeIdentityLedger(rows, stage) {
   if (
     !Array.isArray(rows)
-    || !ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_SCOPE_STAGES.includes(stage)
+    || !ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_SCOPE_STAGES.includes(stage)
     || rows.some(
-      (row) => row?.migration_name !== ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+      (row) => row?.migration_name
+        !== ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
     )
   ) {
-    throw new Error("signed-refund identity ledger is invalid");
+    throw new Error("signed-dispute identity ledger is invalid");
   }
   const applied = rows.length === 1 && isAppliedRow(rows[0]);
   if (
@@ -92,21 +93,21 @@ export function assertOrderPaymentSignedRefundIdentityLedger(rows, stage) {
     || (stage === "after" && !applied)
   ) {
     throw new Error(
-      "signed-refund identity ledger is not at the exact reviewed stage",
+      "signed-dispute identity ledger is not at the exact reviewed stage",
     );
   }
   return applied;
 }
 
-export function assertOrderPaymentSignedRefundIdentityFunction(
+export function assertOrderPaymentSignedDisputeIdentityFunction(
   row,
   applied,
   migrationRole = MIGRATION_ROLE,
   root = process.cwd(),
 ) {
   const expectedSource = applied
-    ? orderPaymentSignedRefundIdentityFunctionSource(root)
-    : predecessorOrderPaymentSignedRefundFunctionSource(root);
+    ? orderPaymentSignedDisputeIdentityFunctionSource(root)
+    : predecessorOrderPaymentSignedDisputeFunctionSource(root);
   if (
     row?.identity !== FUNCTION_IDENTITY
     || row.owner_name !== migrationRole
@@ -124,19 +125,20 @@ export function assertOrderPaymentSignedRefundIdentityFunction(
     || Number(row.invalid_acl_count) !== 0
     || sha256(row.function_source ?? "") !== sha256(expectedSource)
   ) {
-    throw new Error("signed-refund identity function catalog drifted");
+    throw new Error("signed-dispute identity function catalog drifted");
   }
 }
 
-function predecessorSnapshotWithReviewedSignedRefundSource(
+function predecessorSnapshotWithReviewedSignedDisputeSource(
   snapshot,
-  signedRefundFunction,
+  signedDisputeFunction,
   applied,
   root,
 ) {
   if (!applied) return snapshot;
 
-  const deliverySnapshot = snapshot?.blockedCheckoutRefundDelivery;
+  const transferSnapshot = snapshot?.blockedCheckoutTransferBinding;
+  const deliverySnapshot = transferSnapshot?.blockedCheckoutRefundDelivery;
   const compatibleSnapshot = deliverySnapshot?.orderPaymentEventCompatible;
   const functions = compatibleSnapshot?.functions;
   const matches = Array.isArray(functions)
@@ -147,57 +149,60 @@ function predecessorSnapshotWithReviewedSignedRefundSource(
   if (
     matches.length !== 1
     || sha256(matches[0]?.function_source ?? "")
-      !== sha256(signedRefundFunction?.function_source ?? "")
+      !== sha256(signedDisputeFunction?.function_source ?? "")
   ) {
     throw new Error(
-      "signed-refund identity predecessor and candidate catalog views drifted",
+      "signed-dispute identity predecessor and candidate catalog views drifted",
     );
   }
 
   return {
     ...snapshot,
-    blockedCheckoutRefundDelivery: {
-      ...deliverySnapshot,
-      orderPaymentEventCompatible: {
-        ...compatibleSnapshot,
-        functions: functions.map((entry) =>
-          entry.identity === COMPATIBLE_FUNCTION_IDENTITY
-            ? {
-              ...entry,
-              function_source:
-                predecessorOrderPaymentSignedRefundFunctionSource(root),
-            }
-            : entry
-        ),
+    blockedCheckoutTransferBinding: {
+      ...transferSnapshot,
+      blockedCheckoutRefundDelivery: {
+        ...deliverySnapshot,
+        orderPaymentEventCompatible: {
+          ...compatibleSnapshot,
+          functions: functions.map((entry) =>
+            entry.identity === COMPATIBLE_FUNCTION_IDENTITY
+              ? {
+                ...entry,
+                function_source:
+                  predecessorOrderPaymentSignedDisputeFunctionSource(root),
+              }
+              : entry
+          ),
+        },
       },
     },
   };
 }
 
-export function assertOrderPaymentSignedRefundIdentityProductionScope(
+export function assertOrderPaymentSignedDisputeIdentityProductionScope(
   snapshot,
   stage,
   {
-    assertPredecessor = assertBlockedCheckoutTransferBindingProductionScope,
+    assertPredecessor = assertOrderPaymentSignedRefundIdentityProductionScope,
     migrationRole = MIGRATION_ROLE,
     runtimeRole = RUNTIME_ROLE,
     root = process.cwd(),
   } = {},
 ) {
-  const applied = assertOrderPaymentSignedRefundIdentityLedger(
+  const applied = assertOrderPaymentSignedDisputeIdentityLedger(
     snapshot?.candidateLedgerRows,
     stage,
   );
-  assertOrderPaymentSignedRefundIdentityFunction(
-    snapshot?.signedRefundFunction ?? null,
+  assertOrderPaymentSignedDisputeIdentityFunction(
+    snapshot?.signedDisputeFunction ?? null,
     applied,
     migrationRole,
     root,
   );
   const predecessor = assertPredecessor(
-    predecessorSnapshotWithReviewedSignedRefundSource(
-      snapshot?.blockedCheckoutTransferBinding,
-      snapshot?.signedRefundFunction ?? null,
+    predecessorSnapshotWithReviewedSignedDisputeSource(
+      snapshot?.signedRefundIdentity,
+      snapshot?.signedDisputeFunction ?? null,
       applied,
       root,
     ),
@@ -205,20 +210,19 @@ export function assertOrderPaymentSignedRefundIdentityProductionScope(
     { migrationRole, runtimeRole, root },
   );
   return Object.freeze({
-    blockedCheckoutTransferBindingApplied:
-      predecessor.blockedCheckoutTransferBindingApplied,
-    signedRefundIdentityApplied: applied,
+    signedRefundIdentityApplied: predecessor.signedRefundIdentityApplied,
+    signedDisputeIdentityApplied: applied,
     runtimeExecuteOnly: true,
     orderPaymentEventRlsEnabled: false,
     predecessorRuntimeCrudRetained: true,
     state: applied
-      ? "signed-refund-identity-compatible"
-      : "signed-refund-identity-predecessor",
+      ? "signed-dispute-identity-compatible"
+      : "signed-dispute-identity-predecessor",
     productionChangedByProof: false,
   });
 }
 
-async function readSignedRefundFunction(client, runtimeRole) {
+async function readSignedDisputeFunction(client, runtimeRole) {
   const rows = (await client.query(
     `SELECT
        pg_catalog.quote_ident(namespace.nspname)
@@ -266,22 +270,51 @@ async function readSignedRefundFunction(client, runtimeRole) {
     [runtimeRole, FUNCTION_IDENTITY],
   )).rows;
   if (rows.length !== 1) {
-    throw new Error("signed-refund identity function cardinality drifted");
+    throw new Error("signed-dispute identity function cardinality drifted");
   }
   return rows[0];
 }
 
-export async function readOrderPaymentSignedRefundIdentityProductionSnapshot(
+export async function readOrderPaymentSignedDisputeIdentityProductionSnapshotFromClient(
+  client,
+  { runtimeRole = RUNTIME_ROLE, root = process.cwd() } = {},
+) {
+  verifyOrderPaymentSignedDisputeIdentityMigrationBytes(root);
+  const signedRefundIdentity =
+    await readOrderPaymentSignedRefundIdentityProductionSnapshotFromClient(
+      client,
+      { runtimeRole, root },
+    );
+  const candidateLedgerRows = (await client.query(
+    `SELECT migration_name, checksum, finished_at, rolled_back_at,
+            applied_steps_count
+       FROM public._prisma_migrations
+      WHERE migration_name = $1
+      ORDER BY started_at, id`,
+    [ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION],
+  )).rows;
+  const signedDisputeFunction = await readSignedDisputeFunction(
+    client,
+    runtimeRole,
+  );
+  return Object.freeze({
+    signedRefundIdentity,
+    candidateLedgerRows,
+    signedDisputeFunction,
+  });
+}
+
+export async function readOrderPaymentSignedDisputeIdentityProductionSnapshot(
   connectionString,
   { runtimeRole = RUNTIME_ROLE, root = process.cwd() } = {},
 ) {
-  verifyOrderPaymentSignedRefundIdentityMigrationBytes(root);
+  verifyOrderPaymentSignedDisputeIdentityMigrationBytes(root);
   const client = new Client({
     connectionString,
     connectionTimeoutMillis: 10_000,
     statement_timeout: 30_000,
     query_timeout: 35_000,
-    application_name: "grainline-signed-refund-identity-scope-proof",
+    application_name: "grainline-signed-dispute-identity-scope-proof",
     ...postgresChannelBindingClientOptions(new URL(connectionString)),
   });
   await client.connect();
@@ -296,7 +329,7 @@ export async function readOrderPaymentSignedRefundIdentityProductionSnapshot(
     )).rows[0]?.read_only;
     if (readOnly !== "on") throw new Error("scope transaction is not read-only");
     const snapshot =
-      await readOrderPaymentSignedRefundIdentityProductionSnapshotFromClient(
+      await readOrderPaymentSignedDisputeIdentityProductionSnapshotFromClient(
         client,
         { runtimeRole, root },
       );
@@ -309,46 +342,17 @@ export async function readOrderPaymentSignedRefundIdentityProductionSnapshot(
   }
 }
 
-export async function readOrderPaymentSignedRefundIdentityProductionSnapshotFromClient(
-  client,
-  { runtimeRole = RUNTIME_ROLE, root = process.cwd() } = {},
-) {
-  verifyOrderPaymentSignedRefundIdentityMigrationBytes(root);
-  const blockedCheckoutTransferBinding =
-    await readBlockedCheckoutTransferBindingProductionSnapshotFromClient(
-      client,
-      { runtimeRole, root },
-    );
-  const candidateLedgerRows = (await client.query(
-    `SELECT migration_name, checksum, finished_at, rolled_back_at,
-            applied_steps_count
-       FROM public._prisma_migrations
-      WHERE migration_name = $1
-      ORDER BY started_at, id`,
-    [ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION],
-  )).rows;
-  const signedRefundFunction = await readSignedRefundFunction(
-    client,
-    runtimeRole,
-  );
-  return Object.freeze({
-    blockedCheckoutTransferBinding,
-    candidateLedgerRows,
-    signedRefundFunction,
-  });
-}
-
-export async function verifyOrderPaymentSignedRefundIdentityProductionScope(
+export async function verifyOrderPaymentSignedDisputeIdentityProductionScope(
   config,
   {
-    readSnapshot = readOrderPaymentSignedRefundIdentityProductionSnapshot,
-    assertPredecessor = assertBlockedCheckoutTransferBindingProductionScope,
+    readSnapshot = readOrderPaymentSignedDisputeIdentityProductionSnapshot,
+    assertPredecessor = assertOrderPaymentSignedRefundIdentityProductionScope,
     migrationRole = MIGRATION_ROLE,
     runtimeRole = RUNTIME_ROLE,
     root = process.cwd(),
   } = {},
 ) {
-  return assertOrderPaymentSignedRefundIdentityProductionScope(
+  return assertOrderPaymentSignedDisputeIdentityProductionScope(
     await readSnapshot(config.directUrl, { runtimeRole, root }),
     config.stage,
     { assertPredecessor, migrationRole, runtimeRole, root },
@@ -357,14 +361,14 @@ export async function verifyOrderPaymentSignedRefundIdentityProductionScope(
 
 async function main() {
   try {
-    const config = parseOrderPaymentSignedRefundIdentityScopeEnvironment();
-    const result = await verifyOrderPaymentSignedRefundIdentityProductionScope(
+    const config = parseOrderPaymentSignedDisputeIdentityScopeEnvironment();
+    const result = await verifyOrderPaymentSignedDisputeIdentityProductionScope(
       config,
     );
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch {
     process.stderr.write(
-      "Signed-refund identity production scope proof failed closed.\n",
+      "Signed-dispute identity production scope proof failed closed.\n",
     );
     process.exitCode = 1;
   }
