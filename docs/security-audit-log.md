@@ -3575,11 +3575,15 @@ Open work:
 ## Seller-refund Connect responsibility correction (2026-08-29)
 
 - The sole preserved seller full-refund attempt resumed from original main
-  `877610cbb12491d6ae67e56ddb745ace146e1ed3` / CI `33231868504` through
+  `877610cbb12491d8e788e6948a3c9c31aced1e70` / CI `33231868504` through
   corrected operator/main `232f4b6f725caa193af51f214395f6019cddde63`
   / CI `33233774693`. Stripe rejected the legacy Custom/application-collected
   account request at `account-create-pending`; no provider object, payment or
   application fixture was created.
+- A pre-retry journal, Git-object and GitHub-CI reconciliation corrected a
+  non-existent transcription of the original attempt SHA in four durable
+  records. The exact journal and CI head both identify the commit above; this
+  was a documentation-only correction and no provider call was made.
 - A complete read-only Stripe test-account scan exhausted all 13 accounts and
   found zero marker matches. The private mode-`0600` journal remains the only
   accepted attempt. Provider configuration, platform responsibilities,

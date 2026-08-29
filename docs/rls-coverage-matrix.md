@@ -405,7 +405,7 @@ state and supersede earlier inline chronology in its matrix summary.
 >
 > **Seller full-refund proof correction gate (2026-08-29):** the separate
 > authenticated seller authority proof remains unaccepted. Original attempt
-> main `877610cbb12491d6ae67e56ddb745ace146e1ed3` / CI `33231868504`
+> main `877610cbb12491d8e788e6948a3c9c31aced1e70` / CI `33231868504`
 > failed before account creation on the Stripe metadata-key limit. The sole
 > preserved journal then resumed through corrected operator/main
 > `232f4b6f725caa193af51f214395f6019cddde63` / CI `33233774693` and
