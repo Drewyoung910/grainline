@@ -16,6 +16,7 @@ const PROOFS_WITH_DIRECT_CASE_FIXTURES = Object.freeze([
   "scripts/notification-rls-ephemeral-proof.mjs",
   "scripts/direct-upload-activation-postgres-proof.mjs",
   "scripts/direct-upload-authority-postgres-proof.mjs",
+  "scripts/order-payment-event-seller-refund-production-proof.mjs",
 ]);
 
 test("post-migration Case proof fixtures preserve durable opening and seller evidence", () => {
@@ -23,7 +24,7 @@ test("post-migration Case proof fixtures preserve durable opening and seller evi
     const source = fs.readFileSync(path, "utf8");
     assert.match(
       source,
-      /async function seedFixtures\((?:client|owner)\) \{[\s\S]{0,220}(?:client|owner)\.query\("BEGIN"\)/,
+      /(?:export )?async function (?:seed|create)Fixtures\((?:client|owner)(?:, state)?\) \{[\s\S]{0,220}(?:client|owner)\.query\("BEGIN(?: ISOLATION LEVEL SERIALIZABLE)?"\)/,
       `${path} must seed its deferred Case evidence atomically`,
     );
     assert.match(

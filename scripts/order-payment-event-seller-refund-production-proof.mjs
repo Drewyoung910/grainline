@@ -248,6 +248,10 @@ function fixtureId(suffix = "") {
   return `opesr_${randomUUID().replaceAll("-", "")}${suffix}`;
 }
 
+function openingMessageId(caseId) {
+  return `${caseId}_opening`;
+}
+
 export function createInitialState(config, canary) {
   const attemptId = randomUUID();
   return assertState({
@@ -937,9 +941,11 @@ export async function createFixtures(owner, state) {
         (SELECT count(*)::integer FROM public."Listing" WHERE id = $7) AS listings,
         (SELECT count(*)::integer FROM public."Order" WHERE id = $8 OR "stripePaymentIntentId" = $9 OR "stripeChargeId" = $10) AS orders,
         (SELECT count(*)::integer FROM public."OrderItem" WHERE id = $11) AS items,
-        (SELECT count(*)::integer FROM public."Case" WHERE id = $12 OR "orderId" = $8) AS cases
+        (SELECT count(*)::integer FROM public."Case" WHERE id = $12 OR "orderId" = $8) AS cases,
+        (SELECT count(*)::integer FROM public."CaseMessage" WHERE id = $13) AS messages
     `, [state.buyerId, state.buyerClerkId, state.buyerEmail, state.sellerProfileId, state.sellerUserId, state.stripeAccountId,
-      state.listingId, state.orderId, state.paymentIntentId, state.chargeId, state.orderItemId, state.caseId]);
+      state.listingId, state.orderId, state.paymentIntentId, state.chargeId, state.orderItemId, state.caseId,
+      openingMessageId(state.caseId)]);
     const collision = collisions.rows[0] ?? {};
     const counts = Object.fromEntries(Object.entries(collision).map(([key, value]) => [key, Number(value)]));
     const absent = Object.values(counts).every((count) => count === 0);
@@ -966,10 +972,13 @@ export async function createFixtures(owner, state) {
             AND "sellerProfileId"=$4 AND quantity=1 AND "priceCents"=500) AS item,
           (SELECT count(*)::integer FROM public."Case" WHERE id=$13 AND "orderId"=$8 AND "buyerId"=$1
             AND "sellerId"=$5 AND reason='OTHER' AND description='Disposable seller refund proof Case'
-            AND status='OPEN') AS case_row
+            AND status='OPEN') AS case_row,
+          (SELECT count(*)::integer FROM public."CaseMessage" WHERE id=$14 AND "caseId"=$13
+            AND "authorId"=$1 AND "authorKind"='BUYER'
+            AND body='Disposable opening evidence for the seller refund production proof.') AS opening_message
       `, [state.buyerId, state.buyerClerkId, state.buyerEmail, state.sellerProfileId, state.sellerUserId,
         state.stripeAccountId, state.listingId, state.orderId, state.paymentIntentId, state.chargeId,
-        state.transferId, state.orderItemId, state.caseId]);
+        state.transferId, state.orderItemId, state.caseId, openingMessageId(state.caseId)]);
       if (Object.values(exact.rows[0] ?? {}).every((count) => Number(count) === 1)) {
         await owner.query("COMMIT");
         return;
@@ -1010,6 +1019,15 @@ export async function createFixtures(owner, state) {
         id, "orderId", "buyerId", "sellerId", reason, description, status, "sellerRespondBy", "updatedAt"
       ) VALUES ($1, $2, $3, $4, 'OTHER', 'Disposable seller refund proof Case', 'OPEN', CURRENT_TIMESTAMP + INTERVAL '48 hours', CURRENT_TIMESTAMP)
     `, [state.caseId, state.orderId, state.buyerId, state.sellerUserId]);
+    await owner.query(`
+      INSERT INTO public."CaseMessage" (
+        id, "caseId", "authorId", "authorKind", body, "createdAt"
+      ) VALUES (
+        $1, $2, $3, 'BUYER',
+        'Disposable opening evidence for the seller refund production proof.',
+        CURRENT_TIMESTAMP
+      )
+    `, [openingMessageId(state.caseId), state.caseId, state.buyerId]);
     await owner.query("COMMIT");
   } catch (error) {
     try { await owner.query("ROLLBACK"); } catch {}
@@ -1250,6 +1268,9 @@ export async function cleanupExactRows(owner, state) {
           AND "sellerProfileId" = $4 AND quantity = 1 AND "priceCents" = 500) AS item,
         (SELECT count(*)::integer FROM public."Case" WHERE id = $14 AND "orderId" = $8 AND "buyerId" = $1
           AND "sellerId" = $5 AND status = 'RESOLVED' AND resolution = 'REFUND_FULL' AND "stripeRefundId" = $12) AS case_row,
+        (SELECT count(*)::integer FROM public."CaseMessage" WHERE id = $21 AND "caseId" = $14
+          AND "authorId" = $1 AND "authorKind" = 'BUYER'
+          AND body = 'Disposable opening evidence for the seller refund production proof.') AS opening_message,
         (SELECT count(*)::integer FROM public."OrderPaymentEvent" WHERE id IN ($15, $16) AND "orderId" = $8) AS payments,
         (SELECT count(*)::integer FROM public."CaseSellerRefundApplication" WHERE "paymentEventId" = $17 AND "caseId" = $14) AS application,
         (SELECT count(*)::integer FROM public."Notification" WHERE id = $18 AND "userId" = $1) AS notification,
@@ -1262,9 +1283,9 @@ export async function cleanupExactRows(owner, state) {
     `, [state.buyerId, state.buyerClerkId, state.buyerEmail, state.sellerProfileId, state.sellerUserId, state.stripeAccountId,
       state.listingId, state.orderId, state.paymentIntentId, state.chargeId, state.transferId, state.refundId, state.orderItemId,
       state.caseId, state.localPaymentEventId, state.signedPaymentEventId, state.caseApplicationId, state.notificationId,
-      state.emailOutboxId, state.signedEventId]);
+      state.emailOutboxId, state.signedEventId, openingMessageId(state.caseId)]);
     const row = exact.rows[0] ?? {};
-    const expected = { buyer: 1, seller: 1, listing: 1, order_row: 1, item: 1, case_row: 1, payments: 2,
+    const expected = { buyer: 1, seller: 1, listing: 1, order_row: 1, item: 1, case_row: 1, opening_message: 1, payments: 2,
       application: 1, notification: 1, outbox: 1, audits: 3, webhook: 1 };
     for (const [key, count] of Object.entries(expected)) {
       if (Number(row[key]) !== count) throw new Error(`seller refund cleanup ${key} relationship drifted`);
@@ -1309,6 +1330,7 @@ export async function readCleanupSnapshot(owner, state) {
       (SELECT count(*)::integer FROM public."Order" WHERE id = $4) AS "orderCount",
       (SELECT count(*)::integer FROM public."OrderItem" WHERE id = $5) AS "itemCount",
       (SELECT count(*)::integer FROM public."Case" WHERE id = $6) AS "caseCount",
+      (SELECT count(*)::integer FROM public."CaseMessage" WHERE id = $14) AS "caseMessageCount",
       (SELECT count(*)::integer FROM public."OrderPaymentEvent" WHERE id IN ($7, $8)) AS "paymentCount",
       (SELECT count(*)::integer FROM public."Notification" WHERE id = $9) AS "notificationCount",
       (SELECT count(*)::integer FROM public."EmailOutbox" WHERE id = $10) AS "outboxCount",
@@ -1316,14 +1338,14 @@ export async function readCleanupSnapshot(owner, state) {
       (SELECT count(*)::integer FROM public."StripeWebhookEvent" WHERE id = $11 AND "processedAt" IS NOT NULL AND "lastError" IS NULL) AS "processedWebhookCount",
       (SELECT count(*)::integer FROM public."User" WHERE id = $12 AND "clerkId" = $13 AND "deletedAt" IS NULL AND banned = false) AS "canaryCount"
   `, [state.buyerId, state.sellerProfileId, state.listingId, state.orderId, state.orderItemId, state.caseId,
-    state.localPaymentEventId, state.signedPaymentEventId, state.notificationId, state.emailOutboxId,
-    state.signedEventId, state.sellerUserId, state.sellerClerkId]);
+      state.localPaymentEventId, state.signedPaymentEventId, state.notificationId, state.emailOutboxId,
+      state.signedEventId, state.sellerUserId, state.sellerClerkId, openingMessageId(state.caseId)]);
   return result.rows[0];
 }
 
 export function assertCleanupSnapshot(snapshot) {
   const normalized = Object.fromEntries(Object.entries(snapshot ?? {}).map(([key, value]) => [key, Number(value)]));
-  for (const key of ["buyerCount", "sellerCount", "listingCount", "orderCount", "itemCount", "caseCount", "paymentCount", "notificationCount", "outboxCount"]) {
+  for (const key of ["buyerCount", "sellerCount", "listingCount", "orderCount", "itemCount", "caseCount", "caseMessageCount", "paymentCount", "notificationCount", "outboxCount"]) {
     if (normalized[key] !== 0) throw new Error("seller refund application cleanup is incomplete");
   }
   if (normalized.webhookCount !== 1 || normalized.processedWebhookCount !== 1 || normalized.canaryCount !== 1) {

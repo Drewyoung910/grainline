@@ -86,6 +86,12 @@ async function database() {
       "resolvedById" text REFERENCES public."User"(id) ON DELETE SET NULL,
       "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" timestamp(3) NOT NULL
     );
+    CREATE TABLE public."CaseMessage" (
+      id text PRIMARY KEY, "caseId" text NOT NULL REFERENCES public."Case"(id) ON DELETE CASCADE,
+      "authorId" text NOT NULL REFERENCES public."User"(id) ON DELETE RESTRICT,
+      "authorKind" text, body varchar(5000) NOT NULL,
+      "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE public."StripeWebhookEvent" (
       id varchar(255) PRIMARY KEY, type varchar(100) NOT NULL, "sourceObjectId" varchar(255),
       "claimGeneration" bigint NOT NULL DEFAULT 1, "processedAt" timestamp(3), "lastError" varchar(2000)
@@ -113,6 +119,24 @@ async function database() {
       id text PRIMARY KEY, "actorType" varchar(40) NOT NULL, "actorId" varchar(255), action varchar(100) NOT NULL,
       "targetType" varchar(100) NOT NULL, "targetId" varchar(255) NOT NULL
     );
+    CREATE FUNCTION public.grainline_test_case_opening_evidence_valid()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $grainline_test_case_opening_evidence_valid$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM public."Case" WHERE id = NEW.id)
+         AND NOT EXISTS (SELECT 1 FROM public."CaseMessage" WHERE "caseId" = NEW.id) THEN
+        RAISE EXCEPTION 'Case has no human or durable webhook opening evidence'
+          USING ERRCODE = '23514';
+      END IF;
+      RETURN NEW;
+    END
+    $grainline_test_case_opening_evidence_valid$;
+    CREATE CONSTRAINT TRIGGER grainline_test_case_opening_evidence_valid
+    AFTER INSERT OR UPDATE ON public."Case"
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION public.grainline_test_case_opening_evidence_valid();
   `);
   await db.query(`INSERT INTO public."User" (id, "clerkId", email, name, role, "updatedAt")
     VALUES ($1, $2, 'canary@example.invalid', 'Operational Canary', 'USER', CURRENT_TIMESTAMP)`,
@@ -163,9 +187,30 @@ test("seller refund fixture is exact, provable and removable while retaining can
     await cleanupExactRows(db, value);
     assert.deepEqual(assertCleanupSnapshot(await readCleanupSnapshot(db, value)), {
       buyerCount: 0, sellerCount: 0, listingCount: 0, orderCount: 0, itemCount: 0,
-      caseCount: 0, paymentCount: 0, notificationCount: 0, outboxCount: 0,
+      caseCount: 0, caseMessageCount: 0, paymentCount: 0, notificationCount: 0, outboxCount: 0,
       webhookCount: 1, processedWebhookCount: 1, canaryCount: 1,
     });
+  } finally {
+    await db.close();
+  }
+});
+
+test("production-equivalent deferred opening invariant rejects a Case without its opening message", async () => {
+  const db = await database();
+  const value = state();
+  try {
+    await db.query("BEGIN");
+    await db.query(`INSERT INTO public."User" (id, "clerkId", email, name, role, "updatedAt")
+      VALUES ($1, $2, $3, 'Missing opening buyer', 'USER', CURRENT_TIMESTAMP)`,
+    [value.buyerId, value.buyerClerkId, value.buyerEmail]);
+    await db.query(`INSERT INTO public."Order" (id, "buyerId") VALUES ('missing-opening-order', $1)`,
+      [value.buyerId]);
+    await db.query(`INSERT INTO public."Case" (
+      id, "orderId", "buyerId", "sellerId", reason, description, status, "sellerRespondBy", "updatedAt"
+    ) VALUES ($1, 'missing-opening-order', $2, $2, 'OTHER', 'Missing opening proof', 'OPEN',
+      CURRENT_TIMESTAMP + INTERVAL '48 hours', CURRENT_TIMESTAMP)`, [value.caseId, value.buyerId]);
+    await assert.rejects(db.query("COMMIT"), /Case has no human or durable webhook opening evidence/);
+    await db.query("ROLLBACK").catch(() => {});
   } finally {
     await db.close();
   }
@@ -177,10 +222,18 @@ test("fixture and cleanup fail closed on collisions or marker drift", async () =
   try {
     await createFixtures(db, value);
     await createFixtures(db, value);
+    await db.query(`UPDATE public."CaseMessage" SET body='not-opening-evidence' WHERE "caseId"=$1`, [value.caseId]);
+    await assert.rejects(createFixtures(db, value), /fixture identity collided/);
+    await db.query(`UPDATE public."CaseMessage"
+      SET body='Disposable opening evidence for the seller refund production proof.' WHERE "caseId"=$1`, [value.caseId]);
     await db.query(`UPDATE public."Listing" SET title='not-the-marker' WHERE id=$1`, [value.listingId]);
     await assert.rejects(createFixtures(db, value), /fixture identity collided/);
     await db.query(`UPDATE public."Listing" SET title='seller-refund-production-proof' WHERE id=$1`, [value.listingId]);
     await seedOutcome(db, value);
+    await db.query(`UPDATE public."CaseMessage" SET body='not-opening-evidence' WHERE "caseId"=$1`, [value.caseId]);
+    await assert.rejects(cleanupExactRows(db, value), /cleanup opening_message relationship drifted/);
+    await db.query(`UPDATE public."CaseMessage"
+      SET body='Disposable opening evidence for the seller refund production proof.' WHERE "caseId"=$1`, [value.caseId]);
     await db.query(`UPDATE public."Listing" SET title='not-the-marker' WHERE id=$1`, [value.listingId]);
     await assert.rejects(cleanupExactRows(db, value), /cleanup listing relationship drifted/);
     const retained = await db.query(`SELECT (SELECT count(*)::integer FROM public."Order") AS orders,

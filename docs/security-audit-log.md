@@ -3624,3 +3624,25 @@ Open work:
   the PaymentIntent and expanded Charge/Transfer with bounded waits, and
   advances the journal only after the existing exact assertion passes. It does
   not permit a second payment or weaken provider identity checks.
+
+## Seller-refund Case opening-evidence correction (2026-08-29)
+
+- Exact operator/main `7131b586374758464db93659a51550f1044e0ab4` /
+  CI `33264246072` recovered the sole retained 500-cent Stripe test payment and
+  exact 475-cent destination transfer, then advanced the private journal to
+  `payment-created`.
+- The application-fixture transaction failed closed at commit with
+  `Case has no human or durable webhook opening evidence`. The synthetic Case
+  omitted both a human opening `CaseMessage` and a durable webhook opening
+  source. PostgreSQL's deferred Case invariant correctly rejected it and
+  rolled back every row in that serializable transaction. No refund, reversal,
+  signed event, notification, email or application fixture survived.
+- The correction seeds a buyer-authored opening message atomically with the
+  synthetic Case and requires the exact author, kind, body and Case binding in
+  restart and cleanup checks. Parent-Case deletion remains the sole cleanup
+  path so the message is removed through the reviewed cascade.
+- The fixture database now installs a production-equivalent deferred opening
+  trigger, includes a negative missing-message proof and is enrolled in the
+  class-wide Case-fixture compatibility inventory. The exact account, payment
+  and mode-`0600` journal remain preserved; this correction does not authorize
+  another execution or any production configuration/RLS change.
