@@ -3526,3 +3526,22 @@ Open work:
 - Their status headers now reflect the verified release state. The remaining
   asynchronous export scale work and typed dispute-time/index invariant stay
   explicitly open; no code, database, deployment or provider state changed.
+
+## OrderPaymentEvent seller-refund proof hardening (2026-08-28)
+
+- The pre-execution authority review found two defects in the isolated seller
+  full-refund operator; neither had reached production or provider execution.
+- Production catalog checks had issued concurrent queries through one
+  `node-postgres` owner client. They now run in explicit sequence, so protocol
+  ordering is deterministic before any proof mutation.
+- Cleanup assumed Stripe would return a deleted Account object after account
+  deletion. The current provider can instead return the exact
+  `StripePermissionError` / `account_invalid` / HTTP 403 / `api_error` shape.
+  Restart now accepts that tuple only with a bounded, well-formed complete
+  account listing that excludes the exact account ID; every other response,
+  error code, malformed listing or retained target fails closed.
+- The same helper governs both `cleanup-started` and `cleaned`, closing the
+  crash window after provider deletion but before the private journal advances.
+  Focused unit/static coverage proves the accepted and rejected restart shapes.
+  Review or merge remains non-executing and does not authorize production,
+  provider, grant or RLS changes.

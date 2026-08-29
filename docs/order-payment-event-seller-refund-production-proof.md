@@ -1,8 +1,8 @@
 # OrderPaymentEvent seller full-refund production proof
 
-Status: isolated design and operator scaffold. Review or merge does not
-authorize execution. `OrderPaymentEvent` RLS remains off and predecessor CRUD
-must remain available throughout this proof.
+Status: isolated reviewed candidate with restart-safe deletion recovery. Review
+or merge does not authorize execution. `OrderPaymentEvent` RLS remains off and
+predecessor CRUD must remain available throughout this proof.
 
 Audited: 2026-08-25 after the signed refund/dispute proof package was prepared.
 
@@ -111,12 +111,21 @@ marker checks. The permanent operational canary User and the processed webhook
 lease are retained. A failed cleanup preserves the private state file and
 prints only redacted diagnostics.
 
+The pre-execution hard review found and corrected two operator-only defects:
+database catalog reads no longer issue concurrent queries through one
+`node-postgres` client, and deleted connected-account recovery no longer
+assumes `accounts.retrieve` returns a deleted object. Stripe can instead return
+the exact `StripePermissionError` / `account_invalid` / HTTP 403 / `api_error`
+tuple after deletion. That tuple proves deletion only when a bounded complete
+account listing is well formed and excludes the exact marker-bound account.
+Every other error or listing shape fails closed, including restart from either
+`cleanup-started` or `cleaned`.
+
 ## Sequencing
 
-1. Merge and execute the distinct signed refund/dispute proof.
-2. Review this operator, unit tests and disposable PostgreSQL fixture proof.
-3. Merge from an exact main commit and require exact-main CI.
-4. Execute this proof once against the already-compatible deployment.
-5. Record sanitized evidence and cleanup outcome.
-6. Continue with blocked-checkout and staff Case refund live proofs. Do not
+1. Retain the accepted distinct signed refund/dispute proof.
+2. Merge this reviewed operator from an exact main commit and require exact-main CI.
+3. Execute this proof once against the already-compatible deployment.
+4. Record sanitized evidence and cleanup outcome.
+5. Continue with the still-separate staff Case refund live proof. Do not
    bundle those authorities or infer them from this seller proof.

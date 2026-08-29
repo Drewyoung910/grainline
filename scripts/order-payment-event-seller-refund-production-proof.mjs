@@ -416,10 +416,9 @@ function postgresClient(connectionString, applicationName) {
 }
 
 async function verifyDatabaseBoundary(owner, runtime) {
-  const [ownerIdentity, runtimeIdentity, posture, functions] = await Promise.all([
-    owner.query("SELECT current_user AS role, current_database() AS database"),
-    runtime.query("SELECT current_user AS role, current_database() AS database"),
-    owner.query(`
+  const ownerIdentity = await owner.query("SELECT current_user AS role, current_database() AS database");
+  const runtimeIdentity = await runtime.query("SELECT current_user AS role, current_database() AS database");
+  const posture = await owner.query(`
       SELECT relation.relrowsecurity AS enabled, relation.relforcerowsecurity AS forced,
         pg_catalog.has_table_privilege('${RUNTIME_ROLE}', 'public."OrderPaymentEvent"', 'SELECT') AS can_select,
         pg_catalog.has_table_privilege('${RUNTIME_ROLE}', 'public."OrderPaymentEvent"', 'INSERT') AS can_insert,
@@ -427,8 +426,8 @@ async function verifyDatabaseBoundary(owner, runtime) {
         pg_catalog.has_table_privilege('${RUNTIME_ROLE}', 'public."OrderPaymentEvent"', 'DELETE') AS can_delete
       FROM pg_catalog.pg_class AS relation JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace
       WHERE namespace.nspname = 'public' AND relation.relname = 'OrderPaymentEvent'
-    `),
-    owner.query(`
+    `);
+  const functions = await owner.query(`
       WITH expected(signature) AS (VALUES
         ('public.grainline_seller_refund_claim(text,text)'),
         ('public.grainline_seller_refund_record(text,text,bigint,text,text,text,integer)'),
@@ -445,8 +444,7 @@ async function verifyDatabaseBoundary(owner, runtime) {
             WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'))::integer AS valid
       FROM expected LEFT JOIN LATERAL (SELECT procedure_row.* FROM pg_catalog.pg_proc AS procedure_row
         WHERE procedure_row.oid = pg_catalog.to_regprocedure(expected.signature)) AS routine ON true
-    `),
-  ]);
+    `);
   assert.deepEqual(ownerIdentity.rows, [{ role: "neondb_owner", database: PRODUCTION_DATABASE_NAME }]);
   assert.deepEqual(runtimeIdentity.rows, [{ role: RUNTIME_ROLE, database: PRODUCTION_DATABASE_NAME }]);
   assert.deepEqual(posture.rows, [{ enabled: false, forced: false, can_select: true, can_insert: true, can_update: true, can_delete: true }]);
@@ -466,6 +464,7 @@ function stripeDependencies(stripe, secretKey, config, state) {
     listClassicEndpoints: () => listAll(stripe.webhookEndpoints.list({ limit: 100 })),
     listV2Destinations: () => listAll(stripe.v2.core.eventDestinations.list({ include: ["webhook_endpoint.url"], limit: 100 })),
     createAccount: () => stripe.accounts.create(buildConnectedAccountParams(config, state), idempotency("account")),
+    listAccounts: () => listAll(stripe.accounts.list({ limit: 100 })),
     retrieveAccount: (id) => stripe.accounts.retrieve(id),
     deleteAccount: (id) => stripe.accounts.del(id),
     createPayment: (accountId) => stripe.paymentIntents.create({
@@ -559,6 +558,22 @@ export function assertConnectedAccount(account, config, state) {
     throw new Error("seller refund disposable connected account transfer capability is not active");
   }
   return account;
+}
+
+export function assertDeletedConnectedAccountAbsence(error, accounts, expectedAccountId) {
+  const exactAccessFailure = error?.type === "StripePermissionError"
+    && error?.code === "account_invalid"
+    && error?.statusCode === 403
+    && error?.rawType === "api_error";
+  if (!/^acct_[A-Za-z0-9_]+$/.test(String(expectedAccountId ?? ""))
+    || !exactAccessFailure
+    || !Array.isArray(accounts)
+    || accounts.length > 1000
+    || accounts.some((account) => !/^acct_[A-Za-z0-9_]+$/.test(String(account?.id ?? "")))
+    || accounts.some((account) => account.id === expectedAccountId)) {
+    throw new Error("seller refund deleted connected account absence is not proven");
+  }
+  return true;
 }
 
 export function assertPayment(payment, charge, accountId) {
@@ -1098,6 +1113,25 @@ function balanceTotal(balance) {
   return [...(balance?.available ?? []), ...(balance?.pending ?? [])].reduce((sum, row) => sum + Number(row?.amount ?? 0), 0);
 }
 
+export async function deleteDisposableAccount(stripeOps, config, state) {
+  let current;
+  try {
+    current = await stripeOps.retrieveAccount(state.stripeAccountId);
+  } catch (error) {
+    return assertDeletedConnectedAccountAbsence(
+      error,
+      await stripeOps.listAccounts(),
+      state.stripeAccountId,
+    );
+  }
+  if (current?.deleted === true) return current.id === state.stripeAccountId;
+  assertConnectedAccount(current, config, state);
+  const balance = await stripeOps.retrieveBalance(state.stripeAccountId);
+  if (balanceTotal(balance) !== 0) throw new Error("seller refund disposable account retained a nonzero balance");
+  const deleted = await stripeOps.deleteAccount(state.stripeAccountId);
+  return deleted?.deleted === true && deleted.id === state.stripeAccountId;
+}
+
 export function buildEvidence(config, state, cleanup) {
   return Object.freeze({
     generatedAt: new Date().toISOString(),
@@ -1298,15 +1332,8 @@ export async function runSellerRefundProductionProof(config = validateConfigurat
       const before = await readCleanupSnapshot(owner, state);
       if (Number(before.buyerCount) === 1) await (dependencies.cleanupExactRows ?? cleanupExactRows)(owner, state);
       assertCleanupSnapshot(await readCleanupSnapshot(owner, state));
-      const currentAccount = await stripeOps.retrieveAccount(state.stripeAccountId);
-      if (currentAccount?.deleted !== true) {
-        assertConnectedAccount(currentAccount, config, state);
-        const balance = await stripeOps.retrieveBalance(state.stripeAccountId);
-        if (balanceTotal(balance) !== 0) throw new Error("seller refund disposable account retained a nonzero balance");
-        const deleted = await stripeOps.deleteAccount(state.stripeAccountId);
-        if (deleted?.deleted !== true || deleted.id !== state.stripeAccountId) throw new Error("seller refund disposable account deletion failed");
-      } else if (currentAccount.id !== state.stripeAccountId) {
-        throw new Error("seller refund deleted connected account identity drifted");
+      if (!await deleteDisposableAccount(stripeOps, config, state)) {
+        throw new Error("seller refund disposable account deletion failed");
       }
       state = updateState(config, state, { stage: "cleaned" });
     }
@@ -1314,8 +1341,7 @@ export async function runSellerRefundProductionProof(config = validateConfigurat
       const sessionsRevoked = await revokeCanarySessions(clerk, state.sellerClerkId);
       const rateLimitKeysRemoved = await deleteRefundRateLimitKeys(redis, state.sellerUserId);
       const cleanupSnapshot = assertCleanupSnapshot(await readCleanupSnapshot(owner, state));
-      const deletedAccount = await stripeOps.retrieveAccount(state.stripeAccountId);
-      if (deletedAccount?.deleted !== true || deletedAccount.id !== state.stripeAccountId) {
+      if (!await deleteDisposableAccount(stripeOps, config, state)) {
         throw new Error("seller refund cleaned state did not retain deleted account evidence");
       }
       const cleanup = {
