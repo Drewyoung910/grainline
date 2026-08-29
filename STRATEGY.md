@@ -704,6 +704,17 @@ mode-`0600`, marker-bound hosted-onboarding handoff. Payment creation remains
 blocked until the exact account's transfer capability is active. Review or
 merge of that correction is not proof execution or RLS activation authority.
 
+A third execution from operator/main
+`792a088c7ab677942360176c6709481fd4548fcd` / CI `33242951704`
+completed private hosted onboarding and created exactly one 500-cent Stripe
+test payment with the exact 475-cent destination transfer, then failed closed
+before application-fixture creation because it asserted Stripe's transient
+create response. Read-only retrieval proves the retained objects are exact and
+pass the full assertion. Preserve the sole journal at `payment-create-pending`
+and the same idempotency namespace; re-retrieve the existing PaymentIntent and
+expanded Charge/Transfer before advancing. Do not create a competing payment
+or infer provider-proof success from the retained test objects.
+
 The blocked-checkout product audit found one delivery correction that must land
 before its live proof: the automatic refund was classified as `NEW_ORDER` and
 had no durable refund-email reservation. Follow

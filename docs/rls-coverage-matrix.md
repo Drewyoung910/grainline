@@ -413,11 +413,17 @@ state and supersede earlier inline chronology in its matrix summary.
 > Custom/application-collected responsibility request does not match the
 > platform profile. Complete read-only scans exhausted all 13 test accounts
 > and found zero attempt markers after each failure; no payment or application
-> fixture exists. Keep the journal at `account-create-pending`, change no
-> Stripe platform setting, and resume only after the production-aligned
-> Express/Stripe-collected controller plus private hosted-onboarding correction
-> merges and passes exact-main CI. This does not authorize provider execution,
-> predecessor drain, ENABLE or FORCE.
+> fixture existed after those two attempts. A third execution from
+> operator/main `792a088c7ab677942360176c6709481fd4548fcd` / CI
+> `33242951704` completed private hosted onboarding and created exactly one
+> 500-cent test PaymentIntent with one 475-cent destination transfer, then
+> failed closed before application-fixture creation because the immediate
+> create response was asserted. Read-only re-retrieval proves the retained
+> objects pass the exact payment assertion. Keep the sole journal at
+> `payment-create-pending`, retain the same idempotency namespace, and resume
+> only after the retrieved-payment recovery correction passes exact-main CI.
+> This does not authorize provider execution, predecessor drain, ENABLE or
+> FORCE.
 
 ## Program Rules
 
