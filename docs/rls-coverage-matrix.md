@@ -370,6 +370,19 @@ completed alternative.
 > create another payment, refund or dispute. Signed delivery/replay, bounded
 > cleanup, a fresh automatic paid proof, remaining invariants/projections,
 > predecessor drain and separate ENABLE/FORCE releases remain open.
+>
+> **Signed-provider proof acceptance (2026-08-28):** exact operator/main
+> `b37246d06e65a37fd163484f07390b9044689379`, CI `33228466974`, resumed only
+> the original `dispute-delivery-resend-pending` journal after compatibility
+> run `33227729046`. The existing genuine `du_` event delivered, its exact
+> retry was idempotent, both signed payment families verified and all bounded
+> temporary application fixtures were removed. Exactly two processed webhook
+> leases plus immutable Stripe test objects remain intentionally. The restart
+> journal is gone; sanitized mode-`0600` evidence SHA-256 is
+> `fda2a7570525fbd927498439f527584cf7724b32c075edc0136d8260290cdfaa`.
+> No live money, deployment, provider configuration, grants or RLS posture
+> changed. This closes the signed-provider gate only; other family proofs,
+> invariants/projections, predecessor drain and separate ENABLE/FORCE remain.
 
 ## Program Rules
 
