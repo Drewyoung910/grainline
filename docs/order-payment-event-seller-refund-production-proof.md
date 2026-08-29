@@ -1,8 +1,10 @@
 # OrderPaymentEvent seller full-refund production proof
 
-Status: isolated reviewed candidate with restart-safe deletion recovery. Review
-or merge does not authorize execution. `OrderPaymentEvent` RLS remains off and
-predecessor CRUD must remain available throughout this proof.
+Status: first execution attempt failed closed before provider-object creation;
+an isolated metadata-limit correction and the preserved restart journal are
+under review. Review or merge does not authorize execution or retry.
+`OrderPaymentEvent` RLS remains off and predecessor CRUD must remain available
+throughout this proof.
 
 Audited: 2026-08-25 after the signed refund/dispute proof package was prepared.
 
@@ -123,11 +125,29 @@ exhaustion fails closed instead of silently accepting a truncated listing.
 Every other error or listing shape fails closed, including restart from either
 `cleanup-started` or `cleaned`.
 
+## First execution attempt failed closed (2026-08-28)
+
+Exact main `877610cbb12491d8e788e6948a3c9c31aced1e70` and CI
+`33231868504` passed every repository gate, but Stripe rejected the first
+account-create request before object creation because the proof metadata key
+was 43 characters and Stripe permits at most 40. The private mode-`0600`
+journal stopped at `account-create-pending`; no payment or application fixture
+was created. A complete read-only test-account scan reached provider
+`has_more=false` after 13 accounts and found zero accounts with the attempt
+marker.
+
+The correction uses the shorter `grainline_seller_refund_proof` key for both
+the disposable account and PaymentIntent and validates every emitted Stripe
+metadata key against the provider limit before any request. The preserved
+journal remains the only valid retry identity. No deployment, migration,
+grant, RLS or provider configuration changed.
+
 ## Sequencing
 
 1. Retain the accepted distinct signed refund/dispute proof.
 2. Merge this reviewed operator from an exact main commit and require exact-main CI.
-3. Execute this proof once against the already-compatible deployment.
+3. Resume the exact preserved first attempt only after the metadata correction
+   merges and its exact-main CI passes.
 4. Record sanitized evidence and cleanup outcome.
 5. Continue with the still-separate staff Case refund live proof. Do not
    bundle those authorities or infer them from this seller proof.

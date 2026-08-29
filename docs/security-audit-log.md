@@ -3552,3 +3552,12 @@ Open work:
   factual, but future reuse now requires the same explicit pagination and
   provider-exhaustion certificate. This is operator hardening, not a replay or
   retroactive production-state claim.
+- The first authorized seller-refund attempt from exact main `877610cb` / CI
+  `33231868504` failed closed at `account-create-pending`: Stripe rejected the
+  43-character proof metadata key before creating an account. A complete
+  read-only scan reached `has_more=false` after 13 test accounts and found zero
+  attempt-marker matches; no payment or application fixture existed. The
+  corrected operator emits the shorter `grainline_seller_refund_proof` key for
+  both account and PaymentIntent metadata and validates all emitted keys
+  against Stripe's 40-character maximum before either provider request. The
+  private mode-`0600` journal is retained for the sole restart-safe retry.

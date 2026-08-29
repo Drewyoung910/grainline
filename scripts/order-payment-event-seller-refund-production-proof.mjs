@@ -49,6 +49,8 @@ export const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.l
 export const RUNTIME_ROLE = "grainline_app_runtime";
 export const REFUND_AMOUNT_CENTS = 500;
 export const TRANSFER_AMOUNT_CENTS = 475;
+export const STRIPE_METADATA_KEY_MAX_LENGTH = 40;
+export const STRIPE_PROOF_METADATA_KEY = "grainline_seller_refund_proof";
 export const REQUIRED_ALIASES = Object.freeze([
   "thegrainline.com",
   "www.thegrainline.com",
@@ -506,7 +508,7 @@ function stripeDependencies(stripe, secretKey, config, state) {
       confirm: true,
       transfer_data: { destination: accountId, amount: TRANSFER_AMOUNT_CENTS },
       description: "Grainline seller refund authority proof",
-      metadata: { grainline_order_payment_seller_refund_proof: markerFor(config, state) },
+      metadata: buildStripeProofMetadata(config, state),
     }, idempotency("payment")),
     retrieveCharge: (id) => stripe.charges.retrieve(id, { expand: ["transfer"] }),
     retrieveRefund: (id) => stripe.refunds.retrieve(id, { expand: ["transfer_reversal"] }),
@@ -532,6 +534,16 @@ function stripeDependencies(stripe, secretKey, config, state) {
 
 function markerFor(config, state) {
   return sha256(`${config.expectedCommit}:${state.attemptId}:seller-refund`);
+}
+
+export function buildStripeProofMetadata(config, state) {
+  const metadata = { [STRIPE_PROOF_METADATA_KEY]: markerFor(config, state) };
+  for (const key of Object.keys(metadata)) {
+    if (key.length < 1 || key.length > STRIPE_METADATA_KEY_MAX_LENGTH) {
+      throw new Error("seller refund Stripe metadata key exceeded provider limits");
+    }
+  }
+  return metadata;
 }
 
 export function buildConnectedAccountParams(config, state, now = new Date()) {
@@ -568,7 +580,7 @@ export function buildConnectedAccountParams(config, state, now = new Date()) {
       account_holder_name: "Grainline Seller Refund Canary",
       account_holder_type: "individual",
     },
-    metadata: { grainline_order_payment_seller_refund_proof: markerFor(config, state) },
+    metadata: buildStripeProofMetadata(config, state),
     settings: { payouts: { schedule: { interval: "manual" } } },
   };
 }
@@ -576,7 +588,7 @@ export function buildConnectedAccountParams(config, state, now = new Date()) {
 function assertConnectedAccountIdentity(account, config, state) {
   if (
     !account || account.deleted === true || !/^acct_[A-Za-z0-9_]+$/.test(String(account.id ?? ""))
-    || account.metadata?.grainline_order_payment_seller_refund_proof !== markerFor(config, state)
+    || account.metadata?.[STRIPE_PROOF_METADATA_KEY] !== markerFor(config, state)
     || account.country !== "US" || account.default_currency !== "usd"
     || account.type !== "custom"
   ) throw new Error("seller refund disposable connected account drifted");
