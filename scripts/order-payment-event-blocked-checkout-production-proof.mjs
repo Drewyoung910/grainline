@@ -684,13 +684,15 @@ export function assertConnectedAccount(account, config, state, { requireTransfer
   return account;
 }
 
-export function assertDeletedConnectedAccountAbsence(error, accounts, expectedAccountId) {
+export function assertDeletedConnectedAccountAbsence(error, listing, expectedAccountId) {
+  const accounts = listing?.accounts;
   const exactAccessFailure = error?.type === "StripePermissionError"
     && error?.code === "account_invalid"
     && error?.statusCode === 403
     && error?.rawType === "api_error";
   if (!/^acct_[A-Za-z0-9_]+$/.test(String(expectedAccountId ?? ""))
     || !exactAccessFailure
+    || listing?.exhausted !== true
     || !Array.isArray(accounts)
     || accounts.length > 1000
     || accounts.some((account) => !/^acct_[A-Za-z0-9_]+$/.test(String(account?.id ?? "")))
@@ -974,6 +976,37 @@ async function listAll(listPromise) {
   return rows;
 }
 
+export async function listAccountsBounded(listPage, maxAccounts = 1000) {
+  if (typeof listPage !== "function" || !Number.isSafeInteger(maxAccounts) || maxAccounts < 1 || maxAccounts > 1000) {
+    throw new Error("blocked-checkout account-list bound is invalid");
+  }
+  const accounts = [];
+  let startingAfter = null;
+  for (;;) {
+    const page = await listPage({
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+    if (!page || !Array.isArray(page.data) || typeof page.has_more !== "boolean"
+      || page.data.length > 100
+      || page.data.some((account) => !/^acct_[A-Za-z0-9_]+$/.test(String(account?.id ?? "")))) {
+      throw new Error("blocked-checkout account-list page drifted");
+    }
+    accounts.push(...page.data);
+    if (accounts.length > maxAccounts) throw new Error("blocked-checkout account listing exceeded its proof bound");
+    if (!page.has_more) {
+      return Object.freeze({
+        accounts: Object.freeze([...accounts]),
+        exhausted: true,
+      });
+    }
+    if (page.data.length === 0 || accounts.length >= maxAccounts) {
+      throw new Error("blocked-checkout account listing did not prove exhaustion within its bound");
+    }
+    startingAfter = page.data.at(-1).id;
+  }
+}
+
 function stripeDependencies(stripe, secretKey, config, state) {
   const idempotency = (key) => ({ idempotencyKey: `grainline-ope-blocked-${config.expectedCommit}-${state.attemptId}-${key}` });
   return {
@@ -987,7 +1020,7 @@ function stripeDependencies(stripe, secretKey, config, state) {
       buildConnectedAccountLinkParams(accountId),
       idempotency(`hosted-onboarding-${randomUUID()}`),
     ),
-    listAccounts: () => listAll(stripe.accounts.list({ limit: 100 })),
+    listAccounts: () => listAccountsBounded((params) => stripe.accounts.list(params)),
     retrieveAccount: (id) => stripe.accounts.retrieve(id),
     deleteAccount: (id) => stripe.accounts.del(id),
     retrieveSession: (id) => stripe.checkout.sessions.retrieve(id, { expand: CHECKOUT_SESSION_EXPANDS }),

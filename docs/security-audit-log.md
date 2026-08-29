@@ -3527,7 +3527,7 @@ Open work:
   asynchronous export scale work and typed dispute-time/index invariant stay
   explicitly open; no code, database, deployment or provider state changed.
 
-## OrderPaymentEvent seller-refund proof hardening (2026-08-28)
+## OrderPaymentEvent provider-proof cleanup hardening (2026-08-28)
 
 - The pre-execution authority review found two defects in the isolated seller
   full-refund operator; neither had reached production or provider execution.
@@ -3546,3 +3546,9 @@ Open work:
   Focused unit/static coverage proves the accepted and rejected restart shapes.
   Review or merge remains non-executing and does not authorize production,
   provider, grant or RLS changes.
+- A class-wide scan found the retained blocked-checkout proof used the same
+  post-deletion tuple with an SDK array helper capped at 1,000 rows. Its
+  accepted run had scanned only 13 test-mode accounts, so its result remains
+  factual, but future reuse now requires the same explicit pagination and
+  provider-exhaustion certificate. This is operator hardening, not a replay or
+  retroactive production-state claim.
