@@ -348,10 +348,10 @@ function command(name, args, { cwd, env, label = name, timeout = 60_000 } = {}) 
   });
 }
 
-function readGitState(cwd) {
+export function readGitState(cwd) {
   return {
     branch: command("git", ["branch", "--show-current"], { cwd }).trim(),
-    commit: command("git", ["rev-parse", "HEAD"], { cwd }).trim(),
+    head: command("git", ["rev-parse", "HEAD"], { cwd }).trim(),
     status: command("git", ["status", "--porcelain"], { cwd }),
   };
 }
