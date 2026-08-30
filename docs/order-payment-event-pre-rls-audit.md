@@ -210,8 +210,11 @@ enumeration, unrelated target selection, replay suppression and state rewrite.
 
 The original audit pinned 26 source files that named the delegate, nested
 relation, raw table or payment-event semantic helper. The isolated fixed-read
-candidate adds one reviewed authority module, so the current semantic
-inventory is 27 files. This inventory is intentionally broader than the older
+candidate added one reviewed authority module. A 2026-08-30 class-wide audit
+then found that the inventory matcher did not include the shared
+`BLOCKING_REFUND_LEDGER_SQL` and `blockingRefundLedgerWhere` symbols, so it
+silently omitted six genuine aggregate consumers. The corrected semantic
+inventory is 33 files. This inventory is intentionally broader than the older
 seven-file direct-access floor; semantic wrapper references remain after their
 underlying base-table access is removed.
 
@@ -232,12 +235,18 @@ underlying base-table access is removed.
 ### Eligibility and aggregate predicates
 
 - `src/app/account/page.tsx`
+- `src/app/admin/verification/page.tsx`
 - `src/app/api/reviews/route.ts`
 - `src/app/api/seller/analytics/recent-sales/route.ts`
+- `src/app/api/seller/analytics/route.ts`
+- `src/app/api/verification/apply/route.ts`
+- `src/app/dashboard/verification/page.tsx`
 - `src/components/ReviewsSection.tsx`
 - `src/lib/ban.ts`
 - `src/lib/homepageStats.ts`
 - `src/lib/listingSoftDelete.ts`
+- `src/lib/metrics.ts`
+- `src/lib/publicSellerStats.ts`
 - `src/lib/quality-score.ts`
 - `src/lib/site-metrics-snapshot.ts`
 
@@ -549,6 +558,23 @@ and live proof, a separate byte-pinned retirement removes `NEW_ORDER`
 acceptance. No permissive policy, generic runtime function or direct
 Notification table grant is introduced.
 
+### OPE-A13 - semantic inventory omitted six aggregate consumers
+
+The original inventory matcher recognized direct Prisma relations, the raw
+table name and one latest-dispute helper, but not the two shared blocking-refund
+symbols. As a result it omitted six real consumers: admin verification,
+seller analytics, verification application and dashboard preview, persisted
+seller metrics, and public seller statistics. Every one expands
+`OrderPaymentEvent` SQL into its query and would fail or change meaning after
+policyless RLS even though its source file does not spell the table name.
+
+The corrected class-wide matcher tracks direct names plus
+`blockingRefundLedgerWhere`, `BLOCKING_REFUND_LEDGER_SQL`, and every
+`latest*DisputeLedger*Sql` helper. The 33-file inventory is now the activation
+baseline. This finding changes no production behavior while RLS and predecessor
+CRUD remain intact, but it expands the fixed aggregate/transition conversion
+scope and prevents a false zero-direct-access claim.
+
 ## Required fixed-operation catalog
 
 Items 1 and 2 are implemented in the merged, byte-pinned migration
@@ -593,7 +619,7 @@ There is no runtime-callable `write_payment_event`, `get_payment_event`,
 
 ## Release and proof sequence
 
-1. Merge this audit and its 26-source inventory tripwire after the stacked
+1. Keep this audit and its corrected 33-source inventory tripwire aligned after the stacked
    SellerPayoutEvent record.
 2. Implement the launch-safe refund product correction and canonical
    latest-dispute helper with focused business-logic regressions.
@@ -650,7 +676,7 @@ failed-attempt chronology, correction rationale and cleanup certificate.
 The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
-- the 26-source baseline converts to zero runtime base-table access;
+- the 33-source semantic baseline converts to zero runtime base-table access;
 - fresh production data is classified with aggregate-only evidence;
 - buyer/seller/staff/service boundaries pass disposable PostgreSQL;
 - signed Stripe and local refund paths pass retry/concurrency proof;

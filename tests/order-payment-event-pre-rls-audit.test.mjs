@@ -25,7 +25,7 @@ function sourceFiles(root = "src") {
 
 function paymentSemanticFiles() {
   const reference =
-    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|latestConversionBlockingDisputeLedgerExistsSql/;
+    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|blockingRefundLedgerWhere|BLOCKING_REFUND_LEDGER_SQL|latest[A-Za-z]*DisputeLedger[A-Za-z]*Sql/;
   return sourceFiles().filter((file) => reference.test(fs.readFileSync(file, "utf8")));
 }
 
@@ -33,6 +33,7 @@ const expectedSemanticFiles = [
   "src/app/account/orders/page.tsx",
   "src/app/account/page.tsx",
   "src/app/admin/orders/[id]/page.tsx",
+  "src/app/admin/verification/page.tsx",
   "src/app/api/account/export/route.ts",
   "src/app/api/orders/[id]/confirm-delivery/route.ts",
   "src/app/api/orders/[id]/fulfillment/route.ts",
@@ -40,19 +41,24 @@ const expectedSemanticFiles = [
   "src/app/api/orders/[id]/refund/route.ts",
   "src/app/api/reviews/route.ts",
   "src/app/api/seller/analytics/recent-sales/route.ts",
+  "src/app/api/seller/analytics/route.ts",
   "src/app/api/stripe/webhook/route.ts",
+  "src/app/api/verification/apply/route.ts",
   "src/app/dashboard/orders/[id]/page.tsx",
   "src/app/dashboard/orders/page.tsx",
   "src/app/dashboard/sales/[orderId]/page.tsx",
   "src/app/dashboard/sales/page.tsx",
+  "src/app/dashboard/verification/page.tsx",
   "src/components/ReviewsSection.tsx",
   "src/lib/ban.ts",
   "src/lib/homepageStats.ts",
   "src/lib/listingSoftDelete.ts",
   "src/lib/localRefundEvidence.ts",
   "src/lib/localRefundEvidenceCore.ts",
+  "src/lib/metrics.ts",
   "src/lib/orderPaymentEventLabels.ts",
   "src/lib/orderPaymentEventReadAuthority.ts",
+  "src/lib/publicSellerStats.ts",
   "src/lib/quality-score.ts",
   "src/lib/refundLedgerSql.ts",
   "src/lib/refundRouteState.ts",
@@ -61,7 +67,7 @@ const expectedSemanticFiles = [
 
 describe("OrderPaymentEvent pre-RLS domain audit", () => {
   it("pins every current semantic source reference", () => {
-    assert.equal(expectedSemanticFiles.length, 27);
+    assert.equal(expectedSemanticFiles.length, 33);
     assert.deepEqual(paymentSemanticFiles(), expectedSemanticFiles);
     for (const file of expectedSemanticFiles) {
       assert.match(audit, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -89,6 +95,7 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
     assert.match(audit, /dispute current-state logic is inconsistent/i);
     assert.match(audit, /append-only and shape invariants are not database-enforced/i);
     assert.match(audit, /seller self-service partial refund is disabled/);
+    assert.match(audit, /semantic inventory omitted six aggregate consumers/i);
   });
 
   it("pins the compatible release and proof boundaries", () => {

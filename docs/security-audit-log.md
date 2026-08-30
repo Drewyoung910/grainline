@@ -3988,3 +3988,17 @@ Open work:
   attests the runtime identity and engine read-only transaction, verifies the
   exact five-function catalog, exercises only absent markers, and retains only
   sanitized mode-0600 evidence.
+
+# 2026-08-30 - OrderPaymentEvent semantic inventory correction
+
+- A class-wide audit found that the 27-file inventory matcher did not recognize
+  the shared `BLOCKING_REFUND_LEDGER_SQL` and `blockingRefundLedgerWhere`
+  symbols. Six genuine aggregate consumers were therefore absent from the
+  documented activation baseline even though they expand payment-ledger SQL.
+- The matcher and audit now pin 33 semantic consumers, including admin and
+  seller verification, seller analytics, persisted seller metrics and public
+  seller statistics. This widens the compatibility conversion scope before
+  activation and prevents a false zero-direct-access claim.
+- No application, database, RLS, grant, deployment, credential or provider
+  state changed. The correction is documentation and an executable inventory
+  tripwire only.
