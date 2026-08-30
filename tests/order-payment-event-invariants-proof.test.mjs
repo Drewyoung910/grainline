@@ -48,6 +48,10 @@ describe("OrderPaymentEvent real PostgreSQL invariant proof", () => {
   });
 
   it("pins malformed, immutable and parent-currency rejection", () => {
+    assert.match(source, /\$1::text, \$2::text, \$3::text, \$4::text/);
+    assert.match(source, /500, \$5::text/);
+    assert.match(source, /namespace\.nspname = \$1::text/);
+    assert.match(source, /application_name = \$1::text/);
     assert.match(source, /crossCurrencyRejected: true/);
     assert.match(source, /malformedSourceRejected: true/);
     assert.match(source, /immutableDeleteRejected: true/);
