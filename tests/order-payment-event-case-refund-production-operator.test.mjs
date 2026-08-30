@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, it } from "node:test";
 import {
   CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES,
@@ -13,6 +16,7 @@ import {
   assertProofSnapshot,
   assertRefundProviderEvidence,
   assertReplayUnchanged,
+  assertSellerRefundPredecessor,
   assertState,
   buildConnectedAccountParams,
   buildEvidence,
@@ -41,6 +45,8 @@ const environment = {
   ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_ATTEMPT_COMMIT: commit("c"),
   ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_OPERATOR_COMMIT: commit("d"),
   ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_SIGNED_COMMIT: commit("f"),
+  ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYED_SOURCE_COMMIT: commit("8"),
+  ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYMENT_ID: "dpl_SellerRefundProof123",
   ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_ATTEMPT_CI_RUN_ID: "33231868504",
   ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_OPERATOR_CI_RUN_ID: "33265745679",
   ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_SIGNED_CI_RUN_ID: "33228466974",
@@ -130,6 +136,59 @@ function proofSnapshot() {
   };
 }
 
+function sellerPredecessorEvidence() {
+  const hash = "a".repeat(64);
+  return {
+    generatedAt: new Date().toISOString(),
+    phase: "order-payment-event-seller-refund-production-proof",
+    status: "passed",
+    mode: "test",
+    commit: environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_ATTEMPT_COMMIT,
+    operatorCommit: environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_OPERATOR_COMMIT,
+    deployedSourceCommit: environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYED_SOURCE_COMMIT,
+    ciRunId: Number(environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_ATTEMPT_CI_RUN_ID),
+    operatorCiRunId: Number(environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_OPERATOR_CI_RUN_ID),
+    deploymentId: environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYMENT_ID,
+    signedPredecessorCommit: environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_SIGNED_COMMIT,
+    signedPredecessorCiRunId: Number(environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_SIGNED_CI_RUN_ID),
+    stripe: {
+      connectedAccountSha256: hash,
+      paymentIntentSha256: hash,
+      chargeSha256: hash,
+      transferSha256: hash,
+      refundSha256: hash,
+      reversalSha256: hash,
+      signedEventSha256: hash,
+      buyerRefundAmountCents: 500,
+      transferReversalAmountCents: 475,
+      exactSignedReplayProven: true,
+      disposableConnectedAccountDeleted: true,
+    },
+    database: {
+      localPaymentEventSha256: hash,
+      signedPaymentEventSha256: hash,
+      caseApplicationSha256: hash,
+      notificationSha256: hash,
+      emailOutboxSha256: hash,
+      stockRestoredAndReactivated: true,
+      caseResolved: true,
+      emailDeliverySkippedByPreference: true,
+      temporaryApplicationRowsRemoved: true,
+      retainedProcessedWebhookLeases: 1,
+      permanentOperationalCanaryRetained: true,
+    },
+    authenticatedRouteRetryRejectedWithoutDuplicate: true,
+    clerkSessionsRevoked: true,
+    refundRateLimitKeysRemoved: true,
+    productionChangedByProof: true,
+    databaseChangeAfterCleanup: "retained",
+    externalResidueAfterCleanup: "retained",
+    providerConfigurationChanged: false,
+    liveMoneyMoved: false,
+    secretsRetained: false,
+  };
+}
+
 describe("OrderPaymentEvent staff Case refund production operator", () => {
   it("pins the four real staff-resolution and case-notification functions", () => {
     assert.deepEqual(CASE_REFUND_REQUIRED_FUNCTION_SIGNATURES, [
@@ -184,10 +243,34 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     const config = configuration();
     assert.equal(config.expectedCommit, environment.ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT);
     assert.equal(config.sellerProofEvidenceSha256, evidenceDigest);
+    assert.equal(
+      config.sellerProofDeployedSourceCommit,
+      environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYED_SOURCE_COMMIT,
+    );
+    assert.equal(
+      config.sellerProofDeploymentId,
+      environment.ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYMENT_ID,
+    );
+    assert.notEqual(config.sellerProofDeployedSourceCommit, config.deployedSourceCommit);
+    assert.notEqual(config.sellerProofDeploymentId, config.deploymentId);
     assert.equal(config.command, "run");
     assert.throws(
       () => validateConfiguration({ ...environment, ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_EVIDENCE_SHA256: "short" }),
       /evidence digest is invalid/,
+    );
+    assert.throws(
+      () => validateConfiguration({
+        ...environment,
+        ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYED_SOURCE_COMMIT: "short",
+      }),
+      /commit input is invalid/,
+    );
+    assert.throws(
+      () => validateConfiguration({
+        ...environment,
+        ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYMENT_ID: "wrong",
+      }),
+      /seller predecessor deployment ID is invalid/,
     );
     assert.throws(
       () => validateConfiguration({ ...environment, ORDER_PAYMENT_CASE_REFUND_CONFIRM: "yes" }),
@@ -335,12 +418,51 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     assert.equal(evidence.attemptCiRunId, config.attemptMainCiRunId);
     assert.equal(evidence.database.retainedAdminPinAuditRows, 2);
     assert.equal(evidence.database.operationalCanaryRoleRestored, true);
+    assert.equal(
+      evidence.sellerRefundPredecessorDeployedSourceCommit,
+      config.sellerProofDeployedSourceCommit,
+    );
+    assert.equal(evidence.sellerRefundPredecessorDeploymentId, config.sellerProofDeploymentId);
     assert.equal(evidence.rateLimitTelemetry, "bounded TTL entries retained");
     assert.equal(JSON.stringify(evidence).includes("admin-pin-verified"), false);
     assert.throws(
       () => assertEvidence(buildEvidence(config, state, { ...cleanup, roleRestored: false }), config),
       /sanitized evidence drifted/,
     );
+    assert.throws(
+      () => assertEvidence({ ...evidence, sellerRefundPredecessorDeploymentId: config.deploymentId }, config),
+      /sanitized evidence drifted/,
+    );
+  });
+
+  it("verifies seller evidence against its own immutable deployment binding", () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "case-refund-predecessor-"));
+    try {
+      const evidencePath = path.join(directory, "evidence.json");
+      const bytes = Buffer.from(`${JSON.stringify(sellerPredecessorEvidence(), null, 2)}\n`);
+      writeFileSync(evidencePath, bytes);
+      chmodSync(evidencePath, 0o600);
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      const config = validateConfiguration({
+        ...environment,
+        ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_EVIDENCE_PATH: evidencePath,
+        ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_EVIDENCE_SHA256: sha256,
+      });
+      assert.equal(assertSellerRefundPredecessor(config).deploymentId, config.sellerProofDeploymentId);
+
+      const rebound = validateConfiguration({
+        ...environment,
+        ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_EVIDENCE_PATH: evidencePath,
+        ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_EVIDENCE_SHA256: sha256,
+        ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYED_SOURCE_COMMIT:
+          environment.ORDER_PAYMENT_CASE_REFUND_DEPLOYED_SOURCE_COMMIT,
+        ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYMENT_ID:
+          environment.ORDER_PAYMENT_CASE_REFUND_DEPLOYMENT_ID,
+      });
+      assert.throws(() => assertSellerRefundPredecessor(rebound), /seller refund sanitized evidence drifted/);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("minimizes temporary staff authority and preserves fail-closed cleanup boundaries", () => {

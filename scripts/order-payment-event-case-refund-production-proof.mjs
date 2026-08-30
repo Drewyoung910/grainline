@@ -187,12 +187,24 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
   const sellerProofAttemptCommit = required(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_ATTEMPT_COMMIT");
   const sellerProofOperatorCommit = required(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_OPERATOR_COMMIT");
   const sellerProofSignedCommit = required(env, "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_SIGNED_COMMIT");
-  if (![expectedCommit, attemptCommit, deployedSourceCommit, sellerProofAttemptCommit, sellerProofOperatorCommit, sellerProofSignedCommit]
+  const sellerProofDeployedSourceCommit = required(
+    env,
+    "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYED_SOURCE_COMMIT",
+  );
+  if (![expectedCommit, attemptCommit, deployedSourceCommit, sellerProofAttemptCommit, sellerProofOperatorCommit,
+    sellerProofSignedCommit, sellerProofDeployedSourceCommit]
     .every((value) => COMMIT_PATTERN.test(value))) {
     throw new Error("Case refund proof commit input is invalid");
   }
   const deploymentId = required(env, "ORDER_PAYMENT_CASE_REFUND_DEPLOYMENT_ID");
   if (!DEPLOYMENT_PATTERN.test(deploymentId)) throw new Error("Case refund deployment ID is invalid");
+  const sellerProofDeploymentId = required(
+    env,
+    "ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_DEPLOYMENT_ID",
+  );
+  if (!DEPLOYMENT_PATTERN.test(sellerProofDeploymentId)) {
+    throw new Error("Case refund seller predecessor deployment ID is invalid");
+  }
   if (required(env, "ORDER_PAYMENT_CASE_REFUND_CONFIRM") !== CONFIRMATION) {
     throw new Error("Case refund proof confirmation is invalid");
   }
@@ -222,6 +234,8 @@ export function validateConfiguration(env = process.env, cwd = process.cwd()) {
     sellerProofAttemptCommit,
     sellerProofOperatorCommit,
     sellerProofSignedCommit,
+    sellerProofDeployedSourceCommit,
+    sellerProofDeploymentId,
     sellerProofAttemptCiRunId,
     sellerProofOperatorCiRunId,
     sellerProofSignedCiRunId,
@@ -1445,6 +1459,8 @@ export function buildEvidence(config, state, cleanup) {
     deploymentId: config.deploymentId,
     sellerRefundPredecessorOperatorCommit: config.sellerProofOperatorCommit,
     sellerRefundPredecessorOperatorCiRunId: config.sellerProofOperatorCiRunId,
+    sellerRefundPredecessorDeployedSourceCommit: config.sellerProofDeployedSourceCommit,
+    sellerRefundPredecessorDeploymentId: config.sellerProofDeploymentId,
     stripe: {
       connectedAccountSha256: sha256(state.stripeAccountId),
       paymentIntentSha256: sha256(state.paymentIntentId),
@@ -1509,6 +1525,8 @@ export function assertEvidence(payload, config) {
     || payload?.deploymentId !== config.deploymentId
     || payload?.sellerRefundPredecessorOperatorCommit !== config.sellerProofOperatorCommit
     || String(payload?.sellerRefundPredecessorOperatorCiRunId) !== String(config.sellerProofOperatorCiRunId)
+    || payload?.sellerRefundPredecessorDeployedSourceCommit !== config.sellerProofDeployedSourceCommit
+    || payload?.sellerRefundPredecessorDeploymentId !== config.sellerProofDeploymentId
     || !hashes.every((value) => hex.test(value ?? ""))
     || payload?.stripe?.buyerRefundAmountCents !== REFUND_AMOUNT_CENTS
     || payload?.stripe?.transferReversalAmountCents !== TRANSFER_AMOUNT_CENTS
@@ -1534,7 +1552,7 @@ export function assertEvidence(payload, config) {
   return Object.freeze(payload);
 }
 
-function assertSellerRefundPredecessor(config) {
+export function assertSellerRefundPredecessor(config) {
   assertPrivateRegularFile(config.sellerProofEvidencePath, "seller refund predecessor evidence");
   const bytes = readFileSync(config.sellerProofEvidencePath);
   if (sha256(bytes) !== config.sellerProofEvidenceSha256) {
@@ -1544,9 +1562,9 @@ function assertSellerRefundPredecessor(config) {
     JSON.parse(bytes.toString("utf8")),
     {
       expectedCommit: config.sellerProofAttemptCommit,
-      deployedSourceCommit: config.deployedSourceCommit,
+      deployedSourceCommit: config.sellerProofDeployedSourceCommit,
       mainCiRunId: config.sellerProofAttemptCiRunId,
-      deploymentId: config.deploymentId,
+      deploymentId: config.sellerProofDeploymentId,
       operatorCommit: config.sellerProofOperatorCommit,
       operatorCiRunId: config.sellerProofOperatorCiRunId,
       signedProofCommit: config.sellerProofSignedCommit,

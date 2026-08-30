@@ -3813,3 +3813,18 @@ Open work:
   cross-bundle `23514` case and rejects malformed, non-P2010 and wrong-name
   lookalikes. The same mode-`0600` journal remains at `signed-confirmed`; no
   competing attempt is permitted.
+
+## OrderPaymentEvent staff Case-refund predecessor deployment binding (2026-08-29)
+
+- After the cross-bundle SQLSTATE correction was deployed, the authorized
+  restart failed closed before external or database work because the operator
+  validated byte-pinned seller-refund evidence against the current Case
+  deployment rather than that predecessor proof's own deployed source and
+  deployment ID. The evidence file remained mode `0600` and retained its exact
+  accepted SHA-256.
+- The corrected configuration separates and validates those two immutable
+  predecessor deployment inputs, applies them only to the seller-proof
+  verifier, and records them in final sanitized Case evidence. Tests reject
+  missing, malformed and accidentally current-deployment bindings. The
+  original Case attempt, payment, refund, reversal, signed event and fixtures
+  remain unchanged; no production operation occurred in the failed retry.
