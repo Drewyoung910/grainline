@@ -38,6 +38,7 @@ describe("protected production psql TLS roots", () => {
     assert.deepEqual(reviewedSteps, [
       "direct-upload-activation-production-recovery.yml:Converge activated runtime and cleanup grants",
       "direct-upload-cleanup-role-provision.yml:Converge cleanup role to three-function authority",
+      "order-payment-event-aggregate-authority-production.yml:Converge reviewed runtime grants",
       "order-payment-event-compatible-production.yml:Converge compatible runtime grants",
       "order-payment-event-read-authority-production.yml:Converge OrderPaymentEvent read-authority runtime grants",
       "production-migrations.yml:Converge exact FORCE-hardened SellerPayoutEvent runtime grants",

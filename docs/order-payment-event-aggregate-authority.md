@@ -10,6 +10,17 @@ It is wired into disposable CI but deliberately isolated from the generic
 Production Migrations workflow. It has not been applied or deployed and has
 not changed RLS, grants, credentials, provider state or production rows.
 
+The dedicated production package adds a restart-safe, exact-main-only workflow
+and an engine-read-only scope verifier. The verifier accepts exactly two states:
+the sealed fixed-read predecessor with no candidate ledger row or the exact
+applied candidate with one finished one-step ledger row. The applied state must
+also have both exact boolean columns, all three byte-matched owner-private
+functions, both enabled triggers, zero runtime/PUBLIC helper execution and zero
+projection mismatches. Any partial ledger row, catalog drift, unexpected ACL or
+data mismatch fails closed. The workflow is not an automatic deploy path: it
+requires a successful exact-main CI run and a fresh exact-main aggregate-only
+production inspection before applying only this migration.
+
 ## Decision
 
 The 15 audited eligibility and aggregate consumers do not need payment-event
@@ -148,6 +159,11 @@ uses separate `ci` and `grainline_app_runtime` connections, proves the
 parent-first migration/writer lock order, proves direct helper execution
 denial, observes the eligibility parent Order lock wait, and proves a stale
 review-eligibility claim returns zero after the refund transaction commits.
+CI also runs the same production catalog reader against the fully migrated
+disposable PostgreSQL database inside an engine-attested repeatable-read,
+read-only transaction. That catches PostgreSQL-rendered default, function-body,
+ACL, trigger-definition and projection-consistency drift before the production
+workflow can be merged or dispatched.
 
 Required sequence:
 
@@ -167,3 +183,35 @@ Required sequence:
 
 This candidate does not authorize production migration, application deploy,
 predecessor drain, grant revocation, RLS activation or provider changes.
+
+## Failed hosted proof evidence
+
+- Pull-request CI run `33302295449` reached the new production-catalog reader
+  after every sealed predecessor check passed, then failed closed at the exact
+  aggregate-authority scope step. The first runner intentionally emitted only
+  `UNCLASSIFIED`, which concealed whether the rejection came from the ledger,
+  columns, functions, triggers or projections. No later CI step ran and no
+  production state changed.
+- The runner now maps only internally defined assertion families and five-byte
+  PostgreSQL SQLSTATE values to safe diagnostic codes. It never prints an
+  exception message, SQL text, catalog rows, URLs or credentials. A fresh full
+  CI run remains mandatory; the failed run is not acceptance evidence.
+- Replacement run `33302658584` safely classified the rejection as
+  `TRIGGER_CATALOG`. The verifier had coupled semantic acceptance to
+  `pg_get_triggerdef`'s cosmetic schema rendering. The corrected reader no
+  longer accepts reconstructed SQL text: it verifies the relation and function
+  namespaces, function identity/owner, enabled state, exact `tgtype` event and
+  row timing bits, zero arguments, non-constraint/non-deferrable posture, and
+  the exact ordered UPDATE-OF column vector directly from `pg_trigger` and
+  `pg_attribute`. Run `33302934572` showed that at least one structural trigger
+  expectation still differed, but the single `TRIGGER_CATALOG` category was
+  not narrow enough to locate it. The proof now splits its fixed diagnostic
+  vocabulary into inventory, relation, event-shape and function-binding groups
+  for each trigger. Migration bytes and trigger behavior are unchanged.
+- Run `33303206508` narrowed the remaining mismatch to the guard trigger's
+  structural shape. `pg_attribute.attname` is PostgreSQL type `name`, so the
+  reader's `ARRAY(...)` was returned as `name[]`; node-postgres does not
+  guarantee array decoding for that catalog-specific type. The query now casts
+  the ordered attribute vector to `text[]` at the SQL boundary, matching the
+  established rule that catalog values must cross the driver in explicitly
+  supported types. A regression test pins the cast.

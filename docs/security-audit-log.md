@@ -4138,3 +4138,54 @@ Open work:
   `OrderPaymentEvent`, Notification policy or runtime-authority failure. The
   aggregate migration remains unapplied; no deployment, migration, grant,
   RLS, credential, provider or production-row state changed.
+
+# 2026-08-30 - Notification promoted-source proof accepted and aggregate release fenced
+
+- The immutable Notification fixture correction passed the complete hosted
+  real-PostgreSQL proof at exact head
+  `4050b2be0f3f4d68178e60ee3635307fa3ebdea9` in run `33301183407`; full CI
+  passed independently in run `33301176361`. PR #341 merged as exact main
+  `2643c8657c46a189310e88b0edf37c027cc79014`, and its fresh exact-main
+  full CI and Notification FORCE proof passed as runs `33301584699` and
+  `33301584697`. The fix retained one immutable signed dispute plus three
+  distinct canonical local-refund rows, with no payment-event update/delete
+  and loopback-only cleanup.
+- The isolated aggregate-authority production package now has an exact
+  restart-scope verifier and dedicated guarded workflow. It composes the sealed
+  fixed-read predecessor proof, byte-pins the candidate ledger row, verifies
+  the two Order column definitions, hashes all three owner-private function
+  bodies, audits function ACLs and both triggers, and requires zero canonical
+  projection mismatches inside an engine-enforced repeatable-read read-only
+  transaction.
+- The same reader is wired into disposable CI after the complete predecessor
+  migration chain and candidate application, so PostgreSQL-rendered catalog
+  behavior is tested rather than inferred. The dedicated production workflow
+  requires exact-main CI plus a fresh exact-main aggregate-only inspection and
+  can apply only the aggregate-authority migration from an exact predecessor or
+  exact already-applied restart state.
+- This package does not authorize or perform a production migration, deploy,
+  RLS change, grant revocation, predecessor drain, credential change, provider
+  operation or row mutation. `OrderPaymentEvent` RLS remains off and the
+  aggregate-authority migration remains unapplied.
+- Draft PR #342 CI run `33302295449` passed every sealed predecessor through
+  the fixed read-authority release, applied the isolated aggregate candidate in
+  disposable PostgreSQL, and then failed closed in its new exact scope reader.
+  The runner's original `UNCLASSIFIED` output was too coarse to distinguish a
+  ledger, column, function, trigger or projection rejection. The isolated
+  correction exposes only allowlisted failure categories or SQLSTATE while
+  continuing to suppress messages, SQL, rows, URLs and credentials. No
+  production or provider state changed; fresh full CI remains required.
+- Replacement run `33302658584` classified the rejection as
+  `TRIGGER_CATALOG`: the scope proof depended on cosmetic schema qualification
+  in `pg_get_triggerdef`. The corrected verifier uses structural catalog facts
+  instead: exact relation/function namespaces and identity, owner, enabled
+  state, `tgtype`, arguments, constraint/deferral flags and ordered UPDATE-OF
+  attribute vector. Run `33302934572` still rejected one structural trigger
+  expectation, so the allowlist now separates fixed inventory, relation,
+  event-shape and function-binding categories for each trigger. No migration,
+  function or trigger bytes changed, and production remains untouched.
+- Run `33303206508` narrowed the mismatch to `TRIGGER_GUARD_SHAPE`. The ordered
+  watched-column expression inherited catalog type `name[]`, which
+  node-postgres does not guarantee to decode as an array. The engine-read-only
+  query now casts that vector to `text[]`, and a regression test pins the
+  driver boundary. Migration and trigger bytes remain unchanged.
