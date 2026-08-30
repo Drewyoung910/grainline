@@ -73,6 +73,18 @@ No row is exempt merely because it is public, operational, or currently
 protected by application code. `ALTERNATIVE_REVIEW` does not count as a
 completed alternative.
 
+> **Current OrderPaymentEvent release note (2026-08-30):** the transition
+> authority migration, exact pooled-runtime proof, application deployment
+> `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` from source `ce7550dae...` and bounded
+> authenticated smoke are accepted. Retain smoke evidence SHA-256
+> `9d0eacbf1062d8f2b370655d91e1f0e817a4a44edf4456d71a31c578cb07ab11`.
+> A complete credential-epoch inventory supersedes the row's earlier
+> one-predecessor wording: one current plus 11 superseded READY Production
+> deployments were created after the accepted credential recovery. The
+> isolated exact-ID drain is not executed. Next gates remain credential-epoch
+> drain, separate zero-direct-access, policyless ENABLE/direct-grant revocation,
+> then FORCE. See `docs/order-payment-event-credential-epoch-drain.md`.
+
 ## Coverage Matrix
 
 | Prisma model | Target | Activation owner/group | Data and actors | Blocking prerequisite or next proof |

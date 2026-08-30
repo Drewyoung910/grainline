@@ -132,8 +132,30 @@ mode-`0600` evidence SHA-256
 `9d0eacbf1062d8f2b370655d91e1f0e817a4a44edf4456d71a31c578cb07ab11`.
 No migration, deployment, database row, RLS bit, grant, credential, provider
 configuration or predecessor state changed. The next separate boundary is the
-exact-ID predecessor drain, followed by the zero-direct-access gate, policyless
+credential-epoch predecessor drain, followed by the zero-direct-access gate, policyless
 `ENABLE` and separate `FORCE`; quote, `Order` and `OrderItem` remain separate.
+
+## Credential-epoch inventory correction
+
+A complete read-only Vercel inventory after smoke acceptance found that the
+immediate READY predecessor is not the only callable artifact using the
+post-recovery runtime credential. The conservative epoch starts at replacement
+deployment provider timestamp `1786644755419`, before the 2026-08-13 recovery
+operator completed. Twelve READY Production deployments remain after that
+timestamp: current `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` and 11
+superseded deployments. The 100-row page extends below the recovery cutoff, and
+exact-ID inspection confirmed every reviewed epoch member READY with maximum
+function timeout 300 seconds.
+
+Accordingly, the next deployment boundary is no longer a one-ID removal. The
+isolated restart-safe operator in
+`docs/order-payment-event-credential-epoch-drain.md` removes the 11 reviewed
+IDs oldest-first, refreshing full active Production inventory, current
+deployment, all aliases and health around every exact deletion. It is not yet
+executed and contains no database/RLS/grant operation. `OrderPaymentEvent` RLS
+remains off with predecessor CRUD retained. The zero-direct-access gate remains
+separate after the drain; only then may policyless ENABLE be prepared, with
+FORCE still a later release.
 
 ## Decision
 

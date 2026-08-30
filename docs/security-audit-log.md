@@ -4479,3 +4479,27 @@ Open work:
   off and predecessor CRUD remains retained. Exact-ID predecessor drain,
   zero-direct-access, policyless `ENABLE` and separate `FORCE` remain distinct
   gates; quote, `Order` and `OrderItem` stay out of this activation.
+
+# 2026-08-30 - OrderPaymentEvent credential-epoch drain corrected
+
+- Exact-main smoke-record CI `33330999779` passed. The accepted current
+  deployment remains `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, source
+  `ce7550dae6c417440230f4d596f2239393075f31`, READY behind all four aliases.
+- A fresh read-only 100-row Vercel inventory crossed below replacement
+  deployment timestamp `1786644755419`, conservatively beginning the accepted
+  credential epoch before recovery completion. It found 12 READY Production
+  deployments in the current credential epoch: one current and 11 superseded.
+  Exact-ID inspection confirmed all 12 identities and maximum function timeout
+  300 seconds.
+- This disproves the prior operational assumption that removing only immediate
+  predecessor `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj` would close the deployment
+  compatibility window. Ten additional current-credential READY artifacts
+  would remain callable through unique URLs.
+- Isolated `scripts/order-payment-event-credential-epoch-drain.mjs` therefore
+  pins and removes all 11 reviewed exact IDs oldest-first, with mode-`0600`
+  restart state, full-inventory refresh, exact absence, alias and health proof
+  around every step. The operator is not executed and contains no database,
+  migration, RLS, grant, deployment, alias, variable or credential mutation.
+- `OrderPaymentEvent` RLS remains off and predecessor CRUD remains retained.
+  Credential-epoch drain, zero-direct-access, policyless ENABLE and FORCE stay
+  separate. See `docs/order-payment-event-credential-epoch-drain.md`.

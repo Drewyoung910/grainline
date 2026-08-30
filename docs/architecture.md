@@ -238,25 +238,24 @@ database invariants and five bounded read projections. Its actual pooled-runtime
 postflight passed without mutation. The aggregate-authority migration is also
 accepted: its two database-maintained, anti-forgery Order projections replace
 all 15 eligibility/aggregate ledger reads and its parent lock fixes the
-verified-review/refund race. The compatible aggregate application is live from
-exact main `4908bc7f377f5950da8de6b3398049d65a5fdfcb`, CI `33307107247`, as
-READY deployment `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`; READY predecessor
-`dpl_7UeENeZebXL9yL481DWrXkDpWd4R` remains undrained. Exact main
-`6a74f1dd385035f2ff376d79a482ca989cf4ab02`, CI `33309431664`, then passed
-the bounded authenticated account/review smoke without creating a database,
-payment, provider or review fixture. Retain sanitized mode-`0600` evidence
-SHA-256
-`5ec5518ccc3b0cdfd6c3e8542d9f57f722029d7dfdda5db9f4e50d22ddb633ee`.
-See `docs/order-payment-event-aggregate-authority.md`. Remaining
-transition/webhook/local-evidence access is now converted on an isolated,
-byte-pinned candidate to one database-maintained open-dispute projection plus
-the existing refund projection. The candidate removes all seven remaining
-ordinary-runtime base-ledger consumers, rejects forged projections, fails
-closed on unknown or same-provider-second conflicting dispute states and
-serializes payment evidence against parent-Order transitions. See
-`docs/order-payment-event-transition-authority.md`. Hosted real-login proof,
-compatible release and predecessor drain still precede separate ENABLE and
-FORCE releases.
+verified-review/refund race. The aggregate and transition authority migrations,
+actual pooled-runtime proofs, converted application release and bounded
+authenticated smoke are now accepted. Exact source
+`ce7550dae6c417440230f4d596f2239393075f31` is READY as current deployment
+`dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` behind all four canonical aliases; retain
+smoke evidence SHA-256
+`9d0eacbf1062d8f2b370655d91e1f0e817a4a44edf4456d71a31c578cb07ab11`.
+The converted tree has removed all ordinary-runtime base-ledger consumers in
+favor of fixed database authority, but that fact remains a separate
+zero-direct-access gate rather than a smoke claim. A complete 2026-08-30 Vercel
+inventory corrected the earlier single-predecessor assumption: the accepted
+credential epoch contains one current plus 11 superseded READY Production
+deployments. All 11 callable exact IDs must be removed, oldest-first and with
+restart-safe inventory/absence proof, before direct table grants change. See
+`docs/order-payment-event-transition-authority.md` and
+`docs/order-payment-event-credential-epoch-drain.md`. Credential-epoch drain,
+zero-direct-access, policyless ENABLE and posture-only FORCE remain distinct
+release boundaries.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,

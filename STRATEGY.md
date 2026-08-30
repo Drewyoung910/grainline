@@ -2257,6 +2257,19 @@ LLMs will increasingly act as buyer intent resolvers. Marketplaces will compete 
 
 ## Things explicitly NOT to do right now
 
+### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
+
+Do not treat the current OrderPaymentEvent deployment boundary as a single
+immediate-predecessor deletion. The accepted replacement-deployment timestamp
+`1786644755419` plus a complete 2026-08-30 Vercel inventory identified one
+current and 11 superseded callable READY Production deployments in the same
+credential epoch. Drain all 11 reviewed exact IDs restart-safely, oldest-first,
+before changing direct table grants. Keep the zero-direct-access proof,
+policyless ENABLE and FORCE as later separate gates. This correction replaces
+the earlier one-predecessor assumption; it does not reorder other table groups
+or authorize production deletion by itself. See
+`docs/order-payment-event-credential-epoch-drain.md`.
+
 - Don't run paid ads. CAC will be brutal at $0 GMV.
 - Don't redesign. The product works. Ship sellers, not features.
 - Don't add Canada. Terms already declines it. Revisit at $250K GMV.
