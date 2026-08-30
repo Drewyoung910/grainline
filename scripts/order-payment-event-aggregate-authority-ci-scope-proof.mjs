@@ -13,6 +13,25 @@ const { Client } = pg;
 const CI_MIGRATION_ROLE = "ci";
 const RUNTIME_ROLE = "grainline_app_runtime";
 
+const SAFE_FAILURE_CODES = Object.freeze([
+  [/migration checksum drifted/iu, "MIGRATION_BYTES"],
+  [/CI scope transaction is not read-only/iu, "READ_ONLY_TRANSACTION"],
+  [/read-authority|invariant/iu, "PREDECESSOR_SCOPE"],
+  [/aggregate-authority ledger/iu, "CANDIDATE_LEDGER"],
+  [/projection column/iu, "COLUMN_CATALOG"],
+  [/projection function/iu, "FUNCTION_CATALOG"],
+  [/projection trigger/iu, "TRIGGER_CATALOG"],
+  [/projections do not match/iu, "PROJECTION_MISMATCH"],
+]);
+
+export function orderPaymentEventAggregateAuthorityCiScopeFailureCode(error) {
+  const postgresCode = typeof error?.code === "string" ? error.code : "";
+  if (/^[0-9A-Z]{5}$/u.test(postgresCode)) return postgresCode;
+  const message = typeof error?.message === "string" ? error.message : "";
+  return SAFE_FAILURE_CODES.find(([pattern]) => pattern.test(message))?.[1]
+    ?? "UNCLASSIFIED";
+}
+
 function required(env, key) {
   const value = env?.[key];
   if (typeof value !== "string" || value === "" || value !== value.trim()) {
@@ -114,7 +133,9 @@ async function main() {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
     process.stderr.write(
-      `OrderPaymentEvent aggregate-authority CI scope proof failed [${error?.code ?? "UNCLASSIFIED"}]\n`,
+      `OrderPaymentEvent aggregate-authority CI scope proof failed [${
+        orderPaymentEventAggregateAuthorityCiScopeFailureCode(error)
+      }]\n`,
     );
     process.exitCode = 1;
   });

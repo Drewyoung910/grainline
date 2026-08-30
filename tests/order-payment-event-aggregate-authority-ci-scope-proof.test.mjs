@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  orderPaymentEventAggregateAuthorityCiScopeFailureCode,
   parseOrderPaymentEventAggregateAuthorityCiScopeEnvironment,
 } from "../scripts/order-payment-event-aggregate-authority-ci-scope-proof.mjs";
 
@@ -44,4 +45,25 @@ test("aggregate-authority CI scope is engine-read-only and calls exact scope", (
   assert.match(source, /readOrderPaymentEventAggregateAuthorityProductionSnapshotFromClient/u);
   assert.match(source, /assertOrderPaymentEventAggregateAuthorityProductionScope/u);
   assert.doesNotMatch(source, /INSERT INTO|UPDATE public|DELETE FROM|ALTER TABLE/u);
+});
+
+test("aggregate-authority CI scope exposes only allowlisted failure categories", () => {
+  assert.equal(
+    orderPaymentEventAggregateAuthorityCiScopeFailureCode(
+      new Error("Order payment projection function catalog drifted"),
+    ),
+    "FUNCTION_CATALOG",
+  );
+  assert.equal(
+    orderPaymentEventAggregateAuthorityCiScopeFailureCode(
+      Object.assign(new Error("syntax detail"), { code: "42P01" }),
+    ),
+    "42P01",
+  );
+  assert.equal(
+    orderPaymentEventAggregateAuthorityCiScopeFailureCode(
+      new Error("secret-bearing unexpected diagnostic"),
+    ),
+    "UNCLASSIFIED",
+  );
 });

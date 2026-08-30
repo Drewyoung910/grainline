@@ -183,3 +183,16 @@ Required sequence:
 
 This candidate does not authorize production migration, application deploy,
 predecessor drain, grant revocation, RLS activation or provider changes.
+
+## Failed hosted proof evidence
+
+- Pull-request CI run `33302295449` reached the new production-catalog reader
+  after every sealed predecessor check passed, then failed closed at the exact
+  aggregate-authority scope step. The first runner intentionally emitted only
+  `UNCLASSIFIED`, which concealed whether the rejection came from the ledger,
+  columns, functions, triggers or projections. No later CI step ran and no
+  production state changed.
+- The runner now maps only internally defined assertion families and five-byte
+  PostgreSQL SQLSTATE values to safe diagnostic codes. It never prints an
+  exception message, SQL text, catalog rows, URLs or credentials. A fresh full
+  CI run remains mandatory; the failed run is not acceptance evidence.

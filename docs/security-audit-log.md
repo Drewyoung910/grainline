@@ -4167,3 +4167,11 @@ Open work:
   RLS change, grant revocation, predecessor drain, credential change, provider
   operation or row mutation. `OrderPaymentEvent` RLS remains off and the
   aggregate-authority migration remains unapplied.
+- Draft PR #342 CI run `33302295449` passed every sealed predecessor through
+  the fixed read-authority release, applied the isolated aggregate candidate in
+  disposable PostgreSQL, and then failed closed in its new exact scope reader.
+  The runner's original `UNCLASSIFIED` output was too coarse to distinguish a
+  ledger, column, function, trigger or projection rejection. The isolated
+  correction exposes only allowlisted failure categories or SQLSTATE while
+  continuing to suppress messages, SQL, rows, URLs and credentials. No
+  production or provider state changed; fresh full CI remains required.
