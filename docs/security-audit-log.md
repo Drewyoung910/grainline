@@ -3828,3 +3828,10 @@ Open work:
   missing, malformed and accidentally current-deployment bindings. The
   original Case attempt, payment, refund, reversal, signed event and fixtures
   remain unchanged; no production operation occurred in the failed retry.
+- A final mode-`0600` journal check then exposed the parallel restart boundary:
+  the original Case attempt's deployed source and deployment ID also differ
+  from the later application correction that must receive the replay. The
+  operator now separates immutable attempt deployment from current attested
+  deployment, defaults them together only for a first invocation, and records
+  both in final evidence. Regression coverage proves a corrected deployment
+  can resume the unchanged journal while rebinding either side fails closed.

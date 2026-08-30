@@ -40,6 +40,8 @@ const environment = {
   ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT: commit("a"),
   ORDER_PAYMENT_CASE_REFUND_DEPLOYED_SOURCE_COMMIT: commit("b"),
   ORDER_PAYMENT_CASE_REFUND_DEPLOYMENT_ID: "dpl_CaseRefundProof123",
+  ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYED_SOURCE_COMMIT: commit("7"),
+  ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYMENT_ID: "dpl_CaseRefundAttempt123",
   ORDER_PAYMENT_CASE_REFUND_MAIN_CI_RUN_ID: "33270000000",
   ORDER_PAYMENT_CASE_REFUND_STRIPE_CLI_PATH: "/usr/local/bin/stripe",
   ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_ATTEMPT_COMMIT: commit("c"),
@@ -253,6 +255,13 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     );
     assert.notEqual(config.sellerProofDeployedSourceCommit, config.deployedSourceCommit);
     assert.notEqual(config.sellerProofDeploymentId, config.deploymentId);
+    assert.equal(
+      config.attemptDeployedSourceCommit,
+      environment.ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYED_SOURCE_COMMIT,
+    );
+    assert.equal(config.attemptDeploymentId, environment.ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYMENT_ID);
+    assert.notEqual(config.attemptDeployedSourceCommit, config.deployedSourceCommit);
+    assert.notEqual(config.attemptDeploymentId, config.deploymentId);
     assert.equal(config.command, "run");
     assert.throws(
       () => validateConfiguration({ ...environment, ORDER_PAYMENT_CASE_REFUND_SELLER_PROOF_EVIDENCE_SHA256: "short" }),
@@ -273,6 +282,20 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
       /seller predecessor deployment ID is invalid/,
     );
     assert.throws(
+      () => validateConfiguration({
+        ...environment,
+        ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYED_SOURCE_COMMIT: "short",
+      }),
+      /commit input is invalid/,
+    );
+    assert.throws(
+      () => validateConfiguration({
+        ...environment,
+        ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYMENT_ID: "wrong",
+      }),
+      /attempt deployment ID is invalid/,
+    );
+    assert.throws(
       () => validateConfiguration({ ...environment, ORDER_PAYMENT_CASE_REFUND_CONFIRM: "yes" }),
       /confirmation is invalid/,
     );
@@ -288,8 +311,32 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     assert.equal(corrected.mainCiRunId, 33276155598);
     assert.equal(corrected.attemptCommit, environment.ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT);
     assert.equal(corrected.attemptMainCiRunId, Number(environment.ORDER_PAYMENT_CASE_REFUND_MAIN_CI_RUN_ID));
+    assert.equal(
+      corrected.attemptDeployedSourceCommit,
+      environment.ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYED_SOURCE_COMMIT,
+    );
+    assert.equal(corrected.attemptDeploymentId, environment.ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYMENT_ID);
     assert.equal(corrected.statePath.endsWith(`-${commit("a").slice(0, 12)}.json`), true);
     assert.equal(assertState(baseState(), corrected).expectedCommit, corrected.attemptCommit);
+
+    const redeployed = validateConfiguration({
+      ...environment,
+      ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT: commit("9"),
+      ORDER_PAYMENT_CASE_REFUND_MAIN_CI_RUN_ID: "33285044803",
+      ORDER_PAYMENT_CASE_REFUND_DEPLOYED_SOURCE_COMMIT: commit("6"),
+      ORDER_PAYMENT_CASE_REFUND_DEPLOYMENT_ID: "dpl_CaseRefundCorrection456",
+      ORDER_PAYMENT_CASE_REFUND_ATTEMPT_COMMIT: environment.ORDER_PAYMENT_CASE_REFUND_EXPECTED_COMMIT,
+      ORDER_PAYMENT_CASE_REFUND_ATTEMPT_MAIN_CI_RUN_ID: environment.ORDER_PAYMENT_CASE_REFUND_MAIN_CI_RUN_ID,
+    }, "/private/tmp/grainline-proof");
+    assert.equal(assertState(baseState(), redeployed).deploymentId, redeployed.attemptDeploymentId);
+    assert.notEqual(redeployed.deploymentId, redeployed.attemptDeploymentId);
+
+    const firstAttempt = { ...environment };
+    delete firstAttempt.ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYED_SOURCE_COMMIT;
+    delete firstAttempt.ORDER_PAYMENT_CASE_REFUND_ATTEMPT_DEPLOYMENT_ID;
+    const firstAttemptConfig = validateConfiguration(firstAttempt, "/private/tmp/grainline-proof");
+    assert.equal(firstAttemptConfig.attemptDeployedSourceCommit, firstAttemptConfig.deployedSourceCommit);
+    assert.equal(firstAttemptConfig.attemptDeploymentId, firstAttemptConfig.deploymentId);
   });
 
   it("binds restart state and only permits forward, complete stages", () => {
@@ -416,6 +463,8 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     const evidence = assertEvidence(buildEvidence(config, state, cleanup), config);
     assert.equal(evidence.attemptCommit, config.attemptCommit);
     assert.equal(evidence.attemptCiRunId, config.attemptMainCiRunId);
+    assert.equal(evidence.attemptDeployedSourceCommit, config.attemptDeployedSourceCommit);
+    assert.equal(evidence.attemptDeploymentId, config.attemptDeploymentId);
     assert.equal(evidence.database.retainedAdminPinAuditRows, 2);
     assert.equal(evidence.database.operationalCanaryRoleRestored, true);
     assert.equal(
@@ -431,6 +480,10 @@ describe("OrderPaymentEvent staff Case refund production operator", () => {
     );
     assert.throws(
       () => assertEvidence({ ...evidence, sellerRefundPredecessorDeploymentId: config.deploymentId }, config),
+      /sanitized evidence drifted/,
+    );
+    assert.throws(
+      () => assertEvidence({ ...evidence, attemptDeploymentId: config.deploymentId }, config),
       /sanitized evidence drifted/,
     );
   });
