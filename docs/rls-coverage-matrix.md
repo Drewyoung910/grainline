@@ -671,6 +671,16 @@ preclude a later reviewed policy or grant migration.
    and pass its pooled-runtime postflight before a new automatic paid proof.
    Only a completely fresh proof, predecessor drain and the remaining
    invariant/projection gates may lead to separate ENABLE and FORCE releases.
+   The fresh 2026-08-29 protected inspection from exact main
+   `0c113046a720c8d19ba127b9f8575c61f5dd5cbd` / run `33289217900`
+   still found zero OrderPaymentEvent rows and zero payment-specific defects.
+   A historical webhook metric mislabeled one released synthetic proof event
+   as stale; the fixed runtime aggregate proved zero active-stale leases and
+   one failed/released test-mode `charge.dispute.funds_withdrawn` issue after
+   its temporary Order was removed. The 81-field successor separates those
+   states. Keep marker-bound test-residue finalization separate; do not weaken
+   the signed Order-source check or hold the zero-row payment invariant design
+   behind that unrelated ops item.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger

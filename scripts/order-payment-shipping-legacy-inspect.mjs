@@ -128,7 +128,10 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
   "stale_reservation_count",
   "webhook_state_coherence_count",
   "webhook_blank_identity_count",
+  "webhook_failed_count",
+  "webhook_released_count",
   "webhook_stale_processing_count",
+  "webhook_issue_count",
   "max_items_per_order",
   "max_orders_per_buyer",
   "max_orders_per_current_seller",
@@ -1129,11 +1132,33 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       SELECT pg_catalog.count(*)
       FROM public."StripeWebhookEvent"
       WHERE "processedAt" IS NULL
-        AND (
-          "processingStartedAt" IS NULL
-          OR "processingStartedAt" < pg_catalog.clock_timestamp() - INTERVAL '2 minutes'
-        )
+        AND "lastError" IS NOT NULL
+    ) AS webhook_failed_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."StripeWebhookEvent"
+      WHERE "processedAt" IS NULL
+        AND "processingStartedAt" IS NULL
+    ) AS webhook_released_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."StripeWebhookEvent"
+      WHERE "processedAt" IS NULL
+        AND "processingStartedAt" IS NOT NULL
+        AND "processingStartedAt" <
+          (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - INTERVAL '2 minutes'
     ) AS webhook_stale_processing_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM public."StripeWebhookEvent"
+      WHERE "processedAt" IS NULL
+        AND (
+          "lastError" IS NOT NULL
+          OR "processingStartedAt" IS NULL
+          OR "processingStartedAt" <
+            (pg_catalog.clock_timestamp() AT TIME ZONE 'UTC') - INTERVAL '2 minutes'
+        )
+    ) AS webhook_issue_count,
     (
       SELECT COALESCE(pg_catalog.max(item_count), 0)
       FROM (

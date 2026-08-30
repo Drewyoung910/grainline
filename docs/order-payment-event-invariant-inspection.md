@@ -174,3 +174,47 @@ The lone state is therefore intentional privacy redaction created by account
 deletion, not unexplained corruption. No repair, row enumeration or provider
 reference rehydration is authorized or needed. Close this finding and continue
 the separate, zero-row OrderPaymentEvent invariant/RLS release.
+
+## Fresh 2026-08-29 classification and webhook-health correction
+
+Protected workflow run `33289217900`, bound to exact main
+`0c113046a720c8d19ba127b9f8575c61f5dd5cbd`, passed the same owner-bound,
+engine-attested `REPEATABLE READ READ ONLY` inspection. The sanitized
+81-shape predecessor artifact was not yet available in that historical run;
+its 78-field JSON SHA-256 is
+`4ab0a9fbc5bb7e95927fa26cbd4156f9f86a7a4df100461c9943f7db12a94ffa`.
+It reported 2 Orders, 3 OrderItems, 26 already-hardened
+StripeWebhookEvents, and exactly zero OrderPaymentEvents,
+SellerPayoutEvents, CheckoutStockReservations and OrderShippingRateQuotes.
+Every OrderPaymentEvent source, replay, amount, currency, mutation, ordering,
+collision and shape count was zero. The one previously accepted
+privacy-redacted PURCHASED-label finding remains unchanged and requires no
+repair.
+
+The historical `webhook_stale_processing_count` predicate combined two
+different states: an unprocessed row whose lease had been deliberately
+released (`processingStartedAt IS NULL`) and an actually stale active lease.
+That made the snapshot's value of one ambiguous. A separate query through the
+pooled `grainline_app_runtime` credential, inside an engine-attested read-only
+transaction, called only the already-live fixed aggregate health function and
+returned `failed=1`, `released=1`, `stale=0`, `issues=1`. There is no stuck
+active webhook worker.
+
+A second owner-bound read-only diagnosis retained no raw ID, provider object,
+payload or error. It classified the sole issue as a source-bound Stripe
+test-mode `charge.dispute.funds_withdrawn` event at claim generation three,
+with the saved error class `signed_dispute_order_source_invalid`. Read-only
+Stripe retrieval proved the associated charge carries only the
+`grainline_order_payment_proof` marker and has one pending test delivery. The
+synthetic signed-dispute proof removed its temporary Order before Stripe later
+emitted this lifecycle event. This is proof-cleanup residue, not legacy
+OrderPaymentEvent data, a live-money event, an RLS failure or permission to
+weaken the signed Order-source check.
+
+The successor inspection corrects the old field to mean only an active lease
+older than two minutes and adds separate failed, released and union issue
+counts. The query remains one aggregate-only SELECT; the exact field contract
+is now 81 counts. Existing historical artifacts remain immutable. The
+synthetic released event needs a separately guarded test-only finalization or
+provider-lifecycle cleanup; it does not block the zero-row OrderPaymentEvent
+invariant design or authorize a generic missing-Order bypass.
