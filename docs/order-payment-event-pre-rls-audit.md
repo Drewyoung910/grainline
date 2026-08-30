@@ -1,13 +1,13 @@
 # OrderPaymentEvent pre-RLS domain audit
 
 Status: audit complete. The claim, record/finalize, signed-webhook,
-evidence-bound reconciliation, inactive-seller recovery and durable Case
-participant-delivery corrections merged through exact main
-`d17b0384f2b90b128ba23852a0dedb004ce52739`. Their reviewed database authority
-is production-applied, and the converted application is live from exact main
-`2820986538c0d64f035defce052ba4ad0de1b3fb` as deployment
-`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`. `OrderPaymentEvent` RLS remains off and
-predecessor runtime CRUD remains intact.
+evidence-bound reconciliation, inactive-seller recovery and durable participant
+delivery corrections are production-compatible. Exact main
+`4b2d4693ac03db773b766ca4c4c53c072ac0fdbe` is live as deployment
+`dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`, and the staff Case full-refund provider and
+replay proof is accepted with sanitized evidence SHA-256
+`e55993b6e76f11a8aa48b0d5aefde588695944436ec7c5474655e1a43d8f18fb`.
+`OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
 
 Audited: 2026-08-23 against the application source immediately after accepted
 SellerPayoutEvent FORCE proof; release state refreshed 2026-08-24 after the
@@ -366,6 +366,15 @@ Compatible preparation must add validated constraints/trigger coverage for:
 
 Use fixed source functions to derive canonical payloads. Do not attempt to
 express every JSON family rule as a permissive caller-populated check.
+
+Prepared disposition: the isolated, byte-pinned compatible migration
+`20260829010000_prepare_order_payment_event_invariants` adds and atomically
+validates the six row-shape constraints plus three trigger families described
+in `docs/order-payment-event-invariants.md`. Its real PostgreSQL proof requires
+the competing Order-currency update to wait on the insert's parent lock and
+then fail after the payment commits. Hard review corrected the parent lookup
+from `STABLE` to `VOLATILE` so it cannot reuse a pre-wait snapshot. The
+migration changes no RLS bit or table grant and is not applied in production.
 
 ### OPE-A07 - participant reads must be set-based and bounded
 

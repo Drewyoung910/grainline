@@ -1,0 +1,188 @@
+name: OrderPaymentEvent Invariants Production Compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact 40-character reviewed main commit
+        required: true
+        type: string
+      main_ci_run_id:
+        description: Successful full CI run for the exact main commit
+        required: true
+        type: string
+      inspection_run_id:
+        description: Successful aggregate-only inspection for the exact main commit
+        required: true
+        type: string
+      confirmation:
+        description: Type apply-reviewed-order-payment-event-invariants
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply OrderPaymentEvent invariant compatibility only
+    if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Production
+    env:
+      MIGRATION_DB_ROLE: neondb_owner
+      PRODUCTION_MIGRATION_CONFIRM: run-reviewed-production-migrations-from-main
+      PRODUCTION_MIGRATION_DIRECT_URL_SHA256: ${{ vars.PRODUCTION_MIGRATION_DIRECT_URL_SHA256 }}
+      PRODUCTION_MIGRATION_RELEASE_COMMIT: ${{ inputs.release_commit }}
+      RUNTIME_DB_ROLE: grainline_app_runtime
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify exact successful main CI and aggregate inspection
+        uses: actions/github-script@v7
+        env:
+          REVIEWED_CONFIRMATION: ${{ inputs.confirmation }}
+          REVIEWED_INSPECTION_RUN_ID: ${{ inputs.inspection_run_id }}
+          REVIEWED_MAIN_CI_RUN_ID: ${{ inputs.main_ci_run_id }}
+          REVIEWED_RELEASE_COMMIT: ${{ inputs.release_commit }}
+        with:
+          script: |
+            const parseRunId = (value, label) => {
+              if (!/^[1-9][0-9]{0,19}$/.test(value ?? '')) {
+                throw new Error(`${label} is not one positive run id`);
+              }
+              const parsed = Number(value);
+              if (!Number.isSafeInteger(parsed)) {
+                throw new Error(`${label} is not a safe run id`);
+              }
+              return parsed;
+            };
+            const releaseCommit = process.env.REVIEWED_RELEASE_COMMIT;
+            if (
+              releaseCommit !== context.sha
+              || !/^[0-9a-f]{40}$/.test(releaseCommit ?? '')
+              || process.env.REVIEWED_CONFIRMATION
+                !== 'apply-reviewed-order-payment-event-invariants'
+            ) {
+              throw new Error('OrderPaymentEvent invariant production bindings drifted');
+            }
+            const mainCiRunId = parseRunId(
+              process.env.REVIEWED_MAIN_CI_RUN_ID,
+              'REVIEWED_MAIN_CI_RUN_ID',
+            );
+            const inspectionRunId = parseRunId(
+              process.env.REVIEWED_INSPECTION_RUN_ID,
+              'REVIEWED_INSPECTION_RUN_ID',
+            );
+            const { data: mainCi } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: mainCiRunId,
+            });
+            if (
+              mainCi.id !== mainCiRunId
+              || mainCi.name !== 'CI'
+              || mainCi.event !== 'push'
+              || mainCi.head_branch !== 'main'
+              || mainCi.head_sha !== releaseCommit
+              || mainCi.status !== 'completed'
+              || mainCi.conclusion !== 'success'
+            ) {
+              throw new Error(`Reviewed CI run ${mainCiRunId} drifted`);
+            }
+            const { data: inspection } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: inspectionRunId,
+            });
+            if (
+              inspection.id !== inspectionRunId
+              || inspection.name !== 'Order Payment Shipping Legacy Inspection'
+              || inspection.event !== 'workflow_dispatch'
+              || inspection.head_branch !== 'main'
+              || inspection.head_sha !== releaseCommit
+              || inspection.status !== 'completed'
+              || inspection.conclusion !== 'success'
+            ) {
+              throw new Error(`Reviewed inspection run ${inspectionRunId} drifted`);
+            }
+      - name: Verify exact source, owner connection, and role posture
+        run: node scripts/guard-production-migration-runner.mjs
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Refuse an unreviewed migration successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
+          test "$latest" = "prisma/migrations/20260829010000_prepare_order_payment_event_invariants"
+      - name: Verify OrderPaymentEvent invariant migration bytes
+        run: npm run audit:order-payment-event-invariants-release
+      - name: Inspect exact restart scope read-only
+        id: scope
+        shell: bash
+        env:
+          ORDER_PAYMENT_EVENT_INVARIANTS_SCOPE_STAGE: restart
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          scope_json="$(npm run --silent audit:order-payment-event-invariants-production-scope)"
+          printf '%s\n' "$scope_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            const states = new Set(["invariants-predecessor", "invariants-prepared"]);
+            if (!states.has(value.state)) {
+              throw new Error("invalid OrderPaymentEvent invariant restart state");
+            }
+            process.stdout.write(`state=${value.state}\n`);
+          ' "$scope_json" >> "$GITHUB_OUTPUT"
+      - name: Isolate candidate while proving the sealed predecessor tree
+        run: >-
+          mv
+          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+          "$RUNNER_TEMP/order-payment-event-invariants-release"
+      - name: Verify signed-dispute identity predecessor
+        run: npm run audit:order-payment-signed-dispute-identity-release
+      - name: Verify predecessor production migration status
+        if: steps.scope.outputs.state == 'invariants-predecessor'
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Restore candidate migration
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-invariants-release"
+          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Apply OrderPaymentEvent invariant compatibility
+        if: steps.scope.outputs.state == 'invariants-predecessor'
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify production migration status
+        run: npx prisma migrate status
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Audit runtime grants and global RLS catalog
+        run: npm run audit:db-grants -- --require-direct-url
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Prove exact post-application scope read-only
+        run: npm run audit:order-payment-event-invariants-production-scope
+        env:
+          ORDER_PAYMENT_EVENT_INVARIANTS_SCOPE_STAGE: after
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

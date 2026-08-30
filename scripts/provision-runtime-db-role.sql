@@ -2031,6 +2031,24 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Trigger helpers enforce OrderPaymentEvent/Order invariants and are never
+-- application-callable. Keep runtime EXECUTE revoked if provisioning is rerun
+-- after the compatible invariant migration lands.
+WITH order_payment_event_private_invariants(function_signature) AS (
+  VALUES
+    ('public."grainline_order_currency_payment_immutable"()'),
+    ('public."grainline_order_payment_event_immutable"()'),
+    ('public."grainline_order_payment_event_validate_insert"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_payment_event_private_invariants
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH failure AS (
   SELECT 'required extension pg_trgm is not installed' AS message
   WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')

@@ -61,8 +61,14 @@ ALTER TABLE public."OrderPaymentEvent"
           "eventType" = 'REFUND'
           AND "stripeObjectType" = 'refund'
           AND (
-            "stripeObjectId" ~ '^re_[A-Za-z0-9]+$'
-            OR "stripeObjectId" = 'external:' || "stripeEventId"
+            (
+              "stripeObjectId" ~ '^re_[A-Za-z0-9]+$'
+              AND metadata->>'latestRefundId' = "stripeObjectId"
+            )
+            OR (
+              "stripeObjectId" = 'external:' || "stripeEventId"
+              AND metadata->>'latestRefundId' IS NULL
+            )
           )
           AND metadata->>'stripeEventType' = 'charge.refunded'
         )
@@ -95,6 +101,14 @@ ALTER TABLE public."OrderPaymentEvent"
         'CASE_REFUND_RECORDED',
         'BLOCKED_CHECKOUT_REFUND_RECORDED'
       )
+      AND reason = CASE metadata->>'localAction'
+        WHEN 'SELLER_REFUND_RECORDED' THEN 'seller_refund'
+        WHEN 'CASE_REFUND_RECORDED' THEN 'case_resolution_refund'
+        WHEN 'BLOCKED_CHECKOUT_REFUND_RECORDED' THEN 'blocked_checkout'
+      END
+      AND pg_catalog.jsonb_typeof(metadata->'refundIds') = 'array'
+      AND metadata->'refundIds'
+            @> pg_catalog.jsonb_build_array("stripeObjectId")
       AND "stripeEventId" =
         'local:'
         || pg_catalog.lower(metadata->>'localAction')
@@ -182,7 +196,7 @@ EXECUTE FUNCTION public.grainline_order_payment_event_immutable();
 CREATE FUNCTION public.grainline_order_currency_payment_immutable()
 RETURNS trigger
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 PARALLEL UNSAFE
 SECURITY DEFINER
 SET search_path = pg_catalog

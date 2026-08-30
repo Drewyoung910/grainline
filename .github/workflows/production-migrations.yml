@@ -45,6 +45,13 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify isolated OrderPaymentEvent invariant successor
+        run: npm run audit:order-payment-event-invariants-release
+      - name: Isolate unapplied OrderPaymentEvent invariant successor
+        run: >-
+          mv
+          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+          "$RUNNER_TEMP/order-payment-event-invariants-release"
       - name: Verify blocked-checkout transfer binding migration bytes
         run: npm run audit:order-payment-blocked-checkout-transfer-binding-release
       - name: Inspect blocked-checkout transfer binding restart scope read-only

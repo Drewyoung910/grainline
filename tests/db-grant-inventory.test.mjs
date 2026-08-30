@@ -27,6 +27,9 @@ import {
   ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
   ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES,
 } from "../scripts/order-refund-reconciliation-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
+} from "../scripts/order-payment-event-invariants-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
@@ -1338,6 +1341,7 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES,
       ...ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
       ...BLOCKED_CHECKOUT_TRANSFER_BINDING_FUNCTION_NAMES,
+      ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
@@ -1380,6 +1384,7 @@ describe("database grant inventory guardrails", () => {
         + ORDER_REFUND_RECONCILIATION_RUNTIME_FUNCTION_NAMES.length
         + ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES.length
         + BLOCKED_CHECKOUT_TRANSFER_BINDING_FUNCTION_NAMES.length
+        + ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS.length
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)

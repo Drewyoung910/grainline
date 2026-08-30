@@ -73,10 +73,11 @@ describe("OrderPaymentEvent pre-RLS domain audit", () => {
     assert.match(audit, /Keep `OrderShippingRateQuote`, `Order` and `OrderItem` separate/);
     assert.match(
       audit,
-      /merged through exact main[\s\S]*reviewed database authority\s+is production-applied[\s\S]*converted application is live[\s\S]*`OrderPaymentEvent` RLS remains off/,
+      /Exact main[\s\S]*is live as deployment[\s\S]*staff Case full-refund provider and\s+replay proof is accepted[\s\S]*`OrderPaymentEvent` RLS remains off/,
     );
-    assert.match(audit, /2820986538c0d64f035defce052ba4ad0de1b3fb/);
-    assert.match(audit, /dpl_73aR913b9hfgkcdfBv2MwMyypR5a/);
+    assert.match(audit, /4b2d4693ac03db773b766ca4c4c53c072ac0fdbe/);
+    assert.match(audit, /dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd/);
+    assert.match(audit, /e55993b6e76f11a8aa48b0d5aefde588695944436ec7c5474655e1a43d8f18fb/);
     assert.match(audit, /Live provider\/replay proof remains required/);
   });
 

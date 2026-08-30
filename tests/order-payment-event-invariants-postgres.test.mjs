@@ -67,7 +67,10 @@ function localRefundSql({
       '${id}', '${orderId}', '${eventId}', '${refundId}', 'refund',
       'REFUND', ${amount}, '${currency}', 'succeeded', 'seller_refund',
       'Provider refund recorded.',
-      pg_catalog.jsonb_build_object('localAction', '${action}'),
+      pg_catalog.jsonb_build_object(
+        'localAction', '${action}',
+        'refundIds', pg_catalog.jsonb_build_array('${refundId}')
+      ),
       CURRENT_TIMESTAMP, ${updatedExpression}
     )
   `;
@@ -120,7 +123,8 @@ describe("OrderPaymentEvent compatible invariants", () => {
           'Stripe refund event.',
           pg_catalog.jsonb_build_object(
             'chargeId', 'ch_refund',
-            'stripeEventType', 'charge.refunded'
+            'stripeEventType', 'charge.refunded',
+            'latestRefundId', NULL
           ),
           1770000001, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
@@ -278,6 +282,7 @@ describe("OrderPaymentEvent compatible invariants", () => {
         SELECT routine.proname,
                routine.proconfig,
                routine.prosecdef,
+               routine.provolatile,
                pg_catalog.has_function_privilege(
                  'grainline_app_runtime', routine.oid, 'EXECUTE'
                ) AS runtime_execute
@@ -295,6 +300,7 @@ describe("OrderPaymentEvent compatible invariants", () => {
       assert.equal(functions.rows[0].prosecdef, true);
       assert.equal(functions.rows[1].prosecdef, false);
       assert.equal(functions.rows[2].prosecdef, true);
+      assert.ok(functions.rows.every((row) => row.provolatile === "v"));
     } finally {
       await database.close();
     }
