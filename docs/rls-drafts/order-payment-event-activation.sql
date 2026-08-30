@@ -34,7 +34,8 @@ DECLARE
   invalid_row_count bigint;
   function_count integer;
   named_function_count integer;
-  unexpected_direct_function_count integer;
+  direct_function_count integer;
+  reviewed_direct_function_count integer;
 BEGIN
   SELECT class.relowner
     INTO table_owner
@@ -447,50 +448,54 @@ BEGIN
       named_function_count;
   END IF;
 
-  WITH expected(function_name) AS (
+  WITH expected(identity) AS (
     VALUES
-      ('grainline_blocked_checkout_refund_claim'),
-      ('grainline_blocked_checkout_refund_claim_resume'),
-      ('grainline_blocked_checkout_refund_reconciliation_record'),
-      ('grainline_blocked_checkout_refund_record'),
-      ('grainline_blocked_checkout_refund_record_core'),
-      ('grainline_blocked_checkout_transfer_bind'),
-      ('grainline_case_seller_refund_apply'),
-      ('grainline_order_currency_payment_immutable'),
-      ('grainline_order_payment_buyer_export_page'),
-      ('grainline_order_payment_buyer_refund_outcomes'),
-      ('grainline_order_payment_event_immutable'),
-      ('grainline_order_payment_event_validate_insert'),
-      ('grainline_order_payment_open_dispute_guard'),
-      ('grainline_order_payment_open_dispute_refresh'),
-      ('grainline_order_payment_open_dispute_state'),
-      ('grainline_order_payment_projection_guard'),
-      ('grainline_order_payment_projection_refresh'),
-      ('grainline_order_payment_projection_state'),
-      ('grainline_order_payment_seller_export_page'),
-      ('grainline_order_payment_seller_refund_outcomes'),
-      ('grainline_order_payment_signed_dispute_apply'),
-      ('grainline_order_payment_signed_refund_apply'),
-      ('grainline_order_payment_staff_timeline'),
-      ('grainline_order_refund_claim_mark_ambiguous'),
-      ('grainline_order_refund_reconcile'),
-      ('grainline_order_refund_reconciliation_immutable'),
-      ('grainline_order_refund_reconciliation_prepare'),
-      ('grainline_seller_refund_claim'),
-      ('grainline_seller_refund_record')
+      ('grainline_blocked_checkout_refund_claim(text,bigint,text,text,integer)'),
+      ('grainline_blocked_checkout_refund_record(text,bigint,text,bigint,text,text,text,integer)'),
+      ('grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)'),
+      ('grainline_blocked_checkout_transfer_bind(text,bigint,text,text,text,text,text)'),
+      ('grainline_case_open(text,text,text,text)'),
+      ('grainline_case_relationship_valid()'),
+      ('grainline_case_seller_refund_apply(text,text)'),
+      ('grainline_case_staff_resolution_finalize(text,text)'),
+      ('grainline_case_staff_resolution_prepare(text,text,"CaseResolution",integer,jsonb)'),
+      ('grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)'),
+      ('grainline_case_stripe_dispute_apply(text)'),
+      ('grainline_notification_create_core(text,text,"NotificationType",text,text,text)'),
+      ('grainline_order_currency_payment_immutable()'),
+      ('grainline_order_payment_buyer_export_page(text,integer,bigint,text)'),
+      ('grainline_order_payment_buyer_refund_outcomes(text,text[])'),
+      ('grainline_order_payment_open_dispute_state(text)'),
+      ('grainline_order_payment_projection_state(text)'),
+      ('grainline_order_payment_seller_export_page(text,integer,bigint,text)'),
+      ('grainline_order_payment_seller_refund_outcomes(text,text[])'),
+      ('grainline_order_payment_signed_dispute_apply(text,bigint,text,text,bigint,integer,text,text,text)'),
+      ('grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)'),
+      ('grainline_order_payment_staff_timeline(text,text,integer)'),
+      ('grainline_order_refund_reconcile(text,text,bigint,text,text,bigint,text,text)'),
+      ('grainline_seller_refund_claim(text,text)'),
+      ('grainline_seller_refund_record(text,text,bigint,text,text,text,integer)')
+  ), actual AS (
+    SELECT
+      procedure.proname || '(' || pg_catalog.replace(
+        pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
+      ) || ')' AS identity
+      FROM pg_catalog.pg_proc AS procedure
+     WHERE procedure.pronamespace = 'public'::pg_catalog.regnamespace
+       AND pg_catalog.strpos(procedure.prosrc, '"OrderPaymentEvent"') > 0
   )
-  SELECT pg_catalog.count(*)::integer
-    INTO unexpected_direct_function_count
-    FROM pg_catalog.pg_proc AS procedure
-   WHERE procedure.pronamespace = 'public'::pg_catalog.regnamespace
-     AND pg_catalog.strpos(procedure.prosrc, '"OrderPaymentEvent"') > 0
-     AND NOT EXISTS (
-       SELECT 1 FROM expected
-        WHERE expected.function_name = procedure.proname
-     );
-  IF unexpected_direct_function_count <> 0 THEN
-    RAISE EXCEPTION 'OrderPaymentEvent unknown direct function surface: %',
-      unexpected_direct_function_count;
+  SELECT
+    pg_catalog.count(*)::integer,
+    pg_catalog.count(expected.identity)::integer
+    INTO direct_function_count, reviewed_direct_function_count
+    FROM actual
+    LEFT JOIN expected ON expected.identity = actual.identity;
+  IF direct_function_count <> 25
+     OR reviewed_direct_function_count <> 25 THEN
+    RAISE EXCEPTION
+      'OrderPaymentEvent direct function surface drifted: % total / % reviewed',
+      direct_function_count,
+      reviewed_direct_function_count;
   END IF;
 END
 $grainline_order_payment_event_activation_preflight$;

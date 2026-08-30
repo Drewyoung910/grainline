@@ -6,6 +6,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import {
+  ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES,
   ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES,
   orderPaymentEventActivationFunctionCatalog,
 } from "./order-payment-event-activation-catalog.mjs";
@@ -167,6 +168,36 @@ function retiredFunctionSql(command, suffix) {
   ).join("\n");
 }
 
+function directFunctionSurfaceProof() {
+  return `  WITH expected(identity) AS (
+    VALUES
+${ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.map(
+    (identity) => `      (${quoteSql(identity)})`,
+  ).join(",\n")}
+  ), actual AS (
+    SELECT
+      procedure.proname || '(' || pg_catalog.replace(
+        pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
+      ) || ')' AS identity
+      FROM pg_catalog.pg_proc AS procedure
+     WHERE procedure.pronamespace = 'public'::pg_catalog.regnamespace
+       AND pg_catalog.strpos(procedure.prosrc, '"OrderPaymentEvent"') > 0
+  )
+  SELECT
+    pg_catalog.count(*)::integer,
+    pg_catalog.count(expected.identity)::integer
+    INTO direct_function_count, reviewed_direct_function_count
+    FROM actual
+    LEFT JOIN expected ON expected.identity = actual.identity;
+  IF direct_function_count <> ${ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.length}
+     OR reviewed_direct_function_count <> ${ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.length} THEN
+    RAISE EXCEPTION
+      'OrderPaymentEvent direct function surface drifted: % total / % reviewed',
+      direct_function_count,
+      reviewed_direct_function_count;
+  END IF;`;
+}
+
 export function buildOrderPaymentEventActivationDraft(
   rootDirectory = process.cwd(),
 ) {
@@ -206,7 +237,8 @@ DECLARE
   invalid_row_count bigint;
   function_count integer;
   named_function_count integer;
-  unexpected_direct_function_count integer;
+  direct_function_count integer;
+  reviewed_direct_function_count integer;
 BEGIN
   SELECT class.relowner
     INTO table_owner
@@ -464,25 +496,7 @@ BEGIN
 
 ${functionCatalogProof(rootDirectory, "runtimeBefore", "predecessor")}
 
-  WITH expected(function_name) AS (
-    VALUES
-${orderPaymentEventActivationFunctionCatalog(rootDirectory).map(
-    (entry) => `      (${quoteSql(entry.name)})`,
-  ).join(",\n")}
-  )
-  SELECT pg_catalog.count(*)::integer
-    INTO unexpected_direct_function_count
-    FROM pg_catalog.pg_proc AS procedure
-   WHERE procedure.pronamespace = 'public'::pg_catalog.regnamespace
-     AND pg_catalog.strpos(procedure.prosrc, '"OrderPaymentEvent"') > 0
-     AND NOT EXISTS (
-       SELECT 1 FROM expected
-        WHERE expected.function_name = procedure.proname
-     );
-  IF unexpected_direct_function_count <> 0 THEN
-    RAISE EXCEPTION 'OrderPaymentEvent unknown direct function surface: %',
-      unexpected_direct_function_count;
-  END IF;
+${directFunctionSurfaceProof()}
 END
 $grainline_order_payment_event_activation_preflight$;
 

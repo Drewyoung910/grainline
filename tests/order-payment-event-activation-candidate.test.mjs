@@ -6,6 +6,9 @@ import test from "node:test";
 
 import {
   ORDER_PAYMENT_EVENT_ACTIVATION_FUNCTION_IDENTITIES,
+  ORDER_PAYMENT_EVENT_CROSS_SYSTEM_DIRECT_FUNCTION_IDENTITIES,
+  ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES,
+  ORDER_PAYMENT_EVENT_OWN_DIRECT_FUNCTION_IDENTITIES,
   ORDER_PAYMENT_EVENT_PRIVATE_FUNCTION_IDENTITIES,
   ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES,
   ORDER_PAYMENT_EVENT_RUNTIME_FUNCTION_IDENTITIES,
@@ -36,6 +39,15 @@ test("activation catalog composes every latest sealed function exactly once", ()
   assert.equal(ORDER_PAYMENT_EVENT_PRIVATE_FUNCTION_IDENTITIES.length, 11);
   assert.equal(catalog.filter((entry) => entry.runtimeBefore).length, 18);
   assert.equal(catalog.filter((entry) => entry.runtimeAfter).length, 16);
+  assert.equal(ORDER_PAYMENT_EVENT_CROSS_SYSTEM_DIRECT_FUNCTION_IDENTITIES.length, 7);
+  assert.equal(ORDER_PAYMENT_EVENT_OWN_DIRECT_FUNCTION_IDENTITIES.length, 18);
+  assert.equal(ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.length, 25);
+  assert.deepEqual(
+    Object.entries(sources)
+      .filter(([, source]) => source.includes('"OrderPaymentEvent"'))
+      .map(([identity]) => identity),
+    [...ORDER_PAYMENT_EVENT_OWN_DIRECT_FUNCTION_IDENTITIES],
+  );
 
   const refund = sources[
     "grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)"
@@ -145,6 +157,34 @@ test("activation migration is policyless, data-preserving and byte-derived", () 
     /GRANT EXECUTE ON FUNCTION public\.grainline_(?:blocked_checkout_refund_claim|case_seller_refund_apply)\(/gu), 2);
   assert.equal(count(candidate.migration, /IF function_count <> 29/gu), 2);
   assert.equal(count(candidate.migration, /IF named_function_count <> 29/gu), 2);
+  assert.match(candidate.migration,
+    /IF direct_function_count <> 25[\s\S]*reviewed_direct_function_count <> 25/u);
+  assert.match(candidate.migration,
+    /procedure\.proname \|\| '\(' \|\| pg_catalog\.replace\([\s\S]*oidvectortypes/u);
+  for (const identity of ORDER_PAYMENT_EVENT_CROSS_SYSTEM_DIRECT_FUNCTION_IDENTITIES) {
+    assert.ok(candidate.migration.includes(`('${identity}')`), identity);
+  }
+});
+
+test("direct-reference trust is exact-signature scoped", () => {
+  assert.deepEqual(
+    ORDER_PAYMENT_EVENT_CROSS_SYSTEM_DIRECT_FUNCTION_IDENTITIES,
+    [
+      "grainline_case_open(text,text,text,text)",
+      "grainline_case_relationship_valid()",
+      "grainline_case_staff_resolution_finalize(text,text)",
+      "grainline_case_staff_resolution_prepare(text,text,\"CaseResolution\",integer,jsonb)",
+      "grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)",
+      "grainline_case_stripe_dispute_apply(text)",
+      "grainline_notification_create_core(text,text,\"NotificationType\",text,text,text)",
+    ],
+  );
+  assert.equal(
+    ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.includes(
+      "grainline_case_stripe_dispute_apply(text,text)",
+    ),
+    false,
+  );
 });
 
 test("activation SQL embeds every exact source digest and final grant class", () => {

@@ -6,6 +6,7 @@ import {
   buildOrderPaymentEventActivationCandidate,
 } from "../scripts/build-order-payment-event-activation-candidate.mjs";
 import {
+  ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES,
   orderPaymentEventActivationFunctionCatalog,
 } from "../scripts/order-payment-event-activation-catalog.mjs";
 import {
@@ -65,7 +66,9 @@ function snapshot(applied) {
     table: table(applied),
     functions: functions(applied),
     unexpectedNamedFunctionCount: 0,
-    unexpectedDirectFunctionCount: 0,
+    directFunctionCount: ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.length,
+    reviewedDirectFunctionCount:
+      ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.length,
   };
 }
 
@@ -123,6 +126,20 @@ test("activation scope rejects partial ledger and grant drift", () => {
   directGrant.table.runtime_can_select = true;
   assert.throws(() => assertOrderPaymentEventActivationProductionScope(
     directGrant,
+    "after",
+  ));
+
+  const overload = snapshot(true);
+  overload.directFunctionCount += 1;
+  assert.throws(() => assertOrderPaymentEventActivationProductionScope(
+    overload,
+    "after",
+  ));
+
+  const missingReviewedDependency = snapshot(true);
+  missingReviewedDependency.reviewedDirectFunctionCount -= 1;
+  assert.throws(() => assertOrderPaymentEventActivationProductionScope(
+    missingReviewedDependency,
     "after",
   ));
 });

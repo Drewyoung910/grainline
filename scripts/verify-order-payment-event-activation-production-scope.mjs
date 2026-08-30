@@ -8,6 +8,7 @@ import {
   buildOrderPaymentEventActivationCandidate,
 } from "./build-order-payment-event-activation-candidate.mjs";
 import {
+  ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES,
   orderPaymentEventActivationFunctionCatalog,
 } from "./order-payment-event-activation-catalog.mjs";
 import {
@@ -171,7 +172,10 @@ export function assertOrderPaymentEventActivationProductionScope(
 
   if (
     Number(snapshot?.unexpectedNamedFunctionCount) !== 0
-    || Number(snapshot?.unexpectedDirectFunctionCount) !== 0
+    || Number(snapshot?.directFunctionCount)
+      !== ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.length
+    || Number(snapshot?.reviewedDirectFunctionCount)
+      !== ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.length
   ) {
     throw new Error("OrderPaymentEvent activation function surface is not exact");
   }
@@ -339,14 +343,26 @@ async function readFunctions(client, runtimeRole, root) {
   const unexpectedNamedFunctionCount = rows.filter(
     (row) => !expectedIdentitySet.has(row.identity),
   ).length;
-  const unexpectedDirectFunctionCount = Number((await client.query(`
-    SELECT pg_catalog.count(*)::integer AS count
+  const directFunctionSurface = (await client.query(`
+    SELECT
+      pg_catalog.count(*)::integer AS direct_function_count,
+      pg_catalog.count(*) FILTER (
+        WHERE procedure.proname || '(' || pg_catalog.replace(
+          pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
+        ) || ')' = ANY($1::text[])
+      )::integer AS reviewed_direct_function_count
       FROM pg_catalog.pg_proc AS procedure
      WHERE procedure.pronamespace = 'public'::pg_catalog.regnamespace
        AND pg_catalog.strpos(procedure.prosrc, '"OrderPaymentEvent"') > 0
-       AND procedure.proname <> ALL($1::text[])
-  `, [names])).rows[0]?.count);
-  return { rows, unexpectedNamedFunctionCount, unexpectedDirectFunctionCount };
+  `, [ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES])).rows[0];
+  return {
+    rows,
+    unexpectedNamedFunctionCount,
+    directFunctionCount: Number(directFunctionSurface?.direct_function_count),
+    reviewedDirectFunctionCount: Number(
+      directFunctionSurface?.reviewed_direct_function_count,
+    ),
+  };
 }
 
 export async function readOrderPaymentEventActivationProductionSnapshotFromClient(
@@ -366,7 +382,8 @@ export async function readOrderPaymentEventActivationProductionSnapshotFromClien
     table: await readTable(client, runtimeRole),
     functions: functions.rows,
     unexpectedNamedFunctionCount: functions.unexpectedNamedFunctionCount,
-    unexpectedDirectFunctionCount: functions.unexpectedDirectFunctionCount,
+    directFunctionCount: functions.directFunctionCount,
+    reviewedDirectFunctionCount: functions.reviewedDirectFunctionCount,
   });
 }
 

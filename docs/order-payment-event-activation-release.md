@@ -15,11 +15,11 @@ Prepared: 2026-08-30.
   `20260830030000_enable_order_payment_event_rls`
 - guarded phase: `order-payment-event-activation-reviewed`
 - activation draft SHA-256:
-  `bed2a8794ae34bcf27c1121509f92227f134dd5fe6fbed5e225dcf1afdd86c1d`
+  `4d7705f8a4d8f0156a05e4f87e6c62ccc42c9e48936dc0beeaf0f333242376c6`
 - promoted migration SHA-256:
-  `0ec1c892179d6ba087b9c0866b48b1dcec3ca6e37045be76e46b32e7e0352dae`
+  `0566632d372524667ad80e5cf6ed76250ca13abc838b8fdce60e3cb909fb83c1`
 - migration-tree SHA-256 through activation:
-  `6f961ec88937b0d656b2277217f7e592dc588dff325292d8adc3c087efa855db`
+  `389cfab874e29921027e6661f7abd8e8286a46db8505cac589d15823c57b3adf`
 - emergency rollback SHA-256:
   `4f85a61d18e0b53faec5b9abdbd3d52f53cf176392b61a0ca908be1abd957568`
 
@@ -104,7 +104,9 @@ unless all of the following are exact:
 4. zero rows violating the accepted taxonomy, source, amount, currency, text,
    metadata and timestamp invariants;
 5. the exact 29-function catalog and trusted-name overload surface;
-6. exactly the reviewed functions directly reference `OrderPaymentEvent`; and
+6. exactly 25 signature-bound reviewed functions directly reference
+   `OrderPaymentEvent`: 18 members of this release's 29-function catalog plus
+   seven already-sealed Case/Notification cross-system functions; and
 7. the accepted transition-authority predecessor migration and migration
    ledger state.
 

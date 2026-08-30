@@ -77,6 +77,60 @@ export const ORDER_PAYMENT_EVENT_ACTIVATION_FUNCTION_IDENTITIES = Object.freeze(
   ...ORDER_PAYMENT_EVENT_PRIVATE_FUNCTION_IDENTITIES,
 ].sort());
 
+// Only this exact subset of the 29-function activation catalog contains a
+// direct base-table reference. Trigger entry points that delegate to private
+// state helpers, replay helpers and immutable-ledger triggers are still pinned
+// by the full activation catalog above, but do not belong in a direct-reference
+// count merely because they share the same release.
+export const ORDER_PAYMENT_EVENT_OWN_DIRECT_FUNCTION_IDENTITIES = Object.freeze([
+  "grainline_blocked_checkout_refund_claim(text,bigint,text,text,integer)",
+  "grainline_blocked_checkout_refund_record(text,bigint,text,bigint,text,text,text,integer)",
+  "grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)",
+  "grainline_blocked_checkout_transfer_bind(text,bigint,text,text,text,text,text)",
+  "grainline_case_seller_refund_apply(text,text)",
+  "grainline_order_currency_payment_immutable()",
+  "grainline_order_payment_buyer_export_page(text,integer,bigint,text)",
+  "grainline_order_payment_buyer_refund_outcomes(text,text[])",
+  "grainline_order_payment_open_dispute_state(text)",
+  "grainline_order_payment_projection_state(text)",
+  "grainline_order_payment_seller_export_page(text,integer,bigint,text)",
+  "grainline_order_payment_seller_refund_outcomes(text,text[])",
+  "grainline_order_payment_signed_dispute_apply(text,bigint,text,text,bigint,integer,text,text,text)",
+  "grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)",
+  "grainline_order_payment_staff_timeline(text,text,integer)",
+  "grainline_order_refund_reconcile(text,text,bigint,text,text,bigint,text,text)",
+  "grainline_seller_refund_claim(text,text)",
+  "grainline_seller_refund_record(text,text,bigint,text,text,text,integer)",
+].sort());
+
+// These fixed-authority functions belong to already-sealed Notification and
+// Case releases, but their implementations directly reference
+// OrderPaymentEvent. They are not part of the OrderPaymentEvent grant catalog;
+// this exact-signature inventory exists solely to make the direct-reference
+// surface closed under cross-system dependencies. Keep identities, not names,
+// so an unreviewed overload cannot inherit trust from a reviewed entry point.
+export const ORDER_PAYMENT_EVENT_CROSS_SYSTEM_DIRECT_FUNCTION_IDENTITIES =
+  Object.freeze([
+    "grainline_case_open(text,text,text,text)",
+    "grainline_case_relationship_valid()",
+    "grainline_case_staff_resolution_finalize(text,text)",
+    "grainline_case_staff_resolution_prepare(text,text,\"CaseResolution\",integer,jsonb)",
+    "grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)",
+    "grainline_case_stripe_dispute_apply(text)",
+    "grainline_notification_create_core(text,text,\"NotificationType\",text,text,text)",
+  ].sort());
+
+export const ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES = Object.freeze([
+  ...ORDER_PAYMENT_EVENT_OWN_DIRECT_FUNCTION_IDENTITIES,
+  ...ORDER_PAYMENT_EVENT_CROSS_SYSTEM_DIRECT_FUNCTION_IDENTITIES,
+].sort());
+
+assert.equal(
+  new Set(ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES).size,
+  ORDER_PAYMENT_EVENT_DIRECT_FUNCTION_IDENTITIES.length,
+  "OrderPaymentEvent direct function inventory contains duplicate identities",
+);
+
 const STABLE_PARALLEL_SAFE_IDENTITIES = new Set([
   "grainline_order_payment_buyer_export_page(text,integer,bigint,text)",
   "grainline_order_payment_buyer_refund_outcomes(text,text[])",

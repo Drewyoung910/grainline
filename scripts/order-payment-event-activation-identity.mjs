@@ -6,7 +6,7 @@ import path from "node:path";
 export const ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION =
   "20260830030000_enable_order_payment_event_rls";
 export const ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION_SHA256 =
-  "0ec1c892179d6ba087b9c0866b48b1dcec3ca6e37045be76e46b32e7e0352dae";
+  "0566632d372524667ad80e5cf6ed76250ca13abc838b8fdce60e3cb909fb83c1";
 
 export function verifyOrderPaymentEventActivationMigrationBytes(
   rootDirectory = process.cwd(),

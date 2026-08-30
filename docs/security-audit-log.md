@@ -4589,12 +4589,13 @@ Open work:
   signed-dispute bodies. It also upgraded trigger proof to exact relation,
   name, function, type and enabled/internal state, and upgraded emergency
   rollback to exact before/after table ACL and 29-function catalog proof.
-- Exact hashes after the CI-role and dynamic-SQL-proxy corrections: draft
-  `bed2a8794ae34bcf27c1121509f92227f134dd5fe6fbed5e225dcf1afdd86c1d`,
+- Exact hashes after the CI-role, dynamic-SQL-proxy and cross-system
+  direct-reference corrections: draft
+  `4d7705f8a4d8f0156a05e4f87e6c62ccc42c9e48936dc0beeaf0f333242376c6`,
   migration
-  `0ec1c892179d6ba087b9c0866b48b1dcec3ca6e37045be76e46b32e7e0352dae`,
+  `0566632d372524667ad80e5cf6ed76250ca13abc838b8fdce60e3cb909fb83c1`,
   migration tree
-  `6f961ec88937b0d656b2277217f7e592dc588dff325292d8adc3c087efa855db`
+  `389cfab874e29921027e6661f7abd8e8286a46db8505cac589d15823c57b3adf`
   and rollback
   `4f85a61d18e0b53faec5b9abdbd3d52f53cf176392b61a0ca908be1abd957568`.
 - Focused release, workflow, grant-inventory and production-runner contracts
@@ -4620,3 +4621,13 @@ Open work:
   and ACL/owner/search-path checks for all 29 functions, and adds a class-wide
   test pinning the two allowed formatting bodies and zero executable dynamic
   SQL. No persistent database was touched.
+- Replacement CI `33340801968` passed both prior corrections and then failed
+  closed on seven legitimate cross-system functions that directly reference
+  `OrderPaymentEvent`. The rejected functions belong to already-sealed Case
+  and Notification releases; the preflight had compared only function names
+  from this release's 29-function catalog. The correction does not grant or
+  mutate them. It pins the complete 25-function direct-reference surface (18
+  of the 29 release functions plus the seven cross-system dependencies) by
+  exact name plus argument types, requires all 25 reviewed identities and
+  rejects missing entries, added overloads and every other direct reference.
+  No persistent database was touched.
