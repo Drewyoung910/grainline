@@ -70,7 +70,8 @@ describe("Stripe money-movement proof harness", () => {
     assert.match(script, /data: auditData/);
     assert.match(script, /verifyLocalRefundEvidence/);
 
-    assert.match(helper, /buildLocalRefundEvidenceRecords\(input\)/);
+    assert.doesNotMatch(helper, /buildLocalRefundEvidenceRecords|orderPaymentEvent|systemAuditLog/);
+    assert.match(script, /from "\.\.\/src\/lib\/localRefundEvidenceCore\.ts"/);
     assert.match(core, /localRefundEvidenceEventId\(action, refundId\)/);
     assert.match(core, /truncateText\(sanitizeText\(value\), max\)/);
     assert.match(core, /\(currency \?\? DEFAULT_CURRENCY\)\.toLowerCase\(\)/);

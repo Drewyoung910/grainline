@@ -24,6 +24,10 @@ import {
   ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
   verifyOrderPaymentEventAggregateAuthorityMigrationBytes,
 } from "./order-payment-event-aggregate-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION,
+  verifyOrderPaymentEventTransitionAuthorityMigrationBytes,
+} from "./order-payment-event-transition-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_PHASE =
   "order-payment-signed-dispute-identity-corrected";
@@ -81,6 +85,20 @@ export function verifyOrderPaymentSignedDisputeIdentityRelease(
     );
     verifyOrderPaymentEventAggregateAuthorityMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION);
+  }
+  const transitionAuthorityPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION,
+  );
+  if (fs.existsSync(transitionAuthorityPath)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+      "OrderPaymentEvent transition authority requires the aggregate-authority successor",
+    );
+    verifyOrderPaymentEventTransitionAuthorityMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION);
   }
   assert.deepEqual(
     laterMigrations,

@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { Prisma } from "@prisma/client";
-import {
-  latestConversionBlockingDisputeLedgerExistsSql,
-  latestOpenDisputeLedgerExistsSql,
-} from "../src/lib/refundLedgerSql.ts";
 
-async function querySql(database, statement) {
-  return database.query(statement.text, statement.values);
-}
+const migration = readFileSync(
+  "prisma/migrations/20260830020000_prepare_order_payment_event_transition_authority/migration.sql",
+  "utf8",
+);
+const stateFunction = migration.match(
+  /CREATE FUNCTION public\.grainline_order_payment_open_dispute_state\([\s\S]*?\n\$grainline_order_payment_open_dispute_state\$;/u,
+)?.[0];
+
+assert.ok(stateFunction, "open-dispute projection function is missing");
 
 async function insertDispute(database, {
   id,
@@ -27,34 +29,25 @@ async function insertDispute(database, {
         "eventType",
         "stripeObjectId",
         status,
-        metadata,
+        "stripeEventCreatedSeconds",
         "createdAt"
       )
-      VALUES ($1, $2, 'DISPUTE', $3, $4, $5::jsonb, $6::timestamptz)
+      VALUES ($1, $2, 'DISPUTE', $3, $4, $5, $6::timestamptz)
     `,
-    [
-      id,
-      orderId,
-      disputeId,
-      status,
-      JSON.stringify({ stripeEventCreated: String(providerSecond) }),
-      createdAt,
-    ],
+    [id, orderId, disputeId, status, providerSecond, createdAt],
   );
 }
 
-async function disputeState(database, orderId) {
-  const statement = Prisma.sql`
-    SELECT
-      ${latestOpenDisputeLedgerExistsSql(Prisma.sql`${orderId}`)} AS "hasOpen",
-      ${latestConversionBlockingDisputeLedgerExistsSql(Prisma.sql`${orderId}`)} AS "blocksConversion"
-  `;
-  const result = await querySql(database, statement);
-  return result.rows[0];
+async function openDisputeBlocked(database, orderId) {
+  const result = await database.query(
+    `SELECT public.grainline_order_payment_open_dispute_state($1) AS blocked`,
+    [orderId],
+  );
+  return result.rows[0]?.blocked;
 }
 
-describe("OrderPaymentEvent canonical latest-dispute SQL", () => {
-  it("uses only each dispute object's latest signed state", async () => {
+describe("OrderPaymentEvent open-dispute projection", () => {
+  it("uses only each dispute object's latest provider-ordered state", async () => {
     const database = new PGlite();
     try {
       await database.exec(`
@@ -64,15 +57,16 @@ describe("OrderPaymentEvent canonical latest-dispute SQL", () => {
           "eventType" text NOT NULL,
           "stripeObjectId" text,
           status text,
-          metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+          "stripeEventCreatedSeconds" bigint,
           "createdAt" timestamptz NOT NULL
-        )
+        );
+        ${stateFunction}
       `);
 
       await insertDispute(database, {
         id: "won-open",
         orderId: "order-won",
-        disputeId: "dp-won",
+        disputeId: "du_won",
         status: "needs_response",
         providerSecond: 100,
         createdAt: "2026-08-23T10:00:00Z",
@@ -80,62 +74,56 @@ describe("OrderPaymentEvent canonical latest-dispute SQL", () => {
       await insertDispute(database, {
         id: "won-closed",
         orderId: "order-won",
-        disputeId: "dp-won",
+        disputeId: "du_won",
         status: "won",
         providerSecond: 200,
         createdAt: "2026-08-23T10:01:00Z",
       });
-      assert.deepEqual(await disputeState(database, "order-won"), {
-        hasOpen: false,
-        blocksConversion: false,
-      });
+      assert.equal(await openDisputeBlocked(database, "order-won"), false);
+
+      for (const status of ["lost", "prevented", "warning_closed"]) {
+        const orderId = `order-${status}`;
+        await insertDispute(database, {
+          id: `${status}-open`,
+          orderId,
+          disputeId: `du_${status}`,
+          status: "needs_response",
+          providerSecond: 100,
+          createdAt: "2026-08-23T10:00:00Z",
+        });
+        await insertDispute(database, {
+          id: `${status}-closed`,
+          orderId,
+          disputeId: `du_${status}`,
+          status,
+          providerSecond: 200,
+          createdAt: "2026-08-23T10:01:00Z",
+        });
+        assert.equal(await openDisputeBlocked(database, orderId), false);
+      }
 
       await insertDispute(database, {
-        id: "warning-open",
-        orderId: "order-warning",
-        disputeId: "dp-warning",
-        status: "warning_needs_response",
-        providerSecond: 100,
-        createdAt: "2026-08-23T10:00:00Z",
+        id: "tie-closed",
+        orderId: "order-tie",
+        disputeId: "du_tie",
+        status: "won",
+        providerSecond: 500,
+        createdAt: "2026-08-23T10:02:00Z",
       });
       await insertDispute(database, {
-        id: "warning-closed",
-        orderId: "order-warning",
-        disputeId: "dp-warning",
-        status: "warning_closed",
-        providerSecond: 200,
-        createdAt: "2026-08-23T10:01:00Z",
+        id: "tie-open",
+        orderId: "order-tie",
+        disputeId: "du_tie",
+        status: "under_review",
+        providerSecond: 500,
+        createdAt: "2026-08-23T10:03:00Z",
       });
-      assert.deepEqual(await disputeState(database, "order-warning"), {
-        hasOpen: false,
-        blocksConversion: false,
-      });
-
-      await insertDispute(database, {
-        id: "lost-open",
-        orderId: "order-lost",
-        disputeId: "dp-lost",
-        status: "needs_response",
-        providerSecond: 100,
-        createdAt: "2026-08-23T10:00:00Z",
-      });
-      await insertDispute(database, {
-        id: "lost-closed",
-        orderId: "order-lost",
-        disputeId: "dp-lost",
-        status: "lost",
-        providerSecond: 200,
-        createdAt: "2026-08-23T10:01:00Z",
-      });
-      assert.deepEqual(await disputeState(database, "order-lost"), {
-        hasOpen: false,
-        blocksConversion: true,
-      });
+      assert.equal(await openDisputeBlocked(database, "order-tie"), true);
 
       await insertDispute(database, {
         id: "reopened-won",
         orderId: "order-reopened",
-        disputeId: "dp-reopened",
+        disputeId: "du_reopened",
         status: "won",
         providerSecond: 100,
         createdAt: "2026-08-23T10:00:00Z",
@@ -143,49 +131,23 @@ describe("OrderPaymentEvent canonical latest-dispute SQL", () => {
       await insertDispute(database, {
         id: "reopened-open",
         orderId: "order-reopened",
-        disputeId: "dp-reopened",
+        disputeId: "du_reopened",
         status: "needs_response",
         providerSecond: 200,
         createdAt: "2026-08-23T10:01:00Z",
       });
-      assert.deepEqual(await disputeState(database, "order-reopened"), {
-        hasOpen: true,
-        blocksConversion: true,
-      });
+      assert.equal(await openDisputeBlocked(database, "order-reopened"), true);
 
       await insertDispute(database, {
         id: "unknown",
         orderId: "order-unknown",
-        disputeId: "dp-unknown",
+        disputeId: "du_unknown",
         status: "future_provider_state",
         providerSecond: 100,
         createdAt: "2026-08-23T10:00:00Z",
       });
-      assert.deepEqual(await disputeState(database, "order-unknown"), {
-        hasOpen: true,
-        blocksConversion: true,
-      });
-
-      await insertDispute(database, {
-        id: "missing-id-open",
-        orderId: "order-missing-id",
-        disputeId: null,
-        status: "needs_response",
-        providerSecond: 100,
-        createdAt: "2026-08-23T10:00:00Z",
-      });
-      await insertDispute(database, {
-        id: "missing-id-won",
-        orderId: "order-missing-id",
-        disputeId: null,
-        status: "won",
-        providerSecond: 200,
-        createdAt: "2026-08-23T10:01:00Z",
-      });
-      assert.deepEqual(await disputeState(database, "order-missing-id"), {
-        hasOpen: true,
-        blocksConversion: true,
-      });
+      assert.equal(await openDisputeBlocked(database, "order-unknown"), true);
+      assert.equal(await openDisputeBlocked(database, "order-none"), false);
     } finally {
       await database.close();
     }

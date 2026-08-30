@@ -563,6 +563,31 @@ describe("Stripe webhook state helpers", () => {
       }),
       null,
     );
+    assert.deepEqual(
+      blockedCheckoutDisputeState({
+        openDisputeBlocked: true,
+        reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+      }),
+      {
+        reviewNeeded: true,
+        reviewNote: "Seller account was suspended. Order was held for staff review. Automatic refund was skipped because a Stripe dispute is still open; staff must reconcile this payment manually.",
+        disputeId: null,
+        disputeStatus: null,
+      },
+    );
+    assert.deepEqual(
+      blockedCheckoutDisputeState({
+        latestDispute: { status: "won", stripeObjectId: "du_stale_closed" },
+        openDisputeBlocked: true,
+        reviewPrefix: "Seller account was suspended. Order was held for staff review.",
+      }),
+      {
+        reviewNeeded: true,
+        reviewNote: "Seller account was suspended. Order was held for staff review. Automatic refund was skipped because a Stripe dispute is still open; staff must reconcile this payment manually.",
+        disputeId: null,
+        disputeStatus: null,
+      },
+    );
   });
 
   it("classifies Stripe-confirmed local refunds without changing the order row", () => {

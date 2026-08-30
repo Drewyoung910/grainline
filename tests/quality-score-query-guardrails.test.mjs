@@ -33,10 +33,12 @@ describe("quality score query guardrails", () => {
       );
     }
 
-    const helper = source("src/lib/refundLedgerSql.ts");
-    assert.match(helper, /QUALIFYING_CONVERSION_DISPUTE_STATUSES = \[\s*"won",\s*"warning_closed",/);
-    assert.match(helper, /latestConversionBlockingDisputeLedgerExistsSql/);
-    assert.match(helper, /latestDisputeLedgerRowsSql/);
-    assert.match(helper, /SELECT DISTINCT ON \(COALESCE\(ope\."stripeObjectId", ope\.id\)\)/);
+    const migration = source(
+      "prisma/migrations/20260830010000_prepare_order_payment_event_aggregate_authority/migration.sql",
+    );
+    assert.match(migration, /'won', 'warning_closed'/);
+    assert.match(migration, /count\(DISTINCT pg_catalog\.jsonb_build_array/);
+    assert.match(migration, /max\([\s\S]*"stripeEventCreatedSeconds"/);
+    assert.doesNotMatch(migration, /SELECT DISTINCT ON/);
   });
 });

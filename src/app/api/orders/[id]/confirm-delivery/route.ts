@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { orderHasRefundLedger } from "@/lib/refundRouteState";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
@@ -50,11 +50,7 @@ export async function POST(
         fulfillmentMethod: true,
         fulfillmentStatus: true,
         sellerRefundId: true,
-        paymentEvents: {
-          where: blockingRefundLedgerWhere(),
-          take: 1,
-          select: { eventType: true, status: true },
-        },
+        paymentRefundBlocked: true,
       },
     });
 
@@ -98,7 +94,7 @@ export async function POST(
           buyerId: me.id,
           fulfillmentStatus: "SHIPPED",
           sellerRefundId: null,
-          paymentEvents: { none: blockingRefundLedgerWhere() },
+          paymentRefundBlocked: false,
           AND: [
             {
               OR: [

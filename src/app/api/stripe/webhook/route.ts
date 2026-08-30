@@ -44,13 +44,8 @@ import {
   type CheckoutStockRestoreLineItem,
 } from "@/lib/checkoutStockRestore";
 import {
-  blockingRefundLedgerWhere,
-  isBlockingRefundLedgerEvent,
   orderHasRefundLedger,
 } from "@/lib/refundRouteState";
-import {
-  latestOpenDisputeLedgerRowsSql,
-} from "@/lib/refundLedgerSql";
 import { isStripeSessionUniqueConstraintError } from "@/lib/stripeWebhookEventState";
 import {
   REFUND_LOCK_SENTINEL,
@@ -258,9 +253,9 @@ function blockedCheckoutReviewReason(reviewNote: string | null | undefined) {
 
 function orderPostPaymentSideEffectsBlocked(order: {
   sellerRefundId?: string | null;
+  paymentRefundBlocked?: boolean | null;
   reviewNeeded?: boolean | null;
   reviewNote?: string | null;
-  paymentEvents?: Array<{ eventType?: string | null; status?: string | null }> | null;
 }) {
   return (
     orderHasRefundLedger(order) ||
@@ -274,14 +269,14 @@ function blockedCheckoutRefundRetryReason(order: {
   refundClaimId?: string | null;
   refundClaimSource?: string | null;
   refundClaimSourceId?: string | null;
+  paymentRefundBlocked?: boolean | null;
   reviewNeeded?: boolean | null;
   reviewNote?: string | null;
-  paymentEvents?: Array<{ eventType?: string | null; status?: string | null }> | null;
 }, eventId: string) {
   if (!order.reviewNeeded) return null;
   const reason = blockedCheckoutReviewReason(order.reviewNote);
   if (!reason) return null;
-  if (order.paymentEvents?.some(isBlockingRefundLedgerEvent)) return null;
+  if (order.paymentRefundBlocked) return null;
   if (order.refundClaimId) {
     return order.sellerRefundId === REFUND_LOCK_SENTINEL
       && order.refundClaimSource === "BLOCKED_CHECKOUT"
@@ -303,14 +298,14 @@ function blockedCheckoutRefundStillInProgress(order: {
   sellerRefundId?: string | null;
   sellerRefundLockedAt?: Date | null;
   refundClaimId?: string | null;
+  paymentRefundBlocked?: boolean | null;
   reviewNeeded?: boolean | null;
   reviewNote?: string | null;
-  paymentEvents?: Array<{ eventType?: string | null; status?: string | null }> | null;
 }) {
   return Boolean(
     order.reviewNeeded &&
       blockedCheckoutReviewReason(order.reviewNote) &&
-      !order.paymentEvents?.some(isBlockingRefundLedgerEvent) &&
+      !order.paymentRefundBlocked &&
       (
         Boolean(order.refundClaimId) ||
         (
@@ -558,11 +553,7 @@ export async function POST(req: Request) {
         shipToState: true,
         shipToPostalCode: true,
         buyer: { select: { name: true, email: true } },
-        paymentEvents: {
-          where: blockingRefundLedgerWhere(),
-          take: 1,
-          select: { eventType: true, status: true },
-        },
+        paymentRefundBlocked: true,
         items: {
           select: {
             id: true,
@@ -882,13 +873,9 @@ export async function POST(req: Request) {
           refundClaimId: true,
           refundClaimSource: true,
           refundClaimSourceId: true,
+          paymentRefundBlocked: true,
           reviewNeeded: true,
           reviewNote: true,
-          paymentEvents: {
-            where: blockingRefundLedgerWhere(),
-            take: 1,
-            select: { eventType: true, status: true },
-          },
           items: {
             select: {
               listing: {
@@ -1111,11 +1098,8 @@ export async function POST(req: Request) {
             where: { id: input.orderId },
             select: {
               sellerRefundId: true,
-              paymentEvents: {
-                where: blockingRefundLedgerWhere(),
-                take: 1,
-                select: { eventType: true, status: true },
-              },
+              paymentRefundBlocked: true,
+              paymentOpenDisputeBlocked: true,
             },
           });
           if (!currentOrder) {
@@ -1140,12 +1124,10 @@ export async function POST(req: Request) {
             return;
           }
 
-          const [latestDispute] =
-            await prisma.$queryRaw<Array<{ status: string | null; stripeObjectId: string | null }>>`
-              ${latestOpenDisputeLedgerRowsSql(Prisma.sql`${input.orderId}`)}
-              LIMIT 1
-            `;
-          const disputeGuard = blockedCheckoutDisputeState({ latestDispute, reviewPrefix });
+          const disputeGuard = blockedCheckoutDisputeState({
+            openDisputeBlocked: currentOrder.paymentOpenDisputeBlocked,
+            reviewPrefix,
+          });
           if (disputeGuard) {
             await prisma.order.update({
               where: { id: input.orderId },
@@ -1186,11 +1168,7 @@ export async function POST(req: Request) {
               where: { id: input.orderId },
               select: {
                 sellerRefundId: true,
-                paymentEvents: {
-                  where: blockingRefundLedgerWhere(),
-                  take: 1,
-                  select: { eventType: true, status: true },
-                },
+                paymentRefundBlocked: true,
               },
             });
             const hasRefund = conflictingOrder ? orderHasRefundLedger(conflictingOrder) : false;

@@ -17,14 +17,17 @@ The converted application is live from exact main
 `07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8`, CI `33297246142`, as
 READY deployment `dpl_7UeENeZebXL9yL481DWrXkDpWd4R`; predecessor
 `dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd` remains READY and undrained.
-The isolated aggregate-authority candidate now replaces the 15 audited
-eligibility/analytics ledger reads with two database-maintained, anti-forgery
-Order projections and serializes verified-review creation against refund
-evidence. Migration
-`20260830010000_prepare_order_payment_event_aggregate_authority` is byte-pinned
+The aggregate-authority migration and converted application are accepted in
+production with a distinct pooled-runtime postflight and authenticated smoke.
+The isolated transition-authority candidate now removes the remaining seven
+ordinary-runtime base-ledger consumers, adds one database-maintained,
+anti-forgery open-dispute projection, and retires the unused generic local
+evidence writer. Migration
+`20260830020000_prepare_order_payment_event_transition_authority` is byte-pinned
 at SHA-256
-`dfb2120e9c338607b1bfd73a8e095af004b188b9a0baa047987ece07199c0666`;
-it is unapplied and undeployed.
+`ebfd5f7476cc425bdbe8bf44f21625d9ac3532fdcc74b0af52bc1c36299852a3`;
+it is unapplied and undeployed. See
+`docs/order-payment-event-transition-authority.md`.
 `OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
 
 Audited: 2026-08-23 against the application source immediately after accepted
@@ -231,8 +234,10 @@ relation, raw table or payment-event semantic helper. The isolated fixed-read
 candidate added one reviewed authority module. A 2026-08-30 class-wide audit
 then found that the inventory matcher did not include the shared
 `BLOCKING_REFUND_LEDGER_SQL` and `blockingRefundLedgerWhere` symbols, so it
-silently omitted six genuine aggregate consumers. The corrected semantic
-inventory is 33 files. This inventory is intentionally broader than the older
+silently omitted six genuine aggregate consumers. The transition audit then
+found one additional transitive semantic consumer,
+`src/lib/orderRefundFinalization.ts`, through its local-evidence event identity.
+The corrected semantic inventory is 34 files. This inventory is intentionally broader than the older
 seven-file direct-access floor; semantic wrapper references remain after their
 underlying base-table access is removed.
 
@@ -281,6 +286,7 @@ underlying base-table access is removed.
 - `src/lib/localRefundEvidence.ts`
 - `src/lib/localRefundEvidenceCore.ts`
 - `src/lib/orderPaymentEventReadAuthority.ts`
+- `src/lib/orderRefundFinalization.ts`
 - `src/lib/refundLedgerSql.ts`
 - `src/lib/refundRouteState.ts`
 
@@ -309,7 +315,7 @@ The subsequent aggregate-authority candidate converts every file in the
 `Order.paymentRefundBlocked` and, where required,
 `Order.paymentConversionDisputeBlocked`. Database triggers derive and guard
 both facts from the immutable ledger; ordinary runtime receives no projection
-function execution. The semantic inventory deliberately remains 33 files even
+function execution. The semantic inventory deliberately remains 34 files even
 though this group no longer enumerates base rows. See
 `docs/order-payment-event-aggregate-authority.md`.
 
@@ -608,7 +614,9 @@ policyless RLS even though its source file does not spell the table name.
 
 The corrected class-wide matcher tracks direct names plus
 `blockingRefundLedgerWhere`, `BLOCKING_REFUND_LEDGER_SQL`, and every
-`latest*DisputeLedger*Sql` helper. The 33-file inventory is now the activation
+`latest*DisputeLedger*Sql` helper. The subsequent transition audit added the
+transitive local-evidence identity symbol and found
+`src/lib/orderRefundFinalization.ts`; the 34-file inventory is now the activation
 baseline. This finding changes no production behavior while RLS and predecessor
 CRUD remain intact, but it expands the fixed aggregate/transition conversion
 scope and prevents a false zero-direct-access claim.
@@ -667,7 +675,7 @@ There is no runtime-callable `write_payment_event`, `get_payment_event`,
 
 ## Release and proof sequence
 
-1. Keep this audit and its corrected 33-source inventory tripwire aligned after the stacked
+1. Keep this audit and its corrected 34-source inventory tripwire aligned after the stacked
    SellerPayoutEvent record.
 2. Implement the launch-safe refund product correction and canonical
    latest-dispute helper with focused business-logic regressions.
@@ -733,9 +741,11 @@ revoked its sole Clerk session and removed the restart journal. Retain
 sanitized mode-`0600` evidence SHA-256
 `5ec5518ccc3b0cdfd6c3e8542d9f57f722029d7dfdda5db9f4e50d22ddb633ee`.
 
-Remaining transition/webhook/local-evidence conversion,
-zero-direct-access proof, predecessor drain, policyless ENABLE and
-posture-only FORCE remain mandatory. See
+The isolated transition/webhook/local-evidence conversion and its local
+zero-direct-access, byte-seal, syntax, backfill, ordering and anti-forgery
+proofs are prepared. Hosted real-login concurrency proof, compatible release,
+predecessor drain, policyless ENABLE and posture-only FORCE remain mandatory.
+See
 `docs/order-payment-event-seller-refund-production-proof.md` for the complete
 failed-attempt chronology, correction rationale and cleanup certificate.
 
@@ -744,8 +754,8 @@ failed-attempt chronology, correction rationale and cleanup certificate.
 The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
-- the 33-source semantic baseline converts to zero runtime base-table access
-  while retaining all 33 sources in the semantic inventory;
+- the 34-source semantic baseline converts to zero runtime base-table access
+  while retaining all 34 sources in the semantic inventory;
 - fresh production data is classified with aggregate-only evidence;
 - buyer/seller/staff/service boundaries pass disposable PostgreSQL;
 - signed Stripe and local refund paths pass retry/concurrency proof;
