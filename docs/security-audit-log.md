@@ -4002,3 +4002,34 @@ Open work:
 - No application, database, RLS, grant, deployment, credential or provider
   state changed. The correction is documentation and an executable inventory
   tripwire only.
+
+# 2026-08-30 - OrderPaymentEvent invariant and fixed-read production acceptance
+
+- PR #336 merged the exact pooled-runtime postflight package as main
+  `5a779f3634c5e0854f6aa3c8e8b6d6c2de950a0c`; PR #337 then corrected the
+  semantic inventory to 33 consumers as exact main
+  `513053dc6f2f6fb527f85e45fe3a18a8317fa701`. Exact-main CI
+  `33295803412` passed.
+- Aggregate-only inspection `33296114340` ran in an engine-attested
+  repeatable-read read-only transaction. Sanitized artifact SHA-256
+  `cf41611f392668a778a73f0dfce4038f1f431813c8cf1467360c45d78a794866`
+  reported zero payment rows and zero payment-specific defects. The one
+  privacy-redacted label-reference finding and one released synthetic webhook
+  lease were unchanged, separately classified non-payment findings.
+- Guarded run `33296358390` applied only
+  `20260829010000_prepare_order_payment_event_invariants`; guarded run
+  `33296422900` then applied only
+  `20260829020000_prepare_order_payment_event_read_authority` and converged
+  the five exact runtime function grants. Both passed migration status, the
+  global grant/RLS audit and their exact post-application scope proofs.
+- The distinct actual pooled-runtime postflight passed all seven checks inside
+  an engine-attested repeatable-read read-only transaction. It exported zero
+  rows, changed no production state, and retained sanitized mode-`0600`
+  evidence SHA-256
+  `da16187441681f0bf5bfd394cb3ec14c59ea5fc0f496812ae20bb5d4b0749a17`.
+  Two earlier local invocations failed before database connection or evidence
+  creation because their shell extractor misparsed the quoted local URL.
+- `OrderPaymentEvent` RLS remains off and predecessor runtime table CRUD is
+  retained. The converted app is merged but not yet deployed; all remaining
+  direct transition, aggregate, webhook and local-evidence consumers still
+  block predecessor drain and activation.

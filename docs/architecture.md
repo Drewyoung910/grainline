@@ -218,7 +218,7 @@ remains distinct and cannot be reused. See
 The next domain-first boundary is `OrderPaymentEvent`; see
 `docs/order-payment-event-pre-rls-audit.md`. It remains a separately released,
 policyless service ledger rather than a participant-readable table. The audit
-pins 26 semantic application surfaces and requires sanitized buyer/seller
+pins 33 current semantic application surfaces and requires sanitized buyer/seller
 projections, generation-fenced seller and blocked-checkout refund operations,
 canonical latest-per-dispute ordering, append-only/taxonomy invariants and a
 fresh production aggregate inspection before activation design can proceed.
@@ -229,9 +229,16 @@ event, Checkout Session, Order, amount and idempotency scope. See
 `docs/order-payment-event-refund-claim-generation.md` and
 `docs/order-payment-event-refund-record-authority.md`. The compatible stack is
 merged, byte-pinned and accepted in the production database. Exact main
-`2820986538c0d64f035defce052ba4ad0de1b3fb` is now live as Vercel deployment
-`dpl_73aR913b9hfgkcdfBv2MwMyypR5a`; provider/retry proof and predecessor drain
-remain outstanding.
+`4b2d4693ac03db773b766ca4c4c53c072ac0fdbe` is live as Vercel deployment
+`dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`; the signed refund/dispute,
+blocked-checkout, seller-refund and staff-Case proof families are accepted.
+Exact main `513053dc6f2f6fb527f85e45fe3a18a8317fa701`, CI
+`33295803412`, inspection `33296114340`, invariant run `33296358390` and
+read-authority run `33296422900` additionally established the append-only
+database invariants and five bounded read projections. Its actual pooled-runtime
+postflight passed without mutation. Compatible app deployment, conversion of
+the remaining direct transition/aggregate/webhook/local-evidence consumers and
+predecessor drain remain outstanding before separate ENABLE and FORCE releases.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,
