@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-24
+Last updated: 2026-08-30
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -272,6 +272,17 @@ trees. Retain mode-`0600` evidence SHA-256
 This is application-authority evidence only; policyless ENABLE/direct-grant
 revocation and FORCE remain separate. See
 `docs/order-payment-event-zero-direct-access.md`.
+The next isolated candidate is the policyless Phase-A activation described in
+`docs/order-payment-event-activation-release.md`. It is not production state.
+The byte-pinned migration changes no row, creates no policy or function,
+enables RLS with explicit `NO FORCE`, revokes ordinary-runtime/PUBLIC table
+authority and retires runtime execution of two unused predecessor entry points.
+The final source-composed authority catalog has exactly 29 functions: 16
+retained runtime operations and 13 private operations after activation. CI
+must prove direct table denial and rollback/restoration through a distinct
+restricted login before merge. Production Phase A, its actual pooled-runtime
+postflight and later posture-only FORCE remain separate releases; `Order`,
+`OrderItem` and `OrderShippingRateQuote` are not bundled.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,

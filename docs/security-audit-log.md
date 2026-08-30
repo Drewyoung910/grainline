@@ -4569,3 +4569,65 @@ Open work:
   RLS remains off with predecessor CRUD retained. Policyless ENABLE plus
   direct-grant revocation is next; FORCE remains separate, and `Order`,
   `OrderItem` and shipping quotes stay out of this activation.
+
+# 2026-08-30 - OrderPaymentEvent Phase-A activation candidate prepared
+
+- Production remains unchanged: `OrderPaymentEvent` RLS is off, has zero
+  policies and retains predecessor runtime CRUD. No migration or activation
+  was run.
+- The isolated candidate promotes only
+  `20260830030000_enable_order_payment_event_rls`. It performs zero row DML,
+  creates no function or policy, enables RLS with explicit `NO FORCE`, revokes
+  runtime/PUBLIC table authority and retires runtime execution of two unused
+  predecessor entry points.
+- The final catalog is mechanically composed from the latest sealed authority
+  families and contains exactly 29 functions: 18 runtime-callable before
+  activation, 16 after and 13 private after. Tracked source calls only the 16
+  retained runtime operations.
+- Hard review found and corrected a stale hand-composed catalog that omitted
+  the latest transfer-binding successor and retained older signed-refund and
+  signed-dispute bodies. It also upgraded trigger proof to exact relation,
+  name, function, type and enabled/internal state, and upgraded emergency
+  rollback to exact before/after table ACL and 29-function catalog proof.
+- Exact hashes after the CI-role, dynamic-SQL-proxy and cross-system
+  direct-reference corrections: draft
+  `4d7705f8a4d8f0156a05e4f87e6c62ccc42c9e48936dc0beeaf0f333242376c6`,
+  migration
+  `0566632d372524667ad80e5cf6ed76250ca13abc838b8fdce60e3cb909fb83c1`,
+  migration tree
+  `389cfab874e29921027e6661f7abd8e8286a46db8505cac589d15823c57b3adf`
+  and rollback
+  `4f85a61d18e0b53faec5b9abdbd3d52f53cf176392b61a0ca908be1abd957568`.
+- Focused release, workflow, grant-inventory and production-runner contracts
+  pass locally. The complete local suite passed 3,647 tests with zero failures
+  and seven intentional skips; TypeScript and lint passed. A local Next build
+  was intentionally not attempted with only 1.1 GiB free; hosted CI remains
+  responsible for the production build and real PostgreSQL activation and
+  rollback proofs. Merge, production Phase A, actual pooled-runtime postflight
+  and later FORCE remain independent gates. `Order`, `OrderItem` and
+  `OrderShippingRateQuote` remain outside this activation.
+- Hosted CI `33339776682` passed every sealed predecessor through transition
+  authority, then failed closed before activation because the migration
+  required table owner name `neondb_owner` in disposable CI, where the exact
+  migration owner is `ci`. No persistent database was touched. The corrected
+  preflight requires ownership by `CURRENT_USER` and accepts only production
+  `neondb_owner` or `ci` in database `grainline_ci`; it rejects arbitrary
+  owners and leaves the protected production identity guard unchanged.
+- Replacement CI `33340360157` passed the owner check and failed closed with
+  27/29 exact catalog matches. The two rejected sealed functions legitimately
+  use `pg_catalog.format()` for reconciliation prose; neither uses PL/pgSQL
+  `EXECUTE`. Treating `FORMAT(` alone as dynamic SQL was a false proxy. The
+  corrected preflight still rejects any `EXECUTE`, retains exact source MD5s
+  and ACL/owner/search-path checks for all 29 functions, and adds a class-wide
+  test pinning the two allowed formatting bodies and zero executable dynamic
+  SQL. No persistent database was touched.
+- Replacement CI `33340801968` passed both prior corrections and then failed
+  closed on seven legitimate cross-system functions that directly reference
+  `OrderPaymentEvent`. The rejected functions belong to already-sealed Case
+  and Notification releases; the preflight had compared only function names
+  from this release's 29-function catalog. The correction does not grant or
+  mutate them. It pins the complete 25-function direct-reference surface (18
+  of the 29 release functions plus the seven cross-system dependencies) by
+  exact name plus argument types, requires all 25 reviewed identities and
+  rejects missing entries, added overloads and every other direct reference.
+  No persistent database was touched.

@@ -49,6 +49,10 @@ import {
   ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION,
   verifyOrderPaymentEventTransitionAuthorityMigrationBytes,
 } from "./order-payment-event-transition-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
+  verifyOrderPaymentEventActivationMigrationBytes,
+} from "./order-payment-event-activation-identity.mjs";
 
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_PHASE =
   "order-refund-reconciliation-authority-prepared";
@@ -202,6 +206,20 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     );
     verifyOrderPaymentEventTransitionAuthorityMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION);
+  }
+  const activationSuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
+  );
+  if (fs.existsSync(activationSuccessorPath)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION,
+      "OrderPaymentEvent activation requires the transition-authority successor",
+    );
+    verifyOrderPaymentEventActivationMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION);
   }
   const laterMigrations = fs.readdirSync(
     path.join(rootDirectory, "prisma/migrations"),

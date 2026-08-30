@@ -44,6 +44,9 @@ import {
 import {
   ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_FUNCTIONS,
 } from "./order-payment-event-transition-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES,
+} from "./order-payment-event-activation-catalog.mjs";
 
 const { Client } = pg;
 
@@ -62,6 +65,7 @@ export const CASE_ACTIVATION_TABLES = Object.freeze([
 export const STRIPE_WEBHOOK_EVENT_TABLE = "StripeWebhookEvent";
 export const CHECKOUT_STOCK_RESERVATION_TABLE = "CheckoutStockReservation";
 export const SELLER_PAYOUT_EVENT_TABLE = "SellerPayoutEvent";
+export const ORDER_PAYMENT_EVENT_TABLE = "OrderPaymentEvent";
 export const RUNTIME_PRIVATE_TABLES = Object.freeze([
   "CaseResolutionClaim",
   "CaseStripeDisputeApplication",
@@ -298,11 +302,24 @@ export function sellerPayoutEventRlsForceExpected(inventory) {
     && (inventory?.rlsForceTables ?? []).includes(SELLER_PAYOUT_EVENT_TABLE);
 }
 
+export function orderPaymentEventRlsActivationExpected(inventory) {
+  const enabled = new Set(inventory?.rlsEnableTables ?? []);
+  const policies = new Set(inventory?.rlsPolicyTables ?? []);
+  return enabled.has(ORDER_PAYMENT_EVENT_TABLE)
+    && !policies.has(ORDER_PAYMENT_EVENT_TABLE);
+}
+
 export function runtimePrivateFunctionNames(inventory) {
   const directUploadActivated = directUploadRlsActivationExpected(inventory);
   const reservationActivated =
     checkoutStockReservationRlsActivationExpected(inventory);
-  if (!directUploadActivated && !reservationActivated) {
+  const orderPaymentEventActivated =
+    orderPaymentEventRlsActivationExpected(inventory);
+  if (
+    !directUploadActivated
+    && !reservationActivated
+    && !orderPaymentEventActivated
+  ) {
     return [...RUNTIME_PRIVATE_FUNCTIONS];
   }
   return sortedUnique([
@@ -314,6 +331,11 @@ export function runtimePrivateFunctionNames(inventory) {
       : []),
     ...(reservationActivated
       ? CHECKOUT_STOCK_RESERVATION_ACTIVATED_PRIVATE_FUNCTION_NAMES
+      : []),
+    ...(orderPaymentEventActivated
+      ? ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      )
       : []),
   ]);
 }
@@ -331,6 +353,9 @@ export function policylessServiceRlsTableNames(inventory) {
       : []),
     ...(sellerPayoutEventRlsActivationExpected(inventory)
       ? [SELLER_PAYOUT_EVENT_TABLE]
+      : []),
+    ...(orderPaymentEventRlsActivationExpected(inventory)
+      ? [ORDER_PAYMENT_EVENT_TABLE]
       : []),
   ];
 }
@@ -1171,6 +1196,10 @@ export function requiredRuntimeTablePrivileges(tableName, inventory) {
       tableName === SELLER_PAYOUT_EVENT_TABLE
       && sellerPayoutEventRlsActivationExpected(inventory)
     )
+    || (
+      tableName === ORDER_PAYMENT_EVENT_TABLE
+      && orderPaymentEventRlsActivationExpected(inventory)
+    )
   ) {
     return [];
   }
@@ -1212,6 +1241,8 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
           ? checkoutStockReservationRlsForceExpected(inventory)
         : tableName === SELLER_PAYOUT_EVENT_TABLE
           ? sellerPayoutEventRlsForceExpected(inventory)
+        : tableName === ORDER_PAYMENT_EVENT_TABLE
+          ? false
         : true;
     if (!row) {
       issues.push(
@@ -1831,6 +1862,10 @@ export async function auditLiveDatabase({ client, runtimeRole, migrationRole, in
       || (
         row.table_name === SELLER_PAYOUT_EVENT_TABLE
         && sellerPayoutEventRlsActivationExpected(inventory)
+      )
+      || (
+        row.table_name === ORDER_PAYMENT_EVENT_TABLE
+        && orderPaymentEventRlsActivationExpected(inventory)
       );
     if (row.rls_enabled && !hasPolicies && !policylessServiceTable) {
       issues.push(

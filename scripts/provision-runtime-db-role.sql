@@ -2135,6 +2135,79 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- OrderPaymentEvent becomes a policyless service ledger at Phase A. The bulk
+-- predecessor grant and the two legacy compatibility entry points above are
+-- intentional only while RLS is off. If provisioning is rerun after ENABLE,
+-- re-close all direct table authority and keep only the current fixed surface.
+WITH table_state AS (
+  SELECT
+    class.relrowsecurity,
+    class.relforcerowsecurity,
+    (SELECT pg_catalog.count(*)::integer
+       FROM pg_catalog.pg_policy AS policy
+      WHERE policy.polrelid = class.oid) AS policy_count
+    FROM pg_catalog.pg_class AS class
+    JOIN pg_catalog.pg_namespace AS namespace
+      ON namespace.oid = class.relnamespace
+   WHERE namespace.nspname = 'public'
+     AND class.relname = 'OrderPaymentEvent'
+     AND class.relkind = 'r'
+), posture AS (
+  SELECT
+    COUNT(*) = 1
+      AND bool_and(relrowsecurity AND policy_count = 0) AS active,
+    COUNT(*) = 1
+      AND bool_and(
+        NOT relrowsecurity
+        AND NOT relforcerowsecurity
+        AND policy_count = 0
+      ) AS clean_predecessor
+    FROM table_state
+), failure AS (
+  SELECT
+    'OrderPaymentEvent RLS is partially or unexpectedly configured; refusing runtime-role provisioning'
+      AS message
+    FROM posture
+   WHERE NOT active AND NOT clean_predecessor
+)
+SELECT
+  EXISTS (SELECT 1 FROM failure) AS grainline_role_provisioning_failed,
+  COALESCE((SELECT message FROM failure LIMIT 1), '')
+    AS grainline_role_provisioning_failure,
+  COALESCE((SELECT active FROM posture), false)
+    AS order_payment_event_rls_active;
+\gset
+\if :grainline_role_provisioning_failed
+\echo :grainline_role_provisioning_failure
+DO $grainline_order_payment_event_provisioning_abort$
+BEGIN
+  RAISE EXCEPTION 'runtime-role provisioning refused';
+END
+$grainline_order_payment_event_provisioning_abort$;
+\endif
+\unset grainline_role_provisioning_failed
+\unset grainline_role_provisioning_failure
+
+\if :order_payment_event_rls_active
+REVOKE ALL ON TABLE public."OrderPaymentEvent"
+  FROM PUBLIC, :"runtime_role";
+
+WITH retired_order_payment_event_service(function_signature) AS (
+  VALUES
+    ('public."grainline_blocked_checkout_refund_claim"(text, bigint, text, text, integer)'),
+    ('public."grainline_case_seller_refund_apply"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM retired_order_payment_event_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+\endif
+\unset order_payment_event_rls_active
+
 WITH failure AS (
   SELECT 'required extension pg_trgm is not installed' AS message
   WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')
