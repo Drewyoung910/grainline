@@ -899,12 +899,16 @@ jobs:
           --file=scripts/provision-runtime-db-role.sql
       - name: Audit OrderPaymentEvent aggregate grants and retained RLS posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove exact OrderPaymentEvent aggregate-authority scope in CI
+        run: npm run audit:order-payment-event-aggregate-authority-ci-scope
       - name: Prove OrderPaymentEvent aggregate authority in disposable PostgreSQL
         run: >-
           node --test
           tests/order-payment-event-aggregate-authority-app.test.mjs
+          tests/order-payment-event-aggregate-authority-ci-scope-proof.test.mjs
           tests/order-payment-event-aggregate-authority-postgres.test.mjs
           tests/order-payment-event-aggregate-authority-proof.test.mjs
+          tests/order-payment-event-aggregate-authority-production-scope.test.mjs
           tests/order-payment-event-aggregate-authority-release.test.mjs
       - name: Prove OrderPaymentEvent aggregate locks through real logins
         run: npm run audit:order-payment-event-aggregate-authority-postgres

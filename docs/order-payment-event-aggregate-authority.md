@@ -10,6 +10,17 @@ It is wired into disposable CI but deliberately isolated from the generic
 Production Migrations workflow. It has not been applied or deployed and has
 not changed RLS, grants, credentials, provider state or production rows.
 
+The dedicated production package adds a restart-safe, exact-main-only workflow
+and an engine-read-only scope verifier. The verifier accepts exactly two states:
+the sealed fixed-read predecessor with no candidate ledger row or the exact
+applied candidate with one finished one-step ledger row. The applied state must
+also have both exact boolean columns, all three byte-matched owner-private
+functions, both enabled triggers, zero runtime/PUBLIC helper execution and zero
+projection mismatches. Any partial ledger row, catalog drift, unexpected ACL or
+data mismatch fails closed. The workflow is not an automatic deploy path: it
+requires a successful exact-main CI run and a fresh exact-main aggregate-only
+production inspection before applying only this migration.
+
 ## Decision
 
 The 15 audited eligibility and aggregate consumers do not need payment-event
@@ -148,6 +159,11 @@ uses separate `ci` and `grainline_app_runtime` connections, proves the
 parent-first migration/writer lock order, proves direct helper execution
 denial, observes the eligibility parent Order lock wait, and proves a stale
 review-eligibility claim returns zero after the refund transaction commits.
+CI also runs the same production catalog reader against the fully migrated
+disposable PostgreSQL database inside an engine-attested repeatable-read,
+read-only transaction. That catches PostgreSQL-rendered default, function-body,
+ACL, trigger-definition and projection-consistency drift before the production
+workflow can be merged or dispatched.
 
 Required sequence:
 

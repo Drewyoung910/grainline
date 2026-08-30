@@ -4138,3 +4138,32 @@ Open work:
   `OrderPaymentEvent`, Notification policy or runtime-authority failure. The
   aggregate migration remains unapplied; no deployment, migration, grant,
   RLS, credential, provider or production-row state changed.
+
+# 2026-08-30 - Notification promoted-source proof accepted and aggregate release fenced
+
+- The immutable Notification fixture correction passed the complete hosted
+  real-PostgreSQL proof at exact head
+  `4050b2be0f3f4d68178e60ee3635307fa3ebdea9` in run `33301183407`; full CI
+  passed independently in run `33301176361`. PR #341 merged as exact main
+  `2643c8657c46a189310e88b0edf37c027cc79014`, and its fresh exact-main
+  full CI and Notification FORCE proof passed as runs `33301584699` and
+  `33301584697`. The fix retained one immutable signed dispute plus three
+  distinct canonical local-refund rows, with no payment-event update/delete
+  and loopback-only cleanup.
+- The isolated aggregate-authority production package now has an exact
+  restart-scope verifier and dedicated guarded workflow. It composes the sealed
+  fixed-read predecessor proof, byte-pins the candidate ledger row, verifies
+  the two Order column definitions, hashes all three owner-private function
+  bodies, audits function ACLs and both triggers, and requires zero canonical
+  projection mismatches inside an engine-enforced repeatable-read read-only
+  transaction.
+- The same reader is wired into disposable CI after the complete predecessor
+  migration chain and candidate application, so PostgreSQL-rendered catalog
+  behavior is tested rather than inferred. The dedicated production workflow
+  requires exact-main CI plus a fresh exact-main aggregate-only inspection and
+  can apply only the aggregate-authority migration from an exact predecessor or
+  exact already-applied restart state.
+- This package does not authorize or perform a production migration, deploy,
+  RLS change, grant revocation, predecessor drain, credential change, provider
+  operation or row mutation. `OrderPaymentEvent` RLS remains off and the
+  aggregate-authority migration remains unapplied.
