@@ -392,8 +392,11 @@ with four selected accounting fields rather than arbitrary metadata. UTC epoch
 millisecond cursors cross the PostgreSQL/Node boundary. These are additive
 owner-executed fixed projections with pinned search paths and runtime-only
 EXECUTE; the server-resolved Clerk actor remains an explicit application trust
-boundary. No generic event lookup is introduced, and predecessor table CRUD
-stays until compatible deployment and drain.
+boundary. No generic event lookup is introduced. Exact main
+`07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8` is live as READY deployment
+`dpl_7UeENeZebXL9yL481DWrXkDpWd4R`; predecessor table CRUD and the prior
+READY deployment remain until the remaining semantic consumers convert and a
+separate drain is accepted.
 
 The OPE-A03 concurrency correction is prepared in
 `docs/order-payment-event-refund-claim-generation.md`. It adds an Order-owned,

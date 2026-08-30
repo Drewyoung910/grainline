@@ -4033,3 +4033,26 @@ Open work:
   retained. The converted app is merged but not yet deployed; all remaining
   direct transition, aggregate, webhook and local-evidence consumers still
   block predecessor drain and activation.
+
+# 2026-08-30 - OrderPaymentEvent fixed-read compatible application deployed
+
+- PR #338 exact head `ea814719425b78548446ffb03026545232da50d5`
+  merged as exact main `07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8`.
+  Exact-main CI `33297246142` passed the complete release chain.
+- A clean detached manual production deployment created
+  `dpl_7UeENeZebXL9yL481DWrXkDpWd4R`. Vercel reports target production,
+  state READY and URL
+  `grainline-iji9ggah6-drew-youngs-projects.vercel.app`; every canonical alias
+  resolves to it and both tested public aliases returned `{"ok":true}` from
+  `/api/health`. The production build guard attested pooled
+  `grainline_app_runtime` on the reviewed Neon database.
+- The CLI's final `onBuildComplete` API fetch returned `deploy_failed` after
+  the remote build had completed. The exact deployment was inspected before
+  any retry and was already READY with aliases assigned, so no competing
+  deployment was created. This failure is retained as transport/reporting
+  evidence, not misclassified as a build failure.
+- Predecessor `dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd` remains READY and undrained.
+  This deployment ran no migration and changed no grant, RLS posture,
+  credential, provider configuration or production row. `OrderPaymentEvent`
+  RLS remains off and predecessor runtime table CRUD remains retained while
+  aggregate, transition, webhook and local-evidence conversions continue.
