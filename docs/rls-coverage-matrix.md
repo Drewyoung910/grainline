@@ -490,8 +490,18 @@ state and supersede earlier inline chronology in its matrix summary.
 > established private-listing outcome is `SOLD_OUT` with stock one; only
 > non-private refunded listings reactivate. The isolated proof/cleanup
 > correction changes no application, migration, grant, RLS or provider state.
-> Staff acceptance remains open and must resume this exact journal without a
-> second payment or refund.
+> Staff acceptance is now complete. Exact operator/main
+> `4b2d4693ac03db773b766ca4c4c53c072ac0fdbe` passed CI `33287308262`, was
+> deployed as `dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`, and resumed only immutable
+> attempt `711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14` / CI `33274185617`.
+> It reused the existing 500-cent refund, 475-cent reversal, signed event and
+> fixtures, accepted terminal route plus signed-event replay without duplicate
+> effects, and completed bounded cleanup. The canary is restored to `USER`,
+> the restart journal is absent, and sanitized mode-`0600` evidence SHA-256 is
+> `e55993b6e76f11a8aa48b0d5aefde588695944436ec7c5474655e1a43d8f18fb`.
+> RLS and grants were unchanged. Fresh data classification, remaining
+> invariant/projection gates, predecessor drain, policyless ENABLE,
+> pooled-runtime proof and separate FORCE remain required.
 
 ## Program Rules
 
