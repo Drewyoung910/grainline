@@ -4231,3 +4231,19 @@ Open work:
   explicit owner `ci` only from the loopback CI proof for both function and
   trigger rows; function/trigger bytes, privilege checks and production state
   are unchanged.
+- Corrected PR #343 exact head
+  `9db58d87d45799e933e9b343f6d51f629a32e0d8` passed hosted CI
+  `33305694524`, including the real restricted-login proof, full test suite,
+  audit and production build, then merged as exact main
+  `87d01c692d0134be5b628076551f7d0e05ef2873`. Exact-main CI
+  `33306115759` passed independently.
+- The actual production postflight ran only through pooled
+  `grainline_app_runtime` inside an engine-attested repeatable-read/read-only
+  transaction. It re-proved the sealed read catalog, exact aggregate catalog,
+  bounded aggregate query and all three private-helper denials, exported no
+  rows or counts, and changed no production state. Retain sanitized mode-0600
+  evidence SHA-256
+  `903e4816c95437000337d870c62b312e7659e4e9a443881360f65194bf2d032f`.
+- `OrderPaymentEvent` RLS remains off and predecessor CRUD remains retained.
+  The next separate gate is compatible application deployment and
+  authenticated aggregate/review smoke while preserving the predecessor.

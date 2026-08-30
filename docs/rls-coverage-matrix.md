@@ -146,6 +146,22 @@ completed alternative.
 The dated `OrderPaymentEvent` updates below are the authoritative current gate
 state and supersede earlier inline chronology in its matrix summary.
 
+> **OrderPaymentEvent superseding gate update (2026-08-30):** aggregate
+> authority is accepted through the actual pooled production runtime. PR #343
+> exact head `9db58d87d45799e933e9b343f6d51f629a32e0d8` merged as exact main
+> `87d01c692d0134be5b628076551f7d0e05ef2873`; exact-main CI
+> `33306115759` passed. The engine-enforced repeatable-read/read-only postflight
+> bound to inspection `33304264914` and migration run `33304372055` re-proved
+> the five read functions, two projections, two triggers, three private helper
+> denials and ordinary pooled-runtime identity without exporting rows or
+> counts. Retain sanitized mode-0600 evidence SHA-256
+> `903e4816c95437000337d870c62b312e7659e4e9a443881360f65194bf2d032f`.
+> `OrderPaymentEvent` RLS remains off and predecessor CRUD remains retained.
+> The current gate is compatible application deployment plus authenticated
+> aggregate/review smoke, followed by conversion and proof of the remaining
+> transition, webhook and local-evidence access paths. Predecessor drain,
+> policyless ENABLE and FORCE remain later separate releases.
+
 > **OrderPaymentEvent superseding gate update (2026-08-26):** the
 > blocked-checkout delivery compatibility migration and corrected application
 > are live, and the real authenticated provider proof reached a genuine paid

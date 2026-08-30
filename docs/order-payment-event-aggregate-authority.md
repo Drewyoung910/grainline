@@ -14,7 +14,12 @@ SHA-256
 Migration status, the global grant/RLS audit, all three private function bodies
 and ACLs, both trigger bindings and zero projection mismatches passed. No app
 was deployed, RLS and provider state did not change, and direct predecessor
-runtime CRUD was deliberately preserved.
+runtime CRUD was deliberately preserved. PR #343 exact head
+`9db58d87d45799e933e9b343f6d51f629a32e0d8` then merged as exact main
+`87d01c692d0134be5b628076551f7d0e05ef2873`; exact-main CI
+`33306115759` passed. The distinct actual pooled-runtime postflight passed from
+that exact clean commit with sanitized mode-0600 evidence SHA-256
+`903e4816c95437000337d870c62b312e7659e4e9a443881360f65194bf2d032f`.
 
 The dedicated production package adds a restart-safe, exact-main-only workflow
 and an engine-read-only scope verifier. The verifier accepts exactly two states:
@@ -187,15 +192,16 @@ Required sequence:
 8. prove zero ordinary runtime base-table access, drain the predecessor, then
    activate policyless `ENABLE` and later `FORCE` RLS as separate releases.
 
-The distinct pooled-runtime postflight package is now isolated for review. It
-accepts only the pooled `grainline_app_runtime` credential, refuses privileged
-or aliased database URLs, runs in an engine-attested repeatable-read/read-only
-transaction, re-proves the sealed five-function read authority, verifies both
-Order projection columns and both triggers, proves all three aggregate helpers
-remain runtime-inaccessible and retains only sanitized mode-0600 evidence. Its
-exact production run remains a separate gate. This state does not authorize an
-application deploy, predecessor drain, grant revocation, RLS activation or
-provider changes.
+The distinct pooled-runtime postflight is accepted. It used only the pooled
+`grainline_app_runtime` credential, refused privileged or aliased database
+URLs, ran in an engine-attested repeatable-read/read-only transaction,
+re-proved the sealed five-function read authority, verified both Order
+projection columns and both triggers, proved all three aggregate helpers remain
+runtime-inaccessible and exported no rows or counts. The postflight changed no
+production state. The next separate gate is compatible application deployment
+and authenticated aggregate/review smoke while preserving the predecessor.
+This state does not authorize predecessor drain, grant revocation, RLS
+activation or provider changes.
 
 ## Failed hosted proof evidence
 
