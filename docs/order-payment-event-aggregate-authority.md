@@ -202,23 +202,36 @@ Required sequence:
 8. prove zero ordinary runtime base-table access, drain the predecessor, then
    activate policyless `ENABLE` and later `FORCE` RLS as separate releases.
 
-The distinct pooled-runtime postflight and compatible deployment are accepted.
-The postflight used only the pooled
+The distinct pooled-runtime postflight, compatible deployment and bounded
+authenticated aggregate/review smoke are accepted. The postflight used only the pooled
 `grainline_app_runtime` credential, refused privileged or aliased database
 URLs, ran in an engine-attested repeatable-read/read-only transaction,
 re-proved the sealed five-function read authority, verified both Order
 projection columns and both triggers, proved all three aggregate helpers remain
 runtime-inaccessible and exported no rows or counts. The postflight changed no
-production state. The current separate gate is the bounded authenticated
-aggregate/review smoke while preserving the predecessor. Its reviewed design
-creates no database, Stripe or Vercel fixture: it uses one short-lived retained
-operational-canary Clerk session, renders `/account`, and posts a fresh
-nonexistent listing ID to `/api/reviews`. The exact 403 delivered-order denial
-can occur only after the converted route reaches its authoritative locked
-eligibility query with `Order.paymentRefundBlocked = false`. The operator then
-revokes its session and resets only that canary's transient review-rate-limit
-and account-cache state. This state does not authorize predecessor drain,
-grant revocation, RLS activation or provider changes.
+production state. PR #345 exact head
+`a111e4b30609b60db99765f3a41bd255f333c2f0` merged as exact main
+`6a74f1dd385035f2ff376d79a482ca989cf4ab02`; exact-main CI
+`33309431664` passed the full PostgreSQL, TypeScript, lint, test, audit and
+production-build gates. The operator re-attested exact deployment
+`dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`, its source and four canonical aliases,
+then used one short-lived retained operational-canary Clerk session. It proved
+unauthenticated review denial, rendered `/account` with status 200 and posted a
+fresh nonexistent listing ID to `/api/reviews`. The exact 403 delivered-order
+denial can occur only after the converted route reaches its authoritative
+locked eligibility query with `Order.paymentRefundBlocked = false`.
+
+Cleanup revoked the exact session, reset only that canary's transient
+review-rate-limit state and deleted only its production account-cache key. The
+restart journal is absent. The smoke created zero Review, Order, Listing,
+database, payment or provider fixtures and changed no migration, RLS, grant,
+credential or provider configuration. Retain sanitized mode-`0600` evidence
+SHA-256
+`5ec5518ccc3b0cdfd6c3e8542d9f57f722029d7dfdda5db9f4e50d22ddb633ee`.
+The current gate is conversion and proof of the remaining contended
+transition, webhook and local-evidence consumers. This acceptance does not
+authorize predecessor drain, grant revocation, RLS activation or provider
+changes.
 
 ## Failed hosted proof evidence
 

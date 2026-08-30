@@ -228,23 +228,28 @@ hand an existing claim only to a later active generation for the identical
 event, Checkout Session, Order, amount and idempotency scope. See
 `docs/order-payment-event-refund-claim-generation.md` and
 `docs/order-payment-event-refund-record-authority.md`. The compatible stack is
-merged, byte-pinned and accepted in the production database. Exact main
-`4b2d4693ac03db773b766ca4c4c53c072ac0fdbe` is live as Vercel deployment
-`dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`; the signed refund/dispute,
-blocked-checkout, seller-refund and staff-Case proof families are accepted.
+merged, byte-pinned and accepted in the production database. The signed
+refund/dispute, blocked-checkout, seller-refund and staff-Case proof families
+are accepted.
 Exact main `513053dc6f2f6fb527f85e45fe3a18a8317fa701`, CI
 `33295803412`, inspection `33296114340`, invariant run `33296358390` and
 read-authority run `33296422900` additionally established the append-only
 database invariants and five bounded read projections. Its actual pooled-runtime
-postflight passed without mutation. The fixed-read application is live from
-exact main `07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8` as READY deployment
-`dpl_7UeENeZebXL9yL481DWrXkDpWd4R`; its predecessor remains undrained. The next
-isolated layer replaces all 15 eligibility/aggregate ledger reads with two
-database-maintained, anti-forgery Order projections and fixes the verified-
-review/refund race; see `docs/order-payment-event-aggregate-authority.md`.
-That layer is not yet production-live. Remaining transition/webhook/local-
-evidence conversion and predecessor drain still precede separate ENABLE and
-FORCE releases.
+postflight passed without mutation. The aggregate-authority migration is also
+accepted: its two database-maintained, anti-forgery Order projections replace
+all 15 eligibility/aggregate ledger reads and its parent lock fixes the
+verified-review/refund race. The compatible aggregate application is live from
+exact main `4908bc7f377f5950da8de6b3398049d65a5fdfcb`, CI `33307107247`, as
+READY deployment `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`; READY predecessor
+`dpl_7UeENeZebXL9yL481DWrXkDpWd4R` remains undrained. Exact main
+`6a74f1dd385035f2ff376d79a482ca989cf4ab02`, CI `33309431664`, then passed
+the bounded authenticated account/review smoke without creating a database,
+payment, provider or review fixture. Retain sanitized mode-`0600` evidence
+SHA-256
+`5ec5518ccc3b0cdfd6c3e8542d9f57f722029d7dfdda5db9f4e50d22ddb633ee`.
+See `docs/order-payment-event-aggregate-authority.md`. Remaining
+transition/webhook/local-evidence conversion and predecessor drain still
+precede separate ENABLE and FORCE releases.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,

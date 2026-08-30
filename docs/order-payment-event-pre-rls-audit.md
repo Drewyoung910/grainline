@@ -711,14 +711,31 @@ and removed all bounded temporary identity. Exact corrected operator/main was
 `33265745679`, and retained evidence SHA-256 is
 `35d13b9513e49c2f1ca101a0f9f2a1e5207520e28b845a03b99e2e2d1b76c9d4`.
 
-Those three accepted proofs cannot stand in for the still-separate staff Case
-refund proof. Its isolated operator and PostgreSQL cleanup proof are now
-prepared but unexecuted: they use the normal Clerk plus session-bound
-Admin-PIN route, keep the operational canary at `USER` outside brief
-`finally`-guarded calls, and require exact 500-cent refund/475-cent reversal,
-participant-delivery and replay evidence. Remaining invariant/projection work,
-zero-direct-access conversion, predecessor drain, policyless ENABLE and
-posture-only FORCE also remain mandatory. See
+The separately required staff Case refund proof is also accepted. Exact main
+`4b2d4693ac03db773b766ca4c4c53c072ac0fdbe`, CI `33287308262` and deployment
+`dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd` resumed only immutable original attempt
+`711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14`; they reused the existing
+500-cent refund, 475-cent reversal, signed event and fixtures without creating
+a competing financial operation. The operator accepted terminal route and
+signed-event replay without duplicate effects, completed bounded cleanup and
+restored the operational canary to `USER`. Retain sanitized mode-`0600`
+evidence SHA-256
+`e55993b6e76f11a8aa48b0d5aefde588695944436ec7c5474655e1a43d8f18fb`.
+
+The aggregate-authority deployment and bounded authenticated review smoke are
+now accepted as well. Exact main
+`6a74f1dd385035f2ff376d79a482ca989cf4ab02` passed CI `33309431664`; the smoke
+re-attested deployment `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`, rendered the
+operational canary's account page and reached the authoritative locked review
+eligibility query, which returned the exact expected 403 for a fresh
+nonexistent listing. It created zero database/payment/provider/review fixtures,
+revoked its sole Clerk session and removed the restart journal. Retain
+sanitized mode-`0600` evidence SHA-256
+`5ec5518ccc3b0cdfd6c3e8542d9f57f722029d7dfdda5db9f4e50d22ddb633ee`.
+
+Remaining transition/webhook/local-evidence conversion,
+zero-direct-access proof, predecessor drain, policyless ENABLE and
+posture-only FORCE remain mandatory. See
 `docs/order-payment-event-seller-refund-production-proof.md` for the complete
 failed-attempt chronology, correction rationale and cleanup certificate.
 
