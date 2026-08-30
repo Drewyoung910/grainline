@@ -1,12 +1,14 @@
 # OrderPaymentEvent aggregate authority
 
-Status: isolated compatible candidate. Migration
+Status: merged compatible candidate; production remains unchanged. PR #340
+merged exact head `d1053dc83b698fa75a93616731a0f4f2aec7cf51` as main
+commit `dfd8784649c939dc4cb49964ee542abb65426b35`. Migration
 `20260830010000_prepare_order_payment_event_aggregate_authority` is byte-pinned
 at SHA-256
 `dfb2120e9c338607b1bfd73a8e095af004b188b9a0baa047987ece07199c0666`.
 It is wired into disposable CI but deliberately isolated from the generic
-Production Migrations workflow. It has not been merged, applied, deployed or
-used to change RLS/grants/provider state.
+Production Migrations workflow. It has not been applied or deployed and has
+not changed RLS, grants, credentials, provider state or production rows.
 
 ## Decision
 

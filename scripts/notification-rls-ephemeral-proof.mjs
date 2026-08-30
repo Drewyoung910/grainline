@@ -59,6 +59,26 @@ const fixture = Object.freeze({
   orderFulfillmentAuditId: "notification-proof-order-fulfillment-audit",
   orderPaymentEventId: "notification-proof-order-payment-event",
   orderDisputeAuditId: "notification-proof-order-dispute-audit",
+  orderDisputeStripeEventId: "evt_notificationproofdispute",
+  orderDisputeStripeObjectId: "du_notificationproofdispute",
+  orderDisputeStripeChargeId: "ch_notificationproofdispute",
+  orderDisputeStripeEventCreatedSeconds: 1770000000,
+  orderSellerRefundPaymentEventId: "notification-proof-order-seller-refund-event",
+  orderSellerRefundStripeObjectId: "re_notificationproofsellerrefund",
+  orderSellerRefundStripeEventId:
+    "local:seller_refund_recorded:re_notificationproofsellerrefund",
+  orderBlockedRefundPredecessorPaymentEventId:
+    "notification-proof-order-blocked-refund-predecessor-event",
+  orderBlockedRefundPredecessorStripeObjectId:
+    "re_notificationproofblockedrefundpredecessor",
+  orderBlockedRefundPredecessorStripeEventId:
+    "local:blocked_checkout_refund_recorded:re_notificationproofblockedrefundpredecessor",
+  orderBlockedRefundCorrectedPaymentEventId:
+    "notification-proof-order-blocked-refund-corrected-event",
+  orderBlockedRefundCorrectedStripeObjectId:
+    "re_notificationproofblockedrefundcorrected",
+  orderBlockedRefundCorrectedStripeEventId:
+    "local:blocked_checkout_refund_recorded:re_notificationproofblockedrefundcorrected",
   payoutEventId: "notification-proof-payout-event",
   stockNotificationId: "notification-proof-stock-notification",
   restockAuditId: "notification-proof-restock-audit",
@@ -143,6 +163,11 @@ async function setRuntimeRole(client) {
 }
 
 async function cleanFixturesInTransaction(owner) {
+  // OrderPaymentEvent is deliberately immutable even to its owner. This proof
+  // is hard-limited to a disposable loopback database, so table-level cleanup
+  // removes its synthetic ledger rows without weakening the row trigger. Run
+  // it before any DELETE can queue deferred trigger events on cascaded tables.
+  await owner.query('TRUNCATE TABLE public."OrderPaymentEvent" CASCADE');
   const userIds = [
     fixture.sellerUserId,
     fixture.actorUserId,
@@ -190,7 +215,6 @@ async function cleanFixturesInTransaction(owner) {
     fixture.orderDisputeAuditId,
   ]]);
   await owner.query('DELETE FROM public."Case" WHERE id = $1', [fixture.caseId]);
-  await owner.query('DELETE FROM public."OrderPaymentEvent" WHERE id = $1', [fixture.orderPaymentEventId]);
   await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.orderItemId]);
   await owner.query('DELETE FROM public."Order" WHERE id = $1', [fixture.orderId]);
   await owner.query('DELETE FROM public."OrderItem" WHERE id = $1', [fixture.bannedOrderItemId]);
@@ -510,7 +534,7 @@ async function seedFixturesInTransaction(owner) {
           'newStatus', 'SHIPPED',
           'trackingCarrier', 'Proof Carrier'
         )),
-       ($3, 'webhook', 'evt_notification_proof_dispute',
+       ($3, 'webhook', $6,
         'STRIPE_DISPUTE_RECORDED', 'ORDER', $4,
         pg_catalog.jsonb_build_object('disputeSideEffectsApplied', true))`,
     [
@@ -519,17 +543,32 @@ async function seedFixturesInTransaction(owner) {
       fixture.orderDisputeAuditId,
       fixture.orderId,
       fixture.sellerUserId,
+      fixture.orderDisputeStripeEventId,
     ],
   );
   await owner.query(
     `INSERT INTO public."OrderPaymentEvent" (
-       id, "orderId", "stripeEventId", "eventType", metadata, "updatedAt"
+       id, "orderId", "stripeEventId", "stripeObjectId", "stripeObjectType",
+       "eventType", "amountCents", currency, status, metadata,
+       "stripeEventCreatedSeconds"
      ) VALUES (
-       $1, $2, 'evt_notification_proof_dispute', 'DISPUTE',
-       pg_catalog.jsonb_build_object('stripeEventType', 'charge.dispute.created'),
-       pg_catalog.clock_timestamp()
+       $1, $2, $3, $4::text, 'dispute', 'DISPUTE', 500, 'usd', 'needs_response',
+       pg_catalog.jsonb_build_object(
+         'chargeId', $5::text,
+         'disputeId', $4::text,
+         'stripeEventType', 'charge.dispute.created',
+         'stripeEventCreated', $6::bigint
+       ),
+       $6::bigint
      )`,
-    [fixture.orderPaymentEventId, fixture.orderId],
+    [
+      fixture.orderPaymentEventId,
+      fixture.orderId,
+      fixture.orderDisputeStripeEventId,
+      fixture.orderDisputeStripeObjectId,
+      fixture.orderDisputeStripeChargeId,
+      fixture.orderDisputeStripeEventCreatedSeconds,
+    ],
   );
   await owner.query(
     `INSERT INTO public."CommissionRequest" (
@@ -1021,20 +1060,38 @@ async function configureFulfillmentAudit(owner, action, newStatus, trackingCarri
   );
 }
 
-async function configureOrderPaymentEvent(owner, stripeEventId, localAction, notificationBody = null) {
+async function insertLocalOrderPaymentEvent(
+  owner,
+  paymentEventId,
+  stripeEventId,
+  stripeObjectId,
+  localAction,
+  reason,
+  notificationBody = null,
+) {
   await owner.query(
-    `UPDATE public."OrderPaymentEvent"
-        SET "stripeEventId" = $2,
-            "eventType" = 'REFUND',
-            metadata = pg_catalog.jsonb_strip_nulls(
-              pg_catalog.jsonb_build_object(
-                'localAction', $3::text,
-                'notificationBody', $4::text
-              )
-            ),
-            "updatedAt" = pg_catalog.clock_timestamp()
-      WHERE id = $1`,
-    [fixture.orderPaymentEventId, stripeEventId, localAction, notificationBody],
+    `INSERT INTO public."OrderPaymentEvent" (
+       id, "orderId", "stripeEventId", "stripeObjectId", "stripeObjectType",
+       "eventType", "amountCents", currency, status, reason, metadata
+     ) VALUES (
+       $1, $2, $3, $4::text, 'refund', 'REFUND', 500, 'usd', 'succeeded', $6,
+       pg_catalog.jsonb_strip_nulls(
+         pg_catalog.jsonb_build_object(
+           'localAction', $5::text,
+           'notificationBody', $7::text,
+           'refundIds', pg_catalog.jsonb_build_array($4::text)
+         )
+       )
+     )`,
+    [
+      paymentEventId,
+      fixture.orderId,
+      stripeEventId,
+      stripeObjectId,
+      localAction,
+      reason,
+      notificationBody,
+    ],
   );
 }
 
@@ -1397,7 +1454,7 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.sellerUserId,
     type: "PAYMENT_DISPUTE",
     sourceType: "order_payment",
-    sourceId: "evt_notification_proof_dispute",
+    sourceId: fixture.orderDisputeStripeEventId,
     relatedUserId: fixture.actorUserId,
     expectedLink: `/dashboard/sales/${fixture.orderId}`,
   },
@@ -1631,15 +1688,18 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.actorUserId,
     type: "REFUND_ISSUED",
     sourceType: "order_payment",
-    sourceId: "evt_notification_proof_seller_refund",
+    sourceId: fixture.orderSellerRefundStripeEventId,
     relatedUserId: fixture.sellerUserId,
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedTitle: "Refund from maker",
     expectedBodyIncludes: "Proof seller refund body",
-    setup: (owner) => configureOrderPaymentEvent(
+    setup: (owner) => insertLocalOrderPaymentEvent(
       owner,
-      "evt_notification_proof_seller_refund",
+      fixture.orderSellerRefundPaymentEventId,
+      fixture.orderSellerRefundStripeEventId,
+      fixture.orderSellerRefundStripeObjectId,
       "SELLER_REFUND_RECORDED",
+      "seller_refund",
       "Proof seller refund body",
     ),
   },
@@ -1649,17 +1709,20 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.actorUserId,
     type: "NEW_ORDER",
     sourceType: "order_payment",
-    sourceId: "evt_notification_proof_blocked_refund",
+    sourceId: fixture.orderBlockedRefundPredecessorStripeEventId,
     relatedUserId: null,
     replayType: "REFUND_ISSUED",
     expectedStoredType: "REFUND_ISSUED",
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedTitle: "Payment refunded",
     expectedBodyIncludes: "no longer eligible",
-    setup: (owner) => configureOrderPaymentEvent(
+    setup: (owner) => insertLocalOrderPaymentEvent(
       owner,
-      "evt_notification_proof_blocked_refund",
+      fixture.orderBlockedRefundPredecessorPaymentEventId,
+      fixture.orderBlockedRefundPredecessorStripeEventId,
+      fixture.orderBlockedRefundPredecessorStripeObjectId,
       "BLOCKED_CHECKOUT_REFUND_RECORDED",
+      "blocked_checkout",
     ),
   },
   {
@@ -1668,17 +1731,20 @@ const creationFamilyCases = Object.freeze([
     userId: fixture.actorUserId,
     type: "REFUND_ISSUED",
     sourceType: "order_payment",
-    sourceId: "evt_notification_proof_blocked_refund_corrected",
+    sourceId: fixture.orderBlockedRefundCorrectedStripeEventId,
     relatedUserId: null,
     replayType: "NEW_ORDER",
     expectedStoredType: "REFUND_ISSUED",
     expectedLink: `/dashboard/orders/${fixture.orderId}`,
     expectedTitle: "Payment refunded",
     expectedBodyIncludes: "no longer eligible",
-    setup: (owner) => configureOrderPaymentEvent(
+    setup: (owner) => insertLocalOrderPaymentEvent(
       owner,
-      "evt_notification_proof_blocked_refund_corrected",
+      fixture.orderBlockedRefundCorrectedPaymentEventId,
+      fixture.orderBlockedRefundCorrectedStripeEventId,
+      fixture.orderBlockedRefundCorrectedStripeObjectId,
       "BLOCKED_CHECKOUT_REFUND_RECORDED",
+      "blocked_checkout",
     ),
   },
   {
