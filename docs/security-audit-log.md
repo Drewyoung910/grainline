@@ -3973,3 +3973,18 @@ Open work:
   `sslmode=disable`. It attests the live connection identity and engine
   read-only transaction before reusing the production snapshot/assertion
   implementation.
+
+# 2026-08-30 - OrderPaymentEvent fixed read authority merged, unapplied
+
+- PR #335 exact head `0582772571f398c90384464b350e54c0e35ad9e7`
+  merged as exact main `ba9b6bbfa071fbf334b7c3e00dd6857e821dc560`
+  after CI `33294191190` passed. The Vercel Preview failure was the expected
+  fail-closed result of the intentionally absent Preview `DATABASE_URL`.
+- No migration, deployment, RLS posture, table grant or provider state changed.
+  Both `20260829010000_prepare_order_payment_event_invariants` and
+  `20260829020000_prepare_order_payment_event_read_authority` remain unapplied.
+- A separate pooled-runtime postflight is packaged but unexecuted. It is bound
+  to exact source/CI/migration runs, refuses privileged and aliased URLs,
+  attests the runtime identity and engine read-only transaction, verifies the
+  exact five-function catalog, exercises only absent markers, and retains only
+  sanitized mode-0600 evidence.
