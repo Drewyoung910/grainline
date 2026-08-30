@@ -1,0 +1,179 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+
+import {
+  ORDER_PAYMENT_EVENT_ACTIVATION_FUNCTION_IDENTITIES,
+  ORDER_PAYMENT_EVENT_PRIVATE_FUNCTION_IDENTITIES,
+  ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES,
+  ORDER_PAYMENT_EVENT_RUNTIME_FUNCTION_IDENTITIES,
+  orderPaymentEventActivationFunctionCatalog,
+  orderPaymentEventActivationFunctionSources,
+} from "../scripts/order-payment-event-activation-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
+  ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
+  buildOrderPaymentEventActivationCandidate,
+} from "../scripts/build-order-payment-event-activation-candidate.mjs";
+
+function count(source, pattern) {
+  return (source.match(pattern) ?? []).length;
+}
+
+test("activation catalog composes every latest sealed function exactly once", () => {
+  const sources = orderPaymentEventActivationFunctionSources();
+  const catalog = orderPaymentEventActivationFunctionCatalog();
+  assert.equal(Object.keys(sources).length, 29);
+  assert.equal(catalog.length, 29);
+  assert.deepEqual(
+    Object.keys(sources),
+    [...ORDER_PAYMENT_EVENT_ACTIVATION_FUNCTION_IDENTITIES],
+  );
+  assert.equal(ORDER_PAYMENT_EVENT_RUNTIME_FUNCTION_IDENTITIES.length, 16);
+  assert.equal(ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES.length, 2);
+  assert.equal(ORDER_PAYMENT_EVENT_PRIVATE_FUNCTION_IDENTITIES.length, 11);
+  assert.equal(catalog.filter((entry) => entry.runtimeBefore).length, 18);
+  assert.equal(catalog.filter((entry) => entry.runtimeAfter).length, 16);
+
+  const refund = sources[
+    "grainline_order_payment_signed_refund_apply(text,bigint,text,bigint,integer,text,text,integer,text,bigint,text)"
+  ];
+  assert.match(refund, /local_refund_identity_derived/);
+  const dispute = sources[
+    "grainline_order_payment_signed_dispute_apply(text,bigint,text,text,bigint,integer,text,text,text)"
+  ];
+  assert.match(dispute, /p_dispute_id !~ '\^du_/);
+  assert.doesNotMatch(dispute, /p_dispute_id !~ '\^dp_/);
+  assert.match(
+    sources[
+      "grainline_blocked_checkout_transfer_bind(text,bigint,text,text,text,text,text)"
+    ],
+    /Blocked-checkout transfer binding/,
+  );
+});
+
+test("tracked application calls only the 16 retained runtime operations", () => {
+  const sourceFiles = execFileSync("git", ["ls-files", "-z", "--", "src"], {
+    encoding: "utf8",
+  }).split("\0").filter(Boolean).filter((file) =>
+    new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]).has(path.extname(file))
+  );
+  const sources = sourceFiles.map((file) => fs.readFileSync(file, "utf8"));
+  const names = [...new Set(ORDER_PAYMENT_EVENT_ACTIVATION_FUNCTION_IDENTITIES.map(
+    (identity) => identity.slice(0, identity.indexOf("(")),
+  ))];
+  const called = names.filter((name) => {
+    const pattern = new RegExp(`\\b${name}\\s*\\(`, "u");
+    return sources.some((source) => pattern.test(source));
+  }).sort();
+  assert.deepEqual(
+    called,
+    ORDER_PAYMENT_EVENT_RUNTIME_FUNCTION_IDENTITIES.map(
+      (identity) => identity.slice(0, identity.indexOf("(")),
+    ).sort(),
+  );
+  for (const identity of ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES) {
+    const name = identity.slice(0, identity.indexOf("("));
+    const pattern = new RegExp(`\\b${name}\\s*\\(`, "u");
+    assert.equal(sources.some((source) => pattern.test(source)), false, name);
+  }
+});
+
+test("activation migration is policyless, data-preserving and byte-derived", () => {
+  const candidate = buildOrderPaymentEventActivationCandidate();
+  const migrationPath = path.join(
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
+    "migration.sql",
+  );
+  assert.equal(fs.readFileSync(migrationPath, "utf8"), candidate.migration);
+  assert.equal(
+    fs.readFileSync("docs/rls-drafts/order-payment-event-activation.sql", "utf8"),
+    candidate.draft,
+  );
+  assert.equal(
+    fs.readFileSync(
+      "docs/rls-drafts/order-payment-event-activation-rollback.sql",
+      "utf8",
+    ),
+    candidate.rollback,
+  );
+  assert.equal(ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
+    "order-payment-event-activation-reviewed");
+  assert.match(candidate.migration,
+    /ALTER TABLE public\."OrderPaymentEvent" ENABLE ROW LEVEL SECURITY;/);
+  assert.match(candidate.migration,
+    /ALTER TABLE public\."OrderPaymentEvent" NO FORCE ROW LEVEL SECURITY;/);
+  assert.match(candidate.migration,
+    /REVOKE ALL ON TABLE public\."OrderPaymentEvent"/);
+  assert.doesNotMatch(candidate.migration, /\bCREATE\s+POLICY\b/iu);
+  assert.doesNotMatch(candidate.migration, /\bDROP\s+POLICY\b/iu);
+  assert.doesNotMatch(candidate.migration,
+    /\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b/iu);
+  assert.doesNotMatch(candidate.migration,
+    /^\s*(?:INSERT\s+INTO|UPDATE\s+public\.|DELETE\s+FROM|TRUNCATE)\b/imu);
+  assert.equal(count(candidate.migration,
+    /REVOKE ALL ON FUNCTION public\.grainline_(?:blocked_checkout_refund_claim|case_seller_refund_apply)\(/gu), 2);
+  assert.equal(count(candidate.rollback,
+    /GRANT EXECUTE ON FUNCTION public\.grainline_(?:blocked_checkout_refund_claim|case_seller_refund_apply)\(/gu), 2);
+  assert.equal(count(candidate.migration, /IF function_count <> 29/gu), 2);
+  assert.equal(count(candidate.migration, /IF named_function_count <> 29/gu), 2);
+});
+
+test("activation SQL embeds every exact source digest and final grant class", () => {
+  const candidate = buildOrderPaymentEventActivationCandidate();
+  const compact = candidate.migration.replace(/\s+/gu, " ");
+  for (const entry of orderPaymentEventActivationFunctionCatalog()) {
+    assert.ok(
+      compact.includes(
+        `'${entry.name}', '${entry.identityArguments}', '${entry.language}', '${entry.volatility}', '${entry.parallelSafety}', ${entry.securityDefiner}, ${entry.runtimeBefore}, '${entry.sourceMd5}'`,
+      ),
+      `predecessor row missing for ${entry.identity}`,
+    );
+    assert.ok(
+      compact.includes(
+        `'${entry.name}', '${entry.identityArguments}', '${entry.language}', '${entry.volatility}', '${entry.parallelSafety}', ${entry.securityDefiner}, ${entry.runtimeAfter}, '${entry.sourceMd5}'`,
+      ),
+      `activated row missing for ${entry.identity}`,
+    );
+  }
+});
+
+test("activation is wired as a separate guarded CI and production release", () => {
+  const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  const production = fs.readFileSync(
+    ".github/workflows/production-migrations.yml",
+    "utf8",
+  );
+  for (const workflow of [ci, production]) {
+    assert.match(
+      workflow,
+      /SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-activation-reviewed/u,
+    );
+    assert.match(
+      workflow,
+      /audit:order-payment-event-activation-release/u,
+    );
+  }
+  assert.match(ci, /Isolate OrderPaymentEvent activation until transition authority passes/u);
+  assert.match(ci, /Apply OrderPaymentEvent policyless activation/u);
+  assert.match(ci, /audit:order-payment-event-activation-postgres/u);
+  assert.match(ci, /audit:order-payment-event-activation-rollback/u);
+  assert.match(
+    production,
+    /ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: restart/u,
+  );
+  assert.match(
+    production,
+    /ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: after/u,
+  );
+  assert.doesNotMatch(
+    fs.readFileSync(
+      `prisma/migrations/${ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION}/migration.sql`,
+      "utf8",
+    ),
+    /ALTER TABLE public\."OrderPaymentEvent" FORCE ROW LEVEL SECURITY/u,
+  );
+});

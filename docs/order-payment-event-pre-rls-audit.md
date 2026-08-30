@@ -1,6 +1,7 @@
 # OrderPaymentEvent pre-RLS domain audit
 
-Status: audit complete. The claim, record/finalize, signed-webhook,
+Status: audit complete and policyless Phase-A activation candidate prepared on
+an isolated branch. The claim, record/finalize, signed-webhook,
 evidence-bound reconciliation, inactive-seller recovery and durable participant
 delivery corrections are production-compatible. Exact main
 `4b2d4693ac03db773b766ca4c4c53c072ac0fdbe` is live as deployment
@@ -29,6 +30,16 @@ at SHA-256
 it is unapplied and undeployed. See
 `docs/order-payment-event-transition-authority.md`.
 `OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
+The accepted credential-epoch drain and repository-wide zero-direct-access
+proof now satisfy the final application compatibility gates. The unmerged
+activation candidate is byte-pinned as
+`20260830030000_enable_order_payment_event_rls`; it enables policyless RLS,
+revokes direct table authority and retires two unused predecessor entry points
+without row DML. Its final mechanically composed catalog contains 29 functions:
+16 retained runtime operations and 13 private operations after activation.
+Hosted PostgreSQL proof, merge, production Phase A, actual pooled-runtime
+postflight and later FORCE remain separate gates. See
+`docs/order-payment-event-activation-release.md`.
 
 Audited: 2026-08-23 against the application source immediately after accepted
 SellerPayoutEvent FORCE proof; release state refreshed 2026-08-24 after the

@@ -80,6 +80,7 @@ const {
   SAVED_SEARCH_PHASE_A_TABLE_PRIVILEGES,
   SAVED_SEARCH_CATALOG_EVIDENCE_PREFIX,
   CHECKOUT_STOCK_RESERVATION_TABLE,
+  ORDER_PAYMENT_EVENT_TABLE,
   STRIPE_WEBHOOK_EVENT_TABLE,
   assertGrantAuditConnectionMatches,
   auditLiveDatabase,
@@ -102,6 +103,7 @@ const {
   requiredRuntimeColumnPrivileges,
   requiredRuntimeTablePrivileges,
   runtimePrivateFunctionNames,
+  orderPaymentEventRlsActivationExpected,
   sellerPayoutEventRlsActivationExpected,
   stripeWebhookEventRlsActivationExpected,
   stripeWebhookEventRlsForceExpected,
@@ -454,6 +456,11 @@ describe("database grant inventory guardrails", () => {
       rlsForceTables: ["DirectUpload", "DirectUploadReference"],
       rlsPolicyTables: [],
     };
+    const orderPaymentEventActivationInventory = {
+      rlsEnableTables: [ORDER_PAYMENT_EVENT_TABLE],
+      rlsForceTables: [],
+      rlsPolicyTables: [],
+    };
     assert.deepEqual(
       requiredRuntimeTablePrivileges("SavedSearch", releaseZeroInventory),
       REQUIRED_TABLE_PRIVILEGES,
@@ -496,6 +503,34 @@ describe("database grant inventory guardrails", () => {
       "CaseMessageAttachment",
     ]);
     assert.equal(caseRlsActivationExpected(caseActivationInventory), true);
+    assert.equal(
+      orderPaymentEventRlsActivationExpected(
+        orderPaymentEventActivationInventory,
+      ),
+      true,
+    );
+    assert.deepEqual(
+      requiredRuntimeTablePrivileges(
+        ORDER_PAYMENT_EVENT_TABLE,
+        orderPaymentEventActivationInventory,
+      ),
+      [],
+    );
+    const orderPaymentEventPrivateFunctions = runtimePrivateFunctionNames(
+      orderPaymentEventActivationInventory,
+    );
+    assert.equal(
+      orderPaymentEventPrivateFunctions.includes(
+        "grainline_blocked_checkout_refund_claim",
+      ),
+      true,
+    );
+    assert.equal(
+      orderPaymentEventPrivateFunctions.includes(
+        "grainline_case_seller_refund_apply",
+      ),
+      true,
+    );
     assert.equal(caseRlsForceExpected(caseActivationInventory), false);
     const caseForceInventory = {
       ...caseActivationInventory,
@@ -1406,7 +1441,8 @@ describe("database grant inventory guardrails", () => {
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
-        + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0),
+        + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0)
+        + (orderPaymentEventRlsActivationExpected(inventory) ? 1 : 0),
     );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
@@ -1542,6 +1578,7 @@ describe("database grant inventory guardrails", () => {
         "DirectUploadReference",
         "Message",
         "Notification",
+        "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "SavedSearch",
         "SellerPayoutEvent",
@@ -2337,7 +2374,7 @@ describe("database grant inventory guardrails", () => {
     assert.match(provision, /REVOKE %s \(%s\) ON TABLE %I\.%I FROM %I/);
     assert.match(provision, /pg_auth_members/);
     const guardResultCount = (provision.match(/^\\gset$/gm) ?? []).length;
-    assert.equal(guardResultCount, 15);
+    assert.equal(guardResultCount, 16);
     assert.equal(
       (provision.match(/EXISTS \(SELECT 1 FROM failure\) AS grainline_role_provisioning_failed/g) ?? []).length,
       guardResultCount,
@@ -2394,6 +2431,14 @@ describe("database grant inventory guardrails", () => {
     assert.match(
       provision,
       /\\if :checkout_stock_reservation_rls_active[\s\S]*REVOKE EXECUTE ON FUNCTION[\s\S]*grainline_checkout_reservation_create_cart[\s\S]*grainline_checkout_reservation_create_single/,
+    );
+    assert.match(
+      provision,
+      /OrderPaymentEvent RLS is partially or unexpectedly configured; refusing runtime-role provisioning/,
+    );
+    assert.match(
+      provision,
+      /\\if :order_payment_event_rls_active[\s\S]*REVOKE ALL ON TABLE public\."OrderPaymentEvent"[\s\S]*grainline_blocked_checkout_refund_claim[\s\S]*grainline_case_seller_refund_apply/,
     );
     assert.match(
       provision,

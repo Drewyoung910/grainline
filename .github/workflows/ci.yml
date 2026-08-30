@@ -84,6 +84,17 @@ jobs:
       - run: npx prisma generate
       - name: Prove OrderPaymentEvent application zero-direct-access
         run: npm run audit:order-payment-event-zero-direct-access
+      - name: Verify OrderPaymentEvent activation migration tree
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-activation-reviewed
+        run: npm run verify:rls-release-artifact
+      - name: Verify OrderPaymentEvent policyless activation release
+        run: npm run audit:order-payment-event-activation-release
+      - name: Isolate OrderPaymentEvent activation until transition authority passes
+        run: >-
+          mv
+          prisma/migrations/20260830030000_enable_order_payment_event_rls
+          "$RUNNER_TEMP/order-payment-event-activation-release"
       - name: Verify OrderPaymentEvent transition-authority release
         run: npm run audit:order-payment-event-transition-authority-release
       - name: Isolate OrderPaymentEvent transition authority until aggregate authority passes
@@ -964,6 +975,40 @@ jobs:
         run: npm run audit:order-payment-event-transition-authority-postflight-postgres
         env:
           ORDER_PAYMENT_EVENT_TRANSITION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore OrderPaymentEvent policyless activation release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-activation-release"
+          prisma/migrations/20260830030000_enable_order_payment_event_rls
+      - name: Re-prove zero direct OrderPaymentEvent application access
+        run: npm run audit:order-payment-event-zero-direct-access
+      - name: Re-prove exact OrderPaymentEvent transition predecessor
+        run: npm run audit:order-payment-event-transition-authority-ci-scope
+      - name: Apply OrderPaymentEvent policyless activation
+        run: npx prisma migrate deploy
+      - name: Converge activated OrderPaymentEvent runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Verify OrderPaymentEvent activation migration status
+        run: npx prisma migrate status
+      - name: Audit activated OrderPaymentEvent grants and RLS catalog
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove OrderPaymentEvent activation through separate logins
+        run: npm run audit:order-payment-event-activation-postgres
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent activation rollback and restoration
+        run: npm run audit:order-payment-event-activation-rollback
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Re-audit restored OrderPaymentEvent activation posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

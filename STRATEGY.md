@@ -4,6 +4,31 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### OrderPaymentEvent Phase-A activation candidate (2026-08-30)
+
+The credential-epoch drain and full tracked-source zero-direct-access gate are
+accepted. The next bounded release is now prepared on an isolated branch as
+`20260830030000_enable_order_payment_event_rls`, documented in
+`docs/order-payment-event-activation-release.md`. Production remains unchanged:
+RLS is off, zero policies exist and predecessor runtime CRUD remains intact.
+
+The candidate is a policyless service-ledger activation only. It performs zero
+row DML, enables RLS with explicit `NO FORCE`, revokes direct runtime/PUBLIC
+table authority and retires two predecessor function entry points no longer
+called by application source. Its final source-composed catalog is exactly 29
+functions, partitioned into 16 retained runtime operations and 13 private
+operations after activation. The hard review corrected a stale hand-composed
+catalog and strengthened exact trigger and rollback ACL/function-catalog
+proofs before any persistent application.
+
+Next sequence: hosted disposable-PostgreSQL activation and rollback proof;
+reviewed merge; separately guarded production Phase A; distinct actual pooled
+runtime read-only postflight; then separately prepared posture-only FORCE and
+a fresh pooled-runtime postflight. Do not bundle `Order`, `OrderItem` or
+`OrderShippingRateQuote`. Do not begin repository/worktree reconciliation or
+Preview-environment redesign until this active release chain reaches a safe
+recorded boundary.
+
 ### Deferred repository and Preview operational hygiene (2026-08-25)
 
 Do not reconcile worktrees during the active OrderPaymentEvent release chain.

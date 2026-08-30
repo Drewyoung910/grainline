@@ -16,6 +16,10 @@ import {
   ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_TRIGGERS,
   verifyOrderPaymentEventTransitionAuthorityMigrationBytes,
 } from "./order-payment-event-transition-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
+  verifyOrderPaymentEventActivationMigrationBytes,
+} from "./order-payment-event-activation-identity.mjs";
 
 export const ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_PHASE =
   "order-payment-event-transition-authority-reviewed";
@@ -36,9 +40,14 @@ export function verifyOrderPaymentEventTransitionAuthorityRelease(
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .filter((name) => name > ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION);
+  const reviewedSuccessors = [];
+  if (laterMigrations.includes(ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION)) {
+    verifyOrderPaymentEventActivationMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION);
+  }
   assert.deepEqual(
     laterMigrations,
-    [],
+    reviewedSuccessors,
     "OrderPaymentEvent transition authority has an unreviewed successor",
   );
 

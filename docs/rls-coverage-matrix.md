@@ -258,6 +258,29 @@ state and supersede earlier inline chronology in its matrix summary.
 > direct-grant revocation is next; FORCE remains a later separate gate. See
 > `docs/order-payment-event-zero-direct-access.md`.
 
+> **OrderPaymentEvent Phase-A candidate (2026-08-30):** the isolated,
+> unmerged activation package is byte-pinned as
+> `20260830030000_enable_order_payment_event_rls`. It is policyless ENABLE
+> with explicit `NO FORCE`, zero row DML, zero policy/function creation,
+> direct runtime/PUBLIC table-grant revocation, and retirement of the two
+> unused predecessor runtime entry points. The final source-composed catalog
+> is exactly 29 functions: 18 runtime-callable before activation, 16 after,
+> and 13 private after. Hard review corrected a stale composed catalog and
+> strengthened exact trigger and rollback ACL/function-catalog checks before
+> any persistent application. Draft SHA-256
+> `8410e8edfa02f81d3d4cae3dbc9acc87ae22cf94ddc15db3a064719bace4d8d3`,
+> migration SHA-256
+> `0762fcb24e3da22de533df22581cf9752d1deb0a72c627b865a2f035370cd147`,
+> migration-tree SHA-256
+> `2899b2afd8b1750e748ed1a74b37a0899fe66c7392e65a195f87b0a08ea1b6c8`
+> and rollback SHA-256
+> `007188c532d97c2b11482d5f40e861831857170539d4ad5eec003a41e45d3b1d`
+> are exact. This preparation changes no production state: the matrix row
+> remains `COMPATIBLE_PREPARATION_LIVE` until guarded production Phase A and
+> a distinct actual pooled-runtime postflight pass. FORCE remains separate;
+> do not bundle `Order`, `OrderItem` or `OrderShippingRateQuote`. See
+> `docs/order-payment-event-activation-release.md`.
+
 > **OrderPaymentEvent superseding gate update (2026-08-26):** the
 > blocked-checkout delivery compatibility migration and corrected application
 > are live, and the real authenticated provider proof reached a genuine paid

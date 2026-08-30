@@ -45,6 +45,17 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify exact OrderPaymentEvent activation migration tree
+        run: npm run verify:rls-release-artifact
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-activation-reviewed
+      - name: Verify exact OrderPaymentEvent activation release
+        run: npm run audit:order-payment-event-activation-release
+      - name: Inspect exact OrderPaymentEvent activation restart scope read-only
+        run: npm run audit:order-payment-event-activation-production-scope
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: restart
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Verify isolated OrderPaymentEvent transition-authority successor
         run: npm run audit:order-payment-event-transition-authority-release
       - name: Isolate unapplied OrderPaymentEvent transition-authority successor
@@ -244,6 +255,11 @@ jobs:
       - name: Audit final runtime grants and RLS catalog
         run: npm run audit:db-grants -- --require-direct-url
         env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Prove exact OrderPaymentEvent activation production scope
+        run: npm run audit:order-payment-event-activation-production-scope
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: after
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Restore unapplied blocked-checkout transfer binding compatibility
         if: steps.transfer_scope.outputs.state == 'transfer-binding-predecessor'

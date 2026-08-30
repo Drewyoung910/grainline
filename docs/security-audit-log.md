@@ -4569,3 +4569,39 @@ Open work:
   RLS remains off with predecessor CRUD retained. Policyless ENABLE plus
   direct-grant revocation is next; FORCE remains separate, and `Order`,
   `OrderItem` and shipping quotes stay out of this activation.
+
+# 2026-08-30 - OrderPaymentEvent Phase-A activation candidate prepared
+
+- Production remains unchanged: `OrderPaymentEvent` RLS is off, has zero
+  policies and retains predecessor runtime CRUD. No migration or activation
+  was run.
+- The isolated candidate promotes only
+  `20260830030000_enable_order_payment_event_rls`. It performs zero row DML,
+  creates no function or policy, enables RLS with explicit `NO FORCE`, revokes
+  runtime/PUBLIC table authority and retires runtime execution of two unused
+  predecessor entry points.
+- The final catalog is mechanically composed from the latest sealed authority
+  families and contains exactly 29 functions: 18 runtime-callable before
+  activation, 16 after and 13 private after. Tracked source calls only the 16
+  retained runtime operations.
+- Hard review found and corrected a stale hand-composed catalog that omitted
+  the latest transfer-binding successor and retained older signed-refund and
+  signed-dispute bodies. It also upgraded trigger proof to exact relation,
+  name, function, type and enabled/internal state, and upgraded emergency
+  rollback to exact before/after table ACL and 29-function catalog proof.
+- Exact hashes: draft
+  `8410e8edfa02f81d3d4cae3dbc9acc87ae22cf94ddc15db3a064719bace4d8d3`,
+  migration
+  `0762fcb24e3da22de533df22581cf9752d1deb0a72c627b865a2f035370cd147`,
+  migration tree
+  `2899b2afd8b1750e748ed1a74b37a0899fe66c7392e65a195f87b0a08ea1b6c8`
+  and rollback
+  `007188c532d97c2b11482d5f40e861831857170539d4ad5eec003a41e45d3b1d`.
+- Focused release, workflow, grant-inventory and production-runner contracts
+  pass locally. The complete local suite passed 3,647 tests with zero failures
+  and seven intentional skips; TypeScript and lint passed. A local Next build
+  was intentionally not attempted with only 1.1 GiB free; hosted CI remains
+  responsible for the production build and real PostgreSQL activation and
+  rollback proofs. Merge, production Phase A, actual pooled-runtime postflight
+  and later FORCE remain independent gates. `Order`, `OrderItem` and
+  `OrderShippingRateQuote` remain outside this activation.
