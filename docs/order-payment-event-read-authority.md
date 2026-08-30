@@ -1,14 +1,16 @@
 # OrderPaymentEvent fixed read authority
 
-Status: the compatibility candidate merged through PR #335 at exact main
-`ba9b6bbfa071fbf334b7c3e00dd6857e821dc560` after CI run `33294191190`
-passed. Neither this migration nor its invariant predecessor is applied or
-deployed, and this is not RLS activation evidence. Earlier pull-request CI run
-`33293717767` correctly failed before merge because the first CI workflow
-incorrectly invoked the manual-production scope entrypoint from a pull-request
-event. The corrected workflow keeps that production parser fail-closed and
-uses a separate loopback-only, `ci`-role, engine-read-only scope proof for the
-disposable CI database.
+Status: production compatibility accepted. Guarded run `33296422900`, bound to
+exact main `513053dc6f2f6fb527f85e45fe3a18a8317fa701`, main CI
+`33295803412` and aggregate inspection `33296114340`, applied only this
+migration, converged the five exact runtime function grants, and passed
+migration status, the global grant/RLS audit and the exact post-application
+scope proof. The distinct actual pooled-runtime postflight then passed all
+seven engine-read-only checks with sanitized mode-`0600` evidence SHA-256
+`da16187441681f0bf5bfd394cb3ec14c59ea5fc0f496812ae20bb5d4b0749a17`.
+`OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
+The converted app is merged but not yet deployed, so this is not activation
+evidence.
 
 ## Why this release exists
 
@@ -90,16 +92,17 @@ read-only transaction, reuses the production snapshot reader and asserts the
 same catalog with the explicit disposable owner role. A production/Neon URL,
 manual workflow event or ordinary runtime identity is rejected before connect.
 
-The pooled-runtime production postflight is separately packaged and remains
-unexecuted. It requires the exact clean release commit, exact main-CI and both
-migration-run bindings, a fresh mode-0600 evidence destination and the reviewed
-pooled `grainline_app_runtime` credential with no privileged or aliased database
-URL in the environment. Inside an engine-attested repeatable-read read-only
-transaction it proves the restricted runtime identity, exact five function
+The pooled-runtime production postflight ran from the exact clean release
+commit with main CI `33295803412`, invariant run `33296358390` and read run
+`33296422900`. Inside an engine-attested repeatable-read read-only transaction
+it proved the restricted runtime identity, exact five function
 bodies/modes/search paths/ACLs, retained predecessor CRUD/RLS-off compatibility,
 zero-row absent buyer/seller projections and denial of the staff timeline to a
-non-staff marker. It exports no production row and writes only sanitized
-aggregate evidence.
+non-staff marker. It exported no production row and changed no production
+state. Two initial local invocations failed before connecting or writing
+evidence because the shell-only `.env.local` extractor misparsed the quoted
+URL; the corrected secret-safe extractor preserved the same reviewed database
+boundary and the accepted evidence is the sole successful artifact.
 
 ## Remaining activation gates
 

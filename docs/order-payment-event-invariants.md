@@ -1,7 +1,11 @@
 # OrderPaymentEvent compatible invariant release
 
-Status: isolated, byte-pinned candidate. Nothing in this document is production
-application, RLS activation, grant revocation or deployment evidence.
+Status: production compatibility accepted. Guarded run `33296358390`, bound to
+exact main `513053dc6f2f6fb527f85e45fe3a18a8317fa701`, main CI
+`33295803412` and aggregate inspection `33296114340`, applied only this
+migration and passed migration status, the global grant/RLS audit and the exact
+post-application scope proof. `OrderPaymentEvent` RLS remains off, predecessor
+runtime CRUD remains intact, and this is not deployment or activation evidence.
 
 Candidate migration:
 `20260829010000_prepare_order_payment_event_invariants`
@@ -30,13 +34,14 @@ policyless RLS activation are separate releases.
 
 ## Fresh production evidence
 
-Protected inspection run `33289217900`, bound to exact main
-`0c113046a720c8d19ba127b9f8575c61f5dd5cbd`, ran in an engine-attested
+Protected inspection run `33296114340`, bound to exact main
+`513053dc6f2f6fb527f85e45fe3a18a8317fa701`, ran in an engine-attested
 repeatable-read, read-only transaction. Sanitized artifact SHA-256
-`4ab0a9fbc5bb7e95927fa26cbd4156f9f86a7a4df100461c9943f7db12a94ffa`
+`cf41611f392668a778a73f0dfce4038f1f431813c8cf1467360c45d78a794866`
 reported zero `OrderPaymentEvent` rows and zero payment-specific defects. The
-release workflow still requires a fresh successful aggregate inspection bound
-to the same exact main commit as the eventual migration run.
+same snapshot retained the already-classified privacy-redacted historical
+label-reference count and released synthetic webhook lease; neither is an
+`OrderPaymentEvent` defect or permission to weaken this release.
 
 The same investigation separated one released synthetic
 `charge.dispute.funds_withdrawn` proof lease from genuinely active-stale work.

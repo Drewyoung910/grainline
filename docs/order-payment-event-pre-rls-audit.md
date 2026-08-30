@@ -7,6 +7,13 @@ delivery corrections are production-compatible. Exact main
 `dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`, and the staff Case full-refund provider and
 replay proof is accepted with sanitized evidence SHA-256
 `e55993b6e76f11a8aa48b0d5aefde588695944436ec7c5474655e1a43d8f18fb`.
+Exact main `513053dc6f2f6fb527f85e45fe3a18a8317fa701`, CI
+`33295803412`, fresh inspection `33296114340`, invariant run `33296358390`
+and fixed-read run `33296422900` now establish the append-only invariants and
+five bounded actor projections in production. The actual pooled-runtime
+postflight passed with sanitized evidence SHA-256
+`da16187441681f0bf5bfd394cb3ec14c59ea5fc0f496812ae20bb5d4b0749a17`.
+The converted application is merged but not yet deployed.
 `OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
 
 Audited: 2026-08-23 against the application source immediately after accepted
@@ -397,8 +404,9 @@ validates the six row-shape constraints plus three trigger families described
 in `docs/order-payment-event-invariants.md`. Its real PostgreSQL proof requires
 the competing Order-currency update to wait on the insert's parent lock and
 then fail after the payment commits. Hard review corrected the parent lookup
-from `STABLE` to `VOLATILE` so it cannot reuse a pre-wait snapshot. The
-migration changes no RLS bit or table grant and is not applied in production.
+from `STABLE` to `VOLATILE` so it cannot reuse a pre-wait snapshot. Guarded run
+`33296358390` applied only this migration and passed the exact post-application
+scope plus global grant/RLS audit. It changed no RLS bit or table grant.
 
 ### OPE-A07 - participant reads must be set-based and bounded
 
