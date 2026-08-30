@@ -20,8 +20,7 @@ import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenc
 import { syncReviewDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
-import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
-import { paidStripeOrderWhere } from "@/lib/orderTrust";
+import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
@@ -134,26 +133,10 @@ export async function POST(req: NextRequest) {
   });
   if (exists) return privateJson({ error: "Already reviewed" }, { status: 409 });
 
-  // Gate: must have a PAID + DELIVERED/PICKED_UP order for this listing within 90 days
+  // The eligibility query is repeated under a parent Order row lock in the
+  // write transaction below. OrderPaymentEvent inserts take the same lock, so
+  // review creation and refund/dispute evidence have a deterministic winner.
   const since = new Date(Date.now() - REVIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const orderItem = await prisma.orderItem.findFirst({
-    where: {
-      listingId,
-      order: {
-        ...paidStripeOrderWhere(),
-        buyerId: me.id,
-        createdAt: { gte: since },
-        fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
-        sellerRefundId: null,
-        paymentEvents: { none: blockingRefundLedgerWhere() },
-      },
-    },
-    select: { id: true, listing: { select: { sellerId: true } } },
-  });
-  if (!orderItem) {
-    return privateJson({ error: "You can leave a review after your order has been delivered." }, { status: 403 });
-  }
-
   const urls = await filterVerifiedFirstPartyMediaUrlsForUser({
     urls: photoUrls ?? [],
     max: 6,
@@ -165,6 +148,29 @@ export async function POST(req: NextRequest) {
   let created;
   try {
     created = await prisma.$transaction(async (tx) => {
+      const [eligibleOrderItem] = await tx.$queryRaw<
+        Array<{ orderItemId: string; sellerProfileId: string }>
+      >`
+        SELECT oi.id AS "orderItemId", listing."sellerId" AS "sellerProfileId"
+          FROM "OrderItem" AS oi
+          JOIN "Order" AS o ON o.id = oi."orderId"
+          JOIN "Listing" AS listing ON listing.id = oi."listingId"
+         WHERE oi."listingId" = ${listingId}
+           AND o."buyerId" = ${me.id}
+           AND o."createdAt" >= ${since}
+           AND o."fulfillmentStatus" IN (
+             'DELIVERED'::"FulfillmentStatus",
+             'PICKED_UP'::"FulfillmentStatus"
+           )
+           AND o."sellerRefundId" IS NULL
+           AND o."paymentRefundBlocked" = false
+           ${PAID_STRIPE_ORDER_SQL}
+         ORDER BY o."createdAt" DESC, oi.id DESC
+         LIMIT 1
+         FOR UPDATE OF o
+      `;
+      if (!eligibleOrderItem) return null;
+
       const r = await tx.review.create({
         data: {
           listingId,
@@ -191,7 +197,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      await refreshSellerRatingSummary(orderItem.listing.sellerId, tx);
+      await refreshSellerRatingSummary(eligibleOrderItem.sellerProfileId, tx);
       return r;
     });
   } catch (error) {
@@ -199,6 +205,12 @@ export async function POST(req: NextRequest) {
       return privateJson({ error: "Already reviewed" }, { status: 409 });
     }
     throw error;
+  }
+  if (!created) {
+    return privateJson(
+      { error: "You can leave a review after your order has been delivered." },
+      { status: 403 },
+    );
   }
   revalidateFeaturedMakerCaches();
 

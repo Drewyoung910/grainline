@@ -45,6 +45,13 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify isolated OrderPaymentEvent aggregate-authority successor
+        run: npm run audit:order-payment-event-aggregate-authority-release
+      - name: Isolate unapplied OrderPaymentEvent aggregate-authority successor
+        run: >-
+          mv
+          prisma/migrations/20260830010000_prepare_order_payment_event_aggregate_authority
+          "$RUNNER_TEMP/order-payment-event-aggregate-authority-release"
       - name: Verify isolated OrderPaymentEvent read-authority successor
         run: npm run audit:order-payment-event-read-authority-release
       - name: Isolate unapplied OrderPaymentEvent read-authority successor

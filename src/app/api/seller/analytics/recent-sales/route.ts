@@ -5,7 +5,6 @@ import { ensureUserByClerkId } from "@/lib/ensureUser";
 import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
-import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
@@ -48,7 +47,7 @@ export async function GET() {
         },
         ...paidStripeOrderWhere(),
         sellerRefundId: null,
-        paymentEvents: { none: blockingRefundLedgerWhere() },
+        paymentRefundBlocked: false,
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 10,

@@ -137,6 +137,8 @@
     "audit:order-payment-event-read-authority-ci-scope": "node scripts/order-payment-event-read-authority-ci-scope-proof.mjs",
     "audit:order-payment-event-read-authority-postgres": "node scripts/order-payment-event-read-authority-postgres-proof.mjs",
     "ops:order-payment-event-read-authority-postflight": "node scripts/order-payment-event-read-authority-production-postflight.mjs",
+    "audit:order-payment-event-aggregate-authority-release": "node scripts/verify-order-payment-event-aggregate-authority-release.mjs",
+    "audit:order-payment-event-aggregate-authority-postgres": "node scripts/order-payment-event-aggregate-authority-postgres-proof.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope": "node scripts/verify-blocked-checkout-refund-delivery-production-scope.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres": "node scripts/blocked-checkout-refund-delivery-production-scope-postgres-proof.mjs",
     "audit:order-payment-compatible-production-scope": "node scripts/verify-order-payment-event-compatible-production-scope.mjs",

@@ -24,7 +24,6 @@ import {
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
-import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
 
@@ -67,7 +66,7 @@ async function getGuildMemberEligibility({
         ${PAID_STRIPE_ORDER_SQL}
         AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
         AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
+        AND o."paymentRefundBlocked" = false
     `,
     getCaseSellerVerificationEligibility({
       actorUserId: sellerUserId,

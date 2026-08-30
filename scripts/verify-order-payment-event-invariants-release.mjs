@@ -19,6 +19,10 @@ import {
   ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
   verifyOrderPaymentEventReadAuthorityMigrationBytes,
 } from "./order-payment-event-read-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+  verifyOrderPaymentEventAggregateAuthorityMigrationBytes,
+} from "./order-payment-event-aggregate-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_INVARIANTS_PHASE =
   "order-payment-event-invariants-reviewed";
@@ -49,6 +53,15 @@ export function verifyOrderPaymentEventInvariantsRelease(
   if (existsSync(readAuthorityPath)) {
     verifyOrderPaymentEventReadAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION);
+  }
+  const aggregateAuthorityPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+  );
+  if (existsSync(aggregateAuthorityPath)) {
+    verifyOrderPaymentEventAggregateAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION);
   }
   assert.deepEqual(
     laterMigrations,

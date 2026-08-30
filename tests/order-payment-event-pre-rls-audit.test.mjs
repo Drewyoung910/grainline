@@ -25,7 +25,7 @@ function sourceFiles(root = "src") {
 
 function paymentSemanticFiles() {
   const reference =
-    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|blockingRefundLedgerWhere|BLOCKING_REFUND_LEDGER_SQL|latest[A-Za-z]*DisputeLedger[A-Za-z]*Sql/;
+    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|blockingRefundLedgerWhere|BLOCKING_REFUND_LEDGER_SQL|latest[A-Za-z]*DisputeLedger[A-Za-z]*Sql|paymentRefundBlocked|paymentConversionDisputeBlocked/;
   return sourceFiles().filter((file) => reference.test(fs.readFileSync(file, "utf8")));
 }
 

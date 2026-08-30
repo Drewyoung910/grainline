@@ -676,6 +676,12 @@ model Order {
   refundClaimIdempotencyScope     String?   @db.VarChar(191)
   refundClaimProviderAuthorizedAt DateTime?
 
+  // Database-maintained, anti-forgery payment eligibility projections. These
+  // let ordinary Order consumers enforce refund/dispute eligibility without
+  // reading the private append-only OrderPaymentEvent ledger.
+  paymentRefundBlocked            Boolean @default(false)
+  paymentConversionDisputeBlocked Boolean @default(false)
+
   // Shippo label
   shippoShipmentId           String?      @db.VarChar(255)
   shippoRateObjectId         String?      @db.VarChar(255)

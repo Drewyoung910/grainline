@@ -14,7 +14,6 @@ import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { formatCurrencyCents } from "@/lib/money";
 import { z } from "zod";
-import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
@@ -95,7 +94,7 @@ export async function POST(req: Request) {
           ${PAID_STRIPE_ORDER_SQL}
           AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
           AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
       `,
       getCaseSellerVerificationEligibility({
         actorUserId: me.id,

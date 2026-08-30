@@ -12,7 +12,6 @@ import {
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { formatCurrencyCents } from "@/lib/money";
 
@@ -206,7 +205,7 @@ export async function GET(req: Request) {
       WHERE l."sellerId" = ${sellerId}
         ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
+        AND o."paymentRefundBlocked" = false
         AND o."createdAt" >= ${startDate}
         AND o."createdAt" ${rangeEndSql}
     `;
@@ -243,7 +242,7 @@ export async function GET(req: Request) {
             AND o."buyerId" = c."userId"
             ${PAID_STRIPE_ORDER_SQL}
             AND o."sellerRefundId" IS NULL
-            ${BLOCKING_REFUND_LEDGER_SQL}
+            AND o."paymentRefundBlocked" = false
             AND o."createdAt" >= ${startDate}
             AND o."createdAt" ${rangeEndSql}
         )
@@ -259,7 +258,7 @@ export async function GET(req: Request) {
         AND o."buyerId" IS NOT NULL
         ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
+        AND o."paymentRefundBlocked" = false
       GROUP BY o."buyerId"
     `;
 
@@ -273,7 +272,7 @@ export async function GET(req: Request) {
         AND o."shippedAt" IS NOT NULL
         ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
+        AND o."paymentRefundBlocked" = false
         AND o."createdAt" >= ${startDate}
         AND o."createdAt" ${rangeEndSql}
     `;
@@ -295,7 +294,7 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" ${rangeEndSql}
         GROUP BY bucket
@@ -313,7 +312,7 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" ${rangeEndSql}
         GROUP BY bucket
@@ -331,7 +330,7 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" ${rangeEndSql}
         GROUP BY bucket
@@ -348,7 +347,7 @@ export async function GET(req: Request) {
         WHERE l."sellerId" = ${sellerId}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" ${rangeEndSql}
         GROUP BY bucket
@@ -421,7 +420,7 @@ export async function GET(req: Request) {
         LEFT JOIN "Order" o ON o.id = oi."orderId"
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
           AND o."createdAt" >= ${startDate}
           AND o."createdAt" ${rangeEndSql}
         WHERE l."sellerId" = ${sellerId}

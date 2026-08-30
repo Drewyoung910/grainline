@@ -10,7 +10,6 @@ import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
-import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
@@ -121,7 +120,7 @@ async function AccountPageContent() {
         },
         ...paidStripeOrderWhere(),
         sellerRefundId: null,
-        paymentEvents: { none: blockingRefundLedgerWhere() },
+        paymentRefundBlocked: false,
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
       },
     });

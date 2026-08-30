@@ -6,7 +6,6 @@ import { banClerkUserAndRevokeSessions, unbanClerkUser } from './clerkUserLifecy
 import { expireOpenCheckoutSessionsForSeller } from './checkoutSessionExpiry'
 import { createNotification } from './notifications'
 import { NOTIFICATION_SOURCE_TYPES } from './notificationSources'
-import { blockingRefundLedgerWhere } from './refundRouteState'
 import { removeSellerCommissionInterests } from './commissionInterestCleanup'
 import { revalidatePublicSellerVisibilityCaches } from './searchCache'
 import { invalidateAccountStateCache } from './accountStateCache'
@@ -221,7 +220,7 @@ export async function banUser({ userId, adminId, reason }: {
           where: {
             fulfillmentStatus: { in: [...OPEN_SELLER_ORDER_STATUSES] },
             sellerRefundId: null,
-            paymentEvents: { none: blockingRefundLedgerWhere() },
+            paymentRefundBlocked: false,
             items: {
               some: { listing: { sellerId: sellerProfile.id } },
               every: { listing: { sellerId: sellerProfile.id } },
