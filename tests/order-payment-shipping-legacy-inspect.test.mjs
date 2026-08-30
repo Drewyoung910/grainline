@@ -165,7 +165,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
   });
 
   it("normalizes only the exact nonnegative aggregate shape", () => {
-    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 78);
+    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 81);
     const normalized = normalizeOrderPaymentShippingLegacyCounts(countRow("2"));
     assert.equal(
       Object.keys(normalized).length,
@@ -257,7 +257,10 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       "reservation_missing_actor_count",
       "reservation_duplicate_active_lock_count",
       "webhook_blank_identity_count",
+      "webhook_failed_count",
+      "webhook_released_count",
       "webhook_stale_processing_count",
+      "webhook_issue_count",
     ]) {
       assert.match(
         ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
@@ -501,6 +504,18 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
       /"processedAt"\s*<\s*"processingStartedAt"/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"processedAt" IS NULL[\s\S]*"lastError" IS NOT NULL[\s\S]*AS webhook_failed_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"processedAt" IS NULL[\s\S]*"processingStartedAt" IS NULL[\s\S]*AS webhook_released_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /"processingStartedAt" IS NOT NULL[\s\S]*AT TIME ZONE 'UTC'[\s\S]*AS webhook_stale_processing_count/,
     );
     assert.match(
       ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,

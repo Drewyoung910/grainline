@@ -3879,3 +3879,27 @@ Open work:
   Fresh data classification, remaining invariants and projections,
   predecessor drain, policyless ENABLE, pooled-runtime proof and separate
   FORCE remain open.
+
+## OrderPaymentEvent fresh classification and synthetic webhook residue (2026-08-29)
+
+- Protected run `33289217900`, bound to exact main
+  `0c113046a720c8d19ba127b9f8575c61f5dd5cbd`, passed the production
+  Order/payment/shipping inspection inside an engine-attested repeatable-read,
+  read-only transaction. The 78-field artifact SHA-256 is
+  `4ab0a9fbc5bb7e95927fa26cbd4156f9f86a7a4df100461c9943f7db12a94ffa`.
+  `OrderPaymentEvent` remains exactly empty and every payment-specific defect
+  count is zero; the accepted privacy-redacted label state is unchanged.
+- The broad inspector's old `webhook_stale_processing_count` combined released
+  and active-stale leases. The existing fixed runtime aggregate, queried
+  through pooled `grainline_app_runtime` in an engine-read-only transaction,
+  returned exactly one failed/released issue and zero active-stale leases.
+  The corrected inspector separates failed, released, active-stale and union
+  issue counts and pins an 81-field aggregate-only contract.
+- Owner-bound and Stripe test-mode read-only classification retained no raw
+  IDs, errors or payloads. The issue is one source-bound
+  `charge.dispute.funds_withdrawn` event at generation three whose charge has
+  the `grainline_order_payment_proof` marker. Its fixed apply correctly failed
+  because the synthetic proof had already removed the temporary Order. Do not
+  weaken the Order-source invariant. Finalize only through a narrow,
+  marker-bound test-residue path; this separate ops item does not block
+  OrderPaymentEvent invariant preparation.
