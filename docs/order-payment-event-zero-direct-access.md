@@ -1,8 +1,9 @@
 # OrderPaymentEvent zero-direct-access gate
 
-Status: prepared and locally proved. Production acceptance remains pending an
-exact-main CI-bound, read-only proof. No database or provider state changes in
-this package.
+Status: accepted in production as an application-authority proof. Exact main
+`d7bba0ef2a96ea13163e844979107b4bf2779f62`, CI `33336651230` and the
+separate read-only production proof passed. No database or provider state
+changed.
 
 ## Purpose
 
@@ -84,9 +85,18 @@ deployment-removal or provider-mutation surface.
 
 ## Following gates
 
-Production acceptance of this exact-tree proof is required before preparing
-the policyless `ENABLE RLS` migration and direct runtime/PUBLIC table-grant
-revocation. That activation remains a separate production mutation with its
-own PostgreSQL, grant, rollback and pooled-runtime proofs. `FORCE RLS` follows
-only after Phase A is accepted. `Order`, `OrderItem` and
-`OrderShippingRateQuote` remain separate groups and must not be bundled.
+The accepted proof re-attested current deployment
+`dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, all four canonical aliases, canonical
+health and zero shared-credential predecessors. Both deployed source
+`ce7550dae6c417440230f4d596f2239393075f31` and exact operator main contain
+zero direct-access matches across the same seven consumers, 12 reference files
+and five fixed operations. Retain the 3,642-byte mode-`0600` evidence file at
+SHA-256
+`6298a1dc376bec73f2abcb896d54913815e155717cd004596b622b6439208590`.
+
+The next boundary is the policyless `ENABLE RLS` migration and direct
+runtime/PUBLIC table-grant revocation. That activation remains a separate
+production mutation with its own PostgreSQL, grant, rollback and pooled-runtime
+proofs. `FORCE RLS` follows only after Phase A is accepted. `Order`,
+`OrderItem` and `OrderShippingRateQuote` remain separate groups and must not be
+bundled.

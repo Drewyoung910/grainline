@@ -260,14 +260,18 @@ mode-`0600` evidence SHA-256
 `docs/order-payment-event-credential-epoch-drain.md`. Zero-direct-access,
 policyless ENABLE and posture-only FORCE remain distinct release boundaries;
 the drain does not itself prove ordinary-runtime table isolation.
-The zero-direct-access gate now has a repository-wide verifier and an
-exact-production read-only proof contract. It scans all tracked application
-source and pins the complete `OrderPaymentEvent` reference inventory: seven
-fixed-authority consumers, 12 reference files and five fixed database
-operations. The currently deployed tree and local operator tree both prove
-zero direct table access. This remains application-authority evidence only;
-production acceptance, policyless ENABLE/direct-grant revocation and FORCE are
-still separate. See `docs/order-payment-event-zero-direct-access.md`.
+The zero-direct-access gate is accepted at exact main
+`d7bba0ef2a96ea13163e844979107b4bf2779f62` and CI `33336651230`. Its
+repository-wide verifier scans all tracked application source and pins the
+complete `OrderPaymentEvent` reference inventory: seven fixed-authority
+consumers, 12 reference files and five fixed database operations. The
+read-only production proof re-attested the drained deployment epoch, aliases
+and health and found zero direct table access in both deployed and operator
+trees. Retain mode-`0600` evidence SHA-256
+`6298a1dc376bec73f2abcb896d54913815e155717cd004596b622b6439208590`.
+This is application-authority evidence only; policyless ENABLE/direct-grant
+revocation and FORCE remain separate. See
+`docs/order-payment-event-zero-direct-access.md`.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,

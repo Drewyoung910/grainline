@@ -235,6 +235,15 @@ test("CI, package and durable records preserve the separate activation boundary"
     assert.match(record, /seven[\s\S]{0,160}12[\s\S]{0,160}five/iu);
     assert.match(record, /policyless[\s\S]{0,160}ENABLE[\s\S]{0,200}FORCE/iu);
   }
-  assert.match(doc, /Production acceptance remains pending/);
+  assert.match(
+    doc,
+    /Status: accepted in production as an application-authority proof/,
+  );
+  assert.match(doc, /d7bba0ef2a96ea13163e844979107b4bf2779f62/);
+  assert.match(doc, /33336651230/);
+  assert.match(
+    doc,
+    /6298a1dc376bec73f2abcb896d54913815e155717cd004596b622b6439208590/,
+  );
   assert.match(matrix, /RLS[\s\S]{0,100}still off[\s\S]{0,120}predecessor CRUD remains retained/iu);
 });
