@@ -31,8 +31,11 @@ describe("OrderPaymentEvent aggregate-authority release", () => {
     assert.match(decision, /semantic inventory remains exactly 33 files/u);
     assert.match(decision, /policyless `ENABLE` and later `FORCE` RLS as separate releases/u);
     assert.match(decision, /compatible aggregate authority is live/u);
-    assert.match(decision, /distinct pooled-runtime postflight package/u);
-    assert.match(decision, /does not authorize an\s+application deploy/u);
+    assert.match(decision, /distinct pooled-runtime postflight is accepted/u);
+    assert.match(
+      decision,
+      /next separate gate is compatible application deployment/u,
+    );
   });
 
   it("has a restart-safe exact-main production runner", () => {
