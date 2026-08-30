@@ -65,7 +65,7 @@ function localInsertSql(schema) {
       "eventType", "amountCents", currency, status, reason, description,
       metadata, "createdAt", "updatedAt"
     ) VALUES (
-      $1, $2, $3, $4, 'refund', 'REFUND', 500, $5,
+      $1::text, $2::text, $3::text, $4::text, 'refund', 'REFUND', 500, $5::text,
       'succeeded', 'seller_refund', 'Provider refund recorded.',
       pg_catalog.jsonb_build_object(
         'localAction', 'SELLER_REFUND_RECORDED',
@@ -169,7 +169,7 @@ export async function runOrderPaymentEventInvariantPostgresProof(config) {
             FROM pg_catalog.pg_proc AS routine
             JOIN pg_catalog.pg_namespace AS namespace
               ON namespace.oid = routine.pronamespace
-           WHERE namespace.nspname = $1
+           WHERE namespace.nspname = $1::text
              AND routine.proname IN (
                'grainline_order_currency_payment_immutable',
                'grainline_order_payment_event_immutable',
@@ -234,7 +234,7 @@ export async function runOrderPaymentEventInvariantPostgresProof(config) {
       const waiting = await owner.query(`
         SELECT wait_event_type
           FROM pg_catalog.pg_stat_activity
-         WHERE application_name = $1
+         WHERE application_name = $1::text
            AND state = 'active'
       `, [`grainline-ope-invariant-race-${suffix}`]);
       if (waiting.rows[0]?.wait_event_type === "Lock") {

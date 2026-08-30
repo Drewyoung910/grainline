@@ -655,4 +655,20 @@ The table is complete only when all of the following are durable:
   table/column privileges and the exact reviewed EXECUTE catalog;
 - distinct Phase-A and FORCE actual pooled-runtime postflights pass; and
 - evidence, failures, rollback bytes, deployment IDs and residual risks are
-  recorded in the matrix, architecture, strategy and release documents.
+recorded in the matrix, architecture, strategy and release documents.
+
+## Invariant preparation CI evidence
+
+The first invariant-preparation CI attempt (`33291321871`) correctly failed the
+global grant audit because the three new trigger helpers were not yet listed in
+the runtime-private function inventory. The database migration already revoked
+their `PUBLIC` and runtime execution rights; commit `5e0eeba6` added the missing
+catalog classification and regression coverage.
+
+The next CI attempt (`33291617333`) passed the grant audit and reached the
+disposable PostgreSQL authority proof, where node-postgres reported `42P08`
+before any production operation. The proof harness reused parameters across
+catalog and fixture queries without spelling every parameter type at the SQL
+boundary. The correction adds explicit `::text` casts and pins those casts in
+the proof-source test. The migration bytes remain unchanged and unapplied to
+production.
