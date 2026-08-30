@@ -4395,3 +4395,25 @@ Open work:
   above. Production now has the additive transition projection and private
   helpers, while `OrderPaymentEvent` RLS remains off and predecessor CRUD is
   retained. No application deployment or provider state changed.
+
+# 2026-08-30 - OrderPaymentEvent transition application deployed
+
+- Exact main `ce7550dae6c417440230f4d596f2239393075f31`, bound to successful
+  exact-main CI `33327064035` and transition-authority migration run
+  `33326252495`, was manually deployed to Vercel Production as
+  `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` at
+  `grainline-ees25wgos-drew-youngs-projects.vercel.app`.
+- Vercel independently reports target production, state `READY` and exact
+  source commit `ce7550dae6c417440230f4d596f2239393075f31`. All four canonical
+  aliases (`thegrainline.com`, `www.thegrainline.com`, `grainline.vercel.app`
+  and `grainline-drew-youngs-projects.vercel.app`) resolve to the deployment;
+  canonical `/api/health` returned HTTP 200 with `{"ok":true}`.
+- Compatible predecessor `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`, exact source
+  `4908bc7f377f5950da8de6b3398049d65a5fdfcb`, remains production `READY` at
+  `grainline-822kbxpu5-drew-youngs-projects.vercel.app` and was not drained.
+- The deployment changed application source only. It ran no migration, changed
+  no RLS posture or grant, changed no credential or provider variable and
+  mutated no predecessor state. `OrderPaymentEvent` RLS remains off and
+  predecessor CRUD remains retained. Bounded authenticated smoke, predecessor
+  drain, the zero-direct-access gate, policyless `ENABLE` and separate `FORCE`
+  remain later gates.

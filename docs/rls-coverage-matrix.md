@@ -187,10 +187,16 @@ state and supersede earlier inline chronology in its matrix summary.
 > the global audit and exact scope proof passed. The independent actual pooled
 > runtime postflight passed with sanitized mode-`0600` evidence SHA-256
 > `63eadf89f23a6fa729814bc7a39c0ea18a126db241bff8ba2aef725a5f5fb81b`.
-> The current gate is compatible application deployment and bounded smoke,
-> followed by predecessor drain, the zero-direct-access gate, policyless
-> ENABLE and separate FORCE. `OrderPaymentEvent` RLS remains off and
-> predecessor CRUD remains retained; do not bundle quote, `Order` or
+> Exact main `ce7550dae6c417440230f4d596f2239393075f31`, CI `33327064035`,
+> migration run `33326252495` and production deployment
+> `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` are now accepted: Vercel reports exact
+> source provenance and `READY`, all four canonical aliases resolve to the new
+> deployment, and canonical health returned HTTP 200 with `{"ok":true}`.
+> READY predecessor `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj` remains preserved and
+> undrained. The current gate is the bounded authenticated compatibility
+> smoke, followed by predecessor drain, the zero-direct-access gate,
+> policyless ENABLE and separate FORCE. `OrderPaymentEvent` RLS remains off
+> and predecessor CRUD remains retained; do not bundle quote, `Order` or
 > `OrderItem` activation.
 
 > **OrderPaymentEvent superseding gate update (2026-08-26):** the
