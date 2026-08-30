@@ -4175,3 +4175,9 @@ Open work:
   correction exposes only allowlisted failure categories or SQLSTATE while
   continuing to suppress messages, SQL, rows, URLs and credentials. No
   production or provider state changed; fresh full CI remains required.
+- Replacement run `33302658584` classified the rejection as
+  `TRIGGER_CATALOG`: the scope proof depended on cosmetic schema qualification
+  in `pg_get_triggerdef`. The corrected verifier uses structural catalog facts
+  instead: exact relation/function namespaces and identity, owner, enabled
+  state, `tgtype`, arguments, constraint/deferral flags and ordered UPDATE-OF
+  attribute vector. No migration, function or trigger bytes changed.

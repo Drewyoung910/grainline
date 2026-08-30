@@ -179,18 +179,36 @@ function assertTriggers(rows, applied, migrationRole) {
     !Array.isArray(rows)
     || rows.length !== ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_TRIGGERS.length
     || byName.size !== ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_TRIGGERS.length
+    || guard?.relation_schema !== "public"
     || guard?.table_name !== "Order"
     || guard.enabled !== "O"
+    || Number(guard.trigger_type) !== 23
+    || Number(guard.argument_count) !== 0
+    || guard.constraint_trigger !== false
+    || guard.deferrable !== false
+    || guard.initially_deferred !== false
+    || !Array.isArray(guard.update_columns)
+    || guard.update_columns.length !== 2
+    || guard.update_columns[0] !== "paymentRefundBlocked"
+    || guard.update_columns[1] !== "paymentConversionDisputeBlocked"
+    || guard.function_schema !== "public"
     || guard.function_owner !== migrationRole
     || guard.function_identity !== "grainline_order_payment_projection_guard()"
-    || !guard.definition.includes("BEFORE INSERT OR UPDATE OF")
-    || !guard.definition.includes('ON public."Order"')
+    || guard.function_kind !== "f"
+    || refresh?.relation_schema !== "public"
     || refresh?.table_name !== "OrderPaymentEvent"
     || refresh.enabled !== "O"
+    || Number(refresh.trigger_type) !== 5
+    || Number(refresh.argument_count) !== 0
+    || refresh.constraint_trigger !== false
+    || refresh.deferrable !== false
+    || refresh.initially_deferred !== false
+    || !Array.isArray(refresh.update_columns)
+    || refresh.update_columns.length !== 0
+    || refresh.function_schema !== "public"
     || refresh.function_owner !== migrationRole
     || refresh.function_identity !== "grainline_order_payment_projection_refresh()"
-    || !refresh.definition.includes("AFTER INSERT")
-    || !refresh.definition.includes('ON public."OrderPaymentEvent"')
+    || refresh.function_kind !== "f"
   ) {
     throw new Error("Order payment projection trigger catalog drifted");
   }
@@ -317,18 +335,36 @@ async function readTriggers(client) {
   return (await client.query(
     `SELECT
        trigger.tgname AS trigger_name,
+       namespace.nspname AS relation_schema,
        relation.relname AS table_name,
        trigger.tgenabled AS enabled,
+       trigger.tgtype::integer AS trigger_type,
+       trigger.tgnargs::integer AS argument_count,
+       (trigger.tgconstraint <> 0::oid) AS constraint_trigger,
+       trigger.tgdeferrable AS deferrable,
+       trigger.tginitdeferred AS initially_deferred,
+       ARRAY(
+         SELECT attribute.attname
+           FROM pg_catalog.unnest(trigger.tgattr::smallint[])
+                WITH ORDINALITY AS watched(attnum, position)
+           JOIN pg_catalog.pg_attribute AS attribute
+             ON attribute.attrelid = trigger.tgrelid
+            AND attribute.attnum = watched.attnum
+          ORDER BY watched.position
+       ) AS update_columns,
        procedure.proname || '(' || pg_catalog.replace(
          pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
        ) || ')' AS function_identity,
+       procedure_namespace.nspname AS function_schema,
        pg_catalog.pg_get_userbyid(procedure.proowner) AS function_owner,
-       pg_catalog.pg_get_triggerdef(trigger.oid, true) AS definition
+       procedure.prokind AS function_kind
      FROM pg_catalog.pg_trigger AS trigger
      JOIN pg_catalog.pg_class AS relation ON relation.oid = trigger.tgrelid
      JOIN pg_catalog.pg_namespace AS namespace
        ON namespace.oid = relation.relnamespace
      JOIN pg_catalog.pg_proc AS procedure ON procedure.oid = trigger.tgfoid
+     JOIN pg_catalog.pg_namespace AS procedure_namespace
+       ON procedure_namespace.oid = procedure.pronamespace
      WHERE namespace.nspname = 'public'
        AND NOT trigger.tgisinternal
        AND trigger.tgname = ANY($1::text[])

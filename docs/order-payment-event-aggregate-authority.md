@@ -196,3 +196,11 @@ predecessor drain, grant revocation, RLS activation or provider changes.
   PostgreSQL SQLSTATE values to safe diagnostic codes. It never prints an
   exception message, SQL text, catalog rows, URLs or credentials. A fresh full
   CI run remains mandatory; the failed run is not acceptance evidence.
+- Replacement run `33302658584` safely classified the rejection as
+  `TRIGGER_CATALOG`. The verifier had coupled semantic acceptance to
+  `pg_get_triggerdef`'s cosmetic schema rendering. The corrected reader no
+  longer accepts reconstructed SQL text: it verifies the relation and function
+  namespaces, function identity/owner, enabled state, exact `tgtype` event and
+  row timing bits, zero arguments, non-constraint/non-deferrable posture, and
+  the exact ordered UPDATE-OF column vector directly from `pg_trigger` and
+  `pg_attribute`. Migration bytes and trigger behavior are unchanged.
