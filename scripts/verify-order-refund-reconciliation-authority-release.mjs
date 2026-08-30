@@ -33,6 +33,10 @@ import {
   ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
   verifyOrderPaymentSignedDisputeIdentityMigrationBytes,
 } from "./build-order-payment-signed-dispute-identity-migration.mjs";
+import {
+  ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION,
+  verifyOrderPaymentEventInvariantsMigrationBytes,
+} from "./order-payment-event-invariants-catalog.mjs";
 
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_PHASE =
   "order-refund-reconciliation-authority-prepared";
@@ -124,6 +128,26 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     );
     verifyOrderPaymentSignedDisputeIdentityMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION);
+  }
+  const invariantsSuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION,
+  );
+  if (fs.existsSync(invariantsSuccessorPath)) {
+    assert.deepEqual(
+      reviewedSuccessors,
+      [
+        ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
+        BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+        BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+        ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+        ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
+      ],
+      "OrderPaymentEvent invariants require all reviewed refund successors",
+    );
+    verifyOrderPaymentEventInvariantsMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION);
   }
   const laterMigrations = fs.readdirSync(
     path.join(rootDirectory, "prisma/migrations"),

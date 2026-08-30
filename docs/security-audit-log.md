@@ -3903,3 +3903,31 @@ Open work:
   weaken the Order-source invariant. Finalize only through a narrow,
   marker-bound test-residue path; this separate ops item does not block
   OrderPaymentEvent invariant preparation.
+
+## OrderPaymentEvent compatible invariant candidate (2026-08-29)
+
+- Migration `20260829010000_prepare_order_payment_event_invariants`, SHA-256
+  `e5da430056c32d2a4d754f08e5ea3fa79dfb0ab401f71375d73ae6d14e39943c`,
+  is isolated and unapplied. It changes no table grant or RLS posture.
+- Six validated constraints enforce the two-event taxonomy, nonnegative amount,
+  lowercase currency, bounded source/text/metadata, canonical signed/local
+  families and immutable timestamps. Local refund rows additionally bind their
+  action-specific reason and exact refund ID.
+- Three pinned, runtime/PUBLIC-inaccessible trigger functions lock and validate
+  the parent Order, reject all payment-row update/delete and prevent parent
+  currency changes after evidence exists. Review found the currency lookup was
+  initially `STABLE`; it is now `VOLATILE` so a lock waiter obtains a fresh
+  post-wait snapshot. The real PostgreSQL CI proof pins that race.
+- The release verifier seals the signed-dispute predecessor and rejects later
+  migration successors. A dedicated engine-read-only restart verifier and
+  exact-main/CI/fresh-inspection-bound workflow are staged. Generic production
+  migration dispatches isolate the candidate to prevent accidental application.
+- Initial branch CI `33291321871` failed closed at the global grant audit: the
+  database correctly denied runtime EXECUTE on the three new trigger helpers,
+  but the global inventory had not classified them as runtime-private. The
+  inventory now consumes the exact invariant catalog, and a regression test
+  requires all three helpers to remain private. Migration bytes are unchanged.
+- Corrected focused validation passes 28 tests with one environment-specific
+  PostgreSQL-service skip. The full suite passes 3,523 tests with seven
+  environment-specific skips and zero failures. Corrected real PostgreSQL CI,
+  merge, fresh same-commit inspection and production application remain open.

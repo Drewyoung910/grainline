@@ -685,6 +685,21 @@ semantics. A passing signed-family proof remains explicitly insufficient for
 RLS activation. The restart-safe first operator is documented in
 `docs/order-payment-event-signed-production-proof.md` and remains unexecuted.
 
+Current acceptance supersedes that earlier execution note: signed refund and
+dispute, seller full-refund, fresh automatic blocked-checkout, and staff Case
+full-refund families have passed their separately bounded Stripe test-mode
+proofs. The staff proof reused its exact existing 500-cent refund and 475-cent
+reversal, cleaned all marker-bound fixtures and retained sanitized evidence
+SHA-256
+`e55993b6e76f11a8aa48b0d5aefde588695944436ec7c5474655e1a43d8f18fb`.
+Protected aggregate run `33289217900` found zero `OrderPaymentEvent` rows and
+zero payment-specific defects. The next gate is the isolated compatible
+invariant release in `docs/order-payment-event-invariants.md`, followed by
+actor-safe projections and predecessor drain; policyless ENABLE and FORCE
+remain separate. One released synthetic StripeWebhookEvent proof lease is a
+separate marker-bound cleanup item and must not weaken the signed Order-source
+contract or delay the empty-ledger invariant design.
+
 The separate seller full-refund provider boundary is designed in
 `docs/order-payment-event-seller-refund-production-proof.md`. Keep it behind
 the successful signed-family proof. It must exercise a real authenticated

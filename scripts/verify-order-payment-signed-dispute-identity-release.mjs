@@ -12,6 +12,10 @@ import {
 import {
   verifyOrderPaymentSignedRefundIdentityMigrationBytes,
 } from "./build-order-payment-signed-refund-identity-migration.mjs";
+import {
+  ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION,
+  verifyOrderPaymentEventInvariantsMigrationBytes,
+} from "./order-payment-event-invariants-catalog.mjs";
 
 export const ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_PHASE =
   "order-payment-signed-dispute-identity-corrected";
@@ -32,9 +36,19 @@ export function verifyOrderPaymentSignedDisputeIdentityRelease(
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .filter((name) => name > ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION);
+  const reviewedSuccessors = [];
+  const invariantsPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION,
+  );
+  if (fs.existsSync(invariantsPath)) {
+    verifyOrderPaymentEventInvariantsMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION);
+  }
   assert.deepEqual(
     laterMigrations,
-    [],
+    reviewedSuccessors,
     "signed-dispute identity release has an unreviewed successor",
   );
   assert.equal(

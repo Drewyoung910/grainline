@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify OrderPaymentEvent invariant compatibility release
+        run: npm run audit:order-payment-event-invariants-release
+      - name: Isolate OrderPaymentEvent invariants until signed-event predecessors pass
+        run: >-
+          mv
+          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+          "$RUNNER_TEMP/order-payment-event-invariants-release"
       - name: Verify signed-dispute identity compatibility release
         run: npm run audit:order-payment-signed-dispute-identity-release
       - name: Isolate signed-dispute identity until its predecessors pass
@@ -806,6 +813,29 @@ jobs:
           tests/order-payment-signed-dispute-identity-production-scope.test.mjs
           tests/order-payment-signed-dispute-identity-release.test.mjs
           tests/order-payment-event-signed-authority-postgres-proof.test.mjs
+      - name: Restore OrderPaymentEvent invariant compatibility release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-invariants-release"
+          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+      - name: Apply OrderPaymentEvent invariant compatibility
+        run: npx prisma migrate deploy
+      - name: Verify OrderPaymentEvent invariant migration status
+        run: npx prisma migrate status
+      - name: Audit OrderPaymentEvent invariant grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove OrderPaymentEvent invariants in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-event-invariants-postgres.test.mjs
+          tests/order-payment-event-invariants-proof.test.mjs
+          tests/order-payment-event-invariants-production-scope.test.mjs
+          tests/order-payment-event-invariants-release.test.mjs
+      - name: Prove OrderPaymentEvent lock and authority invariants through real logins
+        run: npm run audit:order-payment-event-invariants-postgres
+        env:
+          ORDER_PAYMENT_EVENT_INVARIANTS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_INVARIANTS_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

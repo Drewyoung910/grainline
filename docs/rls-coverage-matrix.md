@@ -681,6 +681,13 @@ preclude a later reviewed policy or grant migration.
    states. Keep marker-bound test-residue finalization separate; do not weaken
    the signed Order-source check or hold the zero-row payment invariant design
    behind that unrelated ops item.
+   The isolated invariant candidate is byte-pinned at migration
+   `20260829010000_prepare_order_payment_event_invariants`, SHA-256
+   `e5da430056c32d2a4d754f08e5ea3fa79dfb0ab401f71375d73ae6d14e39943c`.
+   It adds six validated shape constraints and three fenced triggers without
+   changing RLS or grants. Local PGlite and static suites pass; exact-main CI
+   must still execute the real PostgreSQL owner/runtime lock-race proof. This
+   is isolated preparation, not production application or activation.
 7. Continue the remaining matrix groups separately. Order/payment/shipping
    retains high sensitive-data priority; Cart/CartItem,
    SavedBlogPost, aggregate/fanout, public/private split and service-ledger

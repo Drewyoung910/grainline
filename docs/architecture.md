@@ -276,6 +276,18 @@ application row under live foreign-key inspection. No single family proof is
 activation evidence for the others; see
 `docs/order-payment-event-signed-production-proof.md`.
 
+The next compatible database layer is the byte-pinned append-only invariant
+release in `docs/order-payment-event-invariants.md`. Six validated constraints
+bind taxonomy, amount, currency, bounded text/metadata, signed/local source
+families and immutable timestamps. Three fenced triggers bind inserts to a
+locked parent Order, prohibit payment-row update/delete and freeze Order
+currency after evidence exists. The parent lookup is intentionally `VOLATILE`:
+the real PostgreSQL proof makes a currency UPDATE wait on a concurrent insert,
+then requires the awakened UPDATE to observe the committed payment and fail.
+This release keeps predecessor runtime CRUD and RLS-off posture for deployment
+compatibility; actor projections, drain, policyless ENABLE and FORCE remain
+separate stages.
+
 The distinct seller-route acceptance contract is recorded in
 `docs/order-payment-event-seller-refund-production-proof.md`. It uses the
 retained operational Clerk canary with a temporary vacation-mode seller

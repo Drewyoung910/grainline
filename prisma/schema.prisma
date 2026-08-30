@@ -736,6 +736,9 @@ model OrderShippingRateQuote {
 }
 
 model OrderPaymentEvent {
+  // Retained append-only financial evidence. Compatible database invariants
+  // validate canonical local/signed sources, freeze the parent Order currency,
+  // and reject every row update/delete before policyless RLS activation.
   id                            String                         @id @default(cuid())
   orderId                       String
   order                         Order                          @relation(fields: [orderId], references: [id], onDelete: Restrict)
