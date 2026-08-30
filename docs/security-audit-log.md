@@ -3835,3 +3835,20 @@ Open work:
   deployment, defaults them together only for a first invocation, and records
   both in final evidence. Regression coverage proves a corrected deployment
   can resume the unchanged journal while rebinding either side fails closed.
+
+## OrderPaymentEvent staff Case-refund adapter SQLSTATE correction (2026-08-29)
+
+- Exact operator/main `b56be45da2911146a9d0facad06a055449421898` /
+  CI `33285937956` resumed only the preserved `signed-confirmed` attempt. The
+  terminal-Case replay returned HTTP `500`, so the operator failed closed and
+  retained the mode-`0600` journal. It created no payment, refund, reversal,
+  provider event or application side effect.
+- Read-only Vercel logs proved the database boundary remained correct:
+  PostgreSQL raised `23514` (`Case is already terminal`). The remaining defect
+  was the classifier's metadata path. Prisma 7.9's PostgreSQL driver adapter
+  carries raw-query SQLSTATE at
+  `meta.driverAdapterError.cause.originalCode`, not legacy `meta.code`.
+- The isolated correction recognizes only the exact P2010 PostgreSQL adapter
+  structure and bounded SQLSTATE while retaining the legacy shape. Negative
+  tests reject the wrong Prisma family, wrong adapter name, non-PostgreSQL
+  cause, malformed code and missing cause. No production state changed.

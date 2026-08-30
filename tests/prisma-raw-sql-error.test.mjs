@@ -58,4 +58,57 @@ describe("Prisma raw SQL error classification", () => {
       null,
     );
   });
+
+  it("recognizes the exact Prisma PostgreSQL driver-adapter P2010 shape", () => {
+    const adapterError = Object.freeze({
+      name: "DriverAdapterError",
+      cause: Object.freeze({
+        kind: "postgres",
+        code: "23514",
+        severity: "ERROR",
+        message: "Case is already terminal",
+        originalCode: "23514",
+        originalMessage: "Case is already terminal",
+      }),
+    });
+    const knownAdapterError = knownError("P2010", {
+      driverAdapterError: adapterError,
+    });
+
+    assert.equal(getPrismaRawSqlState(knownAdapterError), "23514");
+    assert.equal(
+      getPrismaRawSqlState(knownError("P2002", { driverAdapterError: adapterError })),
+      null,
+    );
+    assert.equal(
+      getPrismaRawSqlState(knownError("P2010", {
+        driverAdapterError: { ...adapterError, name: "Error" },
+      })),
+      null,
+    );
+    assert.equal(
+      getPrismaRawSqlState(knownError("P2010", {
+        driverAdapterError: {
+          ...adapterError,
+          cause: { ...adapterError.cause, kind: "mysql" },
+        },
+      })),
+      null,
+    );
+    assert.equal(
+      getPrismaRawSqlState(knownError("P2010", {
+        driverAdapterError: {
+          ...adapterError,
+          cause: { ...adapterError.cause, originalCode: "not-a-state" },
+        },
+      })),
+      null,
+    );
+    assert.equal(
+      getPrismaRawSqlState(knownError("P2010", {
+        driverAdapterError: { ...adapterError, cause: null },
+      })),
+      null,
+    );
+  });
 });
