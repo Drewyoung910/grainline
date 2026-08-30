@@ -4377,3 +4377,21 @@ Open work:
   three private transition helpers and writes only fresh sanitized mode-`0600`
   local evidence. CI executes the same catalog and denial path through the
   real disposable `grainline_app_runtime` login after applying the candidate.
+- Exact main `720f99522ab273332ee6ba577ecec1c356d86bc3` passed CI
+  `33317024869`. Aggregate-only production inspection `33323654599` accepted
+  the reservation-authority candidate with all seven required integrity counts
+  at zero and retained only sanitized aggregate evidence (SHA-256
+  `354ee3da9bed4e6b4a0adf65e4a290684f1f044d4e3760bf441e82504c2e6b75`).
+- Guarded production run `33326252495` applied only
+  `20260830020000_prepare_order_payment_event_transition_authority`, converged
+  the reviewed private grants and passed migration status, the global
+  grant/RLS audit and exact read-only scope proof. The distinct pooled-runtime
+  postflight passed through the actual `grainline_app_runtime` login and wrote
+  sanitized mode-`0600` evidence with SHA-256
+  `63eadf89f23a6fa729814bc7a39c0ea18a126db241bff8ba2aef725a5f5fb81b`.
+- The first local postflight invocation failed closed before connecting because
+  the operator supplied the wrong sealed confirmation literal. No query ran and
+  no evidence file was created; the corrected invocation was the accepted proof
+  above. Production now has the additive transition projection and private
+  helpers, while `OrderPaymentEvent` RLS remains off and predecessor CRUD is
+  retained. No application deployment or provider state changed.
