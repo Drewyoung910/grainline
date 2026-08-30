@@ -1,6 +1,6 @@
 # Grainline Security Audit Log
 
-Last updated: 2026-05-13
+Last updated: 2026-08-30
 
 This is the working log for security hardening passes. Only verified findings should be promoted to `audit_open_findings.md`.
 
@@ -3957,3 +3957,19 @@ Open work:
 - This is compatible preparation only. Transition predicates, aggregates,
   webhook reads and local evidence writes remain direct and block predecessor
   drain and policyless ENABLE. Production remains unchanged.
+
+# 2026-08-30 - OrderPaymentEvent read-authority CI scope boundary
+
+- PR #335 CI run `33293717767` failed closed before merge at the exact
+  read-authority scope step. The additive migration and preceding PostgreSQL
+  proofs had passed; production was not contacted or changed.
+- Root cause: pull-request CI invoked the manual-production scope entrypoint,
+  whose inherited environment parser correctly requires a manual main
+  `workflow_dispatch`. This was a workflow/entrypoint mismatch, not an
+  authorization-policy failure.
+- Resolution keeps the production parser unchanged and adds a distinct
+  loopback-only CI entrypoint pinned to GitHub workflow `CI`, pull-request or
+  push events, database `grainline_ci`, migration role `ci`, and
+  `sslmode=disable`. It attests the live connection identity and engine
+  read-only transaction before reusing the production snapshot/assertion
+  implementation.

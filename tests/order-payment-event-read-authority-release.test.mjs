@@ -62,6 +62,7 @@ describe("OrderPaymentEvent fixed read-authority release", () => {
       ".github/workflows/production-migrations.yml",
       "utf8",
     );
+    const ci = readFileSync(".github/workflows/ci.yml", "utf8");
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 
     assert.match(dedicated, /environment: Production/);
@@ -115,6 +116,18 @@ describe("OrderPaymentEvent fixed read-authority release", () => {
         "audit:order-payment-event-read-authority-production-scope"
       ],
       "node scripts/verify-order-payment-event-read-authority-production-scope.mjs",
+    );
+    assert.equal(
+      pkg.scripts?.["audit:order-payment-event-read-authority-ci-scope"],
+      "node scripts/order-payment-event-read-authority-ci-scope-proof.mjs",
+    );
+    assert.match(
+      ci,
+      /Prove exact OrderPaymentEvent read-authority scope in CI[\s\S]*?audit:order-payment-event-read-authority-ci-scope/,
+    );
+    assert.doesNotMatch(
+      ci,
+      /ORDER_PAYMENT_EVENT_READ_AUTHORITY_SCOPE_STAGE: after/,
     );
   });
 });

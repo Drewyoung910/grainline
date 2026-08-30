@@ -1,7 +1,11 @@
 # OrderPaymentEvent fixed read authority
 
 Status: isolated compatibility candidate; not merged, applied, deployed, or RLS
-activation evidence.
+activation evidence. Pull-request CI run `33293717767` correctly failed before
+merge because the first CI workflow incorrectly invoked the manual-production
+scope entrypoint from a pull-request event. The corrected workflow keeps that
+production parser fail-closed and uses a separate loopback-only, `ci`-role,
+engine-read-only scope proof for the disposable CI database.
 
 ## Why this release exists
 
@@ -74,6 +78,14 @@ engine-attested repeatable-read/read-only transaction and compares all five
 live function bodies, owners, modes, search paths and ACLs to the byte-pinned
 migration. Both the generic migration runner and the invariant-only runner
 verify and isolate this successor, so neither can apply it incidentally.
+
+CI does not weaken or impersonate that production runner. Its separate scope
+entrypoint accepts only GitHub's `CI` workflow on a `pull_request` or `push`,
+the loopback `grainline_ci` database, the exact `ci` owner identity and
+`sslmode=disable`. It then attests `current_user`, opens a repeatable-read
+read-only transaction, reuses the production snapshot reader and asserts the
+same catalog with the explicit disposable owner role. A production/Neon URL,
+manual workflow event or ordinary runtime identity is rejected before connect.
 
 ## Remaining activation gates
 

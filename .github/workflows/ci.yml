@@ -861,11 +861,8 @@ jobs:
         run: npx prisma migrate status
       - name: Audit OrderPaymentEvent read grants and retained RLS posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
-      - name: Prove exact OrderPaymentEvent read-authority production scope
-        run: npm run audit:order-payment-event-read-authority-production-scope
-        env:
-          ORDER_PAYMENT_EVENT_READ_AUTHORITY_SCOPE_STAGE: after
-          DIRECT_URL: ${{ env.DIRECT_URL }}
+      - name: Prove exact OrderPaymentEvent read-authority scope in CI
+        run: npm run audit:order-payment-event-read-authority-ci-scope
       - name: Prove fixed OrderPaymentEvent projections in disposable PostgreSQL
         run: >-
           node --test
