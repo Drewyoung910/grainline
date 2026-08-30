@@ -9,8 +9,11 @@ scope proof. The distinct actual pooled-runtime postflight then passed all
 seven engine-read-only checks with sanitized mode-`0600` evidence SHA-256
 `da16187441681f0bf5bfd394cb3ec14c59ea5fc0f496812ae20bb5d4b0749a17`.
 `OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
-The converted app is merged but not yet deployed, so this is not activation
-evidence.
+The converted application is live from exact main
+`07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8`, exact-main CI
+`33297246142`, as READY Vercel production deployment
+`dpl_7UeENeZebXL9yL481DWrXkDpWd4R`. This is compatible application evidence,
+not RLS activation evidence.
 
 ## Why this release exists
 
@@ -113,3 +116,26 @@ separately source-bound fixed operations before the zero-direct-access gate can
 pass. After compatible deployment and predecessor drain, policyless `ENABLE`
 plus table-grant revocation and posture-only `FORCE` remain separate releases
 with distinct pooled-runtime postflights.
+
+## Compatible production deployment
+
+PR #338 exact head `ea814719425b78548446ffb03026545232da50d5`
+merged as exact main `07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8`.
+Exact-main CI `33297246142` passed the sealed PostgreSQL authority/rollback
+chain, TypeScript, lint, full tests, dependency audit and production build. A
+manual Vercel Production deployment from a clean detached worktree at that
+exact commit produced `dpl_7UeENeZebXL9yL481DWrXkDpWd4R`, URL
+`grainline-iji9ggah6-drew-youngs-projects.vercel.app`, with target production
+and state READY. `thegrainline.com`, `www.thegrainline.com`,
+`grainline.vercel.app` and `grainline-drew-youngs-projects.vercel.app` resolve
+to that deployment; both tested public health aliases returned
+`{"ok":true}`. The build-time database guard attested the pooled production
+`grainline_app_runtime` identity.
+
+The Vercel CLI lost its final API fetch after the remote build completed and
+reported `deploy_failed`. No retry was issued. Exact deployment inspection
+proved that the same deployment had finalized READY and received the canonical
+aliases; this was a CLI transport/reporting failure, not a second deployment or
+failed build. Predecessor deployment `dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`
+remains READY and was not drained. No migration, grant, RLS, credential,
+provider or production-row change was part of this application deployment.
