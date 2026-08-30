@@ -242,6 +242,19 @@ state and supersede earlier inline chronology in its matrix summary.
 > separate exact-tree zero-direct-access proof, followed by policyless ENABLE
 > and separate FORCE.
 
+> **OrderPaymentEvent zero-direct-access preparation (2026-08-30):** the
+> repository-wide verifier scans all 738 tracked JavaScript/TypeScript source
+> files and pins exactly seven fixed-authority consumers, 12 reference files
+> and five fixed database operations. Local exact-tree proofs find zero direct
+> base-table access in both deployed source
+> `ce7550dae6c417440230f4d596f2239393075f31` and the operator tree. The
+> production proof package is read-only and additionally binds the accepted
+> drain bytes, exact main/CI, current deployment, full credential-epoch
+> inventory, aliases and health. Production acceptance remains pending; RLS
+> is still off and predecessor CRUD remains retained. Policyless ENABLE with
+> direct-grant revocation and FORCE remain later separate gates. See
+> `docs/order-payment-event-zero-direct-access.md`.
+
 > **OrderPaymentEvent superseding gate update (2026-08-26):** the
 > blocked-checkout delivery compatibility migration and corrected application
 > are live, and the real authenticated provider proof reached a genuine paid

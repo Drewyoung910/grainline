@@ -4525,3 +4525,23 @@ Open work:
   CRUD retained. Separate zero-direct-access is next, then policyless ENABLE
   and separate FORCE; `Order`, `OrderItem` and shipping quotes remain out of
   this activation.
+
+# 2026-08-30 - OrderPaymentEvent zero-direct-access gate prepared
+
+- A full tracked-source audit of current and deployed application trees found
+  exactly seven fixed-authority consumers, 12 reference files, five reviewed
+  database operations and zero direct `OrderPaymentEvent` table consumers.
+- `scripts/verify-order-payment-event-zero-direct-access.mjs` makes that
+  inventory fail closed in CI and rejects direct Prisma delegates, relation
+  selections and raw-table SQL. It scans all 738 tracked JavaScript/TypeScript
+  source files rather than a hand-selected route list.
+- The separate read-only production proof byte-validates the accepted
+  credential-epoch drain, re-proves zero active current-credential
+  predecessors, current deployment identity, all aliases and health, then
+  independently scans deployed source and exact operator source. It writes
+  only sanitized mode-`0600` local evidence.
+- This preparation runs no migration and changes no deployment, database row,
+  grant, RLS bit, alias, credential or provider configuration. Production
+  acceptance is still pending; policyless ENABLE/direct-grant revocation and
+  FORCE remain later separate gates. See
+  `docs/order-payment-event-zero-direct-access.md`.
