@@ -298,3 +298,25 @@ default to the active deployment for a fresh proof, but are mandatory in
 practice for a corrected-deployment restart. They preserve the version-1
 journal byte-for-byte while the current deployment still receives full Vercel,
 alias and health attestation. Final evidence records both identities.
+
+## PostgreSQL driver-adapter SQLSTATE correction (2026-08-29)
+
+The first authorized resume from corrected operator/main
+`b56be45da2911146a9d0facad06a055449421898` / CI `33285937956` retained the
+existing payment, 500-cent refund, 475-cent reversal, signed event and exact
+fixtures. It again reached the authenticated terminal-Case replay and failed
+closed because the route returned HTTP `500` rather than the reviewed HTTP
+`409`. Vercel's live request log confirmed PostgreSQL correctly raised
+SQLSTATE `23514` with `Case is already terminal`; no provider or application
+side effect was duplicated and the mode-`0600` journal remains at
+`signed-confirmed`.
+
+The earlier cross-bundle correction modeled Prisma's legacy error metadata as
+`meta.code`. With Prisma 7.9 and `@prisma/adapter-pg`, raw PostgreSQL failures
+instead retain the SQLSTATE at
+`meta.driverAdapterError.cause.originalCode`. The classifier now accepts both
+locations, but the adapter path is deliberately restricted to an outer
+`PrismaClientKnownRequestError`/`P2010`, an exact `DriverAdapterError`, a
+PostgreSQL cause, and a five-character uppercase/digit SQLSTATE. It still does
+not parse error text or accept arbitrary nested errors. Positive and negative
+regression coverage pins the real adapter shape.
