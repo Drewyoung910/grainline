@@ -1,7 +1,8 @@
 # OrderPaymentEvent transition authority
 
 Status: compatible database preparation and application deployment live;
-authenticated smoke and RLS activation remain separate.
+authenticated smoke accepted; predecessor drain and RLS activation remain
+separate.
 
 PR #347 exact head
 `83e5bde9c8a9c024991da80464773e07cdf7e951` passed hosted CI
@@ -105,6 +106,34 @@ directly exercised and that the authority/concurrency proof remains separate.
 The accepted disposable-PostgreSQL, separate-login and actual pooled-runtime
 evidence continues to carry those semantic claims. Merely merging the operator
 does not execute it or authorize predecessor drain or RLS activation.
+
+### Accepted execution
+
+PR #353 exact head `32814fa7d73171ff79b0d4d26584a054e8b2bb7d`
+passed hosted CI `33329293870` and merged as exact main
+`df9997795ceb3163247052cabacb6feb095918c8`. Exact-main CI `33329781065`
+independently passed the complete PostgreSQL proof chain, TypeScript, lint,
+3,619-test suite, high-severity dependency audit and production build. The PR's
+Vercel Preview compiled and completed TypeScript, then failed only because the
+intentionally isolated Preview environment has no `DATABASE_URL`.
+
+The exact-main smoke re-attested current deployment
+`dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, preserved READY predecessor
+`dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`, all four aliases, canonical health and the
+sealed transition-authority evidence. Its sole 60-second operational-canary
+session proved unauthenticated review denial (401), authenticated account
+rendering (200) and the authoritative locked review-eligibility denial (403).
+It created zero database, Review, Order, payment or provider fixtures.
+
+Cleanup revoked the sole Clerk session and any unused sign-in ticket, reset
+only the canary review limiter, deleted only the exact production account-state
+cache key and removed the restart journal. Retain sanitized 1,561-byte
+mode-`0600` evidence SHA-256
+`9d0eacbf1062d8f2b370655d91e1f0e817a4a44edf4456d71a31c578cb07ab11`.
+No migration, deployment, database row, RLS bit, grant, credential, provider
+configuration or predecessor state changed. The next separate boundary is the
+exact-ID predecessor drain, followed by the zero-direct-access gate, policyless
+`ENABLE` and separate `FORCE`; quote, `Order` and `OrderItem` remain separate.
 
 ## Decision
 

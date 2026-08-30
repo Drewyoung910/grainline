@@ -4447,3 +4447,35 @@ Open work:
   separate-login and pooled-runtime evidence. Preparation changes no
   production state; execution, predecessor drain and RLS activation remain
   separate gates.
+
+# 2026-08-30 - OrderPaymentEvent transition smoke accepted
+
+- PR #353 exact head `32814fa7d73171ff79b0d4d26584a054e8b2bb7d`
+  passed hosted CI `33329293870` and merged as exact main
+  `df9997795ceb3163247052cabacb6feb095918c8`. Exact-main CI `33329781065`
+  independently passed the full PostgreSQL proof chain, TypeScript, lint,
+  3,619-test suite, high-severity audit and production build.
+- The PR's Vercel Preview compiled and completed TypeScript before page-data
+  collection failed only because Preview intentionally has no `DATABASE_URL`.
+  This is the expected secure Preview boundary, not an application failure.
+- The exact-main smoke re-attested READY deployment
+  `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, exact source, all four canonical aliases,
+  health and preserved READY predecessor
+  `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`. It re-hashed and validated the accepted
+  private transition-authority evidence before creating any Clerk session.
+- One 60-second operational-canary session proved unauthenticated review denial
+  (401), authenticated `/account` rendering (200) and the exact authoritative
+  delivered-order review denial (403). It created zero database, Review, Order,
+  payment or provider fixtures and did not directly exercise transition routes;
+  the accepted PostgreSQL, separate-login and pooled-runtime proofs continue to
+  carry transition authority and concurrency claims.
+- Cleanup revoked the sole Clerk session and any unused sign-in ticket, reset
+  only the canary's review limiter, deleted only its exact production
+  account-state cache key and removed the restart journal. Sanitized evidence
+  is a 1,561-byte mode-`0600` regular file with SHA-256
+  `9d0eacbf1062d8f2b370655d91e1f0e817a4a44edf4456d71a31c578cb07ab11`.
+- No migration, deployment, database row, RLS bit, grant, credential, provider
+  configuration or predecessor state changed. `OrderPaymentEvent` RLS remains
+  off and predecessor CRUD remains retained. Exact-ID predecessor drain,
+  zero-direct-access, policyless `ENABLE` and separate `FORCE` remain distinct
+  gates; quote, `Order` and `OrderItem` stay out of this activation.

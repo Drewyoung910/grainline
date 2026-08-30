@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-08-27
+Last updated: 2026-08-30
 
 ## Purpose And Scope
 
@@ -193,8 +193,18 @@ state and supersede earlier inline chronology in its matrix summary.
 > source provenance and `READY`, all four canonical aliases resolve to the new
 > deployment, and canonical health returned HTTP 200 with `{"ok":true}`.
 > READY predecessor `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj` remains preserved and
-> undrained. The current gate is the bounded authenticated compatibility
-> smoke, followed by predecessor drain, the zero-direct-access gate,
+> undrained. PR #353 exact head
+> `32814fa7d73171ff79b0d4d26584a054e8b2bb7d` passed hosted CI
+> `33329293870` and merged as exact main
+> `df9997795ceb3163247052cabacb6feb095918c8`; exact-main CI `33329781065`
+> passed. The bounded authenticated compatibility smoke then passed with
+> current/predecessor deployment identity, aliases and health re-attested;
+> account rendering returned 200 and the converted authoritative review
+> denial returned 403. Cleanup removed its sole session and exact Redis
+> transients, no fixture was created, and sanitized mode-`0600` evidence has
+> SHA-256
+> `9d0eacbf1062d8f2b370655d91e1f0e817a4a44edf4456d71a31c578cb07ab11`.
+> The current gate is predecessor drain, then the zero-direct-access gate,
 > policyless ENABLE and separate FORCE. `OrderPaymentEvent` RLS remains off
 > and predecessor CRUD remains retained; do not bundle quote, `Order` or
 > `OrderItem` activation.
