@@ -182,6 +182,10 @@ test("aggregate-authority scope reader is engine-read-only", () => {
   );
   assert.match(source, /transaction_read_only/u);
   assert.match(source, /readOnly !== "on"/u);
+  assert.match(
+    source,
+    /pg_catalog\.unnest\(trigger\.tgattr::smallint\[\]\)[\s\S]*?\)::text\[\] AS update_columns/u,
+  );
   assert.doesNotMatch(
     source,
     /INSERT INTO|UPDATE public|DELETE FROM|ALTER TABLE/u,

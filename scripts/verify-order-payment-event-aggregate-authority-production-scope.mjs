@@ -377,7 +377,7 @@ async function readTriggers(client) {
              ON attribute.attrelid = trigger.tgrelid
             AND attribute.attnum = watched.attnum
           ORDER BY watched.position
-       ) AS update_columns,
+       )::text[] AS update_columns,
        procedure.proname || '(' || pg_catalog.replace(
          pg_catalog.oidvectortypes(procedure.proargtypes), ', ', ','
        ) || ')' AS function_identity,

@@ -4184,3 +4184,8 @@ Open work:
   expectation, so the allowlist now separates fixed inventory, relation,
   event-shape and function-binding categories for each trigger. No migration,
   function or trigger bytes changed, and production remains untouched.
+- Run `33303206508` narrowed the mismatch to `TRIGGER_GUARD_SHAPE`. The ordered
+  watched-column expression inherited catalog type `name[]`, which
+  node-postgres does not guarantee to decode as an array. The engine-read-only
+  query now casts that vector to `text[]`, and a regression test pins the
+  driver boundary. Migration and trigger bytes remain unchanged.

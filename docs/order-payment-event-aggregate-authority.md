@@ -208,3 +208,10 @@ predecessor drain, grant revocation, RLS activation or provider changes.
   not narrow enough to locate it. The proof now splits its fixed diagnostic
   vocabulary into inventory, relation, event-shape and function-binding groups
   for each trigger. Migration bytes and trigger behavior are unchanged.
+- Run `33303206508` narrowed the remaining mismatch to the guard trigger's
+  structural shape. `pg_attribute.attname` is PostgreSQL type `name`, so the
+  reader's `ARRAY(...)` was returned as `name[]`; node-postgres does not
+  guarantee array decoding for that catalog-specific type. The query now casts
+  the ordered attribute vector to `text[]` at the SQL boundary, matching the
+  established rule that catalog values must cross the driver in explicitly
+  supported types. A regression test pins the cast.
