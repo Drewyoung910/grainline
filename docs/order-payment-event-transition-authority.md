@@ -1,7 +1,7 @@
 # OrderPaymentEvent transition authority
 
-Status: compatible database preparation live; application deployment and RLS
-activation remain separate.
+Status: compatible database preparation and application deployment live;
+authenticated smoke and RLS activation remain separate.
 
 PR #347 exact head
 `83e5bde9c8a9c024991da80464773e07cdf7e951` passed hosted CI
@@ -48,6 +48,35 @@ trigger helpers. `OrderPaymentEvent` RLS remains off and predecessor table CRUD
 remains available to the currently deployed compatible predecessor. No
 application deployment, provider change, cleanup or RLS activation occurred in
 this release.
+
+## Compatible application production deployment
+
+Exact main `ce7550dae6c417440230f4d596f2239393075f31`, bound to successful
+exact-main CI `33327064035` and accepted transition-authority migration run
+`33326252495`, was manually deployed to Vercel Production as
+`dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`. Vercel reports production state `READY`,
+exact source commit `ce7550dae6c417440230f4d596f2239393075f31` and deployment URL
+`grainline-ees25wgos-drew-youngs-projects.vercel.app`.
+
+All four canonical aliases resolve to the new deployment:
+
+- `thegrainline.com`;
+- `www.thegrainline.com`;
+- `grainline.vercel.app`; and
+- `grainline-drew-youngs-projects.vercel.app`.
+
+`https://thegrainline.com/api/health` returned HTTP 200 with
+`{"ok":true}`. The immediately preceding compatible production deployment
+`dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`, source
+`4908bc7f377f5950da8de6b3398049d65a5fdfcb`, remains production `READY` at
+`grainline-822kbxpu5-drew-youngs-projects.vercel.app` and was not drained.
+
+This deployment changed application source only. It ran no migration, changed
+no RLS bit or grant, did not change credentials or provider variables, and did
+not mutate predecessor state. `OrderPaymentEvent` RLS remains off and
+predecessor table CRUD remains retained. A bounded authenticated compatibility
+smoke and later predecessor drain still precede the zero-direct-access gate,
+policyless `ENABLE` and separate `FORCE` releases.
 
 ## Decision
 
