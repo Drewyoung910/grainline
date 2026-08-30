@@ -4247,3 +4247,34 @@ Open work:
 - `OrderPaymentEvent` RLS remains off and predecessor CRUD remains retained.
   The next separate gate is compatible application deployment and
   authenticated aggregate/review smoke while preserving the predecessor.
+
+# 2026-08-30 - OrderPaymentEvent aggregate application deployed; bounded smoke prepared
+
+- Manual Vercel production deployment from exact clean main
+  `4908bc7f377f5950da8de6b3398049d65a5fdfcb`, bound to successful exact-main
+  CI `33307107247`, completed as
+  `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`. The runtime database guard attested pooled
+  `grainline_app_runtime` before the production build. The authenticated Vercel
+  deployment API reports the exact Git SHA, project/team identity, production
+  target and `READY` state.
+- `thegrainline.com`, `grainline.vercel.app`, `www.thegrainline.com` and the
+  team production alias are attached to the new deployment. Both canonical
+  health endpoints returned `{"ok":true}` and the public page deployment marker
+  resolved to the same deployment. Prior compatible deployment
+  `dpl_7UeENeZebXL9yL481DWrXkDpWd4R` remains `READY` and was not drained.
+- The next isolated operator is deliberately non-database-mutating: it verifies
+  both exact-main CI bindings and Vercel sources, creates one 60-second
+  operational-canary sign-in ticket/session, proves unauthenticated review
+  denial, renders authenticated `/account`, and requires a fresh nonexistent
+  listing review to reach the locked converted eligibility query and return
+  the exact delivered-order 403. It creates no Review, Order, Listing, payment
+  or provider fixture.
+- Success cleanup revokes the exact Clerk session, resets only the operational
+  canary's `rl:review` tokens, deletes only its production account-state cache
+  key and writes sanitized mode-0600 evidence. The Upstash aggregate analytics
+  event is explicitly retained. A private restart journal closes a process
+  interruption without adopting unrelated sessions.
+- Deployment changed application source only. No migration, RLS, grant,
+  credential, Stripe, database-row or provider-configuration state changed.
+  The smoke, remaining ordinary-runtime conversion, predecessor drain,
+  policyless ENABLE and later FORCE remain separate gates.
