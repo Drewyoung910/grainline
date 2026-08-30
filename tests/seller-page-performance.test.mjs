@@ -104,10 +104,10 @@ describe("seller public page query guardrails", () => {
     assert.match(publicSellerStats, /PUBLIC_SELLER_RECENT_SHIPPING_STATS_DAYS = 180/);
     assert.match(publicSellerStats, /PUBLIC_SELLER_STATS_REVALIDATE_SECONDS = 5 \* 60/);
     assert.match(publicSellerStats, /export const getCachedPublicSellerStats = unstable_cache\(/);
-    assert.match(publicSellerStats, /import \{ BLOCKING_REFUND_LEDGER_SQL \} from "@\/lib\/refundLedgerSql"/);
+    assert.doesNotMatch(publicSellerStats, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
     assert.match(publicSellerStats, /SUM\(oi\.quantity\)/);
     assert.match(publicSellerStats, /o\."sellerRefundId" IS NULL/);
-    assert.match(publicSellerStats, /\$\{BLOCKING_REFUND_LEDGER_SQL\}/);
+    assert.match(publicSellerStats, /o\."paymentRefundBlocked" = false/);
     assert.match(publicSellerStats, /ORDER BY o\."shippedAt" DESC/);
     assert.match(publicSellerStats, /LIMIT 30/);
   });

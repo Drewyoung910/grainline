@@ -43,10 +43,10 @@ describe("OrderPaymentEvent aggregate-authority real PostgreSQL proof", () => {
     assert.match(source, /directProjectionForgeryRejected: true/u);
     assert.match(source, /helperExecutionDenied: true/u);
     assert.match(source, /outOfOrderDisputeProven: true/u);
+    assert.match(source, /sameSecondConflictFailsClosed: true/u);
     assert.match(source, /parentOrderRaceSerialized: true/u);
     assert.match(source, /DROP SCHEMA \$\{schema\} CASCADE/u);
     assert.doesNotMatch(source, /PRODUCTION_MIGRATION_DIRECT_URL/u);
     assert.doesNotMatch(source, /process\.env\.DATABASE_URL|env\.DATABASE_URL/u);
   });
 });
-

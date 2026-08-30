@@ -40,6 +40,10 @@ import {
   ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
   verifyOrderPaymentEventReadAuthorityMigrationBytes,
 } from "./order-payment-event-read-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+  verifyOrderPaymentEventAggregateAuthorityMigrationBytes,
+} from "./order-payment-event-aggregate-authority-catalog.mjs";
 
 export const ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PHASE =
   "order-refund-inactive-seller-recovery-prepared";
@@ -159,6 +163,20 @@ export function verifyOrderRefundInactiveSellerRecoveryRelease(
     );
     verifyOrderPaymentEventReadAuthorityMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION);
+  }
+  const aggregateAuthoritySuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+  );
+  if (fs.existsSync(aggregateAuthoritySuccessorPath)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
+      "OrderPaymentEvent aggregate authority requires the read-authority successor",
+    );
+    verifyOrderPaymentEventAggregateAuthorityMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION);
   }
   assert.deepEqual(
     laterMigrations,

@@ -45,7 +45,8 @@ describe("homepage deterministic query guardrails", () => {
     assert.match(stats, /prisma\.user\.count\(\{[\s\S]*banned: false, deletedAt: null/);
     assert.match(stats, /\.\.\.paidStripeOrderWhere\(\)/);
     assert.match(stats, /sellerRefundId: null/);
-    assert.match(stats, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
+    assert.match(stats, /paymentRefundBlocked: false/);
+    assert.doesNotMatch(stats, /paymentEvents:|blockingRefundLedgerWhere|OrderPaymentEvent/);
     assert.match(stats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
     assert.match(stats, /\["homepage-stats-v1"\]/);
     assert.match(stats, /revalidate: HOMEPAGE_STATS_REVALIDATE_SECONDS/);

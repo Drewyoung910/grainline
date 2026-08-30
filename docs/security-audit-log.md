@@ -4056,3 +4056,32 @@ Open work:
   credential, provider configuration or production row. `OrderPaymentEvent`
   RLS remains off and predecessor runtime table CRUD remains retained while
   aggregate, transition, webhook and local-evidence conversions continue.
+
+# 2026-08-30 - OrderPaymentEvent aggregate-authority candidate
+
+- The domain review reduced all 15 eligibility/analytics consumers to two
+  fixed Order facts rather than adding a generic payment oracle or per-Order
+  RPC fanout. `paymentRefundBlocked` and
+  `paymentConversionDisputeBlocked` are derived from the immutable ledger,
+  backfilled once and refreshed after every payment-event insert.
+- Migration `20260830010000_prepare_order_payment_event_aggregate_authority`,
+  SHA-256
+  `2b7a3041153608d9bc534db0138d538566459b0f07d16b3f9d9cf8f4a92c6e72`,
+  adds a private canonical calculation plus refresh and anti-forgery triggers.
+  Every helper is volatile, parallel-unsafe, owner-definer, search-path pinned
+  and unexecutable by runtime/PUBLIC. Old deployments cannot forge the two
+  columns while predecessor Order grants remain.
+- The 15 source files retain their place in the exact 33-file semantic
+  inventory but contain no payment delegate, nested payment relation, raw
+  payment table join or shared ledger-expanding helper. Aggregate queries stay
+  set-based. Verified review creation now rechecks eligibility inside its
+  write transaction under the same parent Order lock used by payment inserts.
+- The in-process PostgreSQL proof passes backfill, refresh, case-normalized
+  refund status, signed out-of-order/multi-dispute behavior and forged
+  insert/update denial. A separate real-login proof is CI-wired for private
+  EXECUTE denial and the refund-insert versus review-claim lock race. Generic
+  production migrations verify then isolate this successor.
+- This is an isolated compatible candidate only. No production migration,
+  deploy, grant, RLS, credential, provider or row state changed. Transition,
+  webhook and local-evidence conversions, aggregate production acceptance,
+  predecessor drain, policyless ENABLE and FORCE remain separate gates.

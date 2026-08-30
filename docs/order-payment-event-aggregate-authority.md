@@ -3,7 +3,7 @@
 Status: isolated compatible candidate. Migration
 `20260830010000_prepare_order_payment_event_aggregate_authority` is byte-pinned
 at SHA-256
-`de0864d1c8fabf875ddfedb4c3037506c305333e7f999d775613fbb808c2a9d1`.
+`2b7a3041153608d9bc534db0138d538566459b0f07d16b3f9d9cf8f4a92c6e72`.
 It is wired into disposable CI but deliberately isolated from the generic
 Production Migrations workflow. It has not been merged, applied, deployed or
 used to change RLS/grants/provider state.
@@ -30,8 +30,9 @@ cache columns. This design was selected over per-row aggregate RPCs because it:
   normalizing refund status case consistently.
 
 Raw provider IDs, amounts, descriptions, metadata and event histories remain
-inside the private append-only ledger. No API automatically serializes the two
-projection columns.
+inside the private append-only ledger. No new public endpoint or generic
+payment-state oracle is introduced; existing actor-specific response boundaries
+remain authoritative.
 
 ## Database exactness and anti-forgery contract
 
@@ -56,27 +57,34 @@ instances still retain broad Order updates, but they cannot set either boolean
 to a forged value. Unrelated Order inserts/updates remain compatible because
 their defaults or retained projections equal the ledger-derived state.
 
-The migration takes an `ALTER TABLE "Order"` relation lock before backfill.
-The existing payment insert invariant locks the parent Order `FOR UPDATE`.
-Consequently, an insert concurrent with migration waits until the refresh
-trigger exists; an insert concurrent with an eligibility claim and the claim
-itself serialize on the same Order row.
+Before altering `Order`, the migration takes `SHARE ROW EXCLUSIVE` on
+`OrderPaymentEvent`. This deliberately follows the same ledger-then-parent
+order as the existing payment insert invariant and prevents a DDL deadlock in
+which migration holds `Order` while an in-flight insert holds the ledger and
+waits for that parent row. The migration then owns the `Order` DDL lock through
+backfill and trigger installation. Concurrent inserts resume only after the
+refresh trigger exists. Outside migration, a payment insert and an eligibility
+claim serialize on the same parent `Order FOR UPDATE` lock. A transaction
+advisory lock prevents a competing copy of this preparation, while a 10-second
+lock timeout and 120-second statement timeout fail closed instead of leaving a
+busy deployment hanging indefinitely.
 
 ## Latest-dispute semantics
 
-Signed provider time is authoritative. The canonical calculation selects the
-latest row independently for each non-null `stripeObjectId`, ordered by:
-
-1. `stripeEventCreatedSeconds DESC`;
-2. `createdAt DESC`;
-3. `id DESC`.
+Signed provider time is authoritative. For each non-null `stripeObjectId`, the
+canonical calculation finds the maximum `stripeEventCreatedSeconds` and
+examines every retained observation at that provider second. A tied set blocks
+conversion if any status is outside `won`/`warning_closed` or if its canonical
+amount, currency, status, reason, or signed Stripe event type conflicts. It
+never lets local arrival time or row ID choose a favorable winner.
 
 The invariant predecessor already requires every dispute to have a durable
 Stripe object ID and typed signed-event time. A late-delivered older event
 therefore cannot regress the projection. Multiple dispute objects remain
-independent: any latest state outside `won`/`warning_closed` blocks conversion.
-This deliberately differs from the broader operational "open dispute" set;
-`lost` is closed operationally but still disqualifies conversion quality.
+independent: any latest state outside `won`/`warning_closed`, or any conflicting
+same-second canonical evidence, blocks conversion. This deliberately differs
+from the broader operational "open dispute" set; `lost` is closed operationally
+but still disqualifies conversion quality.
 
 ## Application conversion
 
@@ -153,4 +161,3 @@ Required sequence:
 
 This candidate does not authorize production migration, application deploy,
 predecessor drain, grant revocation, RLS activation or provider changes.
-

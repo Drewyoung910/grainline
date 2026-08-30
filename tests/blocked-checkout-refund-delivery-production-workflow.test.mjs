@@ -34,6 +34,9 @@ import {
 import {
   ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION,
 } from "../scripts/order-payment-event-invariants-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+} from "../scripts/order-payment-event-aggregate-authority-catalog.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/blocked-checkout-refund-delivery-production.yml",
@@ -146,6 +149,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION);
     remove("20260829020000_prepare_order_payment_event_read_authority");
     remove(ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION);
     remove(ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION);

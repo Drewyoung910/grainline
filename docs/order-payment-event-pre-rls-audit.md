@@ -17,6 +17,14 @@ The converted application is live from exact main
 `07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8`, CI `33297246142`, as
 READY deployment `dpl_7UeENeZebXL9yL481DWrXkDpWd4R`; predecessor
 `dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd` remains READY and undrained.
+The isolated aggregate-authority candidate now replaces the 15 audited
+eligibility/analytics ledger reads with two database-maintained, anti-forgery
+Order projections and serializes verified-review creation against refund
+evidence. Migration
+`20260830010000_prepare_order_payment_event_aggregate_authority` is byte-pinned
+at SHA-256
+`2b7a3041153608d9bc534db0138d538566459b0f07d16b3f9d9cf8f4a92c6e72`;
+it is unapplied and undeployed.
 `OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
 
 Audited: 2026-08-23 against the application source immediately after accepted
@@ -296,6 +304,15 @@ database/application sequence; it does not close the remaining transition,
 aggregate, webhook or local-evidence accesses. Predecessor CRUD and RLS-off
 posture remain deliberately unchanged for old/new deployment compatibility.
 
+The subsequent aggregate-authority candidate converts every file in the
+15-source eligibility/aggregate group above to
+`Order.paymentRefundBlocked` and, where required,
+`Order.paymentConversionDisputeBlocked`. Database triggers derive and guard
+both facts from the immutable ledger; ordinary runtime receives no projection
+function execution. The semantic inventory deliberately remains 33 files even
+though this group no longer enumerates base rows. See
+`docs/order-payment-event-aggregate-authority.md`.
+
 ## Findings and required disposition
 
 ### OPE-A01 - broad service-ledger CRUD is still the predecessor
@@ -380,6 +397,16 @@ provider seconds with
 different state, do not use application arrival time as hidden authority: keep
 the ledger rows, refuse conflicting side effects and mark the Order for staff
 reconciliation unless a deterministic provider-confirmed state is obtained.
+
+Prepared disposition update: the isolated aggregate-authority migration makes
+the signed latest-per-dispute calculation canonical and database-maintained on
+the parent Order. It finds each dispute object's maximum typed Stripe event
+second and evaluates every observation at that second. A late-delivered older
+event cannot regress conversion eligibility, while conflicting same-second
+canonical payloads fail closed instead of letting application arrival order
+choose a winner. Quality-score and site-metrics now read only that fixed
+boolean. Operational open-dispute transition checks remain a separate
+conversion because their accepted-status set intentionally differs.
 
 ### OPE-A06 - append-only and shape invariants are not database-enforced
 
@@ -586,6 +613,14 @@ baseline. This finding changes no production behavior while RLS and predecessor
 CRUD remain intact, but it expands the fixed aggregate/transition conversion
 scope and prevents a false zero-direct-access claim.
 
+Prepared disposition update: all 15 audited eligibility/aggregate consumers
+now retain a semantic projection reference but contain no direct delegate,
+nested relation, raw table join or shared ledger-expanding helper. The database
+projection is set-based for seller analytics and public metrics, and a focused
+test pins the complete 15-file no-enumeration boundary. Production remains on
+the predecessor behavior until the compatible migration and application are
+separately released.
+
 ## Required fixed-operation catalog
 
 Items 1 and 2 are implemented in the merged, byte-pinned migration
@@ -621,8 +656,10 @@ reviewed SQL is written.
     review, ban/listing lifecycle and post-payment side effects. Local seller,
     blocked-checkout and staff Case participant notification and email-outbox
     reservation commit with their exact fixed finalization transaction.
-11. Fixed quality/site/homepage/recent-sales aggregate facts; no arbitrary
-    event predicate or event-ID enumeration.
+11. Fixed quality/site/homepage/recent-sales aggregate facts through the two
+    anti-forgery Order projections; no arbitrary event predicate or event-ID
+    enumeration. The isolated aggregate-authority candidate implements this
+    item but is not yet production acceptance evidence.
 
 A runtime-ungranted private append core may centralize validated insertion.
 There is no runtime-callable `write_payment_event`, `get_payment_event`,
@@ -648,6 +685,9 @@ There is no runtime-callable `write_payment_event`, `get_payment_event`,
    participant pages, admin timeline, exports, Notification/Case dependencies
    and aggregate jobs. Preserve old/new coexistence until exact predecessor
    deployment drain.
+   The fixed-read application deployment is accepted; the aggregate projection
+   migration/application and remaining transition/webhook/local-evidence
+   conversions still require their own compatibility proofs.
 7. Require the inventory gate to report zero ordinary-runtime base-table
    references. Revoke INSERT/UPDATE/DELETE/SELECT and activate policyless
    `ENABLE` in one byte-pinned release.
@@ -687,7 +727,8 @@ failed-attempt chronology, correction rationale and cleanup certificate.
 The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
-- the 33-source semantic baseline converts to zero runtime base-table access;
+- the 33-source semantic baseline converts to zero runtime base-table access
+  while retaining all 33 sources in the semantic inventory;
 - fresh production data is classified with aggregate-only evidence;
 - buyer/seller/staff/service boundaries pass disposable PostgreSQL;
 - signed Stripe and local refund paths pass retry/concurrency proof;

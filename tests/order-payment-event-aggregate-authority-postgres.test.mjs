@@ -21,7 +21,11 @@ async function createPredecessorDatabase() {
       "orderId" text NOT NULL REFERENCES public."Order"(id) ON DELETE RESTRICT,
       "stripeObjectId" text NOT NULL,
       "eventType" text NOT NULL,
+      "amountCents" integer DEFAULT 500,
+      currency text DEFAULT 'usd',
       status text,
+      reason text,
+      metadata jsonb DEFAULT '{"stripeEventType":"charge.dispute.updated"}'::jsonb,
       "stripeEventCreatedSeconds" bigint,
       "createdAt" timestamp(3) without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -159,6 +163,21 @@ describe("OrderPaymentEvent aggregate-authority migration", () => {
         dispute: false,
       });
 
+      // Conflicting signed payloads at the same provider second are a
+      // reconciliation state, never an arrival-time winner.
+      await insertEvent(database, {
+        id: "dispute-same-second-conflict",
+        orderId: "order-dispute-live",
+        objectId: "du_primary",
+        eventType: "DISPUTE",
+        status: "under_review",
+        eventSeconds: 200,
+      });
+      assert.deepEqual(await projection(database, "order-dispute-live"), {
+        refund: false,
+        dispute: true,
+      });
+
       // A late-delivered older event cannot replace the signed latest state.
       await insertEvent(database, {
         id: "dispute-out-of-order",
@@ -170,7 +189,7 @@ describe("OrderPaymentEvent aggregate-authority migration", () => {
       });
       assert.deepEqual(await projection(database, "order-dispute-live"), {
         refund: false,
-        dispute: false,
+        dispute: true,
       });
 
       // Every distinct dispute object contributes its own latest state.
@@ -196,7 +215,7 @@ describe("OrderPaymentEvent aggregate-authority migration", () => {
       });
       assert.deepEqual(await projection(database, "order-dispute-live"), {
         refund: false,
-        dispute: false,
+        dispute: true,
       });
 
       const catalog = await database.query(`
@@ -232,4 +251,3 @@ describe("OrderPaymentEvent aggregate-authority migration", () => {
     }
   });
 });
-

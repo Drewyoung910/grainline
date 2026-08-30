@@ -60,8 +60,19 @@ export function verifyOrderPaymentEventAggregateAuthorityRelease(
   for (const name of ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_TRIGGERS) {
     assert.match(migration, new RegExp(`TRIGGER ${name}`, "u"));
   }
-  assert.match(migration, /DISTINCT ON \(payment\."stripeObjectId"\)/u);
-  assert.match(migration, /"stripeEventCreatedSeconds" DESC/u);
+  assert.match(migration, /SET LOCAL lock_timeout = '10s'/u);
+  assert.match(migration, /SET LOCAL statement_timeout = '120s'/u);
+  assert.match(
+    migration,
+    /pg_advisory_xact_lock\([\s\S]*grainline\.order-payment-event\.aggregate-authority\.preparation/u,
+  );
+  const ledgerLock = migration.indexOf(
+    'LOCK TABLE public."OrderPaymentEvent" IN SHARE ROW EXCLUSIVE MODE;',
+  );
+  const orderAlter = migration.indexOf('ALTER TABLE public."Order"');
+  assert.ok(ledgerLock > 0 && orderAlter > ledgerLock);
+  assert.match(migration, /max\([\s\S]*"stripeEventCreatedSeconds"/u);
+  assert.match(migration, /count\(DISTINCT pg_catalog\.jsonb_build_array/u);
   assert.match(migration, /'failed', 'canceled', 'cancelled'/u);
   assert.match(migration, /'won', 'warning_closed'/u);
   assert.match(migration, /BEFORE INSERT OR UPDATE OF/u);
@@ -102,4 +113,3 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exitCode = 1;
   }
 }
-

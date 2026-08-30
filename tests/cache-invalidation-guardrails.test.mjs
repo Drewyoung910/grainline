@@ -93,7 +93,7 @@ describe("public cache invalidation guardrails", () => {
 
     assert.match(reviewCreate, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
     assert.match(reviewUpdateDelete, /import \{ revalidateFeaturedMakerCaches \} from "@\/lib\/searchCache"/);
-    assert.match(reviewCreate, /refreshSellerRatingSummary\(orderItem\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
+    assert.match(reviewCreate, /refreshSellerRatingSummary\(eligibleOrderItem\.sellerProfileId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)/);
     assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{r\.listingId\}`\)/);
     assert.match(reviewUpdateDelete, /refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)[\s\S]*revalidateFeaturedMakerCaches\(\)[\s\S]*revalidatePath\(`\/listing\/\$\{review\.listingId\}`\)/);
   });

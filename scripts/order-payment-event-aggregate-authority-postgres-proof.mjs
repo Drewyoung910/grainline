@@ -112,7 +112,11 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
           REFERENCES ${schema}."Order"(id) ON DELETE RESTRICT,
         "stripeObjectId" text NOT NULL,
         "eventType" text NOT NULL,
+        "amountCents" integer DEFAULT 500,
+        currency text DEFAULT 'usd',
         status text,
+        reason text,
+        metadata jsonb DEFAULT '{"stripeEventType":"charge.dispute.updated"}'::jsonb,
         "stripeEventCreatedSeconds" bigint,
         "createdAt" timestamp(3) without time zone NOT NULL
           DEFAULT CURRENT_TIMESTAMP
@@ -122,8 +126,18 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
         ON TABLE ${schema}."Order", ${schema}."OrderPaymentEvent"
         TO grainline_app_runtime;
       INSERT INTO ${schema}."Order" (id) VALUES
-        ('order-clean'), ('order-race'), ('order-dispute');
+        ('order-clean'), ('order-history'), ('order-race'),
+        ('order-dispute'), ('order-tie');
     `);
+
+    await owner.query(eventInsertSql(schema), [
+      "refund-history",
+      "order-history",
+      "re_history",
+      "REFUND",
+      "succeeded",
+      50,
+    ]);
 
     const migration = fs.readFileSync(MIGRATION_PATH, "utf8").replaceAll(
       "public.",
@@ -162,6 +176,13 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
       private_function_count: 3,
     });
 
+    let state = await runtime.query(`
+      SELECT "paymentRefundBlocked" AS refund,
+             "paymentConversionDisputeBlocked" AS dispute
+        FROM ${schema}."Order" WHERE id = 'order-history'
+    `);
+    assert.deepEqual(state.rows[0], { refund: true, dispute: false });
+
     await runtime.query(eventInsertSql(schema), [
       "refund-failed",
       "order-clean",
@@ -170,7 +191,7 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
       "FAILED",
       100,
     ]);
-    let state = await runtime.query(`
+    state = await runtime.query(`
       SELECT "paymentRefundBlocked" AS refund,
              "paymentConversionDisputeBlocked" AS dispute
         FROM ${schema}."Order" WHERE id = 'order-clean'
@@ -221,6 +242,28 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
         FROM ${schema}."Order" WHERE id = 'order-dispute'
     `);
     assert.deepEqual(state.rows[0], { dispute: false });
+
+    await runtime.query(eventInsertSql(schema), [
+      "dispute-tie-won",
+      "order-tie",
+      "du_tie",
+      "DISPUTE",
+      "won",
+      400,
+    ]);
+    await runtime.query(eventInsertSql(schema), [
+      "dispute-tie-conflict",
+      "order-tie",
+      "du_tie",
+      "DISPUTE",
+      "under_review",
+      400,
+    ]);
+    state = await runtime.query(`
+      SELECT "paymentConversionDisputeBlocked" AS dispute
+        FROM ${schema}."Order" WHERE id = 'order-tie'
+    `);
+    assert.deepEqual(state.rows[0], { dispute: true });
 
     await runtime.query("BEGIN");
     await runtime.query(eventInsertSql(schema), [
@@ -281,6 +324,7 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
       directProjectionForgeryRejected: true,
       helperExecutionDenied: true,
       outOfOrderDisputeProven: true,
+      sameSecondConflictFailsClosed: true,
       parentOrderRaceSerialized: true,
       productionChanged: false,
       runtimeRoleProven: true,

@@ -4,6 +4,21 @@
 
 BEGIN;
 
+SET LOCAL lock_timeout = '10s';
+SET LOCAL statement_timeout = '120s';
+
+SELECT pg_catalog.pg_advisory_xact_lock(
+  pg_catalog.hashtextextended(
+    'grainline.order-payment-event.aggregate-authority.preparation',
+    0
+  )
+);
+
+-- Take the append-ledger write lock before the Order DDL lock. Existing
+-- payment inserts lock Order after writing OrderPaymentEvent; reversing that
+-- order here could deadlock migration DDL with an in-flight insert.
+LOCK TABLE public."OrderPaymentEvent" IN SHARE ROW EXCLUSIVE MODE;
+
 ALTER TABLE public."Order"
   ADD COLUMN "paymentRefundBlocked" boolean NOT NULL DEFAULT false,
   ADD COLUMN "paymentConversionDisputeBlocked" boolean NOT NULL DEFAULT false;
@@ -37,30 +52,46 @@ AS $grainline_order_payment_projection_state$
     EXISTS (
       SELECT 1
         FROM (
-          SELECT DISTINCT ON (payment."stripeObjectId")
-                 payment.status
-            FROM public."OrderPaymentEvent" AS payment
-           WHERE payment."orderId" = p_order_id
+          SELECT latest_time."stripeObjectId"
+            FROM (
+              SELECT payment."stripeObjectId",
+                     pg_catalog.max(
+                       payment."stripeEventCreatedSeconds"
+                     ) AS latest_seconds
+                FROM public."OrderPaymentEvent" AS payment
+               WHERE payment."orderId" = p_order_id
+                 AND payment."eventType" = 'DISPUTE'
+               GROUP BY payment."stripeObjectId"
+            ) AS latest_time
+            JOIN public."OrderPaymentEvent" AS payment
+              ON payment."orderId" = p_order_id
              AND payment."eventType" = 'DISPUTE'
-           ORDER BY
-             payment."stripeObjectId",
-             payment."stripeEventCreatedSeconds" DESC,
-             payment."createdAt" DESC,
-             payment.id DESC
-        ) AS latest_dispute
-       WHERE latest_dispute.status IS NULL
-          OR pg_catalog.lower(latest_dispute.status) NOT IN (
-            'won', 'warning_closed'
-          )
+             AND payment."stripeObjectId" = latest_time."stripeObjectId"
+             AND payment."stripeEventCreatedSeconds" =
+                 latest_time.latest_seconds
+           GROUP BY latest_time."stripeObjectId"
+          HAVING pg_catalog.bool_or(
+                   payment.status IS NULL
+                   OR pg_catalog.lower(payment.status) NOT IN (
+                     'won', 'warning_closed'
+                   )
+                 )
+              OR pg_catalog.count(DISTINCT pg_catalog.jsonb_build_array(
+                   payment."amountCents",
+                   payment.currency,
+                   payment.status,
+                   payment.reason,
+                   payment.metadata->>'stripeEventType'
+                 )) > 1
+        ) AS blocking_dispute
     ) AS conversion_dispute_blocked
 $grainline_order_payment_projection_state$;
 
 REVOKE ALL ON FUNCTION public.grainline_order_payment_projection_state(text)
   FROM PUBLIC, grainline_app_runtime;
 
--- Backfill while ALTER TABLE holds the Order relation lock. Concurrent payment
--- inserts already lock their parent Order and therefore resume only after the
--- projection trigger exists at commit.
+-- Backfill while the migration owns both relation locks. Concurrent payment
+-- inserts resume only after the projection trigger exists at commit.
 UPDATE public."Order" AS orders
    SET (
      "paymentRefundBlocked",

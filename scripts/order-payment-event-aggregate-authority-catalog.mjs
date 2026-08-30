@@ -6,7 +6,7 @@ import path from "node:path";
 export const ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION =
   "20260830010000_prepare_order_payment_event_aggregate_authority";
 export const ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION_SHA256 =
-  "de0864d1c8fabf875ddfedb4c3037506c305333e7f999d775613fbb808c2a9d1";
+  "2b7a3041153608d9bc534db0138d538566459b0f07d16b3f9d9cf8f4a92c6e72";
 
 export const ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_COLUMNS = Object.freeze([
   "paymentConversionDisputeBlocked",

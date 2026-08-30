@@ -18,17 +18,19 @@ describe("quality score query guardrails", () => {
     assert.match(qualityScore, /b\."blockerId" = sp\."userId" AND b\."blockedId" = fu\.id/);
   });
 
-  it("excludes open, lost, and unknown Stripe disputes from quality and site conversion counts", () => {
+  it("excludes open, lost, and unknown Stripe disputes through the fixed Order projection", () => {
     for (const path of ["src/lib/quality-score.ts", "src/lib/site-metrics-snapshot.ts"]) {
       const text = source(path);
 
       assert.match(
         text,
-        /latestConversionBlockingDisputeLedgerExistsSql/,
-        `${path} must use the canonical latest-per-dispute conversion predicate`,
+        /o\."paymentConversionDisputeBlocked" = false/,
+        `${path} must use the database-maintained conversion-dispute projection`,
       );
-      assert.doesNotMatch(text, /FROM "OrderPaymentEvent" ope/);
-      assert.doesNotMatch(text, /LOWER\(ope\.status\)/);
+      assert.doesNotMatch(
+        text,
+        /latestConversionBlockingDisputeLedgerExistsSql|FROM "OrderPaymentEvent" ope|LOWER\(ope\.status\)/,
+      );
     }
 
     const helper = source("src/lib/refundLedgerSql.ts");

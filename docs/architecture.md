@@ -236,9 +236,15 @@ Exact main `513053dc6f2f6fb527f85e45fe3a18a8317fa701`, CI
 `33295803412`, inspection `33296114340`, invariant run `33296358390` and
 read-authority run `33296422900` additionally established the append-only
 database invariants and five bounded read projections. Its actual pooled-runtime
-postflight passed without mutation. Compatible app deployment, conversion of
-the remaining direct transition/aggregate/webhook/local-evidence consumers and
-predecessor drain remain outstanding before separate ENABLE and FORCE releases.
+postflight passed without mutation. The fixed-read application is live from
+exact main `07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8` as READY deployment
+`dpl_7UeENeZebXL9yL481DWrXkDpWd4R`; its predecessor remains undrained. The next
+isolated layer replaces all 15 eligibility/aggregate ledger reads with two
+database-maintained, anti-forgery Order projections and fixes the verified-
+review/refund race; see `docs/order-payment-event-aggregate-authority.md`.
+That layer is not yet production-live. Remaining transition/webhook/local-
+evidence conversion and predecessor drain still precede separate ENABLE and
+FORCE releases.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,

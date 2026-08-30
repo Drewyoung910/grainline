@@ -7,7 +7,7 @@ function source(path) {
 }
 
 describe("seller analytics refund guardrails", () => {
-  it("centralizes raw blocking-refund ledger SQL and keeps callers on it", () => {
+  it("keeps operational ledger SQL canonical while aggregate consumers use fixed projections", () => {
     const helper = source("src/lib/refundLedgerSql.ts");
     assert.match(helper, /NON_BLOCKING_REFUND_LEDGER_STATUSES/);
     assert.match(helper, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
@@ -32,23 +32,32 @@ describe("seller analytics refund guardrails", () => {
     ]) {
       const text = source(path);
 
-      assert.match(text, /BLOCKING_REFUND_LEDGER_SQL/, `${path} should import/use shared raw refund ledger SQL`);
-      assert.doesNotMatch(text, /ope\."eventType" = 'REFUND'/, `${path} should not inline bare refund ledger SQL`);
+      assert.match(
+        text,
+        /paymentRefundBlocked/,
+        `${path} should use the database-maintained refund projection`,
+      );
+      assert.doesNotMatch(
+        text,
+        /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
+        `${path} should not enumerate the private payment ledger`,
+      );
     }
   });
 
-  it("keeps recent sales on the Prisma blocking refund helper", () => {
+  it("keeps recent sales on the fixed Order refund projection", () => {
     const recentSales = source("src/app/api/seller/analytics/recent-sales/route.ts");
 
-    assert.match(recentSales, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
-    assert.doesNotMatch(recentSales, /OrderPaymentEvent/);
+    assert.match(recentSales, /paymentRefundBlocked: false/);
+    assert.doesNotMatch(recentSales, /paymentEvents:|blockingRefundLedgerWhere|OrderPaymentEvent/);
   });
 
-  it("keeps homepage fulfilled-order statistics on the Prisma blocking refund helper", () => {
+  it("keeps homepage fulfilled-order statistics on the fixed Order refund projection", () => {
     const homepageStats = source("src/lib/homepageStats.ts");
 
     assert.match(homepageStats, /sellerRefundId: null/);
-    assert.match(homepageStats, /paymentEvents: \{ none: blockingRefundLedgerWhere\(\) \}/);
+    assert.match(homepageStats, /paymentRefundBlocked: false/);
+    assert.doesNotMatch(homepageStats, /paymentEvents:|blockingRefundLedgerWhere|OrderPaymentEvent/);
     assert.match(homepageStats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
   });
 
@@ -99,7 +108,8 @@ describe("seller analytics refund guardrails", () => {
 
     for (const text of [verificationApplyRoute, dashboardVerification, adminVerification]) {
       assert.match(text, /o\."sellerRefundId" IS NULL/);
-      assert.match(text, /BLOCKING_REFUND_LEDGER_SQL/);
+      assert.match(text, /o\."paymentRefundBlocked" = false/);
+      assert.doesNotMatch(text, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
     }
   });
 
