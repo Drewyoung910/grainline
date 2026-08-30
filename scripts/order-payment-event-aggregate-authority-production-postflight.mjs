@@ -242,7 +242,7 @@ function assertAggregateFunctions(rows, root, functionOwner) {
   }
 }
 
-function assertAggregateTriggers(rows) {
+function assertAggregateTriggers(rows, functionOwner) {
   const byName = new Map(rows.map((row) => [row?.trigger_name, row]));
   assert.equal(rows.length, ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_TRIGGERS.length);
   assert.equal(byName.size, ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_TRIGGERS.length);
@@ -264,7 +264,7 @@ function assertAggregateTriggers(rows) {
       ],
       function_identity: "grainline_order_payment_projection_guard()",
       function_schema: "public",
-      function_owner: MIGRATION_ROLE,
+      function_owner: functionOwner,
       function_kind: "f",
     },
   );
@@ -283,7 +283,7 @@ function assertAggregateTriggers(rows) {
       update_columns: [],
       function_identity: "grainline_order_payment_projection_refresh()",
       function_schema: "public",
-      function_owner: MIGRATION_ROLE,
+      function_owner: functionOwner,
       function_kind: "f",
     },
   );
@@ -422,7 +422,7 @@ export function assertOrderPaymentEventAggregateAuthorityRuntimeSnapshot(
 ) {
   assertAggregateColumns(snapshot?.columns ?? []);
   assertAggregateFunctions(snapshot?.functions ?? [], root, functionOwner);
-  assertAggregateTriggers(snapshot?.triggers ?? []);
+  assertAggregateTriggers(snapshot?.triggers ?? [], functionOwner);
   assertProjectionAggregate(snapshot?.projectionAggregate);
   return Object.freeze({
     privateFunctionCount:

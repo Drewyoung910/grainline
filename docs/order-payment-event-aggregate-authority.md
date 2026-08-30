@@ -204,8 +204,14 @@ provider changes.
   catalog assertion expected production owner `neondb_owner` in disposable CI,
   where migration functions are deliberately owned by `ci`. The correction
   keeps `neondb_owner` as the production default and requires the CI proof to
-  pass the explicit expected owner `ci`; runtime/PUBLIC ACL assertions and
-  function body pins are unchanged.
+  pass the explicit expected owner `ci` for both function and trigger catalog
+  rows; runtime/PUBLIC ACL assertions and function body pins are unchanged.
+- The first corrected attempt of CI run `33305370435` failed earlier in the
+  existing disposable migration chain on a transient SavedSearch owner-session
+  drain and was rerun unchanged. Attempt 2 passed that point and then exposed
+  the same explicit-owner requirement in the trigger catalog, before the new
+  proof made any production connection. Trigger structure and bytes were
+  correct; only the environment-specific expected owner needed the same bound.
 
 - Pull-request CI run `33302295449` reached the new production-catalog reader
   after every sealed predecessor check passed, then failed closed at the exact

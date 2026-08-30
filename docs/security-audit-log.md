@@ -4224,6 +4224,10 @@ Open work:
 - PR #343 hosted CI `33305149303` failed closed at its newly added real-login
   postflight because a shared catalog assertion hard-coded production owner
   `neondb_owner` while disposable CI correctly owns migrated functions as
-  `ci`. The correction preserves `neondb_owner` as the production default and
-  passes explicit owner `ci` only from the loopback CI proof; function bytes,
-  privilege checks and production state are unchanged.
+  `ci`. CI run `33305370435` attempt 1 separately failed closed on a transient
+  existing SavedSearch owner-session drain; an unchanged rerun passed that
+  point. Attempt 2 then showed the same owner distinction in trigger metadata.
+  The correction preserves `neondb_owner` as the production default and passes
+  explicit owner `ci` only from the loopback CI proof for both function and
+  trigger rows; function/trigger bytes, privilege checks and production state
+  are unchanged.
