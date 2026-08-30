@@ -951,6 +951,8 @@ jobs:
           tests/order-payment-event-transition-authority-proof.test.mjs
           tests/order-payment-event-transition-authority-release.test.mjs
           tests/postgres-special-form-qualification.test.mjs
+      - name: Prove exact OrderPaymentEvent transition-authority production scope in CI
+        run: npm run audit:order-payment-event-transition-authority-ci-scope
       - name: Prove OrderPaymentEvent transition locks through real logins
         run: npm run audit:order-payment-event-transition-authority-postgres
         env:

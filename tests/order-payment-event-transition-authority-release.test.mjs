@@ -40,6 +40,10 @@ describe("OrderPaymentEvent transition-authority release", () => {
       ".github/workflows/production-migrations.yml",
       "utf8",
     );
+    const transitionProduction = readFileSync(
+      ".github/workflows/order-payment-event-transition-authority-production.yml",
+      "utf8",
+    );
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     const isolate = ci.indexOf(
       "Isolate OrderPaymentEvent transition authority until aggregate authority passes",
@@ -60,6 +64,19 @@ describe("OrderPaymentEvent transition-authority release", () => {
       production,
       /Verify isolated OrderPaymentEvent transition-authority successor[\s\S]*Isolate unapplied OrderPaymentEvent transition-authority successor/u,
     );
+    assert.match(
+      transitionProduction,
+      /^name: OrderPaymentEvent Transition Authority Production Compatibility$/mu,
+    );
+    assert.match(
+      transitionProduction,
+      /"transition-authority-predecessor",[\s\S]*"transition-authority-prepared"/u,
+    );
+    assert.match(
+      transitionProduction,
+      /if: steps\.scope\.outputs\.state == 'transition-authority-predecessor'[\s\S]*npx prisma migrate deploy/u,
+    );
+    assert.match(transitionProduction, /PGSSLROOTCERT: system/u);
     assert.equal(
       pkg.scripts?.["audit:order-payment-event-transition-authority-release"],
       "node scripts/verify-order-payment-event-transition-authority-release.mjs",
@@ -67,6 +84,20 @@ describe("OrderPaymentEvent transition-authority release", () => {
     assert.equal(
       pkg.scripts?.["audit:order-payment-event-transition-authority-postgres"],
       "node scripts/order-payment-event-transition-authority-postgres-proof.mjs",
+    );
+    assert.equal(
+      pkg.scripts?.[
+        "audit:order-payment-event-transition-authority-production-scope"
+      ],
+      "node scripts/verify-order-payment-event-transition-authority-production-scope.mjs",
+    );
+    assert.equal(
+      pkg.scripts?.["audit:order-payment-event-transition-authority-ci-scope"],
+      "node scripts/order-payment-event-transition-authority-ci-scope-proof.mjs",
+    );
+    assert.match(
+      ci,
+      /Prove exact OrderPaymentEvent transition-authority production scope in CI[\s\S]*audit:order-payment-event-transition-authority-ci-scope/u,
     );
   });
 });

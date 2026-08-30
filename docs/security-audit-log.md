@@ -4357,6 +4357,14 @@ Open work:
   completed TypeScript before page-data collection failed only because
   Preview intentionally has no `DATABASE_URL`. This is the expected secure
   Preview boundary, not an application or security failure.
+- A separate restart-safe production compatibility package now accepts only
+  the exact predecessor or exact applied catalog. It binds exact-main CI and
+  an aggregate-only production inspection, isolates the candidate while
+  re-proving the sealed aggregate predecessor, applies only migration
+  `20260830020000_prepare_order_payment_event_transition_authority`, converges
+  reviewed private grants, runs the global audit and re-reads the full catalog
+  in an engine-attested repeatable-read/read-only transaction. Merely merging
+  the package cannot run it.
 - CI applies the candidate only after the invariant, read and aggregate
   predecessors pass; the generic Production Migrations workflow verifies and
   isolates it so it cannot apply accidentally. Production remains unchanged:

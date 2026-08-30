@@ -12,6 +12,15 @@ Vercel Preview cloned the exact head, compiled and type-checked successfully,
 then stopped at page-data collection solely because Preview intentionally has
 no `DATABASE_URL`; production was not deployed or changed.
 
+The isolated production package is restart-safe and accepts only the exact
+predecessor or exact applied catalog. It binds an exact successful main CI and
+aggregate-only production inspection, verifies the owner connection, refuses
+later migrations, temporarily isolates this candidate while re-proving the
+sealed aggregate-authority predecessor, applies only this migration, converges
+the reviewed private grants, runs the global grant/RLS audit and re-reads the
+complete catalog in an engine-attested repeatable-read/read-only transaction.
+It does not enable RLS, remove predecessor CRUD or deploy application code.
+
 ## Decision
 
 The remaining order-transition callers do not need payment-event rows. They
