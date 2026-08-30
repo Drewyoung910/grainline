@@ -269,3 +269,20 @@ It does not replace:
 - actor-safe participant/staff projections and bounded aggregates;
 - predecessor drain, policyless `ENABLE`, pooled-runtime postflight and
   separate `FORCE`.
+
+## Seller-refund predecessor deployment binding correction (2026-08-29)
+
+The first resume against the deployed cross-bundle SQLSTATE correction failed
+before any provider, Clerk or database call because the Case operator reused
+the current Case deployment binding while validating the immutable
+seller-refund predecessor evidence. That predecessor was produced by deployed
+source `3431bb83fa16fabb9b9e18a729a7d138d48764d9` and deployment
+`dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`; it must not be compared with the later
+Case-correction deployment.
+
+The operator now requires separate, format-checked seller-predecessor deployed
+source and deployment inputs, uses them only for the byte-pinned predecessor
+proof, and records them in final sanitized evidence. The active Case
+deployment remains independently bound to the preserved journal and current
+execution. No restart identity or production state was changed by this
+correction.
