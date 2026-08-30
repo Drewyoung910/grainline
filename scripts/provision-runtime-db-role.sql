@@ -2100,6 +2100,35 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Order payment eligibility projections are maintained only by triggers. The
+-- application reads the two Order booleans and must never invoke or forge the
+-- private ledger-derived projection routines.
+WITH order_payment_projection_private(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_projection_state"(text)'),
+    ('public."grainline_order_payment_projection_guard"()'),
+    ('public."grainline_order_payment_projection_refresh"()')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_payment_projection_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_payment_projection_private(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_projection_state"(text)'),
+    ('public."grainline_order_payment_projection_guard"()'),
+    ('public."grainline_order_payment_projection_refresh"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_payment_projection_private
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH failure AS (
   SELECT 'required extension pg_trgm is not installed' AS message
   WHERE NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')

@@ -6,7 +6,6 @@ import {
   type SellerMetricsResult,
 } from "@/lib/metricsState";
 import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
-import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { getSellerMessageResponseMetrics } from "@/lib/conversationMessageAuthority";
 import { getCaseSellerActiveCount } from "@/lib/caseSellerAggregateAuthority";
@@ -177,7 +176,7 @@ async function calculateSellerMetricsWithoutLock(
           ${PAID_STRIPE_ORDER_SQL}
           AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
           AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
       `,
 
       db.$queryRaw<Array<{ shippedCount: bigint; onTimeCount: bigint }>>`
@@ -187,7 +186,7 @@ async function calculateSellerMetricsWithoutLock(
         FROM "Order" o
         WHERE o."sellerRefundId" IS NULL
           ${PAID_STRIPE_ORDER_SQL}
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
           AND o."shippedAt" IS NOT NULL
           AND o."shippedAt" >= ${periodStart}
           AND o."processingDeadline" IS NOT NULL

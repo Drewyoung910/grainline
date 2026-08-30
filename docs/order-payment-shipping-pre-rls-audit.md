@@ -39,10 +39,10 @@ The exact baseline is:
 
 | Model | Direct-access source files |
 |---|---:|
-| `Order` | 40 |
+| `Order` | 41 |
 | `OrderItem` | 12 |
 | `OrderShippingRateQuote` | 2 |
-| `OrderPaymentEvent` | 7 |
+| `OrderPaymentEvent` | 5 |
 | `SellerPayoutEvent` | 3 |
 | `CheckoutStockReservation` | 4 |
 

@@ -31,7 +31,6 @@ import {
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
-import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { formatCurrencyCents } from "@/lib/money";
 import {
@@ -210,7 +209,7 @@ async function approveGuildMember(_prevState: unknown, formData: FormData): Prom
         ${PAID_STRIPE_ORDER_SQL}
         AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
         AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
+        AND o."paymentRefundBlocked" = false
     `,
     getCaseSellerVerificationEligibility({
       actorUserId: me.id,

@@ -13,7 +13,7 @@ describe("review/report/favorite observability hardening", () => {
     const ratingSummary = source("src/lib/sellerRatingSummary.ts");
 
     assert.match(createRoute, /await prisma\.\$transaction\(async \(tx\) => \{/);
-    assert.match(createRoute, /await refreshSellerRatingSummary\(orderItem\.listing\.sellerId, tx\)/);
+    assert.match(createRoute, /await refreshSellerRatingSummary\(eligibleOrderItem\.sellerProfileId, tx\)/);
     assert.match(editRoute, /await refreshSellerRatingSummary\(r\.listing\.sellerId, tx\)/);
     assert.match(editRoute, /await refreshSellerRatingSummary\(review\.listing\.sellerId, tx\)/);
     assert.match(ratingSummary, /pg_advisory_xact_lock\(913343, hashtext\(\$\{sellerProfileId\}\)\)/);

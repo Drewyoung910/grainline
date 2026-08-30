@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -14,6 +14,10 @@ import {
   ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
   verifyOrderPaymentEventReadAuthorityMigrationBytes,
 } from "./order-payment-event-read-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+  verifyOrderPaymentEventAggregateAuthorityMigrationBytes,
+} from "./order-payment-event-aggregate-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_READ_AUTHORITY_PHASE =
   "order-payment-event-read-authority-reviewed";
@@ -32,9 +36,18 @@ export function verifyOrderPaymentEventReadAuthorityRelease(root = process.cwd()
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .filter((name) => name > ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION);
+  const reviewedSuccessors = [ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION];
+  if (existsSync(path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+  ))) {
+    verifyOrderPaymentEventAggregateAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION);
+  }
   assert.deepEqual(
     migrationNames,
-    [ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION],
+    reviewedSuccessors,
     "OrderPaymentEvent read authority has an unreviewed successor or missing predecessor order",
   );
 

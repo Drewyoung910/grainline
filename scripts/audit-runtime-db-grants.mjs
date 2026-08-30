@@ -38,6 +38,9 @@ import {
 import {
   ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
 } from "./order-payment-event-invariants-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_FUNCTIONS,
+} from "./order-payment-event-aggregate-authority-catalog.mjs";
 
 const { Client } = pg;
 
@@ -218,6 +221,7 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   ...ORDER_REFUND_RECORD_PRIVATE_FUNCTION_NAMES,
   ...ORDER_REFUND_RECONCILIATION_PRIVATE_FUNCTION_NAMES,
   ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
+  ...ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_FUNCTIONS,
 ]);
 
 const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);

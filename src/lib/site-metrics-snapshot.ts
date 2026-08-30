@@ -1,9 +1,4 @@
 import { prisma } from "@/lib/db";
-import { Prisma } from "@prisma/client";
-import {
-  BLOCKING_REFUND_LEDGER_SQL,
-  latestConversionBlockingDisputeLedgerExistsSql,
-} from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 
 export type SiteMetricsSnapshotResult = {
@@ -45,8 +40,8 @@ export async function calculateSiteMetricsSnapshot(): Promise<SiteMetricsSnapsho
           JOIN visible_listings vl ON vl.id = oi."listingId"
           WHERE o."sellerRefundId" IS NULL
             ${PAID_STRIPE_ORDER_SQL}
-            ${BLOCKING_REFUND_LEDGER_SQL}
-            AND NOT (${latestConversionBlockingDisputeLedgerExistsSql(Prisma.sql`o.id`)})
+            AND o."paymentRefundBlocked" = false
+            AND o."paymentConversionDisputeBlocked" = false
         ), 0) AS "totalOrders"
     `,
     prisma.$queryRaw<Array<{ avgRating: number | null }>>`

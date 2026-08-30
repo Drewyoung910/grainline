@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db";
-import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 import { withSerializableRetry } from "@/lib/transactionRetry";
 import { CASE_WINDOW_DAYS } from "@/lib/caseCreateState";
 import { Prisma } from "@prisma/client";
@@ -16,7 +15,7 @@ function listingSoftDeleteOrderBlockerWhere(listingId: string, now = new Date())
   return {
     items: { some: { listingId } },
     sellerRefundId: null,
-    paymentEvents: { none: blockingRefundLedgerWhere() },
+    paymentRefundBlocked: false,
     OR: [
       { fulfillmentStatus: { in: [...LISTING_SOFT_DELETE_ACTIVE_FULFILLMENT_STATUSES] } },
       {

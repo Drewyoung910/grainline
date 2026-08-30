@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
-import { blockingRefundLedgerWhere } from "@/lib/refundRouteState";
 
 export const HOMEPAGE_STATS_REVALIDATE_SECONDS = 5 * 60;
 
@@ -29,7 +28,7 @@ async function loadHomepageStats(): Promise<HomepageStats> {
       where: {
         ...paidStripeOrderWhere(),
         sellerRefundId: null,
-        paymentEvents: { none: blockingRefundLedgerWhere() },
+        paymentRefundBlocked: false,
         fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
       },
     }),

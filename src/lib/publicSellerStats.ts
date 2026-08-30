@@ -1,6 +1,5 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
-import { BLOCKING_REFUND_LEDGER_SQL } from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -26,7 +25,7 @@ async function loadPublicSellerStats(sellerProfileId: string): Promise<PublicSel
       WHERE l."sellerId" = ${sellerProfileId}
         ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
+        AND o."paymentRefundBlocked" = false
     `,
     prisma.$queryRaw<Array<{ shippedCount: bigint; avgShipDays: number | null }>>`
       SELECT
@@ -38,7 +37,7 @@ async function loadPublicSellerStats(sellerProfileId: string): Promise<PublicSel
         WHERE o."shippedAt" IS NOT NULL
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
-          ${BLOCKING_REFUND_LEDGER_SQL}
+          AND o."paymentRefundBlocked" = false
           AND o."shippedAt" >= ${recentShippingCutoff}
           AND EXISTS (
             SELECT 1

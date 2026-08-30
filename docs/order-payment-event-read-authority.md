@@ -110,12 +110,15 @@ boundary and the accepted evidence is the sole successful artifact.
 ## Remaining activation gates
 
 This release converts participant pages, the staff order timeline and account
-export only. Direct transition predicates, aggregates, webhook reads and local
-evidence writes remain in the audited source inventory. They must move behind
-separately source-bound fixed operations before the zero-direct-access gate can
-pass. After compatible deployment and predecessor drain, policyless `ENABLE`
-plus table-grant revocation and posture-only `FORCE` remain separate releases
-with distinct pooled-runtime postflights.
+export only. A separate isolated aggregate-authority candidate now converts
+the 15 eligibility/analytics consumers to two anti-forgery Order projections;
+it is documented in `docs/order-payment-event-aggregate-authority.md` and is
+not production evidence. Direct transition, webhook and local-evidence reads
+remain in the audited source inventory. They must move behind separately
+source-bound fixed operations before the zero-direct-access gate can pass.
+After compatible deployment and predecessor drain, policyless `ENABLE` plus
+table-grant revocation and posture-only `FORCE` remain separate releases with
+distinct pooled-runtime postflights.
 
 ## Compatible production deployment
 

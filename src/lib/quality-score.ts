@@ -31,10 +31,6 @@ import {
   type ListingQualityScoreRow,
   type QualityScoreGlobalMeans,
 } from "./qualityScoreFormula.ts";
-import {
-  BLOCKING_REFUND_LEDGER_SQL,
-  latestConversionBlockingDisputeLedgerExistsSql,
-} from "@/lib/refundLedgerSql";
 import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 
 const BATCH_SIZE = 200;
@@ -92,8 +88,8 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
       WHERE oi."listingId" = l.id
         ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
-        ${BLOCKING_REFUND_LEDGER_SQL}
-        AND NOT (${latestConversionBlockingDisputeLedgerExistsSql(Prisma.sql`o.id`)})
+        AND o."paymentRefundBlocked" = false
+        AND o."paymentConversionDisputeBlocked" = false
     ) ord ON true
     LEFT JOIN LATERAL (
       SELECT COUNT(*) AS cnt,
