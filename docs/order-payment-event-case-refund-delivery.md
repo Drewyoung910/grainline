@@ -181,6 +181,31 @@ application behavior, migrations, grants, RLS or provider state. The existing
 account, refund, reversal, fixtures and journal remain the only permitted
 attempt; no second payment or refund is required.
 
+## Cross-bundle Prisma SQLSTATE correction (2026-08-29)
+
+The next resume from exact main
+`61c899d7c40c7af31557ab779229453096c12b21` / CI `33281420951`
+reused the same finalized Case and correctly reached the authenticated route
+replay. PostgreSQL rejected that replay with SQLSTATE `23514` and message
+`Case is already terminal`, but the production route returned HTTP `500`
+instead of its reviewed HTTP `409` conflict response.
+
+The database authority and financial idempotency worked: no second refund,
+reversal or application side effect occurred. The defect was in the shared
+application classifier. It required the thrown error to satisfy `instanceof`
+against the locally imported Prisma runtime class. A bundled server process
+can contain a second copy of that class, so the genuine P2010 error retained
+its stable Prisma fields but failed the JavaScript identity check.
+
+The correction recognizes only the exact public known-request-error shape:
+`name=PrismaClientKnownRequestError`, `code=P2010`, a non-empty Prisma client
+version, object metadata and a five-character uppercase/digit SQLSTATE. It
+does not parse error messages or accept arbitrary error families. Class-wide
+tests cover a cross-bundle-shaped `23514` and reject malformed or non-P2010
+lookalikes. The preserved proof remains at `signed-confirmed`; it must resume
+after the compatible application correction is deployed, without another
+payment or refund.
+
 ## Finding
 
 The existing staff Case protocol correctly separates the provider request from

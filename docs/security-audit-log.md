@@ -3795,3 +3795,21 @@ Open work:
   exact cleanup fence and unit/real-PostgreSQL proof with that established
   rule. No production/provider state, migration, grant or RLS posture changes;
   the same journal must resume without another payment or refund.
+
+## OrderPaymentEvent staff Case-refund SQLSTATE classification correction (2026-08-29)
+
+- The authorized resume from exact main
+  `61c899d7c40c7af31557ab779229453096c12b21` / CI `33281420951`
+  reused the sole finalized Case and made no new payment or refund. PostgreSQL
+  rejected the authenticated replay with SQLSTATE `23514` (`Case is already
+  terminal`), but production returned HTTP `500` instead of the reviewed HTTP
+  `409` conflict response.
+- The shared raw-query classifier depended on JavaScript `instanceof` against
+  one imported Prisma runtime class. The production server bundle supplied the
+  genuine P2010 error from another class copy, preserving its stable fields but
+  failing that identity check.
+- The correction uses the exact stable Prisma known-request-error shape and a
+  bounded SQLSTATE format, without parsing messages. Unit coverage proves the
+  cross-bundle `23514` case and rejects malformed, non-P2010 and wrong-name
+  lookalikes. The same mode-`0600` journal remains at `signed-confirmed`; no
+  competing attempt is permitted.
