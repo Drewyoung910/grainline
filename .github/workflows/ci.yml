@@ -82,6 +82,8 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Prove OrderPaymentEvent application zero-direct-access
+        run: npm run audit:order-payment-event-zero-direct-access
       - name: Verify OrderPaymentEvent transition-authority release
         run: npm run audit:order-payment-event-transition-authority-release
       - name: Isolate OrderPaymentEvent transition authority until aggregate authority passes
