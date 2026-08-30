@@ -37,6 +37,7 @@ test("aggregate-authority postflight PostgreSQL proof uses the production reader
   assert.match(source, /transaction_read_only/u);
   assert.match(source, /readOrderPaymentEventAggregateAuthorityRuntimeSnapshot/u);
   assert.match(source, /assertOrderPaymentEventAggregateAuthorityRuntimeSnapshot/u);
+  assert.match(source, /functionOwner: "ci"/u);
   assert.match(source, /proveOrderPaymentEventAggregatePrivateExecutionDenied/u);
   assert.doesNotMatch(source, /INSERT INTO|UPDATE public|DELETE FROM|ALTER TABLE/u);
 });

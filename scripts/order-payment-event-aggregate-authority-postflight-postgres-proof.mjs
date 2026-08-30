@@ -73,7 +73,7 @@ export async function runOrderPaymentEventAggregatePostflightPostgresProof(
       await proveOrderPaymentEventReadAuthorityRuntimeBoundaries(client);
     const aggregate = assertOrderPaymentEventAggregateAuthorityRuntimeSnapshot(
       await readOrderPaymentEventAggregateAuthorityRuntimeSnapshot(client),
-      { root: process.cwd() },
+      { functionOwner: "ci", root: process.cwd() },
     );
     const denial =
       await proveOrderPaymentEventAggregatePrivateExecutionDenied(client);

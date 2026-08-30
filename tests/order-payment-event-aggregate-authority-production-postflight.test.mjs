@@ -211,6 +211,17 @@ test("aggregate-authority postflight accepts only exact catalog and bounded aggr
     forged,
   ));
 
+  const ciOwned = aggregateSnapshot();
+  for (const row of ciOwned.functions) row.owner_name = "ci";
+  assert.doesNotThrow(() =>
+    assertOrderPaymentEventAggregateAuthorityRuntimeSnapshot(ciOwned, {
+      functionOwner: "ci",
+    }),
+  );
+  assert.throws(() => assertOrderPaymentEventAggregateAuthorityRuntimeSnapshot(
+    ciOwned,
+  ));
+
   const driftedTrigger = aggregateSnapshot();
   driftedTrigger.triggers[0].update_columns.reverse();
   assert.throws(() => assertOrderPaymentEventAggregateAuthorityRuntimeSnapshot(

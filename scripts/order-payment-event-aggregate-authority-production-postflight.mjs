@@ -206,7 +206,7 @@ function assertAggregateColumns(rows) {
   }
 }
 
-function assertAggregateFunctions(rows, root) {
+function assertAggregateFunctions(rows, root, functionOwner) {
   const expectedSources = orderPaymentEventAggregateAuthorityFunctionSources(root);
   const byIdentity = new Map(rows.map((row) => [row?.identity, row]));
   assert.equal(
@@ -219,7 +219,7 @@ function assertAggregateFunctions(rows, root) {
   );
   for (const identity of ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_FUNCTION_IDENTITIES) {
     const row = byIdentity.get(identity);
-    assert.equal(row?.owner_name, MIGRATION_ROLE, `${identity} owner drifted`);
+    assert.equal(row?.owner_name, functionOwner, `${identity} owner drifted`);
     assert.equal(row?.security_definer, true, `${identity} security mode drifted`);
     assert.equal(row?.function_kind, "f", `${identity} kind drifted`);
     assert.equal(
@@ -418,10 +418,10 @@ export async function readOrderPaymentEventAggregateAuthorityRuntimeSnapshot(
 
 export function assertOrderPaymentEventAggregateAuthorityRuntimeSnapshot(
   snapshot,
-  { root = process.cwd() } = {},
+  { functionOwner = MIGRATION_ROLE, root = process.cwd() } = {},
 ) {
   assertAggregateColumns(snapshot?.columns ?? []);
-  assertAggregateFunctions(snapshot?.functions ?? [], root);
+  assertAggregateFunctions(snapshot?.functions ?? [], root, functionOwner);
   assertAggregateTriggers(snapshot?.triggers ?? []);
   assertProjectionAggregate(snapshot?.projectionAggregate);
   return Object.freeze({

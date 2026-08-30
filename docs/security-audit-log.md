@@ -4221,3 +4221,9 @@ Open work:
   transaction, re-proves the five fixed read functions, verifies the two
   projections and both triggers, and requires all three aggregate helpers to
   remain unexecutable by runtime. Evidence is fresh, sanitized and mode 0600.
+- PR #343 hosted CI `33305149303` failed closed at its newly added real-login
+  postflight because a shared catalog assertion hard-coded production owner
+  `neondb_owner` while disposable CI correctly owns migrated functions as
+  `ci`. The correction preserves `neondb_owner` as the production default and
+  passes explicit owner `ci` only from the loopback CI proof; function bytes,
+  privilege checks and production state are unchanged.

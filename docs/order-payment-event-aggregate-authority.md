@@ -199,6 +199,14 @@ provider changes.
 
 ## Failed hosted proof evidence
 
+- PR #343 CI run `33305149303` reached the new real-PostgreSQL runtime-login
+  postflight and failed closed before any production action because the shared
+  catalog assertion expected production owner `neondb_owner` in disposable CI,
+  where migration functions are deliberately owned by `ci`. The correction
+  keeps `neondb_owner` as the production default and requires the CI proof to
+  pass the explicit expected owner `ci`; runtime/PUBLIC ACL assertions and
+  function body pins are unchanged.
+
 - Pull-request CI run `33302295449` reached the new production-catalog reader
   after every sealed predecessor check passed, then failed closed at the exact
   aggregate-authority scope step. The first runner intentionally emitted only
