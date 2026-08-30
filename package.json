@@ -148,6 +148,8 @@
     "audit:order-payment-event-transition-authority-production-scope": "node scripts/verify-order-payment-event-transition-authority-production-scope.mjs",
     "audit:order-payment-event-transition-authority-ci-scope": "node scripts/order-payment-event-transition-authority-ci-scope-proof.mjs",
     "audit:order-payment-event-transition-authority-postgres": "node scripts/order-payment-event-transition-authority-postgres-proof.mjs",
+    "audit:order-payment-event-transition-authority-postflight-postgres": "node scripts/order-payment-event-transition-authority-postflight-postgres-proof.mjs",
+    "ops:order-payment-event-transition-authority-postflight": "node scripts/order-payment-event-transition-authority-production-postflight.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope": "node scripts/verify-blocked-checkout-refund-delivery-production-scope.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres": "node scripts/blocked-checkout-refund-delivery-production-scope-postgres-proof.mjs",
     "audit:order-payment-compatible-production-scope": "node scripts/verify-order-payment-event-compatible-production-scope.mjs",

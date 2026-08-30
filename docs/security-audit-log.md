@@ -4369,3 +4369,11 @@ Open work:
   predecessors pass; the generic Production Migrations workflow verifies and
   isolates it so it cannot apply accidentally. Production remains unchanged:
   `OrderPaymentEvent` RLS is off and predecessor CRUD is retained.
+- A separate pooled-runtime postflight package now binds exact clean source,
+  exact main CI, aggregate inspection and migration run IDs. It rejects owner
+  or aliased database credentials, uses an engine-attested repeatable-read
+  read-only transaction, re-proves the read and aggregate predecessors, reads
+  only bounded transition aggregates, proves SQLSTATE `42501` denial for all
+  three private transition helpers and writes only fresh sanitized mode-`0600`
+  local evidence. CI executes the same catalog and denial path through the
+  real disposable `grainline_app_runtime` login after applying the candidate.
