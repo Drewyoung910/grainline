@@ -31,10 +31,19 @@ describe("OrderPaymentEvent aggregate-authority release", () => {
     assert.match(decision, /semantic inventory remains exactly 33 files/u);
     assert.match(decision, /policyless `ENABLE` and later `FORCE` RLS as separate releases/u);
     assert.match(decision, /compatible aggregate authority is live/u);
-    assert.match(decision, /distinct pooled-runtime postflight and compatible deployment are accepted/u);
     assert.match(
       decision,
-      /current separate gate is the bounded authenticated\s+aggregate\/review smoke/u,
+      /distinct pooled-runtime postflight, compatible deployment and bounded\s+authenticated aggregate\/review smoke are accepted/u,
+    );
+    assert.match(decision, /6a74f1dd385035f2ff376d79a482ca989cf4ab02/u);
+    assert.match(decision, /33309431664/u);
+    assert.match(
+      decision,
+      /5ec5518ccc3b0cdfd6c3e8542d9f57f722029d7dfdda5db9f4e50d22ddb633ee/u,
+    );
+    assert.match(
+      decision,
+      /current gate is conversion and proof of the remaining contended\s+transition, webhook and local-evidence consumers/u,
     );
   });
 

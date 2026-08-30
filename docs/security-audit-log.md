@@ -4278,3 +4278,34 @@ Open work:
   credential, Stripe, database-row or provider-configuration state changed.
   The smoke, remaining ordinary-runtime conversion, predecessor drain,
   policyless ENABLE and later FORCE remain separate gates.
+
+# 2026-08-30 - OrderPaymentEvent authenticated aggregate smoke accepted
+
+- PR #345 exact head `a111e4b30609b60db99765f3a41bd255f333c2f0`
+  passed hosted CI `33308989443` and merged as exact main
+  `6a74f1dd385035f2ff376d79a482ca989cf4ab02`. Exact-main CI `33309431664`
+  independently passed the full PostgreSQL proof chain, TypeScript, lint,
+  3,591-test suite, high-severity audit and production build.
+- The Vercel Preview for the PR cloned the exact head, compiled successfully
+  and completed TypeScript before page-data collection failed only because
+  Preview intentionally has no `DATABASE_URL`. This is the expected secure
+  Preview boundary, not an application or security failure.
+- The restart-safe production smoke re-attested exact READY deployment
+  `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`, source
+  `4908bc7f377f5950da8de6b3398049d65a5fdfcb`, all four aliases, health and
+  preserved READY predecessor `dpl_7UeENeZebXL9yL481DWrXkDpWd4R`.
+- One 60-second operational-canary Clerk ticket/session proved the
+  unauthenticated review route returned 401, authenticated `/account` returned
+  200 and a fresh nonexistent-listing review reached the authoritative locked
+  eligibility query and returned the exact expected 403. The smoke created
+  zero reviews, database fixtures, payment objects or provider objects.
+- Cleanup revoked the sole active canary session, reset only that canary's
+  review-rate-limit tokens, deleted only its production account-state cache
+  key and removed the private restart journal. One ordinary aggregate
+  rate-limit analytics event is intentionally retained.
+- Sanitized evidence is a 1,282-byte mode-`0600` regular file with SHA-256
+  `5ec5518ccc3b0cdfd6c3e8542d9f57f722029d7dfdda5db9f4e50d22ddb633ee`.
+  No migration ran and no database row, grant, RLS posture, credential,
+  deployment, provider configuration or predecessor state changed. The next
+  gate is the remaining transition/webhook/local-evidence conversion and
+  proof; predecessor drain, policyless ENABLE and FORCE remain separate.
