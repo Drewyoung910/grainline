@@ -268,11 +268,11 @@ state and supersede earlier inline chronology in its matrix summary.
 > and 13 private after. Hard review corrected a stale composed catalog and
 > strengthened exact trigger and rollback ACL/function-catalog checks before
 > any persistent application. Draft SHA-256
-> `8410e8edfa02f81d3d4cae3dbc9acc87ae22cf94ddc15db3a064719bace4d8d3`,
+> `71d2678db245aa8b2d72241359f20b8322feb10c7a33d0d6034bef0ec4e95c8e`,
 > migration SHA-256
-> `0762fcb24e3da22de533df22581cf9752d1deb0a72c627b865a2f035370cd147`,
+> `4b3e4206bb8ea4dbad828baac6a8c5201332a2931146f074f054b85bef0b8e50`,
 > migration-tree SHA-256
-> `2899b2afd8b1750e748ed1a74b37a0899fe66c7392e65a195f87b0a08ea1b6c8`
+> `910030cb6b0edc779223a0b839bbe6c573a7f8ce7faa6efcf8f31379874c5cc1`
 > and rollback SHA-256
 > `007188c532d97c2b11482d5f40e861831857170539d4ad5eec003a41e45d3b1d`
 > are exact. This preparation changes no production state: the matrix row

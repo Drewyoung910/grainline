@@ -46,7 +46,18 @@ BEGIN
      AND class.relname = 'OrderPaymentEvent'
      AND class.relkind = 'r';
   IF table_owner IS NULL
-     OR pg_catalog.pg_get_userbyid(table_owner) <> 'neondb_owner'
+     OR table_owner <> (
+       SELECT role.oid
+         FROM pg_catalog.pg_roles AS role
+        WHERE role.rolname = CURRENT_USER
+     )
+     OR NOT (
+       CURRENT_USER = 'neondb_owner'
+       OR (
+         CURRENT_USER = 'ci'
+         AND CURRENT_DATABASE() = 'grainline_ci'
+       )
+     )
      OR NOT EXISTS (
        SELECT 1 FROM pg_catalog.pg_roles AS role
         WHERE role.rolname = 'grainline_app_runtime'

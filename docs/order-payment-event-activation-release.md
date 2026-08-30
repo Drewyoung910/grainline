@@ -15,11 +15,11 @@ Prepared: 2026-08-30.
   `20260830030000_enable_order_payment_event_rls`
 - guarded phase: `order-payment-event-activation-reviewed`
 - activation draft SHA-256:
-  `8410e8edfa02f81d3d4cae3dbc9acc87ae22cf94ddc15db3a064719bace4d8d3`
+  `71d2678db245aa8b2d72241359f20b8322feb10c7a33d0d6034bef0ec4e95c8e`
 - promoted migration SHA-256:
-  `0762fcb24e3da22de533df22581cf9752d1deb0a72c627b865a2f035370cd147`
+  `4b3e4206bb8ea4dbad828baac6a8c5201332a2931146f074f054b85bef0b8e50`
 - migration-tree SHA-256 through activation:
-  `2899b2afd8b1750e748ed1a74b37a0899fe66c7392e65a195f87b0a08ea1b6c8`
+  `910030cb6b0edc779223a0b839bbe6c573a7f8ce7faa6efcf8f31379874c5cc1`
 - emergency rollback SHA-256:
   `007188c532d97c2b11482d5f40e861831857170539d4ad5eec003a41e45d3b1d`
 
@@ -95,7 +95,9 @@ parent-first relation order: `Order`, then `OrderPaymentEvent`, both with
 bounded lock and statement timeouts. Before changing posture it fails closed
 unless all of the following are exact:
 
-1. table owner and restricted runtime-role posture;
+1. table ownership by the current migration login, accepted only as production
+   `neondb_owner` or disposable `ci` in database `grainline_ci`, plus the
+   restricted runtime-role posture;
 2. RLS off, FORCE off, zero policies and exact predecessor table/column ACLs;
 3. all six validated constraints, seven indexes and seven exact enabled,
    non-internal trigger bindings across `OrderPaymentEvent` and `Order`;
@@ -153,6 +155,13 @@ before-and-after ACL and function-catalog checks. It also strengthened trigger
 verification from name-only matching to exact relation, trigger name,
 function, trigger type and enabled/non-internal state. Both corrections landed
 before any persistent database application.
+
+Hosted CI `33339776682` then failed closed at the activation step because the
+initial role check required production owner name `neondb_owner` even in the
+disposable database, whose exact owner is `ci`. The correction does not accept
+an arbitrary owner: the table must be owned by `CURRENT_USER`, and the login
+must be either `neondb_owner` or exactly `ci` in database `grainline_ci`.
+Protected production workflow identity checks remain unchanged.
 
 ## Remaining release boundaries
 

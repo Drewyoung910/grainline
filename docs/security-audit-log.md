@@ -4589,12 +4589,12 @@ Open work:
   signed-dispute bodies. It also upgraded trigger proof to exact relation,
   name, function, type and enabled/internal state, and upgraded emergency
   rollback to exact before/after table ACL and 29-function catalog proof.
-- Exact hashes: draft
-  `8410e8edfa02f81d3d4cae3dbc9acc87ae22cf94ddc15db3a064719bace4d8d3`,
+- Exact hashes after the CI-role correction: draft
+  `71d2678db245aa8b2d72241359f20b8322feb10c7a33d0d6034bef0ec4e95c8e`,
   migration
-  `0762fcb24e3da22de533df22581cf9752d1deb0a72c627b865a2f035370cd147`,
+  `4b3e4206bb8ea4dbad828baac6a8c5201332a2931146f074f054b85bef0b8e50`,
   migration tree
-  `2899b2afd8b1750e748ed1a74b37a0899fe66c7392e65a195f87b0a08ea1b6c8`
+  `910030cb6b0edc779223a0b839bbe6c573a7f8ce7faa6efcf8f31379874c5cc1`
   and rollback
   `007188c532d97c2b11482d5f40e861831857170539d4ad5eec003a41e45d3b1d`.
 - Focused release, workflow, grant-inventory and production-runner contracts
@@ -4605,3 +4605,10 @@ Open work:
   rollback proofs. Merge, production Phase A, actual pooled-runtime postflight
   and later FORCE remain independent gates. `Order`, `OrderItem` and
   `OrderShippingRateQuote` remain outside this activation.
+- Hosted CI `33339776682` passed every sealed predecessor through transition
+  authority, then failed closed before activation because the migration
+  required table owner name `neondb_owner` in disposable CI, where the exact
+  migration owner is `ci`. No persistent database was touched. The corrected
+  preflight requires ownership by `CURRENT_USER` and accepts only production
+  `neondb_owner` or `ci` in database `grainline_ci`; it rejects arbitrary
+  owners and leaves the protected production identity guard unchanged.

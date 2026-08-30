@@ -108,6 +108,14 @@ test("activation migration is policyless, data-preserving and byte-derived", () 
     /ALTER TABLE public\."OrderPaymentEvent" NO FORCE ROW LEVEL SECURITY;/);
   assert.match(candidate.migration,
     /REVOKE ALL ON TABLE public\."OrderPaymentEvent"/);
+  assert.match(candidate.migration,
+    /table_owner <> \(\s*SELECT role\.oid[\s\S]*role\.rolname = CURRENT_USER/u);
+  assert.match(candidate.migration,
+    /CURRENT_USER = 'neondb_owner'/u);
+  assert.match(candidate.migration,
+    /CURRENT_USER = 'ci'[\s\S]*CURRENT_DATABASE\(\) = 'grainline_ci'/u);
+  assert.doesNotMatch(candidate.migration,
+    /pg_get_userbyid\(table_owner\) <> 'neondb_owner'/u);
   assert.doesNotMatch(candidate.migration, /\bCREATE\s+POLICY\b/iu);
   assert.doesNotMatch(candidate.migration, /\bDROP\s+POLICY\b/iu);
   assert.doesNotMatch(candidate.migration,
