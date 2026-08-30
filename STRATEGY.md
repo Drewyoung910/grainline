@@ -2275,14 +2275,16 @@ separate gates. This correction replaces the earlier one-predecessor
 assumption and does not reorder other table groups. See
 `docs/order-payment-event-credential-epoch-drain.md`.
 
-The subsequent zero-direct-access package is prepared with a repository-wide
-source verifier, exact deployed-tree comparison and read-only production
-binding. It pins seven application consumers, 12 reference files and five
-fixed operations; local proofs report zero direct base-table access in both
-the deployed and operator trees. Do not treat that local result as production
-acceptance. The exact-main proof must finish before the separate policyless
-ENABLE/direct-grant-revocation release, and FORCE remains later. See
-`docs/order-payment-event-zero-direct-access.md`.
+The subsequent zero-direct-access gate is accepted at exact main
+`d7bba0ef2a96ea13163e844979107b4bf2779f62` and CI `33336651230`. Its
+read-only production proof re-attested zero shared-credential predecessors,
+the current deployment, four aliases and health, then independently found zero
+direct base-table access in both the deployed and operator trees across the
+same seven consumers, 12 reference files and five fixed operations. Retain
+mode-`0600` evidence SHA-256
+`6298a1dc376bec73f2abcb896d54913815e155717cd004596b622b6439208590`.
+Prepare the separate policyless ENABLE/direct-grant-revocation release next;
+FORCE remains later. See `docs/order-payment-event-zero-direct-access.md`.
 
 - Don't run paid ads. CAC will be brutal at $0 GMV.
 - Don't redesign. The product works. Ship sellers, not features.

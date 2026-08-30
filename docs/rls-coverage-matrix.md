@@ -242,17 +242,20 @@ state and supersede earlier inline chronology in its matrix summary.
 > separate exact-tree zero-direct-access proof, followed by policyless ENABLE
 > and separate FORCE.
 
-> **OrderPaymentEvent zero-direct-access preparation (2026-08-30):** the
+> **OrderPaymentEvent zero-direct-access acceptance (2026-08-30):** the
 > repository-wide verifier scans all 738 tracked JavaScript/TypeScript source
 > files and pins exactly seven fixed-authority consumers, 12 reference files
-> and five fixed database operations. Local exact-tree proofs find zero direct
-> base-table access in both deployed source
-> `ce7550dae6c417440230f4d596f2239393075f31` and the operator tree. The
-> production proof package is read-only and additionally binds the accepted
-> drain bytes, exact main/CI, current deployment, full credential-epoch
-> inventory, aliases and health. Production acceptance remains pending; RLS
-> is still off and predecessor CRUD remains retained. Policyless ENABLE with
-> direct-grant revocation and FORCE remain later separate gates. See
+> and five fixed database operations. Exact main
+> `d7bba0ef2a96ea13163e844979107b4bf2779f62` and CI `33336651230`
+> passed. The separate read-only production proof bound the accepted drain
+> bytes, exact main/CI, current deployment, full credential-epoch inventory,
+> aliases and health, then found zero direct base-table access in both deployed
+> source `ce7550dae6c417440230f4d596f2239393075f31` and the operator tree.
+> Retain 3,642-byte mode-`0600` evidence SHA-256
+> `6298a1dc376bec73f2abcb896d54913815e155717cd004596b622b6439208590`.
+> The proof changed no migration, RLS, grant or provider configuration. RLS is
+> still off and predecessor CRUD remains retained. Policyless ENABLE with
+> direct-grant revocation is next; FORCE remains a later separate gate. See
 > `docs/order-payment-event-zero-direct-access.md`.
 
 > **OrderPaymentEvent superseding gate update (2026-08-26):** the

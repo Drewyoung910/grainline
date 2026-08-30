@@ -4545,3 +4545,27 @@ Open work:
   acceptance is still pending; policyless ENABLE/direct-grant revocation and
   FORCE remain later separate gates. See
   `docs/order-payment-event-zero-direct-access.md`.
+
+# 2026-08-30 - OrderPaymentEvent zero-direct-access accepted
+
+- PR #357 merged as exact main
+  `d7bba0ef2a96ea13163e844979107b4bf2779f62`; exact-main CI
+  `33336651230` passed the complete PostgreSQL proof chain, the new tracked
+  source gate, TypeScript, lint, 3,642 tests, security audit and production
+  build.
+- The separate read-only production proof byte-verified the accepted drain,
+  re-attested current deployment `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, exact
+  deployed source `ce7550dae6c417440230f4d596f2239393075f31`, all four
+  aliases, canonical health and zero shared-credential predecessors.
+- Independent scans of the deployed and operator trees each covered 738
+  tracked JavaScript/TypeScript files and found zero direct base-table access
+  across the same seven fixed-authority consumers, 12 reference files and five
+  reviewed fixed database operations.
+- Retain the 3,642-byte mode-`0600` sanitized evidence file at SHA-256
+  `6298a1dc376bec73f2abcb896d54913815e155717cd004596b622b6439208590`.
+  It retains no secret.
+- The proof ran no migration and changed no database row, RLS bit, grant,
+  deployment, alias, credential or provider configuration. `OrderPaymentEvent`
+  RLS remains off with predecessor CRUD retained. Policyless ENABLE plus
+  direct-grant revocation is next; FORCE remains separate, and `Order`,
+  `OrderItem` and shipping quotes stay out of this activation.
