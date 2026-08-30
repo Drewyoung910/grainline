@@ -2263,11 +2263,16 @@ Do not treat the current OrderPaymentEvent deployment boundary as a single
 immediate-predecessor deletion. The accepted replacement-deployment timestamp
 `1786644755419` plus a complete 2026-08-30 Vercel inventory identified one
 current and 11 superseded callable READY Production deployments in the same
-credential epoch. Drain all 11 reviewed exact IDs restart-safely, oldest-first,
-before changing direct table grants. Keep the zero-direct-access proof,
-policyless ENABLE and FORCE as later separate gates. This correction replaces
-the earlier one-predecessor assumption; it does not reorder other table groups
-or authorize production deletion by itself. See
+credential epoch. The correction required all 11 reviewed exact IDs to drain
+restart-safely, oldest-first, before changing direct table grants. Exact main
+`6ce4932adaa4d6b651a2a902d8e731aaad08e259`, CI `33332817851` and the
+accepted restart-safe production run completed that drain with zero
+shared-credential predecessors while preserving the current deployment,
+aliases and health. Retain evidence SHA-256
+`1596ad71479f7a9bda51b00c94b3ac27bea6adf6a5454eb34e03c35618764e5d`.
+The next gate is zero-direct-access; policyless ENABLE and FORCE remain later
+separate gates. This correction replaces the earlier one-predecessor
+assumption and does not reorder other table groups. See
 `docs/order-payment-event-credential-epoch-drain.md`.
 
 - Don't run paid ads. CAC will be brutal at $0 GMV.

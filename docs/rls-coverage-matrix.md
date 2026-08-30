@@ -78,12 +78,17 @@ completed alternative.
 > `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc` from source `ce7550dae...` and bounded
 > authenticated smoke are accepted. Retain smoke evidence SHA-256
 > `9d0eacbf1062d8f2b370655d91e1f0e817a4a44edf4456d71a31c578cb07ab11`.
-> A complete credential-epoch inventory supersedes the row's earlier
+> A complete credential-epoch inventory superseded the row's earlier
 > one-predecessor wording: one current plus 11 superseded READY Production
-> deployments were created after the accepted credential recovery. The
-> isolated exact-ID drain is not executed. Next gates remain credential-epoch
-> drain, separate zero-direct-access, policyless ENABLE/direct-grant revocation,
-> then FORCE. See `docs/order-payment-event-credential-epoch-drain.md`.
+> deployments were created after the accepted credential recovery. Exact main
+> `6ce4932adaa4d6b651a2a902d8e731aaad08e259`, CI `33332817851` and the
+> restart-safe production run removed all 11 exact superseded deployments and
+> preserved the current deployment, four aliases and health. Retain sanitized
+> mode-`0600` evidence SHA-256
+> `1596ad71479f7a9bda51b00c94b3ac27bea6adf6a5454eb34e03c35618764e5d`.
+> Next gates remain separate zero-direct-access, policyless ENABLE/direct-grant
+> revocation, then FORCE. See
+> `docs/order-payment-event-credential-epoch-drain.md`.
 
 ## Coverage Matrix
 
@@ -220,6 +225,22 @@ state and supersede earlier inline chronology in its matrix summary.
 > policyless ENABLE and separate FORCE. `OrderPaymentEvent` RLS remains off
 > and predecessor CRUD remains retained; do not bundle quote, `Order` or
 > `OrderItem` activation.
+
+> **OrderPaymentEvent credential-epoch drain acceptance (2026-08-30):** PR #355
+> exact head `35b634614f59e20a2e3b5522292ff003150d0b11` merged as exact main
+> `6ce4932adaa4d6b651a2a902d8e731aaad08e259`; exact-main CI
+> `33332817851` passed. The read-only preflight re-proved the complete
+> credential epoch and the authorized restart-safe run removed all 11 reviewed
+> superseded READY Production deployments oldest-first. Final checks proved
+> zero shared-credential predecessors, preserved current deployment
+> `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, all four aliases and canonical health,
+> then removed the restart journal. Retain 3,874-byte mode-`0600` evidence
+> SHA-256
+> `1596ad71479f7a9bda51b00c94b3ac27bea6adf6a5454eb34e03c35618764e5d`.
+> The run changed no migration, RLS bit, grant, credential, alias or provider
+> configuration and does not claim zero direct access. The next gate is the
+> separate exact-tree zero-direct-access proof, followed by policyless ENABLE
+> and separate FORCE.
 
 > **OrderPaymentEvent superseding gate update (2026-08-26):** the
 > blocked-checkout delivery compatibility migration and corrected application

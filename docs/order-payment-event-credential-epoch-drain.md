@@ -1,6 +1,7 @@
 # OrderPaymentEvent credential-epoch deployment drain
 
-Status: isolated, tested and not executed. Production is unchanged.
+Status: accepted in production. All 11 reviewed superseded deployments were
+removed; the current deployment, aliases and health were preserved.
 
 ## Why the boundary expanded
 
@@ -13,13 +14,13 @@ The accepted database credential recovery proves the earlier runtime password
 rejects. The conservative epoch begins at provider timestamp `1786644755419`,
 when replacement deployment `dpl_C3N3PudFHg4GoRMAAZJuz9aNZ5Y6` was created,
 not at the later recovery completion timestamp. That replacement was already
-removed by the accepted CheckoutStockReservation drain. Vercel currently
-retains 12 READY Production deployments created after that cutoff: the current
-compatible deployment and 11 superseded READY Production deployments. Every
-superseded artifact remains callable through its unique
-Vercel URL and is conservatively classified as carrying the current pooled
+removed by the accepted CheckoutStockReservation drain. The preflight
+inventory found 12 READY Production deployments created after that cutoff:
+the current compatible deployment and 11 superseded READY Production
+deployments. Every superseded artifact was callable through its unique Vercel
+URL and was conservatively classified as carrying the current pooled
 `grainline_app_runtime` password. Deleting only the immediate predecessor
-would therefore leave ten other current-credential applications callable.
+would therefore have left ten other current-credential applications callable.
 
 This is not evidence of an RLS regression. `OrderPaymentEvent` RLS is still
 off and predecessor table CRUD is intentionally retained. It is a rollout
@@ -88,14 +89,40 @@ Git tree or different CI binding fails closed.
 
 The operator contains no database connection or SQL and cannot run migrations,
 change grants/RLS, deploy, alter aliases, mutate credentials or change provider
-configuration. Its only mutation is permanent removal of the 11 reviewed exact
-Vercel deployment IDs. Execution remains a later production boundary.
+configuration. Its only mutation was permanent removal of the 11 reviewed
+exact Vercel deployment IDs.
+
+## Production acceptance
+
+PR #355 exact head `35b634614f59e20a2e3b5522292ff003150d0b11`
+merged as exact main `6ce4932adaa4d6b651a2a902d8e731aaad08e259`.
+Exact-main CI `33332817851` passed the complete disposable-PostgreSQL authority
+chain, TypeScript, lint, full tests, security audit and production build. The
+read-only production preflight then re-proved the complete 12-deployment
+credential epoch, accepted credential-recovery evidence, exact source and
+timestamps, maximum 300-second request boundary, all four aliases and
+canonical health.
+
+The authorized restart-safe run completed at
+`2026-08-30T20:44:58.207Z`. It removed all 11 exact superseded deployments
+oldest-first, independently proved every exact ID absent, refreshed the full
+active inventory after each removal, and finished with zero shared-credential
+predecessors. Current deployment `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, its four
+canonical aliases and canonical health remained accepted. The restart journal
+was removed after success.
+
+Retain the 3,874-byte mode-`0600` sanitized evidence file at SHA-256
+`1596ad71479f7a9bda51b00c94b3ac27bea6adf6a5454eb34e03c35618764e5d`.
+It records no migration, RLS, grant, credential, alias or provider-configuration
+change and deliberately makes no zero-direct-access claim. `OrderPaymentEvent`
+RLS remains off with predecessor table CRUD retained.
 
 ## Following gates
 
-The zero-direct-access gate remains separate and must prove the exact deployed
-and operator trees contain no ordinary-runtime `OrderPaymentEvent` base-table
-consumer. Accepted drain plus zero-direct-access evidence permits preparation
-of the policyless `ENABLE` and direct-grant-revocation release. The separate
-`FORCE` release still follows successful ENABLE migration and pooled-runtime
-proof. `Order`, `OrderItem` and shipping-quote activation remain independent.
+The zero-direct-access gate is next, remains separate, and must prove the exact
+deployed and operator trees contain no ordinary-runtime `OrderPaymentEvent`
+base-table consumer. Accepted drain plus zero-direct-access evidence permits
+preparation of the policyless `ENABLE` and direct-grant-revocation release. The
+separate `FORCE` release still follows successful ENABLE migration and
+pooled-runtime proof. `Order`, `OrderItem` and shipping-quote activation remain
+independent.

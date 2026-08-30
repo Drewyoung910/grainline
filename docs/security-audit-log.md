@@ -4503,3 +4503,25 @@ Open work:
 - `OrderPaymentEvent` RLS remains off and predecessor CRUD remains retained.
   Credential-epoch drain, zero-direct-access, policyless ENABLE and FORCE stay
   separate. See `docs/order-payment-event-credential-epoch-drain.md`.
+
+# 2026-08-30 - OrderPaymentEvent credential epoch drained
+
+- PR #355 exact head `35b634614f59e20a2e3b5522292ff003150d0b11`
+  merged as exact main `6ce4932adaa4d6b651a2a902d8e731aaad08e259`;
+  exact-main CI `33332817851` passed the complete proof chain.
+- The read-only preflight re-proved the full 12-deployment credential epoch,
+  accepted credential-recovery evidence, source/timestamp identity, maximum
+  300-second request boundary, all four aliases and canonical health.
+- The authorized restart-safe run removed all 11 reviewed superseded READY
+  Production deployments oldest-first. After every removal it proved exact-ID
+  absence and refreshed the complete active inventory; final state has zero
+  shared-credential predecessors while current deployment
+  `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, aliases and health remain accepted.
+- The mode-`0600` restart journal was deleted after successful acceptance.
+  Retain the 3,874-byte mode-`0600` sanitized evidence file at SHA-256
+  `1596ad71479f7a9bda51b00c94b3ac27bea6adf6a5454eb34e03c35618764e5d`.
+- No migration, RLS bit, grant, database row, credential, alias or provider
+  configuration changed. `OrderPaymentEvent` RLS remains off with predecessor
+  CRUD retained. Separate zero-direct-access is next, then policyless ENABLE
+  and separate FORCE; `Order`, `OrderItem` and shipping quotes remain out of
+  this activation.
