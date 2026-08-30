@@ -234,6 +234,37 @@ test("activation is wired as a separate guarded CI and production release", () =
     production,
     /ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: after/u,
   );
+  const transitionVerify = production.indexOf(
+    "Verify isolated OrderPaymentEvent transition-authority successor",
+  );
+  const aggregateVerify = production.indexOf(
+    "Verify isolated OrderPaymentEvent aggregate-authority successor",
+  );
+  const readVerify = production.indexOf(
+    "Verify isolated OrderPaymentEvent read-authority successor",
+  );
+  const invariantVerify = production.indexOf(
+    "Verify isolated OrderPaymentEvent invariant successor",
+  );
+  const isolatePositions = [
+    "transition-authority",
+    "aggregate-authority",
+    "read-authority",
+    "invariant",
+  ].map((family) =>
+    production.indexOf(
+      `Isolate unapplied OrderPaymentEvent ${family} successor`,
+    ),
+  );
+  assert.ok(transitionVerify >= 0);
+  assert.ok(aggregateVerify > transitionVerify);
+  assert.ok(readVerify > aggregateVerify);
+  assert.ok(invariantVerify > readVerify);
+  assert.ok(isolatePositions.every((position) => position >= 0));
+  assert.ok(
+    Math.min(...isolatePositions) > invariantVerify,
+    "all sealed OrderPaymentEvent successors must be verified before any successor is isolated",
+  );
   assert.doesNotMatch(
     fs.readFileSync(
       `prisma/migrations/${ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION}/migration.sql`,
