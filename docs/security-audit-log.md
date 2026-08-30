@@ -3930,8 +3930,10 @@ Open work:
 - Corrected focused validation passes 28 tests with one environment-specific
   PostgreSQL-service skip. Branch CI `33292383760` passed the real separate-
   login PostgreSQL authority/lock proof, TypeScript, lint, the full suite,
-  dependency audit and production build at exact commit `407ef4fd`. Merge,
-  fresh same-commit inspection and production application remain open.
+  dependency audit and production build at exact commit `407ef4fd`. PR #334
+  merged that production-inert candidate as exact main `51e60f94`; the
+  migration remains unapplied. Fresh same-commit inspection and production
+  application remain open.
 
 ## OrderPaymentEvent fixed read-authority candidate (2026-08-29)
 
