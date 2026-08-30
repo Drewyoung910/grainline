@@ -1,4 +1,4 @@
-name: OrderPaymentEvent Invariants Production Compatibility
+name: OrderPaymentEvent Read Authority Production Compatibility
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       confirmation:
-        description: Type apply-reviewed-order-payment-event-invariants
+        description: Type apply-reviewed-order-payment-event-read-authority
         required: true
         type: string
 
@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   apply:
-    name: Apply OrderPaymentEvent invariant compatibility only
+    name: Apply OrderPaymentEvent fixed read authority only
     if: github.repository == 'Drewyoung910/grainline' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -75,9 +75,9 @@ jobs:
               releaseCommit !== context.sha
               || !/^[0-9a-f]{40}$/.test(releaseCommit ?? '')
               || process.env.REVIEWED_CONFIRMATION
-                !== 'apply-reviewed-order-payment-event-invariants'
+                !== 'apply-reviewed-order-payment-event-read-authority'
             ) {
-              throw new Error('OrderPaymentEvent invariant production bindings drifted');
+              throw new Error('OrderPaymentEvent read-authority production bindings drifted');
             }
             const mainCiRunId = parseRunId(
               process.env.REVIEWED_MAIN_CI_RUN_ID,
@@ -123,63 +123,66 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Verify isolated OrderPaymentEvent read-authority successor
-        run: npm run audit:order-payment-event-read-authority-release
-      - name: Isolate unapplied OrderPaymentEvent read-authority successor
-        run: >-
-          mv
-          prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
-          "$RUNNER_TEMP/order-payment-event-read-authority-release"
       - name: Refuse an unreviewed migration successor
         shell: bash
         run: |
           set -euo pipefail
           latest="$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -print | LC_ALL=C sort | tail -n 1)"
-          test "$latest" = "prisma/migrations/20260829010000_prepare_order_payment_event_invariants"
-      - name: Verify OrderPaymentEvent invariant migration bytes
-        run: npm run audit:order-payment-event-invariants-release
+          test "$latest" = "prisma/migrations/20260829020000_prepare_order_payment_event_read_authority"
+      - name: Verify OrderPaymentEvent fixed read-authority migration bytes
+        run: npm run audit:order-payment-event-read-authority-release
       - name: Inspect exact restart scope read-only
         id: scope
         shell: bash
         env:
-          ORDER_PAYMENT_EVENT_INVARIANTS_SCOPE_STAGE: restart
+          ORDER_PAYMENT_EVENT_READ_AUTHORITY_SCOPE_STAGE: restart
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
         run: |
           set -euo pipefail
-          scope_json="$(npm run --silent audit:order-payment-event-invariants-production-scope)"
+          scope_json="$(npm run --silent audit:order-payment-event-read-authority-production-scope)"
           printf '%s\n' "$scope_json"
           node -e '
             const value = JSON.parse(process.argv[1]);
-            const states = new Set(["invariants-predecessor", "invariants-prepared"]);
+            const states = new Set(["read-authority-predecessor", "read-authority-prepared"]);
             if (!states.has(value.state)) {
-              throw new Error("invalid OrderPaymentEvent invariant restart state");
+              throw new Error("invalid OrderPaymentEvent read-authority restart state");
             }
             process.stdout.write(`state=${value.state}\n`);
           ' "$scope_json" >> "$GITHUB_OUTPUT"
       - name: Isolate candidate while proving the sealed predecessor tree
         run: >-
           mv
-          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
-          "$RUNNER_TEMP/order-payment-event-invariants-release"
-      - name: Verify signed-dispute identity predecessor
-        run: npm run audit:order-payment-signed-dispute-identity-release
+          prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
+          "$RUNNER_TEMP/order-payment-event-read-authority-release"
+      - name: Verify OrderPaymentEvent invariant predecessor
+        run: npm run audit:order-payment-event-invariants-release
       - name: Verify predecessor production migration status
-        if: steps.scope.outputs.state == 'invariants-predecessor'
+        if: steps.scope.outputs.state == 'read-authority-predecessor'
         run: npx prisma migrate status
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Restore candidate migration
         run: >-
           mv
-          "$RUNNER_TEMP/order-payment-event-invariants-release"
-          prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+          "$RUNNER_TEMP/order-payment-event-read-authority-release"
+          prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
       - name: Generate Prisma client
         run: npx prisma generate
-      - name: Apply OrderPaymentEvent invariant compatibility
-        if: steps.scope.outputs.state == 'invariants-predecessor'
+      - name: Apply OrderPaymentEvent fixed read authority
+        if: steps.scope.outputs.state == 'read-authority-predecessor'
         run: npx prisma migrate deploy
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Converge OrderPaymentEvent read-authority runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=neondb_owner
+          --file=scripts/provision-runtime-db-role.sql
+        env:
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+          PGSSLROOTCERT: system
       - name: Verify production migration status
         run: npx prisma migrate status
         env:
@@ -189,7 +192,7 @@ jobs:
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Prove exact post-application scope read-only
-        run: npm run audit:order-payment-event-invariants-production-scope
+        run: npm run audit:order-payment-event-read-authority-production-scope
         env:
-          ORDER_PAYMENT_EVENT_INVARIANTS_SCOPE_STAGE: after
+          ORDER_PAYMENT_EVENT_READ_AUTHORITY_SCOPE_STAGE: after
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

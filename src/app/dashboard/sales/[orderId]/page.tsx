@@ -22,7 +22,7 @@ import {
 } from "@/lib/caseMessagingState";
 import { caseEscalationAvailable } from "@/lib/caseActionState";
 import { publicListingPath } from "@/lib/publicPaths";
-import { blockingRefundLedgerWhere, latestRefundLedgerEvent, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { isRecordedRefundId } from "@/lib/refundLockState";
@@ -115,12 +115,6 @@ export default async function SellerOrderDetailPage({
           },
         },
       },
-      paymentEvents: {
-        where: blockingRefundLedgerWhere(),
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { eventType: true, amountCents: true, stripeObjectId: true, status: true },
-      },
     },
   });
 
@@ -129,6 +123,9 @@ export default async function SellerOrderDetailPage({
   const allItemsBelongToSeller =
     order.items.length > 0 && order.items.every((it) => it.listing.seller.id === seller.id);
   if (!allItemsBelongToSeller) notFound();
+  const externalRefund = (
+    await sellerRefundOutcomes(me.id, [order.id])
+  ).get(order.id) ?? null;
   const myItems = order.items;
 
   const currency = order.currency ?? DEFAULT_CURRENCY;
@@ -176,7 +173,6 @@ export default async function SellerOrderDetailPage({
   if (activeCase && !caseMessagePreflight) {
     throw new TypeError("Case message preflight denied a visible seller case");
   }
-  const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const now = new Date();
   const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
   const refundCents =
@@ -636,7 +632,7 @@ export default async function SellerOrderDetailPage({
       ) : null}
 
       {/* Refund panel — shown when order is paid and not already fully refunded (by seller or admin) */}
-      {order.paidAt && !orderHasRefundLedger(order) && !hasCaseRefund && (
+      {order.paidAt && !order.sellerRefundId && !externalRefund && !hasCaseRefund && (
         <SellerRefundPanel
           orderId={order.id}
           currency={currency}
@@ -659,7 +655,7 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          alreadyRefundedId={externalRefund.stripeObjectId ?? "external-refund"}
+          alreadyRefundedId="external-refund"
           alreadyRefundedCents={externalRefund.amountCents ?? null}
         />
       )}

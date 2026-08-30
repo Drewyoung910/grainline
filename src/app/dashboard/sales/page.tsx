@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db";
 import type { FulfillmentStatus } from "@prisma/client";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
-import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
@@ -129,17 +129,15 @@ async function SalesContent({
         },
       },
       buyer: { select: { id: true, deletedAt: true } },
-      paymentEvents: {
-        where: blockingRefundLedgerWhere(),
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 1,
-        select: { eventType: true, amountCents: true, status: true },
-      },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     skip: (safePage - 1) * PAGE_SIZE,
     take: PAGE_SIZE,
   });
+  const refundOutcomes = await sellerRefundOutcomes(
+    me.id,
+    orders.map((order) => order.id),
+  );
 
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-6">
@@ -167,7 +165,7 @@ async function SalesContent({
               const orderTotal = orderTotalCents(o, { itemsSubtotalCents: mySubtotalCents });
               const status = o.fulfillmentStatus ?? "PENDING";
               const refundAmountCents =
-                o.sellerRefundAmountCents ?? latestRefundLedgerEvent(o.paymentEvents)?.amountCents ?? null;
+                o.sellerRefundAmountCents ?? refundOutcomes.get(o.id)?.amountCents ?? null;
 
               return (
                 <li key={o.id} className="card-section">

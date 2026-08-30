@@ -16,6 +16,10 @@ import {
   ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION,
   verifyOrderPaymentEventInvariantsMigrationBytes,
 } from "./order-payment-event-invariants-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
+  verifyOrderPaymentEventReadAuthorityMigrationBytes,
+} from "./order-payment-event-read-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_PHASE =
   "order-payment-signed-dispute-identity-corrected";
@@ -45,6 +49,20 @@ export function verifyOrderPaymentSignedDisputeIdentityRelease(
   if (fs.existsSync(invariantsPath)) {
     verifyOrderPaymentEventInvariantsMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION);
+  }
+  const readAuthorityPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
+  );
+  if (fs.existsSync(readAuthorityPath)) {
+    assert.deepEqual(
+      reviewedSuccessors,
+      [ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION],
+      "OrderPaymentEvent read authority requires the invariant successor",
+    );
+    verifyOrderPaymentEventReadAuthorityMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION);
   }
   assert.deepEqual(
     laterMigrations,

@@ -2,57 +2,52 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
 
-const {
-  ACCOUNT_PAYMENT_HISTORY_WHERE,
-  BUYER_ACCOUNT_PAYMENT_HISTORY_SELECT,
-  SELLER_ACCOUNT_PAYMENT_HISTORY_SELECT,
-} = await import("../src/lib/accountPaymentHistory.ts");
-
 describe("OrderPaymentEvent account-export projection", () => {
-  it("keeps both participant projections refund-only", () => {
-    assert.deepEqual(ACCOUNT_PAYMENT_HISTORY_WHERE, { eventType: "REFUND" });
-  });
-
-  it("pins the exact buyer-safe fields", () => {
-    assert.deepEqual(BUYER_ACCOUNT_PAYMENT_HISTORY_SELECT, {
-      eventType: true,
-      amountCents: true,
-      currency: true,
-      status: true,
-      createdAt: true,
-    });
-  });
-
-  it("pins the exact seller-safe fields separately", () => {
-    assert.deepEqual(SELLER_ACCOUNT_PAYMENT_HISTORY_SELECT, {
-      eventType: true,
-      amountCents: true,
-      currency: true,
-      status: true,
-      reason: true,
-      createdAt: true,
-    });
-  });
-
-  it("keeps private service-ledger fields out of both route projections", () => {
+  it("uses distinct actor-bound database exports instead of nested base rows", () => {
     const route = fs.readFileSync("src/app/api/account/export/route.ts", "utf8");
-    const buyerStart = route.indexOf("prisma.order.findMany({\n      where: { buyerId: user.id }");
-    const sellerStart = route.indexOf("sellerProfile\n      ? prisma.order.findMany({", buyerStart);
-    const exportEnd = route.indexOf("exportActorMessages(user.id)", sellerStart);
-    assert.ok(buyerStart >= 0 && sellerStart > buyerStart && exportEnd > sellerStart);
+    if (!/exportBuyerOrderPaymentHistory\(user\.id\)/.test(route)) {
+      throw new Error("buyer payment export authority is missing");
+    }
+    if (!/exportSellerOrderPaymentHistory\(user\.id\)/.test(route)) {
+      throw new Error("seller payment export authority is missing");
+    }
+    if (/paymentEvents:\s*\{/.test(route)) {
+      throw new Error("account export still embeds OrderPaymentEvent base rows");
+    }
+    if (!/paymentEvents: buyerPaymentHistory\.get\(order\.id\) \?\? \[\]/.test(route)) {
+      throw new Error("buyer payment history is not attached from the fixed projection");
+    }
+    if (!/paymentEvents: sellerPaymentHistory\.get\(order\.id\) \?\? \[\]/.test(route)) {
+      throw new Error("seller payment history is not attached from the fixed projection");
+    }
+  });
 
-    for (const block of [
-      route.slice(buyerStart, sellerStart),
-      route.slice(sellerStart, exportEnd),
-    ]) {
-      const paymentStart = block.indexOf("paymentEvents: {");
-      const paymentEnd = block.indexOf("shippingRateQuotes: {", paymentStart);
-      const paymentBlock = block.slice(paymentStart, paymentEnd);
-      assert.ok(paymentStart >= 0 && paymentEnd > paymentStart);
-      assert.doesNotMatch(
-        paymentBlock,
-        /(?:id|orderId|stripeEventId|stripeObjectId|stripeObjectType|description|metadata|updatedAt): true/,
-      );
+  it("keeps buyer and seller SQL projections refund-only and distinct", () => {
+    const migration = fs.readFileSync(
+      "prisma/migrations/20260829020000_prepare_order_payment_event_read_authority/migration.sql",
+      "utf8",
+    );
+    const buyerStart = migration.indexOf("grainline_order_payment_buyer_export_page");
+    const sellerStart = migration.indexOf("grainline_order_payment_seller_export_page");
+    const staffStart = migration.indexOf("grainline_order_payment_staff_timeline");
+    const buyer = migration.slice(buyerStart, sellerStart);
+    const seller = migration.slice(sellerStart, staffStart);
+    for (const block of [buyer, seller]) {
+      if (!/payment\."eventType" = 'REFUND'/.test(block)) {
+        throw new Error("participant payment export is not refund-only");
+      }
+      if (/stripe_event_id|stripe_object_id|metadata|description/.test(block)) {
+        throw new Error("participant payment export exposes private provider fields");
+      }
+      if (!/ORDER BY payment\."createdAt" DESC, payment\.id DESC/.test(block)) {
+        throw new Error("participant payment export is not keyset ordered");
+      }
+    }
+    if (/reason text/.test(buyer)) {
+      throw new Error("buyer payment export exposes seller accounting reason");
+    }
+    if (!/reason text/.test(seller)) {
+      throw new Error("seller payment export lost its bounded accounting reason");
     }
   });
 

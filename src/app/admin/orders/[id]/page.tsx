@@ -12,53 +12,11 @@ import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { caseResolutionLabel } from "@/lib/caseLabels";
 import { orderPaymentEventTypeLabel } from "@/lib/orderPaymentEventLabels";
 import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
+import { staffOrderPaymentTimeline } from "@/lib/orderPaymentEventReadAuthority";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
   return formatCurrencyCents(cents, currency);
-}
-
-type RefundAccountingSummary = {
-  transferReversalId: string | null;
-  transferReversalAmountCents: number | null;
-  platformFundedRefundCents: number | null;
-  originalTransferAmountCents: number | null;
-};
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function jsonNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function refundAccountingFromMetadata(metadata: unknown): RefundAccountingSummary | null {
-  if (!isPlainRecord(metadata) || !isPlainRecord(metadata.refundAccounting)) return null;
-  const accounting = metadata.refundAccounting;
-  const transferReversalId =
-    typeof accounting.transferReversalId === "string" && accounting.transferReversalId
-      ? accounting.transferReversalId
-      : null;
-  const transferReversalAmountCents = jsonNumber(accounting.transferReversalAmountCents);
-  const platformFundedRefundCents = jsonNumber(accounting.platformFundedRefundCents);
-  const originalTransferAmountCents = jsonNumber(accounting.originalTransferAmountCents);
-
-  if (
-    !transferReversalId &&
-    transferReversalAmountCents == null &&
-    platformFundedRefundCents == null &&
-    originalTransferAmountCents == null
-  ) {
-    return null;
-  }
-
-  return {
-    transferReversalId,
-    transferReversalAmountCents,
-    platformFundedRefundCents,
-    originalTransferAmountCents,
-  };
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -111,14 +69,11 @@ export default async function AdminOrderDetailPage({
           },
         },
       },
-      paymentEvents: {
-        orderBy: { createdAt: "desc" },
-        take: 25,
-      },
     },
   });
 
   if (!order) notFound();
+  const paymentEvents = await staffOrderPaymentTimeline(staff.id, order.id);
   const caseRecord = await getVisibleCaseByOrderId({
     actorUserId: staff.id,
     orderId: order.id,
@@ -152,7 +107,7 @@ export default async function AdminOrderDetailPage({
   const sellers = Array.from(
     new Map(order.items.map((it) => [it.listing.seller.id, it.listing.seller])).values()
   );
-  const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
+  const externalRefund = latestRefundLedgerEvent(paymentEvents);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -341,11 +296,11 @@ export default async function AdminOrderDetailPage({
         </div>
       </Section>
 
-      {order.paymentEvents.length > 0 && (
+      {paymentEvents.length > 0 && (
         <Section title="Stripe Payment Events">
           <div className="space-y-3">
-            {order.paymentEvents.map((event) => {
-              const refundAccounting = refundAccountingFromMetadata(event.metadata);
+            {paymentEvents.map((event) => {
+              const refundAccounting = event.refundAccounting;
               return (
                 <div
                   key={event.id}

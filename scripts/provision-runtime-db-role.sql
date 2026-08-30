@@ -1431,6 +1431,57 @@ SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Actor-bound OrderPaymentEvent read projections are an additive compatibility
+-- boundary. They expose only refund outcome, distinct participant export, and
+-- bounded staff timeline shapes; predecessor table CRUD remains until the
+-- separately reviewed activation release.
+WITH order_payment_read_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_buyer_refund_outcomes"(text, text[])'),
+    ('public."grainline_order_payment_seller_refund_outcomes"(text, text[])'),
+    ('public."grainline_order_payment_buyer_export_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_payment_seller_export_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_payment_staff_timeline"(text, text, integer)')
+)
+SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', function_signature)
+  FROM order_payment_read_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_payment_read_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_buyer_refund_outcomes"(text, text[])'),
+    ('public."grainline_order_payment_seller_refund_outcomes"(text, text[])'),
+    ('public."grainline_order_payment_buyer_export_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_payment_seller_export_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_payment_staff_timeline"(text, text, integer)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_payment_read_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_payment_read_service(function_signature) AS (
+  VALUES
+    ('public."grainline_order_payment_buyer_refund_outcomes"(text, text[])'),
+    ('public."grainline_order_payment_seller_refund_outcomes"(text, text[])'),
+    ('public."grainline_order_payment_buyer_export_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_payment_seller_export_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_payment_staff_timeline"(text, text, integer)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_payment_read_service
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_payment_signed_service(function_signature) AS (
   VALUES
     ('public."grainline_order_payment_signed_refund_apply"(text, bigint, text, bigint, integer, text, text, integer, text, bigint, text)'),

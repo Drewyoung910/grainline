@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify OrderPaymentEvent fixed read-authority release
+        run: npm run audit:order-payment-event-read-authority-release
+      - name: Isolate OrderPaymentEvent read authority until invariants pass
+        run: >-
+          mv
+          prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
+          "$RUNNER_TEMP/order-payment-event-read-authority-release"
       - name: Verify OrderPaymentEvent invariant compatibility release
         run: npm run audit:order-payment-event-invariants-release
       - name: Isolate OrderPaymentEvent invariants until signed-event predecessors pass
@@ -836,6 +843,42 @@ jobs:
         env:
           ORDER_PAYMENT_EVENT_INVARIANTS_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           ORDER_PAYMENT_EVENT_INVARIANTS_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Restore OrderPaymentEvent fixed read-authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-payment-event-read-authority-release"
+          prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
+      - name: Apply OrderPaymentEvent fixed read authority
+        run: npx prisma migrate deploy
+      - name: Converge OrderPaymentEvent read-authority runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Verify OrderPaymentEvent read-authority migration status
+        run: npx prisma migrate status
+      - name: Audit OrderPaymentEvent read grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove exact OrderPaymentEvent read-authority production scope
+        run: npm run audit:order-payment-event-read-authority-production-scope
+        env:
+          ORDER_PAYMENT_EVENT_READ_AUTHORITY_SCOPE_STAGE: after
+          DIRECT_URL: ${{ env.DIRECT_URL }}
+      - name: Prove fixed OrderPaymentEvent projections in disposable PostgreSQL
+        run: >-
+          node --test
+          tests/order-payment-event-read-authority-postgres.test.mjs
+          tests/order-payment-event-read-authority-proof.test.mjs
+          tests/order-payment-event-read-authority-production-scope.test.mjs
+          tests/order-payment-event-read-authority-release.test.mjs
+          tests/order-payment-event-read-state.test.mjs
+      - name: Prove OrderPaymentEvent read authority through real logins
+        run: npm run audit:order-payment-event-read-authority-postgres
+        env:
+          ORDER_PAYMENT_EVENT_READ_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          ORDER_PAYMENT_EVENT_READ_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

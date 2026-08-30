@@ -35,27 +35,20 @@ describe("account export privacy coverage", () => {
 
     assert.match(route, /photos: \{ orderBy: \{ sortOrder: "asc" \}, select: \{ url: true, originalUrl: true/);
     const [buyerOrderBlock, sellerOrderBlock] = orderExportBlocks(route);
-    for (const [orderBlock, selector] of [
-      [buyerOrderBlock, "BUYER_ACCOUNT_PAYMENT_HISTORY_SELECT"],
-      [sellerOrderBlock, "SELLER_ACCOUNT_PAYMENT_HISTORY_SELECT"],
-    ]) {
-      const paymentStart = orderBlock.indexOf("paymentEvents: {");
+    for (const orderBlock of [buyerOrderBlock, sellerOrderBlock]) {
       const shippingQuoteStart = orderBlock.indexOf("shippingRateQuotes: {");
-      const paymentBlock = orderBlock.slice(paymentStart, shippingQuoteStart);
       const shippingQuoteBlock = orderBlock.slice(shippingQuoteStart);
 
-      assert.ok(paymentStart >= 0, "order export must include payment events");
       assert.ok(shippingQuoteStart >= 0, "order export must include shipping rate quotes");
-      assert.match(paymentBlock, /where: ACCOUNT_PAYMENT_HISTORY_WHERE/);
-      assert.match(paymentBlock, new RegExp(`select: ${selector}`));
-      assert.doesNotMatch(
-        paymentBlock,
-        /(?:stripeEventId|stripeObjectId|stripeObjectType|description|metadata|updatedAt): true/,
-      );
+      assert.doesNotMatch(orderBlock, /paymentEvents:\s*\{/);
       for (const field of ["id", "orderId", "shipmentId", "rates", "expiresAt", "createdAt", "updatedAt"]) {
         assert.match(shippingQuoteBlock, new RegExp(`${field}: true`), `shipping quote export must select ${field}`);
       }
     }
+    assert.match(route, /exportBuyerOrderPaymentHistory\(user\.id\)/);
+    assert.match(route, /exportSellerOrderPaymentHistory\(user\.id\)/);
+    assert.match(route, /paymentEvents: buyerPaymentHistory\.get\(order\.id\) \?\? \[\]/);
+    assert.match(route, /paymentEvents: sellerPaymentHistory\.get\(order\.id\) \?\? \[\]/);
   });
 
   it("exports non-note Stripe Connect diagnostics for sellers", () => {

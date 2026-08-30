@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
-import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { buyerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCurrencyCents } from "@/lib/money";
@@ -48,12 +48,6 @@ export default async function AccountOrdersPage({
       fulfillmentStatus: true,
       labelTrackingNumber: true,
       labelCarrier: true,
-      paymentEvents: {
-        where: blockingRefundLedgerWhere(),
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 1,
-        select: { eventType: true, amountCents: true, status: true },
-      },
       items: {
         select: {
           id: true,
@@ -74,6 +68,10 @@ export default async function AccountOrdersPage({
       },
     },
   });
+  const refundOutcomes = await buyerRefundOutcomes(
+    me.id,
+    orders.map((order) => order.id),
+  );
 
   function formatStatus(status: string | null) {
     if (!status) return "Processing";
@@ -125,7 +123,7 @@ export default async function AccountOrdersPage({
           {orders.map((order) => {
             const total = orderTotalCents(order);
             const refundAmountCents =
-              order.sellerRefundAmountCents ?? latestRefundLedgerEvent(order.paymentEvents)?.amountCents ?? null;
+              order.sellerRefundAmountCents ?? refundOutcomes.get(order.id)?.amountCents ?? null;
 
             return (
               <li key={order.id} className="card-section overflow-hidden">

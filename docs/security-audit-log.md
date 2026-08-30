@@ -3928,6 +3928,30 @@ Open work:
   inventory now consumes the exact invariant catalog, and a regression test
   requires all three helpers to remain private. Migration bytes are unchanged.
 - Corrected focused validation passes 28 tests with one environment-specific
-  PostgreSQL-service skip. The full suite passes 3,523 tests with seven
-  environment-specific skips and zero failures. Corrected real PostgreSQL CI,
-  merge, fresh same-commit inspection and production application remain open.
+  PostgreSQL-service skip. Branch CI `33292383760` passed the real separate-
+  login PostgreSQL authority/lock proof, TypeScript, lint, the full suite,
+  dependency audit and production build at exact commit `407ef4fd`. Merge,
+  fresh same-commit inspection and production application remain open.
+
+## OrderPaymentEvent fixed read-authority candidate (2026-08-29)
+
+- An isolated migration adds exactly five byte-pinned actor-bound projections:
+  batched buyer/seller refund outcomes, distinct keyset-paged participant
+  exports, and one bounded active-staff timeline. It adds no generic lookup,
+  write, cleanup, policy, RLS posture change, or table-grant change.
+- Buyer and seller callers receive no provider identities or metadata. Staff
+  receives provider identifiers plus four selected refund-accounting fields,
+  never the arbitrary metadata document. All timestamp output crosses as UTC
+  epoch milliseconds.
+- Participant pages, the admin order timeline and account export now consume
+  the fixed projections. Disposable PostgreSQL and parser tests pass; CI is
+  wired to run an additional separate-owner/runtime-login proof before the
+  candidate can merge.
+- The release now has an engine-read-only restart scope verifier that compares
+  the exact migration row plus all five live bodies, owners, modes, pinned
+  search paths and ACLs. A dedicated exact-main/CI/inspection-bound production
+  runner is staged. Generic and invariant-only runners isolate this successor,
+  preventing incidental application.
+- This is compatible preparation only. Transition predicates, aggregates,
+  webhook reads and local evidence writes remain direct and block predecessor
+  drain and policyless ENABLE. Production remains unchanged.

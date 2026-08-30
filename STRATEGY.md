@@ -700,6 +700,15 @@ remain separate. One released synthetic StripeWebhookEvent proof lease is a
 separate marker-bound cleanup item and must not weaken the signed Order-source
 contract or delay the empty-ledger invariant design.
 
+The first actor-safe projection candidate is now isolated behind that
+invariant release. It converts participant order pages, the staff timeline and
+account export to five bounded fixed functions; see
+`docs/order-payment-event-read-authority.md`. Do not mistake this partial
+conversion for the zero-direct-access gate: transition predicates, aggregates,
+webhook reads and local evidence writes still need source-specific operations.
+Merge/apply/deploy the additive read release only after invariant acceptance,
+then drain its predecessor before policyless ENABLE. Keep FORCE separate.
+
 The separate seller full-refund provider boundary is designed in
 `docs/order-payment-event-seller-refund-production-proof.md`. Keep it behind
 the successful signed-family proof. It must exercise a real authenticated
