@@ -179,9 +179,19 @@ function assertTriggers(rows, applied, migrationRole) {
     !Array.isArray(rows)
     || rows.length !== ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_TRIGGERS.length
     || byName.size !== ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_TRIGGERS.length
-    || guard?.relation_schema !== "public"
-    || guard?.table_name !== "Order"
-    || guard.enabled !== "O"
+    || !guard
+    || !refresh
+  ) {
+    throw new Error("Order payment projection trigger inventory drifted");
+  }
+  if (
+    guard.relation_schema !== "public"
+    || guard.table_name !== "Order"
+  ) {
+    throw new Error("Order payment projection trigger guard relation drifted");
+  }
+  if (
+    guard.enabled !== "O"
     || Number(guard.trigger_type) !== 23
     || Number(guard.argument_count) !== 0
     || guard.constraint_trigger !== false
@@ -191,13 +201,25 @@ function assertTriggers(rows, applied, migrationRole) {
     || guard.update_columns.length !== 2
     || guard.update_columns[0] !== "paymentRefundBlocked"
     || guard.update_columns[1] !== "paymentConversionDisputeBlocked"
-    || guard.function_schema !== "public"
+  ) {
+    throw new Error("Order payment projection trigger guard shape drifted");
+  }
+  if (
+    guard.function_schema !== "public"
     || guard.function_owner !== migrationRole
     || guard.function_identity !== "grainline_order_payment_projection_guard()"
     || guard.function_kind !== "f"
-    || refresh?.relation_schema !== "public"
-    || refresh?.table_name !== "OrderPaymentEvent"
-    || refresh.enabled !== "O"
+  ) {
+    throw new Error("Order payment projection trigger guard function drifted");
+  }
+  if (
+    refresh.relation_schema !== "public"
+    || refresh.table_name !== "OrderPaymentEvent"
+  ) {
+    throw new Error("Order payment projection trigger refresh relation drifted");
+  }
+  if (
+    refresh.enabled !== "O"
     || Number(refresh.trigger_type) !== 5
     || Number(refresh.argument_count) !== 0
     || refresh.constraint_trigger !== false
@@ -205,12 +227,16 @@ function assertTriggers(rows, applied, migrationRole) {
     || refresh.initially_deferred !== false
     || !Array.isArray(refresh.update_columns)
     || refresh.update_columns.length !== 0
-    || refresh.function_schema !== "public"
+  ) {
+    throw new Error("Order payment projection trigger refresh shape drifted");
+  }
+  if (
+    refresh.function_schema !== "public"
     || refresh.function_owner !== migrationRole
     || refresh.function_identity !== "grainline_order_payment_projection_refresh()"
     || refresh.function_kind !== "f"
   ) {
-    throw new Error("Order payment projection trigger catalog drifted");
+    throw new Error("Order payment projection trigger refresh function drifted");
   }
 }
 

@@ -20,6 +20,13 @@ const SAFE_FAILURE_CODES = Object.freeze([
   [/aggregate-authority ledger/iu, "CANDIDATE_LEDGER"],
   [/projection column/iu, "COLUMN_CATALOG"],
   [/projection function/iu, "FUNCTION_CATALOG"],
+  [/trigger inventory/iu, "TRIGGER_INVENTORY"],
+  [/guard relation/iu, "TRIGGER_GUARD_RELATION"],
+  [/guard shape/iu, "TRIGGER_GUARD_SHAPE"],
+  [/guard function/iu, "TRIGGER_GUARD_FUNCTION"],
+  [/refresh relation/iu, "TRIGGER_REFRESH_RELATION"],
+  [/refresh shape/iu, "TRIGGER_REFRESH_SHAPE"],
+  [/refresh function/iu, "TRIGGER_REFRESH_FUNCTION"],
   [/projection trigger/iu, "TRIGGER_CATALOG"],
   [/projections do not match/iu, "PROJECTION_MISMATCH"],
 ]);

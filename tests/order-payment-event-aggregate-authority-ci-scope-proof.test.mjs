@@ -56,6 +56,12 @@ test("aggregate-authority CI scope exposes only allowlisted failure categories",
   );
   assert.equal(
     orderPaymentEventAggregateAuthorityCiScopeFailureCode(
+      new Error("Order payment projection trigger guard shape drifted"),
+    ),
+    "TRIGGER_GUARD_SHAPE",
+  );
+  assert.equal(
+    orderPaymentEventAggregateAuthorityCiScopeFailureCode(
       Object.assign(new Error("syntax detail"), { code: "42P01" }),
     ),
     "42P01",

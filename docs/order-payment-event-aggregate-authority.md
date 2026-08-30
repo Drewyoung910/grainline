@@ -203,4 +203,8 @@ predecessor drain, grant revocation, RLS activation or provider changes.
   namespaces, function identity/owner, enabled state, exact `tgtype` event and
   row timing bits, zero arguments, non-constraint/non-deferrable posture, and
   the exact ordered UPDATE-OF column vector directly from `pg_trigger` and
-  `pg_attribute`. Migration bytes and trigger behavior are unchanged.
+  `pg_attribute`. Run `33302934572` showed that at least one structural trigger
+  expectation still differed, but the single `TRIGGER_CATALOG` category was
+  not narrow enough to locate it. The proof now splits its fixed diagnostic
+  vocabulary into inventory, relation, event-shape and function-binding groups
+  for each trigger. Migration bytes and trigger behavior are unchanged.

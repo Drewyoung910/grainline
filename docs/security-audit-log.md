@@ -4180,4 +4180,7 @@ Open work:
   in `pg_get_triggerdef`. The corrected verifier uses structural catalog facts
   instead: exact relation/function namespaces and identity, owner, enabled
   state, `tgtype`, arguments, constraint/deferral flags and ordered UPDATE-OF
-  attribute vector. No migration, function or trigger bytes changed.
+  attribute vector. Run `33302934572` still rejected one structural trigger
+  expectation, so the allowlist now separates fixed inventory, relation,
+  event-shape and function-binding categories for each trigger. No migration,
+  function or trigger bytes changed, and production remains untouched.
