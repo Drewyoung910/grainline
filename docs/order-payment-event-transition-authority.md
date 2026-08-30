@@ -115,6 +115,17 @@ The candidate is acceptable only when all of these pass:
 7. hosted CI with the migration applied only after its read and aggregate
    predecessors pass.
 
+After production preparation, a separate pooled-runtime postflight must use
+only `DATABASE_URL` as the actual `grainline_app_runtime` login. Inside one
+engine-attested `REPEATABLE READ READ ONLY` transaction it re-proves the fixed
+read RPC catalog and empty forged-user boundaries, the aggregate projection
+catalog and private-helper denial, the exact open-dispute column/functions/
+triggers, bounded aggregate visibility, and SQLSTATE `42501` denial for all
+three transition helpers. The postflight accepts exact main-CI, aggregate
+inspection and migration run bindings, rejects privileged or aliased database
+variables, and writes only a fresh sanitized mode-`0600` local evidence file.
+It reads no row payloads, exports no rows and cannot mutate production.
+
 Merge is not production authorization. Compatible database preparation,
 compatible application deployment, bounded authenticated smoke, predecessor
 drain, policyless `ENABLE`, runtime grant removal and later `FORCE` remain
