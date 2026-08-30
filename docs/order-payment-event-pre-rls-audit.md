@@ -13,7 +13,10 @@ and fixed-read run `33296422900` now establish the append-only invariants and
 five bounded actor projections in production. The actual pooled-runtime
 postflight passed with sanitized evidence SHA-256
 `da16187441681f0bf5bfd394cb3ec14c59ea5fc0f496812ae20bb5d4b0749a17`.
-The converted application is merged but not yet deployed.
+The converted application is live from exact main
+`07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8`, CI `33297246142`, as
+READY deployment `dpl_7UeENeZebXL9yL481DWrXkDpWd4R`; predecessor
+`dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd` remains READY and undrained.
 `OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
 
 Audited: 2026-08-23 against the application source immediately after accepted
