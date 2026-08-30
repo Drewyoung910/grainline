@@ -146,6 +146,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove("20260829020000_prepare_order_payment_event_read_authority");
     remove(ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION);
     remove(ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION);
     remove(ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION);

@@ -17,7 +17,7 @@ import ConfirmButton from "@/components/ConfirmButton";
 import { caseStatusLabel } from "@/lib/caseLabels";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { publicListingPath } from "@/lib/publicPaths";
-import { blockingRefundLedgerWhere, latestRefundLedgerEvent } from "@/lib/refundRouteState";
+import { buyerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import {
   caseWindowClosedMessage,
@@ -124,16 +124,13 @@ export default async function BuyerOrderDetailPage({
           },
         },
       },
-      paymentEvents: {
-        where: blockingRefundLedgerWhere(),
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { eventType: true, amountCents: true, status: true },
-      },
     },
   });
 
   if (!order || order.buyerId !== me.id) notFound();
+  const externalRefund = (
+    await buyerRefundOutcomes(me.id, [order.id])
+  ).get(order.id) ?? null;
 
   const currency = order.currency ?? DEFAULT_CURRENCY;
   const itemsSubtotal =
@@ -174,7 +171,6 @@ export default async function BuyerOrderDetailPage({
   if (activeCase && !caseMessagePreflight) {
     throw new TypeError("Case message preflight denied a visible buyer case");
   }
-  const externalRefund = latestRefundLedgerEvent(order.paymentEvents);
   const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
   const hasCaseRefund =
     activeCase?.resolution === "REFUND_FULL"

@@ -377,6 +377,17 @@ account exports use the distinct refund-only buyer/seller projections recorded
 in `docs/order-payment-event-account-export.md`; raw provider and reconciliation
 fields remain private service evidence.
 
+The compatible fixed-read successor is defined in
+`docs/order-payment-event-read-authority.md`. Participant pages batch at most
+100 Order ids into buyer- or durable-seller-bound refund outcomes; account
+exports use distinct immutable keyset pages; staff receives a 25-row timeline
+with four selected accounting fields rather than arbitrary metadata. UTC epoch
+millisecond cursors cross the PostgreSQL/Node boundary. These are additive
+owner-executed fixed projections with pinned search paths and runtime-only
+EXECUTE; the server-resolved Clerk actor remains an explicit application trust
+boundary. No generic event lookup is introduced, and predecessor table CRUD
+stays until compatible deployment and drain.
+
 The OPE-A03 concurrency correction is prepared in
 `docs/order-payment-event-refund-claim-generation.md`. It adds an Order-owned,
 database-derived claim ID/generation/source/idempotency tuple for seller and

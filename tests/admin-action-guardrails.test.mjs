@@ -140,14 +140,22 @@ describe("admin server action guardrails", () => {
 
   it("surfaces first-party refund accounting evidence on admin order payment events", () => {
     const page = source("src/app/admin/orders/[id]/page.tsx");
+    const authority = source("src/lib/orderPaymentEventReadAuthority.ts");
+    const state = source("src/lib/orderPaymentEventReadState.ts");
+    const migration = source(
+      "prisma/migrations/20260829020000_prepare_order_payment_event_read_authority/migration.sql",
+    );
 
-    assert.match(page, /function refundAccountingFromMetadata\(metadata: unknown\)/);
-    assert.match(page, /metadata\.refundAccounting/);
+    assert.match(page, /staffOrderPaymentTimeline\(staff\.id, order\.id\)/);
+    assert.match(page, /const refundAccounting = event\.refundAccounting/);
+    assert.doesNotMatch(page, /event\.metadata|refundAccountingFromMetadata/);
+    assert.match(authority, /grainline_order_payment_staff_timeline/);
+    assert.match(state, /orderPaymentStaffTimelineFromRows/);
+    assert.match(migration, /metadata #>> '\{refundAccounting,transferReversalId\}'/);
     assert.match(page, /transferReversalId/);
     assert.match(page, /transferReversalAmountCents/);
     assert.match(page, /platformFundedRefundCents/);
     assert.match(page, /originalTransferAmountCents/);
-    assert.match(page, /const refundAccounting = refundAccountingFromMetadata\(event\.metadata\)/);
     assert.match(page, />Refund accounting</);
     assert.match(page, /Transfer reversal:/);
     assert.match(page, /Seller recovery:/);

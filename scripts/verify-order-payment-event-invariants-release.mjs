@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -15,6 +15,10 @@ import {
 import {
   verifyOrderPaymentSignedDisputeIdentityMigrationBytes,
 } from "./build-order-payment-signed-dispute-identity-migration.mjs";
+import {
+  ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
+  verifyOrderPaymentEventReadAuthorityMigrationBytes,
+} from "./order-payment-event-read-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_INVARIANTS_PHASE =
   "order-payment-event-invariants-reviewed";
@@ -36,9 +40,19 @@ export function verifyOrderPaymentEventInvariantsRelease(
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .filter((name) => name > ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION);
+  const reviewedSuccessors = [];
+  const readAuthorityPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
+  );
+  if (existsSync(readAuthorityPath)) {
+    verifyOrderPaymentEventReadAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION);
+  }
   assert.deepEqual(
     laterMigrations,
-    [],
+    reviewedSuccessors,
     "OrderPaymentEvent invariant release has an unreviewed successor",
   );
   assert.equal(count(migration, /ADD CONSTRAINT "OrderPaymentEvent_[^"]+_check"/gu), 6);

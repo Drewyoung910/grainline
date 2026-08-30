@@ -32,10 +32,9 @@ import { exportOwnedDirectUploads } from "@/lib/directUploadLifecycle";
 import { exportParticipantCases } from "@/lib/caseAccountExportAuthority";
 import { exportSellerPayoutEvents } from "@/lib/sellerPayoutEventAuthority";
 import {
-  ACCOUNT_PAYMENT_HISTORY_WHERE,
-  BUYER_ACCOUNT_PAYMENT_HISTORY_SELECT,
-  SELLER_ACCOUNT_PAYMENT_HISTORY_SELECT,
-} from "@/lib/accountPaymentHistory";
+  exportBuyerOrderPaymentHistory,
+  exportSellerOrderPaymentHistory,
+} from "@/lib/orderPaymentEventReadAuthority";
 
 export const runtime = "nodejs";
 
@@ -141,6 +140,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     listings,
     buyerOrders,
     sellerOrders,
+    buyerPaymentHistory,
+    sellerPaymentHistory,
     messageRows,
     caseRows,
     reviews,
@@ -259,11 +260,6 @@ async function buildExport(user: NonNullable<ExportableUser>) {
             listing: { select: { title: true, sellerId: true } },
           },
         },
-        paymentEvents: {
-          where: ACCOUNT_PAYMENT_HISTORY_WHERE,
-          orderBy: { createdAt: "desc" },
-          select: BUYER_ACCOUNT_PAYMENT_HISTORY_SELECT,
-        },
         shippingRateQuotes: {
           orderBy: { createdAt: "desc" },
           select: {
@@ -315,11 +311,6 @@ async function buildExport(user: NonNullable<ExportableUser>) {
                 listing: { select: { title: true } },
               },
             },
-            paymentEvents: {
-              where: ACCOUNT_PAYMENT_HISTORY_WHERE,
-              orderBy: { createdAt: "desc" },
-              select: SELLER_ACCOUNT_PAYMENT_HISTORY_SELECT,
-            },
             shippingRateQuotes: {
               orderBy: { createdAt: "desc" },
               select: {
@@ -335,6 +326,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           },
         })
       : [],
+    exportBuyerOrderPaymentHistory(user.id),
+    sellerProfile ? exportSellerOrderPaymentHistory(user.id) : new Map(),
     exportActorMessages(user.id),
     exportParticipantCases(user.id),
     prisma.review.findMany({
@@ -601,13 +594,21 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     }),
   }));
   const checkoutStockReservations = checkoutStockReservationRows;
+  const buyerOrdersWithPaymentHistory = buyerOrders.map((order) => ({
+    ...order,
+    paymentEvents: buyerPaymentHistory.get(order.id) ?? [],
+  }));
+  const sellerOrdersWithPaymentHistory = sellerOrders.map((order) => ({
+    ...order,
+    paymentEvents: sellerPaymentHistory.get(order.id) ?? [],
+  }));
 
   return buildAccountExportPayload(user, {
     accountEmailAddresses,
     sellerProfile,
     listings,
-    buyerOrders,
-    sellerOrders,
+    buyerOrders: buyerOrdersWithPaymentHistory,
+    sellerOrders: sellerOrdersWithPaymentHistory,
     messagesSent,
     messagesReceived,
     caseRows,

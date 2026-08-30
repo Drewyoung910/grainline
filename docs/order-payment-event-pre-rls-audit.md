@@ -208,9 +208,12 @@ enumeration, unrelated target selection, replay suppression and state rewrite.
 
 ## Complete semantic source inventory
 
-The audit pins 26 current source files that name the delegate, nested relation,
-raw table or payment-event semantic helper. This is intentionally broader than
-the older seven-file direct-access floor.
+The original audit pinned 26 source files that named the delegate, nested
+relation, raw table or payment-event semantic helper. The isolated fixed-read
+candidate adds one reviewed authority module, so the current semantic
+inventory is 27 files. This inventory is intentionally broader than the older
+seven-file direct-access floor; semantic wrapper references remain after their
+underlying base-table access is removed.
 
 ### Participant and staff projections
 
@@ -250,6 +253,7 @@ the older seven-file direct-access floor.
 - `src/app/api/stripe/webhook/route.ts`
 - `src/lib/localRefundEvidence.ts`
 - `src/lib/localRefundEvidenceCore.ts`
+- `src/lib/orderPaymentEventReadAuthority.ts`
 - `src/lib/refundLedgerSql.ts`
 - `src/lib/refundRouteState.ts`
 
@@ -261,6 +265,13 @@ proofs. Proof-only scripts and owner migrations never justify a runtime grant.
 The inventory test fails if any source enters or leaves this set without an
 explicit audit update. Activation requires zero ordinary-runtime base-table
 access even if helpers hide the delegate behind another module.
+
+The isolated read-authority candidate converts all five participant order
+pages, the staff order timeline, and account export to the five fixed
+projections documented in `docs/order-payment-event-read-authority.md`. This
+closes the ordinary read path for those callers, not the remaining transition,
+aggregate, webhook or local-evidence accesses. Predecessor CRUD and RLS-off
+posture remain deliberately unchanged for old/new deployment compatibility.
 
 ## Findings and required disposition
 
