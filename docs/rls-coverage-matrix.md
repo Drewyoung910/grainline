@@ -179,6 +179,20 @@ state and supersede earlier inline chronology in its matrix summary.
 > webhook and local-evidence access paths. Predecessor drain,
 > policyless ENABLE and FORCE remain later separate releases.
 
+> **OrderPaymentEvent transition-authority acceptance (2026-08-30):** exact
+> main `720f99522ab273332ee6ba577ecec1c356d86bc3`, CI `33317024869`,
+> aggregate inspection `33323654599` and guarded migration run `33326252495`
+> are accepted. Only
+> `20260830020000_prepare_order_payment_event_transition_authority` applied;
+> the global audit and exact scope proof passed. The independent actual pooled
+> runtime postflight passed with sanitized mode-`0600` evidence SHA-256
+> `63eadf89f23a6fa729814bc7a39c0ea18a126db241bff8ba2aef725a5f5fb81b`.
+> The current gate is compatible application deployment and bounded smoke,
+> followed by predecessor drain, the zero-direct-access gate, policyless
+> ENABLE and separate FORCE. `OrderPaymentEvent` RLS remains off and
+> predecessor CRUD remains retained; do not bundle quote, `Order` or
+> `OrderItem` activation.
+
 > **OrderPaymentEvent superseding gate update (2026-08-26):** the
 > blocked-checkout delivery compatibility migration and corrected application
 > are live, and the real authenticated provider proof reached a genuine paid

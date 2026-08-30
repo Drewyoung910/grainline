@@ -1,6 +1,7 @@
 # OrderPaymentEvent transition authority
 
-Status: merged compatible preparation; not applied, deployed or activated.
+Status: compatible database preparation live; application deployment and RLS
+activation remain separate.
 
 PR #347 exact head
 `83e5bde9c8a9c024991da80464773e07cdf7e951` passed hosted CI
@@ -20,6 +21,33 @@ sealed aggregate-authority predecessor, applies only this migration, converges
 the reviewed private grants, runs the global grant/RLS audit and re-reads the
 complete catalog in an engine-attested repeatable-read/read-only transaction.
 It does not enable RLS, remove predecessor CRUD or deploy application code.
+
+## Production acceptance
+
+Exact main `720f99522ab273332ee6ba577ecec1c356d86bc3` passed full CI
+`33317024869`. Aggregate-only production inspection `33323654599` ran inside
+an engine-attested `REPEATABLE READ READ ONLY` transaction, exported no rows or
+identifiers and accepted the reservation-authority gate with all seven required
+integrity counts at zero. The sanitized mode-`0600` inspection evidence has
+SHA-256
+`354ee3da9bed4e6b4a0adf65e4a290684f1f044d4e3760bf441e82504c2e6b75`.
+
+Guarded production run `33326252495` applied only migration
+`20260830020000_prepare_order_payment_event_transition_authority`, converged
+the reviewed private-function grants, verified the complete migration ledger,
+passed the global grant/RLS audit and accepted the exact post-application
+scope. The independent pooled-runtime postflight then connected through the
+actual `grainline_app_runtime` credential and re-proved the read, aggregate and
+transition catalogs plus SQLSTATE `42501` denial for every private helper in an
+engine-attested read-only transaction. It wrote no rows and retained sanitized
+mode-`0600` evidence with SHA-256
+`63eadf89f23a6fa729814bc7a39c0ea18a126db241bff8ba2aef725a5f5fb81b`.
+
+Production now has the additive open-dispute projection and its three private
+trigger helpers. `OrderPaymentEvent` RLS remains off and predecessor table CRUD
+remains available to the currently deployed compatible predecessor. No
+application deployment, provider change, cleanup or RLS activation occurred in
+this release.
 
 ## Decision
 
@@ -126,8 +154,8 @@ inspection and migration run bindings, rejects privileged or aliased database
 variables, and writes only a fresh sanitized mode-`0600` local evidence file.
 It reads no row payloads, exports no rows and cannot mutate production.
 
-Merge is not production authorization. Compatible database preparation,
-compatible application deployment, bounded authenticated smoke, predecessor
+Compatible application deployment, bounded authenticated smoke, predecessor
 drain, policyless `ENABLE`, runtime grant removal and later `FORCE` remain
-separate releases. No provider configuration or production data is changed by
-this merged preparation.
+separate releases. The next release must deploy and prove the converted
+application while preserving the current READY deployment as its predecessor;
+it must not activate RLS or remove predecessor table authority.
