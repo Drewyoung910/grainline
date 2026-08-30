@@ -15,13 +15,13 @@ Prepared: 2026-08-30.
   `20260830030000_enable_order_payment_event_rls`
 - guarded phase: `order-payment-event-activation-reviewed`
 - activation draft SHA-256:
-  `71d2678db245aa8b2d72241359f20b8322feb10c7a33d0d6034bef0ec4e95c8e`
+  `bed2a8794ae34bcf27c1121509f92227f134dd5fe6fbed5e225dcf1afdd86c1d`
 - promoted migration SHA-256:
-  `4b3e4206bb8ea4dbad828baac6a8c5201332a2931146f074f054b85bef0b8e50`
+  `0ec1c892179d6ba087b9c0866b48b1dcec3ca6e37045be76e46b32e7e0352dae`
 - migration-tree SHA-256 through activation:
-  `910030cb6b0edc779223a0b839bbe6c573a7f8ce7faa6efcf8f31379874c5cc1`
+  `6f961ec88937b0d656b2277217f7e592dc588dff325292d8adc3c087efa855db`
 - emergency rollback SHA-256:
-  `007188c532d97c2b11482d5f40e861831857170539d4ad5eec003a41e45d3b1d`
+  `4f85a61d18e0b53faec5b9abdbd3d52f53cf176392b61a0ca908be1abd957568`
 
 The promoted migration is generated mechanically from the reviewed draft by
 replacing only the draft header. The release verifier compares the promoted
@@ -162,6 +162,14 @@ disposable database, whose exact owner is `ci`. The correction does not accept
 an arbitrary owner: the table must be owned by `CURRENT_USER`, and the login
 must be either `neondb_owner` or exactly `ci` in database `grainline_ci`.
 Protected production workflow identity checks remain unchanged.
+
+Replacement hosted CI `33340360157` reached the activation and then rejected
+two exact functions because the preflight used the presence of `FORMAT(` as a
+proxy for dynamic SQL. Both sealed bodies use `pg_catalog.format()` only for
+human-readable reconciliation text and contain no PL/pgSQL `EXECUTE`. The
+corrected catalog retains the actual no-`EXECUTE` check and exact source MD5s
+for all 29 functions while permitting those two non-dynamic formatting calls.
+Production again remained untouched.
 
 ## Remaining release boundaries
 

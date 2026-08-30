@@ -52,6 +52,19 @@ test("activation catalog composes every latest sealed function exactly once", ()
     ],
     /Blocked-checkout transfer binding/,
   );
+  assert.deepEqual(
+    Object.entries(sources)
+      .filter(([, source]) => /pg_catalog\.format\(/u.test(source))
+      .map(([identity]) => identity)
+      .sort(),
+    [
+      "grainline_blocked_checkout_refund_record_core(text,bigint,text,bigint,text,text,text,integer)",
+      "grainline_seller_refund_record(text,text,bigint,text,text,text,integer)",
+    ],
+  );
+  for (const [identity, source] of Object.entries(sources)) {
+    assert.doesNotMatch(source, /\bEXECUTE\b/iu, identity);
+  }
 });
 
 test("tracked application calls only the 16 retained runtime operations", () => {
@@ -116,6 +129,10 @@ test("activation migration is policyless, data-preserving and byte-derived", () 
     /CURRENT_USER = 'ci'[\s\S]*CURRENT_DATABASE\(\) = 'grainline_ci'/u);
   assert.doesNotMatch(candidate.migration,
     /pg_get_userbyid\(table_owner\) <> 'neondb_owner'/u);
+  assert.match(candidate.migration,
+    /strpos\(pg_catalog\.upper\(prosrc\), 'EXECUTE'\) = 0/u);
+  assert.doesNotMatch(candidate.migration,
+    /strpos\(pg_catalog\.upper\(prosrc\), 'FORMAT\('/u);
   assert.doesNotMatch(candidate.migration, /\bCREATE\s+POLICY\b/iu);
   assert.doesNotMatch(candidate.migration, /\bDROP\s+POLICY\b/iu);
   assert.doesNotMatch(candidate.migration,

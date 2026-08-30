@@ -4589,14 +4589,14 @@ Open work:
   signed-dispute bodies. It also upgraded trigger proof to exact relation,
   name, function, type and enabled/internal state, and upgraded emergency
   rollback to exact before/after table ACL and 29-function catalog proof.
-- Exact hashes after the CI-role correction: draft
-  `71d2678db245aa8b2d72241359f20b8322feb10c7a33d0d6034bef0ec4e95c8e`,
+- Exact hashes after the CI-role and dynamic-SQL-proxy corrections: draft
+  `bed2a8794ae34bcf27c1121509f92227f134dd5fe6fbed5e225dcf1afdd86c1d`,
   migration
-  `4b3e4206bb8ea4dbad828baac6a8c5201332a2931146f074f054b85bef0b8e50`,
+  `0ec1c892179d6ba087b9c0866b48b1dcec3ca6e37045be76e46b32e7e0352dae`,
   migration tree
-  `910030cb6b0edc779223a0b839bbe6c573a7f8ce7faa6efcf8f31379874c5cc1`
+  `6f961ec88937b0d656b2277217f7e592dc588dff325292d8adc3c087efa855db`
   and rollback
-  `007188c532d97c2b11482d5f40e861831857170539d4ad5eec003a41e45d3b1d`.
+  `4f85a61d18e0b53faec5b9abdbd3d52f53cf176392b61a0ca908be1abd957568`.
 - Focused release, workflow, grant-inventory and production-runner contracts
   pass locally. The complete local suite passed 3,647 tests with zero failures
   and seven intentional skips; TypeScript and lint passed. A local Next build
@@ -4612,3 +4612,11 @@ Open work:
   preflight requires ownership by `CURRENT_USER` and accepts only production
   `neondb_owner` or `ci` in database `grainline_ci`; it rejects arbitrary
   owners and leaves the protected production identity guard unchanged.
+- Replacement CI `33340360157` passed the owner check and failed closed with
+  27/29 exact catalog matches. The two rejected sealed functions legitimately
+  use `pg_catalog.format()` for reconciliation prose; neither uses PL/pgSQL
+  `EXECUTE`. Treating `FORMAT(` alone as dynamic SQL was a false proxy. The
+  corrected preflight still rejects any `EXECUTE`, retains exact source MD5s
+  and ACL/owner/search-path checks for all 29 functions, and adds a class-wide
+  test pinning the two allowed formatting bodies and zero executable dynamic
+  SQL. No persistent database was touched.

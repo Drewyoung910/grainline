@@ -268,13 +268,13 @@ state and supersede earlier inline chronology in its matrix summary.
 > and 13 private after. Hard review corrected a stale composed catalog and
 > strengthened exact trigger and rollback ACL/function-catalog checks before
 > any persistent application. Draft SHA-256
-> `71d2678db245aa8b2d72241359f20b8322feb10c7a33d0d6034bef0ec4e95c8e`,
+> `bed2a8794ae34bcf27c1121509f92227f134dd5fe6fbed5e225dcf1afdd86c1d`,
 > migration SHA-256
-> `4b3e4206bb8ea4dbad828baac6a8c5201332a2931146f074f054b85bef0b8e50`,
+> `0ec1c892179d6ba087b9c0866b48b1dcec3ca6e37045be76e46b32e7e0352dae`,
 > migration-tree SHA-256
-> `910030cb6b0edc779223a0b839bbe6c573a7f8ce7faa6efcf8f31379874c5cc1`
+> `6f961ec88937b0d656b2277217f7e592dc588dff325292d8adc3c087efa855db`
 > and rollback SHA-256
-> `007188c532d97c2b11482d5f40e861831857170539d4ad5eec003a41e45d3b1d`
+> `4f85a61d18e0b53faec5b9abdbd3d52f53cf176392b61a0ca908be1abd957568`
 > are exact. This preparation changes no production state: the matrix row
 > remains `COMPATIBLE_PREPARATION_LIVE` until guarded production Phase A and
 > a distinct actual pooled-runtime postflight pass. FORCE remains separate;

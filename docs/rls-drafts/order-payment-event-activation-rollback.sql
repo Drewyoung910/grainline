@@ -143,7 +143,6 @@ BEGIN
      AND pg_catalog.md5(prosrc) = source_md5
      AND runtime_can_execute = runtime_execute
      AND pg_catalog.strpos(pg_catalog.upper(prosrc), 'EXECUTE') = 0
-     AND pg_catalog.strpos(pg_catalog.upper(prosrc), 'FORMAT(') = 0
      AND NOT EXISTS (
        SELECT 1
          FROM pg_catalog.aclexplode(
@@ -387,7 +386,6 @@ BEGIN
      AND pg_catalog.md5(prosrc) = source_md5
      AND runtime_can_execute = runtime_execute
      AND pg_catalog.strpos(pg_catalog.upper(prosrc), 'EXECUTE') = 0
-     AND pg_catalog.strpos(pg_catalog.upper(prosrc), 'FORMAT(') = 0
      AND NOT EXISTS (
        SELECT 1
          FROM pg_catalog.aclexplode(
