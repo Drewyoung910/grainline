@@ -249,13 +249,17 @@ The converted tree has removed all ordinary-runtime base-ledger consumers in
 favor of fixed database authority, but that fact remains a separate
 zero-direct-access gate rather than a smoke claim. A complete 2026-08-30 Vercel
 inventory corrected the earlier single-predecessor assumption: the accepted
-credential epoch contains one current plus 11 superseded READY Production
-deployments. All 11 callable exact IDs must be removed, oldest-first and with
-restart-safe inventory/absence proof, before direct table grants change. See
+credential epoch contained one current plus 11 superseded READY Production
+deployments. Exact main `6ce4932adaa4d6b651a2a902d8e731aaad08e259`,
+CI `33332817851` and the restart-safe production operator removed all 11 exact
+IDs oldest-first and finished with zero shared-credential predecessors while
+preserving the current deployment, four aliases and health. Retain sanitized
+mode-`0600` evidence SHA-256
+`1596ad71479f7a9bda51b00c94b3ac27bea6adf6a5454eb34e03c35618764e5d`. See
 `docs/order-payment-event-transition-authority.md` and
-`docs/order-payment-event-credential-epoch-drain.md`. Credential-epoch drain,
-zero-direct-access, policyless ENABLE and posture-only FORCE remain distinct
-release boundaries.
+`docs/order-payment-event-credential-epoch-drain.md`. Zero-direct-access,
+policyless ENABLE and posture-only FORCE remain distinct release boundaries;
+the drain does not itself prove ordinary-runtime table isolation.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,

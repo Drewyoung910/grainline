@@ -228,7 +228,7 @@ test("documentation and package script preserve the separate activation gates", 
   const doc = fs.readFileSync("docs/order-payment-event-credential-epoch-drain.md", "utf8");
   const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
   assert.match(doc, /11\s+superseded READY Production\s+deployments/);
-  assert.match(doc, /zero-direct-access gate remains separate/);
+  assert.match(doc, /zero-direct-access gate is next, remains separate/);
   assert.match(doc, /policyless `ENABLE`[\s\S]*separate\s+`FORCE`/i);
   assert.equal(
     pkg.scripts["ops:order-payment-event-credential-epoch-drain"],
