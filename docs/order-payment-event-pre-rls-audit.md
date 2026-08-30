@@ -269,7 +269,11 @@ access even if helpers hide the delegate behind another module.
 The isolated read-authority candidate converts all five participant order
 pages, the staff order timeline, and account export to the five fixed
 projections documented in `docs/order-payment-event-read-authority.md`. This
-closes the ordinary read path for those callers, not the remaining transition,
+candidate merged through PR #335 at exact main
+`ba9b6bbfa071fbf334b7c3e00dd6857e821dc560` after CI `33294191190` passed,
+but its migrations remain unapplied and its application remains undeployed.
+It closes the ordinary read path for those callers only after the compatible
+database/application sequence; it does not close the remaining transition,
 aggregate, webhook or local-evidence accesses. Predecessor CRUD and RLS-off
 posture remain deliberately unchanged for old/new deployment compatibility.
 

@@ -1,11 +1,14 @@
 # OrderPaymentEvent fixed read authority
 
-Status: isolated compatibility candidate; not merged, applied, deployed, or RLS
-activation evidence. Pull-request CI run `33293717767` correctly failed before
-merge because the first CI workflow incorrectly invoked the manual-production
-scope entrypoint from a pull-request event. The corrected workflow keeps that
-production parser fail-closed and uses a separate loopback-only, `ci`-role,
-engine-read-only scope proof for the disposable CI database.
+Status: the compatibility candidate merged through PR #335 at exact main
+`ba9b6bbfa071fbf334b7c3e00dd6857e821dc560` after CI run `33294191190`
+passed. Neither this migration nor its invariant predecessor is applied or
+deployed, and this is not RLS activation evidence. Earlier pull-request CI run
+`33293717767` correctly failed before merge because the first CI workflow
+incorrectly invoked the manual-production scope entrypoint from a pull-request
+event. The corrected workflow keeps that production parser fail-closed and
+uses a separate loopback-only, `ci`-role, engine-read-only scope proof for the
+disposable CI database.
 
 ## Why this release exists
 
@@ -86,6 +89,17 @@ the loopback `grainline_ci` database, the exact `ci` owner identity and
 read-only transaction, reuses the production snapshot reader and asserts the
 same catalog with the explicit disposable owner role. A production/Neon URL,
 manual workflow event or ordinary runtime identity is rejected before connect.
+
+The pooled-runtime production postflight is separately packaged and remains
+unexecuted. It requires the exact clean release commit, exact main-CI and both
+migration-run bindings, a fresh mode-0600 evidence destination and the reviewed
+pooled `grainline_app_runtime` credential with no privileged or aliased database
+URL in the environment. Inside an engine-attested repeatable-read read-only
+transaction it proves the restricted runtime identity, exact five function
+bodies/modes/search paths/ACLs, retained predecessor CRUD/RLS-off compatibility,
+zero-row absent buyer/seller projections and denial of the staff timeline to a
+non-staff marker. It exports no production row and writes only sanitized
+aggregate evidence.
 
 ## Remaining activation gates
 
