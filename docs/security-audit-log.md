@@ -4189,3 +4189,35 @@ Open work:
   node-postgres does not guarantee to decode as an array. The engine-read-only
   query now casts that vector to `text[]`, and a regression test pins the
   driver boundary. Migration and trigger bytes remain unchanged.
+
+# 2026-08-30 - OrderPaymentEvent aggregate authority accepted in production
+
+- PR #342 exact head `5cf72c3b07bc05cd7d59ac01fb52ba58165a394d`
+  passed full CI `33303475855` after the catalog `name[]` boundary was cast to
+  `text[]`, then merged as exact main
+  `298088d55901c7096579766adaf9f35f1ead8085`. Exact-main CI
+  `33303933012` independently replayed the full sealed migration chain,
+  real-login lock proofs, 3,568-test suite, audit and production build.
+- Vercel Preview `dpl_AwzuhKp7kAtBC6vEb7Qc3eD92mS6` failed only after
+  compilation and TypeScript, at page-data collection, because Preview
+  intentionally has no `DATABASE_URL`. This was the expected secure Preview
+  boundary, not an application or migration failure.
+- Engine-read-only aggregate inspection `33304264914` found two Orders, three
+  items, zero payment-event rows and zero unexplained payment-integrity
+  defects. Its one label-coherence count was exactly the documented
+  privacy-redacted reference (one redacted, zero unexplained). One retained
+  failed/released webhook lease remains outside this aggregate migration's
+  scope. No raw rows, IDs, addresses, snapshots, credentials or provider
+  identifiers were retained.
+- Guarded run `33304372055` applied only
+  `20260830010000_prepare_order_payment_event_aggregate_authority`, converged
+  reviewed grants and passed migration status, the global grant/RLS audit,
+  exact function/trigger/column catalog and zero projection mismatches.
+  `OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains.
+  No application was deployed and no provider, credential or RLS state changed.
+- The isolated next package is a distinct pooled-runtime postflight. It rejects
+  privileged and aliased database variables, accepts only the reviewed pooled
+  runtime identity, runs inside an engine-attested repeatable-read/read-only
+  transaction, re-proves the five fixed read functions, verifies the two
+  projections and both triggers, and requires all three aggregate helpers to
+  remain unexecutable by runtime. Evidence is fresh, sanitized and mode 0600.

@@ -1,14 +1,20 @@
 # OrderPaymentEvent aggregate authority
 
-Status: merged compatible candidate; production remains unchanged. PR #340
-merged exact head `d1053dc83b698fa75a93616731a0f4f2aec7cf51` as main
-commit `dfd8784649c939dc4cb49964ee542abb65426b35`. Migration
-`20260830010000_prepare_order_payment_event_aggregate_authority` is byte-pinned
-at SHA-256
+Status: compatible aggregate authority is live; RLS remains off and predecessor
+CRUD remains retained. PR #342 merged its guarded production package at exact
+head `5cf72c3b07bc05cd7d59ac01fb52ba58165a394d` as main commit
+`298088d55901c7096579766adaf9f35f1ead8085`. Exact-main CI run
+`33303933012` passed. Fresh aggregate-only inspection `33304264914` ran in an
+engine-enforced repeatable-read/read-only transaction and found two Orders,
+three items, zero payment-event rows and zero unexplained payment-integrity
+defects. Guarded production run `33304372055` then applied only migration
+`20260830010000_prepare_order_payment_event_aggregate_authority`, byte-pinned at
+SHA-256
 `dfb2120e9c338607b1bfd73a8e095af004b188b9a0baa047987ece07199c0666`.
-It is wired into disposable CI but deliberately isolated from the generic
-Production Migrations workflow. It has not been applied or deployed and has
-not changed RLS, grants, credentials, provider state or production rows.
+Migration status, the global grant/RLS audit, all three private function bodies
+and ACLs, both trigger bindings and zero projection mismatches passed. No app
+was deployed, RLS and provider state did not change, and direct predecessor
+runtime CRUD was deliberately preserved.
 
 The dedicated production package adds a restart-safe, exact-main-only workflow
 and an engine-read-only scope verifier. The verifier accepts exactly two states:
@@ -181,8 +187,15 @@ Required sequence:
 8. prove zero ordinary runtime base-table access, drain the predecessor, then
    activate policyless `ENABLE` and later `FORCE` RLS as separate releases.
 
-This candidate does not authorize production migration, application deploy,
-predecessor drain, grant revocation, RLS activation or provider changes.
+The distinct pooled-runtime postflight package is now isolated for review. It
+accepts only the pooled `grainline_app_runtime` credential, refuses privileged
+or aliased database URLs, runs in an engine-attested repeatable-read/read-only
+transaction, re-proves the sealed five-function read authority, verifies both
+Order projection columns and both triggers, proves all three aggregate helpers
+remain runtime-inaccessible and retains only sanitized mode-0600 evidence. Its
+exact production run remains a separate gate. This state does not authorize an
+application deploy, predecessor drain, grant revocation, RLS activation or
+provider changes.
 
 ## Failed hosted proof evidence
 
