@@ -538,6 +538,16 @@ state and supersede earlier inline chronology in its matrix summary.
 
 ## Program Rules
 
+Current `OrderPaymentEvent` correction (2026-08-30): the long-form historical
+row above records the 33-file inventory known at aggregate-authority release.
+The transition-authority audit found one additional transitive semantic
+consumer, `src/lib/orderRefundFinalization.ts`; the authoritative activation
+tripwire is now 34 files. The isolated transition candidate removes direct
+base-ledger access from all seven remaining ordinary-runtime transition,
+webhook and local-evidence surfaces while keeping RLS off and predecessor CRUD
+unchanged. See `docs/order-payment-event-transition-authority.md`. This note is
+preparation evidence, not a live-status change.
+
 1. A row can move to `RLS_LIVE_PHASE_A` or a later live status only with exact
    catalog, policy, runtime-role denial, route happy-path, service-path,
    rollback, monitoring, and production-deployment evidence.

@@ -218,7 +218,7 @@ remains distinct and cannot be reused. See
 The next domain-first boundary is `OrderPaymentEvent`; see
 `docs/order-payment-event-pre-rls-audit.md`. It remains a separately released,
 policyless service ledger rather than a participant-readable table. The audit
-pins 33 current semantic application surfaces and requires sanitized buyer/seller
+pins 34 current semantic application surfaces and requires sanitized buyer/seller
 projections, generation-fenced seller and blocked-checkout refund operations,
 canonical latest-per-dispute ordering, append-only/taxonomy invariants and a
 fresh production aggregate inspection before activation design can proceed.
@@ -248,8 +248,15 @@ payment, provider or review fixture. Retain sanitized mode-`0600` evidence
 SHA-256
 `5ec5518ccc3b0cdfd6c3e8542d9f57f722029d7dfdda5db9f4e50d22ddb633ee`.
 See `docs/order-payment-event-aggregate-authority.md`. Remaining
-transition/webhook/local-evidence conversion and predecessor drain still
-precede separate ENABLE and FORCE releases.
+transition/webhook/local-evidence access is now converted on an isolated,
+byte-pinned candidate to one database-maintained open-dispute projection plus
+the existing refund projection. The candidate removes all seven remaining
+ordinary-runtime base-ledger consumers, rejects forged projections, fails
+closed on unknown or same-provider-second conflicting dispute states and
+serializes payment evidence against parent-Order transitions. See
+`docs/order-payment-event-transition-authority.md`. Hosted real-login proof,
+compatible release and predecessor drain still precede separate ENABLE and
+FORCE releases.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,

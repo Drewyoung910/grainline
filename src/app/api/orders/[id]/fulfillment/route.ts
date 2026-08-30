@@ -9,10 +9,10 @@ import { logSystemActionOrThrow } from "@/lib/systemAudit";
 import { sendOrderShipped, sendReadyForPickup } from "@/lib/email";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { blockingRefundLedgerWhere, orderHasRefundLedger } from "@/lib/refundRouteState";
+import { orderHasRefundLedger } from "@/lib/refundRouteState";
 import {
-  blockingRefundLedgerExistsSql,
-  latestOpenDisputeLedgerExistsSql,
+  paymentOpenDisputeBlockedSql,
+  paymentRefundBlockedSql,
 } from "@/lib/refundLedgerSql";
 import {
   databaseClockTimestamp,
@@ -97,11 +97,6 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      paymentEvents: {
-        where: blockingRefundLedgerWhere(),
-        take: 1,
-        select: { eventType: true, status: true },
-      },
       items: { include: { listing: { select: { sellerId: true } } } },
     },
   });
@@ -195,11 +190,7 @@ export async function POST(
       );
     }
     if (action !== "update_notes") {
-      const [{ hasOpenDispute } = { hasOpenDispute: false }] =
-        await prisma.$queryRaw<Array<{ hasOpenDispute: boolean }>>`
-          SELECT ${latestOpenDisputeLedgerExistsSql(Prisma.sql`${id}`)} AS "hasOpenDispute"
-        `;
-      if (hasOpenDispute) {
+      if (authz.order.paymentOpenDisputeBlocked) {
         return privateJson(
           { error: "Resolve the open Stripe dispute before changing fulfillment." },
           { status: HTTP_STATUS.CONFLICT },
@@ -315,7 +306,7 @@ export async function POST(
         where: {
           id,
           sellerRefundId: null,
-          paymentEvents: { none: blockingRefundLedgerWhere() },
+          paymentRefundBlocked: false,
           ...(notesWriteRequiresUnpurgedOrder ? { buyerDataPurgedAt: null } : {}),
         },
         data,
@@ -366,11 +357,11 @@ export async function POST(
           SET ${mutationSql}
           WHERE id = ${id}
             AND "sellerRefundId" IS NULL
-            AND NOT (${blockingRefundLedgerExistsSql(Prisma.sql`"Order".id`)})
+            AND NOT (${paymentRefundBlockedSql(Prisma.sql`"Order"`)})
             ${allowedStatusSql}
             ${labelStatusSql}
             AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
-            AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+            AND NOT (${paymentOpenDisputeBlockedSql(Prisma.sql`"Order"`)})
         `;
         if (Number(count) === 0) return { count: 0, auditLogId: null as string | null };
         const newStatus = action === "ready_for_pickup"

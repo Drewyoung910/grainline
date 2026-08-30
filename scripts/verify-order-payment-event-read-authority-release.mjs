@@ -18,6 +18,10 @@ import {
   ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
   verifyOrderPaymentEventAggregateAuthorityMigrationBytes,
 } from "./order-payment-event-aggregate-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION,
+  verifyOrderPaymentEventTransitionAuthorityMigrationBytes,
+} from "./order-payment-event-transition-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_READ_AUTHORITY_PHASE =
   "order-payment-event-read-authority-reviewed";
@@ -44,6 +48,19 @@ export function verifyOrderPaymentEventReadAuthorityRelease(root = process.cwd()
   ))) {
     verifyOrderPaymentEventAggregateAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION);
+  }
+  if (existsSync(path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION,
+  ))) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+      "OrderPaymentEvent transition authority requires the aggregate-authority successor",
+    );
+    verifyOrderPaymentEventTransitionAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION);
   }
   assert.deepEqual(
     migrationNames,

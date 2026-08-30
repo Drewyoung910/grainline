@@ -4309,3 +4309,45 @@ Open work:
   deployment, provider configuration or predecessor state changed. The next
   gate is the remaining transition/webhook/local-evidence conversion and
   proof; predecessor drain, policyless ENABLE and FORCE remain separate.
+
+# 2026-08-30 - OrderPaymentEvent transition authority isolated
+
+- A complete post-smoke source audit found seven remaining ordinary-runtime
+  base-ledger consumers: buyer delivery confirmation, seller fulfillment,
+  label purchase, seller refund preflight, Stripe webhook recovery, shared
+  transition SQL and an unused generic local-refund evidence writer. The last
+  writer was retired; no runtime path needed a generic replacement.
+- The conversion uses the already-live `Order.paymentRefundBlocked` projection
+  plus one additive `Order.paymentOpenDisputeBlocked` projection. Three
+  runtime-private, pinned `SECURITY DEFINER` trigger helpers derive, guard and
+  refresh only that boolean. No generic lookup function is runtime-callable.
+- Extra-High review corrected two SQL special-form qualification defects before
+  sealing the migration and strengthened latest-state handling: unknown/null
+  dispute states and same-provider-second conflicting statuses fail closed.
+  A late-arriving older Stripe event cannot reopen or close the projection.
+- The transition audit also found `src/lib/orderRefundFinalization.ts` as a
+  transitive local-evidence semantic consumer. The complete activation
+  inventory is therefore 34 files rather than the previously recorded 33; the
+  audit, architecture record and inventory tripwire were updated instead of
+  suppressing the discovery.
+- Migration
+  `20260830020000_prepare_order_payment_event_transition_authority` is sealed at
+  SHA-256
+  `ebfd5f7476cc425bdbe8bf44f21625d9ac3532fdcc74b0af52bc1c36299852a3`.
+  PGlite backfill/refresh/anti-forgery proof, zero-direct-access contracts,
+  special-form guardrails and the static separate-login race harness pass.
+- The first complete local suite correctly found 13 stale release/inventory
+  assertions after the new successor appeared. The correction did not weaken
+  historical seals: each predecessor now accepts only the exact byte-verified
+  transition successor, runtime provisioning explicitly revokes all three new
+  private helpers, and implementation-shape tests now assert the authoritative
+  projections rather than retired direct-ledger SQL. The rerun passed all
+  3,600 tests. TypeScript, lint, high/critical dependency audit and the full
+  production build also pass; the build used only allowlisted runtime values
+  and explicitly excluded owner/migration credentials.
+- Hosted PostgreSQL separate-login/concurrency proof and exact-head CI remain
+  required before merge.
+- CI applies the candidate only after the invariant, read and aggregate
+  predecessors pass; the generic Production Migrations workflow verifies and
+  isolates it so it cannot apply accidentally. Production remains unchanged:
+  `OrderPaymentEvent` RLS is off and predecessor CRUD is retained.

@@ -293,9 +293,9 @@ describe("payment and fulfillment side-effect observability", () => {
       "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
     );
 
-    assert.match(sellerRoute, /blockingRefundLedgerWhere/);
-    assert.match(sellerRoute, /latestOpenDisputeLedgerExistsSql/);
-    assert.doesNotMatch(sellerRoute, /blockingRefundOrDisputeLedgerWhere/);
+    assert.match(sellerRoute, /paymentRefundBlocked/);
+    assert.match(sellerRoute, /paymentOpenDisputeBlocked/);
+    assert.doesNotMatch(sellerRoute, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
     assert.match(sellerRoute, /sellerRefundConflictResponse/);
     assert.match(sellerRoute, /orderHasRefundLedger/);
     assert.match(sellerRoute, /claimSellerOrderRefund\(\{/);
@@ -341,11 +341,8 @@ describe("payment and fulfillment side-effect observability", () => {
       "prisma/migrations/20260824020000_prepare_order_refund_record_authority/migration.sql",
     );
 
-    assert.match(helper, /client\.orderPaymentEvent\.createMany/);
-    assert.match(helper, /buildLocalRefundEvidenceRecords\(input\)/);
-    assert.match(helper, /skipDuplicates: true/);
-    assert.match(helper, /if \(ledgerWrite\.count === 0\) return/);
-    assert.match(helper, /logSystemActionOrThrow/);
+    assert.doesNotMatch(helper, /client\.orderPaymentEvent|createMany|skipDuplicates/);
+    assert.doesNotMatch(helper, /logSystemActionOrThrow/);
 
     assert.match(helperCore, /eventType: "REFUND"/);
     assert.match(helper, /export \{ localRefundEvidenceEventId \}/);
@@ -418,10 +415,11 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.doesNotMatch(labelRoute, /SELECT 1 FROM "Case" c/);
     assert.doesNotMatch(labelRoute, /\bACTIVE_CASE_STATUSES\b/);
-    assert.match(labelRoute, /ope\."status" IS NULL/);
-    assert.match(labelRoute, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
-    assert.match(labelRoute, /latestOpenDisputeLedgerExistsSql/);
-    assert.match(labelRoute, /latestOpenDisputeLedgerExistsSql\(Prisma\.sql`"Order"\.id`\)/);
+    assert.match(labelRoute, /paymentRefundBlockedSql/);
+    assert.match(labelRoute, /paymentOpenDisputeBlockedSql/);
+    assert.match(labelRoute, /paymentRefundBlockedSql\(Prisma\.sql`"Order"`\)/);
+    assert.match(labelRoute, /paymentOpenDisputeBlockedSql\(Prisma\.sql`"Order"`\)/);
+    assert.doesNotMatch(labelRoute, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
   });
 
   it("keeps seller refund copy honest when transfer reversal needs manual reconciliation", () => {
@@ -432,15 +430,17 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(salesPage, /This amount has been deducted from your Stripe balance/);
   });
 
-  it("blocks fulfillment state changes on latest open Stripe dispute ledgers", () => {
+  it("blocks fulfillment state changes on database-maintained payment projections", () => {
     const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
 
-    assert.match(route, /latestOpenDisputeLedgerExistsSql/);
-    assert.match(route, /SELECT \$\{latestOpenDisputeLedgerExistsSql\(Prisma\.sql`\$\{id\}`\)\} AS "hasOpenDispute"/);
+    assert.match(route, /authz\.order\.paymentOpenDisputeBlocked/);
+    assert.match(route, /paymentRefundBlockedSql/);
+    assert.match(route, /paymentOpenDisputeBlockedSql/);
     assert.match(route, /Resolve the open Stripe dispute before changing fulfillment/);
-    assert.match(route, /UPDATE "Order"[\s\S]*blockingRefundLedgerExistsSql\(Prisma\.sql`"Order"\.id`\)[\s\S]*latestOpenDisputeLedgerExistsSql\(Prisma\.sql`"Order"\.id`\)/);
+    assert.match(route, /UPDATE "Order"[\s\S]*paymentRefundBlockedSql\(Prisma\.sql`"Order"`\)[\s\S]*paymentOpenDisputeBlockedSql\(Prisma\.sql`"Order"`\)/);
     assert.match(route, /"fulfillmentStatus"::text IN \(\$\{Prisma\.join\(allowed\)\}\)/);
     assert.doesNotMatch(route, /id:\s*\{\s*in: Prisma\.sql/);
+    assert.doesNotMatch(route, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
   });
 
   it("limits seller self-service to full cancellation refunds", () => {
@@ -582,7 +582,8 @@ describe("payment and fulfillment side-effect observability", () => {
     );
     assert.match(existingOrderBranch, /reviewNeeded: true/);
     assert.match(existingOrderBranch, /reviewNote: true/);
-    assert.match(existingOrderBranch, /blockingRefundLedgerWhere\(\)/);
+    assert.match(existingOrderBranch, /paymentRefundBlocked: true/);
+    assert.doesNotMatch(existingOrderBranch, /blockingRefundLedgerWhere\(\)|paymentEvents\s*:/);
     assert.match(existingOrderBranch, /const retryReason = blockedCheckoutRefundRetryReason\(already, event\.id\)/);
     assert.match(existingOrderBranch, /refundClaimSource: true/);
     assert.match(existingOrderBranch, /refundClaimSourceId: true/);

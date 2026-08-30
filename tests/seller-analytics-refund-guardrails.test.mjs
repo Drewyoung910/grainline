@@ -9,17 +9,12 @@ function source(path) {
 describe("seller analytics refund guardrails", () => {
   it("keeps operational ledger SQL canonical while aggregate consumers use fixed projections", () => {
     const helper = source("src/lib/refundLedgerSql.ts");
-    assert.match(helper, /NON_BLOCKING_REFUND_LEDGER_STATUSES/);
-    assert.match(helper, /lower\(ope\."status"\) NOT IN \(\$\{Prisma\.join\(NON_BLOCKING_REFUND_LEDGER_STATUSES\)\}\)/);
-    assert.match(helper, /latestOpenDisputeLedgerExistsSql/);
-    assert.match(helper, /latestOpenDisputeLedgerRowsSql/);
-    assert.match(helper, /latestDisputeLedgerRowsSql/);
-    assert.match(helper, /latestConversionBlockingDisputeLedgerExistsSql/);
-    assert.match(helper, /SELECT DISTINCT ON \(COALESCE\(ope\."stripeObjectId", ope\.id\)\)/);
-    assert.match(helper, /NULLIF\(ope\."metadata"->>'stripeEventCreated', ''\)::bigint/);
-    assert.match(helper, /EXTRACT\(EPOCH FROM ope\."createdAt"\)::bigint/);
-    assert.match(helper, /ope\."createdAt" DESC/);
-    assert.match(helper, /STRIPE_DISPUTE_CLOSED_STATUSES/);
+    assert.match(helper, /paymentRefundBlockedSql/);
+    assert.match(helper, /paymentOpenDisputeBlockedSql/);
+    assert.match(helper, /paymentTransitionBlockedSql/);
+    assert.match(helper, /"paymentRefundBlocked" = true/);
+    assert.match(helper, /"paymentOpenDisputeBlocked" = true/);
+    assert.doesNotMatch(helper, /OrderPaymentEvent|paymentEvents|ope\./);
 
     for (const path of [
       "src/app/api/seller/analytics/route.ts",
@@ -117,12 +112,9 @@ describe("seller analytics refund guardrails", () => {
     const sellerRefundRoute = source("src/app/api/orders/[id]/refund/route.ts");
     const stripeWebhook = source("src/app/api/stripe/webhook/route.ts");
 
-    assert.match(sellerRefundRoute, /latestOpenDisputeLedgerExistsSql\(Prisma\.sql`\$\{orderId\}`\)/);
-    assert.doesNotMatch(sellerRefundRoute, /orderPaymentEvent\.findFirst\(\{\s*where: \{ orderId, eventType: "DISPUTE" \}/s);
-
-    assert.match(stripeWebhook, /latestOpenDisputeLedgerRowsSql\(Prisma\.sql`\$\{input\.orderId\}`\)/);
-    assert.doesNotMatch(stripeWebhook, /orderPaymentEvent\.findFirst\(\{\s*where: \{ orderId: input\.orderId, eventType: "DISPUTE" \}/s);
-    assert.doesNotMatch(sellerRefundRoute, /blockingRefundOrDisputeLedgerWhere/);
-    assert.doesNotMatch(stripeWebhook, /blockingRefundOrDisputeLedgerWhere/);
+    assert.match(sellerRefundRoute, /order\.paymentOpenDisputeBlocked/);
+    assert.match(stripeWebhook, /currentOrder\.paymentOpenDisputeBlocked/);
+    assert.doesNotMatch(sellerRefundRoute, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
+    assert.doesNotMatch(stripeWebhook, /orderPaymentEvent|paymentEvents|OrderPaymentEvent/);
   });
 });

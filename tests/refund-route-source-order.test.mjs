@@ -10,7 +10,7 @@ describe("seller refund route source-order guardrails", () => {
       /if \(!allItemsBelongToSeller\)\s*return privateJson\(\{ error: "Forbidden\." \}, \{ status: HTTP_STATUS\.FORBIDDEN \}\);/,
     );
     const lockRelease = "const staleLocksReleased = await releaseStaleRefundLocks(orderId);";
-    const disputeCheck = "const [{ hasOpenDispute } = { hasOpenDispute: false }]";
+    const disputeCheck = "if (order.paymentOpenDisputeBlocked)";
 
     assert.match(source, /order\.items\.every\(\(it\) => it\.listing\.sellerId === seller\.id\)/);
     assert.notEqual(ownershipCheck, -1);
@@ -22,7 +22,7 @@ describe("seller refund route source-order guardrails", () => {
     );
     assert.ok(
       source.indexOf(lockRelease) < source.indexOf(disputeCheck),
-      "stale lock cleanup should still run before refund conflict/dispute checks",
+      "stale lock cleanup should still run before the database-maintained dispute check",
     );
   });
 });

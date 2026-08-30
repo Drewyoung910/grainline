@@ -70,16 +70,6 @@ export function isBlockingRefundLedgerEvent(event: {
   );
 }
 
-export function blockingRefundLedgerWhere() {
-  return {
-    eventType: "REFUND",
-    OR: [
-      { status: null },
-      { status: { notIn: [...NON_BLOCKING_REFUND_LEDGER_STATUSES] } },
-    ],
-  };
-}
-
 export function sellerRefundConflictResponse(sellerRefundId: string | null | undefined) {
   if (!sellerRefundId) return null;
   if (sellerRefundId === REFUND_LOCK_SENTINEL) {
@@ -102,9 +92,11 @@ export function sellerRefundConflictResponse(sellerRefundId: string | null | und
 
 export function orderHasRefundLedger(order: {
   sellerRefundId?: string | null | undefined;
+  paymentRefundBlocked?: boolean | null | undefined;
   paymentEvents?: Array<{ eventType?: string | null | undefined; status?: string | null | undefined }> | null | undefined;
 }) {
   return Boolean(order.sellerRefundId) ||
+    Boolean(order.paymentRefundBlocked) ||
     Boolean(order.paymentEvents?.some(isBlockingRefundLedgerEvent));
 }
 
@@ -123,6 +115,7 @@ export function orderHasPurchasedLabel(order: { labelStatus?: string | null | un
 export function refundLockAcquisitionConflictResponse(order: {
   sellerRefundId?: string | null | undefined;
   labelStatus?: string | null | undefined;
+  paymentRefundBlocked?: boolean | null | undefined;
   paymentEvents?: Array<{ eventType?: string | null | undefined; status?: string | null | undefined }> | null | undefined;
 } | null | undefined, hasOpenDispute = false) {
   const refundConflict = sellerRefundConflictResponse(order?.sellerRefundId);

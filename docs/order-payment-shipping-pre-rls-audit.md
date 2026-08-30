@@ -42,18 +42,22 @@ The exact baseline is:
 | `Order` | 41 |
 | `OrderItem` | 12 |
 | `OrderShippingRateQuote` | 2 |
-| `OrderPaymentEvent` | 5 |
+| `OrderPaymentEvent` | 2 |
 | `SellerPayoutEvent` | 3 |
 | `CheckoutStockReservation` | 4 |
 
 These counts exclude disposable/proof scripts and nested relation selections
 that do not name the Prisma delegate or raw table directly. They are a
 conversion floor, not a claim that only 66 semantic operations exist. The
-signed platform webhook route now uses fixed source-bound refund/dispute
-operations and no longer directly accesses the table, reducing the pinned
-source baseline from eight to seven. The next inventory pass must classify
-nested reads, fixed Case/Notification
-functions, cron and provider side effects as well.
+compatible application conversion now routes every ordinary-runtime consumer
+through fixed source-bound authorities or database-maintained `Order`
+projections. The two remaining matches are the intentionally retained fixed
+refund-authority helpers in `orderRefundFinalization.ts` and
+`orderRefundRecordAuthority.ts`; neither grants generic table lookup or write
+authority. The separate 34-file semantic inventory remains authoritative for
+nested projections, event-identity helpers, fixed Case/Notification functions,
+cron and provider side effects, so this smaller direct-access floor cannot hide
+semantic consumers.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above

@@ -477,19 +477,26 @@ export function checkoutInvalidReasonState(input: {
 
 export function blockedCheckoutDisputeState({
   latestDispute,
+  openDisputeBlocked,
   reviewPrefix,
 }: {
-  latestDispute: { status: string | null; stripeObjectId: string | null } | null | undefined;
+  latestDispute?: { status: string | null; stripeObjectId: string | null } | null;
+  openDisputeBlocked?: boolean | null;
   reviewPrefix: string;
 }): BlockedCheckoutDisputeState | null {
-  if (!latestDispute || !isOpenDisputeStatus(latestDispute.status)) return null;
-  const disputeId = latestDispute.stripeObjectId ?? null;
-  const disputeLabel = disputeId ?? "unknown";
+  const latestDisputeIsOpen = Boolean(
+    latestDispute && isOpenDisputeStatus(latestDispute.status),
+  );
+  if (!openDisputeBlocked && !latestDisputeIsOpen) return null;
+  const disputeId = latestDisputeIsOpen
+    ? latestDispute?.stripeObjectId ?? null
+    : null;
+  const disputeLabel = disputeId ? `Stripe dispute ${disputeId}` : "a Stripe dispute";
   return {
     reviewNeeded: true,
-    reviewNote: `${reviewPrefix} Automatic refund was skipped because Stripe dispute ${disputeLabel} is still open; staff must reconcile this payment manually.`,
+    reviewNote: `${reviewPrefix} Automatic refund was skipped because ${disputeLabel} is still open; staff must reconcile this payment manually.`,
     disputeId,
-    disputeStatus: latestDispute.status ?? null,
+    disputeStatus: latestDisputeIsOpen ? latestDispute?.status ?? null : null,
   };
 }
 

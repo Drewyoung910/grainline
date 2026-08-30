@@ -14,10 +14,8 @@ import {
 import {
   releaseStaleRefundLocks,
 } from "@/lib/refundLocks";
-import { latestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
 import { revalidateFeaturedMakerCaches, revalidateListingSearchCaches } from "@/lib/searchCache";
 import {
-  blockingRefundLedgerWhere,
   orderHasPurchasedLabel,
   orderHasRefundLedger,
   refundAmountForResolution,
@@ -34,7 +32,6 @@ import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
 import { claimSellerOrderRefund } from "@/lib/orderRefundClaimAuthority";
@@ -154,11 +151,6 @@ export async function POST(
             },
           },
         },
-        paymentEvents: {
-          where: blockingRefundLedgerWhere(),
-          take: 1,
-          select: { eventType: true, status: true },
-        },
       },
     });
     if (!order)
@@ -179,11 +171,7 @@ export async function POST(
       ),
     };
 
-    const [{ hasOpenDispute } = { hasOpenDispute: false }] =
-      await prisma.$queryRaw<Array<{ hasOpenDispute: boolean }>>`
-        SELECT ${latestOpenDisputeLedgerExistsSql(Prisma.sql`${orderId}`)} AS "hasOpenDispute"
-      `;
-    if (hasOpenDispute) {
+    if (order.paymentOpenDisputeBlocked) {
       return privateJson(
         {
           error:
@@ -241,27 +229,18 @@ export async function POST(
       orderId,
     });
     if (!refundClaim) {
-      const [freshOrder, [{ hasOpenDispute } = { hasOpenDispute: false }]] =
-        await Promise.all([
-          prisma.order.findUnique({
-            where: { id: orderId },
-            select: {
-              sellerRefundId: true,
-              labelStatus: true,
-              paymentEvents: {
-                where: blockingRefundLedgerWhere(),
-                take: 1,
-                select: { eventType: true, status: true },
-              },
-            },
-          }),
-          prisma.$queryRaw<Array<{ hasOpenDispute: boolean }>>`
-            SELECT ${latestOpenDisputeLedgerExistsSql(Prisma.sql`${orderId}`)} AS "hasOpenDispute"
-          `,
-        ]);
+      const freshOrder = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: {
+          sellerRefundId: true,
+          labelStatus: true,
+          paymentRefundBlocked: true,
+          paymentOpenDisputeBlocked: true,
+        },
+      });
       const conflict = refundLockAcquisitionConflictResponse(
         freshOrder,
-        hasOpenDispute,
+        freshOrder?.paymentOpenDisputeBlocked ?? false,
       );
       return privateJson(
         { error: conflict.error },

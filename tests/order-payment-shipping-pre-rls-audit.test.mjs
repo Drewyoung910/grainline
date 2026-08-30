@@ -97,11 +97,8 @@ const expected = {
     "src/lib/accountDeletion.ts",
   ],
   OrderPaymentEvent: [
-    "src/app/api/orders/[id]/label/route.ts",
-    "src/lib/localRefundEvidence.ts",
     "src/lib/orderRefundFinalization.ts",
     "src/lib/orderRefundRecordAuthority.ts",
-    "src/lib/refundLedgerSql.ts",
   ],
   SellerPayoutEvent: [],
   CheckoutStockReservation: [],

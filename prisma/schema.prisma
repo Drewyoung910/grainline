@@ -680,6 +680,7 @@ model Order {
   // let ordinary Order consumers enforce refund/dispute eligibility without
   // reading the private append-only OrderPaymentEvent ledger.
   paymentRefundBlocked            Boolean @default(false)
+  paymentOpenDisputeBlocked       Boolean @default(false)
   paymentConversionDisputeBlocked Boolean @default(false)
 
   // Shippo label

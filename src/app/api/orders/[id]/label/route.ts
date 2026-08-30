@@ -13,11 +13,12 @@ import {
   safeRateLimit,
 } from "@/lib/ratelimit";
 import {
-  blockingRefundLedgerWhere,
-  NON_BLOCKING_REFUND_LEDGER_STATUSES,
   orderHasRefundLedger,
 } from "@/lib/refundRouteState";
-import { latestOpenDisputeLedgerExistsSql } from "@/lib/refundLedgerSql";
+import {
+  paymentOpenDisputeBlockedSql,
+  paymentRefundBlockedSql,
+} from "@/lib/refundLedgerSql";
 import { releaseStaleRefundLocks } from "@/lib/refundLocks";
 import {
   appendLabelClawbackReviewNote,
@@ -186,11 +187,6 @@ async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      paymentEvents: {
-        where: blockingRefundLedgerWhere(),
-        take: 1,
-        select: { eventType: true, status: true },
-      },
       items: {
         include: {
           listing: {
@@ -548,16 +544,8 @@ export async function POST(
           AND "sellerRefundId" IS NULL
           AND "sellerRefundLockedAt" IS NULL
           AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
-          AND NOT EXISTS (
-            SELECT 1 FROM "OrderPaymentEvent" ope
-            WHERE ope."orderId" = "Order".id
-              AND ope."eventType" = 'REFUND'
-              AND (
-                ope."status" IS NULL
-                OR lower(ope."status") NOT IN (${Prisma.join(NON_BLOCKING_REFUND_LEDGER_STATUSES)})
-              )
-          )
-          AND NOT (${latestOpenDisputeLedgerExistsSql(Prisma.sql`"Order".id`)})
+          AND NOT (${paymentRefundBlockedSql(Prisma.sql`"Order"`)})
+          AND NOT (${paymentOpenDisputeBlockedSql(Prisma.sql`"Order"`)})
       `;
     });
     if (labelLockResult === 0) {
