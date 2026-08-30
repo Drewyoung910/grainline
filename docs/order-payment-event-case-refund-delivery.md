@@ -286,3 +286,15 @@ proof, and records them in final sanitized evidence. The active Case
 deployment remains independently bound to the preserved journal and current
 execution. No restart identity or production state was changed by this
 correction.
+
+The same pre-resume journal audit also confirmed that the immutable attempt's
+application deployment must remain separate from the currently active
+corrected application. The original attempt and its journal are bound to
+source `3431bb83fa16fabb9b9e18a729a7d138d48764d9` and deployment
+`dpl_CcwbUVcaEsiVU1yscDT5fxX72P8S`; the route replay now targets source
+`8548c1bac683547f54e34c91496f5b6d7ffd059a` and deployment
+`dpl_BdqJHNwjCUcsJ1xQvmghsbW7C3W3`. Separate optional attempt-deployment inputs
+default to the active deployment for a fresh proof, but are mandatory in
+practice for a corrected-deployment restart. They preserve the version-1
+journal byte-for-byte while the current deployment still receives full Vercel,
+alias and health attestation. Final evidence records both identities.
