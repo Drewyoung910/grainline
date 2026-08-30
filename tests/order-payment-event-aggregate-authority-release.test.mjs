@@ -30,7 +30,9 @@ describe("OrderPaymentEvent aggregate-authority release", () => {
     assert.match(decision, /locks the qualifying parent\s+Order `FOR UPDATE`/u);
     assert.match(decision, /semantic inventory remains exactly 33 files/u);
     assert.match(decision, /policyless `ENABLE` and later `FORCE` RLS as separate releases/u);
-    assert.match(decision, /does not authorize production migration/u);
+    assert.match(decision, /compatible aggregate authority is live/u);
+    assert.match(decision, /distinct pooled-runtime postflight package/u);
+    assert.match(decision, /does not authorize an\s+application deploy/u);
   });
 
   it("has a restart-safe exact-main production runner", () => {

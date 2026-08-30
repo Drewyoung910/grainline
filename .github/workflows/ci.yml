@@ -915,6 +915,10 @@ jobs:
         env:
           ORDER_PAYMENT_EVENT_AGGREGATE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           ORDER_PAYMENT_EVENT_AGGREGATE_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent aggregate postflight through the runtime login
+        run: npm run audit:order-payment-event-aggregate-authority-postflight-postgres
+        env:
+          ORDER_PAYMENT_EVENT_AGGREGATE_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:
