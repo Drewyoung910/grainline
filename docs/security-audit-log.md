@@ -4417,3 +4417,33 @@ Open work:
   predecessor CRUD remains retained. Bounded authenticated smoke, predecessor
   drain, the zero-direct-access gate, policyless `ENABLE` and separate `FORCE`
   remain later gates.
+
+# 2026-08-30 - OrderPaymentEvent transition smoke isolated
+
+- The current bounded canary operator now binds exact deployed source
+  `ce7550dae6c417440230f4d596f2239393075f31`, CI `33327064035`, READY
+  deployment `dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc`, READY predecessor
+  `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`, transition migration run `33326252495`
+  and accepted pooled-runtime evidence SHA-256
+  `63eadf89f23a6fa729814bc7a39c0ea18a126db241bff8ba2aef725a5f5fb81b`.
+- Canonical launcher
+  `scripts/order-payment-event-transition-production-smoke.mjs` uses the
+  retained restart-safe shared canary core. Fresh transition-specific
+  confirmation, environment and evidence names prevent accidental reuse of
+  the accepted aggregate-smoke state.
+- Before any Clerk session, the operator requires the exact private
+  pooled-runtime evidence file, re-hashes its sealed bytes and validates its
+  source/run/runtime bindings, RLS-off and retained-CRUD posture, read-only
+  boundary and all three private-helper denials. Missing, non-private, replaced
+  or semantically drifting prerequisite evidence fails closed.
+- The operator creates no database, Review, Order, payment or provider fixture.
+  It creates one bounded Clerk canary session, checks unauthenticated denial,
+  authenticated account rendering and authoritative review denial, then
+  revokes exactly its session and resets/deletes only exact transient canary
+  Redis state.
+- Evidence explicitly records that transition routes are not directly
+  exercised and the authority/concurrency proof is separate. The smoke cannot
+  overstate route-semantic proof supplied by the already accepted PostgreSQL,
+  separate-login and pooled-runtime evidence. Preparation changes no
+  production state; execution, predecessor drain and RLS activation remain
+  separate gates.

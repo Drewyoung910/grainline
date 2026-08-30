@@ -78,6 +78,34 @@ predecessor table CRUD remains retained. A bounded authenticated compatibility
 smoke and later predecessor drain still precede the zero-direct-access gate,
 policyless `ENABLE` and separate `FORCE` releases.
 
+## Bounded authenticated compatibility smoke
+
+The isolated next operator is
+`scripts/order-payment-event-transition-production-smoke.mjs`. It binds the
+exact current deployment, exact deployment-source CI, exact READY predecessor,
+all four canonical aliases, canonical health and the accepted transition
+migration/evidence identifiers. Before any Clerk session, it requires the exact
+mode-`0600` pooled-runtime evidence file, re-hashes its sealed bytes and validates
+its source, run bindings, runtime identity, RLS-off posture, retained predecessor
+CRUD, read-only boundary and three private-helper denials. Its shared core retains the historical
+aggregate-smoke filename so the earlier accepted operator remains traceable in
+Git history; the transition launcher is the only current entry point.
+
+The operator creates one 60-second session for the retained operational Clerk
+canary, proves unauthenticated review denial, renders the database-backed
+authenticated account page and reaches the authoritative locked
+review-eligibility denial. It then revokes exactly that session, resets only the
+canary's review limiter, removes only the exact account-state cache key and
+writes fresh sanitized mode-`0600` evidence. It creates no database, Review,
+Order, payment or provider fixture and changes no deployment or configuration.
+
+This is deliberately a deployment/runtime compatibility smoke, not another
+transition-authority proof. Its evidence states that transition routes are not
+directly exercised and that the authority/concurrency proof remains separate.
+The accepted disposable-PostgreSQL, separate-login and actual pooled-runtime
+evidence continues to carry those semantic claims. Merely merging the operator
+does not execute it or authorize predecessor drain or RLS activation.
+
 ## Decision
 
 The remaining order-transition callers do not need payment-event rows. They

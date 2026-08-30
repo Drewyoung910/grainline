@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Bounded authenticated compatibility smoke for the OrderPaymentEvent
-// aggregate-authority application release. This operator creates no database,
+// Shared bounded authenticated compatibility smoke for the current
+// OrderPaymentEvent application release. This operator creates no database,
 // Stripe or Vercel fixtures. It uses the retained operational Clerk canary,
 // proves the deployed account page and the authoritative review-eligibility
 // denial, then revokes its session and clears only that canary's transient
@@ -20,7 +20,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { createClerkClient } from "@clerk/backend";
 import { parsePublishableKey } from "@clerk/shared/keys";
 import { Ratelimit } from "@upstash/ratelimit";
@@ -28,16 +27,23 @@ import { Redis } from "@upstash/redis";
 import { parse as parseDotenv } from "dotenv";
 import { NOTIFICATION_CANARY_EXTERNAL_ID } from "./notification-operational-canary.mjs";
 
-export const CONFIRMATION = "reviewed-order-payment-event-aggregate-production-smoke";
-export const DEPLOYED_SOURCE_COMMIT = "4908bc7f377f5950da8de6b3398049d65a5fdfcb";
-export const DEPLOYED_SOURCE_CI_RUN_ID = 33307107247;
-export const DEPLOYMENT_ID = "dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj";
-export const PREDECESSOR_SOURCE_COMMIT = "07eb9fc57bcec4d2fbac4d9ffc58b814ff78f5a8";
-export const PREDECESSOR_DEPLOYMENT_ID = "dpl_7UeENeZebXL9yL481DWrXkDpWd4R";
+export const CONFIRMATION = "reviewed-order-payment-event-transition-production-smoke";
+export const DEPLOYED_SOURCE_COMMIT = "ce7550dae6c417440230f4d596f2239393075f31";
+export const DEPLOYED_SOURCE_CI_RUN_ID = 33327064035;
+export const DEPLOYMENT_ID = "dpl_Coyjd6rTXteBV9e4QZtZGFDaiEYc";
+export const PREDECESSOR_SOURCE_COMMIT = "4908bc7f377f5950da8de6b3398049d65a5fdfcb";
+export const PREDECESSOR_DEPLOYMENT_ID = "dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj";
+export const TRANSITION_AUTHORITY_EVIDENCE_SHA256 =
+  "63eadf89f23a6fa729814bc7a39c0ea18a126db241bff8ba2aef725a5f5fb81b";
+export const TRANSITION_MIGRATION_RUN_ID = 33326252495;
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
+export const TRANSITION_AUTHORITY_EVIDENCE_PATH = path.join(
+  EVIDENCE_DIRECTORY,
+  "order-payment-event-transition-authority-production-postflight-720f99522ab273332ee6ba577ecec1c356d86bc3.json",
+);
 export const STATE_PATH = path.join(
   EVIDENCE_DIRECTORY,
-  "order-payment-event-aggregate-production-smoke-state.json",
+  "order-payment-event-transition-production-smoke-state.json",
 );
 export const PRODUCTION_ORIGIN = "https://thegrainline.com";
 export const REVIEWED_CLERK_FRONTEND_API = "clerk.thegrainline.com";
@@ -61,6 +67,45 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+export function parseTransitionAuthorityEvidence(
+  raw,
+  expectedSha256 = TRANSITION_AUTHORITY_EVIDENCE_SHA256,
+) {
+  const bytes = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+  if (sha256(bytes) !== expectedSha256) {
+    throw new Error("transition authority evidence digest drifted");
+  }
+  const value = JSON.parse(bytes.toString("utf8"));
+  if (
+    value?.schemaVersion !== 1
+    || value.operation !== "order-payment-event-transition-authority-production-postflight"
+    || value.status !== "passed"
+    || value.source?.clean !== true
+    || value.source.commit !== "720f99522ab273332ee6ba577ecec1c356d86bc3"
+    || value.runs?.inspectionRunId !== 33323654599
+    || value.runs?.mainCiRunId !== 33317024869
+    || value.runs?.migrationRunId !== TRANSITION_MIGRATION_RUN_ID
+    || value.target?.role !== "grainline_app_runtime"
+    || value.proof?.orderPaymentEventPredecessorCrudRetained !== true
+    || value.proof?.orderPaymentEventRlsEnabled !== false
+    || value.proof?.postflightReadOnly !== true
+    || value.proof?.rowsExported !== false
+    || value.proof?.publicOrUnreviewedAuthority !== false
+    || value.proof?.productionChangedByPostflight !== false
+    || value.proof?.transitionProjectionQueryProven !== true
+    || value.proof?.transitionPrivateFunctionCount !== 3
+    || value.proof?.deniedTransitionPrivateFunctionCount !== 3
+    || value.productionChangedByPostflight !== false
+  ) {
+    throw new Error("transition authority evidence shape drifted");
+  }
+  return Object.freeze({
+    accepted: true,
+    migrationRunId: value.runs.migrationRunId,
+    sha256: expectedSha256,
+  });
+}
+
 function required(env, key) {
   const value = env[key];
   if (typeof value !== "string" || value.trim() === "") {
@@ -80,6 +125,13 @@ function assertPrivateRegularFile(filePath, label) {
   if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0) {
     throw new Error(`${label} must be a private regular file`);
   }
+}
+
+export function verifyTransitionAuthorityEvidence(
+  filePath = TRANSITION_AUTHORITY_EVIDENCE_PATH,
+) {
+  assertPrivateRegularFile(filePath, "transition authority evidence");
+  return parseTransitionAuthorityEvidence(readFileSync(filePath));
 }
 
 function readPrivateJson(filePath, label) {
@@ -138,7 +190,7 @@ export function assertGitState(state, expectedCommit) {
     || state.status !== ""
     || !["", "main"].includes(state.branch)
   ) {
-    throw new Error("aggregate smoke requires the exact clean reviewed main commit");
+    throw new Error("transition smoke requires the exact clean reviewed main commit");
   }
   return Object.freeze({ clean: true, exactMain: true, head: state.head });
 }
@@ -154,7 +206,7 @@ export function parseGitHubCiRun(raw, expectedCommit, expectedRunId) {
     || value.headBranch !== "main"
     || value.event !== "push"
   ) {
-    throw new Error("aggregate smoke exact-main CI binding did not pass");
+    throw new Error("transition smoke exact-main CI binding did not pass");
   }
   return Object.freeze({ passed: true, runId: expectedRunId });
 }
@@ -203,22 +255,22 @@ export function parseVercelDeployment(raw, expected) {
 }
 
 export function validateConfiguration(env = process.env) {
-  if (env.ORDER_PAYMENT_AGGREGATE_SMOKE_CONFIRM !== CONFIRMATION) {
-    throw new Error("aggregate smoke confirmation is invalid");
+  if (env.ORDER_PAYMENT_TRANSITION_SMOKE_CONFIRM !== CONFIRMATION) {
+    throw new Error("transition smoke confirmation is invalid");
   }
-  const operatorCommit = required(env, "ORDER_PAYMENT_AGGREGATE_SMOKE_OPERATOR_COMMIT");
+  const operatorCommit = required(env, "ORDER_PAYMENT_TRANSITION_SMOKE_OPERATOR_COMMIT");
   if (!/^[a-f0-9]{40}$/.test(operatorCommit)) {
-    throw new Error("aggregate smoke operator commit is invalid");
+    throw new Error("transition smoke operator commit is invalid");
   }
-  const mainCiRunId = positiveInteger(env, "ORDER_PAYMENT_AGGREGATE_SMOKE_MAIN_CI_RUN_ID");
-  const evidencePath = path.resolve(required(env, "ORDER_PAYMENT_AGGREGATE_SMOKE_EVIDENCE_PATH"));
+  const mainCiRunId = positiveInteger(env, "ORDER_PAYMENT_TRANSITION_SMOKE_MAIN_CI_RUN_ID");
+  const evidencePath = path.resolve(required(env, "ORDER_PAYMENT_TRANSITION_SMOKE_EVIDENCE_PATH"));
   if (
     path.dirname(evidencePath) !== EVIDENCE_DIRECTORY
     || path.basename(evidencePath)
-      !== `order-payment-event-aggregate-production-smoke-${operatorCommit}.json`
+      !== `order-payment-event-transition-production-smoke-${operatorCommit}.json`
     || existsSync(evidencePath)
   ) {
-    throw new Error("aggregate smoke evidence path is not fresh or reviewed");
+    throw new Error("transition smoke evidence path is not fresh or reviewed");
   }
   return Object.freeze({ evidencePath, mainCiRunId, operatorCommit });
 }
@@ -229,14 +281,14 @@ export function validateLocalCredentials(values) {
   const redisUrl = required(values, "UPSTASH_REDIS_REST_URL");
   const redisToken = required(values, "UPSTASH_REDIS_REST_TOKEN");
   if (!clerkSecret.startsWith("sk_live_") || !clerkPublishable.startsWith("pk_live_")) {
-    throw new Error("aggregate smoke requires the reviewed live Clerk key pair");
+    throw new Error("transition smoke requires the reviewed live Clerk key pair");
   }
   const parsed = parsePublishableKey(clerkPublishable);
   if (parsed.instanceType !== "production" || parsed.frontendApi !== REVIEWED_CLERK_FRONTEND_API) {
-    throw new Error("aggregate smoke Clerk Frontend API identity drifted");
+    throw new Error("transition smoke Clerk Frontend API identity drifted");
   }
   if (!redisUrl.startsWith("https://") || redisToken.length < 16) {
-    throw new Error("aggregate smoke Redis credentials are invalid");
+    throw new Error("transition smoke Redis credentials are invalid");
   }
   return Object.freeze({
     clerkFrontendApi: parsed.frontendApi,
@@ -258,7 +310,7 @@ export function validateRestartState(value, config) {
     || (value.sessionId !== null && !/^sess_[A-Za-z0-9]+$/.test(value.sessionId))
     || (value.signInTokenId !== null && !/^sit_[A-Za-z0-9]+$/.test(value.signInTokenId))
   ) {
-    throw new Error("aggregate smoke restart state drifted");
+    throw new Error("transition smoke restart state drifted");
   }
   return value;
 }
@@ -266,7 +318,7 @@ export function validateRestartState(value, config) {
 function assertVercelProject(cwd) {
   const value = JSON.parse(readFileSync(path.join(cwd, ".vercel", "project.json"), "utf8"));
   if (value?.projectId !== REVIEWED_PROJECT.projectId || value?.orgId !== REVIEWED_PROJECT.orgId) {
-    throw new Error("aggregate smoke Vercel project binding drifted");
+    throw new Error("transition smoke Vercel project binding drifted");
   }
 }
 
@@ -299,7 +351,7 @@ function readVercelDeployment(cwd, deploymentId) {
 async function boundedText(response, maxBytes) {
   const body = await response.text();
   if (Buffer.byteLength(body, "utf8") > maxBytes) {
-    throw new Error("aggregate smoke response exceeded its reviewed bound");
+    throw new Error("transition smoke response exceeded its reviewed bound");
   }
   return body;
 }
@@ -307,7 +359,7 @@ async function boundedText(response, maxBytes) {
 async function boundedJson(response) {
   const body = JSON.parse(await boundedText(response, MAX_JSON_BYTES));
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new Error("aggregate smoke route response was not an object");
+    throw new Error("transition smoke route response was not an object");
   }
   return body;
 }
@@ -337,7 +389,7 @@ async function verifyDeployment(config) {
   });
   const healthBody = await boundedJson(health);
   if (health.status !== 200 || healthBody.ok !== true) {
-    throw new Error("aggregate smoke production health failed");
+    throw new Error("transition smoke production health failed");
   }
   const homepage = await fetch(PRODUCTION_ORIGIN, {
     cache: "no-store",
@@ -346,7 +398,7 @@ async function verifyDeployment(config) {
   });
   const homepageBody = await boundedText(homepage, MAX_PAGE_BYTES);
   if (homepage.status !== 200 || !homepageBody.includes(`dpl=${DEPLOYMENT_ID}`)) {
-    throw new Error("aggregate smoke canonical alias drifted");
+    throw new Error("transition smoke canonical alias drifted");
   }
   return Object.freeze({ current, health: true, predecessor });
 }
@@ -568,6 +620,10 @@ export function sanitizedEvidence({ cleanup, config, deployment, result }) {
       deploymentId: PREDECESSOR_DEPLOYMENT_ID,
       preservedReady: deployment.predecessor.ready,
     },
+    prerequisites: {
+      transitionAuthorityEvidenceSha256: TRANSITION_AUTHORITY_EVIDENCE_SHA256,
+      transitionMigrationRunId: TRANSITION_MIGRATION_RUN_ID,
+    },
     result: {
       accountPageStatus: result.accountPageStatus,
       authenticatedReviewDenialStatus: result.authenticatedReviewDenialStatus,
@@ -584,17 +640,19 @@ export function sanitizedEvidence({ cleanup, config, deployment, result }) {
       unconsumedSignInTokenRevoked: cleanup.unconsumedSignInTokenRevoked,
     },
     boundaries: {
+      authorityAndConcurrencyProofIsSeparate: true,
       migrationsRun: false,
       predecessorDrained: false,
       productionDatabaseMutated: false,
       providerConfigurationChanged: false,
       rlsChanged: false,
       retainedRateLimitAnalyticsEvent: true,
+      transitionRoutesDirectlyExercised: false,
     },
   });
 }
 
-export async function runAggregateSmoke(env = process.env, dependencies = {}) {
+export async function runTransitionSmoke(env = process.env, dependencies = {}) {
   const config = { ...validateConfiguration(env), cwd: process.cwd() };
   assertGitState(readGitState(config.cwd), config.operatorCommit);
   parseGitHubCiRun(
@@ -607,6 +665,7 @@ export async function runAggregateSmoke(env = process.env, dependencies = {}) {
     DEPLOYED_SOURCE_COMMIT,
     DEPLOYED_SOURCE_CI_RUN_ID,
   );
+  verifyTransitionAuthorityEvidence();
   const deployment = await (dependencies.verifyDeployment ?? verifyDeployment)(config);
   const credentials = validateLocalCredentials(loadLocalEnvironment());
   const clerk = createClerkClient({ secretKey: credentials.clerkSecret });
@@ -615,7 +674,7 @@ export async function runAggregateSmoke(env = process.env, dependencies = {}) {
 
   if (existsSync(STATE_PATH)) {
     const priorState = validateRestartState(
-      readPrivateJson(STATE_PATH, "aggregate smoke restart state"),
+      readPrivateJson(STATE_PATH, "transition smoke restart state"),
       config,
     );
     await cleanupTransientState({ clerk, redis, state: priorState, userId: canary.id });
@@ -715,28 +774,10 @@ export async function runAggregateSmoke(env = process.env, dependencies = {}) {
   assert.ok(result);
   assert.ok(cleanup);
   if (cleanup.revokedSessions !== 1) {
-    throw new Error("aggregate smoke did not revoke exactly its one Clerk session");
+    throw new Error("transition smoke did not revoke exactly its one Clerk session");
   }
   unlinkSync(STATE_PATH);
   const evidence = sanitizedEvidence({ cleanup, config, deployment, result });
   writePrivateJson(config.evidencePath, evidence);
   return evidence;
-}
-
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  runAggregateSmoke().then(
-    (evidence) => {
-      process.stdout.write(`${JSON.stringify({
-        status: evidence.status,
-        deploymentId: evidence.application.deploymentId,
-        accountPageStatus: evidence.result.accountPageStatus,
-        reviewDenialStatus: evidence.result.authenticatedReviewDenialStatus,
-        cleanupPassed: Object.values(evidence.cleanup).every(Boolean),
-      })}\n`);
-    },
-    (error) => {
-      process.stderr.write(`OrderPaymentEvent aggregate production smoke failed [${error?.code ?? "UNCLASSIFIED"}].\n`);
-      process.exitCode = 1;
-    },
-  );
 }
