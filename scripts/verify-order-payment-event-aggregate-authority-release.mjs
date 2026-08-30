@@ -66,11 +66,17 @@ export function verifyOrderPaymentEventAggregateAuthorityRelease(
     migration,
     /pg_advisory_xact_lock\([\s\S]*grainline\.order-payment-event\.aggregate-authority\.preparation/u,
   );
+  const orderLock = migration.indexOf(
+    'LOCK TABLE public."Order" IN ACCESS EXCLUSIVE MODE;',
+  );
   const ledgerLock = migration.indexOf(
     'LOCK TABLE public."OrderPaymentEvent" IN SHARE ROW EXCLUSIVE MODE;',
   );
   const orderAlter = migration.indexOf('ALTER TABLE public."Order"');
-  assert.ok(ledgerLock > 0 && orderAlter > ledgerLock);
+  assert.ok(
+    orderLock > 0 && ledgerLock > orderLock && orderAlter > ledgerLock,
+    "aggregate-authority migration lost its parent-first DDL lock order",
+  );
   assert.match(migration, /max\([\s\S]*"stripeEventCreatedSeconds"/u);
   assert.match(migration, /count\(DISTINCT pg_catalog\.jsonb_build_array/u);
   assert.match(migration, /'failed', 'canceled', 'cancelled'/u);

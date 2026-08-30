@@ -72,10 +72,11 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
   const suffix = randomUUID().replaceAll("-", "").slice(0, 20);
   const schemaName = `ope_aggregate_${suffix}`;
   const schema = identifier(schemaName);
+  const ownerApplication = `grainline-ope-aggregate-owner-${suffix}`;
   const raceApplication = `grainline-ope-aggregate-race-${suffix}`;
   const owner = client(
     config.ownerDatabaseUrl,
-    `grainline-ope-aggregate-owner-${suffix}`,
+    ownerApplication,
   );
   const ownerB = client(config.ownerDatabaseUrl, raceApplication);
   const runtime = client(
@@ -143,7 +144,45 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
       "public.",
       `${schema}.`,
     );
-    await owner.query(migration);
+    // Hold the same parent lock as the fixed payment writers, then begin the
+    // migration. It must wait on Order before taking the ledger table lock, so
+    // this in-flight writer can still append and commit without deadlocking.
+    await ownerB.query("BEGIN");
+    await ownerB.query(`
+      SELECT id FROM ${schema}."Order"
+       WHERE id = 'order-history'
+       FOR UPDATE
+    `);
+    const pendingMigration = owner.query(migration);
+    let migrationWaitObserved = false;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const waiting = await ownerB.query(`
+        SELECT wait_event_type
+          FROM pg_catalog.pg_stat_activity
+         WHERE application_name = $1::text
+           AND state = 'active'
+      `, [ownerApplication]);
+      if (waiting.rows[0]?.wait_event_type === "Lock") {
+        migrationWaitObserved = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.equal(
+      migrationWaitObserved,
+      true,
+      "aggregate-authority migration did not wait on the parent writer lock",
+    );
+    await ownerB.query(eventInsertSql(schema), [
+      "refund-migration-writer",
+      "order-history",
+      "re_migration_writer",
+      "REFUND",
+      "succeeded",
+      60,
+    ]);
+    await ownerB.query("COMMIT");
+    await pendingMigration;
 
     const catalog = await owner.query(`
       SELECT
@@ -323,6 +362,7 @@ export async function runOrderPaymentEventAggregatePostgresProof(config) {
       backfillAndRefreshProven: true,
       directProjectionForgeryRejected: true,
       helperExecutionDenied: true,
+      migrationWriterLockOrderProven: true,
       outOfOrderDisputeProven: true,
       sameSecondConflictFailsClosed: true,
       parentOrderRaceSerialized: true,

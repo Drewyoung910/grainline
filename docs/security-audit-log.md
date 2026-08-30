@@ -4066,7 +4066,7 @@ Open work:
   backfilled once and refreshed after every payment-event insert.
 - Migration `20260830010000_prepare_order_payment_event_aggregate_authority`,
   SHA-256
-  `2b7a3041153608d9bc534db0138d538566459b0f07d16b3f9d9cf8f4a92c6e72`,
+  `dfb2120e9c338607b1bfd73a8e095af004b188b9a0baa047987ece07199c0666`,
   adds a private canonical calculation plus refresh and anti-forgery triggers.
   Every helper is volatile, parallel-unsafe, owner-definer, search-path pinned
   and unexecutable by runtime/PUBLIC. Old deployments cannot forge the two
@@ -4079,8 +4079,13 @@ Open work:
 - The in-process PostgreSQL proof passes backfill, refresh, case-normalized
   refund status, signed out-of-order/multi-dispute behavior and forged
   insert/update denial. A separate real-login proof is CI-wired for private
-  EXECUTE denial and the refund-insert versus review-claim lock race. Generic
-  production migrations verify then isolate this successor.
+  EXECUTE denial and the refund-insert versus review-claim lock race. The
+  Extra-High whole-transaction review caught a reversed DDL lock assumption:
+  fixed payment writers lock Order before appending ledger evidence, not the
+  reverse. The candidate now takes the parent Order lock first, and the
+  real-PostgreSQL proof holds an in-flight parent writer, observes the migration
+  wait, appends evidence, commits and requires migration/backfill completion.
+  Generic production migrations verify then isolate this successor.
 - This is an isolated compatible candidate only. No production migration,
   deploy, grant, RLS, credential, provider or row state changed. Transition,
   webhook and local-evidence conversions, aggregate production acceptance,

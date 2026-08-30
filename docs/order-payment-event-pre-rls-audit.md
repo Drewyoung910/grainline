@@ -23,7 +23,7 @@ Order projections and serializes verified-review creation against refund
 evidence. Migration
 `20260830010000_prepare_order_payment_event_aggregate_authority` is byte-pinned
 at SHA-256
-`2b7a3041153608d9bc534db0138d538566459b0f07d16b3f9d9cf8f4a92c6e72`;
+`dfb2120e9c338607b1bfd73a8e095af004b188b9a0baa047987ece07199c0666`;
 it is unapplied and undeployed.
 `OrderPaymentEvent` RLS remains off and predecessor runtime CRUD remains intact.
 

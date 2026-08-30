@@ -14,9 +14,11 @@ SELECT pg_catalog.pg_advisory_xact_lock(
   )
 );
 
--- Take the append-ledger write lock before the Order DDL lock. Existing
--- payment inserts lock Order after writing OrderPaymentEvent; reversing that
--- order here could deadlock migration DDL with an in-flight insert.
+-- Fixed refund and signed-webhook writers lock the parent Order before they
+-- append OrderPaymentEvent evidence. Acquire the same parent-first order here:
+-- once ACCESS EXCLUSIVE is held, no current writer can hold or acquire a
+-- parent row lock while this transaction installs the ledger trigger.
+LOCK TABLE public."Order" IN ACCESS EXCLUSIVE MODE;
 LOCK TABLE public."OrderPaymentEvent" IN SHARE ROW EXCLUSIVE MODE;
 
 ALTER TABLE public."Order"

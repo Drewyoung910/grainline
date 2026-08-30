@@ -3,7 +3,7 @@
 Status: isolated compatible candidate. Migration
 `20260830010000_prepare_order_payment_event_aggregate_authority` is byte-pinned
 at SHA-256
-`2b7a3041153608d9bc534db0138d538566459b0f07d16b3f9d9cf8f4a92c6e72`.
+`dfb2120e9c338607b1bfd73a8e095af004b188b9a0baa047987ece07199c0666`.
 It is wired into disposable CI but deliberately isolated from the generic
 Production Migrations workflow. It has not been merged, applied, deployed or
 used to change RLS/grants/provider state.
@@ -57,17 +57,20 @@ instances still retain broad Order updates, but they cannot set either boolean
 to a forged value. Unrelated Order inserts/updates remain compatible because
 their defaults or retained projections equal the ledger-derived state.
 
-Before altering `Order`, the migration takes `SHARE ROW EXCLUSIVE` on
-`OrderPaymentEvent`. This deliberately follows the same ledger-then-parent
-order as the existing payment insert invariant and prevents a DDL deadlock in
-which migration holds `Order` while an in-flight insert holds the ledger and
-waits for that parent row. The migration then owns the `Order` DDL lock through
-backfill and trigger installation. Concurrent inserts resume only after the
-refresh trigger exists. Outside migration, a payment insert and an eligibility
-claim serialize on the same parent `Order FOR UPDATE` lock. A transaction
-advisory lock prevents a competing copy of this preparation, while a 10-second
-lock timeout and 120-second statement timeout fail closed instead of leaving a
-busy deployment hanging indefinitely.
+Before altering `Order`, the migration takes `ACCESS EXCLUSIVE` on `Order` and
+then `SHARE ROW EXCLUSIVE` on `OrderPaymentEvent`. This follows the existing
+fixed refund/signed-webhook parent-then-ledger lock order. Once the parent lock
+is held, no current writer can retain or acquire an Order row lock while the
+migration installs the ledger trigger. The migration keeps both locks through
+backfill and trigger installation; concurrent inserts resume only after the
+refresh trigger exists. A real PostgreSQL proof holds the same parent lock as
+an in-flight payment writer, observes the migration waiting, appends evidence
+without waiting behind a prematurely held ledger lock, commits the writer, and
+requires the migration and historical backfill to complete. Outside migration,
+a payment insert and an eligibility claim serialize on the same parent `Order
+FOR UPDATE` lock. A transaction advisory lock prevents a competing copy of
+this preparation, while a 10-second lock timeout and 120-second statement
+timeout fail closed instead of leaving a busy deployment hanging indefinitely.
 
 ## Latest-dispute semantics
 
@@ -139,8 +142,9 @@ The disposable in-process PostgreSQL proof covers backfill, failed/successful
 refunds, out-of-order signed dispute delivery, multiple dispute objects,
 unrelated Order compatibility, direct insert/update forgery rejection and all
 three private function grants. The real two-login PostgreSQL proof additionally
-uses separate `ci` and `grainline_app_runtime` connections, proves direct helper
-execution denial, observes the parent Order lock wait, and proves a stale
+uses separate `ci` and `grainline_app_runtime` connections, proves the
+parent-first migration/writer lock order, proves direct helper execution
+denial, observes the eligibility parent Order lock wait, and proves a stale
 review-eligibility claim returns zero after the refund transaction commits.
 
 Required sequence:

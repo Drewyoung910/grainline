@@ -35,9 +35,10 @@ describe("OrderPaymentEvent aggregate-authority real PostgreSQL proof", () => {
     }));
   });
 
-  it("uses a disposable schema and proves the payment-versus-eligibility race", () => {
+  it("uses a disposable schema and proves both payment lock races", () => {
     assert.match(source, /CREATE SCHEMA \$\{schema\} AUTHORIZATION ci/u);
     assert.match(source, /wait_event_type === "Lock"/u);
+    assert.match(source, /migrationWriterLockOrderProven: true/u);
     assert.match(source, /FOR UPDATE/u);
     assert.match(source, /stale review eligibility survived/u);
     assert.match(source, /directProjectionForgeryRejected: true/u);
