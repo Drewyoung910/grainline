@@ -4090,3 +4090,51 @@ Open work:
   deploy, grant, RLS, credential, provider or row state changed. Transition,
   webhook and local-evidence conversions, aggregate production acceptance,
   predecessor drain, policyless ENABLE and FORCE remain separate gates.
+
+# 2026-08-30 - Notification proof follows promoted payment-source invariant
+
+- PR #340 merged the compatible aggregate-authority candidate at exact head
+  `d1053dc83b698fa75a93616731a0f4f2aec7cf51` as main commit
+  `dfd8784649c939dc4cb49964ee542abb65426b35`. Exact-main Notification FORCE
+  proof run `33300526930` then failed before its authority checks because its
+  disposable `PAYMENT_DISPUTE` source still used the pre-invariant shorthand
+  `OrderPaymentEvent` shape.
+- The fixture now uses one internally consistent signed dispute: canonical
+  `evt_`, `du_` and `ch_` identifiers, typed dispute source, amount/currency/
+  status, signed provider time and matching `chargeId`, `disputeId`,
+  `stripeEventType` and `stripeEventCreated` metadata. Its SystemAuditLog actor
+  and Notification source reuse the same event-id constant. A focused
+  regression test pins every promoted field and the shared source identity.
+- The first corrected hosted proof, run `33300738857`, then failed closed with
+  PostgreSQL `42P08`: the reused dispute-object placeholder was inferred once
+  as `varchar` for the table column and once as `text` for JSON construction.
+  The insert now types that placeholder as `text` at both uses and lets normal
+  assignment coercion populate the bounded varchar column. The regression test
+  pins the explicit cast so a future multi-use parameter cannot reintroduce
+  ambiguous PostgreSQL inference.
+- The next hosted proof, run `33300826812`, reached the insert and failed the
+  promoted immutable-timestamp constraint because the legacy fixture still
+  overwrote only `updatedAt` with `clock_timestamp()`. The corrected insert
+  omits both timestamps so their table-level `CURRENT_TIMESTAMP` defaults are
+  identical; its regression block rejects an explicit `updatedAt` or wall-clock
+  expression in this signed-dispute fixture.
+- Run `33300927796` then advanced past the canonical dispute insert and failed
+  closed when later variants tried to mutate that row. That exposed a deeper
+  stale model: the Notification proof reused one mutable payment row to
+  impersonate a signed dispute, seller refund and two blocked-checkout refunds,
+  but the production ledger is intentionally append-only. The proof now keeps
+  the signed dispute and inserts three distinct canonical local-refund rows,
+  each with an action-derived `local:` event identity, unique `re_` object,
+  matching reason and `refundIds` evidence. No payment row is updated or
+  deleted. Final cleanup uses table-level `TRUNCATE ... CASCADE` only after the
+  script's existing loopback `grainline_ci` target validation; the disposable
+  database is destroyed after the job and no production invariant is weakened.
+- Run `33301094248` proved the immutable rows and notification variants, then
+  failed closed only in teardown: a prior Case delete had queued deferred
+  trigger events before the cascading ledger truncate. Cleanup now truncates
+  the disposable ledger first, before any row delete can queue events on a
+  cascaded table, and a test pins that statement order.
+- This was a disposable-proof compatibility regression, not a production
+  `OrderPaymentEvent`, Notification policy or runtime-authority failure. The
+  aggregate migration remains unapplied; no deployment, migration, grant,
+  RLS, credential, provider or production-row state changed.

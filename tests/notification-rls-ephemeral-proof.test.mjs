@@ -29,6 +29,75 @@ describe("Notification RLS ephemeral PostgreSQL proof", () => {
     );
   });
 
+  it("seeds the payment-dispute source with canonical signed identity", () => {
+    assert.match(
+      proof,
+      /orderDisputeStripeEventId: "evt_[A-Za-z0-9]+"/,
+      "the Notification proof must use the canonical signed-event id shape",
+    );
+    assert.match(proof, /orderDisputeStripeObjectId: "du_[A-Za-z0-9]+"/);
+    assert.match(proof, /orderDisputeStripeChargeId: "ch_[A-Za-z0-9]+"/);
+    const paymentInsert = proof.match(
+      /INSERT INTO public\."OrderPaymentEvent" \([\s\S]*?fixture\.orderDisputeStripeEventCreatedSeconds,\s*\],/,
+    );
+    assert.ok(paymentInsert, "the Notification proof must retain its payment-dispute fixture");
+    for (const required of [
+      '"stripeEventId"',
+      '"stripeObjectId"',
+      '"stripeObjectType"',
+      '"stripeEventCreatedSeconds"',
+      "'chargeId'",
+      "'disputeId'",
+      "'stripeEventType'",
+      "'stripeEventCreated'",
+      "$4::text",
+    ]) {
+      assert.ok(
+        paymentInsert[0].includes(required),
+        `the payment-dispute fixture must include ${required}`,
+      );
+    }
+    assert.doesNotMatch(
+      paymentInsert[0],
+      /"updatedAt"|clock_timestamp\(\)/,
+      "createdAt and updatedAt must use their shared CURRENT_TIMESTAMP defaults",
+    );
+    assert.match(
+      proof,
+      /sourceId: fixture\.orderDisputeStripeEventId/,
+      "the notification source must use the same canonical event id as the payment fixture",
+    );
+  });
+
+  it("models refund notifications as distinct immutable local ledger events", () => {
+    assert.doesNotMatch(proof, /UPDATE public\."OrderPaymentEvent"/);
+    assert.doesNotMatch(proof, /DELETE FROM public\."OrderPaymentEvent"/);
+    assert.match(proof, /TRUNCATE TABLE public\."OrderPaymentEvent" CASCADE/);
+    assert.match(
+      proof,
+      /async function cleanFixturesInTransaction\(owner\) \{[\s\S]*?TRUNCATE TABLE public\."OrderPaymentEvent" CASCADE[\s\S]*?const userIds =/,
+      "immutable ledger cleanup must precede row deletes that queue deferred triggers",
+    );
+    assert.match(proof, /async function insertLocalOrderPaymentEvent\(/);
+    assert.match(proof, /'refundIds', pg_catalog\.jsonb_build_array\(\$4::text\)/);
+    for (const source of [
+      "orderSellerRefundStripeEventId",
+      "orderBlockedRefundPredecessorStripeEventId",
+      "orderBlockedRefundCorrectedStripeEventId",
+    ]) {
+      assert.match(
+        proof,
+        new RegExp(`${source}:\\n?\\s*"local:[a-z_]+:re_[A-Za-z0-9]+"`),
+        `${source} must use canonical local refund identity`,
+      );
+      assert.match(
+        proof,
+        new RegExp(`sourceId: fixture\\.${source}`),
+        `${source} must bind its Notification source to the immutable row`,
+      );
+    }
+  });
+
   it("proves catalog, grants, direct denial, every service family, and both lock orderings", () => {
     assert.match(proof, /relrowsecurity: true/);
     assert.match(proof, /relforcerowsecurity: true/);
