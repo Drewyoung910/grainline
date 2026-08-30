@@ -3922,5 +3922,12 @@ Open work:
   migration successors. A dedicated engine-read-only restart verifier and
   exact-main/CI/fresh-inspection-bound workflow are staged. Generic production
   migration dispatches isolate the candidate to prevent accidental application.
-- Focused local validation passes 13 tests. Real PostgreSQL execution, full CI,
+- Initial branch CI `33291321871` failed closed at the global grant audit: the
+  database correctly denied runtime EXECUTE on the three new trigger helpers,
+  but the global inventory had not classified them as runtime-private. The
+  inventory now consumes the exact invariant catalog, and a regression test
+  requires all three helpers to remain private. Migration bytes are unchanged.
+- Corrected focused validation passes 28 tests with one environment-specific
+  PostgreSQL-service skip. The full suite passes 3,523 tests with seven
+  environment-specific skips and zero failures. Corrected real PostgreSQL CI,
   merge, fresh same-commit inspection and production application remain open.

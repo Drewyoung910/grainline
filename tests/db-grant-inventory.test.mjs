@@ -573,6 +573,7 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_item_seller_key_complete",
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
+      ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
     ]) {
       assert.equal(
         RUNTIME_PRIVATE_FUNCTIONS.includes(functionName),

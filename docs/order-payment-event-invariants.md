@@ -137,3 +137,22 @@ Before production application:
 Participant/staff/export/aggregate projections, predecessor drain, policyless
 ENABLE, pooled-runtime isolation proof and separate FORCE remain later named
 gates. This invariant preparation must not be described as RLS being live.
+
+## CI grant-inventory correction (2026-08-29)
+
+Initial branch CI run `33291321871` reached the post-migration global grant
+audit and failed closed because the three new trigger helpers were absent from
+the audit's runtime-private function inventory. PostgreSQL had the intended
+least-privilege state: PUBLIC and `grainline_app_runtime` EXECUTE were revoked.
+The audit incorrectly treated the newly discovered functions as application
+RPCs and reported those missing grants as defects.
+
+The correction imports the byte-pinned invariant function catalog into the
+global runtime-private inventory. A direct regression assertion requires every
+cataloged helper to remain in that inventory, while the existing provisioning
+and live-audit checks continue to require its EXECUTE revokes. The migration
+bytes and SQL behavior are unchanged. After the correction, the focused suite
+passed 28 tests with one environment-specific PostgreSQL-service skip, and the
+full local suite passed 3,523 tests with seven environment-specific skips and
+zero failures. The real PostgreSQL grant audit remains a fresh CI gate on the
+corrected commit.
