@@ -1,6 +1,16 @@
 # OrderPaymentEvent transition authority
 
-Status: isolated compatible candidate; not applied, deployed or activated.
+Status: merged compatible preparation; not applied, deployed or activated.
+
+PR #347 exact head
+`83e5bde9c8a9c024991da80464773e07cdf7e951` passed hosted CI
+`33312775504` and merged as exact main
+`dc4bb0d5b6e96a91db438dd13338c042df158e64`. Exact-main CI
+`33313279623`, Notification FORCE regression run `33313279617` and
+Conversation/Message FORCE regression run `33313279629` all passed. The PR's
+Vercel Preview cloned the exact head, compiled and type-checked successfully,
+then stopped at page-data collection solely because Preview intentionally has
+no `DATABASE_URL`; production was not deployed or changed.
 
 ## Decision
 
@@ -100,4 +110,4 @@ Merge is not production authorization. Compatible database preparation,
 compatible application deployment, bounded authenticated smoke, predecessor
 drain, policyless `ENABLE`, runtime grant removal and later `FORCE` remain
 separate releases. No provider configuration or production data is changed by
-this candidate.
+this merged preparation.

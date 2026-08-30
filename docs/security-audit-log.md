@@ -4345,8 +4345,18 @@ Open work:
   3,600 tests. TypeScript, lint, high/critical dependency audit and the full
   production build also pass; the build used only allowlisted runtime values
   and explicitly excluded owner/migration credentials.
-- Hosted PostgreSQL separate-login/concurrency proof and exact-head CI remain
-  required before merge.
+- PR #347 exact head
+  `83e5bde9c8a9c024991da80464773e07cdf7e951` passed hosted CI
+  `33312775504`, including migration application, grant convergence,
+  disposable PostgreSQL proof, separate-login concurrency proof, all 3,600
+  tests, dependency audit and production build. It merged as exact main
+  `dc4bb0d5b6e96a91db438dd13338c042df158e64`; exact-main CI
+  `33313279623`, Notification FORCE regression run `33313279617` and
+  Conversation/Message FORCE regression run `33313279629` all passed.
+- The PR's Vercel Preview cloned the exact head, compiled successfully and
+  completed TypeScript before page-data collection failed only because
+  Preview intentionally has no `DATABASE_URL`. This is the expected secure
+  Preview boundary, not an application or security failure.
 - CI applies the candidate only after the invariant, read and aggregate
   predecessors pass; the generic Production Migrations workflow verifies and
   isolates it so it cannot apply accidentally. Production remains unchanged:
