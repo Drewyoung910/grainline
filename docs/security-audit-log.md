@@ -3852,3 +3852,30 @@ Open work:
   structure and bounded SQLSTATE while retaining the legacy shape. Negative
   tests reject the wrong Prisma family, wrong adapter name, non-PostgreSQL
   cause, malformed code and missing cause. No production state changed.
+
+## OrderPaymentEvent staff Case full-refund proof accepted (2026-08-29)
+
+- Exact main `4b2d4693ac03db773b766ca4c4c53c072ac0fdbe` passed CI
+  `33287308262` and was deployed as `dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`.
+  READY status, four canonical aliases, canonical/alias health, the canonical
+  deployment marker and exact Vercel source metadata all passed. Existing
+  deployments were preserved as predecessors.
+- The operator resumed only immutable attempt
+  `711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14` / CI `33274185617` and reused
+  its existing payment, 500-cent refund, 475-cent reversal, signed event and
+  fixtures. It created no second payment, refund, reversal or event. The
+  authenticated terminal replay returned the reviewed conflict and the exact
+  signed replay produced no duplicate side effect.
+- Case/payment/message/stock/Notification/outbox/audit invariants passed.
+  Bounded cleanup removed the temporary rows, exact Redis keys, temporary
+  sessions and disposable account, restored the operational canary to `USER`,
+  and removed the restart journal. The intentional processed webhook lease,
+  immutable Stripe test objects and ordinary security/provider telemetry were
+  retained.
+- Sanitized mode-`0600` evidence SHA-256 is
+  `e55993b6e76f11a8aa48b0d5aefde588695944436ec7c5474655e1a43d8f18fb`.
+  This closes the staff Case authority-family provider gate only. It did not
+  run a migration or change RLS, grants, credentials or provider configuration.
+  Fresh data classification, remaining invariants and projections,
+  predecessor drain, policyless ENABLE, pooled-runtime proof and separate
+  FORCE remain open.

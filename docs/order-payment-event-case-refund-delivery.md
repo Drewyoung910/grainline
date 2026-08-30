@@ -1,11 +1,13 @@
 # OrderPaymentEvent staff Case delivery boundary
 
-Status: compatible application candidate merged through exact main
-`d17b0384f2b90b128ba23852a0dedb004ce52739` and live in production deployment
-`dpl_73aR913b9hfgkcdfBv2MwMyypR5a` from exact main
-`2820986538c0d64f035defce052ba4ad0de1b3fb`. It does not add or replace a
-database function, change grants or RLS, or call Stripe from PostgreSQL. Real
-staff Case provider/replay proof remains outstanding.
+Status: accepted staff Case full-refund provider/replay proof. Exact operator
+main `4b2d4693ac03db773b766ca4c4c53c072ac0fdbe` passed CI `33287308262`, was
+deployed as `dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`, and resumed only immutable
+attempt `711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14` / CI `33274185617`. The
+proof reused the existing payment, 500-cent refund, 475-cent reversal, signed
+event and fixtures; it created no competing financial operation. This accepts
+the staff Case authority family but does not enable `OrderPaymentEvent` RLS or
+change grants/provider configuration.
 
 Audited: 2026-08-24 after the evidence-bound refund-reconciliation and
 inactive-seller recovery candidates.
@@ -258,12 +260,10 @@ best-effort work, the pre-existing Case authority catalog and Notification
 inventory. TypeScript must also accept the Prisma transaction client across
 the fixed function, Notification and EmailOutbox helpers.
 
-This closes the application crash gap and prepares the live proof only. The
-operator has not run and is not `OrderPaymentEvent` RLS activation evidence.
-It does not replace:
+This closes the application crash gap. The exact converted-deployment staff
+refund provider, authenticated-route and replay proof is accepted below. It is
+still not `OrderPaymentEvent` RLS activation evidence and does not replace:
 
-- execution and acceptance of the converted-deployment staff refund provider,
-  authenticated-route and replay proof;
 - fresh aggregate-only production data classification;
 - remaining append-only, taxonomy, currency and source invariants;
 - actor-safe participant/staff projections and bounded aggregates;
@@ -320,3 +320,37 @@ locations, but the adapter path is deliberately restricted to an outer
 PostgreSQL cause, and a five-character uppercase/digit SQLSTATE. It still does
 not parse error text or accept arbitrary nested errors. Positive and negative
 regression coverage pins the real adapter shape.
+
+## Staff Case full-refund production proof accepted (2026-08-29)
+
+Exact main `4b2d4693ac03db773b766ca4c4c53c072ac0fdbe` passed CI
+`33287308262` and was manually deployed as
+`dpl_2WkGbkiDdD8ySQYnCTur7ND3n2kd`. Independent attestation accepted READY
+status, all four canonical aliases, canonical and alias health, the canonical
+page deployment marker and Vercel metadata binding the deployment to that
+exact source. Existing deployments were retained as predecessors.
+
+The restart-safe operator resumed only immutable original attempt
+`711e9fa4b0d4f941fd9c0fcf9892d06110b1cc14` / CI `33274185617`. It reused
+the already-created 500-cent Stripe test refund, exact 475-cent transfer
+reversal, delivered signed event and marker-bound fixtures. It did not create
+another payment, refund, reversal or provider event. The terminal authenticated
+route replay returned the reviewed conflict boundary, and the exact signed
+event replay was accepted without duplicating any local side effect.
+
+The proof accepted the source-bound payment evidence, resolved Case, staff
+resolution message, restored private stock with intentional `SOLD_OUT` status,
+buyer/seller Notifications, skipped test email, audit row and versioned outbox
+reservation. Bounded cleanup deleted the temporary application rows, exact
+Redis keys and disposable connected account; revoked the temporary Clerk
+sessions; restored the operational canary to `USER`; and retained only the
+intentional processed webhook lease, immutable Stripe test objects and normal
+security/provider telemetry. The private restart journal was removed.
+
+Sanitized mode-`0600` acceptance evidence has SHA-256
+`e55993b6e76f11a8aa48b0d5aefde588695944436ec7c5474655e1a43d8f18fb`.
+Production migrations, grants, RLS posture, credentials and provider
+configuration were unchanged. The remaining gates are fresh aggregate data
+classification, the remaining append-only/taxonomy/currency/source invariants,
+actor-safe projections and aggregates, predecessor drain, separate policyless
+ENABLE plus pooled-runtime proof, and separate FORCE.
