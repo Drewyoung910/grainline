@@ -20,6 +20,16 @@ runtime CRUD was deliberately preserved. PR #343 exact head
 `33306115759` passed. The distinct actual pooled-runtime postflight passed from
 that exact clean commit with sanitized mode-0600 evidence SHA-256
 `903e4816c95437000337d870c62b312e7659e4e9a443881360f65194bf2d032f`.
+The compatible application was then manually built and deployed from exact
+main `4908bc7f377f5950da8de6b3398049d65a5fdfcb`, bound to exact-main CI
+`33307107247`, as production deployment
+`dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj`. The authenticated Vercel deployment API
+reports that exact Git SHA, production target and `READY` state. All four
+canonical aliases resolve to the new deployment, both `thegrainline.com` and
+`grainline.vercel.app` health checks returned `{"ok":true}`, and prior
+compatible deployment `dpl_7UeENeZebXL9yL481DWrXkDpWd4R` remains `READY` as
+the undrained predecessor. No migration, RLS, grant, credential or provider
+configuration changed during deployment.
 
 The dedicated production package adds a restart-safe, exact-main-only workflow
 and an engine-read-only scope verifier. The verifier accepts exactly two states:
@@ -192,16 +202,23 @@ Required sequence:
 8. prove zero ordinary runtime base-table access, drain the predecessor, then
    activate policyless `ENABLE` and later `FORCE` RLS as separate releases.
 
-The distinct pooled-runtime postflight is accepted. It used only the pooled
+The distinct pooled-runtime postflight and compatible deployment are accepted.
+The postflight used only the pooled
 `grainline_app_runtime` credential, refused privileged or aliased database
 URLs, ran in an engine-attested repeatable-read/read-only transaction,
 re-proved the sealed five-function read authority, verified both Order
 projection columns and both triggers, proved all three aggregate helpers remain
 runtime-inaccessible and exported no rows or counts. The postflight changed no
-production state. The next separate gate is compatible application deployment
-and authenticated aggregate/review smoke while preserving the predecessor.
-This state does not authorize predecessor drain, grant revocation, RLS
-activation or provider changes.
+production state. The current separate gate is the bounded authenticated
+aggregate/review smoke while preserving the predecessor. Its reviewed design
+creates no database, Stripe or Vercel fixture: it uses one short-lived retained
+operational-canary Clerk session, renders `/account`, and posts a fresh
+nonexistent listing ID to `/api/reviews`. The exact 403 delivered-order denial
+can occur only after the converted route reaches its authoritative locked
+eligibility query with `Order.paymentRefundBlocked = false`. The operator then
+revokes its session and resets only that canary's transient review-rate-limit
+and account-cache state. This state does not authorize predecessor drain,
+grant revocation, RLS activation or provider changes.
 
 ## Failed hosted proof evidence
 

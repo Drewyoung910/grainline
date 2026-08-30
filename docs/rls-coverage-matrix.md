@@ -147,7 +147,8 @@ The dated `OrderPaymentEvent` updates below are the authoritative current gate
 state and supersede earlier inline chronology in its matrix summary.
 
 > **OrderPaymentEvent superseding gate update (2026-08-30):** aggregate
-> authority is accepted through the actual pooled production runtime. PR #343
+> authority is accepted through the actual pooled production runtime and its
+> compatible application is live. PR #343
 > exact head `9db58d87d45799e933e9b343f6d51f629a32e0d8` merged as exact main
 > `87d01c692d0134be5b628076551f7d0e05ef2873`; exact-main CI
 > `33306115759` passed. The engine-enforced repeatable-read/read-only postflight
@@ -156,9 +157,15 @@ state and supersede earlier inline chronology in its matrix summary.
 > denials and ordinary pooled-runtime identity without exporting rows or
 > counts. Retain sanitized mode-0600 evidence SHA-256
 > `903e4816c95437000337d870c62b312e7659e4e9a443881360f65194bf2d032f`.
+> Exact main `4908bc7f377f5950da8de6b3398049d65a5fdfcb`, CI `33307107247`,
+> and production deployment `dpl_UiZckAkuj8CSyLPBeQBUHF5Fq1Dj` are now
+> accepted: Vercel reports the exact source SHA and `READY` state, all four
+> canonical aliases point to it, both canonical health routes pass, and
+> predecessor `dpl_7UeENeZebXL9yL481DWrXkDpWd4R` remains `READY` and
+> undrained.
 > `OrderPaymentEvent` RLS remains off and predecessor CRUD remains retained.
-> The current gate is compatible application deployment plus authenticated
-> aggregate/review smoke, followed by conversion and proof of the remaining
+> The current gate is the bounded authenticated aggregate/review smoke,
+> followed by conversion and proof of the remaining
 > transition, webhook and local-evidence access paths. Predecessor drain,
 > policyless ENABLE and FORCE remain later separate releases.
 
