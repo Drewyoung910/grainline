@@ -104,6 +104,7 @@ const {
   requiredRuntimeTablePrivileges,
   runtimePrivateFunctionNames,
   orderPaymentEventRlsActivationExpected,
+  orderPaymentEventRlsForceExpected,
   sellerPayoutEventRlsActivationExpected,
   stripeWebhookEventRlsActivationExpected,
   stripeWebhookEventRlsForceExpected,
@@ -457,6 +458,7 @@ describe("database grant inventory guardrails", () => {
       rlsPolicyTables: [],
     };
     const orderPaymentEventActivationInventory = {
+      tables: [ORDER_PAYMENT_EVENT_TABLE],
       rlsEnableTables: [ORDER_PAYMENT_EVENT_TABLE],
       rlsForceTables: [],
       rlsPolicyTables: [],
@@ -508,6 +510,68 @@ describe("database grant inventory guardrails", () => {
         orderPaymentEventActivationInventory,
       ),
       true,
+    );
+    assert.equal(
+      orderPaymentEventRlsForceExpected(
+        orderPaymentEventActivationInventory,
+      ),
+      false,
+    );
+    const orderPaymentEventForceInventory = {
+      ...orderPaymentEventActivationInventory,
+      rlsForceTables: [ORDER_PAYMENT_EVENT_TABLE],
+    };
+    assert.equal(
+      orderPaymentEventRlsForceExpected(orderPaymentEventForceInventory),
+      true,
+    );
+    assert.equal(
+      orderPaymentEventRlsForceExpected({
+        rlsEnableTables: [],
+        rlsForceTables: [ORDER_PAYMENT_EVENT_TABLE],
+        rlsPolicyTables: [],
+      }),
+      false,
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [{
+          table_name: ORDER_PAYMENT_EVENT_TABLE,
+          rls_enabled: true,
+          rls_forced: true,
+          policy_count: 0,
+        }],
+        orderPaymentEventForceInventory,
+      ),
+      [],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [{
+          table_name: ORDER_PAYMENT_EVENT_TABLE,
+          rls_enabled: true,
+          rls_forced: false,
+          policy_count: 0,
+        }],
+        orderPaymentEventForceInventory,
+      ),
+      [
+        "service-only table OrderPaymentEvent must have FORCE ROW LEVEL SECURITY enabled",
+      ],
+    );
+    assert.deepEqual(
+      collectPolicylessServiceRlsIssues(
+        [{
+          table_name: ORDER_PAYMENT_EVENT_TABLE,
+          rls_enabled: true,
+          rls_forced: true,
+          policy_count: 0,
+        }],
+        orderPaymentEventActivationInventory,
+      ),
+      [
+        "service-only table OrderPaymentEvent must keep FORCE ROW LEVEL SECURITY disabled for this release",
+      ],
     );
     assert.deepEqual(
       requiredRuntimeTablePrivileges(

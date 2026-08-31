@@ -88,6 +88,16 @@ the pooled `grainline_app_runtime` credential and writes fresh sanitized
 mode-`0600` evidence. It remains a separate acceptance gate after any future
 production migration.
 
+Hosted CI run `33409002277` failed closed at the first FORCE-state global
+grant audit. The table-specific FORCE proof had passed, but the shared grant
+auditor still hard-coded `OrderPaymentEvent` to NO FORCE and correctly refused
+the candidate. The branch now derives the expected FORCE posture from the
+byte-derived migration inventory, exactly as it already does for the other
+policyless service tables. Unit coverage accepts only ENABLE/FORCE/zero-policy
+when the sealed FORCE migration is present, retains ENABLE/NO-FORCE/zero-policy
+for Phase A, and rejects both mismatch directions. No production state was
+involved in the failed run.
+
 The future invocation shape is:
 
 ```sh

@@ -4798,6 +4798,12 @@ Open work:
   requires FORCE while the historical default still requires NO FORCE; the
   two modes use separate confirmations, evidence names and operation labels.
   Focused fail-closed tests pass 22/22.
+- Hosted CI `33409002277` passed the complete sealed predecessor chain and
+  reached the FORCE state, then failed closed in the shared grant audit because
+  that auditor still treated `OrderPaymentEvent` as permanently NO FORCE. The
+  correction adds an explicit inventory-derived FORCE expectation and tests
+  exact Phase-A, exact FORCE, missing ENABLE and both posture-mismatch
+  directions. This was branch-only proof evidence; no production state changed.
 - Production migration workflow wiring is deliberately not included under the
   isolated verifier/proof authorization. Merge, workflow dispatch, migration,
   deployment and provider state remain separate boundaries. Retain
