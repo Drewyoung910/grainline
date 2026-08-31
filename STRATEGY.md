@@ -4,6 +4,32 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Core Order audit and activation sequence (2026-08-31)
+
+The fresh current-source audit is pinned in
+`docs/order-core-pre-rls-audit.md`. `Order` is the next RLS table because it
+contains the highest-risk remaining combination of buyer PII, shipping address,
+provider identifiers, fulfillment, refunds, label state and staff-review data.
+Activate it separately, then continue directly with `OrderItem`, then
+`OrderShippingRateQuote`; these are separate releases inside one continuous
+Order-domain program, not unrelated work saved for later.
+
+The audit confirms that the compatible seller key and payment service-ledger
+prerequisites are real progress, but core consumers have not fully adopted
+them. Seller pages, exports and maintenance paths still derive authority from
+live Listings, buyer/seller history still renders mutable Listing facts, raw
+shipping quote payloads cross the account-export boundary, and 41 source files
+still touch Order authority directly. Before RLS, add actor-specific fixed
+projections, make historical snapshots canonical, convert every write and
+maintenance family to a source-validating operation, rerun aggregate-only
+legacy inspection, deploy and drain the compatible app, and prove the inventory
+has reached zero ordinary-runtime Order access.
+
+The target remains policyless ENABLE plus direct-grant revocation, followed by
+a distinct FORCE release. Do not create broad buyer/seller Order policies, a
+generic caller-directed update function, or a generic repository wrapper that
+merely hides broad runtime CRUD.
+
 ### OrderPaymentEvent FORCE acceptance (2026-08-31)
 
 OrderPaymentEvent is accepted in production as policyless ENABLE plus FORCE,
