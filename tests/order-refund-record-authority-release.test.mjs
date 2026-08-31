@@ -116,8 +116,21 @@ test("CI isolates the record release, replays the sealed claim, then proves the 
     /202608240[3-9][0-9]{4}_/,
     "record-authority proof must not read a later migration hidden by CI",
   );
-  assert.doesNotMatch(
-    readFileSync(".github/workflows/production-migrations.yml", "utf8"),
-    /20260824020000_prepare_order_refund_record_authority/,
+  const production = readFileSync(
+    ".github/workflows/production-migrations.yml",
+    "utf8",
+  );
+  const migrationPath =
+    "prisma/migrations/20260824020000_prepare_order_refund_record_authority";
+  const productionVerify = production.indexOf(
+    "Verify Order refund record authority release",
+  );
+  const productionIsolate = production.indexOf(migrationPath);
+  const productionRestore = production.lastIndexOf(migrationPath);
+  const productionApply = production.indexOf("Apply production migrations");
+  assert.equal(production.split(migrationPath).length - 1, 2);
+  assert.ok(productionVerify >= 0 && productionVerify < productionIsolate);
+  assert.ok(
+    productionIsolate < productionRestore && productionRestore < productionApply,
   );
 });

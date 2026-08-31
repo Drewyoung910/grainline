@@ -54,9 +54,17 @@ test("signed payment migration byte verifier rejects a near match", () => {
   );
 });
 
-test("production migrations do not yet include signed payment authority", () => {
-  assert.doesNotMatch(
-    readFileSync(".github/workflows/production-migrations.yml", "utf8"),
-    new RegExp(ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION),
+test("production activation runner stages signed payment authority without reapplying it", () => {
+  const production = readFileSync(
+    ".github/workflows/production-migrations.yml",
+    "utf8",
   );
+  const migrationPath = `prisma/migrations/${ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION}`;
+  const verify = production.indexOf("Verify Order payment signed authority release");
+  const isolate = production.indexOf(migrationPath);
+  const restore = production.lastIndexOf(migrationPath);
+  const apply = production.indexOf("Apply production migrations");
+  assert.equal(production.split(migrationPath).length - 1, 2);
+  assert.ok(verify >= 0 && verify < isolate);
+  assert.ok(isolate < restore && restore < apply);
 });

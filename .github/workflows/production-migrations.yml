@@ -64,13 +64,26 @@ jobs:
         run: npm run audit:order-payment-event-read-authority-release
       - name: Verify isolated OrderPaymentEvent invariant successor
         run: npm run audit:order-payment-event-invariants-release
+      - name: Verify signed-dispute identity compatibility release
+        run: npm run audit:order-payment-signed-dispute-identity-release
       - name: Verify blocked-checkout transfer binding migration bytes
         run: npm run audit:order-payment-blocked-checkout-transfer-binding-release
+      - name: Verify blocked-checkout refund delivery compatibility release
+        run: npm run audit:order-payment-blocked-checkout-refund-delivery-release
+      - name: Verify Order refund inactive-seller recovery release
+        run: npm run audit:order-refund-inactive-seller-recovery-release
+      - name: Verify Order refund reconciliation authority release
+        run: npm run audit:order-refund-reconciliation-authority-release
       - name: Prove exact OrderPaymentEvent transition-authority predecessor scope
         run: npm run audit:order-payment-event-transition-authority-production-scope
         env:
           ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Isolate unapplied OrderPaymentEvent activation release
+        run: >-
+          mv
+          prisma/migrations/20260830030000_enable_order_payment_event_rls
+          "$RUNNER_TEMP/order-payment-event-activation-release"
       - name: Isolate unapplied OrderPaymentEvent transition-authority successor
         run: >-
           mv
@@ -91,6 +104,59 @@ jobs:
           mv
           prisma/migrations/20260829010000_prepare_order_payment_event_invariants
           "$RUNNER_TEMP/order-payment-event-invariants-release"
+      - name: Isolate applied signed-dispute identity successor
+        run: >-
+          mv
+          prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity
+          "$RUNNER_TEMP/order-payment-signed-dispute-identity-release"
+      - name: Verify signed-refund identity compatibility release
+        run: npm run audit:order-payment-signed-refund-identity-release
+      - name: Isolate applied signed-refund identity successor
+        run: >-
+          mv
+          prisma/migrations/20260828010000_prepare_order_payment_signed_refund_identity
+          "$RUNNER_TEMP/order-payment-signed-refund-identity-release"
+      - name: Isolate applied blocked-checkout transfer-binding successor
+        run: >-
+          mv
+          prisma/migrations/20260826010000_prepare_blocked_checkout_transfer_binding
+          "$RUNNER_TEMP/blocked-checkout-transfer-binding-release"
+      - name: Isolate applied blocked-checkout refund-delivery successor
+        run: >-
+          mv
+          prisma/migrations/20260825010000_prepare_blocked_checkout_refund_delivery
+          "$RUNNER_TEMP/blocked-checkout-refund-delivery-release"
+      - name: Isolate applied Order refund inactive-seller successor
+        run: >-
+          mv
+          prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery
+          "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release"
+      - name: Isolate applied Order refund reconciliation successor
+        run: >-
+          mv
+          prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority
+          "$RUNNER_TEMP/order-refund-reconciliation-authority-release"
+      - name: Verify Order payment signed authority release
+        run: npm run audit:order-payment-signed-authority-release
+      - name: Isolate applied Order payment signed-authority successor
+        run: >-
+          mv
+          prisma/migrations/20260824030000_prepare_order_payment_signed_authority
+          "$RUNNER_TEMP/order-payment-signed-authority-release"
+      - name: Verify Order refund record authority release
+        run: npm run audit:order-refund-record-authority-release
+      - name: Isolate applied Order refund record-authority successor
+        run: >-
+          mv
+          prisma/migrations/20260824020000_prepare_order_refund_record_authority
+          "$RUNNER_TEMP/order-refund-record-authority-release"
+      - name: Verify Order refund claim generation release
+        run: npm run audit:order-refund-claim-generation-release
+      - name: Isolate applied Order refund claim-generation successor
+        run: >-
+          mv
+          prisma/migrations/20260824010000_prepare_order_refund_claim_generation
+          "$RUNNER_TEMP/order-refund-claim-generation-release"
       - name: Verify exact SellerPayoutEvent FORCE migration tree
         run: npm run verify:rls-release-artifact
         env:
@@ -209,6 +275,30 @@ jobs:
           mv
           "$RUNNER_TEMP/seller-payout-event-force-release"
           prisma/migrations/20260823220000_force_seller_payout_event_rls
+      - name: Restore the complete reviewed OrderPaymentEvent release chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv "$RUNNER_TEMP/order-refund-claim-generation-release" prisma/migrations/20260824010000_prepare_order_refund_claim_generation
+          mv "$RUNNER_TEMP/order-refund-record-authority-release" prisma/migrations/20260824020000_prepare_order_refund_record_authority
+          mv "$RUNNER_TEMP/order-payment-signed-authority-release" prisma/migrations/20260824030000_prepare_order_payment_signed_authority
+          mv "$RUNNER_TEMP/order-refund-reconciliation-authority-release" prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority
+          mv "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release" prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery
+          mv "$RUNNER_TEMP/blocked-checkout-refund-delivery-release" prisma/migrations/20260825010000_prepare_blocked_checkout_refund_delivery
+          mv "$RUNNER_TEMP/blocked-checkout-transfer-binding-release" prisma/migrations/20260826010000_prepare_blocked_checkout_transfer_binding
+          mv "$RUNNER_TEMP/order-payment-signed-refund-identity-release" prisma/migrations/20260828010000_prepare_order_payment_signed_refund_identity
+          mv "$RUNNER_TEMP/order-payment-signed-dispute-identity-release" prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity
+          mv "$RUNNER_TEMP/order-payment-event-invariants-release" prisma/migrations/20260829010000_prepare_order_payment_event_invariants
+          mv "$RUNNER_TEMP/order-payment-event-read-authority-release" prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
+          mv "$RUNNER_TEMP/order-payment-event-aggregate-authority-release" prisma/migrations/20260830010000_prepare_order_payment_event_aggregate_authority
+          mv "$RUNNER_TEMP/order-payment-event-transition-authority-release" prisma/migrations/20260830020000_prepare_order_payment_event_transition_authority
+          mv "$RUNNER_TEMP/order-payment-event-activation-release" prisma/migrations/20260830030000_enable_order_payment_event_rls
+      - name: Verify restored exact OrderPaymentEvent activation migration tree
+        run: npm run verify:rls-release-artifact
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-activation-reviewed
+      - name: Verify restored exact OrderPaymentEvent activation release
+        run: npm run audit:order-payment-event-activation-release
       - name: Inspect exact SellerPayoutEvent FORCE restart scope read-only
         run: npm run audit:rls-seller-payout-event-force-production-scope
         env:
