@@ -1002,6 +1002,10 @@ jobs:
         env:
           ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
           ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
+      - name: Prove OrderPaymentEvent activation postflight through the runtime login
+        run: npm run audit:order-payment-event-activation-postflight-postgres
+        env:
+          ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_PROOF_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Prove OrderPaymentEvent activation rollback and restoration
         run: npm run audit:order-payment-event-activation-rollback
         env:

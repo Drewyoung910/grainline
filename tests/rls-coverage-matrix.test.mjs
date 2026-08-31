@@ -40,6 +40,7 @@ describe("site-wide RLS coverage matrix", () => {
   it("uses only explicit incomplete or evidenced disposition states", () => {
     const allowed = new Set([
       "RLS_LIVE_PHASE_A",
+      "RLS_LIVE_PHASE_A_PENDING_POSTFLIGHT",
       "RLS_LIVE_PHASE_B",
       "RLS_LIVE_FORCE",
       "RLS_LIVE_FORCE_PENDING_POSTFLIGHT",
@@ -67,6 +68,7 @@ describe("site-wide RLS coverage matrix", () => {
     assert.deepEqual(liveRows.map((row) => row.model), [
       "Conversation",
       "Message",
+      "OrderPaymentEvent",
       "OrderRefundReconciliation",
       "SellerPayoutEvent",
       "CheckoutStockReservation",
@@ -84,6 +86,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
+        ["OrderPaymentEvent", "RLS_LIVE_PHASE_A_PENDING_POSTFLIGHT"],
         [
           "OrderRefundReconciliation",
           "RLS_LIVE_FORCE",
@@ -112,7 +115,10 @@ describe("site-wide RLS coverage matrix", () => {
       matrix,
       /Pooled-runtime and cleanup-role acceptance passed read-only/,
     );
-    assert.match(matrix, /Every\s+other row is \*\*not active\s+RLS\*\*/);
+    assert.match(
+      matrix,
+      /OrderPaymentEvent` Phase A is now live pending its distinct pooled-runtime\s+postflight[\s\S]*Every remaining row is \*\*not active RLS\*\*/,
+    );
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
