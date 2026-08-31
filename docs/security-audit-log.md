@@ -4748,3 +4748,10 @@ Open work:
   direct denial, retained reads and the fixed-writer engine read-only fence.
   Do not call Phase A fully accepted until that sanitized mode-`0600` evidence
   is retained. FORCE remains a later independent release.
+- The first hosted postflight attempt, exact head `08a92c6e...` / CI
+  `33360145389`, failed closed in disposable PostgreSQL only. PostgreSQL
+  returned SQLSTATE `25006` for direct `INSERT` because the mandatory read-only
+  transaction blocks DML before table ACL evaluation; the initial assertion
+  expected `42501`. The successor preserves the zero-CRUD catalog assertion,
+  pins `42501` for direct `SELECT`, and pins `25006` for all three direct DML
+  attempts. No production operation, grant change or guard weakening occurred.

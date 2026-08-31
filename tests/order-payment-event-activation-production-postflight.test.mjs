@@ -224,6 +224,16 @@ test("activation postflight is engine-read-only and does not require owner ledge
   assert.match(source, /direct insert/u);
   assert.match(source, /direct update/u);
   assert.match(source, /direct delete/u);
+  assert.match(
+    source,
+    /\["direct select",[^\n]+"42501"\]/u,
+  );
+  for (const operation of ["insert", "update", "delete"]) {
+    assert.match(
+      source,
+      new RegExp(`\\["direct ${operation}",[^\\n]+"25006"\\]`, "u"),
+    );
+  }
   assert.match(source, /grainline_seller_refund_claim/u);
   assert.match(source, /fixed writer read-only fence/u);
   assert.match(source, /"25006"/u);

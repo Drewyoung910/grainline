@@ -478,13 +478,13 @@ export function assertOrderPaymentEventActivationRuntimeCatalog(
 }
 
 export async function proveOrderPaymentEventActivationRuntimeBoundaries(client) {
-  for (const [label, sql] of [
-    ["direct select", 'SELECT id FROM public."OrderPaymentEvent" LIMIT 1'],
-    ["direct insert", 'INSERT INTO public."OrderPaymentEvent" DEFAULT VALUES'],
-    ["direct update", 'UPDATE public."OrderPaymentEvent" SET id = id WHERE false'],
-    ["direct delete", 'DELETE FROM public."OrderPaymentEvent" WHERE false'],
+  for (const [label, sql, sqlState] of [
+    ["direct select", 'SELECT id FROM public."OrderPaymentEvent" LIMIT 1', "42501"],
+    ["direct insert", 'INSERT INTO public."OrderPaymentEvent" DEFAULT VALUES', "25006"],
+    ["direct update", 'UPDATE public."OrderPaymentEvent" SET id = id WHERE false', "25006"],
+    ["direct delete", 'DELETE FROM public."OrderPaymentEvent" WHERE false', "25006"],
   ]) {
-    await expectSqlState(client, () => client.query(sql), "42501", label);
+    await expectSqlState(client, () => client.query(sql), sqlState, label);
   }
   await expectSqlState(
     client,
@@ -540,6 +540,8 @@ export async function proveOrderPaymentEventActivationRuntimeBoundaries(client) 
   );
   return Object.freeze({
     directTableOperationsDenied: 4,
+    directTablePrivilegeDenials: 1,
+    directTableReadOnlyFences: 3,
     retainedReadFunctionsExecuted: 5,
     retiredFunctionExecutionsDenied:
       ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES.length,
@@ -629,7 +631,7 @@ export async function runOrderPaymentEventActivationPostflight(config) {
           "zero_runtime_or_public_table_or_column_authority",
           "exact_29_function_source_mode_owner_and_acl_catalog",
           "exact_25_direct_reference_function_surface",
-          "all_four_direct_table_operations_denied",
+          "direct_select_acl_denied_and_all_three_dml_operations_engine_fenced",
           "both_retired_predecessor_entry_points_denied",
           "five_fixed_read_boundaries_execute_without_row_export",
           "granted_fixed_writer_reaches_engine_read_only_fence",

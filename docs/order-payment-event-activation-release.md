@@ -310,6 +310,15 @@ nonexistent markers, and proves a granted fixed writer reaches SQLSTATE
 `25006`. It writes only sanitized mode-`0600` evidence and performs no
 production mutation.
 
+The first hosted proof attempt at exact head `08a92c6e...` / CI
+`33360145389` failed closed with zero production reach: inside the required
+engine-read-only transaction PostgreSQL rejected direct `INSERT` with
+SQLSTATE `25006` before evaluating the expected table ACL denial. The corrected
+contract keeps the exact zero-CRUD catalog proof, requires direct `SELECT` to
+fail with `42501`, and separately requires `INSERT`, `UPDATE` and `DELETE` to
+hit the stronger engine read-only fence `25006`. No permission was broadened
+and no read-only guard was removed.
+
 ## Remaining release boundaries
 
 1. Pass hosted CI for the pooled-runtime postflight operator and its disposable
