@@ -178,7 +178,7 @@ test("anchors provider requests and recovery scans to the database claim", () =>
   );
 });
 
-test("keeps OrderPaymentEvent RLS, predecessor grants, and production wiring unchanged", () => {
+test("keeps OrderPaymentEvent RLS and predecessor grants unchanged while staging the sealed production prefix", () => {
   assert.doesNotMatch(
     migration,
     /ALTER TABLE public\."OrderPaymentEvent" (?:ENABLE|FORCE|DISABLE|NO FORCE) ROW LEVEL SECURITY/,
@@ -191,8 +191,15 @@ test("keeps OrderPaymentEvent RLS, predecessor grants, and production wiring unc
     ".github/workflows/production-migrations.yml",
     "utf8",
   );
-  assert.doesNotMatch(
-    productionWorkflow,
-    /20260824040000_prepare_order_refund_reconciliation_authority/,
+  const migrationPath =
+    "prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority";
+  const verify = productionWorkflow.indexOf(
+    "Verify Order refund reconciliation authority release",
   );
+  const isolate = productionWorkflow.indexOf(migrationPath);
+  const restore = productionWorkflow.lastIndexOf(migrationPath);
+  const apply = productionWorkflow.indexOf("Apply production migrations");
+  assert.equal(productionWorkflow.split(migrationPath).length - 1, 2);
+  assert.ok(verify >= 0 && verify < isolate);
+  assert.ok(isolate < restore && restore < apply);
 });

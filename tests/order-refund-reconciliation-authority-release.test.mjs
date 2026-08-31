@@ -89,8 +89,21 @@ test("CI isolates reconciliation before replaying the sealed predecessor", () =>
     pkg.scripts["audit:order-refund-reconciliation-authority-release"],
     "node scripts/verify-order-refund-reconciliation-authority-release.mjs",
   );
-  assert.doesNotMatch(
-    readFileSync(".github/workflows/production-migrations.yml", "utf8"),
-    new RegExp(ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION),
+  const production = readFileSync(
+    ".github/workflows/production-migrations.yml",
+    "utf8",
+  );
+  const migrationPath =
+    `prisma/migrations/${ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION}`;
+  const productionVerify = production.indexOf(
+    "Verify Order refund reconciliation authority release",
+  );
+  const productionIsolate = production.indexOf(migrationPath);
+  const productionRestore = production.lastIndexOf(migrationPath);
+  const productionApply = production.indexOf("Apply production migrations");
+  assert.equal(production.split(migrationPath).length - 1, 2);
+  assert.ok(productionVerify >= 0 && productionVerify < productionIsolate);
+  assert.ok(
+    productionIsolate < productionRestore && productionRestore < productionApply,
   );
 });

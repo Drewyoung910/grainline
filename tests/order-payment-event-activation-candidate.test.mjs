@@ -252,27 +252,101 @@ test("activation is wired as a separate guarded CI and production release", () =
   const predecessorScope = production.indexOf(
     "Prove exact OrderPaymentEvent transition-authority predecessor scope",
   );
-  const isolatePositions = [
-    "transition-authority",
-    "aggregate-authority",
-    "read-authority",
-    "invariant",
-  ].map((family) =>
-    production.indexOf(
-      `Isolate unapplied OrderPaymentEvent ${family} successor`,
-    ),
+  const sellerForceVerify = production.indexOf(
+    "Verify exact SellerPayoutEvent FORCE migration tree",
   );
+  const restoreChain = production.indexOf(
+    "Restore the complete reviewed OrderPaymentEvent release chain",
+  );
+  const restoredTreeVerify = production.indexOf(
+    "Verify restored exact OrderPaymentEvent activation migration tree",
+  );
+  const prismaDeploy = production.indexOf("Apply production migrations");
+  const postSellerMigrations = [
+    "20260824010000_prepare_order_refund_claim_generation",
+    "20260824020000_prepare_order_refund_record_authority",
+    "20260824030000_prepare_order_payment_signed_authority",
+    "20260824040000_prepare_order_refund_reconciliation_authority",
+    "20260824050000_prepare_order_refund_inactive_seller_recovery",
+    "20260825010000_prepare_blocked_checkout_refund_delivery",
+    "20260826010000_prepare_blocked_checkout_transfer_binding",
+    "20260828010000_prepare_order_payment_signed_refund_identity",
+    "20260828020000_correct_order_payment_signed_dispute_identity",
+    "20260829010000_prepare_order_payment_event_invariants",
+    "20260829020000_prepare_order_payment_event_read_authority",
+    "20260830010000_prepare_order_payment_event_aggregate_authority",
+    "20260830020000_prepare_order_payment_event_transition_authority",
+    "20260830030000_enable_order_payment_event_rls",
+  ];
   assert.ok(transitionVerify >= 0);
   assert.ok(aggregateVerify > transitionVerify);
   assert.ok(readVerify > aggregateVerify);
   assert.ok(invariantVerify > readVerify);
   assert.ok(transferVerify > invariantVerify);
   assert.ok(predecessorScope > transferVerify);
-  assert.ok(isolatePositions.every((position) => position >= 0));
-  assert.ok(
-    Math.min(...isolatePositions) > predecessorScope,
-    "the complete production predecessor chain must be proved before any successor is isolated",
-  );
+  assert.ok(sellerForceVerify > predecessorScope);
+  assert.ok(restoreChain > sellerForceVerify);
+  assert.ok(restoredTreeVerify > restoreChain);
+  assert.ok(prismaDeploy > restoredTreeVerify);
+  for (const command of [
+    "audit:order-payment-signed-dispute-identity-release",
+    "audit:order-payment-blocked-checkout-transfer-binding-release",
+    "audit:order-payment-blocked-checkout-refund-delivery-release",
+    "audit:order-refund-inactive-seller-recovery-release",
+    "audit:order-refund-reconciliation-authority-release",
+  ]) {
+    const position = production.indexOf(command);
+    assert.ok(position >= 0, `${command} must be wired`);
+    assert.ok(
+      position < predecessorScope,
+      `${command} must verify bytes before the complete production scope proof`,
+    );
+  }
+  const prefixSensitiveVerifiers = new Map([
+    [
+      "audit:order-payment-signed-refund-identity-release",
+      "20260828010000_prepare_order_payment_signed_refund_identity",
+    ],
+    [
+      "audit:order-payment-signed-authority-release",
+      "20260824030000_prepare_order_payment_signed_authority",
+    ],
+    [
+      "audit:order-refund-record-authority-release",
+      "20260824020000_prepare_order_refund_record_authority",
+    ],
+    [
+      "audit:order-refund-claim-generation-release",
+      "20260824010000_prepare_order_refund_claim_generation",
+    ],
+  ]);
+  for (const [command, migration] of prefixSensitiveVerifiers) {
+    const verifier = production.indexOf(command);
+    const isolate = production.indexOf(`prisma/migrations/${migration}`);
+    assert.ok(verifier > predecessorScope, `${command} must follow the full live scope proof`);
+    assert.ok(
+      verifier < isolate,
+      `${command} must run at its exact historical prefix before isolation`,
+    );
+  }
+  for (const migration of postSellerMigrations) {
+    const migrationPath = `prisma/migrations/${migration}`;
+    assert.equal(
+      production.split(migrationPath).length - 1,
+      2,
+      `${migration} must be isolated once and restored once`,
+    );
+    const isolate = production.indexOf(migrationPath);
+    const restore = production.lastIndexOf(migrationPath);
+    assert.ok(
+      isolate > predecessorScope && isolate < sellerForceVerify,
+      `${migration} must be isolated only after full predecessor proof and before the SellerPayoutEvent tree guard`,
+    );
+    assert.ok(
+      restore > restoreChain && restore < restoredTreeVerify,
+      `${migration} must be restored before the final activation-tree re-verification`,
+    );
+  }
   assert.match(
     production,
     /Prove exact OrderPaymentEvent transition-authority predecessor scope[\s\S]*ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after/u,

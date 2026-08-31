@@ -4681,3 +4681,25 @@ Open work:
   timestamp in each fixture and reuses it for insert, replay and generation-
   forgery calls. The database anti-replay rule is unchanged and a static
   regression test forbids reintroducing per-call time generation.
+
+# 2026-08-30 - OrderPaymentEvent activation historical-tree isolation corrected
+
+- Replacement PR CI `33347620093` passed the full disposable PostgreSQL,
+  rollback, tests, dependency audit and build. PR #361 exact head
+  `8a1cee4b18ef0560d2943fead09d9ded8e8d84c8` merged as exact main
+  `a23af493b8b45b2626b620f6aa606c17fdcc9998`; exact-main CI
+  `33348582463` passed independently.
+- Explicitly authorized run `33350490387` passed every `OrderPaymentEvent`
+  activation and complete live predecessor proof, then failed closed before
+  Prisma at the historical `SellerPayoutEvent` FORCE migration-tree guard.
+  The runner had left the target activation and nine other reviewed
+  post-`SellerPayoutEvent` migration directories visible. Migration, grant and
+  postflight steps were skipped; production remained unchanged.
+- The isolated correction verifies the exact activation and complete live
+  predecessor before any isolation, then walks backward through all 14
+  post-`SellerPayoutEvent` directories so each prefix-sensitive release
+  verifier sees its exact historical tree. It restores them chronologically
+  and re-verifies the exact activation tree before Prisma. A focused regression
+  test pins scope proof, per-prefix byte verification, isolation, restoration
+  and deployment ordering. No SQL, migration, application, grant or provider
+  byte changed.

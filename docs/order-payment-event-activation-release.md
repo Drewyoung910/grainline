@@ -224,9 +224,39 @@ replay as inconsistent. The corrected proof pins one provider event timestamp
 per fixture and reuses it for insert, replay and forged-generation checks. No
 database function, migration or application byte changed.
 
+Replacement PR CI `33347620093` passed the complete disposable PostgreSQL,
+rollback, test, dependency-audit and production-build chain. PR #361 exact
+head `8a1cee4b18ef0560d2943fead09d9ded8e8d84c8` merged as exact main
+`a23af493b8b45b2626b620f6aa606c17fdcc9998`; exact-main CI
+`33348582463` passed independently.
+
+Explicitly authorized guarded production run `33350490387` passed the exact
+source, credential, role, activation release, restart scope, all four latest
+successor byte checks and the corrected full transition-authority predecessor
+scope. It then failed closed at the sealed `SellerPayoutEvent` FORCE
+migration-tree guard. The runner had isolated only four late
+`OrderPaymentEvent` successor directories; it left the target activation and
+nine other reviewed post-`SellerPayoutEvent` migrations in the tree. The
+historical guard correctly refused to treat `20260823220000` as the latest
+migration. Prisma deployment, grant convergence and every postflight step were
+skipped, so production remained unchanged.
+
+The third runner correction verifies the exact activation release and complete
+live predecessor scope before any isolation, then walks backward through all
+14 reviewed post-`SellerPayoutEvent` migrations from the target
+`20260830030000` to `20260824010000`. Each prefix-sensitive release verifier
+runs only after newer reviewed directories have been isolated, giving every
+sealed historical guard its exact release prefix. Before Prisma, the runner
+restores the 14 directories in chronological order and re-runs both the exact
+activation migration-tree guard and activation release verifier. A focused
+contract requires every directory to occur exactly once in isolation and once
+in restoration, with the full production proof before isolation and Prisma
+only after restored-tree re-verification. No SQL, migration, application,
+grant or provider byte is changed.
+
 ## Remaining release boundaries
 
-1. Pass hosted CI for the predecessor-scope correction.
+1. Pass hosted CI for the complete-chain isolation/restoration correction.
 2. Review and merge its exact head.
 3. Separately authorize and rerun the guarded Phase-A Production Migrations
    release, then retain its exact migration/global-audit/scope evidence.
