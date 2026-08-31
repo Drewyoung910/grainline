@@ -206,6 +206,10 @@ describe("isolated production migration runner", () => {
     assert.doesNotMatch(jobEnvironment, /DIRECT_URL:\s*\$\{\{\s*secrets\./);
     assert.match(workflow, /Verify exact source[\s\S]*?env:\s*\n\s+DIRECT_URL: \$\{\{ secrets\.PRODUCTION_MIGRATION_DIRECT_URL \}\}/);
     const orderedSteps = [
+      "Verify exact OrderPaymentEvent FORCE migration tree",
+      "Verify exact OrderPaymentEvent FORCE release",
+      "Inspect exact OrderPaymentEvent FORCE restart scope read-only",
+      "Isolate unapplied OrderPaymentEvent FORCE release",
       "Verify exact SellerPayoutEvent FORCE migration tree",
       "Verify exact SellerPayoutEvent FORCE release",
       "Isolate the reviewed SellerPayoutEvent FORCE release",
@@ -234,13 +238,16 @@ describe("isolated production migration runner", () => {
       "Restore the reviewed SellerPayoutEvent authority predecessor",
       "Restore the reviewed SellerPayoutEvent activation release",
       "Restore the reviewed SellerPayoutEvent FORCE release",
-      "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
+      "Restore the complete reviewed OrderPaymentEvent release chain",
+      "Verify restored exact OrderPaymentEvent FORCE migration tree",
+      "Verify restored exact OrderPaymentEvent FORCE release",
+      "Re-inspect exact OrderPaymentEvent FORCE restart scope read-only",
       "Generate Prisma client",
       "Apply production migrations",
-      "Converge exact FORCE-hardened SellerPayoutEvent runtime grants",
+      "Converge exact FORCE-hardened OrderPaymentEvent runtime grants",
       "Verify production migration status",
       "Audit final runtime grants and RLS catalog",
-      "Prove exact SellerPayoutEvent FORCE production scope",
+      "Prove exact OrderPaymentEvent FORCE production scope",
     ];
     const indexes = orderedSteps.map((step) => workflow.indexOf(step));
     assert.ok(indexes.every((index) => index >= 0));
@@ -272,6 +279,10 @@ describe("isolated production migration runner", () => {
     assert.match(
       workflow,
       /SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-activation-reviewed/u,
+    );
+    assert.match(
+      workflow,
+      /SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-force-reviewed/u,
     );
     assert.match(workflow, /20260815060001_force_checkout_stock_reservation_rls/u);
     assert.match(workflow, /20260822180000_enable_seller_payout_event_rls/u);

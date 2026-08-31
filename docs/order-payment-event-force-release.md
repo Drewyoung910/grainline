@@ -1,6 +1,7 @@
 # OrderPaymentEvent FORCE RLS release
 
-Status: isolated candidate; not merged or applied to production.
+Status: exact FORCE candidate proven in hosted CI; production workflow wiring
+is isolated and neither release is merged or applied to production.
 
 Date: 2026-08-31
 
@@ -135,6 +136,44 @@ database is exactly `grainline_ci`; production rollback remains restricted to
 the reviewed `neondb_owner` table owner. The rollback byte pin above includes
 that correction.
 
+Exact candidate head
+`fcb740de84c5d9ff666acc2b12f3d342092b8a9c` passed hosted CI run
+`33415414533`. That run passed the complete sealed migration chain, disposable
+PostgreSQL FORCE and rollback/restoration proofs, distinct runtime-login and
+pooled-runtime boundaries, the global grant/RLS audit, TypeScript, lint, the
+full test suite, dependency security audit and production build. PR #366 is
+ready for review at that exact head but remains unmerged. The expected Vercel
+Preview failure is caused by the intentionally absent Preview `DATABASE_URL`;
+it is not a failure of the candidate or main CI.
+
+## Production workflow restart contract
+
+The production wiring is a separate follow-up branch based on the exact proven
+candidate. Before any file isolation or migration command it byte-verifies the
+complete FORCE release, runs the engine-read-only full-ledger scope proof and
+accepts exactly two sanitized restart states:
+
+- `phase-a-accepted`: FORCE is absent and the exact accepted Phase-A posture is
+  live. Only this state may isolate/replay the sealed predecessor tree or run
+  `prisma migrate deploy`.
+- `force-hardened`: the exact byte-pinned FORCE row and FORCE catalog posture
+  are already live. Every predecessor replay and migration-deploy step is
+  skipped.
+
+Both states reverify the restored complete FORCE tree and release, rerun the
+read-only restart scope, converge the reviewed runtime grants, verify Prisma
+status, run the global grant/RLS audit and require the exact final FORCE scope.
+An unknown state cannot become a workflow output. Static workflow coverage
+requires all 68 predecessor steps to carry the Phase-A gate and requires all
+final convergence/proof steps to remain unconditional.
+
+The first wiring draft was intentionally not accepted: although its restart
+scope recognized an already-FORCE state, it still ran the historical Phase-A
+catalog proofs afterward. A legitimate rerun after a partial success would
+therefore have failed on the stronger FORCE posture. This was caught during
+isolated source review before commit, push, merge or dispatch; the explicit
+state gate above is the correction.
+
 ## Crash recovery
 
 The laptop crash on 2026-08-31 removed the disposable `/private/tmp`
@@ -147,14 +186,14 @@ work continued. No production state was involved.
 
 ## Remaining release gates
 
-1. Pass the disposable PostgreSQL FORCE, pooled-runtime postflight and rollback
-   proofs in hosted CI.
-2. Pass the focused and full local suites, TypeScript, lint, dependency audit
-   and a clean hosted production build.
-3. Review and merge the exact proven release commit.
-4. Separately authorize and run the guarded production migration workflow.
-5. Run the distinct engine-read-only pooled-runtime production postflight.
-6. Only then update the coverage matrix from Phase A to accepted FORCE.
+1. Review and merge PR #366 at exact proven head
+   `fcb740de84c5d9ff666acc2b12f3d342092b8a9c`.
+2. Prove, review and merge the separate restart-safe production-workflow
+   wiring from its exact head.
+3. Separately dispatch the guarded production migration workflow from a clean
+   exact-main commit and retain its final proof evidence.
+4. Run the distinct engine-read-only pooled-runtime production postflight.
+5. Only then update the coverage matrix from Phase A to accepted FORCE.
 
 ## Scope boundary
 
