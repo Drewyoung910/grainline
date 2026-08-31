@@ -59,6 +59,32 @@ test("every predecessor replay step is Phase-A-only", () => {
   }
 });
 
+test("FORCE production re-proves current Phase A instead of obsolete pre-activation posture", () => {
+  const workflow = fs.readFileSync(WORKFLOW_PATH, "utf8");
+  const scope = stepBlock(
+    workflow,
+    "Re-prove exact OrderPaymentEvent Phase-A predecessor scope",
+  );
+  assert.match(
+    scope,
+    new RegExp(PHASE_A_GATE.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"),
+  );
+  assert.match(
+    scope,
+    /audit:order-payment-event-force-production-scope/u,
+  );
+  assert.match(scope, /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart/u);
+  assert.match(scope, /value\.state !== "phase-a-accepted"/u);
+  assert.doesNotMatch(
+    workflow,
+    /Prove exact OrderPaymentEvent transition-authority predecessor scope/u,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after/u,
+  );
+});
+
 test("migration deployment is Phase-A-only while final convergence is restart-safe", () => {
   const workflow = fs.readFileSync(WORKFLOW_PATH, "utf8");
   const apply = stepBlock(workflow, "Apply production migrations");

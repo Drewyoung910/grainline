@@ -4864,3 +4864,20 @@ Open work:
   FORCE and rollback/restoration proofs, 3,679 tests, TypeScript, lint,
   dependency audit and production build. PR #367 remains the workflow-only
   boundary; no migration, deployment, FORCE activation or provider change ran.
+- PR #367 merged as `main` commit
+  `45ad71fb47cf820a133672818e91bbffae398f3e`; main CI `33431178113` passed.
+  Authorized production run `33433271413` passed exact source, credential,
+  release-byte, full-ledger FORCE restart and predecessor-release gates, then
+  failed closed before `prisma migrate deploy` at the historical
+  transition-authority live-scope proof. Production remained accepted Phase A
+  with FORCE off.
+- A mode-`0600` owner diagnostic reran only that verifier inside its
+  engine-enforced repeatable-read/read-only transaction and emitted the
+  sanitized category `OrderPaymentEvent predecessor table posture drifted`.
+  The verifier intentionally describes pre-activation state—RLS off with
+  direct table CRUD—while production is already at accepted Phase A with RLS
+  on and direct CRUD revoked. The correction does not remove the gate: it
+  replaces the stale assertion with a second complete FORCE restart proof that
+  must explicitly classify the live state as `phase-a-accepted` immediately
+  before replay/isolation. No row, migration, deployment, grant, provider or
+  credential state changed.

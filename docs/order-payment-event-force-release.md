@@ -1,8 +1,8 @@
 # OrderPaymentEvent FORCE RLS release
 
-Status: exact FORCE candidate merged to `main`; restart-safe production
-workflow wiring remains isolated and unapplied. Production remains at accepted
-Phase A with FORCE off.
+Status: exact FORCE candidate and restart-safe workflow are merged to `main`;
+the first production run failed closed before migration. Production remains at
+accepted Phase A with FORCE off.
 
 Date: 2026-08-31
 
@@ -196,6 +196,23 @@ lint, dependency audit and production build all passed. PR #367 remains the
 separate workflow-only release boundary; no production workflow was
 dispatched.
 
+PR #367 merged the corrected workflow as `main` commit
+`45ad71fb47cf820a133672818e91bbffae398f3e`; main CI `33431178113` passed the
+complete repository and PostgreSQL proof chain. Authorized production run
+`33433271413` then passed exact source, credential, release-byte, full-ledger
+restart-state and predecessor release checks before failing closed at the
+historical transition-authority live-scope step. No migration command had run.
+
+A mode-`0600`, engine-read-only local rerun emitted only the sanitized failure
+category `OrderPaymentEvent predecessor table posture drifted`. That is the
+expected result when a pre-activation verifier—which requires direct table
+CRUD and RLS off—is run against accepted Phase A, where RLS is on and direct
+CRUD is revoked. The correction preserves the fail-closed boundary: the stale
+historical check is replaced by a second full-ledger FORCE restart proof that
+must explicitly return `phase-a-accepted` immediately before replay/isolation.
+It re-verifies the current table, function, grant, trigger, constraint, index,
+owner and role posture rather than accepting a weaker or older state.
+
 ## Crash recovery
 
 The laptop crash on 2026-08-31 removed the disposable `/private/tmp`
@@ -208,9 +225,8 @@ work continued. No production state was involved.
 
 ## Remaining release gates
 
-1. Review and merge the separate restart-safe production-workflow wiring in
-   PR #367 from a clean exact head.
-2. Separately dispatch the guarded production migration workflow from a clean
+1. Prove and merge the current-Phase-A predecessor correction.
+2. Retry the guarded production migration workflow from a clean
    exact-main commit and retain its final proof evidence.
 3. Run the distinct engine-read-only pooled-runtime production postflight.
 4. Only then update the coverage matrix from Phase A to accepted FORCE.
