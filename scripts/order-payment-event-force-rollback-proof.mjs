@@ -56,9 +56,10 @@ async function proveRollbackRejectsDrift(owner, rollbackSql, driftSql) {
   assert.match(caught?.message ?? "", /rollback.*drifted/iu);
 }
 
-async function provePhaseARuntimeBoundary(runtime) {
+export async function provePhaseARuntimeBoundary(runtime) {
   await runtime.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
   try {
+    await runtime.query("SAVEPOINT order_payment_event_direct_select_probe");
     let caught;
     try {
       await runtime.query(
@@ -66,7 +67,11 @@ async function provePhaseARuntimeBoundary(runtime) {
       );
     } catch (error) {
       caught = error;
+      await runtime.query(
+        "ROLLBACK TO SAVEPOINT order_payment_event_direct_select_probe",
+      );
     }
+    await runtime.query("RELEASE SAVEPOINT order_payment_event_direct_select_probe");
     assert.equal(caught?.code, "42501");
     const buyer = await runtime.query(`
       SELECT * FROM public.grainline_order_payment_buyer_export_page(

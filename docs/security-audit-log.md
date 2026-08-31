@@ -4804,6 +4804,13 @@ Open work:
   correction adds an explicit inventory-derived FORCE expectation and tests
   exact Phase-A, exact FORCE, missing ENABLE and both posture-mismatch
   directions. This was branch-only proof evidence; no production state changed.
+- Corrected CI `33410669312` passed the shared FORCE audit and all activated
+  runtime boundaries, then failed closed in rollback verification because the
+  expected direct SELECT denial aborted the read-only transaction before the
+  retained read RPC. The proof now recovers only that expected denial through
+  a named savepoint and explicitly fails if direct SELECT succeeds. This was a
+  proof-harness defect only; FORCE rollback/restoration and production were not
+  run.
 - Production migration workflow wiring is deliberately not included under the
   isolated verifier/proof authorization. Merge, workflow dispatch, migration,
   deployment and provider state remain separate boundaries. Retain

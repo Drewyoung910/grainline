@@ -98,6 +98,15 @@ when the sealed FORCE migration is present, retains ENABLE/NO-FORCE/zero-policy
 for Phase A, and rejects both mismatch directions. No production state was
 involved in the failed run.
 
+The corrected rerun `33410669312` passed that audit and every FORCE runtime
+boundary, then failed closed in the rollback proof after the expected direct
+SELECT denial. PostgreSQL had correctly put that transaction in the aborted
+state, so the following read RPC could not run. The proof now encloses only the
+expected ACL denial in a savepoint, rolls back to and releases that savepoint,
+then proves the fixed read RPC in the same engine-read-only transaction. Tests
+also require the proof to fail when direct SELECT unexpectedly succeeds. The
+failure was proof-harness-only and changed no production state.
+
 The future invocation shape is:
 
 ```sh
