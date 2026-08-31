@@ -23,9 +23,13 @@ import {
 import {
   verifyOrderPaymentEventZeroDirectAccess,
 } from "./verify-order-payment-event-zero-direct-access.mjs";
+import {
+  ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+} from "./stage-order-payment-event-force-migration.mjs";
 
 export function verifyOrderPaymentEventActivationRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedForceSuccessor = false } = {},
 ) {
   verifyOrderPaymentEventTransitionAuthorityMigrationBytes(rootDirectory);
   const zeroDirect = verifyOrderPaymentEventZeroDirectAccess(rootDirectory);
@@ -97,6 +101,9 @@ export function verifyOrderPaymentEventActivationRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
     rootDirectory,
+    omittedReviewedMigrationNames: allowReviewedForceSuccessor
+      ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION]
+      : [],
   });
   return Object.freeze({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,

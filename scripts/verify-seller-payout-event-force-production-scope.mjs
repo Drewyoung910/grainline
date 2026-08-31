@@ -227,7 +227,9 @@ export function readSellerPayoutEventForceMigrationCatalog(
 export function readSellerPayoutEventForceSealedPrefixCatalog(
   root = process.cwd(),
 ) {
-  verifyOrderPaymentEventActivationRelease(root);
+  verifyOrderPaymentEventActivationRelease(root, {
+    allowReviewedForceSuccessor: true,
+  });
   const authorityCatalog = readSellerPayoutEventAuthorityMigrationCatalog(root);
   const activation = buildSellerPayoutEventActivationCandidate(root);
   if (

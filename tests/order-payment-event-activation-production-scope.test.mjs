@@ -144,6 +144,30 @@ test("activation scope rejects partial ledger and grant drift", () => {
   ));
 });
 
+test("activation scope preserves NO FORCE by default and accepts explicit FORCE only", () => {
+  const force = snapshot(true);
+  force.table.rls_forced = true;
+  assert.throws(
+    () => assertOrderPaymentEventActivationProductionScope(force, "after"),
+    /table posture drifted/u,
+  );
+  const accepted = assertOrderPaymentEventActivationProductionScope(
+    force,
+    "after",
+    { expectedForce: true },
+  );
+  assert.equal(accepted.state, "force-hardened");
+  assert.equal(accepted.orderPaymentEventRlsForced, true);
+  assert.throws(
+    () => assertOrderPaymentEventActivationProductionScope(
+      force,
+      "after",
+      { expectedForce: "true" },
+    ),
+    /expected FORCE posture is invalid/u,
+  );
+});
+
 test("activation scope environment stays manual-main and exact-stage only", () => {
   assert.throws(() => parseOrderPaymentEventActivationScopeEnvironment({}));
   assert.throws(() => parseOrderPaymentEventActivationScopeEnvironment({
