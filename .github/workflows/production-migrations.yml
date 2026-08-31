@@ -124,6 +124,19 @@ jobs:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
         run: |
           set -euo pipefail
+          force_path="prisma/migrations/20260831010000_force_order_payment_event_rls"
+          staged_force_path="$RUNNER_TEMP/order-payment-event-force-release"
+          if [[ ! -d "$staged_force_path" || -e "$force_path" ]]; then
+            echo "OrderPaymentEvent FORCE proof tree is not exactly isolated" >&2
+            exit 1
+          fi
+          restore_isolated_force() {
+            if [[ -d "$force_path" && ! -e "$staged_force_path" ]]; then
+              mv "$force_path" "$staged_force_path"
+            fi
+          }
+          trap restore_isolated_force EXIT
+          mv "$staged_force_path" "$force_path"
           scope_json="$(npm run --silent audit:order-payment-event-force-production-scope)"
           printf '%s\n' "$scope_json"
           node -e '
@@ -132,6 +145,12 @@ jobs:
               throw new Error("OrderPaymentEvent FORCE predecessor is not exact Phase A");
             }
           ' "$scope_json"
+          restore_isolated_force
+          trap - EXIT
+          if [[ ! -d "$staged_force_path" || -e "$force_path" ]]; then
+            echo "OrderPaymentEvent FORCE proof tree was not re-isolated" >&2
+            exit 1
+          fi
       - name: Isolate unapplied OrderPaymentEvent activation release
         if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-

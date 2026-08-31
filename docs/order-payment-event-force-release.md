@@ -213,6 +213,25 @@ must explicitly return `phase-a-accepted` immediately before replay/isolation.
 It re-verifies the current table, function, grant, trigger, constraint, index,
 owner and role posture rather than accepting a weaker or older state.
 
+PR #368 merged that correction as `main` commit
+`dd3a677a480b87460034ca68d07f0b1e6464457a`; main CI `33436863737`
+passed. Authorized retry `33441215082` again failed closed before migration,
+this time at the replacement proof. The live database proof itself had already
+passed at workflow start. The second invocation ran only after the workflow
+had intentionally moved the unapplied FORCE directory out of the local
+migration tree, so the same full-tree verifier correctly rejected its locally
+incomplete byte catalog. Production remained at accepted Phase A with FORCE
+off.
+
+The follow-up keeps the second independent live proof at its original
+sequencing boundary. It restores the already byte-verified FORCE directory
+from the runner's private staging path only for the full-tree proof, requires
+the result to be exactly `phase-a-accepted`, and re-isolates the directory
+before predecessor replay. An EXIT trap re-isolates it on every proof failure,
+and exact before/after directory assertions fail closed on local tree drift.
+This changes only disposable runner filesystem state; it does not broaden the
+database proof or touch production.
+
 ## Crash recovery
 
 The laptop crash on 2026-08-31 removed the disposable `/private/tmp`
@@ -225,7 +244,7 @@ work continued. No production state was involved.
 
 ## Remaining release gates
 
-1. Prove and merge the current-Phase-A predecessor correction.
+1. Prove and merge the exact-tree restoration correction.
 2. Retry the guarded production migration workflow from a clean
    exact-main commit and retain its final proof evidence.
 3. Run the distinct engine-read-only pooled-runtime production postflight.
