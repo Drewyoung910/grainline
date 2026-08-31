@@ -86,7 +86,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
-        ["OrderPaymentEvent", "RLS_LIVE_PHASE_A"],
+        ["OrderPaymentEvent", "RLS_LIVE_FORCE"],
         [
           "OrderRefundReconciliation",
           "RLS_LIVE_FORCE",
@@ -105,7 +105,7 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /all thirteen tables in this[\s\S]*snapshot with completed production RLS acceptance/,
+      /all fourteen tables in this[\s\S]*snapshot with[\s\S]*completed production RLS acceptance/,
     );
     assert.match(
       matrix,
@@ -117,13 +117,13 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /OrderPaymentEvent` has complete retained policyless Phase-A acceptance[\s\S]*d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd[\s\S]*Every remaining row is \*\*not active RLS\*\*/,
+      /OrderPaymentEvent` closed its posture-only FORCE release[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1[\s\S]*all fourteen are FORCE-hardened[\s\S]*Every remaining row is \*\*not active RLS\*\*/,
     );
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /Fourteen tables have[\s\S]*production RLS: thirteen have complete retained `FORCE ROW LEVEL SECURITY`[\s\S]*OrderPaymentEvent` has complete policyless Phase-A[\s\S]*d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd/,
+      /Fourteen tables have[\s\S]*production RLS and all fourteen have complete retained[\s\S]*`FORCE ROW LEVEL SECURITY` acceptance[\s\S]*33445073482[\s\S]*d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(

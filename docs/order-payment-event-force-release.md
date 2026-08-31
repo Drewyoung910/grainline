@@ -232,6 +232,31 @@ and exact before/after directory assertions fail closed on local tree drift.
 This changes only disposable runner filesystem state; it does not broaden the
 database proof or touch production.
 
+## Production acceptance
+
+PR #369 merged exact head
+`5db226fcd7a2f4ebb88e19bf85b4e9c27c2f3fea` as main commit
+`6a20981b0af68f8322b6306715fc117e0826e36e`. Exact-main CI
+`33443669979` passed all 302 steps, including the corrected restart-safe tree
+sequence and the complete disposable PostgreSQL FORCE/rollback chain.
+
+Guarded production run `33445073482` then passed both independent accepted
+Phase-A proofs, applied only
+`20260831010000_force_order_payment_event_rls`, converged the reviewed grants,
+and passed migration status, the global grant/RLS audit, and the exact final
+FORCE scope proof. No application deployment or provider change occurred.
+
+The distinct actual pooled-runtime postflight ran from the same exact clean
+main commit through only `grainline_app_runtime` inside an engine-attested
+repeatable-read/read-only transaction. It passed ten checks, exported no rows,
+and recorded `productionChangedByPostflight=false`. Its exact catalog was
+policyless ENABLE plus FORCE, zero runtime/PUBLIC table or column authority,
+29 fixed functions split into 16 runtime and 13 private functions, four direct
+table-operation denials, two retired-entry denials, five retained read
+boundaries, and the fixed-writer read-only fence. Retain the sanitized
+mode-`0600` evidence with SHA-256
+`d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1`.
+
 ## Crash recovery
 
 The laptop crash on 2026-08-31 removed the disposable `/private/tmp`
@@ -244,11 +269,9 @@ work continued. No production state was involved.
 
 ## Remaining release gates
 
-1. Prove and merge the exact-tree restoration correction.
-2. Retry the guarded production migration workflow from a clean
-   exact-main commit and retain its final proof evidence.
-3. Run the distinct engine-read-only pooled-runtime production postflight.
-4. Only then update the coverage matrix from Phase A to accepted FORCE.
+All OrderPaymentEvent FORCE release gates are complete. The next RLS work must
+start from a separate domain audit and release boundary; this completion does
+not authorize bundling `Order`, `OrderItem`, or `OrderShippingRateQuote`.
 
 ## Scope boundary
 

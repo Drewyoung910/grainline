@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -38,9 +38,13 @@ Grainline uses database-level Row Level Security for `SavedSearch`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
 `StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
 `OrderRefundReconciliation`, and `OrderPaymentEvent`. Fourteen tables have
-production RLS: thirteen have complete retained `FORCE ROW LEVEL SECURITY`
-acceptance, while `OrderPaymentEvent` has complete policyless Phase-A
-acceptance and awaits its separate posture-only FORCE release. Private
+production RLS and all fourteen have complete retained
+`FORCE ROW LEVEL SECURITY` acceptance. `OrderPaymentEvent` FORCE was applied
+by guarded run `33445073482` from exact main
+`6a20981b0af68f8322b6306715fc117e0826e36e` after CI `33443669979`; its
+distinct actual pooled-runtime postflight passed ten checks without mutation.
+Retain sanitized evidence SHA-256
+`d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1`. Private
 `OrderRefundReconciliation` is FORCE-hardened with zero direct runtime CRUD;
 its distinct actual pooled-runtime proof passed from exact main
 `5d3b402317084d9d2af6b8bdf52300a800eda0d8` after CI `32795444295` without

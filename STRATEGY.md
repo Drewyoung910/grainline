@@ -4,32 +4,28 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### OrderPaymentEvent FORCE hardening candidate (2026-08-31)
+### OrderPaymentEvent FORCE acceptance (2026-08-31)
 
-Policyless Phase A is accepted in production from exact main
-`aec47e6a104f1fa54b6ee0e894751850d51390ec`, CI `33361381594`, migration run
-`33358695448` and the distinct pooled-runtime read-only postflight. RLS is
-enabled with NO FORCE, zero policies and zero direct runtime/PUBLIC table or
-column authority. Exactly 16 reviewed fixed functions remain runtime-callable
-and 13 remain runtime-private.
+OrderPaymentEvent is accepted in production as policyless ENABLE plus FORCE,
+with zero policies, zero direct runtime/PUBLIC table or column authority, and
+the exact 16-runtime / 13-private fixed-function partition. PR #369 merged as
+exact main `6a20981b0af68f8322b6306715fc117e0826e36e`; CI `33443669979`
+passed all 302 steps. Guarded run `33445073482` applied only
+`20260831010000_force_order_payment_event_rls`, converged reviewed grants, and
+passed migration status, the global grant/RLS audit, and exact FORCE scope.
+The distinct actual pooled-runtime postflight passed ten engine-read-only
+checks without mutation. Retain sanitized mode-`0600` evidence SHA-256
+`d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1` and
+`docs/order-payment-event-force-release.md`.
 
-The separately bounded posture-only FORCE candidate is isolated on
-`agent/order-payment-event-force-20260831` as
-`20260831010000_force_order_payment_event_rls`; see
-`docs/order-payment-event-force-release.md`. It changes only
-`relforcerowsecurity`, performs no row DML and changes no policy, grant,
-function, trigger, constraint, index, application, credential or provider
-state. The crash-removed temporary files were reconstructed from sealed source
-and pushed at recovery checkpoints `e8ba4cf0` and `01932a0a` before work
-continued.
-
-Next sequence: hosted disposable-PostgreSQL FORCE, pooled-runtime postflight
-and rollback proofs; reviewed merge; separately wired and authorized guarded
-production FORCE; fresh actual pooled-runtime read-only postflight; then update
-the coverage matrix to accepted FORCE. Do not bundle `Order`, `OrderItem` or
-`OrderShippingRateQuote`. Do not begin repository/worktree reconciliation or
-Preview-environment redesign until this active release chain reaches a safe
-recorded boundary.
+This active release chain has reached its safe recorded boundary. Before the
+next RLS design, perform the already-deferred non-destructive repository and
+worktree reconciliation below so future work starts from an intelligible
+current-main checkout. Then select the next matrix row only through its fresh
+domain audit. Do not infer that OrderPaymentEvent completion authorizes
+bundling `Order`, `OrderItem`, or `OrderShippingRateQuote`; their participant,
+PII, provider, shipping, retention, and service-write boundaries remain
+separate design work.
 
 ### Deferred repository and Preview operational hygiene (2026-08-25)
 
