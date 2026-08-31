@@ -4652,3 +4652,25 @@ Open work:
   the complete tree before any of those four applied predecessors is isolated.
   A focused regression test pins that ordering. A new exact-main CI result and
   fresh commit-bound production approval are required before another dispatch.
+
+# 2026-08-30 - OrderPaymentEvent activation predecessor proof corrected
+
+- PR #360 exact head `a6b9e4621c901db70a886737844591fde90997d1`
+  merged as exact main `77b8dc77196aac55d4b96dad758383f80b5206b7`;
+  exact-main CI `33344994209` passed the complete disposable PostgreSQL,
+  rollback, test, dependency-audit and production-build chain.
+- Explicitly authorized guarded run `33346872466` passed exact source,
+  credential, role, activation release, restart scope and all four successor
+  byte verifiers. It then failed closed at the standalone historical
+  transfer-binding production scope. Migration deployment and every later
+  grant and postflight step were skipped; production remained unchanged.
+- The historical verifier correctly expects the function catalog as it existed
+  at transfer-binding release. Production now correctly contains the later
+  sealed signed-refund identity body. The current outer transition-authority
+  verifier already performs the exact successor normalization before
+  recursively proving transfer binding and all intervening releases.
+- The isolated correction retains the transfer-binding byte verifier, replaces
+  only that stale standalone production invocation with the engine-read-only
+  full transition-authority predecessor-chain proof, and pins that the proof
+  runs before any successor directory is isolated. Dedicated historical
+  transfer-binding release behavior and every sealed migration remain intact.

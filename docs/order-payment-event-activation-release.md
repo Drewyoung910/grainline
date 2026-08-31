@@ -196,11 +196,30 @@ before Prisma migration deployment. A workflow-order regression test requires
 all four verifiers to precede the first isolation. A corrected exact-main
 commit and a fresh commit-bound production authorization remain required.
 
+PR #360 exact head `a6b9e4621c901db70a886737844591fde90997d1`
+merged as exact main `77b8dc77196aac55d4b96dad758383f80b5206b7`;
+exact-main CI `33344994209` passed the complete disposable PostgreSQL,
+rollback, static, dependency and production-build chain. Explicitly authorized
+production run `33346872466` then failed closed before migration deployment at
+the standalone blocked-checkout transfer-binding scope check. That historical
+scope intentionally expects the pre-signed-refund function body; production
+correctly contains the later sealed signed-refund identity body. The outer
+transition-authority production verifier performs the exact reviewed successor
+normalization before recursively proving that transfer-binding predecessor.
+
+The second correction therefore keeps the exact transfer-binding byte check,
+replaces the stale standalone production check with the engine-read-only full
+transition-authority predecessor-chain proof, and requires that full proof to
+pass before any successor directory is isolated. It removes no byte seal and
+does not weaken the dedicated historical transfer-binding workflow. Run
+`33346872466` skipped migration deployment and every grant/postflight step;
+production remains unchanged.
+
 ## Remaining release boundaries
 
-1. Pass hosted CI for the workflow-order correction.
-2. Review and merge the exact correction head.
-3. Separately authorize and run the guarded Phase-A Production Migrations
+1. Pass hosted CI for the predecessor-scope correction.
+2. Review and merge its exact head.
+3. Separately authorize and rerun the guarded Phase-A Production Migrations
    release, then retain its exact migration/global-audit/scope evidence.
 4. Run a distinct actual pooled `grainline_app_runtime` read-only production
    postflight. Do not infer it from owner-catalog proof.
