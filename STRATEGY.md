@@ -18,40 +18,35 @@ checks without mutation. Retain sanitized mode-`0600` evidence SHA-256
 `d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1` and
 `docs/order-payment-event-force-release.md`.
 
-This active release chain has reached its safe recorded boundary. Before the
-next RLS design, perform the already-deferred non-destructive repository and
-worktree reconciliation below so future work starts from an intelligible
-current-main checkout. Then select the next matrix row only through its fresh
+This active release chain has reached its safe recorded boundary. The deferred
+repository/worktree reconciliation below is complete, and the normal root now
+tracks exact current `main`. Select the next matrix row only through its fresh
 domain audit. Do not infer that OrderPaymentEvent completion authorizes
 bundling `Order`, `OrderItem`, or `OrderShippingRateQuote`; their participant,
 PII, provider, shipping, retention, and service-write boundaries remain
 separate design work.
 
-### Deferred repository and Preview operational hygiene (2026-08-25)
+### Repository reconciliation complete; Preview hygiene deferred (2026-08-31)
 
-Do not reconcile worktrees during the active OrderPaymentEvent release chain.
-The repository root is intentionally left on
-`codex/saved-search-rls-rollout-20260717` because it contains uncommitted user
-material (`audit_open_findings.md`, `.codex/`, `AGENTS.md` and
-`audit_open_findings.md.bak`). Worktrees are independent checkouts; they are
-not merged together. After the 2026-08-31 laptop crash, Git reports 19
-registered records, of which 9 point at removed temporary directories and are
-prunable; VS Code's earlier “106 worktrees” popup remains stale cached UI state
-rather than the Git inventory. The root branch is 12 commits ahead of and 1072
-commits behind current `origin/main`, so it is operationally confusing but is
-being preserved until its unique material is classified.
+The non-destructive reconciliation completed from exact accepted main
+`0780317f51504da1a5786134ff40f546e0bca733`. The normal repository root now
+tracks that exact clean `main`; only it and the isolated reconciliation
+worktree remain registered. Ten obsolete live checkouts were removed only
+after their commits were proved main- or remote-contained and every dirty byte
+was archived; nine already-missing temporary-directory records were pruned
+from Git metadata. VS Code's earlier “106 worktrees” popup was stale UI state,
+not deletion authority.
 
-After the current PR/release chain is complete, run one dedicated,
-non-destructive reconciliation before switching the root folder: inventory
-every registered worktree and its branch/remote containment; classify and
-preserve unique commits and uncommitted files; archive duplicates only after
-content equivalence is proven; return the root checkout to current `main`; and
-remove or prune only worktrees proven clean, merged/remote-contained and
-obsolete. Record the retained branches, archived artifacts and every removed
-worktree. Never use a bulk cleanup or treat the VS Code count as deletion
-authority.
+The former root's uncommitted audit/config/evidence material is recoverable
+from named stash `64554ce2e4ca7d591a422bb9c558f3d8b0c4a7cd` and from the private mode-`0600`
+archive under
+`/Users/drewyoung/grainline-rollout-evidence/repository-worktree-reconciliation-20260831`.
+Historical branch tips not contained in `main` remain on their exact pushed
+branches and were not merged. Retain
+`docs/repository-worktree-reconciliation-20260831.md` as the detailed inventory,
+hash manifest and removal record.
 
-Ordinary Vercel Preview failures are currently expected because Preview has no
+Ordinary Vercel Preview failures remain expected because Preview has no
 `DATABASE_URL`: compilation and TypeScript complete, then the runtime database
 isolation guard/page-data collection fails closed. GitHub exact-head CI and its
 production build remain the release gate; a red Preview is not accepted as
