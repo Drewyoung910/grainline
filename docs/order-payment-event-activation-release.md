@@ -215,6 +215,15 @@ does not weaken the dedicated historical transfer-binding workflow. Run
 `33346872466` skipped migration deployment and every grant/postflight step;
 production remains unchanged.
 
+Initial correction PR CI `33347265516` passed the changed release/workflow
+contracts and progressed through the disposable predecessor chain, then failed
+in the pre-existing signed-refund real-login proof. The harness generated
+`event_created_seconds` independently for the insert and replay calls; when
+those calls crossed a wall-clock second, PostgreSQL correctly rejected the
+replay as inconsistent. The corrected proof pins one provider event timestamp
+per fixture and reuses it for insert, replay and forged-generation checks. No
+database function, migration or application byte changed.
+
 ## Remaining release boundaries
 
 1. Pass hosted CI for the predecessor-scope correction.

@@ -74,6 +74,7 @@ function fixtureIds(label) {
     signedPaymentId: null,
     signedAuditId: null,
     eventId: `evt_refundidentity${suffix}`,
+    eventCreatedSeconds: Math.floor(Date.now() / 1000) - 2,
   });
 }
 
@@ -211,13 +212,18 @@ async function insertFixture(owner, ids, {
 }
 
 async function applyOmittedRefund(runtime, ids, { generation = 7, amount = 11800 } = {}) {
-  const eventCreated = Math.floor(Date.now() / 1000) - 2;
   return (await runtime.query(`
     SELECT *
       FROM public.grainline_order_payment_signed_refund_apply(
         $1, $2, $3, $4, $5, 'usd', NULL, NULL, NULL, NULL, NULL
       )
-  `, [ids.eventId, generation, ids.chargeId, eventCreated, amount])).rows[0];
+  `, [
+    ids.eventId,
+    generation,
+    ids.chargeId,
+    ids.eventCreatedSeconds,
+    amount,
+  ])).rows[0];
 }
 
 async function removeFixture(owner, ids) {

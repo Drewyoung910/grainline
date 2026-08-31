@@ -4674,3 +4674,10 @@ Open work:
   full transition-authority predecessor-chain proof, and pins that the proof
   runs before any successor directory is isolated. Dedicated historical
   transfer-binding release behavior and every sealed migration remain intact.
+- Initial correction CI `33347265516` then failed in the unchanged disposable
+  signed-refund real-login proof. The harness recomputed the immutable provider
+  event timestamp for each invocation, so a replay crossing a wall-clock
+  second was correctly rejected as inconsistent. The correction stores one
+  timestamp in each fixture and reuses it for insert, replay and generation-
+  forgery calls. The database anti-replay rule is unchanged and a static
+  regression test forbids reintroducing per-call time generation.

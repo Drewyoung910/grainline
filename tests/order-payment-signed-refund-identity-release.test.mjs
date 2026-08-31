@@ -109,4 +109,13 @@ test("real PostgreSQL proof builds a complete durable Order seller graph", () =>
   assert.match(proof, /"sellerProfileId"/);
   assert.match(proof, /"itemsSubtotalCents"/);
   assert.match(proof, /DELETE FROM public\."Listing"/);
+  assert.match(
+    proof,
+    /eventCreatedSeconds: Math\.floor\(Date\.now\(\) \/ 1000\) - 2/,
+  );
+  assert.match(proof, /ids\.eventCreatedSeconds/);
+  assert.doesNotMatch(
+    proof,
+    /async function applyOmittedRefund[\s\S]*?const eventCreated = Math\.floor/u,
+  );
 });
