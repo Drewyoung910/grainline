@@ -75,6 +75,26 @@ test("FORCE production re-proves current Phase A instead of obsolete pre-activat
   );
   assert.match(scope, /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart/u);
   assert.match(scope, /value\.state !== "phase-a-accepted"/u);
+  assert.match(
+    scope,
+    /force_path="prisma\/migrations\/20260831010000_force_order_payment_event_rls"/u,
+  );
+  assert.match(
+    scope,
+    /staged_force_path="\$RUNNER_TEMP\/order-payment-event-force-release"/u,
+  );
+  const trap = scope.indexOf("trap restore_isolated_force EXIT");
+  const restoreTree = scope.indexOf('mv "$staged_force_path" "$force_path"');
+  const proof = scope.indexOf("audit:order-payment-event-force-production-scope");
+  const reIsolateTree = scope.lastIndexOf("\n          restore_isolated_force\n");
+  const disarmTrap = scope.indexOf("trap - EXIT");
+  assert.ok(trap >= 0 && trap < restoreTree);
+  assert.ok(restoreTree < proof && proof < reIsolateTree);
+  assert.ok(reIsolateTree < disarmTrap);
+  assert.match(
+    scope,
+    /if \[\[ ! -d "\$staged_force_path" \|\| -e "\$force_path" \]\][\s\S]*exit 1/u,
+  );
   assert.doesNotMatch(
     workflow,
     /Prove exact OrderPaymentEvent transition-authority predecessor scope/u,
@@ -128,13 +148,30 @@ test("migration deployment is Phase-A-only while final convergence is restart-sa
   assert.deepEqual(order, [...order].sort((left, right) => left - right));
 });
 
-test("FORCE release is isolated and restored exactly once", () => {
+test("FORCE release has one fail-closed proof cycle before its final restore", () => {
   const workflow = fs.readFileSync(WORKFLOW_PATH, "utf8");
   const migrationPath =
     "prisma/migrations/20260831010000_force_order_payment_event_rls";
-  assert.equal(workflow.split(migrationPath).length - 1, 2);
-  assert.equal(
-    workflow.split('"$RUNNER_TEMP/order-payment-event-force-release"').length - 1,
-    2,
+  const stagedPath = '"$RUNNER_TEMP/order-payment-event-force-release"';
+  const initialIsolation = stepBlock(
+    workflow,
+    "Isolate unapplied OrderPaymentEvent FORCE release",
   );
+  const proofCycle = stepBlock(
+    workflow,
+    "Re-prove exact OrderPaymentEvent Phase-A predecessor scope",
+  );
+  const finalRestore = stepBlock(
+    workflow,
+    "Restore the complete reviewed OrderPaymentEvent release chain",
+  );
+  assert.ok(initialIsolation.indexOf(migrationPath) >= 0);
+  assert.ok(initialIsolation.indexOf(migrationPath) < initialIsolation.indexOf(stagedPath));
+  assert.match(proofCycle, /trap restore_isolated_force EXIT/u);
+  assert.match(proofCycle, /mv "\$staged_force_path" "\$force_path"/u);
+  assert.match(proofCycle, /mv "\$force_path" "\$staged_force_path"/u);
+  assert.ok(finalRestore.indexOf(stagedPath) >= 0);
+  assert.ok(finalRestore.indexOf(stagedPath) < finalRestore.indexOf(migrationPath));
+  assert.equal(workflow.split(migrationPath).length - 1, 3);
+  assert.equal(workflow.split(stagedPath).length - 1, 3);
 });

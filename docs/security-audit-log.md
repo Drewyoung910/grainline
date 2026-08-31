@@ -4881,3 +4881,18 @@ Open work:
   must explicitly classify the live state as `phase-a-accepted` immediately
   before replay/isolation. No row, migration, deployment, grant, provider or
   credential state changed.
+- PR #368 merged the current-Phase-A proof correction as `main` commit
+  `dd3a677a480b87460034ca68d07f0b1e6464457a`; main CI `33436863737`
+  passed. Authorized retry `33441215082` passed its first complete live FORCE
+  restart proof and failed closed before migration at the second invocation.
+  That invocation occurred after the workflow intentionally staged the
+  unapplied FORCE migration directory outside `prisma/migrations`, so the
+  full-tree verifier rejected the locally incomplete byte catalog. Production
+  remained accepted Phase A with FORCE off.
+- The follow-up preserves the second independent proof and its position: it
+  temporarily restores the already verified FORCE directory from the private
+  runner staging path, requires the complete verifier to return exactly
+  `phase-a-accepted`, and re-isolates the directory before replay. A shell EXIT
+  trap restores isolation on failure, with exact before/after directory
+  assertions. This mutates only disposable runner filesystem state and does
+  not weaken the database, role, grant, function, table or full-ledger proof.
