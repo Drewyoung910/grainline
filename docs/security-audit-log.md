@@ -4755,3 +4755,21 @@ Open work:
   expected `42501`. The successor preserves the zero-CRUD catalog assertion,
   pins `42501` for direct `SELECT`, and pins `25006` for all three direct DML
   attempts. No production operation, grant change or guard weakening occurred.
+- PR #364 exact head `9093c4c21a3eb56065c8b1bf5ad9a093486ff17d`
+  passed hosted CI `33360701852` and merged as exact main
+  `aec47e6a104f1fa54b6ee0e894751850d51390ec`. Exact-main CI
+  `33361381594` passed independently, including the corrected real PostgreSQL
+  runtime-login proof and production build.
+- The actual pooled `grainline_app_runtime` production postflight passed from
+  that clean exact-main checkout, bound to migration run `33358695448`, inside
+  an engine-attested repeatable-read/read-only transaction. It accepted the
+  exact table/function/direct-reference catalogs, zero direct authority,
+  direct SELECT ACL denial, three DML read-only fences, retained reads, retired
+  entry-point denial and the granted writer's `25006` fence. It exported no
+  rows and reported no production mutation.
+- Retain mode-`0600` evidence
+  `order-payment-event-activation-production-postflight-aec47e6a104f1fa54b6ee0e894751850d51390ec.json`;
+  SHA-256
+  `d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd`.
+  `OrderPaymentEvent` Phase A is accepted. FORCE remains a separate release;
+  `Order`, `OrderItem` and `OrderShippingRateQuote` remain out of scope.

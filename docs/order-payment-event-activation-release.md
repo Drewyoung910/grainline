@@ -1,16 +1,19 @@
 # OrderPaymentEvent policyless activation release
 
-Status: production Phase A is live and owner-side acceptance passed. Exact main
-`94dbe98ae5e7fbf95989be690fc20d47e76cdb12` passed exact-main CI
-`33357911021`; guarded run `33358695448` applied only
+Status: production Phase A is accepted. Exact main
+`94dbe98ae5e7fbf95989be690fc20d47e76cdb12` passed CI `33357911021`;
+guarded run `33358695448` applied only
 `20260830030000_enable_order_payment_event_rls`, converged the reviewed grants,
 and passed migration status, the global grant/RLS audit and both final scope
 proofs. Production is policyless ENABLE with explicit `NO FORCE`, zero direct
 runtime/PUBLIC table or column authority, and the exact 16-runtime / 13-private
-function partition. The distinct actual pooled-runtime postflight remains
-pending, so Phase A is not yet a completed retained acceptance. Nothing in
-this record authorizes FORCE RLS, provider changes, or activation of `Order`,
-`OrderItem` or `OrderShippingRateQuote`.
+function partition. PR #364 merged the distinct postflight as exact main
+`aec47e6a104f1fa54b6ee0e894751850d51390ec`; exact-main CI `33361381594`
+passed, and the actual pooled-runtime postflight then passed read-only with
+sanitized evidence SHA-256
+`d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd`.
+Nothing in this record authorizes FORCE RLS, provider changes, or activation
+of `Order`, `OrderItem` or `OrderShippingRateQuote`.
 
 Prepared: 2026-08-31.
 
@@ -319,15 +322,36 @@ fail with `42501`, and separately requires `INSERT`, `UPDATE` and `DELETE` to
 hit the stronger engine read-only fence `25006`. No permission was broadened
 and no read-only guard was removed.
 
+## Pooled-runtime Phase-A acceptance
+
+PR #364 exact head `9093c4c21a3eb56065c8b1bf5ad9a093486ff17d`
+passed CI `33360701852` and merged as exact main
+`aec47e6a104f1fa54b6ee0e894751850d51390ec`. Exact-main CI
+`33361381594` passed independently, including the same disposable PostgreSQL
+runtime-login proof and the production build.
+
+The actual production postflight ran only from that clean exact-main checkout,
+through the pooled `grainline_app_runtime` credential, and was bound to guarded
+migration run `33358695448`. PostgreSQL attested repeatable-read/read-only mode,
+the restricted runtime identity, policyless ENABLE with `NO FORCE`, zero direct
+runtime/PUBLIC table or column authority, the exact 29-function / 25-direct
+reference catalog, direct SELECT ACL denial, three DML read-only fences, both
+retired-entry-point denials, five retained read boundaries, and the granted
+writer's SQLSTATE `25006` fence. It exported no rows and reported
+`productionChangedByPostflight=false`.
+
+Retain the mode-`0600` evidence file
+`order-payment-event-activation-production-postflight-aec47e6a104f1fa54b6ee0e894751850d51390ec.json`;
+its SHA-256 is
+`d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd`.
+Phase A is now complete retained acceptance.
+
 ## Remaining release boundaries
 
-1. Pass hosted CI for the pooled-runtime postflight operator and its disposable
-   PostgreSQL execution path.
-2. Review and merge its exact head.
-3. Run a distinct actual pooled `grainline_app_runtime` read-only production
-   postflight. Do not infer it from owner-catalog proof.
-4. Prepare and release posture-only FORCE separately, then repeat the actual
-   pooled-runtime proof.
+1. Prepare and release posture-only FORCE separately; do not alter policies,
+   grants, functions or rows in that migration.
+2. Repeat the actual pooled-runtime proof from the exact FORCE release and
+   retain distinct evidence. Do not reuse the Phase-A artifact.
 
 `Order`, `OrderItem` and `OrderShippingRateQuote` remain later separately
 audited and activated tables. This release is not authority to bundle them.

@@ -86,7 +86,7 @@ describe("site-wide RLS coverage matrix", () => {
       [
         ["Conversation", "RLS_LIVE_FORCE"],
         ["Message", "RLS_LIVE_FORCE"],
-        ["OrderPaymentEvent", "RLS_LIVE_PHASE_A_PENDING_POSTFLIGHT"],
+        ["OrderPaymentEvent", "RLS_LIVE_PHASE_A"],
         [
           "OrderRefundReconciliation",
           "RLS_LIVE_FORCE",
@@ -117,13 +117,13 @@ describe("site-wide RLS coverage matrix", () => {
     );
     assert.match(
       matrix,
-      /OrderPaymentEvent` Phase A is now live pending its distinct pooled-runtime\s+postflight[\s\S]*Every remaining row is \*\*not active RLS\*\*/,
+      /OrderPaymentEvent` has complete retained policyless Phase-A acceptance[\s\S]*d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd[\s\S]*Every remaining row is \*\*not active RLS\*\*/,
     );
     assert.match(matrix, /Application authorization alone is not that\s+alternative\./);
     assert.match(matrix, /migration run `30953378226`/);
     assert.match(
       architecture,
-      /Thirteen tables have production RLS and all[\s\S]*thirteen have complete retained `FORCE ROW LEVEL SECURITY` acceptance[\s\S]*OrderRefundReconciliation` is FORCE-hardened[\s\S]*ecb1ce1b1f4dd6fa2ad62e23882c16f6021be6ed42698b54a663ca11bd236f10/,
+      /Fourteen tables have[\s\S]*production RLS: thirteen have complete retained `FORCE ROW LEVEL SECURITY`[\s\S]*OrderPaymentEvent` has complete policyless Phase-A[\s\S]*d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd/,
     );
     assert.match(architecture, /`SellerPayoutEvent` FORCE was[\s\S]*distinct actual pooled-runtime FORCE postflight passed/);
     assert.match(
