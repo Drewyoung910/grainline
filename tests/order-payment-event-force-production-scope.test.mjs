@@ -26,6 +26,7 @@ import {
   SCHEMA_NUMERIC_GUARDS_MIGRATION,
 } from "../scripts/verify-seller-payout-event-authority-production-scope.mjs";
 import {
+  ORDER_PAYMENT_EVENT_FORCE_LEDGER_QUERY,
   assertOrderPaymentEventForceProductionScope,
   parseOrderPaymentEventForceScopeEnvironment,
   readOrderPaymentEventForceMigrationCatalog,
@@ -201,7 +202,18 @@ test("FORCE scope rejects checksum, posture, duplicate and predecessor drift", (
   missing.ledgerRows = missing.ledgerRows.filter(
     (row) => row.migration_name !== ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
   );
-  for (const snapshot of [checksum, duplicate, posture, missing]) {
+  const unknownSuccessor = structuredClone(valid);
+  unknownSuccessor.ledgerRows.push(applied(
+    "99999999999999_unreviewed_successor",
+    "f".repeat(64),
+  ));
+  for (const snapshot of [
+    checksum,
+    duplicate,
+    posture,
+    missing,
+    unknownSuccessor,
+  ]) {
     assert.throws(
       () => assertOrderPaymentEventForceProductionScope(
         snapshot,
@@ -210,6 +222,17 @@ test("FORCE scope rejects checksum, posture, duplicate and predecessor drift", (
       ),
     );
   }
+});
+
+test("FORCE production reader inspects the complete migration ledger", () => {
+  assert.match(
+    ORDER_PAYMENT_EVENT_FORCE_LEDGER_QUERY,
+    /FROM public\._prisma_migrations[\s\S]*ORDER BY migration_name, started_at, id/u,
+  );
+  assert.doesNotMatch(
+    ORDER_PAYMENT_EVENT_FORCE_LEDGER_QUERY,
+    /\bWHERE\s+migration_name\b/iu,
+  );
 });
 
 test("FORCE scope environment rejects missing and invalid stage before URLs", () => {

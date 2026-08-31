@@ -118,6 +118,17 @@ ORDER_PAYMENT_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH=order-payment-event-force-pro
 npm run ops:order-payment-event-force-postflight
 ```
 
+The final authority review found one reader-only fail-closed gap after the
+first successful hosted proof: the scope assertion rejected unknown successor
+migrations, but the database reader selected only ledger rows at or before the
+FORCE migration name. A later out-of-band row would therefore never reach the
+assertion. The reader now loads the complete `_prisma_migrations` ledger, while
+the existing exact predecessor/successor catalog rejects every unknown,
+missing, duplicate, rolled-back, zero-step or checksum-drifted row. Regression
+coverage proves both the complete-ledger query and rejection of an unreviewed
+successor. This correction is isolated and read-only; production remains
+Phase A.
+
 ## Crash recovery
 
 The laptop crash on 2026-08-31 removed the disposable `/private/tmp`

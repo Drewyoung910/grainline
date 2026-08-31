@@ -25,6 +25,12 @@ import {
 } from "./postgres-url-safety.mjs";
 
 const { Client } = pg;
+export const ORDER_PAYMENT_EVENT_FORCE_LEDGER_QUERY = `
+  SELECT migration_name, checksum, finished_at, rolled_back_at,
+         applied_steps_count
+    FROM public._prisma_migrations
+   ORDER BY migration_name, started_at, id
+`;
 export const ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGES = Object.freeze([
   "before",
   "after",
@@ -201,13 +207,12 @@ export async function readOrderPaymentEventForceProductionSnapshot(
     ) {
       throw new Error("OrderPaymentEvent FORCE scope is not engine-read-only");
     }
-    const ledgerRows = (await client.query(`
-      SELECT migration_name, checksum, finished_at, rolled_back_at,
-             applied_steps_count
-        FROM public._prisma_migrations
-       WHERE migration_name <= $1
-       ORDER BY migration_name, started_at, id
-    `, [ORDER_PAYMENT_EVENT_FORCE_MIGRATION])).rows;
+    // Read the complete ledger. The exact-scope assertion rejects every
+    // unreviewed predecessor or successor row; bounding this query at the
+    // FORCE migration would make a later out-of-band row invisible.
+    const ledgerRows = (await client.query(
+      ORDER_PAYMENT_EVENT_FORCE_LEDGER_QUERY,
+    )).rows;
     const orderPaymentEvent =
       await readOrderPaymentEventActivationProductionSnapshotFromClient(
         client,

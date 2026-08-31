@@ -4816,3 +4816,9 @@ Open work:
   deployment and provider state remain separate boundaries. Retain
   `docs/order-payment-event-force-release.md` for the exact hashes, proof
   design, rollback and remaining gates.
+- Final authority review found that the new FORCE assertion rejected unknown
+  successor migrations but its live reader bounded `_prisma_migrations` at the
+  FORCE name. That made the assertion unreachable for a later out-of-band row.
+  The reader now loads the complete ledger, and fail-closed tests require both
+  the unbounded query and rejection of an unknown successor. This was an
+  isolated read-only verifier correction; production remained Phase A.
