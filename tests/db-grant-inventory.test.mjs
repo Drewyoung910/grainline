@@ -1601,6 +1601,7 @@ describe("database grant inventory guardrails", () => {
         "DirectUploadReference",
         "Message",
         "Notification",
+        "OrderPaymentEvent",
         "OrderRefundReconciliation",
         "SavedSearch",
         "SellerPayoutEvent",

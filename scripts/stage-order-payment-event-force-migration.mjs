@@ -111,6 +111,29 @@ export function buildOrderPaymentEventForceCandidate(
   });
 }
 
+export function verifyOrderPaymentEventForceMigrationBytes(
+  rootDirectory = process.cwd(),
+) {
+  const candidate = buildOrderPaymentEventForceCandidate(rootDirectory);
+  const migrationPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+    "migration.sql",
+  );
+  if (
+    !fs.existsSync(migrationPath)
+    || !fs.statSync(migrationPath).isFile()
+    || fs.readFileSync(migrationPath, "utf8") !== candidate.migration
+  ) {
+    throw new Error("OrderPaymentEvent FORCE migration bytes drifted");
+  }
+  return Object.freeze({
+    migration: ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+    migrationSha256: candidate.migrationSha256,
+  });
+}
+
 function assertDisposableTarget() {
   if (
     process.env.ORDER_PAYMENT_EVENT_FORCE_STAGING_ACK

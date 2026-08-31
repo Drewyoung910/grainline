@@ -4,27 +4,29 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### OrderPaymentEvent Phase-A activation candidate (2026-08-30)
+### OrderPaymentEvent FORCE hardening candidate (2026-08-31)
 
-The credential-epoch drain and full tracked-source zero-direct-access gate are
-accepted. The next bounded release is now prepared on an isolated branch as
-`20260830030000_enable_order_payment_event_rls`, documented in
-`docs/order-payment-event-activation-release.md`. Production remains unchanged:
-RLS is off, zero policies exist and predecessor runtime CRUD remains intact.
+Policyless Phase A is accepted in production from exact main
+`aec47e6a104f1fa54b6ee0e894751850d51390ec`, CI `33361381594`, migration run
+`33358695448` and the distinct pooled-runtime read-only postflight. RLS is
+enabled with NO FORCE, zero policies and zero direct runtime/PUBLIC table or
+column authority. Exactly 16 reviewed fixed functions remain runtime-callable
+and 13 remain runtime-private.
 
-The candidate is a policyless service-ledger activation only. It performs zero
-row DML, enables RLS with explicit `NO FORCE`, revokes direct runtime/PUBLIC
-table authority and retires two predecessor function entry points no longer
-called by application source. Its final source-composed catalog is exactly 29
-functions, partitioned into 16 retained runtime operations and 13 private
-operations after activation. The hard review corrected a stale hand-composed
-catalog and strengthened exact trigger and rollback ACL/function-catalog
-proofs before any persistent application.
+The separately bounded posture-only FORCE candidate is isolated on
+`agent/order-payment-event-force-20260831` as
+`20260831010000_force_order_payment_event_rls`; see
+`docs/order-payment-event-force-release.md`. It changes only
+`relforcerowsecurity`, performs no row DML and changes no policy, grant,
+function, trigger, constraint, index, application, credential or provider
+state. The crash-removed temporary files were reconstructed from sealed source
+and pushed at recovery checkpoints `e8ba4cf0` and `01932a0a` before work
+continued.
 
-Next sequence: hosted disposable-PostgreSQL activation and rollback proof;
-reviewed merge; separately guarded production Phase A; distinct actual pooled
-runtime read-only postflight; then separately prepared posture-only FORCE and
-a fresh pooled-runtime postflight. Do not bundle `Order`, `OrderItem` or
+Next sequence: hosted disposable-PostgreSQL FORCE, pooled-runtime postflight
+and rollback proofs; reviewed merge; separately wired and authorized guarded
+production FORCE; fresh actual pooled-runtime read-only postflight; then update
+the coverage matrix to accepted FORCE. Do not bundle `Order`, `OrderItem` or
 `OrderShippingRateQuote`. Do not begin repository/worktree reconciliation or
 Preview-environment redesign until this active release chain reaches a safe
 recorded boundary.
@@ -36,9 +38,12 @@ The repository root is intentionally left on
 `codex/saved-search-rls-rollout-20260717` because it contains uncommitted user
 material (`audit_open_findings.md`, `.codex/`, `AGENTS.md` and
 `audit_open_findings.md.bak`). Worktrees are independent checkouts; they are
-not merged together. The 2026-08-25 Git inventory reports 12 registered
-worktrees, while VS Code's earlier “106 worktrees” popup is stale cached UI
-state rather than the Git inventory.
+not merged together. After the 2026-08-31 laptop crash, Git reports 19
+registered records, of which 9 point at removed temporary directories and are
+prunable; VS Code's earlier “106 worktrees” popup remains stale cached UI state
+rather than the Git inventory. The root branch is 12 commits ahead of and 1072
+commits behind current `origin/main`, so it is operationally confusing but is
+being preserved until its unique material is classified.
 
 After the current PR/release chain is complete, run one dedicated,
 non-destructive reconciliation before switching the root folder: inventory

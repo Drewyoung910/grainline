@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import pg from "pg";
 
 import {
+  parseOrderPaymentEventPostflightMode,
   proveOrderPaymentEventActivationRuntimePosture,
 } from "./order-payment-event-activation-production-postflight.mjs";
 
@@ -38,11 +39,14 @@ export function parseOrderPaymentEventActivationPostflightProofConfig(
 
 export async function runOrderPaymentEventActivationPostflightProof(
   env = process.env,
+  { postForce = false } = {},
 ) {
   const { databaseUrl } =
     parseOrderPaymentEventActivationPostflightProofConfig(env);
   const client = new Client({
-    application_name: "grainline-ope-activation-postflight-proof",
+    application_name: postForce
+      ? "grainline-ope-force-postflight-proof"
+      : "grainline-ope-activation-postflight-proof",
     connectionString: databaseUrl,
     connectionTimeoutMillis: 10_000,
     query_timeout: 35_000,
@@ -56,7 +60,7 @@ export async function runOrderPaymentEventActivationPostflightProof(
     const proof = await proveOrderPaymentEventActivationRuntimePosture(
       client,
       { databaseName: DATABASE_NAME, runtimeRole: RUNTIME_ROLE },
-      { migrationRole: OWNER_ROLE },
+      { expectedForce: postForce, migrationRole: OWNER_ROLE },
     );
     await client.query("ROLLBACK");
     transactionOpen = false;
@@ -77,14 +81,20 @@ export async function runOrderPaymentEventActivationPostflightProof(
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
+    const postForce = parseOrderPaymentEventPostflightMode(
+      process.argv.slice(2),
+    );
     process.stdout.write(`${JSON.stringify(
-      await runOrderPaymentEventActivationPostflightProof(),
+      await runOrderPaymentEventActivationPostflightProof(
+        process.env,
+        { postForce },
+      ),
       null,
       2,
     )}\n`);
   } catch (error) {
     process.stderr.write(
-      `OrderPaymentEvent activation postflight PostgreSQL proof failed: ${
+      `OrderPaymentEvent postflight PostgreSQL proof failed: ${
         error instanceof Error ? error.message : "unknown error"
       }\n`,
     );

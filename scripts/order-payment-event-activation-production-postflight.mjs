@@ -34,17 +34,59 @@ import {
 import {
   verifyOrderPaymentEventActivationRelease,
 } from "./verify-order-payment-event-activation-release.mjs";
+import {
+  verifyOrderPaymentEventForceRelease,
+} from "./verify-order-payment-event-force-release.mjs";
 
 const { Client } = pg;
 const MIGRATION_ROLE = "neondb_owner";
 const RUNTIME_ROLE = "grainline_app_runtime";
 const COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
 const SAFE_POSITIVE_INTEGER = /^[1-9][0-9]{0,15}$/u;
-const EVIDENCE_PREFIX =
+const ACTIVATION_EVIDENCE_PREFIX =
   "order-payment-event-activation-production-postflight-";
+const FORCE_EVIDENCE_PREFIX =
+  "order-payment-event-force-production-postflight-";
+const POST_FORCE_FLAG = "--post-force";
 
 export const ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRMATION =
   "verify-production-order-payment-event-activation-runtime-read-only";
+export const ORDER_PAYMENT_EVENT_FORCE_POSTFLIGHT_CONFIRMATION =
+  "verify-production-order-payment-event-force-runtime-read-only";
+
+export function parseOrderPaymentEventPostflightMode(argv = []) {
+  if (argv.length === 0) return false;
+  if (argv.length === 1 && argv[0] === POST_FORCE_FLAG) return true;
+  throw new Error(
+    "Usage: node scripts/order-payment-event-activation-production-postflight.mjs [--post-force]",
+  );
+}
+
+function postflightContract(postForce) {
+  return postForce
+    ? Object.freeze({
+      confirmation: ORDER_PAYMENT_EVENT_FORCE_POSTFLIGHT_CONFIRMATION,
+      confirmationKey: "ORDER_PAYMENT_EVENT_FORCE_POSTFLIGHT_CONFIRM",
+      evidenceKey: "ORDER_PAYMENT_EVENT_FORCE_POSTFLIGHT_EVIDENCE_PATH",
+      evidencePrefix: FORCE_EVIDENCE_PREFIX,
+      mainCiKey: "ORDER_PAYMENT_EVENT_FORCE_POSTFLIGHT_MAIN_CI_RUN_ID",
+      migrationRunKey: "ORDER_PAYMENT_EVENT_FORCE_POSTFLIGHT_MIGRATION_RUN_ID",
+      operation: "order-payment-event-force-production-postflight",
+      releaseCommitKey: "ORDER_PAYMENT_EVENT_FORCE_POSTFLIGHT_RELEASE_COMMIT",
+      rlsForced: true,
+    })
+    : Object.freeze({
+      confirmation: ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRMATION,
+      confirmationKey: "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRM",
+      evidenceKey: "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH",
+      evidencePrefix: ACTIVATION_EVIDENCE_PREFIX,
+      mainCiKey: "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID",
+      migrationRunKey: "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID",
+      operation: "order-payment-event-activation-production-postflight",
+      releaseCommitKey: "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT",
+      rlsForced: false,
+    });
+}
 
 function required(env, key) {
   const value = env?.[key];
@@ -83,37 +125,40 @@ export function parseOrderPaymentEventActivationPostflightConfig(
   env = process.env,
   {
     assertRuntimeDatabaseIsolation = assertVercelRuntimeDatabaseIsolation,
+    postForce = false,
   } = {},
 ) {
+  const contract = postflightContract(postForce);
   assertDeterministicPostgresEnvironment(
     env,
-    "OrderPaymentEvent activation production postflight",
+    `OrderPaymentEvent ${postForce ? "FORCE" : "activation"} production postflight`,
   );
-  if (
-    env.ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRM
-      !== ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_CONFIRMATION
-  ) {
-    throw new Error("OrderPaymentEvent activation postflight confirmation is invalid");
+  if (env[contract.confirmationKey] !== contract.confirmation) {
+    throw new Error(
+      `OrderPaymentEvent ${postForce ? "FORCE" : "activation"} postflight confirmation is invalid`,
+    );
   }
   const privilegedKeys = privilegedDatabaseEnvironmentKeys(env);
   if (privilegedKeys.length > 0) {
     throw new Error(
-      `OrderPaymentEvent activation postflight rejects privileged database keys: ${privilegedKeys.join(", ")}`,
+      `OrderPaymentEvent ${postForce ? "FORCE" : "activation"} postflight rejects privileged database keys: ${privilegedKeys.join(", ")}`,
     );
   }
   const unreviewedUrlKeys = unreviewedPostgresUrlEnvironmentKeys(env);
   if (unreviewedUrlKeys.length > 0) {
     throw new Error(
-      `OrderPaymentEvent activation postflight rejects aliased PostgreSQL URLs: ${unreviewedUrlKeys.join(", ")}`,
+      `OrderPaymentEvent ${postForce ? "FORCE" : "activation"} postflight rejects aliased PostgreSQL URLs: ${unreviewedUrlKeys.join(", ")}`,
     );
   }
 
   const releaseCommit = required(
     env,
-    "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_RELEASE_COMMIT",
+    contract.releaseCommitKey,
   );
   if (!COMMIT_PATTERN.test(releaseCommit)) {
-    throw new Error("OrderPaymentEvent activation postflight release commit is invalid");
+    throw new Error(
+      `OrderPaymentEvent ${postForce ? "FORCE" : "activation"} postflight release commit is invalid`,
+    );
   }
   const databaseUrl = required(env, "DATABASE_URL");
   const runtimeIdentity = assertRuntimeDatabaseIsolation({
@@ -124,16 +169,14 @@ export function parseOrderPaymentEventActivationPostflightConfig(
     NODE_TLS_REJECT_UNAUTHORIZED: env.NODE_TLS_REJECT_UNAUTHORIZED,
     PGOPTIONS: env.PGOPTIONS,
   });
-  const evidencePath = path.resolve(required(
-    env,
-    "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_EVIDENCE_PATH",
-  ));
+  const evidencePath = path.resolve(required(env, contract.evidenceKey));
   if (
-    path.basename(evidencePath) !== `${EVIDENCE_PREFIX}${releaseCommit}.json`
+    path.basename(evidencePath)
+      !== `${contract.evidencePrefix}${releaseCommit}.json`
     || existsSync(evidencePath)
   ) {
     throw new Error(
-      "OrderPaymentEvent activation postflight evidence path is not fresh and exact",
+      `OrderPaymentEvent ${postForce ? "FORCE" : "activation"} postflight evidence path is not fresh and exact`,
     );
   }
 
@@ -143,13 +186,15 @@ export function parseOrderPaymentEventActivationPostflightConfig(
     evidencePath,
     mainCiRunId: positiveInteger(
       env,
-      "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_MAIN_CI_RUN_ID",
+      contract.mainCiKey,
     ),
     migrationRunId: positiveInteger(
       env,
-      "ORDER_PAYMENT_EVENT_ACTIVATION_POSTFLIGHT_MIGRATION_RUN_ID",
+      contract.migrationRunKey,
     ),
+    operation: contract.operation,
     releaseCommit,
+    rlsForced: contract.rlsForced,
     runtimeIdentity,
   });
 }
@@ -406,14 +451,23 @@ async function readOrderPaymentEventActivationRuntimeCatalog(
 
 export function assertOrderPaymentEventActivationRuntimeCatalog(
   snapshot,
-  { migrationRole = MIGRATION_ROLE, root = process.cwd() } = {},
+  {
+    expectedForce = false,
+    migrationRole = MIGRATION_ROLE,
+    root = process.cwd(),
+  } = {},
 ) {
-  verifyOrderPaymentEventActivationRelease(root);
+  if (expectedForce) verifyOrderPaymentEventForceRelease(root);
+  else {
+    verifyOrderPaymentEventActivationRelease(root, {
+      allowReviewedForceSuccessor: true,
+    });
+  }
   const table = snapshot?.table;
   if (
     table?.owner_name !== migrationRole
     || table.rls_enabled !== true
-    || table.rls_forced !== false
+    || table.rls_forced !== expectedForce
     || Number(table.policy_count) !== 0
     || table.runtime_can_select !== false
     || table.runtime_can_insert !== false
@@ -473,7 +527,7 @@ export function assertOrderPaymentEventActivationRuntimeCatalog(
     runtimeFunctionCount: expected.filter((entry) => entry.runtimeAfter).length,
     policyCount: 0,
     rlsEnabled: true,
-    rlsForced: false,
+    rlsForced: expectedForce,
   });
 }
 
@@ -552,7 +606,11 @@ export async function proveOrderPaymentEventActivationRuntimeBoundaries(client) 
 export async function proveOrderPaymentEventActivationRuntimePosture(
   client,
   expectedIdentity,
-  { migrationRole = MIGRATION_ROLE, root = process.cwd() } = {},
+  {
+    expectedForce = false,
+    migrationRole = MIGRATION_ROLE,
+    root = process.cwd(),
+  } = {},
 ) {
   const transaction = await client.query(`
     SELECT
@@ -570,7 +628,7 @@ export async function proveOrderPaymentEventActivationRuntimePosture(
   );
   const catalog = assertOrderPaymentEventActivationRuntimeCatalog(
     await readOrderPaymentEventActivationRuntimeCatalog(client, root),
-    { migrationRole, root },
+    { expectedForce, migrationRole, root },
   );
   const boundaries = await proveOrderPaymentEventActivationRuntimeBoundaries(
     client,
@@ -599,13 +657,14 @@ export async function runOrderPaymentEventActivationPostflight(config) {
     const proof = await proveOrderPaymentEventActivationRuntimePosture(
       client,
       config.runtimeIdentity,
+      { expectedForce: config.rlsForced },
     );
     await client.query("ROLLBACK");
     transactionOpen = false;
 
     const evidence = Object.freeze({
       schemaVersion: 1,
-      operation: "order-payment-event-activation-production-postflight",
+      operation: config.operation,
       source: Object.freeze({ clean: git.clean, commit: git.head }),
       target: Object.freeze({
         databaseName: config.runtimeIdentity.databaseName,
@@ -627,7 +686,9 @@ export async function runOrderPaymentEventActivationPostflight(config) {
         checks: Object.freeze([
           "engine_attested_repeatable_read_read_only_transaction",
           "actual_pooled_runtime_role_identity",
-          "policyless_enable_no_force_table_posture",
+          config.rlsForced
+            ? "policyless_enable_force_table_posture"
+            : "policyless_enable_no_force_table_posture",
           "zero_runtime_or_public_table_or_column_authority",
           "exact_29_function_source_mode_owner_and_acl_catalog",
           "exact_25_direct_reference_function_surface",
@@ -678,7 +739,11 @@ export function writeOrderPaymentEventActivationPostflightEvidence(
 
 async function main() {
   try {
-    const config = parseOrderPaymentEventActivationPostflightConfig();
+    const postForce = parseOrderPaymentEventPostflightMode(process.argv.slice(2));
+    const config = parseOrderPaymentEventActivationPostflightConfig(
+      process.env,
+      { postForce },
+    );
     const evidence = await runOrderPaymentEventActivationPostflight(config);
     process.stdout.write(`${JSON.stringify({
       status: evidence.status,
@@ -688,7 +753,7 @@ async function main() {
     })}\n`);
   } catch (error) {
     process.stderr.write(
-      `OrderPaymentEvent activation production postflight failed: ${safeError(error)}\n`,
+      `OrderPaymentEvent production postflight failed: ${safeError(error)}\n`,
     );
     process.exitCode = 1;
   }
