@@ -254,9 +254,33 @@ in restoration, with the full production proof before isolation and Prisma
 only after restored-tree re-verification. No SQL, migration, application,
 grant or provider byte is changed.
 
+PR #362 exact head `31d20c7812e2777ebf7ea96c5916e1f852fb5870`
+passed hosted CI `33351711752` and merged as exact main
+`9376cfae75ff3bdc4424b8a78ab0a9771b6ab0c0`; exact-main CI
+`33352306859` passed independently. Explicitly authorized guarded run
+`33352985776` passed the corrected source-tree isolation and restoration, then
+failed closed before Prisma at the historical `SellerPayoutEvent` FORCE
+restart-scope proof. That verifier still required the production ledger to end
+at `20260823220000_force_seller_payout_event_rls`; production correctly also
+contains the 13 later applied reviewed migrations, while the target
+`20260830030000_enable_order_payment_event_rls` remains absent. Migration,
+grant and postflight steps were skipped, so production remained unchanged.
+
+The fourth correction preserves the historical verifier's default exact-prefix
+behavior and adds an explicit current-release mode. That mode first verifies
+the complete byte-sealed `OrderPaymentEvent` activation release, then validates
+all 14 post-`SellerPayoutEvent` ledger identities against their fixed reviewed
+SHA-256 constants. Before Prisma it requires the first 13 successors applied
+and the target absent; after Prisma it requires all 14 applied. Unknown,
+missing, duplicate, rolled-back, zero-step or checksum-drifted successor rows
+fail closed. The existing historical listing-variants and DirectUpload ledger
+exceptions remain confined to the already-reviewed prefix assertion. Unit and
+disposable PostgreSQL tests pin both exact stages and every rejection class.
+No SQL, migration, application, grant or provider byte changes.
+
 ## Remaining release boundaries
 
-1. Pass hosted CI for the complete-chain isolation/restoration correction.
+1. Pass hosted CI for the fixed-pin complete-ledger correction.
 2. Review and merge its exact head.
 3. Separately authorize and rerun the guarded Phase-A Production Migrations
    release, then retain its exact migration/global-audit/scope evidence.

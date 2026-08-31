@@ -3,6 +3,66 @@
 import { pathToFileURL } from "node:url";
 
 import {
+  ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
+  ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION_SHA256,
+} from "./order-payment-event-activation-identity.mjs";
+import {
+  ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+  ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION_SHA256,
+} from "./order-payment-event-aggregate-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION,
+  ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION_SHA256,
+} from "./order-payment-event-invariants-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
+  ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION_SHA256,
+} from "./order-payment-event-read-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION,
+  ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION_SHA256,
+} from "./order-payment-event-transition-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+  ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION_SHA256,
+} from "./order-payment-signed-authority-catalog.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
+  ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION_SHA256,
+} from "./build-order-payment-signed-dispute-identity-migration.mjs";
+import {
+  ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+  ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION_SHA256,
+} from "./build-order-payment-signed-refund-identity-migration.mjs";
+import {
+  BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+  BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION_SHA256,
+} from "./build-blocked-checkout-refund-delivery-migration.mjs";
+import {
+  BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+  BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION_SHA256,
+} from "./build-blocked-checkout-transfer-binding-migration.mjs";
+import {
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+  ORDER_REFUND_CLAIM_GENERATION_MIGRATION_SHA256,
+} from "./order-refund-claim-generation-catalog.mjs";
+import {
+  ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
+  ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION_SHA256,
+} from "./order-refund-inactive-seller-recovery-catalog.mjs";
+import {
+  ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
+  ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION_SHA256,
+} from "./order-refund-reconciliation-authority-catalog.mjs";
+import {
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+  ORDER_REFUND_RECORD_AUTHORITY_MIGRATION_SHA256,
+} from "./order-refund-record-authority-catalog.mjs";
+import {
+  SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+  buildSellerPayoutEventActivationCandidate,
+} from "./stage-seller-payout-event-activation-migration.mjs";
+import {
   SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
   SELLER_PAYOUT_EVENT_FORCE_MIGRATION_SHA256,
 } from "./stage-seller-payout-event-force-migration.mjs";
@@ -12,16 +72,83 @@ import {
   readSellerPayoutEventActivationMigrationCatalog,
 } from "./verify-seller-payout-event-activation-production-scope.mjs";
 import {
+  readSellerPayoutEventAuthorityMigrationCatalog,
   readSellerPayoutEventProductionSnapshot,
 } from "./verify-seller-payout-event-authority-production-scope.mjs";
 import {
   verifySellerPayoutEventForceRelease,
 } from "./verify-seller-payout-event-force-release.mjs";
+import {
+  verifyOrderPaymentEventActivationRelease,
+} from "./verify-order-payment-event-activation-release.mjs";
 
 export const SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGES = Object.freeze([
   "before",
   "after",
   "restart",
+]);
+export const SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGES =
+  Object.freeze([
+    "before-order-payment-event-activation",
+    "after-order-payment-event-activation",
+  ]);
+export const SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSORS = Object.freeze([
+  Object.freeze({
+    migration_name: ORDER_REFUND_CLAIM_GENERATION_MIGRATION,
+    checksum: ORDER_REFUND_CLAIM_GENERATION_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_REFUND_RECORD_AUTHORITY_MIGRATION,
+    checksum: ORDER_REFUND_RECORD_AUTHORITY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION,
+    checksum: ORDER_PAYMENT_SIGNED_AUTHORITY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
+    checksum: ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION,
+    checksum: ORDER_REFUND_INACTIVE_SELLER_RECOVERY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION,
+    checksum: BLOCKED_CHECKOUT_REFUND_DELIVERY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION,
+    checksum: BLOCKED_CHECKOUT_TRANSFER_BINDING_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION,
+    checksum: ORDER_PAYMENT_SIGNED_REFUND_IDENTITY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION,
+    checksum: ORDER_PAYMENT_SIGNED_DISPUTE_IDENTITY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION,
+    checksum: ORDER_PAYMENT_EVENT_INVARIANTS_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION,
+    checksum: ORDER_PAYMENT_EVENT_READ_AUTHORITY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION,
+    checksum: ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION,
+    checksum: ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION_SHA256,
+  }),
+  Object.freeze({
+    migration_name: ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
+    checksum: ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION_SHA256,
+  }),
 ]);
 
 function required(env, key) {
@@ -39,6 +166,16 @@ export function parseSellerPayoutEventForceScopeEnvironment(
   if (!SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGES.includes(stage)) {
     throw new Error("payout FORCE scope stage must be before, after, or restart");
   }
+  const reviewedSuccessorStage =
+    env.SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE ?? "";
+  if (
+    reviewedSuccessorStage !== ""
+    && !SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGES.includes(
+      reviewedSuccessorStage,
+    )
+  ) {
+    throw new Error("payout FORCE reviewed successor stage is invalid");
+  }
   const activation = parseSellerPayoutEventActivationScopeEnvironment({
     ...env,
     SELLER_PAYOUT_EVENT_ACTIVATION_SCOPE_STAGE: "after",
@@ -47,6 +184,7 @@ export function parseSellerPayoutEventForceScopeEnvironment(
     directUrl: activation.directUrl,
     identity: activation.identity,
     stage,
+    reviewedSuccessorStage,
   });
 }
 
@@ -82,6 +220,34 @@ export function readSellerPayoutEventForceMigrationCatalog(
     Object.freeze({
       migration_name: release.migration,
       checksum: release.migrationSha256,
+    }),
+  ]);
+}
+
+export function readSellerPayoutEventForceSealedPrefixCatalog(
+  root = process.cwd(),
+) {
+  verifyOrderPaymentEventActivationRelease(root);
+  const authorityCatalog = readSellerPayoutEventAuthorityMigrationCatalog(root);
+  const activation = buildSellerPayoutEventActivationCandidate(root);
+  if (
+    authorityCatalog.some(
+      (entry) => entry.migration_name === SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+    )
+    || authorityCatalog.at(-1)?.migration_name
+      >= SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION
+  ) {
+    throw new Error("reviewed payout FORCE sealed prefix is not exact");
+  }
+  return Object.freeze([
+    ...authorityCatalog,
+    Object.freeze({
+      migration_name: SELLER_PAYOUT_EVENT_ACTIVATION_MIGRATION,
+      checksum: activation.migrationSha256,
+    }),
+    Object.freeze({
+      migration_name: SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+      checksum: SELLER_PAYOUT_EVENT_FORCE_MIGRATION_SHA256,
     }),
   ]);
 }
@@ -149,14 +315,112 @@ export function assertSellerPayoutEventForceProductionScope(
   });
 }
 
+export function assertSellerPayoutEventForceReviewedSuccessorScope(
+  rows,
+  reviewedSuccessorStage,
+  {
+    forceCatalog = readSellerPayoutEventForceSealedPrefixCatalog(),
+    successors = SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSORS,
+  } = {},
+) {
+  if (
+    !Array.isArray(rows)
+    || !SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGES.includes(
+      reviewedSuccessorStage,
+    )
+    || !Array.isArray(forceCatalog)
+    || !Array.isArray(successors)
+    || successors.length !== 14
+    || successors.at(-1)?.migration_name
+      !== ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION
+    || successors.at(-1)?.checksum
+      !== ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION_SHA256
+  ) {
+    throw new Error("production ledger is not the exact reviewed successor scope");
+  }
+  if (
+    rows.some((row) => typeof row?.migration_name !== "string")
+    || new Set(successors.map((entry) => entry.migration_name)).size
+      !== successors.length
+    || successors.some((entry, index) =>
+      typeof entry?.migration_name !== "string"
+      || !/^[0-9]{8,14}_[a-z0-9_]+$/u.test(entry.migration_name)
+      || typeof entry?.checksum !== "string"
+      || !/^[0-9a-f]{64}$/u.test(entry.checksum)
+      || entry.migration_name <= SELLER_PAYOUT_EVENT_FORCE_MIGRATION
+      || (
+        index > 0
+        && successors[index - 1].migration_name >= entry.migration_name
+      )
+    )
+  ) {
+    throw new Error("production ledger has malformed reviewed successors");
+  }
+
+  const forceRows = rows.filter(
+    (row) => row.migration_name <= SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+  );
+  const successorRows = rows.filter(
+    (row) => row.migration_name > SELLER_PAYOUT_EVENT_FORCE_MIGRATION,
+  );
+  const force = assertSellerPayoutEventForceProductionScope(
+    forceRows,
+    "after",
+    forceCatalog,
+  );
+  const expectedSuccessors = new Map(
+    successors.map((entry) => [entry.migration_name, entry.checksum]),
+  );
+  if (
+    successorRows.some(
+      (row) => !expectedSuccessors.has(row.migration_name),
+    )
+  ) {
+    throw new Error("production ledger has an unreviewed successor row");
+  }
+
+  for (const [migrationName, checksum] of expectedSuccessors) {
+    const matches = successorRows.filter(
+      (row) => row.migration_name === migrationName,
+    );
+    const targetMustBeAbsent =
+      migrationName === ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION
+      && reviewedSuccessorStage === "before-order-payment-event-activation";
+    if (
+      (targetMustBeAbsent && matches.length !== 0)
+      || (!targetMustBeAbsent
+        && (matches.length !== 1
+          || !isAppliedRow(matches[0], checksum)))
+    ) {
+      throw new Error(`production ledger successor drifted: ${migrationName}`);
+    }
+  }
+
+  return Object.freeze({
+    ...force,
+    reviewedSuccessorMigrationCount: successors.length,
+    orderPaymentEventActivationApplied:
+      reviewedSuccessorStage === "after-order-payment-event-activation",
+    state: reviewedSuccessorStage,
+  });
+}
+
 export async function verifySellerPayoutEventForceProductionScope(
   config,
   {
     readSnapshot = readSellerPayoutEventProductionSnapshot,
     readCatalog = readSellerPayoutEventForceMigrationCatalog,
+    readSealedPrefixCatalog = readSellerPayoutEventForceSealedPrefixCatalog,
   } = {},
 ) {
   const snapshot = await readSnapshot(config.directUrl);
+  if (config.reviewedSuccessorStage !== "") {
+    return assertSellerPayoutEventForceReviewedSuccessorScope(
+      snapshot.ledgerRows,
+      config.reviewedSuccessorStage,
+      { forceCatalog: readSealedPrefixCatalog() },
+    );
+  }
   return assertSellerPayoutEventForceProductionScope(
     snapshot.ledgerRows,
     config.stage,
