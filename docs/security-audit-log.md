@@ -1,6 +1,6 @@
 # Grainline Security Audit Log
 
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 This is the working log for security hardening passes. Only verified findings should be promoted to `audit_open_findings.md`.
 
@@ -4726,3 +4726,25 @@ Open work:
   exceptions remain delegated to the sealed prefix verifier. Unit and
   disposable PostgreSQL tests cover both stages and negative cases. No SQL,
   migration, application, grant or provider byte changed.
+
+# 2026-08-31 - OrderPaymentEvent policyless Phase A applied
+
+- PR #363 exact head `faea242665beefe146af6d4cea024fbdee900d5c`
+  passed hosted CI `33354557116` and merged as exact main
+  `94dbe98ae5e7fbf95989be690fc20d47e76cdb12`. Exact-main CI
+  `33357911021` passed independently.
+- Guarded production run `33358695448` applied only
+  `20260830030000_enable_order_payment_event_rls`. It passed exact source and
+  migration-owner guards, restored and reverified the byte-sealed tree,
+  converged grants, and passed migration status, the global grant/RLS audit
+  and both exact final scope proofs.
+- Owner-side evidence reports policyless ENABLE with FORCE off, zero direct
+  runtime table authority, 16 runtime-callable functions, 13 private functions
+  and no row mutation. No application deployment, provider change, other-table
+  activation or FORCE occurred.
+- The separate actual pooled-runtime postflight is being prepared on an
+  isolated branch. It deliberately avoids `_prisma_migrations`, which the
+  restricted runtime need not read, and instead proves exact live catalogs,
+  direct denial, retained reads and the fixed-writer engine read-only fence.
+  Do not call Phase A fully accepted until that sanitized mode-`0600` evidence
+  is retained. FORCE remains a later independent release.

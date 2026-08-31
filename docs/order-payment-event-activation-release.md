@@ -1,14 +1,18 @@
 # OrderPaymentEvent policyless activation release
 
-Status: exact activation release merged; first guarded production dispatch
-failed closed during read-only release verification before any migration or
-grant step. Production remains on the accepted transition-authority
-application with `OrderPaymentEvent` RLS off, zero policies and predecessor
-runtime CRUD retained. Nothing in this record authorizes a replacement
-workflow dispatch, deployment, FORCE RLS, provider changes, or activation of
-`Order`, `OrderItem` or `OrderShippingRateQuote`.
+Status: production Phase A is live and owner-side acceptance passed. Exact main
+`94dbe98ae5e7fbf95989be690fc20d47e76cdb12` passed exact-main CI
+`33357911021`; guarded run `33358695448` applied only
+`20260830030000_enable_order_payment_event_rls`, converged the reviewed grants,
+and passed migration status, the global grant/RLS audit and both final scope
+proofs. Production is policyless ENABLE with explicit `NO FORCE`, zero direct
+runtime/PUBLIC table or column authority, and the exact 16-runtime / 13-private
+function partition. The distinct actual pooled-runtime postflight remains
+pending, so Phase A is not yet a completed retained acceptance. Nothing in
+this record authorizes FORCE RLS, provider changes, or activation of `Order`,
+`OrderItem` or `OrderShippingRateQuote`.
 
-Prepared: 2026-08-30.
+Prepared: 2026-08-31.
 
 ## Exact candidate
 
@@ -278,15 +282,42 @@ exceptions remain confined to the already-reviewed prefix assertion. Unit and
 disposable PostgreSQL tests pin both exact stages and every rejection class.
 No SQL, migration, application, grant or provider byte changes.
 
+## Phase-A production application
+
+PR #363 exact head `faea242665beefe146af6d4cea024fbdee900d5c`
+passed hosted CI `33354557116` and merged as exact main
+`94dbe98ae5e7fbf95989be690fc20d47e76cdb12`; exact-main CI
+`33357911021` passed independently. Guarded production run `33358695448`
+then passed the exact source and owner-role guards, restored and reverified the
+complete byte-sealed migration tree, applied only the activation migration,
+converged grants, and passed migration status plus the global and table-specific
+catalog audits.
+
+The final protected-owner evidence classified production as `activated` with
+RLS enabled, FORCE disabled, zero policies, zero runtime table privileges,
+exactly 16 runtime-callable functions and 13 runtime-private functions. The
+proof performed no row DML. The run did not deploy application code, enable
+FORCE, activate another table, or change provider state.
+
+The distinct pooled-runtime postflight is intentionally a separate tool and
+evidence boundary. It rejects owner or aliased database credentials, requires
+the exact clean release commit and pooled `grainline_app_runtime` identity,
+runs in an engine-attested repeatable-read/read-only transaction, verifies the
+complete 29-function and 25-direct-reference catalog without reading the
+owner-only migration ledger, denies all four direct table operations and both
+retired entry points, executes the five retained read boundaries with
+nonexistent markers, and proves a granted fixed writer reaches SQLSTATE
+`25006`. It writes only sanitized mode-`0600` evidence and performs no
+production mutation.
+
 ## Remaining release boundaries
 
-1. Pass hosted CI for the fixed-pin complete-ledger correction.
+1. Pass hosted CI for the pooled-runtime postflight operator and its disposable
+   PostgreSQL execution path.
 2. Review and merge its exact head.
-3. Separately authorize and rerun the guarded Phase-A Production Migrations
-   release, then retain its exact migration/global-audit/scope evidence.
-4. Run a distinct actual pooled `grainline_app_runtime` read-only production
+3. Run a distinct actual pooled `grainline_app_runtime` read-only production
    postflight. Do not infer it from owner-catalog proof.
-5. Prepare and release posture-only FORCE separately, then repeat the actual
+4. Prepare and release posture-only FORCE separately, then repeat the actual
    pooled-runtime proof.
 
 `Order`, `OrderItem` and `OrderShippingRateQuote` remain later separately
