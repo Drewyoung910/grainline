@@ -234,6 +234,14 @@ test("activation is wired as a separate guarded CI and production release", () =
     production,
     /ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: after/u,
   );
+  assert.match(
+    production,
+    /Inspect exact SellerPayoutEvent FORCE restart scope read-only[\s\S]*?SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE: before-order-payment-event-activation/u,
+  );
+  assert.match(
+    production,
+    /Prove exact SellerPayoutEvent FORCE production scope[\s\S]*?SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE: after-order-payment-event-activation/u,
+  );
   const transitionVerify = production.indexOf(
     "Verify isolated OrderPaymentEvent transition-authority successor",
   );

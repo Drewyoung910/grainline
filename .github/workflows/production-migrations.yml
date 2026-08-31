@@ -303,6 +303,7 @@ jobs:
         run: npm run audit:rls-seller-payout-event-force-production-scope
         env:
           SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: restart
+          SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE: before-order-payment-event-activation
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Generate Prisma client
         run: npx prisma generate
@@ -336,4 +337,5 @@ jobs:
         run: npm run audit:rls-seller-payout-event-force-production-scope
         env:
           SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after
+          SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE: after-order-payment-event-activation
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

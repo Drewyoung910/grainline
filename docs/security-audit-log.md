@@ -4703,3 +4703,26 @@ Open work:
   test pins scope proof, per-prefix byte verification, isolation, restoration
   and deployment ordering. No SQL, migration, application, grant or provider
   byte changed.
+
+# 2026-08-30 - SellerPayoutEvent historical scope advanced safely
+
+- PR #362 exact head `31d20c7812e2777ebf7ea96c5916e1f852fb5870`
+  passed hosted CI `33351711752` and merged as exact main
+  `9376cfae75ff3bdc4424b8a78ab0a9771b6ab0c0`; exact-main CI
+  `33352306859` passed independently.
+- Explicitly authorized guarded production run `33352985776` passed source,
+  credential, role, complete activation-tree restoration and release checks,
+  then failed closed at the read-only historical `SellerPayoutEvent` FORCE
+  restart scope. Its ledger assertion predated the 14 reviewed successors and
+  therefore rejected the correct current production history. Prisma, grant
+  convergence and every postflight step were skipped; production remained
+  unchanged.
+- The isolated correction does not ignore or derive successor state. It pins
+  all 14 successor migration names and SHA-256 values to their existing
+  reviewed constants, verifies the complete current activation release, and
+  requires an exact ledger: 13 applied successors plus absent activation before
+  Prisma, then all 14 applied afterward. Unknown, missing, duplicate,
+  rolled-back, zero-step and checksum-drifted rows fail closed. Historical
+  exceptions remain delegated to the sealed prefix verifier. Unit and
+  disposable PostgreSQL tests cover both stages and negative cases. No SQL,
+  migration, application, grant or provider byte changed.
