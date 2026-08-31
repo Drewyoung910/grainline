@@ -4822,3 +4822,8 @@ Open work:
   The reader now loads the complete ledger, and fail-closed tests require both
   the unbounded query and rejection of an unknown successor. This was an
   isolated read-only verifier correction; production remained Phase A.
+- The emergency rollback originally accepted a role named `ci` on any
+  database, unlike the activation migration's exact disposable
+  `ci@grainline_ci` boundary. The rollback now permits `ci` only on
+  `grainline_ci`, retains `neondb_owner` as the production owner, and is
+  re-pinned in the release record. No rollback or production action ran.

@@ -12,7 +12,7 @@ Date: 2026-08-31
 - Promoted migration SHA-256:
   `20d590b14f8b2dd5ee22537b18138624292bbfe8de8b3e5f2d407fae02f606cd`
 - Rollback SHA-256:
-  `ba15f92ad10271dea8c22104c330c4602b7fb1e464c2942ecc7265b1bab0190d`
+  `a8be315299468c536b7ddcb2452a3515ae7e535ba1ee7bfc63127b2f81b75815`
 - Complete migration-tree SHA-256:
   `fdf723b4e3f383f87b27b61667fbf2103fd18a9cd55dcfa0c04343a3bd7dd94e`
 - Guard phase: `order-payment-event-force-reviewed`
@@ -128,6 +128,12 @@ missing, duplicate, rolled-back, zero-step or checksum-drifted row. Regression
 coverage proves both the complete-ledger query and rejection of an unreviewed
 successor. This correction is isolated and read-only; production remains
 Phase A.
+
+The same final review aligned the emergency rollback's disposable-owner
+exception with the activation migration: role `ci` is accepted only when the
+database is exactly `grainline_ci`; production rollback remains restricted to
+the reviewed `neondb_owner` table owner. The rollback byte pin above includes
+that correction.
 
 ## Crash recovery
 

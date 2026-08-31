@@ -92,6 +92,10 @@ test("FORCE rollback changes only FORCE and refuses privilege drift", () => {
   );
   assert.match(rollback, /rollback predecessor drifted/u);
   assert.match(rollback, /did not restore Phase A/u);
+  assert.match(
+    rollback,
+    /current_user = 'ci'[\s\S]*current_database\(\) = 'grainline_ci'/u,
+  );
   assert.match(rollback, /acl\.grantee <> class\.relowner/u);
   assert.doesNotMatch(rollback, /^\s*(?:GRANT|REVOKE)\b/imu);
   assert.doesNotMatch(

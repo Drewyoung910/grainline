@@ -17,7 +17,11 @@ DO $grainline_order_payment_event_force_rollback_preflight$
 DECLARE
   accepted_table_count integer;
 BEGIN
-  IF current_user NOT IN ('neondb_owner', 'ci') THEN
+  IF current_user <> 'neondb_owner'
+     AND NOT (
+       current_user = 'ci'
+       AND pg_catalog.current_database() = 'grainline_ci'
+     ) THEN
     RAISE EXCEPTION
       'OrderPaymentEvent FORCE rollback requires a reviewed migration owner';
   END IF;
