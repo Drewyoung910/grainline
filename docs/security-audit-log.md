@@ -4896,3 +4896,22 @@ Open work:
   trap restores isolation on failure, with exact before/after directory
   assertions. This mutates only disposable runner filesystem state and does
   not weaken the database, role, grant, function, table or full-ledger proof.
+- PR #369 merged exact head
+  `5db226fcd7a2f4ebb88e19bf85b4e9c27c2f3fea` as main
+  `6a20981b0af68f8322b6306715fc117e0826e36e`; exact-main CI
+  `33443669979` passed all 302 steps. The Vercel Preview failure remained the
+  expected refusal caused solely by the intentionally absent Preview
+  `DATABASE_URL`.
+- Guarded production run `33445073482` passed both independent accepted
+  Phase-A proofs, applied only
+  `20260831010000_force_order_payment_event_rls`, converged reviewed grants,
+  and passed migration status, the global grant/RLS audit and exact FORCE
+  scope. No deployment or provider state changed.
+- The distinct actual pooled `grainline_app_runtime` postflight passed ten
+  checks inside an engine-attested repeatable-read/read-only transaction. It
+  proved policyless ENABLE plus FORCE, zero runtime/PUBLIC table or column
+  authority, the exact 29-function catalog, direct and retired-entry denial,
+  five retained reads and the fixed-writer read-only fence. It exported no
+  rows and recorded `productionChangedByPostflight=false`. Retain sanitized
+  mode-`0600` evidence SHA-256
+  `d63cea7bd6a95232790aef4ecd4b279ae837bada1bad7cb80ef6aa604671eea1`.
