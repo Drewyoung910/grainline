@@ -52,6 +52,10 @@ import {
   ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
   verifyOrderPaymentEventActivationMigrationBytes,
 } from "./order-payment-event-activation-identity.mjs";
+import {
+  ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+  verifyOrderPaymentEventForceMigrationBytes,
+} from "./stage-order-payment-event-force-migration.mjs";
 
 export const ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PHASE =
   "order-refund-inactive-seller-recovery-prepared";
@@ -213,6 +217,20 @@ export function verifyOrderRefundInactiveSellerRecoveryRelease(
     );
     verifyOrderPaymentEventActivationMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION);
+  }
+  const forceSuccessorPath = path.join(
+    rootDirectory,
+    "prisma/migrations",
+    ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+  );
+  if (fs.existsSync(forceSuccessorPath)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION,
+      "OrderPaymentEvent FORCE requires the activation successor",
+    );
+    verifyOrderPaymentEventForceMigrationBytes(rootDirectory);
+    reviewedSuccessors.push(ORDER_PAYMENT_EVENT_FORCE_MIGRATION);
   }
   assert.deepEqual(
     laterMigrations,

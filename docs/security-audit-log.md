@@ -4773,3 +4773,57 @@ Open work:
   `d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd`.
   `OrderPaymentEvent` Phase A is accepted. FORCE remains a separate release;
   `Order`, `OrderItem` and `OrderShippingRateQuote` remain out of scope.
+
+# 2026-08-31 - OrderPaymentEvent FORCE candidate and crash recovery
+
+- The posture-only FORCE candidate is isolated on
+  `agent/order-payment-event-force-20260831`; production remains accepted
+  policyless Phase A with FORCE off. The migration changes only
+  `relforcerowsecurity`, retains zero policies and zero direct runtime/PUBLIC
+  table or column authority, and changes no row or function.
+- The laptop crash removed the disposable `/private/tmp` worktree before its
+  first four files were committed. The exact branch base and sealed Phase-A
+  source survived. Regeneration reproduced the captured draft and migration
+  SHA-256 values exactly; recovery checkpoint `e8ba4cf0` and verifier
+  checkpoint `01932a0a` are pushed.
+- The fail-closed migration re-proves the six constraints, seven indexes,
+  seven cross-table triggers, four local triggers, accepted row shape, exact
+  29-function catalog and 25-function direct-reference surface before its sole
+  `FORCE ROW LEVEL SECURITY` operation. It pins the restricted role graph and
+  requires the owner-session drain.
+- The distinct full-ledger verifier accepts only exact Phase A plus an absent
+  or one-step byte-pinned FORCE row. The reusable Phase-A catalog verifier
+  still defaults to NO FORCE; accepting FORCE requires an explicit boolean
+  expectation. A distinct `--post-force` pooled-runtime postflight contract
+  requires FORCE while the historical default still requires NO FORCE; the
+  two modes use separate confirmations, evidence names and operation labels.
+  Focused fail-closed tests pass 22/22.
+- Hosted CI `33409002277` passed the complete sealed predecessor chain and
+  reached the FORCE state, then failed closed in the shared grant audit because
+  that auditor still treated `OrderPaymentEvent` as permanently NO FORCE. The
+  correction adds an explicit inventory-derived FORCE expectation and tests
+  exact Phase-A, exact FORCE, missing ENABLE and both posture-mismatch
+  directions. This was branch-only proof evidence; no production state changed.
+- Corrected CI `33410669312` passed the shared FORCE audit and all activated
+  runtime boundaries, then failed closed in rollback verification because the
+  expected direct SELECT denial aborted the read-only transaction before the
+  retained read RPC. The proof now recovers only that expected denial through
+  a named savepoint and explicitly fails if direct SELECT succeeds. This was a
+  proof-harness defect only; FORCE rollback/restoration and production were not
+  run.
+- Production migration workflow wiring is deliberately not included under the
+  isolated verifier/proof authorization. Merge, workflow dispatch, migration,
+  deployment and provider state remain separate boundaries. Retain
+  `docs/order-payment-event-force-release.md` for the exact hashes, proof
+  design, rollback and remaining gates.
+- Final authority review found that the new FORCE assertion rejected unknown
+  successor migrations but its live reader bounded `_prisma_migrations` at the
+  FORCE name. That made the assertion unreachable for a later out-of-band row.
+  The reader now loads the complete ledger, and fail-closed tests require both
+  the unbounded query and rejection of an unknown successor. This was an
+  isolated read-only verifier correction; production remained Phase A.
+- The emergency rollback originally accepted a role named `ci` on any
+  database, unlike the activation migration's exact disposable
+  `ci@grainline_ci` boundary. The rollback now permits `ci` only on
+  `grainline_ci`, retains `neondb_owner` as the production owner, and is
+  re-pinned in the release record. No rollback or production action ran.

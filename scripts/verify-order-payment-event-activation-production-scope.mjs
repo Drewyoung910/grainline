@@ -110,9 +110,15 @@ export function assertOrderPaymentEventActivationProductionScope(
     migrationRole = MIGRATION_ROLE,
     runtimeRole = RUNTIME_ROLE,
     root = process.cwd(),
+    expectedForce = false,
   } = {},
 ) {
-  const release = verifyOrderPaymentEventActivationRelease(root);
+  if (typeof expectedForce !== "boolean") {
+    throw new Error("OrderPaymentEvent expected FORCE posture is invalid");
+  }
+  const release = verifyOrderPaymentEventActivationRelease(root, {
+    allowReviewedForceSuccessor: true,
+  });
   const applied = classifyLedger(
     snapshot?.ledgerRows,
     stage,
@@ -122,7 +128,7 @@ export function assertOrderPaymentEventActivationProductionScope(
   if (
     table?.owner_name !== migrationRole
     || table.rls_enabled !== applied
-    || table.rls_forced !== false
+    || table.rls_forced !== expectedForce
     || Number(table.policy_count) !== 0
     || table.runtime_can_select !== !applied
     || table.runtime_can_insert !== !applied
@@ -180,9 +186,11 @@ export function assertOrderPaymentEventActivationProductionScope(
     throw new Error("OrderPaymentEvent activation function surface is not exact");
   }
   return Object.freeze({
-    state: applied ? "activated" : "transition-authority-prepared",
+    state: applied
+      ? expectedForce ? "force-hardened" : "activated"
+      : "transition-authority-prepared",
     orderPaymentEventRlsEnabled: applied,
-    orderPaymentEventRlsForced: false,
+    orderPaymentEventRlsForced: applied && expectedForce,
     policyCount: 0,
     runtimeTablePrivileges: applied ? 0 : 4,
     runtimeFunctionCount: applied ? 16 : 18,

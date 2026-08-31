@@ -309,6 +309,11 @@ export function orderPaymentEventRlsActivationExpected(inventory) {
     && !policies.has(ORDER_PAYMENT_EVENT_TABLE);
 }
 
+export function orderPaymentEventRlsForceExpected(inventory) {
+  return orderPaymentEventRlsActivationExpected(inventory)
+    && (inventory?.rlsForceTables ?? []).includes(ORDER_PAYMENT_EVENT_TABLE);
+}
+
 export function runtimePrivateFunctionNames(inventory) {
   const directUploadActivated = directUploadRlsActivationExpected(inventory);
   const reservationActivated =
@@ -1242,7 +1247,7 @@ export function collectPolicylessServiceRlsIssues(rows, inventory) {
         : tableName === SELLER_PAYOUT_EVENT_TABLE
           ? sellerPayoutEventRlsForceExpected(inventory)
         : tableName === ORDER_PAYMENT_EVENT_TABLE
-          ? false
+          ? orderPaymentEventRlsForceExpected(inventory)
         : true;
     if (!row) {
       issues.push(
