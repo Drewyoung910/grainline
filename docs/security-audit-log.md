@@ -4832,7 +4832,11 @@ Open work:
   `33415414533`, including every historical migration/proof, disposable FORCE,
   real-login and pooled-runtime boundaries, rollback/restoration, grant audit,
   full tests, TypeScript, lint, dependency audit and production build. PR #366
-  is ready but unmerged; production remains accepted Phase A with FORCE off.
+  merged that exact head as `main` commit
+  `e32015574732994e3a37dc580d6adb3229fcf0e5`; push CI `33428248737` and the
+  two triggered cross-system FORCE proofs passed. No Production Migrations
+  workflow was dispatched, and production remains accepted Phase A with FORCE
+  off.
 - Production workflow wiring is isolated on
   `agent/order-payment-event-force-production-20260831`. The initial draft
   accepted an exact already-FORCE restart state but incorrectly continued into
@@ -4854,3 +4858,9 @@ Open work:
   received the existing local runtime environment in memory only, explicitly
   excluded owner/migration URL variables and used the pooled runtime URL. No
   secret was printed or copied into the disposable worktree.
+- Separate workflow head
+  `a07941a990af69dceaa2eb3f3ead56843508a3e0` passed ordinary hosted PR CI
+  `33428508275`, including the complete sealed PostgreSQL chain, restart-safe
+  FORCE and rollback/restoration proofs, 3,679 tests, TypeScript, lint,
+  dependency audit and production build. PR #367 remains the workflow-only
+  boundary; no migration, deployment, FORCE activation or provider change ran.

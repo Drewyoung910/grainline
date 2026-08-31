@@ -1,7 +1,8 @@
 # OrderPaymentEvent FORCE RLS release
 
-Status: exact FORCE candidate proven in hosted CI; production workflow wiring
-is isolated and neither release is merged or applied to production.
+Status: exact FORCE candidate merged to `main`; restart-safe production
+workflow wiring remains isolated and unapplied. Production remains at accepted
+Phase A with FORCE off.
 
 Date: 2026-08-31
 
@@ -141,10 +142,13 @@ Exact candidate head
 `33415414533`. That run passed the complete sealed migration chain, disposable
 PostgreSQL FORCE and rollback/restoration proofs, distinct runtime-login and
 pooled-runtime boundaries, the global grant/RLS audit, TypeScript, lint, the
-full test suite, dependency security audit and production build. PR #366 is
-ready for review at that exact head but remains unmerged. The expected Vercel
-Preview failure is caused by the intentionally absent Preview `DATABASE_URL`;
-it is not a failure of the candidate or main CI.
+full test suite, dependency security audit and production build. PR #366 merged
+that exact head as `main` commit
+`e32015574732994e3a37dc580d6adb3229fcf0e5`; its push CI
+`33428248737` and the two triggered cross-system FORCE proofs passed. The
+expected Vercel Preview failure is caused by the intentionally absent Preview
+`DATABASE_URL`; it is not a failure of the candidate or main CI. The merge did
+not dispatch Production Migrations or change production state.
 
 ## Production workflow restart contract
 
@@ -184,6 +188,14 @@ worktree's absent environment. The accepted build injected the existing local
 runtime environment only in memory, explicitly omitted owner/migration URL
 variables, used the pooled runtime URL and wrote no secret file.
 
+The separate workflow branch reached exact head
+`a07941a990af69dceaa2eb3f3ead56843508a3e0` and passed ordinary hosted PR CI
+`33428508275`: the complete sealed PostgreSQL migration and authority chain,
+restart-safe FORCE and rollback/restoration proofs, 3,679 tests, TypeScript,
+lint, dependency audit and production build all passed. PR #367 remains the
+separate workflow-only release boundary; no production workflow was
+dispatched.
+
 ## Crash recovery
 
 The laptop crash on 2026-08-31 removed the disposable `/private/tmp`
@@ -196,14 +208,12 @@ work continued. No production state was involved.
 
 ## Remaining release gates
 
-1. Review and merge PR #366 at exact proven head
-   `fcb740de84c5d9ff666acc2b12f3d342092b8a9c`.
-2. Prove, review and merge the separate restart-safe production-workflow
-   wiring from its exact head.
-3. Separately dispatch the guarded production migration workflow from a clean
+1. Review and merge the separate restart-safe production-workflow wiring in
+   PR #367 from a clean exact head.
+2. Separately dispatch the guarded production migration workflow from a clean
    exact-main commit and retain its final proof evidence.
-4. Run the distinct engine-read-only pooled-runtime production postflight.
-5. Only then update the coverage matrix from Phase A to accepted FORCE.
+3. Run the distinct engine-read-only pooled-runtime production postflight.
+4. Only then update the coverage matrix from Phase A to accepted FORCE.
 
 ## Scope boundary
 
