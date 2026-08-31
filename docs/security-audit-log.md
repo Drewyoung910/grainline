@@ -4827,3 +4827,40 @@ Open work:
   `ci@grainline_ci` boundary. The rollback now permits `ci` only on
   `grainline_ci`, retains `neondb_owner` as the production owner, and is
   re-pinned in the release record. No rollback or production action ran.
+- Exact candidate head
+  `fcb740de84c5d9ff666acc2b12f3d342092b8a9c` passed hosted CI
+  `33415414533`, including every historical migration/proof, disposable FORCE,
+  real-login and pooled-runtime boundaries, rollback/restoration, grant audit,
+  full tests, TypeScript, lint, dependency audit and production build. PR #366
+  merged that exact head as `main` commit
+  `e32015574732994e3a37dc580d6adb3229fcf0e5`; push CI `33428248737` and the
+  two triggered cross-system FORCE proofs passed. No Production Migrations
+  workflow was dispatched, and production remains accepted Phase A with FORCE
+  off.
+- Production workflow wiring is isolated on
+  `agent/order-payment-event-force-production-20260831`. The initial draft
+  accepted an exact already-FORCE restart state but incorrectly continued into
+  historical Phase-A-only verifiers. That would fail a legitimate rerun after
+  the migration had committed but before final convergence completed. Review
+  caught this before commit, push, merge or dispatch.
+- The corrected workflow emits only `phase-a-accepted` or `force-hardened` from
+  the engine-read-only full-ledger verifier. All 68 predecessor
+  isolation/replay steps and `prisma migrate deploy` are gated to Phase A. An
+  already-FORCE restart skips them and proceeds only through restored release
+  verification, grant convergence, migration status, global grant/RLS audit
+  and the final FORCE scope proof. Focused static, release and authority
+  coverage passes 26/26. No production, provider, deployment or credential
+  state changed.
+- Local checkpoint `6dc3c9eb78a7c3b2fab53d0e1b1c402716c93579`
+  passed the complete repository suite (3,679 passed, zero failed, seven
+  intentional skips), TypeScript, lint, the high-severity dependency audit,
+  exact release verification and the production build. The successful build
+  received the existing local runtime environment in memory only, explicitly
+  excluded owner/migration URL variables and used the pooled runtime URL. No
+  secret was printed or copied into the disposable worktree.
+- Separate workflow head
+  `a07941a990af69dceaa2eb3f3ead56843508a3e0` passed ordinary hosted PR CI
+  `33428508275`, including the complete sealed PostgreSQL chain, restart-safe
+  FORCE and rollback/restoration proofs, 3,679 tests, TypeScript, lint,
+  dependency audit and production build. PR #367 remains the workflow-only
+  boundary; no migration, deployment, FORCE activation or provider change ran.

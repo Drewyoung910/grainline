@@ -228,18 +228,18 @@ test("CI proves FORCE after Phase A and production wiring preserves the order", 
     "Restore the reviewed SellerPayoutEvent FORCE release",
   );
   const productionRestart = production.indexOf(
-    "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
+    "Re-inspect exact OrderPaymentEvent FORCE restart scope read-only",
   );
   const productionApply = production.indexOf("Apply production migrations");
   const productionAfter = production.indexOf(
-    "Prove exact SellerPayoutEvent FORCE production scope",
+    "Prove exact OrderPaymentEvent FORCE production scope",
   );
   assert.ok(productionVerify >= 0 && productionVerify < productionIsolate);
   assert.ok(productionIsolate < productionRestore);
   assert.ok(productionRestore < productionRestart);
   assert.ok(productionRestart < productionApply && productionApply < productionAfter);
-  assert.match(production, /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: restart/u);
-  assert.match(production, /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after/u);
+  assert.match(production, /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart/u);
+  assert.match(production, /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: after/u);
   assert.match(
     releaseDocument,
     /Status: accepted production FORCE RLS/u,

@@ -232,15 +232,11 @@ test("activation is wired as a separate guarded CI and production release", () =
   );
   assert.match(
     production,
-    /ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: after/u,
+    /Inspect exact OrderPaymentEvent FORCE restart scope read-only[\s\S]*?ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart/u,
   );
   assert.match(
     production,
-    /Inspect exact SellerPayoutEvent FORCE restart scope read-only[\s\S]*?SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE: before-order-payment-event-activation/u,
-  );
-  assert.match(
-    production,
-    /Prove exact SellerPayoutEvent FORCE production scope[\s\S]*?SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE: after-order-payment-event-activation/u,
+    /Prove exact OrderPaymentEvent FORCE production scope[\s\S]*?ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: after/u,
   );
   const transitionVerify = production.indexOf(
     "Verify isolated OrderPaymentEvent transition-authority successor",
@@ -267,7 +263,7 @@ test("activation is wired as a separate guarded CI and production release", () =
     "Restore the complete reviewed OrderPaymentEvent release chain",
   );
   const restoredTreeVerify = production.indexOf(
-    "Verify restored exact OrderPaymentEvent activation migration tree",
+    "Verify restored exact OrderPaymentEvent FORCE migration tree",
   );
   const prismaDeploy = production.indexOf("Apply production migrations");
   const postSellerMigrations = [
@@ -358,6 +354,10 @@ test("activation is wired as a separate guarded CI and production release", () =
   assert.match(
     production,
     /Prove exact OrderPaymentEvent transition-authority predecessor scope[\s\S]*ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after/u,
+  );
+  assert.match(
+    production,
+    /Inspect exact OrderPaymentEvent activation restart scope read-only\n\s+if: steps\.order_payment_event_force_scope\.outputs\.state == 'phase-a-accepted'/u,
   );
   assert.doesNotMatch(production, /steps\.transfer_scope/u);
   assert.doesNotMatch(

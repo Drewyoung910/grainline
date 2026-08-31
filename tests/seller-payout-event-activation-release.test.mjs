@@ -352,17 +352,17 @@ test("guarded production wiring isolates predecessors and proves restart scope",
     "Restore the reviewed SellerPayoutEvent FORCE release",
   );
   const restartScope = production.indexOf(
-    "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
+    "Re-inspect exact OrderPaymentEvent FORCE restart scope read-only",
   );
   const apply = production.indexOf("Apply production migrations");
   const converge = production.indexOf(
-    "Converge exact FORCE-hardened SellerPayoutEvent runtime grants",
+    "Converge exact FORCE-hardened OrderPaymentEvent runtime grants",
   );
   const audit = production.indexOf(
     "Audit final runtime grants and RLS catalog",
   );
   const afterScope = production.indexOf(
-    "Prove exact SellerPayoutEvent FORCE production scope",
+    "Prove exact OrderPaymentEvent FORCE production scope",
   );
 
   assert.ok(verifyActivation >= 0 && verifyActivation < verifyRelease);
@@ -387,11 +387,11 @@ test("guarded production wiring isolates predecessors and proves restart scope",
   );
   assert.match(
     production,
-    /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: restart/u,
+    /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart/u,
   );
   assert.match(
     production,
-    /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after/u,
+    /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: after/u,
   );
 });
 

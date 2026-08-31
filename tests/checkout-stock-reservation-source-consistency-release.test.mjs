@@ -195,15 +195,15 @@ test("production wiring preserves source consistency as the sealed activation pr
     "Restore the reviewed SellerPayoutEvent FORCE release",
   );
   const restartScope = workflow.indexOf(
-    "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
+    "Re-inspect exact OrderPaymentEvent FORCE restart scope read-only",
   );
   const apply = workflow.indexOf("Apply production migrations");
   const converge = workflow.indexOf(
-    "Converge exact FORCE-hardened SellerPayoutEvent runtime grants",
+    "Converge exact FORCE-hardened OrderPaymentEvent runtime grants",
   );
   const status = workflow.indexOf("Verify production migration status");
   const finalScope = workflow.indexOf(
-    "Prove exact SellerPayoutEvent FORCE production scope",
+    "Prove exact OrderPaymentEvent FORCE production scope",
   );
   assert.ok(isolateActivation >= 0);
   assert.ok(isolateActivation < verifySource);

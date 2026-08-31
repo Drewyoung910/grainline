@@ -1,6 +1,8 @@
 # OrderPaymentEvent FORCE RLS release
 
-Status: isolated candidate; not merged or applied to production.
+Status: exact FORCE candidate merged to `main`; restart-safe production
+workflow wiring remains isolated and unapplied. Production remains at accepted
+Phase A with FORCE off.
 
 Date: 2026-08-31
 
@@ -135,6 +137,65 @@ database is exactly `grainline_ci`; production rollback remains restricted to
 the reviewed `neondb_owner` table owner. The rollback byte pin above includes
 that correction.
 
+Exact candidate head
+`fcb740de84c5d9ff666acc2b12f3d342092b8a9c` passed hosted CI run
+`33415414533`. That run passed the complete sealed migration chain, disposable
+PostgreSQL FORCE and rollback/restoration proofs, distinct runtime-login and
+pooled-runtime boundaries, the global grant/RLS audit, TypeScript, lint, the
+full test suite, dependency security audit and production build. PR #366 merged
+that exact head as `main` commit
+`e32015574732994e3a37dc580d6adb3229fcf0e5`; its push CI
+`33428248737` and the two triggered cross-system FORCE proofs passed. The
+expected Vercel Preview failure is caused by the intentionally absent Preview
+`DATABASE_URL`; it is not a failure of the candidate or main CI. The merge did
+not dispatch Production Migrations or change production state.
+
+## Production workflow restart contract
+
+The production wiring is a separate follow-up branch based on the exact proven
+candidate. Before any file isolation or migration command it byte-verifies the
+complete FORCE release, runs the engine-read-only full-ledger scope proof and
+accepts exactly two sanitized restart states:
+
+- `phase-a-accepted`: FORCE is absent and the exact accepted Phase-A posture is
+  live. Only this state may isolate/replay the sealed predecessor tree or run
+  `prisma migrate deploy`.
+- `force-hardened`: the exact byte-pinned FORCE row and FORCE catalog posture
+  are already live. Every predecessor replay and migration-deploy step is
+  skipped.
+
+Both states reverify the restored complete FORCE tree and release, rerun the
+read-only restart scope, converge the reviewed runtime grants, verify Prisma
+status, run the global grant/RLS audit and require the exact final FORCE scope.
+An unknown state cannot become a workflow output. Static workflow coverage
+requires all 68 predecessor steps to carry the Phase-A gate and requires all
+final convergence/proof steps to remain unconditional.
+
+The first wiring draft was intentionally not accepted: although its restart
+scope recognized an already-FORCE state, it still ran the historical Phase-A
+catalog proofs afterward. A legitimate rerun after a partial success would
+therefore have failed on the stronger FORCE posture. This was caught during
+isolated source review before commit, push, merge or dispatch; the explicit
+state gate above is the correction.
+
+Local workflow checkpoint `6dc3c9eb78a7c3b2fab53d0e1b1c402716c93579`
+passed the full repository suite with 3,679 passing, zero failing and seven
+intentional skips, plus TypeScript, lint, the high-severity dependency audit,
+the exact FORCE release verifier and a production build. The first build was
+blocked before completion by the local sandbox's loopback-port prohibition;
+the next reached page collection and correctly refused the disposable
+worktree's absent environment. The accepted build injected the existing local
+runtime environment only in memory, explicitly omitted owner/migration URL
+variables, used the pooled runtime URL and wrote no secret file.
+
+The separate workflow branch reached exact head
+`a07941a990af69dceaa2eb3f3ead56843508a3e0` and passed ordinary hosted PR CI
+`33428508275`: the complete sealed PostgreSQL migration and authority chain,
+restart-safe FORCE and rollback/restoration proofs, 3,679 tests, TypeScript,
+lint, dependency audit and production build all passed. PR #367 remains the
+separate workflow-only release boundary; no production workflow was
+dispatched.
+
 ## Crash recovery
 
 The laptop crash on 2026-08-31 removed the disposable `/private/tmp`
@@ -147,14 +208,12 @@ work continued. No production state was involved.
 
 ## Remaining release gates
 
-1. Pass the disposable PostgreSQL FORCE, pooled-runtime postflight and rollback
-   proofs in hosted CI.
-2. Pass the focused and full local suites, TypeScript, lint, dependency audit
-   and a clean hosted production build.
-3. Review and merge the exact proven release commit.
-4. Separately authorize and run the guarded production migration workflow.
-5. Run the distinct engine-read-only pooled-runtime production postflight.
-6. Only then update the coverage matrix from Phase A to accepted FORCE.
+1. Review and merge the separate restart-safe production-workflow wiring in
+   PR #367 from a clean exact head.
+2. Separately dispatch the guarded production migration workflow from a clean
+   exact-main commit and retain its final proof evidence.
+3. Run the distinct engine-read-only pooled-runtime production postflight.
+4. Only then update the coverage matrix from Phase A to accepted FORCE.
 
 ## Scope boundary
 

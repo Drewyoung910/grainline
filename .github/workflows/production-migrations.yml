@@ -45,237 +45,334 @@ jobs:
         run: node scripts/guard-production-migration-runner.mjs
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+      - name: Verify exact OrderPaymentEvent FORCE migration tree
+        run: npm run verify:rls-release-artifact
+        env:
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-force-reviewed
+      - name: Verify exact OrderPaymentEvent FORCE release
+        run: npm run audit:order-payment-event-force-release
+      - name: Inspect exact OrderPaymentEvent FORCE restart scope read-only
+        id: order_payment_event_force_scope
+        shell: bash
+        env:
+          ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart
+          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          scope_json="$(npm run --silent audit:order-payment-event-force-production-scope)"
+          printf '%s\n' "$scope_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            const states = new Set(["phase-a-accepted", "force-hardened"]);
+            if (!states.has(value.state)) {
+              throw new Error("invalid OrderPaymentEvent FORCE restart state");
+            }
+            process.stdout.write(`state=${value.state}\n`);
+          ' "$scope_json" >> "$GITHUB_OUTPUT"
+      - name: Isolate unapplied OrderPaymentEvent FORCE release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
+        run: >-
+          mv
+          prisma/migrations/20260831010000_force_order_payment_event_rls
+          "$RUNNER_TEMP/order-payment-event-force-release"
       - name: Verify exact OrderPaymentEvent activation migration tree
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run verify:rls-release-artifact
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-activation-reviewed
       - name: Verify exact OrderPaymentEvent activation release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-event-activation-release
       - name: Inspect exact OrderPaymentEvent activation restart scope read-only
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-event-activation-production-scope
         env:
           ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: restart
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Verify isolated OrderPaymentEvent transition-authority successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-event-transition-authority-release
       - name: Verify isolated OrderPaymentEvent aggregate-authority successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-event-aggregate-authority-release
       - name: Verify isolated OrderPaymentEvent read-authority successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-event-read-authority-release
       - name: Verify isolated OrderPaymentEvent invariant successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-event-invariants-release
       - name: Verify signed-dispute identity compatibility release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-signed-dispute-identity-release
       - name: Verify blocked-checkout transfer binding migration bytes
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-blocked-checkout-transfer-binding-release
       - name: Verify blocked-checkout refund delivery compatibility release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-blocked-checkout-refund-delivery-release
       - name: Verify Order refund inactive-seller recovery release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-refund-inactive-seller-recovery-release
       - name: Verify Order refund reconciliation authority release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-refund-reconciliation-authority-release
       - name: Prove exact OrderPaymentEvent transition-authority predecessor scope
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-event-transition-authority-production-scope
         env:
           ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Isolate unapplied OrderPaymentEvent activation release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260830030000_enable_order_payment_event_rls
           "$RUNNER_TEMP/order-payment-event-activation-release"
       - name: Isolate unapplied OrderPaymentEvent transition-authority successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260830020000_prepare_order_payment_event_transition_authority
           "$RUNNER_TEMP/order-payment-event-transition-authority-release"
       - name: Isolate unapplied OrderPaymentEvent aggregate-authority successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260830010000_prepare_order_payment_event_aggregate_authority
           "$RUNNER_TEMP/order-payment-event-aggregate-authority-release"
       - name: Isolate unapplied OrderPaymentEvent read-authority successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260829020000_prepare_order_payment_event_read_authority
           "$RUNNER_TEMP/order-payment-event-read-authority-release"
       - name: Isolate unapplied OrderPaymentEvent invariant successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260829010000_prepare_order_payment_event_invariants
           "$RUNNER_TEMP/order-payment-event-invariants-release"
       - name: Isolate applied signed-dispute identity successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260828020000_correct_order_payment_signed_dispute_identity
           "$RUNNER_TEMP/order-payment-signed-dispute-identity-release"
       - name: Verify signed-refund identity compatibility release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-signed-refund-identity-release
       - name: Isolate applied signed-refund identity successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260828010000_prepare_order_payment_signed_refund_identity
           "$RUNNER_TEMP/order-payment-signed-refund-identity-release"
       - name: Isolate applied blocked-checkout transfer-binding successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260826010000_prepare_blocked_checkout_transfer_binding
           "$RUNNER_TEMP/blocked-checkout-transfer-binding-release"
       - name: Isolate applied blocked-checkout refund-delivery successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260825010000_prepare_blocked_checkout_refund_delivery
           "$RUNNER_TEMP/blocked-checkout-refund-delivery-release"
       - name: Isolate applied Order refund inactive-seller successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260824050000_prepare_order_refund_inactive_seller_recovery
           "$RUNNER_TEMP/order-refund-inactive-seller-recovery-release"
       - name: Isolate applied Order refund reconciliation successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260824040000_prepare_order_refund_reconciliation_authority
           "$RUNNER_TEMP/order-refund-reconciliation-authority-release"
       - name: Verify Order payment signed authority release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-payment-signed-authority-release
       - name: Isolate applied Order payment signed-authority successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260824030000_prepare_order_payment_signed_authority
           "$RUNNER_TEMP/order-payment-signed-authority-release"
       - name: Verify Order refund record authority release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-refund-record-authority-release
       - name: Isolate applied Order refund record-authority successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260824020000_prepare_order_refund_record_authority
           "$RUNNER_TEMP/order-refund-record-authority-release"
       - name: Verify Order refund claim generation release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-refund-claim-generation-release
       - name: Isolate applied Order refund claim-generation successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260824010000_prepare_order_refund_claim_generation
           "$RUNNER_TEMP/order-refund-claim-generation-release"
       - name: Verify exact SellerPayoutEvent FORCE migration tree
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run verify:rls-release-artifact
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-force-reviewed
       - name: Verify exact SellerPayoutEvent FORCE release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-seller-payout-event-force-release
       - name: Isolate the reviewed SellerPayoutEvent FORCE release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260823220000_force_seller_payout_event_rls
           "$RUNNER_TEMP/seller-payout-event-force-release"
       - name: Verify exact SellerPayoutEvent activation migration tree
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run verify:rls-release-artifact
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: seller-payout-event-activation-reviewed
       - name: Verify exact SellerPayoutEvent activation release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-seller-payout-event-activation-release
       - name: Isolate the reviewed SellerPayoutEvent activation release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260822180000_enable_seller_payout_event_rls
           "$RUNNER_TEMP/seller-payout-event-activation-release"
       - name: Verify sealed SellerPayoutEvent authority predecessor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-seller-payout-event-authority-release
       - name: Isolate the reviewed SellerPayoutEvent authority predecessor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260815210000_prepare_seller_payout_event_authority
           "$RUNNER_TEMP/seller-payout-event-authority-release"
       - name: Verify exact CheckoutStockReservation FORCE migration tree
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run verify:rls-release-artifact
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-force-reviewed
       - name: Verify exact CheckoutStockReservation FORCE release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-checkout-stock-reservation-force-release
       - name: Isolate the reviewed CheckoutStockReservation FORCE release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260815060001_force_checkout_stock_reservation_rls
           "$RUNNER_TEMP/checkout-stock-reservation-force-release"
       - name: Verify exact CheckoutStockReservation activation migration tree
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run verify:rls-release-artifact
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-activation-reviewed
       - name: Verify exact CheckoutStockReservation activation release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-checkout-stock-reservation-activation-release
       - name: Isolate the reviewed CheckoutStockReservation activation
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls
           "$RUNNER_TEMP/checkout-stock-reservation-activation-release"
       - name: Verify exact CheckoutStockReservation source-consistency migration tree
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run verify:rls-release-artifact
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-source-consistency-reviewed
       - name: Verify exact CheckoutStockReservation source-consistency release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-checkout-stock-reservation-source-consistency-release
       - name: Isolate the reviewed CheckoutStockReservation source-consistency successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency
           "$RUNNER_TEMP/checkout-stock-reservation-source-consistency-release"
       - name: Verify exact CheckoutStockReservation authority migration tree after isolation
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run verify:rls-release-artifact
         env:
           SAVED_SEARCH_RLS_DEPLOY_PHASE: checkout-stock-reservation-authority-reviewed
       - name: Verify sealed CheckoutStockReservation authority predecessor release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-checkout-stock-reservation-authority-release
       - name: Verify sealed StripeWebhookEvent FORCE predecessor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-stripe-webhook-event-force-sealed-prefix
       - name: Verify exact Case FORCE proof equivalence
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-case-force-release
       - name: Verify exact Case read-mode release bytes
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-case-read-mode-candidate
       - name: Verify Conversation and Message authority proof equivalence
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-conversation-message-authority-release
       - name: Verify Conversation and Message activation proof equivalence
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-conversation-message-activation-release
       - name: Verify Conversation and Message FORCE release bytes
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-conversation-message-force-release
       - name: Verify Notification activation proof equivalence
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-notification-activation-release
       - name: Verify Notification FORCE release bytes
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-notification-force-release
       - name: Verify DirectUpload retirement proof equivalence
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-direct-upload-retirement-release
       - name: Verify DirectUpload activation proof equivalence
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:rls-direct-upload-activation-release
       - name: Restore the reviewed CheckoutStockReservation source-consistency successor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           "$RUNNER_TEMP/checkout-stock-reservation-source-consistency-release"
           prisma/migrations/20260814053000_prepare_checkout_stock_reservation_source_consistency
       - name: Restore the reviewed CheckoutStockReservation activation
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           "$RUNNER_TEMP/checkout-stock-reservation-activation-release"
           prisma/migrations/20260815060000_enable_checkout_stock_reservation_rls
       - name: Restore the reviewed CheckoutStockReservation FORCE release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           "$RUNNER_TEMP/checkout-stock-reservation-force-release"
           prisma/migrations/20260815060001_force_checkout_stock_reservation_rls
       - name: Restore the reviewed SellerPayoutEvent authority predecessor
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           "$RUNNER_TEMP/seller-payout-event-authority-release"
           prisma/migrations/20260815210000_prepare_seller_payout_event_authority
       - name: Restore the reviewed SellerPayoutEvent activation release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           "$RUNNER_TEMP/seller-payout-event-activation-release"
           prisma/migrations/20260822180000_enable_seller_payout_event_rls
       - name: Restore the reviewed SellerPayoutEvent FORCE release
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-
           mv
           "$RUNNER_TEMP/seller-payout-event-force-release"
           prisma/migrations/20260823220000_force_seller_payout_event_rls
       - name: Restore the complete reviewed OrderPaymentEvent release chain
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         shell: bash
         run: |
           set -euo pipefail
@@ -293,25 +390,26 @@ jobs:
           mv "$RUNNER_TEMP/order-payment-event-aggregate-authority-release" prisma/migrations/20260830010000_prepare_order_payment_event_aggregate_authority
           mv "$RUNNER_TEMP/order-payment-event-transition-authority-release" prisma/migrations/20260830020000_prepare_order_payment_event_transition_authority
           mv "$RUNNER_TEMP/order-payment-event-activation-release" prisma/migrations/20260830030000_enable_order_payment_event_rls
-      - name: Verify restored exact OrderPaymentEvent activation migration tree
+          mv "$RUNNER_TEMP/order-payment-event-force-release" prisma/migrations/20260831010000_force_order_payment_event_rls
+      - name: Verify restored exact OrderPaymentEvent FORCE migration tree
         run: npm run verify:rls-release-artifact
         env:
-          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-activation-reviewed
-      - name: Verify restored exact OrderPaymentEvent activation release
-        run: npm run audit:order-payment-event-activation-release
-      - name: Inspect exact SellerPayoutEvent FORCE restart scope read-only
-        run: npm run audit:rls-seller-payout-event-force-production-scope
+          SAVED_SEARCH_RLS_DEPLOY_PHASE: order-payment-event-force-reviewed
+      - name: Verify restored exact OrderPaymentEvent FORCE release
+        run: npm run audit:order-payment-event-force-release
+      - name: Re-inspect exact OrderPaymentEvent FORCE restart scope read-only
+        run: npm run audit:order-payment-event-force-production-scope
         env:
-          SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: restart
-          SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE: before-order-payment-event-activation
+          ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Apply production migrations
+        if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npx prisma migrate deploy
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Converge exact FORCE-hardened SellerPayoutEvent runtime grants
+      - name: Converge exact FORCE-hardened OrderPaymentEvent runtime grants
         run: >-
           psql "$DIRECT_URL"
           -v runtime_role=grainline_app_runtime
@@ -328,14 +426,8 @@ jobs:
         run: npm run audit:db-grants -- --require-direct-url
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Prove exact OrderPaymentEvent activation production scope
-        run: npm run audit:order-payment-event-activation-production-scope
+      - name: Prove exact OrderPaymentEvent FORCE production scope
+        run: npm run audit:order-payment-event-force-production-scope
         env:
-          ORDER_PAYMENT_EVENT_ACTIVATION_SCOPE_STAGE: after
-          DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
-      - name: Prove exact SellerPayoutEvent FORCE production scope
-        run: npm run audit:rls-seller-payout-event-force-production-scope
-        env:
-          SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after
-          SELLER_PAYOUT_EVENT_FORCE_REVIEWED_SUCCESSOR_STAGE: after-order-payment-event-activation
+          ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: after
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

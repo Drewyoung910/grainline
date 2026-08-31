@@ -178,11 +178,11 @@ test("production workflow preserves the reviewed activation beneath sealed succe
     "Restore the reviewed SellerPayoutEvent FORCE release",
   );
   const restartScope = production.indexOf(
-    "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
+    "Re-inspect exact OrderPaymentEvent FORCE restart scope read-only",
   );
   const apply = production.indexOf("Apply production migrations");
   const afterScope = production.indexOf(
-    "Prove exact SellerPayoutEvent FORCE production scope",
+    "Prove exact OrderPaymentEvent FORCE production scope",
   );
 
   assert.ok(verifyTree >= 0);
@@ -206,11 +206,11 @@ test("production workflow preserves the reviewed activation beneath sealed succe
   );
   assert.match(
     production,
-    /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: restart/u,
+    /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart/u,
   );
   assert.match(
     production,
-    /SELLER_PAYOUT_EVENT_FORCE_SCOPE_STAGE: after/u,
+    /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: after/u,
   );
   const isolateForce = production.indexOf(
     "Isolate the reviewed CheckoutStockReservation FORCE release",

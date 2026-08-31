@@ -284,11 +284,11 @@ test("CI proves FORCE after Phase A and production wiring preserves the same ord
     "Restore the reviewed SellerPayoutEvent FORCE release",
   );
   const successorRestart = production.indexOf(
-    "Inspect exact SellerPayoutEvent FORCE restart scope read-only",
+    "Re-inspect exact OrderPaymentEvent FORCE restart scope read-only",
   );
   const productionApply = production.indexOf("Apply production migrations");
   const successorAfter = production.indexOf(
-    "Prove exact SellerPayoutEvent FORCE production scope",
+    "Prove exact OrderPaymentEvent FORCE production scope",
   );
   assert.ok(productionVerify >= 0 && productionVerify < productionIsolate);
   assert.ok(productionIsolate < productionRestore);
@@ -300,7 +300,7 @@ test("CI proves FORCE after Phase A and production wiring preserves the same ord
   assert.match(production, /20260815060001_force_checkout_stock_reservation_rls/u);
   assert.match(
     production,
-    /audit:rls-seller-payout-event-force-production-scope/u,
+    /audit:order-payment-event-force-production-scope/u,
   );
 });
 
