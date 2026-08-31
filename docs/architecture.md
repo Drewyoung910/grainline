@@ -36,9 +36,11 @@ Grainline is a US-only woodworking marketplace. It supports public browsing, sel
 Grainline uses database-level Row Level Security for `SavedSearch`,
 `Notification`, `Conversation`, `Message`, `DirectUpload`,
 `DirectUploadReference`, `Case`, `CaseMessage`, `CaseMessageAttachment`,
-`StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`, and
-`OrderRefundReconciliation`. Thirteen tables have production RLS and all
-thirteen have complete retained `FORCE ROW LEVEL SECURITY` acceptance. Private
+`StripeWebhookEvent`, `CheckoutStockReservation`, `SellerPayoutEvent`,
+`OrderRefundReconciliation`, and `OrderPaymentEvent`. Fourteen tables have
+production RLS: thirteen have complete retained `FORCE ROW LEVEL SECURITY`
+acceptance, while `OrderPaymentEvent` has complete policyless Phase-A
+acceptance and awaits its separate posture-only FORCE release. Private
 `OrderRefundReconciliation` is FORCE-hardened with zero direct runtime CRUD;
 its distinct actual pooled-runtime proof passed from exact main
 `5d3b402317084d9d2af6b8bdf52300a800eda0d8` after CI `32795444295` without
@@ -215,7 +217,14 @@ remains distinct and cannot be reused. See
 `docs/seller-payout-event-activation-production-wiring.md` and
 `docs/seller-payout-event-force-release.md`.
 
-The next domain-first boundary is `OrderPaymentEvent`; see
+`OrderPaymentEvent` Phase A is accepted from exact main
+`aec47e6a104f1fa54b6ee0e894751850d51390ec`, CI `33361381594` and guarded
+migration run `33358695448`. Its distinct pooled-runtime postflight passed
+inside an engine-attested repeatable-read/read-only transaction with zero row
+export or production mutation. Retain sanitized mode-`0600` evidence SHA-256
+`d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd`.
+
+The current payment-ledger boundary is `OrderPaymentEvent`; see
 `docs/order-payment-event-pre-rls-audit.md`. It remains a separately released,
 policyless service ledger rather than a participant-readable table. The audit
 pins 34 current semantic application surfaces and requires sanitized buyer/seller
@@ -272,17 +281,17 @@ trees. Retain mode-`0600` evidence SHA-256
 This is application-authority evidence only; policyless ENABLE/direct-grant
 revocation and FORCE remain separate. See
 `docs/order-payment-event-zero-direct-access.md`.
-The next isolated candidate is the policyless Phase-A activation described in
-`docs/order-payment-event-activation-release.md`. It is not production state.
+The policyless Phase-A activation described in
+`docs/order-payment-event-activation-release.md` is accepted production state.
 The byte-pinned migration changes no row, creates no policy or function,
 enables RLS with explicit `NO FORCE`, revokes ordinary-runtime/PUBLIC table
 authority and retires runtime execution of two unused predecessor entry points.
 The final source-composed authority catalog has exactly 29 functions: 16
 retained runtime operations and 13 private operations after activation. CI
-must prove direct table denial and rollback/restoration through a distinct
-restricted login before merge. Production Phase A, its actual pooled-runtime
-postflight and later posture-only FORCE remain separate releases; `Order`,
-`OrderItem` and `OrderShippingRateQuote` are not bundled.
+proved direct table denial and rollback/restoration through a distinct
+restricted login before merge, and the actual pooled-runtime production
+postflight then closed Phase A. The later posture-only FORCE remains separate;
+`Order`, `OrderItem` and `OrderShippingRateQuote` are not bundled.
 The blocked-checkout finalizer uses one owner-private mutation core with no
 runtime or PUBLIC execute. Normal signed delivery reaches it through an exact
 active-webhook-lease wrapper. If the webhook failed and released its lease,
@@ -459,13 +468,17 @@ preparation.
 
 The completed activation design used policyless ENABLE first and FORCE later.
 Phase A removes all ordinary-runtime and PUBLIC table/column authority while
-retaining only the exact source-consistent fixed-operation catalog. It verifies
-the live 18-runtime/7-private predecessor, then retires EXECUTE on the two
-unused legacy creation functions for a 16-runtime/9-private activated
-partition. The functions remain installed for rollback, but the accepted
-rollback application uses their source-consistent successors. The global
+retaining only the exact source-consistent fixed-operation catalog. The final
+29-function catalog contains 16 runtime-callable and 13 runtime-private
+functions; the latter includes two unused legacy creation functions that
+remain installed for database-first rollback with ordinary-runtime EXECUTE
+revoked. The accepted rollback application uses their source-consistent
+successors. The global
 grant-audit disposition, database-first rollback, direct-denial proof and
 actual pooled-runtime read-only postflight are accepted production evidence.
+Retain Phase-A evidence SHA-256
+`d4acc792856d0a3260cff9d597a27d6335650b2820536175f4f725185e7c7bfd`;
+the separate FORCE release must generate its own evidence.
 The byte-pinned candidate builder only reports deterministic
 proposed migration bytes and hashes; it cannot create a Prisma migration
 directory or execute a database change. Exact source-consistency bytes,
