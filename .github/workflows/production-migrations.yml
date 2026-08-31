@@ -116,12 +116,22 @@ jobs:
       - name: Verify Order refund reconciliation authority release
         if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: npm run audit:order-refund-reconciliation-authority-release
-      - name: Prove exact OrderPaymentEvent transition-authority predecessor scope
+      - name: Re-prove exact OrderPaymentEvent Phase-A predecessor scope
         if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
-        run: npm run audit:order-payment-event-transition-authority-production-scope
+        shell: bash
         env:
-          ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after
+          ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          scope_json="$(npm run --silent audit:order-payment-event-force-production-scope)"
+          printf '%s\n' "$scope_json"
+          node -e '
+            const value = JSON.parse(process.argv[1]);
+            if (value.state !== "phase-a-accepted") {
+              throw new Error("OrderPaymentEvent FORCE predecessor is not exact Phase A");
+            }
+          ' "$scope_json"
       - name: Isolate unapplied OrderPaymentEvent activation release
         if: steps.order_payment_event_force_scope.outputs.state == 'phase-a-accepted'
         run: >-

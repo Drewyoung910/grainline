@@ -70,7 +70,7 @@ test("generic activation runner proves the complete current predecessor chain", 
     "Verify blocked-checkout transfer binding migration bytes",
   );
   const inspect = generic.indexOf(
-    "Prove exact OrderPaymentEvent transition-authority predecessor scope",
+    "Re-prove exact OrderPaymentEvent Phase-A predecessor scope",
   );
   const isolate = generic.indexOf(
     "Isolate unapplied OrderPaymentEvent transition-authority successor",
@@ -80,7 +80,7 @@ test("generic activation runner proves the complete current predecessor chain", 
   assert.ok(inspect < isolate && isolate < deploy);
   assert.match(
     generic,
-    /ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after/,
+    /ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart[\s\S]*value\.state !== "phase-a-accepted"/,
   );
   assert.doesNotMatch(
     generic,

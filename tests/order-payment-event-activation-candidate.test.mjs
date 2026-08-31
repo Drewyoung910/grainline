@@ -254,7 +254,7 @@ test("activation is wired as a separate guarded CI and production release", () =
     "Verify blocked-checkout transfer binding migration bytes",
   );
   const predecessorScope = production.indexOf(
-    "Prove exact OrderPaymentEvent transition-authority predecessor scope",
+    "Re-prove exact OrderPaymentEvent Phase-A predecessor scope",
   );
   const sellerForceVerify = production.indexOf(
     "Verify exact SellerPayoutEvent FORCE migration tree",
@@ -303,7 +303,7 @@ test("activation is wired as a separate guarded CI and production release", () =
     assert.ok(position >= 0, `${command} must be wired`);
     assert.ok(
       position < predecessorScope,
-      `${command} must verify bytes before the complete production scope proof`,
+      `${command} must verify bytes before the complete Phase-A scope proof`,
     );
   }
   const prefixSensitiveVerifiers = new Map([
@@ -327,7 +327,7 @@ test("activation is wired as a separate guarded CI and production release", () =
   for (const [command, migration] of prefixSensitiveVerifiers) {
     const verifier = production.indexOf(command);
     const isolate = production.indexOf(`prisma/migrations/${migration}`);
-    assert.ok(verifier > predecessorScope, `${command} must follow the full live scope proof`);
+    assert.ok(verifier > predecessorScope, `${command} must follow the full Phase-A scope proof`);
     assert.ok(
       verifier < isolate,
       `${command} must run at its exact historical prefix before isolation`,
@@ -344,7 +344,7 @@ test("activation is wired as a separate guarded CI and production release", () =
     const restore = production.lastIndexOf(migrationPath);
     assert.ok(
       isolate > predecessorScope && isolate < sellerForceVerify,
-      `${migration} must be isolated only after full predecessor proof and before the SellerPayoutEvent tree guard`,
+      `${migration} must be isolated only after the full Phase-A predecessor proof and before the SellerPayoutEvent tree guard`,
     );
     assert.ok(
       restore > restoreChain && restore < restoredTreeVerify,
@@ -353,7 +353,7 @@ test("activation is wired as a separate guarded CI and production release", () =
   }
   assert.match(
     production,
-    /Prove exact OrderPaymentEvent transition-authority predecessor scope[\s\S]*ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after/u,
+    /Re-prove exact OrderPaymentEvent Phase-A predecessor scope[\s\S]*ORDER_PAYMENT_EVENT_FORCE_SCOPE_STAGE: restart[\s\S]*value\.state !== "phase-a-accepted"/u,
   );
   assert.match(
     production,
