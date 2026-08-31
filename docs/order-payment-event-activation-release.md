@@ -1,11 +1,12 @@
 # OrderPaymentEvent policyless activation release
 
-Status: isolated reviewed candidate only. Production remains on the accepted
-transition-authority application with `OrderPaymentEvent` RLS off, zero
-policies and predecessor runtime CRUD retained. Nothing in this record
-authorizes merge, workflow dispatch, migration execution, deployment, FORCE
-RLS, provider changes, or activation of `Order`, `OrderItem` or
-`OrderShippingRateQuote`.
+Status: exact activation release merged; first guarded production dispatch
+failed closed during read-only release verification before any migration or
+grant step. Production remains on the accepted transition-authority
+application with `OrderPaymentEvent` RLS off, zero policies and predecessor
+runtime CRUD retained. Nothing in this record authorizes a replacement
+workflow dispatch, deployment, FORCE RLS, provider changes, or activation of
+`Order`, `OrderItem` or `OrderShippingRateQuote`.
 
 Prepared: 2026-08-30.
 
@@ -173,10 +174,32 @@ corrected catalog retains the actual no-`EXECUTE` check and exact source MD5s
 for all 29 functions while permitting those two non-dynamic formatting calls.
 Production again remained untouched.
 
+Final PR CI `33341591300` passed the real disposable PostgreSQL activation,
+separate-login denial, grant convergence, byte-pinned rollback/restoration,
+TypeScript, lint, full test suite, dependency audit and production build. PR
+#359 exact head `1b882307b13b251dee6fb0cca2f8ba47b628abd5` merged as exact
+main `1827f45b7bcc8038e045b19d2dde027e8d6607f9`; exact-main CI
+`33342102223` passed independently.
+
+The explicitly authorized guarded production run `33342647139` then failed
+closed before migration deployment. The restart scope, activation release and
+transition release checks passed, but the workflow moved the transition
+successor out of the migration tree before asking the aggregate release
+verifier to attest its required transition successor. The aggregate verifier
+correctly rejected the now-incomplete tree. The migration deployment step and
+every grant, postflight and mutation step were skipped.
+
+The correction preserves every byte-sealed verifier and changes only runner
+ordering: verify the complete transition, aggregate, read and invariant
+successor chain first, then isolate those four already-applied predecessors
+before Prisma migration deployment. A workflow-order regression test requires
+all four verifiers to precede the first isolation. A corrected exact-main
+commit and a fresh commit-bound production authorization remain required.
+
 ## Remaining release boundaries
 
-1. Pass hosted CI including real PostgreSQL activation and rollback proofs.
-2. Review and merge the exact isolated activation head.
+1. Pass hosted CI for the workflow-order correction.
+2. Review and merge the exact correction head.
 3. Separately authorize and run the guarded Phase-A Production Migrations
    release, then retain its exact migration/global-audit/scope evidence.
 4. Run a distinct actual pooled `grainline_app_runtime` read-only production

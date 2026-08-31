@@ -4631,3 +4631,24 @@ Open work:
   exact name plus argument types, requires all 25 reviewed identities and
   rejects missing entries, added overloads and every other direct reference.
   No persistent database was touched.
+
+# 2026-08-30 - OrderPaymentEvent activation production runner failed closed
+
+- PR #359 exact head `1b882307b13b251dee6fb0cca2f8ba47b628abd5`
+  passed CI `33341591300` and merged as exact main
+  `1827f45b7bcc8038e045b19d2dde027e8d6607f9`. Exact-main CI
+  `33342102223` passed independently, including the real disposable
+  PostgreSQL activation and rollback proofs.
+- Explicitly authorized guarded production run `33342647139` passed the exact
+  source, credential, role, migration-tree, activation release, engine-read-only
+  restart-scope and transition-authority checks. It then failed closed at the
+  aggregate-authority release verifier because the workflow had already moved
+  the required transition successor out of the migration tree.
+- `Apply production migrations` and every later migration, grant and postflight
+  step were skipped. Production remains on transition authority with
+  `OrderPaymentEvent` RLS off, zero policies and predecessor runtime CRUD.
+- The isolated correction changes only workflow ordering: all four sealed
+  transition, aggregate, read and invariant successor verifiers run against
+  the complete tree before any of those four applied predecessors is isolated.
+  A focused regression test pins that ordering. A new exact-main CI result and
+  fresh commit-bound production approval are required before another dispatch.

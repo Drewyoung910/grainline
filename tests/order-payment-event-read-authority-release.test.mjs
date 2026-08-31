@@ -97,20 +97,34 @@ describe("OrderPaymentEvent fixed read-authority release", () => {
       /vercel deploy|stripe|ENABLE ROW LEVEL SECURITY|FORCE ROW LEVEL SECURITY/i,
     );
 
-    for (const workflow of [generic, invariant]) {
-      const verify = workflow.indexOf(
-        "Verify isolated OrderPaymentEvent read-authority successor",
-      );
-      const isolate = workflow.indexOf(
-        "Isolate unapplied OrderPaymentEvent read-authority successor",
-      );
-      const invariantVerify = workflow.indexOf(
-        "npm run audit:order-payment-event-invariants-release",
-        isolate,
-      );
-      assert.ok(verify >= 0 && verify < isolate);
-      assert.ok(isolate < invariantVerify);
-    }
+    const genericReadVerify = generic.indexOf(
+      "Verify isolated OrderPaymentEvent read-authority successor",
+    );
+    const genericInvariantVerify = generic.indexOf(
+      "npm run audit:order-payment-event-invariants-release",
+    );
+    const genericReadIsolate = generic.indexOf(
+      "Isolate unapplied OrderPaymentEvent read-authority successor",
+    );
+    assert.ok(genericReadVerify >= 0);
+    assert.ok(genericInvariantVerify > genericReadVerify);
+    assert.ok(
+      genericReadIsolate > genericInvariantVerify,
+      "activation must verify the complete successor chain before isolation",
+    );
+
+    const invariantReadVerify = invariant.indexOf(
+      "Verify isolated OrderPaymentEvent read-authority successor",
+    );
+    const invariantReadIsolate = invariant.indexOf(
+      "Isolate unapplied OrderPaymentEvent read-authority successor",
+    );
+    const invariantVerify = invariant.indexOf(
+      "npm run audit:order-payment-event-invariants-release",
+      invariantReadIsolate,
+    );
+    assert.ok(invariantReadVerify >= 0 && invariantReadVerify < invariantReadIsolate);
+    assert.ok(invariantReadIsolate < invariantVerify);
     assert.equal(
       pkg.scripts?.[
         "audit:order-payment-event-read-authority-production-scope"
