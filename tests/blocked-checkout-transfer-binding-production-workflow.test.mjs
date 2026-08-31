@@ -65,31 +65,26 @@ test("dedicated workflow admits only the byte-pinned restart-safe candidate", ()
   );
 });
 
-test("generic production runner cannot apply an unreviewed transfer binding", () => {
+test("generic activation runner proves the complete current predecessor chain", () => {
+  const verify = generic.indexOf(
+    "Verify blocked-checkout transfer binding migration bytes",
+  );
   const inspect = generic.indexOf(
-    "Inspect blocked-checkout transfer binding restart scope read-only",
+    "Prove exact OrderPaymentEvent transition-authority predecessor scope",
   );
   const isolate = generic.indexOf(
-    "Isolate unapplied blocked-checkout transfer binding compatibility",
+    "Isolate unapplied OrderPaymentEvent transition-authority successor",
   );
   const deploy = generic.indexOf("- name: Apply production migrations");
-  const status = generic.indexOf("- name: Verify production migration status");
-  const restore = generic.indexOf(
-    "Restore unapplied blocked-checkout transfer binding compatibility",
-  );
-  const reverify = generic.indexOf(
-    "Reverify blocked-checkout transfer binding restart scope read-only",
-  );
-  assert.ok(inspect >= 0 && inspect < isolate);
-  assert.ok(isolate < deploy && deploy < status && status < restore);
-  assert.ok(restore < reverify);
+  assert.ok(verify >= 0 && verify < inspect);
+  assert.ok(inspect < isolate && isolate < deploy);
   assert.match(
     generic,
-    /if: steps\.transfer_scope\.outputs\.state == 'transfer-binding-predecessor'/,
+    /ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after/,
   );
-  assert.match(
+  assert.doesNotMatch(
     generic,
-    /BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGE: restart/,
+    /steps\.transfer_scope|BLOCKED_CHECKOUT_TRANSFER_BINDING_SCOPE_STAGE/,
   );
 });
 

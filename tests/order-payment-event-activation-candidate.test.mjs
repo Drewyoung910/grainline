@@ -246,6 +246,12 @@ test("activation is wired as a separate guarded CI and production release", () =
   const invariantVerify = production.indexOf(
     "Verify isolated OrderPaymentEvent invariant successor",
   );
+  const transferVerify = production.indexOf(
+    "Verify blocked-checkout transfer binding migration bytes",
+  );
+  const predecessorScope = production.indexOf(
+    "Prove exact OrderPaymentEvent transition-authority predecessor scope",
+  );
   const isolatePositions = [
     "transition-authority",
     "aggregate-authority",
@@ -260,11 +266,18 @@ test("activation is wired as a separate guarded CI and production release", () =
   assert.ok(aggregateVerify > transitionVerify);
   assert.ok(readVerify > aggregateVerify);
   assert.ok(invariantVerify > readVerify);
+  assert.ok(transferVerify > invariantVerify);
+  assert.ok(predecessorScope > transferVerify);
   assert.ok(isolatePositions.every((position) => position >= 0));
   assert.ok(
-    Math.min(...isolatePositions) > invariantVerify,
-    "all sealed OrderPaymentEvent successors must be verified before any successor is isolated",
+    Math.min(...isolatePositions) > predecessorScope,
+    "the complete production predecessor chain must be proved before any successor is isolated",
   );
+  assert.match(
+    production,
+    /Prove exact OrderPaymentEvent transition-authority predecessor scope[\s\S]*ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_SCOPE_STAGE: after/u,
+  );
+  assert.doesNotMatch(production, /steps\.transfer_scope/u);
   assert.doesNotMatch(
     fs.readFileSync(
       `prisma/migrations/${ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION}/migration.sql`,
