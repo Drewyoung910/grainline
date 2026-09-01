@@ -143,4 +143,67 @@ describe("Order label fixed-authority release", () => {
     assert.match(operator, /ordinary runtime cannot call/i);
     assert.match(audit, /Production remains unchanged/);
   });
+
+  it("keeps the three compatible successors outside every historical FORCE gate", () => {
+    const workflow = source(".github/workflows/ci.yml");
+    const packageSource = source("package.json");
+    const labelVerify = workflow.indexOf(
+      "Verify compatible Order label authority release",
+    );
+    const labelIsolate = workflow.indexOf(
+      "Isolate Order label authority until fulfillment authority passes",
+    );
+    const fulfillmentVerify = workflow.indexOf(
+      "Verify compatible Order fulfillment authority release",
+    );
+    const fulfillmentIsolate = workflow.indexOf(
+      "Isolate Order fulfillment authority until receipt Notification authority passes",
+    );
+    const receiptVerify = workflow.indexOf(
+      "Verify compatible Order receipt Notification authority release",
+    );
+    const receiptIsolate = workflow.indexOf(
+      "Isolate Order receipt Notification authority until checkout receipt authority passes",
+    );
+    const forceVerify = workflow.indexOf(
+      "Verify OrderPaymentEvent FORCE migration tree",
+    );
+    assert.ok(
+      labelVerify >= 0
+      && labelVerify < labelIsolate
+      && labelIsolate < fulfillmentVerify
+      && fulfillmentVerify < fulfillmentIsolate
+      && fulfillmentIsolate < receiptVerify
+      && receiptVerify < receiptIsolate
+      && receiptIsolate < forceVerify,
+      "later compatible releases must be verified and isolated before the historical FORCE gate",
+    );
+
+    const receiptRestore = workflow.indexOf(
+      "Restore compatible Order receipt Notification authority release",
+    );
+    const fulfillmentRestore = workflow.indexOf(
+      "Restore compatible Order fulfillment authority release",
+    );
+    const labelRestore = workflow.indexOf(
+      "Restore compatible Order label authority release",
+    );
+    const compatibleApply = workflow.indexOf(
+      "Apply compatible Order participant authority",
+    );
+    assert.ok(
+      receiptRestore >= 0
+      && receiptRestore < fulfillmentRestore
+      && fulfillmentRestore < labelRestore
+      && labelRestore < compatibleApply,
+      "compatible successors must be restored in migration order before application",
+    );
+    for (const command of [
+      "audit:order-receipt-notification-authority-release",
+      "audit:order-fulfillment-authority-release",
+      "audit:order-label-authority-release",
+    ]) {
+      assert.match(packageSource, new RegExp(`\"${command}\"`), command);
+    }
+  });
 });

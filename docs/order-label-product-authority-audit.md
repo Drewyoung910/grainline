@@ -346,3 +346,15 @@ after the originating seller becomes inactive because the provider effect
 already occurred, but cannot create or release a claim.
 
 These are release gates, not deferred cleanup. Production remains unchanged.
+
+### CI release-chain correction
+
+Draft PR #382 first failed CI run `33540533675` before any PostgreSQL mutation:
+the historical `order-payment-event-force-reviewed` verifier correctly refused
+three later migration directories that had not yet been isolated. The branch
+now verifies and removes label, fulfillment and receipt-Notification candidates
+in descending migration order before the historical FORCE gate, restores them
+in ascending order afterward, re-verifies their byte-pinned releases, applies
+them only to the disposable CI database, converges grants and runs their focused
+PostgreSQL proofs. A static regression test pins that ordering. This changes no
+production migration workflow or production state.
