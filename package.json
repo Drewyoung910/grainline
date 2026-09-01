@@ -288,7 +288,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "resend": "^6.12.3",
-    "sanitize-html": "^2.17.6",
+    "sanitize-html": "^2.17.7",
     "stripe": "^19.3.0",
     "svix": "^1.94.0",
     "tiptap-markdown": "^0.9.0",
