@@ -119,7 +119,35 @@ BEGIN
           'listingId', item.value->'listingId',
           'priceCents', item.value->'priceCents',
           'quantity', item.value->'quantity',
-          'listingActive', item.value->'listingActive',
+          'listingLinkAvailable', COALESCE(
+            listing_seller."userId" = p_actor_user_id
+            OR (
+              source_listing.status::text = 'ACTIVE'
+              AND source_listing."isPrivate" = true
+              AND source_listing."reservedForUserId" = p_actor_user_id
+              AND listing_seller."chargesEnabled" = true
+              AND (
+                listing_seller."stripeAccountVersion" IS NULL
+                OR listing_seller."stripeAccountVersion" = 'v2'
+              )
+              AND listing_seller."vacationMode" = false
+              AND listing_seller_user.banned = false
+              AND listing_seller_user."deletedAt" IS NULL
+            )
+            OR (
+              source_listing.status::text IN ('ACTIVE', 'SOLD_OUT')
+              AND source_listing."isPrivate" = false
+              AND listing_seller."chargesEnabled" = true
+              AND (
+                listing_seller."stripeAccountVersion" IS NULL
+                OR listing_seller."stripeAccountVersion" = 'v2'
+              )
+              AND listing_seller."vacationMode" = false
+              AND listing_seller_user.banned = false
+              AND listing_seller_user."deletedAt" IS NULL
+            ),
+            false
+          ),
           'listingSnapshot', CASE
             WHEN pg_catalog.jsonb_typeof(item.value->'listingSnapshot') = 'object'
               THEN pg_catalog.jsonb_build_object(
@@ -141,6 +169,12 @@ BEGIN
     ) AS items
     FROM pg_catalog.jsonb_array_elements(detail.items)
       WITH ORDINALITY AS item(value, ordinality)
+    LEFT JOIN public."Listing" AS source_listing
+      ON source_listing.id = item.value->>'listingId'
+    LEFT JOIN public."SellerProfile" AS listing_seller
+      ON listing_seller.id = source_listing."sellerId"
+    LEFT JOIN public."User" AS listing_seller_user
+      ON listing_seller_user.id = listing_seller."userId"
   ) AS sanitized_items;
 END;
 $grainline_order_buyer_detail_v2$;
@@ -284,7 +318,35 @@ BEGIN
           'listingId', item.value->'listingId',
           'priceCents', item.value->'priceCents',
           'quantity', item.value->'quantity',
-          'listingActive', item.value->'listingActive',
+          'listingLinkAvailable', COALESCE(
+            listing_seller."userId" = p_actor_user_id
+            OR (
+              source_listing.status::text = 'ACTIVE'
+              AND source_listing."isPrivate" = true
+              AND source_listing."reservedForUserId" = p_actor_user_id
+              AND listing_seller."chargesEnabled" = true
+              AND (
+                listing_seller."stripeAccountVersion" IS NULL
+                OR listing_seller."stripeAccountVersion" = 'v2'
+              )
+              AND listing_seller."vacationMode" = false
+              AND listing_seller_user.banned = false
+              AND listing_seller_user."deletedAt" IS NULL
+            )
+            OR (
+              source_listing.status::text IN ('ACTIVE', 'SOLD_OUT')
+              AND source_listing."isPrivate" = false
+              AND listing_seller."chargesEnabled" = true
+              AND (
+                listing_seller."stripeAccountVersion" IS NULL
+                OR listing_seller."stripeAccountVersion" = 'v2'
+              )
+              AND listing_seller."vacationMode" = false
+              AND listing_seller_user.banned = false
+              AND listing_seller_user."deletedAt" IS NULL
+            ),
+            false
+          ),
           'listingSnapshot', CASE
             WHEN pg_catalog.jsonb_typeof(item.value->'listingSnapshot') = 'object'
               THEN pg_catalog.jsonb_build_object(
@@ -306,6 +368,12 @@ BEGIN
     ) AS items
     FROM pg_catalog.jsonb_array_elements(detail.items)
       WITH ORDINALITY AS item(value, ordinality)
+    LEFT JOIN public."Listing" AS source_listing
+      ON source_listing.id = item.value->>'listingId'
+    LEFT JOIN public."SellerProfile" AS listing_seller
+      ON listing_seller.id = source_listing."sellerId"
+    LEFT JOIN public."User" AS listing_seller_user
+      ON listing_seller_user.id = listing_seller."userId"
   ) AS sanitized_items;
 END;
 $grainline_order_seller_detail_v2$;

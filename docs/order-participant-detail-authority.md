@@ -49,9 +49,12 @@ checks item identity, quantity, cents, enum values, timestamps, variant bounds
 and snapshot shape. Malformed legacy snapshots render the documented generic
 retained fallback rather than consulting mutable Listing text or images.
 
-The sole live-Listing fact is a derived `listingActive` boolean used to decide
-whether the historical title can link to a current catalog route. Current
-Listing title, image, seller and processing fields are never projected.
+The sole live-Listing fact is a derived `listingLinkAvailable` boolean used to
+decide whether the historical title can link to a route the active actor may
+actually view. It includes public active or sold-out listings, an actor-owned
+listing, and an active private listing reserved for that buyer; it rejects
+unavailable seller state and unrelated private listings. Current Listing title,
+image, seller and processing fields are never projected.
 
 ## Product and privacy correction
 

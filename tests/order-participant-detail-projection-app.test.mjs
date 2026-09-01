@@ -12,7 +12,7 @@ test("buyer and seller detail pages use the fixed v2 participant projections", (
   assert.match(seller, /readSellerOrderDetail\(me\.id, orderId\)/u);
   for (const [label, source] of [["buyer", buyer], ["seller", seller]]) {
     assert.doesNotMatch(source, /prisma\.order|listingSnapshot|readHistoricalOrderItemSnapshot/u, label);
-    assert.match(source, /it\.listingActive/u, label);
+    assert.match(source, /it\.listingLinkAvailable/u, label);
   }
   assert.match(authority, /grainline_order_buyer_detail_v2/u);
   assert.match(authority, /grainline_order_seller_detail_v2/u);

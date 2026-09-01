@@ -56,6 +56,12 @@ export function verifyOrderParticipantDetailProjectionRelease(root = process.cwd
   assert.match(migration, /buyer\.banned = false/gmu);
   assert.match(migration, /detail\.buyer_data_purged_at_epoch_millis IS NULL/gmu);
   assert.match(migration, /detail\.label_status = 'PURCHASED'/gmu);
+  assert.match(migration, /'listingLinkAvailable'/gmu);
+  assert.match(migration, /source_listing\.status::text IN \('ACTIVE', 'SOLD_OUT'\)/gmu);
+  assert.match(migration, /source_listing\."reservedForUserId" = p_actor_user_id/gmu);
+  assert.match(migration, /listing_seller\."userId" = p_actor_user_id/gmu);
+  assert.match(migration, /listing_seller\."chargesEnabled" = true/gmu);
+  assert.match(migration, /listing_seller_user\.banned = false/gmu);
   assert.match(migration, /'processingTimeMaxDays'/gmu);
   assert.doesNotMatch(migration, /'description'|'category'|'tags'|'capturedAt'/u);
   assert.doesNotMatch(migration, /ALTER TABLE|CREATE POLICY|DROP POLICY/iu);

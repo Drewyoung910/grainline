@@ -45,7 +45,7 @@ function baseRow() {
       listingId: "listing-1",
       priceCents: 500,
       quantity: 1,
-      listingActive: true,
+      listingLinkAvailable: true,
       listingSnapshot: null,
       selectedVariants: null,
     }],

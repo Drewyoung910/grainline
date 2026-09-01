@@ -42,6 +42,10 @@ The pre-RLS review found and corrected these concrete behaviors:
 - full historical item details passed snapshot description, category, tags,
   and capture time even though the receipt UI does not use them; v2 returns
   only the fixed historical display and timeline keys; and
+- the predecessor treated only `ACTIVE` listings as linkable even though
+  Grainline deliberately allows public `SOLD_OUT`, actor-owned, and
+  buyer-reserved private listing details; v2 derives actor-specific link
+  availability from the same status, privacy, seller, and account facts; and
 - the database boundary now rejects banned or deleted actors independently of
   application middleware.
 
@@ -66,4 +70,3 @@ guarded migration application, pooled-runtime proof, compatible application
 deployment, and predecessor drain remain separate gates. The remaining direct
 Order inventory is 22 source files; staff, maintenance, checkout-success, and
 write-state-machine conversions must still reach zero before Order activation.
-

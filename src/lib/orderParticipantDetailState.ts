@@ -30,7 +30,7 @@ export type ParticipantOrderItem = Readonly<{
   listingId: string;
   priceCents: number;
   quantity: number;
-  listingActive: boolean;
+  listingLinkAvailable: boolean;
   snapshot: HistoricalOrderItemSnapshot;
   selectedVariants: SelectedVariantSnapshot[] | null;
 }>;
@@ -179,7 +179,10 @@ function itemsFromValue(value: unknown): ParticipantOrderItem[] {
       listingId,
       priceCents,
       quantity: safeInteger(candidate.quantity, "item quantity", 1, 10_000),
-      listingActive: requiredBoolean(candidate.listingActive, "listing visibility"),
+      listingLinkAvailable: requiredBoolean(
+        candidate.listingLinkAvailable,
+        "listing link availability",
+      ),
       snapshot: readHistoricalOrderItemSnapshot(candidate.listingSnapshot, priceCents),
       selectedVariants: selectedVariantsFromValue(candidate.selectedVariants),
     };

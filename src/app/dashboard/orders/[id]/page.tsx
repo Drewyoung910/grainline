@@ -304,7 +304,7 @@ export default async function BuyerOrderDetailPage({
                   <div className="h-16 w-16 rounded bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  {it.listingActive ? (
+                  {it.listingLinkAvailable ? (
                     <Link
                       href={publicListingPath(it.listingId, it.snapshot.title)}
                       className="block truncate text-sm font-medium hover:underline"

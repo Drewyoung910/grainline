@@ -23,11 +23,17 @@ async function createDatabase() {
     );
     CREATE TABLE public."SellerProfile" (
       id text PRIMARY KEY,
-      "userId" text NOT NULL UNIQUE REFERENCES public."User"(id)
+      "userId" text NOT NULL UNIQUE REFERENCES public."User"(id),
+      "chargesEnabled" boolean NOT NULL DEFAULT true,
+      "stripeAccountVersion" text,
+      "vacationMode" boolean NOT NULL DEFAULT false
     );
     CREATE TABLE public."Listing" (
       id text PRIMARY KEY,
-      status text NOT NULL
+      status text NOT NULL,
+      "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id),
+      "isPrivate" boolean NOT NULL DEFAULT false,
+      "reservedForUserId" text REFERENCES public."User"(id)
     );
     CREATE TABLE public."Order" (
       id text PRIMARY KEY,
@@ -95,8 +101,14 @@ async function createDatabase() {
       ('seller-user-1', NULL), ('seller-user-2', NULL);
     INSERT INTO public."SellerProfile" (id, "userId") VALUES
       ('seller-1', 'seller-user-1'), ('seller-2', 'seller-user-2');
-    INSERT INTO public."Listing" (id, status) VALUES
-      ('listing-active', 'ACTIVE'), ('listing-hidden', 'HIDDEN');
+    INSERT INTO public."Listing" (
+      id, status, "sellerId", "isPrivate", "reservedForUserId"
+    ) VALUES
+      ('listing-active', 'ACTIVE', 'seller-1', false, NULL),
+      ('listing-hidden', 'HIDDEN', 'seller-1', false, NULL),
+      ('listing-sold-out', 'SOLD_OUT', 'seller-1', false, NULL),
+      ('listing-private-reserved', 'ACTIVE', 'seller-1', true, 'buyer-1'),
+      ('listing-private-other', 'ACTIVE', 'seller-1', true, 'buyer-2');
     INSERT INTO public."Order" (
       id, "buyerId", "sellerProfileId", "createdAt", "paidAt", currency,
       "itemsSubtotalCents", "shippingTitle", "shippingAmountCents", "taxAmountCents",
@@ -139,6 +151,15 @@ async function createDatabase() {
     ), (
       'item-2', 'order-1', 'listing-hidden', 100, 2, NULL, NULL,
       '2026-08-31 10:00:02'
+    ), (
+      'item-3', 'order-1', 'listing-sold-out', 100, 1, NULL, NULL,
+      '2026-08-31 10:00:03'
+    ), (
+      'item-4', 'order-1', 'listing-private-reserved', 100, 1, NULL, NULL,
+      '2026-08-31 10:00:04'
+    ), (
+      'item-5', 'order-1', 'listing-private-other', 100, 1, NULL, NULL,
+      '2026-08-31 10:00:05'
     );
   `);
   await database.exec(migration);
@@ -161,7 +182,10 @@ describe("Order participant detail authority", () => {
       assert.equal(row.seller_user_id, "seller-user-1");
       assert.equal(JSON.stringify(row).includes("re_secret_provider_id"), false);
       assert.equal(JSON.stringify(row).includes("unexpectedSecret"), false);
-      assert.deepEqual(row.items.map((item) => item.listingActive), [true, false]);
+      assert.deepEqual(
+        row.items.map((item) => item.listingLinkAvailable),
+        [true, false, true, true, false],
+      );
       assert.equal(row.items[0].listingSnapshot.title, "Table");
       assert.equal("description" in row.items[0].listingSnapshot, false);
       assert.equal("tags" in row.items[0].listingSnapshot, false);
@@ -193,6 +217,10 @@ describe("Order participant detail authority", () => {
       assert.equal(row.deauthorized_review_hold, true);
       assert.equal(row.seller_notes, "Seller-only note");
       assert.equal(row.label_status, "PURCHASED");
+      assert.deepEqual(
+        row.items.map((item) => item.listingLinkAvailable),
+        [true, true, true, true, true],
+      );
       assert.equal(JSON.stringify(row).includes("Staff only details"), false);
       assert.equal(JSON.stringify(row).includes("re_secret_provider_id"), false);
 
