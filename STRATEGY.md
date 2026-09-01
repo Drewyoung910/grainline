@@ -4,6 +4,32 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Correctness-before-Order-RLS boundary (2026-09-01)
+
+Continue the Order-domain program, but correct only the verified defects that
+cross its Case, refund, fulfillment, retention or deletion authority before
+Order Phase A. The bounded additive Case correction is documented in
+`docs/case-order-correctness-corrections-20260901.md`; it covers deterministic
+UTC evidence, staff refund replay eligibility, fulfilled-stock restoration,
+open-dispute PII retention and seller-deletion serialization. It also hardens
+the impossible legacy Case-message fallback without misclassifying that
+restore/drift defense as a current production P1.
+
+The buyer shipping-quote source correction remains isolated in PR #382. It
+must pass normal CI and a real test-mode provider smoke before launch because
+source tests cannot prove Shippo availability or account/address acceptance.
+That provider smoke does not block the additive Case correction or the next
+actor-bound Order implementation. After the Case correction, add the immutable
+charged-total witness and refund-aware presentation, finish label/fulfillment
+compatibility, and proceed directly to Order Phase A and FORCE; then continue
+with OrderItem and OrderShippingRateQuote as separate releases.
+
+Do not expand this boundary into every defense-in-depth or product enhancement
+found during review. Dedicated cron roles, friendly support numbers, checkout
+group product semantics, retired tax-reversal columns, continuous all-table
+RLS canaries and SellerProfile projection guards stay durably gated to their
+own launch, product or later-table work.
+
 ### Core Order audit and activation sequence (2026-08-31)
 
 The fresh current-source audit is pinned in

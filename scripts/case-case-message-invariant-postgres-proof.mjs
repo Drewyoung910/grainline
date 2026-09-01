@@ -1063,7 +1063,10 @@ async function proveSellerRefundAuthority(client) {
   assert.equal(invalidResidue.rows[0]?.count, 0);
 }
 
-async function proveStaffResolutionAuthority(client) {
+async function proveStaffResolutionAuthority(
+  client,
+  { correctnessExpected = false } = {},
+) {
   for (const [caseId, orderId, paymentIntentId] of [
     [ids.staffDismissCase, ids.staffDismissOrder, null],
     [ids.staffRefundCase, ids.staffRefundOrder, "pi_case_staff_refund"],
@@ -1199,6 +1202,53 @@ async function proveStaffResolutionAuthority(client) {
     new RegExp(`^case-resolve:${refundClaimId}:REFUND_FULL:10000$`),
   );
 
+  if (correctnessExpected) {
+    await client.query("RESET ROLE");
+    await client.query(`
+      ALTER TABLE public."Order"
+        DISABLE TRIGGER grainline_order_payment_open_dispute_guard
+    `);
+    await client.query(`
+      UPDATE public."Order"
+         SET "paymentOpenDisputeBlocked" = true
+       WHERE id = $1
+    `, [ids.staffRefundOrder]);
+    await client.query(`
+      ALTER TABLE public."Order"
+        ENABLE TRIGGER grainline_order_payment_open_dispute_guard
+    `);
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+    await expectPostgresError(
+      client,
+      "staff_refund_replay_after_open_dispute",
+      () => client.query(`
+        SELECT public.grainline_case_staff_resolution_prepare(
+          $1,
+          $2,
+          'REFUND_FULL'::public."CaseResolution",
+          NULL,
+          '[]'::jsonb
+        )
+      `, [ids.staff, ids.staffRefundCase]),
+      /Case staff-resolution replay is no longer refund-eligible/,
+    );
+    await client.query("RESET ROLE");
+    await client.query(`
+      ALTER TABLE public."Order"
+        DISABLE TRIGGER grainline_order_payment_open_dispute_guard
+    `);
+    await client.query(`
+      UPDATE public."Order"
+         SET "paymentOpenDisputeBlocked" = false
+       WHERE id = $1
+    `, [ids.staffRefundOrder]);
+    await client.query(`
+      ALTER TABLE public."Order"
+        ENABLE TRIGGER grainline_order_payment_open_dispute_guard
+    `);
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+  }
+
   await expectPostgresError(
     client,
     "null_provider_outcome",
@@ -1273,6 +1323,31 @@ async function proveStaffResolutionAuthority(client) {
     ) AS result
   `, [ids.staff, refundClaimId]);
   assert.equal(providerReplay.rows[0]?.result?.action, "replay");
+
+  if (correctnessExpected) {
+    await client.query("RESET ROLE");
+    await client.query(`
+      UPDATE public."Order"
+         SET "fulfillmentStatus" = 'SHIPPED'
+       WHERE id = $1
+    `, [ids.staffRefundOrder]);
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+    await expectPostgresError(
+      client,
+      "staff_stock_restore_after_fulfillment",
+      () => client.query(`
+        SELECT public.grainline_case_staff_resolution_finalize($1, $2)
+      `, [ids.staff, refundClaimId]),
+      /Case finalization cannot restore fulfilled stock/,
+    );
+    await client.query("RESET ROLE");
+    await client.query(`
+      UPDATE public."Order"
+         SET "fulfillmentStatus" = 'PENDING'
+       WHERE id = $1
+    `, [ids.staffRefundOrder]);
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+  }
 
   const refundFinalized = await client.query(`
     SELECT public.grainline_case_staff_resolution_finalize($1, $2) AS result
@@ -2082,7 +2157,8 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await proveCaseAndMessageInvariants(client);
     await proveStripeDisputeAuthority(client);
     await proveSellerRefundAuthority(client);
-    await proveStaffResolutionAuthority(client);
+    const correctnessExpected = env.CASE_CORRECTNESS_EXPECTED === "1";
+    await proveStaffResolutionAuthority(client, { correctnessExpected });
     await proveClaimLedger(client);
     await provePrivatePosture(client);
     await provePolicylessActivation(
@@ -2095,7 +2171,7 @@ export async function runCaseInvariantPostgresProof(env = process.env) {
     await client.query("ROLLBACK");
     began = false;
     return Object.freeze({
-      checks: 55,
+      checks: correctnessExpected ? 57 : 55,
       database: DATABASE_NAME,
       persistentStagingChanged: false,
       productionChanged: false,

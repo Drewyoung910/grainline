@@ -24,6 +24,10 @@ import {
 import {
   verifyOrderPaymentEventActivationRelease,
 } from "./verify-order-payment-event-activation-release.mjs";
+import {
+  CASE_CORRECTNESS_MIGRATION,
+  verifyOptionalCaseCorrectnessSuccessor,
+} from "./build-case-correctness-migration.mjs";
 
 export const ORDER_PAYMENT_EVENT_FORCE_PHASE =
   "order-payment-event-force-reviewed";
@@ -76,9 +80,14 @@ export function verifyOrderPaymentEventForceRelease(
     throw new Error("OrderPaymentEvent FORCE migration prefix drifted");
   }
 
+  const caseCorrectnessSuccessor =
+    verifyOptionalCaseCorrectnessSuccessor(rootDirectory);
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,
     rootDirectory,
+    omittedReviewedMigrationNames: caseCorrectnessSuccessor
+      ? [CASE_CORRECTNESS_MIGRATION]
+      : [],
   });
   return Object.freeze({
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,
@@ -98,6 +107,7 @@ export function verifyOrderPaymentEventForceRelease(
     policyCount: 0,
     runtimeTablePrivileges: 0,
     rowDataChanged: false,
+    reviewedCaseCorrectnessSuccessor: caseCorrectnessSuccessor,
     guard,
   });
 }

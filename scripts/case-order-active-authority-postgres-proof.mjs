@@ -35,6 +35,7 @@ const ids = Object.freeze({
   retentionRecent: `${PREFIX}-order-retention-recent`,
   retentionReview: `${PREFIX}-order-retention-review`,
   retentionRace: `${PREFIX}-order-retention-race`,
+  retentionDispute: `${PREFIX}-order-retention-dispute`,
 });
 
 function safeError(error) {
@@ -148,11 +149,12 @@ async function seedOrder(
     deliveredAt = null,
     reviewNeeded = false,
     withPii = false,
+    sellerProfileId = ids.seller,
   } = {},
 ) {
   await client.query(`
     INSERT INTO public."Order" (
-      id, "buyerId", "fulfillmentStatus", "deliveredAt",
+      id, "buyerId", "sellerProfileId", "fulfillmentStatus", "deliveredAt",
       "reviewNeeded", "buyerEmail", "buyerName", "shipToLine1",
       "quotedToName", "trackingCarrier", "trackingNumber",
       "sellerNotes", "shippoShipmentId", "shippoRateObjectId",
@@ -160,16 +162,17 @@ async function seedOrder(
       "labelTrackingNumber", "giftNote"
     )
     VALUES (
-      $1, $2, $3::public."FulfillmentStatus", $4,
-      $5, $6, $7, $8,
-      $9, $10, $11,
-      $12, $13, $14,
-      $15, $16, $17,
-      $18, $19
+      $1, $2, $3, $4::public."FulfillmentStatus", $5,
+      $6, $7, $8, $9,
+      $10, $11, $12,
+      $13, $14, $15,
+      $16, $17, $18,
+      $19, $20
     )
   `, [
     id,
     buyerId,
+    sellerProfileId,
     fulfillmentStatus,
     deliveredAt,
     reviewNeeded,
@@ -191,12 +194,17 @@ async function seedOrder(
 }
 
 async function seedOrderItem(client, orderId, listingId, suffix) {
+  const sellerProfileId = listingId === ids.deletedListing
+    ? ids.deletedSeller
+    : listingId === ids.foreignListing
+      ? ids.foreignSeller
+      : ids.seller;
   await client.query(`
     INSERT INTO public."OrderItem" (
-      id, "orderId", "listingId", quantity, "priceCents"
+      id, "orderId", "listingId", "sellerProfileId", quantity, "priceCents"
     )
-    VALUES ($1, $2, $3, 1, 1000)
-  `, [`${PREFIX}-item-${suffix}`, orderId, listingId]);
+    VALUES ($1, $2, $3, $4, 1, 1000)
+  `, [`${PREFIX}-item-${suffix}`, orderId, listingId, sellerProfileId]);
 }
 
 async function seedCase(client, orderId, status, suffix) {
@@ -249,7 +257,7 @@ async function seedCase(client, orderId, status, suffix) {
   `, [`${caseId}-opening-message`, caseId, orderId]);
 }
 
-async function seedFixtures(client) {
+async function seedFixtures(client, { correctnessExpected = false } = {}) {
   await client.query("BEGIN");
   try {
     await seedUser(client, ids.buyer);
@@ -295,10 +303,12 @@ async function seedFixtures(client) {
       ids.clearOrder,
       ids.mixedOrder,
       ids.emptyOrder,
-      ids.deletedSellerOrder,
     ]) {
       await seedOrder(client, orderId, ids.buyer);
     }
+    await seedOrder(client, ids.deletedSellerOrder, ids.buyer, {
+      sellerProfileId: ids.deletedSeller,
+    });
     await seedOrder(client, ids.bannedBuyerOrder, ids.bannedBuyer);
     for (const orderId of [
       ids.retentionEligible,
@@ -306,6 +316,7 @@ async function seedFixtures(client) {
       ids.retentionClosed,
       ids.retentionReview,
       ids.retentionRace,
+      ...(correctnessExpected ? [ids.retentionDispute] : []),
     ]) {
       await seedOrder(client, orderId, ids.buyer, {
         fulfillmentStatus: "DELIVERED",
@@ -333,6 +344,7 @@ async function seedFixtures(client) {
       ids.retentionRecent,
       ids.retentionReview,
       ids.retentionRace,
+      ...(correctnessExpected ? [ids.retentionDispute] : []),
     ]) {
       await seedOrderItem(
         client,
@@ -398,6 +410,7 @@ async function seedFixtures(client) {
       ids.retentionClosed,
       ids.retentionHeld,
       ids.retentionRace,
+      ...(correctnessExpected ? [ids.retentionDispute] : []),
     ].entries()) {
       await client.query(`
         INSERT INTO public."OrderShippingRateQuote" (
@@ -413,6 +426,21 @@ async function seedFixtures(client) {
         orderId,
         `${PREFIX}-shipment-${index}`,
       ]);
+    }
+    if (correctnessExpected) {
+      await client.query(`
+        ALTER TABLE public."Order"
+          DISABLE TRIGGER grainline_order_payment_open_dispute_guard
+      `);
+      await client.query(`
+        UPDATE public."Order"
+           SET "paymentOpenDisputeBlocked" = true
+         WHERE id = $1
+      `, [ids.retentionDispute]);
+      await client.query(`
+        ALTER TABLE public."Order"
+          ENABLE TRIGGER grainline_order_payment_open_dispute_guard
+      `);
     }
     await client.query("COMMIT");
   } catch (error) {
@@ -531,6 +559,7 @@ function delay(milliseconds) {
 
 export async function runCaseOrderActiveProof(env = process.env) {
   const { databaseUrl } = parseCaseOrderActiveProofConfig(env);
+  const correctnessExpected = env.CASE_CORRECTNESS_EXPECTED === "1";
   const owner = createClient(databaseUrl, `${PREFIX}-owner`);
   const runtime = createClient(databaseUrl, `${PREFIX}-runtime`);
   const contender = createClient(databaseUrl, `${PREFIX}-contender`);
@@ -554,7 +583,7 @@ export async function runCaseOrderActiveProof(env = process.env) {
       "Case-aware Order proof found pre-existing fixtures",
     );
     checks.push("preflight-zero-residue");
-    await seedFixtures(owner);
+    await seedFixtures(owner, { correctnessExpected });
     checks.push("fixtures-seeded");
 
     const catalog = await owner.query(`
@@ -612,16 +641,26 @@ export async function runCaseOrderActiveProof(env = process.env) {
        )
        ORDER BY relname
     `);
-    assert.equal(
-      originalRls.rows.every(
-        (row) => !row.relrowsecurity && !row.relforcerowsecurity,
-      ),
-      true,
-      "Case-aware Order proof requires the compatible pre-RLS posture",
-    );
-    rlsChanged = true;
-    await setProofRls(owner);
-    checks.push("forced-rls-source-posture");
+    if (correctnessExpected) {
+      const casePosture = originalRls.rows.find((row) => row.relname === "Case");
+      assert.deepEqual(casePosture, {
+        relname: "Case",
+        relrowsecurity: true,
+        relforcerowsecurity: true,
+      });
+      checks.push("accepted-current-case-force-posture");
+    } else {
+      assert.equal(
+        originalRls.rows.every(
+          (row) => !row.relrowsecurity && !row.relforcerowsecurity,
+        ),
+        true,
+        "Case-aware Order proof requires the compatible pre-RLS posture",
+      );
+      rlsChanged = true;
+      await setProofRls(owner);
+      checks.push("forced-rls-source-posture");
+    }
 
     assert.equal(
       await buyerGuard(runtime, ids.buyer, ids.activeOrder),
@@ -682,12 +721,23 @@ export async function runCaseOrderActiveProof(env = process.env) {
     }
     checks.push("invalid-input-denial");
 
-    const directCase = await runtimeQuery(
-      runtime,
-      'SELECT id FROM public."Case" WHERE id LIKE $1',
-      [`${PREFIX}%`],
-    );
-    assert.equal(directCase.rowCount, 0);
+    if (correctnessExpected) {
+      await expectSqlState(
+        () => runtimeQuery(
+          runtime,
+          'SELECT id FROM public."Case" WHERE id LIKE $1',
+          [`${PREFIX}%`],
+        ),
+        "42501",
+      );
+    } else {
+      const directCase = await runtimeQuery(
+        runtime,
+        'SELECT id FROM public."Case" WHERE id LIKE $1',
+        [`${PREFIX}%`],
+      );
+      assert.equal(directCase.rowCount, 0);
+    }
     checks.push("function-only-forced-rls-case-read");
 
     await runtime.query("BEGIN");
@@ -712,6 +762,7 @@ export async function runCaseOrderActiveProof(env = process.env) {
       ids.retentionRecent,
       ids.retentionReview,
       ids.retentionRace,
+      ...(correctnessExpected ? [ids.retentionDispute] : []),
     ]]);
     const retainedById = new Map(retained.rows.map((row) => [row.id, row]));
     for (const orderId of [
@@ -726,6 +777,7 @@ export async function runCaseOrderActiveProof(env = process.env) {
       ids.retentionHeld,
       ids.retentionRecent,
       ids.retentionReview,
+      ...(correctnessExpected ? [ids.retentionDispute] : []),
     ]) {
       assert.notEqual(retainedById.get(orderId).buyerEmail, null);
       assert.equal(retainedById.get(orderId).buyerDataPurgedAt, null);
@@ -738,9 +790,20 @@ export async function runCaseOrderActiveProof(env = process.env) {
       `,
       [`${PREFIX}%`],
     );
-    assert.equal(quoteCount.rows[0].count, 1);
+    assert.equal(quoteCount.rows[0].count, correctnessExpected ? 2 : 1);
     await runtime.query("ROLLBACK");
     checks.push("fixed-retention-targets-and-rollback");
+    if (correctnessExpected) {
+      assert.notEqual(
+        retainedById.get(ids.retentionDispute).buyerEmail,
+        null,
+      );
+      assert.equal(
+        retainedById.get(ids.retentionDispute).buyerDataPurgedAt,
+        null,
+      );
+      checks.push("open-dispute-retains-buyer-evidence");
+    }
 
     await contender.query("BEGIN");
     await contender.query(
@@ -836,10 +899,10 @@ export async function runCaseOrderActiveProof(env = process.env) {
         users: 6,
         sellers: 3,
         listings: 3,
-        orders: 12,
-        items: 12,
+        orders: correctnessExpected ? 13 : 12,
+        items: correctnessExpected ? 13 : 12,
         cases: 5,
-        quotes: 4,
+        quotes: correctnessExpected ? 5 : 4,
       },
       "Case-aware Order proof changed protected state outside the intended race fixture",
     );
@@ -871,7 +934,7 @@ export async function runCaseOrderActiveProof(env = process.env) {
       "Case-aware Order proof left fixture residue",
     );
   }
-  assert.equal(checks.length, 13);
+  assert.equal(checks.length, correctnessExpected ? 14 : 13);
   return Object.freeze({ checks: Object.freeze([...checks]) });
 }
 

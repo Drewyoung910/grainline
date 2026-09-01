@@ -1508,6 +1508,13 @@ describe("database grant inventory guardrails", () => {
         + (sellerPayoutEventRlsActivationExpected(inventory) ? 1 : 0)
         + (orderPaymentEventRlsActivationExpected(inventory) ? 1 : 0),
     );
+    assert.equal(
+      inventory.publicRevokes.filter((statement) => statement.includes(
+        "public.grainline_case_message_page(text, text, timestamp, text, integer)",
+      )).length,
+      1,
+      "semantic duplicate revokes must collapse across SQL formatting changes",
+    );
     assert.ok(inventory.publicRevokes.includes(
       "REVOKE ALL ON FUNCTION public.grainline_saved_search_delete_one(text, text) FROM PUBLIC",
     ));

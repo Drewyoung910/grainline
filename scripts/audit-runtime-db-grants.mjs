@@ -1105,7 +1105,12 @@ export function deriveGrantInventory(rootDir = ROOT_DIR) {
         (statement) =>
           /\bREVOKE\b/i.test(statement) && /\bFROM\s+PUBLIC\b/i.test(statement),
       )
-      .map((statement) => statement.replace(/\s+/g, " ").trim()),
+      .map((statement) => statement
+        .replace(/\s+/g, " ")
+        .replace(/\(\s+/g, "(")
+        .replace(/\s+\)/g, ")")
+        .replace(/\s*,\s*/g, ", ")
+        .trim()),
   );
   const publicDefaultPrivilegeRevokes = publicRevokes.filter((statement) =>
     /\bALTER\s+DEFAULT\s+PRIVILEGES\b/i.test(statement),

@@ -46,6 +46,9 @@ import {
 import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
 } from "../scripts/stage-order-payment-event-force-migration.mjs";
+import {
+  CASE_CORRECTNESS_MIGRATION,
+} from "../scripts/build-case-correctness-migration.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/blocked-checkout-refund-delivery-production.yml",
@@ -158,6 +161,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(CASE_CORRECTNESS_MIGRATION);
     remove(ORDER_PAYMENT_EVENT_FORCE_MIGRATION);
     remove(ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION);
     remove(ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_MIGRATION);

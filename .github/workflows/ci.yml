@@ -82,6 +82,19 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify additive Case and Order correctness candidate
+        run: >-
+          node --test
+          tests/case-correctness-migration.test.mjs
+          tests/case-correctness-postgres.test.mjs
+          tests/case-case-message-invariant-postgres-proof.test.mjs
+          tests/case-order-active-authority-postgres-proof.test.mjs
+          tests/case-account-deletion-authority-postgres-proof.test.mjs
+      - name: Isolate Case and Order correctness until every predecessor passes
+        run: >-
+          mv
+          prisma/migrations/20260901160000_correct_case_order_invariants
+          "$RUNNER_TEMP/case-order-correctness-release"
       - name: Prove OrderPaymentEvent application zero-direct-access
         run: npm run audit:order-payment-event-zero-direct-access
       - name: Verify OrderPaymentEvent FORCE migration tree
@@ -1057,6 +1070,32 @@ jobs:
           ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Re-audit restored OrderPaymentEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore additive Case and Order correctness release
+        run: >-
+          mv
+          "$RUNNER_TEMP/case-order-correctness-release"
+          prisma/migrations/20260901160000_correct_case_order_invariants
+      - name: Apply additive Case and Order correctness release
+        run: npx prisma migrate deploy
+      - name: Verify Case and Order correctness migration status
+        run: npx prisma migrate status
+      - name: Audit corrected Case grants and retained RLS posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove corrected staff refund replay and finalization
+        run: npm run audit:rls-case-invariant-drafts
+        env:
+          CASE_INVARIANT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_CORRECTNESS_EXPECTED: "1"
+      - name: Prove corrected dispute-retention boundary
+        run: npm run audit:rls-case-order-active
+        env:
+          CASE_ORDER_ACTIVE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_CORRECTNESS_EXPECTED: "1"
+      - name: Prove corrected account-deletion Order serialization
+        run: npm run audit:rls-case-account-deletion
+        env:
+          CASE_ACCOUNT_DELETION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+          CASE_CORRECTNESS_EXPECTED: "1"
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

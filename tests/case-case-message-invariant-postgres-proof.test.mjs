@@ -120,7 +120,8 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /refundAmountCents: null/);
   assert.match(proof, /action, "replay"/);
   assert.match(proof, /replayedAfterTerminal/);
-  assert.match(proof, /checks: 55/);
+  assert.match(proof, /checks: correctnessExpected \? 57 : 55/);
+  assert.match(proof, /CASE_CORRECTNESS_EXPECTED === "1"/);
   assert.match(proof, /provePolicylessActivation/);
   assert.match(proof, /case_force_candidate/);
 });

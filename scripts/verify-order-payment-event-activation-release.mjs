@@ -26,6 +26,10 @@ import {
 import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
 } from "./stage-order-payment-event-force-migration.mjs";
+import {
+  CASE_CORRECTNESS_MIGRATION,
+  verifyOptionalCaseCorrectnessSuccessor,
+} from "./build-case-correctness-migration.mjs";
 
 export function verifyOrderPaymentEventActivationRelease(
   rootDirectory = process.cwd(),
@@ -98,12 +102,18 @@ export function verifyOrderPaymentEventActivationRelease(
     throw new Error("OrderPaymentEvent activation-aware provisioning drifted");
   }
 
+  const caseCorrectnessSuccessor =
+    verifyOptionalCaseCorrectnessSuccessor(rootDirectory);
+  const omittedReviewedMigrationNames = allowReviewedForceSuccessor
+    ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION]
+    : [];
+  if (caseCorrectnessSuccessor) {
+    omittedReviewedMigrationNames.push(CASE_CORRECTNESS_MIGRATION);
+  }
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedForceSuccessor
-      ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION]
-      : [],
+    omittedReviewedMigrationNames,
   });
   return Object.freeze({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
@@ -122,6 +132,7 @@ export function verifyOrderPaymentEventActivationRelease(
     zeroDirectAccess: zeroDirect.directAccessMatches === 0,
     rowDataChanged: false,
     productionChanged: false,
+    reviewedCaseCorrectnessSuccessor: caseCorrectnessSuccessor,
     guard,
   });
 }

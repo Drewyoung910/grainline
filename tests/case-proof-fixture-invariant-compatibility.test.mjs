@@ -25,7 +25,7 @@ test("post-migration Case proof fixtures preserve durable opening and seller evi
     const source = fs.readFileSync(path, "utf8");
     assert.match(
       source,
-      /(?:export )?async function (?:seed|create)Fixtures\((?:client|owner)(?:, state)?\) \{[\s\S]{0,220}(?:client|owner)\.query\("BEGIN(?: ISOLATION LEVEL SERIALIZABLE)?"\)/,
+      /(?:export )?async function (?:seed|create)Fixtures\((?:client|owner)(?:, state|, \{ correctnessExpected = false \} = \{\})?\) \{[\s\S]{0,220}(?:client|owner)\.query\("BEGIN(?: ISOLATION LEVEL SERIALIZABLE)?"\)/,
       `${path} must seed its deferred Case evidence atomically`,
     );
     assert.match(
