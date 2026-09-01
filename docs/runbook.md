@@ -494,6 +494,19 @@ Stripe:
 11. For label purchases with Sentry tag `shippo_label_purchase_ambiguous`, check Shippo for a transaction tied to the order/rate before clearing `labelStatus` or retrying. If Shippo created a label, write the transaction, label URL, tracking, and label-cost fields to the order and reconcile the Stripe label clawback; if Shippo did not create a label, staff may clear the review hold and label status before retry.
 12. For Stripe Connect orderability drift, check recent `SystemAuditLog` rows for `STRIPE_ACCOUNT_CHARGES_UPDATED` or `STRIPE_ACCOUNT_DEAUTHORIZED`, then check the latest `CronRun` for `stripe-connect-reconcile`. The six-hour reconciliation cron is a backstop for missed account-state events, not a substitute for replaying failed Stripe webhook deliveries.
 
+Shippo buyer-quote provider smoke:
+
+- Use a `shippo_test_...` key only. The operator refuses live keys, creates one
+  test Shipment/rate request, never calls the Transaction endpoint and never
+  purchases a label.
+- Run from a clean exact commit with evidence outside the repository:
+  `SHIPPO_QUOTE_SMOKE_CONFIRM=reviewed-test-mode-quote-only SHIPPO_QUOTE_SMOKE_EXPECTED_COMMIT="<exact-commit>" SHIPPO_QUOTE_SMOKE_RUN_ID="<unique-run-id>" SHIPPO_QUOTE_SMOKE_EVIDENCE_PATH="/Users/drewyoung/grainline-rollout-evidence/shippo-quote-test-mode-<exact-commit>.json" npm run audit:shippo-quote-test-mode`.
+- A pass proves that Shippo accepted the exact minimized destination payload
+  used by `/api/shipping/quote` and returned at least one provider-identified,
+  checkout-usable USD rate. It does not prove live-mode carrier availability,
+  buyer street-address deliverability or final label purchase; the label route
+  still re-quotes the full retained Order address before purchase.
+
 Pre-launch Stripe money-movement proof:
 
 - Run only in Stripe test mode against a staging or local database where

@@ -26,6 +26,7 @@ import { z } from "zod";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { ownerCartForShippingQuote, ownerCartForShippingQuoteById } from "@/lib/cartOwnerAccess";
+import { buildShippoCheckoutQuoteShipment } from "@/lib/shippingQuoteProvider";
 
 const ShippingQuoteSchema = z.object({
   mode: z.enum(["cart", "single"]).optional(),
@@ -531,35 +532,26 @@ export async function POST(req: Request) {
       // Build Shippo shipment + fetch rates (async=false embeds rates)
       const shipment = await shippoRequest<ShippoShipment>("/shipments/", {
         method: "POST",
-        body: JSON.stringify({
-          address_from: {
-            name: shipFrom.name || undefined,
-            street1: shipFrom.line1,
-            street2: shipFrom.line2 || undefined,
-            city: shipFrom.city,
-            state: shipFrom.state,
-            zip: shipFrom.postal,
-            country: shipFrom.country,
-          },
-          address_to: {
-            street1: "Rate quote only",
-            city: shipTo.city,
-            state: shipTo.state,
-            zip: shipTo.postal,
-            country: shipTo.country,
-          },
-          parcels: [
-            {
-              length: lengthCm,
-              width: widthCm,
-              height: heightCm,
-              distance_unit: "cm",
-              weight: totalWeightGrams,
-              mass_unit: "g",
+        body: JSON.stringify(
+          buildShippoCheckoutQuoteShipment({
+            from: {
+              name: shipFrom.name,
+              line1: shipFrom.line1,
+              line2: shipFrom.line2,
+              city: shipFrom.city,
+              state: shipFrom.state,
+              postal: shipFrom.postal,
+              country: shipFrom.country,
             },
-          ],
-          async: false,
-        }),
+            to: shipTo,
+            parcel: {
+              lengthCm,
+              widthCm,
+              heightCm,
+              weightGrams: totalWeightGrams,
+            },
+          }),
+        ),
       });
       rates = Array.isArray(shipment?.rates) ? shipment.rates : [];
     } catch (err) {

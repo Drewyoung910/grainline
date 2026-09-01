@@ -179,16 +179,18 @@ describe("shipping quote state helpers", () => {
 
   it("minimizes Shippo quote destination payloads and keeps returned rate ids quote-only", () => {
     const route = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    const provider = readFileSync("src/lib/shippingQuoteProvider.ts", "utf8");
     const selector = readFileSync("src/components/ShippingRateSelector.tsx", "utf8");
 
     assert.match(route, /normalizeShippoRatesForCheckout/);
     assert.doesNotMatch(route, /toName|toLine1|toLine2/);
-    assert.match(route, /street1: "Rate quote only"/);
-    const addressToBlock = route.match(/address_to:\s*\{([\s\S]*?)\n\s*\},\n\s*parcels:/)?.[1] ?? "";
-    assert.match(addressToBlock, /city: shipTo\.city/);
-    assert.match(addressToBlock, /state: shipTo\.state/);
-    assert.match(addressToBlock, /zip: shipTo\.postal/);
-    assert.match(addressToBlock, /country: shipTo\.country/);
+    assert.match(route, /buildShippoCheckoutQuoteShipment/);
+    assert.match(provider, /street1: "Rate quote only"/);
+    const addressToBlock = provider.match(/address_to:\s*\{([\s\S]*?)\n\s*\},\n\s*parcels:/)?.[1] ?? "";
+    assert.match(addressToBlock, /city: input\.to\.city/);
+    assert.match(addressToBlock, /state: input\.to\.state/);
+    assert.match(addressToBlock, /zip: input\.to\.postal/);
+    assert.match(addressToBlock, /country: input\.to\.country/);
     assert.doesNotMatch(addressToBlock, /\bname:/);
     assert.doesNotMatch(addressToBlock, /\bstreet2:/);
     assert.match(route, /normalizeShippoRatesForCheckout/);
