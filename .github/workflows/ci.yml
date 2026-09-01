@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify compatible Order participant list authority release
+        run: npm run audit:order-participant-list-authority-release
+      - name: Isolate Order participant list authority until OrderPaymentEvent FORCE passes
+        run: >-
+          mv
+          prisma/migrations/20260831233000_prepare_order_participant_list_authority
+          "$RUNNER_TEMP/order-participant-list-authority-release"
       - name: Prove OrderPaymentEvent application zero-direct-access
         run: npm run audit:order-payment-event-zero-direct-access
       - name: Verify OrderPaymentEvent FORCE migration tree
@@ -1057,6 +1064,31 @@ jobs:
           ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Re-audit restored OrderPaymentEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Restore compatible Order participant list authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-list-authority-release"
+          prisma/migrations/20260831233000_prepare_order_participant_list_authority
+      - name: Re-verify compatible Order participant list authority release
+        run: npm run audit:order-participant-list-authority-release
+      - name: Apply compatible Order participant list authority
+        run: npx prisma migrate deploy
+      - name: Converge Order participant list runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Audit Order participant list grants and retained Order posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove compatible Order participant list authority
+        run: >-
+          node --test
+          tests/order-participant-list-authority-contract.test.mjs
+          tests/order-participant-list-authority-postgres.test.mjs
+          tests/order-participant-list-authority-release.test.mjs
+          tests/order-participant-read-state.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

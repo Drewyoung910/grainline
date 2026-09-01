@@ -229,6 +229,7 @@ export function readSellerPayoutEventForceSealedPrefixCatalog(
 ) {
   verifyOrderPaymentEventActivationRelease(root, {
     allowReviewedForceSuccessor: true,
+    allowReviewedOrderParticipantListSuccessor: true,
   });
   const authorityCatalog = readSellerPayoutEventAuthorityMigrationCatalog(root);
   const activation = buildSellerPayoutEventActivationCandidate(root);

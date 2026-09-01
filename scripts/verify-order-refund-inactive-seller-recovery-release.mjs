@@ -56,6 +56,9 @@ import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
   verifyOrderPaymentEventForceMigrationBytes,
 } from "./stage-order-payment-event-force-migration.mjs";
+import {
+  appendReviewedOrderParticipantListAuthoritySuccessor,
+} from "./order-participant-list-authority-catalog.mjs";
 
 export const ORDER_REFUND_INACTIVE_SELLER_RECOVERY_PHASE =
   "order-refund-inactive-seller-recovery-prepared";
@@ -232,6 +235,12 @@ export function verifyOrderRefundInactiveSellerRecoveryRelease(
     verifyOrderPaymentEventForceMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_FORCE_MIGRATION);
   }
+  appendReviewedOrderParticipantListAuthoritySuccessor({
+    root: rootDirectory,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+  });
   assert.deepEqual(
     laterMigrations,
     reviewedSuccessors,
