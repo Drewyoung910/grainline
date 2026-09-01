@@ -23,10 +23,7 @@ describe("order trust metrics guardrails", () => {
   });
 
   it("requires raw-SQL marketplace trust metrics to count only Stripe-backed paid orders", () => {
-    const paths = [
-      "src/lib/metrics.ts",
-      "src/app/admin/verification/page.tsx",
-    ];
+    const paths = ["src/app/admin/verification/page.tsx"];
 
     for (const path of paths) {
       const text = source(path);
@@ -51,6 +48,12 @@ describe("order trust metrics guardrails", () => {
     );
     assert.match(sellerAnalytics, /source_order\."paidAt" IS NOT NULL/);
     assert.match(sellerAnalytics, /source_order\."stripeSessionId" IS NOT NULL/);
+    const sellerMetrics = source(
+      "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
+    );
+    assert.match(sellerMetrics, /source_order\."paidAt" IS NOT NULL/);
+    assert.match(sellerMetrics, /source_order\."stripeSessionId" IS NOT NULL/);
+    assert.match(source("src/lib/metrics.ts"), /readOrderSellerMetricsFacts/);
     assert.match(source("src/app/api/seller/analytics/route.ts"), /readSellerOrderAnalyticsSummary/);
   });
 

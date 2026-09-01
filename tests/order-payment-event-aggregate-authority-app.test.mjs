@@ -34,6 +34,7 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
       "src/app/api/seller/analytics/recent-sales/route.ts",
       "src/app/api/seller/analytics/route.ts",
     ]);
+    const sellerMetricsConsumers = new Set(["src/lib/metrics.ts"]);
     for (const file of aggregateConsumers) {
       const value = source(file);
       assert.match(
@@ -42,6 +43,8 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
           ? /orderPublicAggregateAuthority|getPublic/
           : sellerAnalyticsConsumers.has(file)
             ? /orderSellerAnalyticsAuthority|readSeller|countSellerCompletedOrders/
+          : sellerMetricsConsumers.has(file)
+            ? /orderSellerMetricsAuthority|readOrderSellerMetricsFacts/
           : /paymentRefundBlocked|paymentConversionDisputeBlocked/,
         `${file} lost its fixed payment eligibility projection`,
       );
@@ -69,8 +72,16 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
 
   it("keeps raw aggregate consumers set-based on Order projections", () => {
     const metrics = source("src/lib/metrics.ts");
-    assert.match(metrics, /o\."paymentRefundBlocked" = false/u);
+    assert.match(metrics, /readOrderSellerMetricsFacts/u);
+    assert.doesNotMatch(metrics, /FROM "Order"|JOIN "OrderItem"/u);
     assert.doesNotMatch(metrics, /Promise\.all\([^)]*orders\.map/u);
+
+    const sellerMetricsAuthority = source(
+      "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
+    );
+    assert.match(sellerMetricsAuthority, /source_order\."paymentRefundBlocked" = false/u);
+    assert.match(sellerMetricsAuthority, /source_order\."sellerProfileId" = p_seller_profile_id/u);
+    assert.match(sellerMetricsAuthority, /source_item\."sellerProfileId" = p_seller_profile_id/u);
 
     const sellerAnalyticsAuthority = source(
       "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",

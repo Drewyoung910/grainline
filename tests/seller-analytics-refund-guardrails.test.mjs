@@ -16,20 +16,25 @@ describe("seller analytics refund guardrails", () => {
     assert.match(helper, /"paymentOpenDisputeBlocked" = true/);
     assert.doesNotMatch(helper, /OrderPaymentEvent|paymentEvents|ope\./);
 
-    for (const path of ["src/lib/metrics.ts", "src/app/admin/verification/page.tsx"]) {
-      const text = source(path);
+    const metrics = source("src/lib/metrics.ts");
+    const metricsAuthority = source(
+      "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
+    );
+    assert.match(metrics, /readOrderSellerMetricsFacts/);
+    assert.match(metricsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.doesNotMatch(
+      metrics,
+      /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
+      "src/lib/metrics.ts should not enumerate the private payment ledger",
+    );
 
-      assert.match(
-        text,
-        /paymentRefundBlocked/,
-        `${path} should use the database-maintained refund projection`,
-      );
-      assert.doesNotMatch(
-        text,
-        /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
-        `${path} should not enumerate the private payment ledger`,
-      );
-    }
+    const adminVerification = source("src/app/admin/verification/page.tsx");
+    assert.match(adminVerification, /paymentRefundBlocked/);
+    assert.doesNotMatch(
+      adminVerification,
+      /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
+      "src/app/admin/verification/page.tsx should not enumerate the private payment ledger",
+    );
     const sellerAnalytics = source("src/app/api/seller/analytics/route.ts");
     const sellerAnalyticsAuthority = source(
       "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",

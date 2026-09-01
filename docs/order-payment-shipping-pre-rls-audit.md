@@ -54,10 +54,12 @@ through fixed source-bound authorities or database-maintained `Order`
 projections. The two remaining matches are the intentionally retained fixed
 refund-authority helpers in `orderRefundFinalization.ts` and
 `orderRefundRecordAuthority.ts`; neither grants generic table lookup or write
-authority. The separate current 33-file semantic inventory remains authoritative for
+authority. The separate current 32-file semantic inventory remains authoritative for
 nested projections, event-identity helpers, fixed Case/Notification functions,
 cron and provider side effects, so this smaller direct-access floor cannot hide
-semantic consumers. It includes the converted application callsites and
+semantic consumers. The release-time application inventory was 33 files; the
+current `src` inventory is 32 after Guild payment predicates moved into a
+byte-pinned database authority migration. It includes converted application callsites and
 `src/lib/orderEligibilityAuthority.ts` and
 `src/lib/orderPublicAggregateAuthority.ts`; the direct-access floor no longer
 counts the nine consumers routed through those eight source-bound functions.
@@ -77,6 +79,14 @@ overview. The migration also corrects cart-abandonment timing, temporal
 purchase evidence, deterministic recent-item selection and repeat-buyer
 aggregation; it does not activate RLS or change production. See
 `docs/order-seller-analytics-authority.md`.
+
+The following 2026-09-01 Guild/service metrics checkpoint preserves those
+historical baselines while advancing the current direct floors to 28/4. It
+moves `src/lib/metrics.ts` Order facts behind one bounded service aggregate and
+corrects historical seller attribution to use durable checkout-time Order and
+OrderItem keys instead of mutable Listing ownership. The `SellerMetrics`
+upsert remains a separate table boundary. See
+`docs/order-seller-metrics-authority.md`.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above
@@ -516,7 +526,7 @@ Service, safety and aggregate consumers:
   `src/lib/refundLedgerSql.ts`, `src/lib/orderRefundFinalization.ts` and
   `src/lib/labelClawbackRetry.ts`;
 - public and staff-safe aggregates: `src/lib/homepageStats.ts`,
-  `src/lib/metrics.ts`, `src/lib/publicSellerStats.ts`,
+  `src/lib/publicSellerStats.ts`,
   `src/lib/quality-score.ts` and `src/lib/site-metrics-snapshot.ts`; and
 - the development-only synthetic creator:
   `src/app/api/dev/make-order/route.ts`, which must be removed from production

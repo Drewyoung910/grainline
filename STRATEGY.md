@@ -2406,6 +2406,32 @@ future immutable engagement ledger is required for complete event-history
 claims. Keep Guild/service scoring and its SellerMetrics write in a later
 maintenance authority family. See `docs/order-seller-analytics-authority.md`.
 
+### Core Order Guild/service metrics authority decision (2026-09-01)
+
+Audit trust metrics as product logic before moving their Order queries behind
+RLS. Preserve the published Guild thresholds and existing completed/refunded
+definitions, but bind historical sales and shipping facts to checkout-time
+`Order.sellerProfileId` and `OrderItem.sellerProfileId`; mutable Listing
+ownership must never rewrite a seller's qualification history. Use one bounded
+aggregate-only service function because cron and staff verification recalculate
+arbitrary sellers, return no Order or buyer identity, and keep PUBLIC execution
+revoked. This service exception does not authorize generic Order access. Keep
+the `SellerMetrics` cache upsert as its own later RLS/maintenance-write
+boundary. See `docs/order-seller-metrics-authority.md`.
+
+### Core Order Guild/service metrics authority decision (2026-09-01)
+
+Audit trust metrics as product logic before moving their Order queries behind
+RLS. Preserve the published Guild thresholds and existing completed/refunded
+definitions, but bind historical sales and shipping facts to checkout-time
+`Order.sellerProfileId` and `OrderItem.sellerProfileId`; mutable Listing
+ownership must never rewrite a seller's qualification history. Use one bounded
+aggregate-only service function because cron and staff verification recalculate
+arbitrary sellers, return no Order or buyer identity, and keep PUBLIC execution
+revoked. This service exception does not authorize generic Order access. Keep
+the `SellerMetrics` cache upsert as its own later RLS/maintenance-write
+boundary. See `docs/order-seller-metrics-authority.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

@@ -62,7 +62,6 @@ const expected = {
     "src/lib/caseLifecycleLocks.ts",
     "src/lib/checkoutStockRestore.ts",
     "src/lib/labelClawbackRetry.ts",
-    "src/lib/metrics.ts",
     "src/lib/orderRefundProviderReconciliation.ts",
     "src/lib/refundLocks.ts",
   ],
@@ -71,7 +70,6 @@ const expected = {
     "src/app/api/stripe/webhook/route.ts",
     "src/components/ReviewsSection.tsx",
     "src/lib/accountDeletion.ts",
-    "src/lib/metrics.ts",
   ],
   OrderShippingRateQuote: [
     "src/app/api/orders/[id]/label/route.ts",

@@ -2379,6 +2379,35 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Guild/service seller metrics expose only bounded aggregate facts. Seller
+-- ownership is taken from durable Order and OrderItem keys, not mutable Listing
+-- ownership. Keep PUBLIC closed and converge ordinary-runtime EXECUTE while
+-- predecessor Order table grants remain compatible.
+WITH order_seller_metrics_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_metrics_facts"(text, bigint)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_seller_metrics_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_seller_metrics_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_metrics_facts"(text, bigint)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_seller_metrics_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_participant_export_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),
