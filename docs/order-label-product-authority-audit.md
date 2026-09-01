@@ -394,3 +394,10 @@ owner-only ambiguous-label reconciliation operations. Their runtime grants
 were correctly absent; granting them would have been the unsafe correction.
 The catalogs now declare those names as ordinary-runtime-private and the grant
 inventory test pins the classification.
+
+The following local full suite then exposed one stale test-only ordering
+assertion. It still expected the expanded legacy inspection immediately after
+the first generic migration deploy, even though the reviewed execution point
+is now the restored `OrderPaymentEvent` FORCE production prefix. The test now
+anchors the actual invariant: FORCE re-audit precedes inspection, and inspection
+precedes restoration of the compatible Order candidates.
