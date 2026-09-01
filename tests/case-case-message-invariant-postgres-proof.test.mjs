@@ -126,6 +126,48 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /case_force_candidate/);
 });
 
+test("Case invariant provider fixtures satisfy the current immutable ledger shape", () => {
+  assert.doesNotMatch(proof, /'dp_case_invariant/);
+  const extractProviderIds = (source) => [
+    ...source.matchAll(/(['"])((?:evt|du|dp|ch|re)_[^'"]*)\1/g),
+    ...source.matchAll(/`((?:evt|du|dp|ch|re)_[^`]*)`/g),
+  ].map((match) => match[2] ?? match[1]);
+  const providerIdShape = /^(?:evt|du|ch|re)_[A-Za-z0-9]+$/;
+  const providerIds = extractProviderIds(proof);
+  assert.deepEqual(
+    [...new Set(providerIds.filter((value) => value.includes("${")))],
+    ["ch_caseinvariantproof${position}"],
+  );
+  assert.deepEqual(
+    [...new Set(providerIds.filter(
+      (value) => !value.includes("${") && !providerIdShape.test(value),
+    ))],
+    [],
+  );
+  assert.deepEqual(
+    extractProviderIds(
+      "'evt_good-bad' \"du_good.bad\" 're_good bad' `ch_good/bad`",
+    ).filter((value) => !providerIdShape.test(value)),
+    ["evt_good-bad", "du_good.bad", "re_good bad", "ch_good/bad"],
+  );
+  assert.match(
+    proof,
+    /'du_caseinvariantproofforged'.*1770000000, 'usd'.*'chargeId', 'ch_wrongcaseinvariantproof'.*'stripeEventCreated', 1770000000/s,
+  );
+  assert.match(
+    proof,
+    /"stripeObjectType", "eventType", "stripeEventCreatedSeconds"/,
+  );
+  for (const refundId of [
+    "re_caseinvariantwrongorderrefund",
+    "re_caseinvariantrefund",
+    "re_caseinvariantrefundrebind",
+  ]) {
+    assert.match(proof, new RegExp(`'${refundId}'`), refundId);
+  }
+  assert.doesNotMatch(proof, /'refund\.created'/);
+});
+
 test("seller-refund proof parameters have one explicit PostgreSQL type", () => {
   const sellerRefundProof = proof.match(
     /async function proveSellerRefundAuthority\(client\) \{([\s\S]*?)\n\}\n\nasync function proveStaffResolutionAuthority/,

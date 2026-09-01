@@ -293,7 +293,7 @@ async function seedBaseFixtures(client) {
     `, [
       orderId,
       ids.buyer,
-      `ch_case_invariant_proof_${position}`,
+      `ch_caseinvariantproof${position}`,
     ]);
     await client.query(`
       INSERT INTO public."OrderItem" (
@@ -461,7 +461,7 @@ async function proveCaseAndMessageInvariants(client) {
        SET status = 'RESOLVED',
            resolution = 'REFUND_FULL',
            "refundAmountCents" = 10000,
-           "stripeRefundId" = 're_case_invariant_proof',
+           "stripeRefundId" = 're_caseinvariantproof',
            "resolvedAt" = CURRENT_TIMESTAMP,
            "resolvedById" = $2,
            "updatedAt" = CURRENT_TIMESTAMP
@@ -521,29 +521,35 @@ async function proveCaseAndMessageInvariants(client) {
   );
   await client.query("SET CONSTRAINTS ALL DEFERRED");
 
+  // Seed the forged source outside the rejection assertion. This must satisfy
+  // the promoted immutable OrderPaymentEvent ledger shape so the negative
+  // proof can fail only at the Case-to-Order charge-binding boundary.
+  await client.query(`
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
+      currency, metadata,
+      "createdAt", "updatedAt"
+    )
+    VALUES (
+      'case-invariant-proof-forged-case-dispute-event',
+      $1, 'evt_caseinvariantproofforgedcasedispute',
+      'du_caseinvariantproofforged', 'dispute', 'DISPUTE',
+      1770000000, 'usd',
+      pg_catalog.jsonb_build_object(
+        'chargeId', 'ch_wrongcaseinvariantproof',
+        'disputeId', 'du_caseinvariantproofforged',
+        'stripeEventType', 'charge.dispute.created',
+        'stripeEventCreated', 1770000000
+      ),
+      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+  `, [ids.sourceOrder]);
+
   await expectPostgresError(
     client,
     "forged_case_dispute_source",
     async () => {
-      await client.query(`
-        INSERT INTO public."OrderPaymentEvent" (
-          id, "orderId", "stripeEventId", "stripeObjectId",
-          "stripeObjectType", "eventType", currency, metadata,
-          "createdAt", "updatedAt"
-        )
-        VALUES (
-          'case-invariant-proof-forged-case-dispute-event',
-          $1, 'evt_case_invariant_proof_forged_case_dispute',
-          'dp_case_invariant_proof_forged', 'dispute', 'DISPUTE', 'usd',
-          pg_catalog.jsonb_build_object(
-            'chargeId', 'ch_wrong_case_invariant_proof',
-            'disputeId', 'dp_case_invariant_proof_forged',
-            'stripeEventType', 'charge.dispute.created',
-            'stripeEventCreated', 1770000000
-          ),
-          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-        )
-      `, [ids.sourceOrder]);
       await client.query(`
         INSERT INTO public."Case" (
           id, "orderId", "buyerId", "sellerId", reason, description,
@@ -565,16 +571,18 @@ async function proveCaseAndMessageInvariants(client) {
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
       id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", currency, metadata,
+      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
+      currency, metadata,
       "createdAt", "updatedAt"
     )
     VALUES (
       'case-invariant-proof-dispute-event',
-      $1, 'evt_case_invariant_proof_dispute',
-      'dp_case_invariant_proof', 'dispute', 'DISPUTE', 'usd',
+      $1, 'evt_caseinvariantproofdispute',
+      'du_caseinvariantproof', 'dispute', 'DISPUTE',
+      1770000000, 'usd',
       pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_case_invariant_proof_1',
-        'disputeId', 'dp_case_invariant_proof',
+        'chargeId', 'ch_caseinvariantproof1',
+        'disputeId', 'du_caseinvariantproof',
         'stripeEventType', 'charge.dispute.created',
         'stripeEventCreated', 1770000000
       ),
@@ -653,7 +661,7 @@ async function proveStripeDisputeAuthority(client) {
        SET status = 'RESOLVED',
            resolution = 'REFUND_FULL',
            "refundAmountCents" = 10000,
-           "stripeRefundId" = 're_case_invariant_stale_snapshot',
+           "stripeRefundId" = 're_caseinvariantstalesnapshot',
            "resolvedAt" = CURRENT_TIMESTAMP,
            "resolvedById" = $2,
            "buyerMarkedResolved" = false,
@@ -665,17 +673,19 @@ async function proveStripeDisputeAuthority(client) {
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
       id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", currency, reason, metadata,
+      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
+      currency, reason, metadata,
       "createdAt", "updatedAt"
     )
     VALUES (
       'case-invariant-proof-reopen-event',
-      $1, 'evt_case_invariant_proof_reopen',
-      'dp_case_invariant_reopen', 'dispute', 'DISPUTE', 'usd',
+      $1, 'evt_caseinvariantproofreopen',
+      'du_caseinvariantreopen', 'dispute', 'DISPUTE',
+      1770000001, 'usd',
       'fraudulent',
       pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_case_invariant_proof_0',
-        'disputeId', 'dp_case_invariant_reopen',
+        'chargeId', 'ch_caseinvariantproof0',
+        'disputeId', 'du_caseinvariantreopen',
         'stripeEventType', 'charge.dispute.created',
         'stripeEventCreated', 1770000001
       ),
@@ -746,16 +756,18 @@ async function proveStripeDisputeAuthority(client) {
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
       id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", currency, status, metadata,
+      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
+      currency, status, metadata,
       "createdAt", "updatedAt"
     )
     VALUES (
       'case-invariant-proof-reopen-terminal-event',
-      $1, 'evt_case_invariant_proof_reopen_terminal',
-      'dp_case_invariant_reopen', 'dispute', 'DISPUTE', 'usd', 'won',
+      $1, 'evt_caseinvariantproofreopenterminal',
+      'du_caseinvariantreopen', 'dispute', 'DISPUTE',
+      1770000002, 'usd', 'won',
       pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_case_invariant_proof_0',
-        'disputeId', 'dp_case_invariant_reopen',
+        'chargeId', 'ch_caseinvariantproof0',
+        'disputeId', 'du_caseinvariantreopen',
         'stripeEventType', 'charge.dispute.closed',
         'stripeEventCreated', 1770000002
       ),
@@ -782,18 +794,20 @@ async function proveStripeDisputeAuthority(client) {
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
       id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", currency, status, metadata,
+      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
+      currency, status, metadata,
       "createdAt", "updatedAt"
     )
     VALUES
       (
         'case-invariant-proof-superseded-dispute-event',
-        $1, 'evt_case_invariant_proof_superseded',
-        'dp_case_invariant_superseded', 'dispute', 'DISPUTE', 'usd',
+        $1, 'evt_caseinvariantproofsuperseded',
+        'du_caseinvariantsuperseded', 'dispute', 'DISPUTE',
+        1770000002, 'usd',
         'needs_response',
         pg_catalog.jsonb_build_object(
-          'chargeId', 'ch_case_invariant_proof_3',
-          'disputeId', 'dp_case_invariant_superseded',
+          'chargeId', 'ch_caseinvariantproof3',
+          'disputeId', 'du_caseinvariantsuperseded',
           'stripeEventType', 'charge.dispute.created',
           'stripeEventCreated', 1770000002
         ),
@@ -801,12 +815,13 @@ async function proveStripeDisputeAuthority(client) {
       ),
       (
         'case-invariant-proof-terminal-dispute-event',
-        $1, 'evt_case_invariant_proof_terminal',
-        'dp_case_invariant_superseded', 'dispute', 'DISPUTE', 'usd',
+        $1, 'evt_caseinvariantproofterminal',
+        'du_caseinvariantsuperseded', 'dispute', 'DISPUTE',
+        1770000003, 'usd',
         'won',
         pg_catalog.jsonb_build_object(
-          'chargeId', 'ch_case_invariant_proof_3',
-          'disputeId', 'dp_case_invariant_superseded',
+          'chargeId', 'ch_caseinvariantproof3',
+          'disputeId', 'du_caseinvariantsuperseded',
           'stripeEventType', 'charge.dispute.closed',
           'stripeEventCreated', 1770000003
         ),
@@ -846,17 +861,20 @@ async function proveStripeDisputeAuthority(client) {
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
       id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", currency, metadata,
+      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
+      currency, metadata,
       "createdAt", "updatedAt"
     )
     VALUES (
       'case-invariant-proof-invalid-dispute-event',
-      $1, 'evt_case_invariant_proof_invalid_dispute',
-      'dp_case_invariant_invalid', 'dispute', 'DISPUTE', 'usd',
+      $1, 'evt_caseinvariantproofinvaliddispute',
+      'du_caseinvariantinvalid', 'dispute', 'DISPUTE',
+      1770000004, 'usd',
       pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_case_invariant_proof_wrong',
-        'disputeId', 'dp_case_invariant_invalid',
-        'stripeEventType', 'charge.dispute.created'
+        'chargeId', 'ch_caseinvariantproofwrong',
+        'disputeId', 'du_caseinvariantinvalid',
+        'stripeEventType', 'charge.dispute.created',
+        'stripeEventCreated', 1770000004
       ),
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
@@ -875,7 +893,7 @@ async function proveStripeDisputeAuthority(client) {
 }
 
 async function proveSellerRefundAuthority(client) {
-  const refundId = "re_case_invariant_seller_refund";
+  const refundId = "re_caseinvariantsellerrefund";
   const paymentEventId = "case-invariant-proof-seller-refund-event";
   await insertParticipantCase(
     client,
@@ -1020,7 +1038,7 @@ async function proveSellerRefundAuthority(client) {
   });
 
   const invalidEventId = "case-invariant-proof-invalid-seller-refund-event";
-  const invalidRefundId = "re_case_invariant_invalid_seller_refund";
+  const invalidRefundId = "re_caseinvariantinvalidsellerrefund";
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
       id, "orderId", "stripeEventId", "stripeObjectId",
@@ -1269,8 +1287,8 @@ async function proveStaffResolutionAuthority(
     () => client.query(`
       SELECT public.grainline_case_staff_resolution_provider_record(
         $1, $2, 'AMBIGUOUS',
-        're_case_staff_forged',
-        ARRAY['re_case_staff_forged']::text[],
+        're_casestaffforged',
+        ARRAY['re_casestaffforged']::text[],
         ARRAY['succeeded']::text[],
         NULL, NULL, false, false
       )
@@ -1624,13 +1642,22 @@ async function proveClaimLedger(client) {
 
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "eventType",
-      "amountCents", currency, "createdAt", "updatedAt"
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", "amountCents", currency,
+      reason, metadata, "createdAt", "updatedAt"
     )
     VALUES (
       'case-invariant-proof-wrong-order-refund-event',
-      $1, 'evt_case_invariant_proof_wrong_order_refund',
-      'refund.created', 10000, 'usd',
+      $1,
+      'local:case_refund_recorded:re_caseinvariantwrongorderrefund',
+      're_caseinvariantwrongorderrefund',
+      'refund', 'REFUND', 10000, 'usd', 'case_resolution_refund',
+      pg_catalog.jsonb_build_object(
+        'localAction', 'CASE_REFUND_RECORDED',
+        'refundIds', pg_catalog.jsonb_build_array(
+          're_caseinvariantwrongorderrefund'
+        )
+      ),
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [ids.sourceOrder]);
@@ -1652,13 +1679,22 @@ async function proveClaimLedger(client) {
 
   await client.query(`
     INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "eventType",
-      "amountCents", currency, "createdAt", "updatedAt"
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", "amountCents", currency,
+      reason, metadata, "createdAt", "updatedAt"
     )
     VALUES (
       'case-invariant-proof-refund-event',
-      $1, 'evt_case_invariant_proof_refund',
-      'refund.created', 10000, 'usd',
+      $1,
+      'local:case_refund_recorded:re_caseinvariantrefund',
+      're_caseinvariantrefund',
+      'refund', 'REFUND', 10000, 'usd', 'case_resolution_refund',
+      pg_catalog.jsonb_build_object(
+        'localAction', 'CASE_REFUND_RECORDED',
+        'refundIds', pg_catalog.jsonb_build_array(
+          're_caseinvariantrefund'
+        )
+      ),
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
   `, [ids.refundOrder]);
@@ -1699,13 +1735,22 @@ async function proveClaimLedger(client) {
     async () => {
       await client.query(`
         INSERT INTO public."OrderPaymentEvent" (
-          id, "orderId", "stripeEventId", "eventType",
-          "amountCents", currency, "createdAt", "updatedAt"
+          id, "orderId", "stripeEventId", "stripeObjectId",
+          "stripeObjectType", "eventType", "amountCents", currency,
+          reason, metadata, "createdAt", "updatedAt"
         )
         VALUES (
           'case-invariant-proof-refund-event-rebind',
-          $1, 'evt_case_invariant_proof_refund_rebind',
-          'refund.created', 10000, 'usd',
+          $1,
+          'local:case_refund_recorded:re_caseinvariantrefundrebind',
+          're_caseinvariantrefundrebind',
+          'refund', 'REFUND', 10000, 'usd', 'case_resolution_refund',
+          pg_catalog.jsonb_build_object(
+            'localAction', 'CASE_REFUND_RECORDED',
+            'refundIds', pg_catalog.jsonb_build_array(
+              're_caseinvariantrefundrebind'
+            )
+          ),
           CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
       `, [ids.refundOrder]);

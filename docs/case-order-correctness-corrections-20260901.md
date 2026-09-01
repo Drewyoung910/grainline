@@ -117,3 +117,15 @@ the retired seller-refund Case function. No migration or production change
 occurred. The corrected builder now encodes runtime EXECUTE as part of both the
 predecessor and postflight catalog, keeps that one function runtime-ungranted,
 and has a class-specific regression test against future revival.
+
+Replacement CI run `33559078992` then failed before exercising the Case source
+trigger because this older Case proof still generated pre-ledger dispute rows:
+it used the obsolete `dp_` object prefix and omitted the now-required signed
+`stripeEventCreatedSeconds` witness. PostgreSQL correctly rejected that fixture
+under the promoted immutable `OrderPaymentEvent` source-shape constraint. This
+was proof drift, not evidence that the Case relationship trigger accepted a
+forged charge. The proof fixtures now use ledger-valid `du_` dispute identities,
+matching signed event-time fields and valid local refund evidence, so the
+negative Case test reaches the intended boundary: a structurally valid dispute
+event whose `chargeId` does not match the locked Order must be rejected by
+`grainline_case_relationship_valid`. Production remained unchanged.
