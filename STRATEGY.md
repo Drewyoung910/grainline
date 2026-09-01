@@ -15,12 +15,12 @@ Activate it separately, then continue directly with `OrderItem`, then
 Order-domain program, not unrelated work saved for later.
 
 The audit confirms that the compatible seller key and payment service-ledger
-prerequisites are real progress, but core consumers have not fully adopted
-them. Seller pages, exports and maintenance paths still derive authority from
-live Listings, buyer/seller history still renders mutable Listing facts, raw
-shipping quote payloads cross the account-export boundary, and 41 source files
-still touch Order authority directly. Before RLS, add actor-specific fixed
-projections, make historical snapshots canonical, convert every write and
+prerequisites are real progress. The isolated conversion chain has corrected
+mutable Listing attribution, historical presentation, export scope, analytics,
+pagination, and participant-detail behavior while reducing the direct Order
+inventory to 22 source files. Staff, maintenance, checkout-success, and write
+families still remain. Before RLS, finish actor-specific fixed projections,
+keep historical snapshots canonical, convert every write and
 maintenance family to a source-validating operation, rerun aggregate-only
 legacy inspection, deploy and drain the compatible app, and prove the inventory
 has reached zero ordinary-runtime Order access.
@@ -2343,6 +2343,19 @@ Listing data is reduced to a link-eligibility boolean. The candidate remains
 compatible and unapplied; page conversion, pooled-runtime proof, staff/export/
 aggregate projections and every write family remain required before Order RLS.
 See `docs/order-participant-detail-authority.md`.
+
+### Core Order participant detail projection decision (2026-09-01)
+
+Do not freeze dead messaging actions or over-broad historical payloads merely
+because the first detail authority was already byte-sealed. Preserve the v1
+migration and add a v2 successor that requires an active actor in PostgreSQL,
+returns a nullable counterparty contact target, suppresses seller notes after
+buyer-data purge, withholds label download material unless the label is
+`PURCHASED`, and exposes only snapshot keys used by the receipt. Buyer and
+seller detail pages must consume only v2; ordinary runtime execution of v1
+stays revoked. This conversion reduces direct Order sources from 24 to 22 but
+does not authorize activation. See
+`docs/order-participant-detail-projection.md`.
 
 ### Core Order staff-read credential decision (2026-08-31)
 

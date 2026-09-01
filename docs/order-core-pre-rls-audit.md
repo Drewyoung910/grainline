@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 24 source files still touch Order authority directly
+### ORD-A05: 22 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -132,8 +132,6 @@ would preserve the same over-broad credential authority.
 Participant, account and export reads:
 
 - `src/app/checkout/success/page.tsx`
-- `src/app/dashboard/orders/[id]/page.tsx`
-- `src/app/dashboard/sales/[orderId]/page.tsx`
 
 Staff and administrative reads/transitions:
 
@@ -286,6 +284,18 @@ first UI order. The seller page now uses the durable full Order subtotal rather
 than summing the five displayed summaries, preventing underreported totals for
 larger Orders. The direct Order inventory falls from 26 to 24. See
 `docs/order-participant-cursor-authority.md`; no production state changed.
+
+2026-09-01 implementation checkpoint: the isolated
+`20260901100000_prepare_order_participant_detail_projection` successor converts
+`src/app/dashboard/orders/[id]/page.tsx` and
+`src/app/dashboard/sales/[orderId]/page.tsx` to corrected v2 actor-bound
+projections. The product audit removes dead counterparty messaging actions,
+suppresses seller notes after buyer-data purge, strips label material unless
+the label is actually purchased, narrows unused snapshot fields, and requires
+an active actor inside PostgreSQL. The sealed v1 functions become
+runtime-private building blocks and only v2 remains runtime-executable. The
+direct Order inventory falls from 24 to 22. See
+`docs/order-participant-detail-projection.md`; no production state changed.
 
 ### ORD-A09: write conversion must preserve lock and provider semantics
 

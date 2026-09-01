@@ -9,9 +9,12 @@ const historicalRenderers = [
   "src/app/admin/orders/[id]/page.tsx",
   "src/app/admin/orders/page.tsx",
   "src/app/checkout/success/page.tsx",
-  "src/app/dashboard/orders/[id]/page.tsx",
-  "src/app/dashboard/sales/[orderId]/page.tsx",
   "src/app/api/seller/analytics/recent-sales/route.ts",
+];
+
+const participantDetailRenderers = [
+  ["src/app/dashboard/orders/[id]/page.tsx", "readBuyerOrderDetail"],
+  ["src/app/dashboard/sales/[orderId]/page.tsx", "readSellerOrderDetail"],
 ];
 
 const boundedSummaryRenderers = [
@@ -30,7 +33,6 @@ const durableSellerConsumers = [
   "src/app/api/orders/[id]/label/route.ts",
   "src/app/api/orders/[id]/refund/route.ts",
   "src/app/api/stripe/webhook/route.ts",
-  "src/app/dashboard/sales/[orderId]/page.tsx",
   "src/lib/accountDeletion.ts",
   "src/lib/ban.ts",
 ];
@@ -52,6 +54,12 @@ describe("core Order historical compatibility", () => {
       const source = read(file);
       assert.match(source, /readSellerOrderSummaryPage/, file);
       assert.doesNotMatch(source, /prisma\.order|\.listing\.title|\.listing\.photos/, file);
+    }
+    for (const [file, authority] of participantDetailRenderers) {
+      const source = read(file);
+      assert.match(source, new RegExp(`${authority}\\(`), file);
+      assert.match(source, /\.snapshot\.(?:title|imageUrls|sellerName)/, file);
+      assert.doesNotMatch(source, /prisma\.order|listingSnapshot|readHistoricalOrderItemSnapshot/, file);
     }
     const summaryAuthority = read(
       "prisma/migrations/20260901080000_prepare_order_participant_summary_authority/migration.sql",
@@ -105,12 +113,18 @@ describe("core Order historical compatibility", () => {
   it("binds participant detail reads in the database predicate", () => {
     assert.match(
       read("src/app/dashboard/orders/[id]/page.tsx"),
-      /findFirst\(\{\s*where: \{ id, buyerId: me\.id \}/s,
+      /readBuyerOrderDetail\(me\.id, id\)/,
     );
     assert.match(
       read("src/app/dashboard/sales/[orderId]/page.tsx"),
-      /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s,
+      /readSellerOrderDetail\(me\.id, orderId\)/,
     );
+    const authority = read(
+      "prisma/migrations/20260901010000_prepare_order_participant_detail_authority/migration.sql",
+    );
+    assert.match(authority, /source_order\."buyerId" = p_actor_user_id/g);
+    assert.match(authority, /seller\.id = source_order\."sellerProfileId"/g);
+    assert.match(authority, /seller\."userId" = p_actor_user_id/g);
   });
 
   it("writes the expanded snapshot in both paid webhook families", () => {

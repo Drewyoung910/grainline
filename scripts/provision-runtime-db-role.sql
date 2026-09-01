@@ -2466,7 +2466,40 @@ SELECT format(
   function_signature,
   :'runtime_role'
 )
-  FROM order_participant_cursor_runtime
+ FROM order_participant_cursor_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Participant detail v2 adds active-actor and counterparty-contact checks,
+-- enforces purge and label exposure semantics, and strips unused historical
+-- snapshot keys. Retire ordinary-runtime execution on the v1 projections.
+WITH order_participant_detail_projection_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail"(text, text)'),
+    ('public."grainline_order_seller_detail"(text, text)'),
+    ('public."grainline_order_buyer_detail_v2"(text, text)'),
+    ('public."grainline_order_seller_detail_v2"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_detail_projection_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_detail_projection_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail_v2"(text, text)'),
+    ('public."grainline_order_seller_detail_v2"(text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_detail_projection_runtime
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 

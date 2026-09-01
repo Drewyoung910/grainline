@@ -104,6 +104,14 @@ with explicit Previous/Next navigation instead of growing OFFSET scans. The
 seller list total uses the complete durable Order subtotal rather than the
 five displayed summaries. See `docs/order-participant-cursor-authority.md`.
 
+The following 2026-09-01 participant-detail checkpoint advances the direct
+Order floor from 24 to 22 while retaining the 4-file OrderItem floor. A fresh
+product/privacy review converts both participant detail pages to corrected v2
+projections, removes dead counterparty messaging actions, enforces active
+actors inside PostgreSQL, suppresses purged seller notes and stale label
+material, and narrows full-item snapshots to fields the receipt actually uses.
+See `docs/order-participant-detail-projection.md`.
+
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above
 intentionally retains their three-file and four-file production/predecessor

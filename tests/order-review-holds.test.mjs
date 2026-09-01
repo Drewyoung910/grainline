@@ -65,11 +65,22 @@ describe("order review holds", () => {
 
   it("hides seller fulfillment controls while a deauthorization hold is active", () => {
     const page = source("src/app/dashboard/sales/[orderId]/page.tsx");
+    const detailAuthority = source(
+      "prisma/migrations/20260901010000_prepare_order_participant_detail_authority/migration.sql",
+    );
+    const detailProjection = source(
+      "prisma/migrations/20260901100000_prepare_order_participant_detail_projection/migration.sql",
+    );
     const actionStart = page.indexOf("<div className=\"font-medium\">Fulfillment actions</div>");
     const actionEnd = page.indexOf("{/* Seller notes */}", actionStart);
     const actionBlock = page.slice(actionStart, actionEnd);
 
-    assert.match(page, /const deauthorizedReviewHold = orderHasDeauthorizedSellerReviewHold\(order\)/);
+    assert.match(page, /const deauthorizedReviewHold = order\.deauthorizedReviewHold/);
+    assert.match(
+      detailAuthority,
+      /source_order\."reviewNeeded"\s+AND source_order\."reviewNote" LIKE 'Seller Stripe account was deauthorized after payment\.%'/,
+    );
+    assert.match(detailProjection, /detail\.deauthorized_review_hold/);
     assert.match(actionBlock, /\{deauthorizedReviewHold \? \(/);
     assert.match(actionBlock, /DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE/);
     assert.ok(
