@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 26 source files still touch Order authority directly
+### ORD-A05: 24 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -131,11 +131,9 @@ would preserve the same over-broad credential authority.
 
 Participant, account and export reads:
 
-- `src/app/account/orders/page.tsx`
 - `src/app/checkout/success/page.tsx`
 - `src/app/dashboard/orders/[id]/page.tsx`
 - `src/app/dashboard/sales/[orderId]/page.tsx`
-- `src/app/dashboard/sales/page.tsx`
 
 Staff and administrative reads/transitions:
 
@@ -275,6 +273,19 @@ unbounded item payloads. The full buyer history and seller sales pages remain
 direct until their offset pagination is deliberately converted to cursor
 navigation. See `docs/order-participant-summary-authority.md`; no production
 state changed.
+
+2026-09-01 implementation checkpoint: the isolated
+`20260901090000_prepare_order_participant_cursor_authority` candidate adds the
+newer-page half of the participant keyset contract and converts
+`src/app/account/orders/page.tsx` plus `src/app/dashboard/sales/page.tsx` off
+direct Order reads. The product audit rejected both growing OFFSET scans and
+cursor pagination without a usable Previous control. Opaque, strictly parsed
+tokens now bind a direction, page label and `(createdAt,id)` boundary; older
+and newer database queries remain bounded and return rows in the same newest-
+first UI order. The seller page now uses the durable full Order subtotal rather
+than summing the five displayed summaries, preventing underreported totals for
+larger Orders. The direct Order inventory falls from 26 to 24. See
+`docs/order-participant-cursor-authority.md`; no production state changed.
 
 ### ORD-A09: write conversion must preserve lock and provider semantics
 

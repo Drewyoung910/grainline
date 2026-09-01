@@ -1,7 +1,8 @@
 # Order participant summary authority
 
-Status: isolated compatible preparation; not merged, deployed or applied to
-production as of 2026-09-01.
+Status: isolated compatible preparation with a separately byte-pinned cursor
+successor; neither is merged, deployed or applied to production as of
+2026-09-01.
 
 ## Product finding
 
@@ -54,15 +55,15 @@ This checkpoint converts:
 - `src/app/dashboard/orders/page.tsx` (first buyer dashboard page).
 
 It reduces the exact direct Order source inventory from 28 to 26. The
-following list surfaces intentionally remain for the next conversion:
+following list surfaces were intentionally left for the separate
+bidirectional-cursor successor:
 
 - `src/app/account/orders/page.tsx`; and
 - `src/app/dashboard/sales/page.tsx`.
 
-Those routes currently expose numbered offset pages. Their conversion must
-make an explicit product choice about cursor navigation and stable back/next
-links; it must not silently emulate offset pagination with repeated database
-reads or load unbounded rows.
+Migration `20260901090000_prepare_order_participant_cursor_authority` now
+converts both routes with bounded older/newer keyset navigation and strict
+opaque URL tokens. See `docs/order-participant-cursor-authority.md`.
 
 ## Verification
 

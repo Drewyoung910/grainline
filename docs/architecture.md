@@ -531,10 +531,15 @@ mutable Listing ownership cannot rewrite historical qualification. The
 participant list contract returns at most five checkout-time item summaries
 plus the full item count in the same keyset page; this preserves useful list
 cards without N+1 detail reads or unbounded payloads. The `SellerMetrics` cache
-write remains a separate later database boundary. See
+write remains a separate later database boundary. Full participant histories
+use strict opaque older/newer `(createdAt,id)` keyset cursors so deep pages do
+not grow OFFSET work and Previous navigation remains available. Seller list
+totals use the complete durable Order subtotal, never the five displayed item
+summaries. See
 `docs/order-core-pre-rls-audit.md`, `docs/order-seller-analytics-authority.md`
 `docs/order-seller-metrics-authority.md` and
-`docs/order-participant-summary-authority.md`.
+`docs/order-participant-summary-authority.md` and
+`docs/order-participant-cursor-authority.md`.
 
 ### Messaging
 

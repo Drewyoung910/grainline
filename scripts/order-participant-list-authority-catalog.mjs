@@ -57,6 +57,12 @@ export const ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION_SHA256 =
   "bc400e434c07e65bdba178641ca8ff00d0ba00b7ac6a7f8b90d71b9e8164b18b";
 export const ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION_TREE_SHA256 =
   "800a12cd2545e93327d280e58a03f805abb6a76435363aede3c0170bd6848c9b";
+export const ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION =
+  "20260901090000_prepare_order_participant_cursor_authority";
+export const ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION_SHA256 =
+  "374b6f43af74b45e8abaecea9610cd9083f9c94cadab1118f94607a4cfc31af4";
+export const ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION_TREE_SHA256 =
+  "4cd6bff3ea76a287465ccd083b40b4ef17f047fdd31241929dcdc151c0fe9bee";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_count(text)",
@@ -102,6 +108,10 @@ export const ORDER_PARTICIPANT_SUMMARY_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_summary_items(text)",
   "grainline_order_buyer_summary_page(text,integer,bigint,text)",
   "grainline_order_seller_summary_page(text,integer,bigint,text)",
+]);
+export const ORDER_PARTICIPANT_CURSOR_AUTHORITY_FUNCTIONS = Object.freeze([
+  "grainline_order_buyer_summary_after_page(text,integer,bigint,text)",
+  "grainline_order_seller_summary_after_page(text,integer,bigint,text)",
 ]);
 
 function sha256(value) {
@@ -279,6 +289,25 @@ export function verifyOrderParticipantSummaryAuthorityMigrationBytes(
   return Object.freeze({ migration, migrationSha256 });
 }
 
+export function verifyOrderParticipantCursorAuthorityMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION_SHA256,
+    "Order participant cursor-authority migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
 export function appendReviewedOrderParticipantListAuthoritySuccessor({
   root = process.cwd(),
   laterMigrations,
@@ -361,6 +390,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderParticipantSummaryAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION,
+      "Order participant cursor authority requires the exact summary-authority predecessor",
+    );
+    verifyOrderParticipantCursorAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION);
   }
   return true;
 }

@@ -10,12 +10,19 @@ import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { SalesListSkeleton } from "@/components/CommerceRouteSkeletons";
-import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
+import {
+  countSellerOrders,
+  readSellerOrderSummaryPage,
+} from "@/lib/orderParticipantReadAuthority";
+import {
+  buildOrderHistoryCursor,
+  orderListCursorFromRow,
+  parseOrderHistoryCursor,
+} from "@/lib/orderHistoryCursor";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -41,7 +48,7 @@ function StatusBadge({ status }: { status: FulfillmentStatus }) {
 }
 
 export default function SalesPage(props: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ cursor?: string | string[] }>;
 }) {
   return (
     <Suspense fallback={<SalesListSkeleton />}>
@@ -53,7 +60,7 @@ export default function SalesPage(props: {
 async function SalesContent({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ cursor?: string | string[] }>;
 }) {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in?redirect_url=/dashboard/sales");
@@ -102,37 +109,45 @@ async function SalesContent({
     );
   }
 
-  const { page: pageParam } = await searchParams;
-  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
-
-  const where = { sellerProfileId: seller.id } as const;
-
-  const total = await prisma.order.count({ where });
+  const { cursor: rawCursor } = await searchParams;
+  const historyCursor = parseOrderHistoryCursor(rawCursor);
+  const page = historyCursor?.page ?? 1;
+  const [total, orderPage] = await Promise.all([
+    countSellerOrders(me.id),
+    readSellerOrderSummaryPage({
+      actorUserId: me.id,
+      limit: PAGE_SIZE,
+      cursor: historyCursor?.boundary ?? null,
+      direction: historyCursor?.direction ?? "older",
+    }),
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const safePage = Math.min(requestedPage, totalPages);
-
-  const orders = await prisma.order.findMany({
-    where,
-    include: {
-      items: {
-        select: {
-          id: true,
-          listingId: true,
-          listingSnapshot: true,
-          priceCents: true,
-          quantity: true,
-        },
-      },
-      buyer: { select: { id: true, deletedAt: true } },
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (safePage - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-  });
+  const orders = orderPage.rows;
+  if (historyCursor && (page > totalPages || (total > 0 && orders.length === 0))) {
+    redirect("/dashboard/sales");
+  }
   const refundOutcomes = await sellerRefundOutcomes(
     me.id,
     orders.map((order) => order.id),
   );
+  const firstOrder = orders[0];
+  const lastOrder = orders.at(-1);
+  const previousHref = page <= 1 || !firstOrder
+    ? null
+    : page === 2
+      ? "/dashboard/sales"
+      : `/dashboard/sales?cursor=${encodeURIComponent(buildOrderHistoryCursor({
+          direction: "newer",
+          page: page - 1,
+          boundary: orderListCursorFromRow(firstOrder),
+        }))}`;
+  const nextHref = page >= totalPages || !lastOrder
+    ? null
+    : `/dashboard/sales?cursor=${encodeURIComponent(buildOrderHistoryCursor({
+        direction: "older",
+        page: page + 1,
+        boundary: orderListCursorFromRow(lastOrder),
+      }))}`;
 
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-6">
@@ -148,15 +163,13 @@ async function SalesContent({
           <ul className="space-y-4">
             {orders.map((o) => {
               const myItems = o.items;
-              const mySubtotalCents = myItems.reduce(
-                (s, it) => s + it.priceCents * it.quantity,
-                0
-              );
+              const mySubtotalCents = o.itemsSubtotalCents;
               const currency = o.currency ?? DEFAULT_CURRENCY;
               const shipping = o.shippingAmountCents ?? 0;
               const tax = o.taxAmountCents ?? 0;
               const giftWrapping = o.giftWrappingPriceCents ?? 0;
-              // Use this seller's items subtotal (not all-seller itemsSubtotalCents)
+              // Orders are durably single-seller; use the complete checkout subtotal,
+              // not the five item summaries rendered on this list card.
               const orderTotal = orderTotalCents(o, { itemsSubtotalCents: mySubtotalCents });
               const status = o.fulfillmentStatus ?? "PENDING";
               const refundAmountCents =
@@ -174,7 +187,7 @@ async function SalesContent({
                           Order <span className="text-neutral-500">#{o.id.slice(-8)}</span>
                         </Link>
                         <StatusBadge status={status} />
-                        {o.sellerNotes && (
+                        {o.sellerNotesPresent && (
                           <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
                             Notes
                           </span>
@@ -195,11 +208,7 @@ async function SalesContent({
 
                   <ul className="divide-y divide-neutral-100">
                     {myItems.map((it) => {
-                      const snapshot = readHistoricalOrderItemSnapshot(
-                        it.listingSnapshot,
-                        it.priceCents,
-                      );
-                      const img = snapshot.imageUrls[0];
+                      const img = it.imageUrl;
                       return (
                         <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                           {img ? (
@@ -210,10 +219,10 @@ async function SalesContent({
                           )}
                           <div className="min-w-0 flex-1">
                             <a
-                              href={publicListingPath(it.listingId, snapshot.title)}
+                              href={publicListingPath(it.listingId, it.title)}
                               className="block truncate text-sm font-medium hover:underline"
                             >
-                              {snapshot.title}
+                              {it.title}
                             </a>
                             <div className="mt-1 text-sm text-neutral-700">
                               {fmtMoney(it.priceCents, currency)} × {it.quantity}
@@ -225,6 +234,11 @@ async function SalesContent({
                         </li>
                       );
                     })}
+                    {o.itemCount > o.items.length && (
+                      <li className="px-4 py-3 text-sm text-neutral-500">
+                        +{o.itemCount - o.items.length} more item{o.itemCount - o.items.length === 1 ? "" : "s"}
+                      </li>
+                    )}
                   </ul>
 
                   <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-2">
@@ -271,12 +285,12 @@ async function SalesContent({
           {/* Pagination */}
           <div className="flex items-center justify-between text-sm text-neutral-500">
             <span>
-              {total} order{total !== 1 ? "s" : ""} · Page {safePage} of {totalPages}
+              {total} order{total !== 1 ? "s" : ""} · Page {page} of {totalPages}
             </span>
             <div className="flex gap-2">
-              {safePage > 1 ? (
+              {previousHref ? (
                 <Link
-                  href={`?page=${safePage - 1}`}
+                  href={previousHref}
                   className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
                 >
                   Previous
@@ -286,9 +300,9 @@ async function SalesContent({
                   Previous
                 </span>
               )}
-              {safePage < totalPages ? (
+              {nextHref ? (
                 <Link
-                  href={`?page=${safePage + 1}`}
+                  href={nextHref}
                   className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-neutral-50"
                 >
                   Next

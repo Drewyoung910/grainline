@@ -2440,6 +2440,36 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Bidirectional participant history adds only the newer-page half of the
+-- reviewed keyset contract. Both functions remain actor-bound and bounded.
+WITH order_participant_cursor_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_summary_after_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_summary_after_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_cursor_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_cursor_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_summary_after_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_summary_after_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_cursor_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_participant_export_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),
