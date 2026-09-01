@@ -2377,6 +2377,20 @@ same transaction as review creation. Keep seller-private analytics, public
 aggregates and maintenance scoring in later separate authority families. See
 `docs/order-eligibility-authority.md`.
 
+### Core Order public aggregate authority decision (2026-09-01)
+
+Public marketplace, seller and listing counters must not preserve broad Order
+or OrderItem reads merely because their outputs are public. Use separate fixed
+aggregate-only functions that derive current public seller/listing visibility
+and paid/refund/dispute eligibility inside PostgreSQL, revoke default PUBLIC
+execution, and return no row or participant identity. Preserve the existing
+homepage fulfilled and public seller-history semantics where their result is
+already an aggregate; apply the stricter public-catalog and conversion-dispute
+filters to listing quality and marketplace conversion metrics. Keep
+seller-private analytics, maintenance scoring and mutation state machines in
+later independent authority families. See
+`docs/order-public-aggregate-authority.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

@@ -19,12 +19,15 @@ describe("quality score query guardrails", () => {
   });
 
   it("excludes open, lost, and unknown Stripe disputes through the fixed Order projection", () => {
+    const publicAggregateAuthority = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
     for (const path of ["src/lib/quality-score.ts", "src/lib/site-metrics-snapshot.ts"]) {
       const text = source(path);
 
       assert.match(
         text,
-        /o\."paymentConversionDisputeBlocked" = false/,
+        /orderPublicAggregateAuthority|getPublic/,
         `${path} must use the database-maintained conversion-dispute projection`,
       );
       assert.doesNotMatch(
@@ -32,6 +35,7 @@ describe("quality score query guardrails", () => {
         /latestConversionBlockingDisputeLedgerExistsSql|FROM "OrderPaymentEvent" ope|LOWER\(ope\.status\)/,
       );
     }
+    assert.match(publicAggregateAuthority, /source_order\."paymentConversionDisputeBlocked" = false/u);
 
     const migration = source(
       "prisma/migrations/20260830010000_prepare_order_payment_event_aggregate_authority/migration.sql",

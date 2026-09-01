@@ -24,9 +24,6 @@ describe("order trust metrics guardrails", () => {
 
   it("requires raw-SQL marketplace trust metrics to count only Stripe-backed paid orders", () => {
     const paths = [
-      "src/lib/quality-score.ts",
-      "src/lib/site-metrics-snapshot.ts",
-      "src/lib/publicSellerStats.ts",
       "src/lib/metrics.ts",
       "src/app/api/seller/analytics/route.ts",
       "src/app/admin/verification/page.tsx",
@@ -45,6 +42,11 @@ describe("order trust metrics guardrails", () => {
     );
     assert.match(eligibility, /source_order\."paidAt" IS NOT NULL/);
     assert.match(eligibility, /source_order\."stripeSessionId" IS NOT NULL/);
+    const publicAggregates = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
+    assert.match(publicAggregates, /source_order\."paidAt" IS NOT NULL/);
+    assert.match(publicAggregates, /source_order\."stripeSessionId" IS NOT NULL/);
   });
 
   it("requires Prisma marketplace trust metrics to count only Stripe-backed paid orders", () => {
@@ -52,7 +54,6 @@ describe("order trust metrics guardrails", () => {
       "src/app/api/seller/analytics/recent-sales/route.ts",
       "src/app/account/page.tsx",
       "src/components/ReviewsSection.tsx",
-      "src/lib/homepageStats.ts",
     ];
 
     for (const path of paths) {
@@ -62,6 +63,7 @@ describe("order trust metrics guardrails", () => {
       assert.doesNotMatch(text, /paidAt: \{ not: null \}/, `${path} should not hand-roll paid checks`);
       assert.doesNotMatch(text, /stripeSessionId: \{ not: null \}/, `${path} should not hand-roll Stripe refs`);
     }
+    assert.match(source("src/lib/homepageStats.ts"), /getPublicFulfilledOrderCount/u);
   });
 
   it("documents that local dev order fixtures require VERCEL_ENV to be unset", () => {

@@ -2309,6 +2309,40 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Public Order aggregate operations return counts and timing summaries only.
+-- Keep PUBLIC closed and converge runtime EXECUTE while predecessor table
+-- grants remain available for the still-unconverted private/maintenance paths.
+WITH order_public_aggregate_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_public_fulfilled_count"()'),
+    ('public."grainline_order_public_seller_stats"(text, bigint)'),
+    ('public."grainline_order_public_listing_counts"(text[])'),
+    ('public."grainline_order_public_marketplace_listing_metrics"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_public_aggregate_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_public_aggregate_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_public_fulfilled_count"()'),
+    ('public."grainline_order_public_seller_stats"(text, bigint)'),
+    ('public."grainline_order_public_listing_counts"(text[])'),
+    ('public."grainline_order_public_marketplace_listing_metrics"()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_public_aggregate_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_participant_export_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),

@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 35 source files still touch Order authority directly
+### ORD-A05: 31 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -161,11 +161,7 @@ Eligibility, analytics and aggregate readers:
 
 - `src/app/api/seller/analytics/recent-sales/route.ts`
 - `src/app/api/seller/analytics/route.ts`
-- `src/lib/homepageStats.ts`
 - `src/lib/metrics.ts`
-- `src/lib/publicSellerStats.ts`
-- `src/lib/quality-score.ts`
-- `src/lib/site-metrics-snapshot.ts`
 
 Lifecycle, repair and retention readers/writers:
 
@@ -235,6 +231,17 @@ retains the parent-Order lock; the other operations return only a boolean or
 aggregate cents. Five source files leave the direct Order inventory, reducing
 it from 40 to 35. Seller-private analytics, public aggregates and maintenance
 scoring remain separate named-operation work; no production state changed.
+
+2026-09-01 implementation checkpoint: the isolated
+`20260901050000_prepare_order_public_aggregate_authority` candidate converts
+homepage fulfilled count, public seller shipping/sold totals, public listing
+quality counts and marketplace listing conversion totals to four aggregate-only
+functions. They return no Order row, participant, address or provider identity;
+public listing/seller visibility and paid/refund/dispute rules are derived in
+PostgreSQL. Four more files leave the direct Order inventory, reducing it from
+35 to 31, while three also leave the direct OrderItem inventory. Seller-private
+analytics and maintenance scoring remain separate named-operation work. See
+`docs/order-public-aggregate-authority.md`; no production state changed.
 
 ### ORD-A09: write conversion must preserve lock and provider semantics
 

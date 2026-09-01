@@ -23,11 +23,19 @@ function source(file) {
 describe("OrderPaymentEvent aggregate-authority application conversion", () => {
   it("keeps remaining aggregate consumers on fixed projections", () => {
     assert.equal(aggregateConsumers.length, 11);
+    const publicAggregateConsumers = new Set([
+      "src/lib/homepageStats.ts",
+      "src/lib/publicSellerStats.ts",
+      "src/lib/quality-score.ts",
+      "src/lib/site-metrics-snapshot.ts",
+    ]);
     for (const file of aggregateConsumers) {
       const value = source(file);
       assert.match(
         value,
-        /paymentRefundBlocked|paymentConversionDisputeBlocked/,
+        publicAggregateConsumers.has(file)
+          ? /orderPublicAggregateAuthority|getPublic/
+          : /paymentRefundBlocked|paymentConversionDisputeBlocked/,
         `${file} lost its fixed payment eligibility projection`,
       );
       assert.doesNotMatch(
@@ -56,14 +64,17 @@ describe("OrderPaymentEvent aggregate-authority application conversion", () => {
     for (const file of [
       "src/app/api/seller/analytics/route.ts",
       "src/lib/metrics.ts",
-      "src/lib/publicSellerStats.ts",
-      "src/lib/quality-score.ts",
-      "src/lib/site-metrics-snapshot.ts",
     ]) {
       const value = source(file);
       assert.match(value, /o\."paymentRefundBlocked" = false/u);
       assert.doesNotMatch(value, /Promise\.all\([^)]*orders\.map/u);
     }
+    const publicAuthority = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
+    assert.match(publicAuthority, /source_order\."paymentRefundBlocked" = false/u);
+    assert.match(publicAuthority, /source_order\."paymentConversionDisputeBlocked" = false/u);
+    assert.doesNotMatch(publicAuthority, /Promise\.all/u);
   });
 
   it("keeps destructive/admin races conservatively fail-closed", () => {

@@ -20,8 +20,6 @@ describe("seller analytics refund guardrails", () => {
       "src/app/api/seller/analytics/route.ts",
       "src/lib/metrics.ts",
       "src/app/admin/verification/page.tsx",
-      "src/lib/site-metrics-snapshot.ts",
-      "src/lib/quality-score.ts",
     ]) {
       const text = source(path);
 
@@ -36,6 +34,13 @@ describe("seller analytics refund guardrails", () => {
         `${path} should not enumerate the private payment ledger`,
       );
     }
+    for (const path of ["src/lib/site-metrics-snapshot.ts", "src/lib/quality-score.ts"]) {
+      assert.match(source(path), /orderPublicAggregateAuthority|getPublic/u);
+    }
+    assert.match(
+      source("prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql"),
+      /source_order\."paymentRefundBlocked" = false/u,
+    );
   });
 
   it("keeps recent sales on the fixed Order refund projection", () => {
@@ -47,11 +52,16 @@ describe("seller analytics refund guardrails", () => {
 
   it("keeps homepage fulfilled-order statistics on the fixed Order refund projection", () => {
     const homepageStats = source("src/lib/homepageStats.ts");
+    const publicAggregateAuthority = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
 
-    assert.match(homepageStats, /sellerRefundId: null/);
-    assert.match(homepageStats, /paymentRefundBlocked: false/);
+    assert.match(homepageStats, /getPublicFulfilledOrderCount/u);
+    assert.match(publicAggregateAuthority, /source_order\."sellerRefundId" IS NULL/u);
+    assert.match(publicAggregateAuthority, /source_order\."paymentRefundBlocked" = false/u);
     assert.doesNotMatch(homepageStats, /paymentEvents:|blockingRefundLedgerWhere|OrderPaymentEvent/);
-    assert.match(homepageStats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
+    assert.match(publicAggregateAuthority, /'DELIVERED'::public\."FulfillmentStatus"/u);
+    assert.match(publicAggregateAuthority, /'PICKED_UP'::public\."FulfillmentStatus"/u);
   });
 
   it("keeps seller and staff Case refunds visible to Guild sales filters", () => {

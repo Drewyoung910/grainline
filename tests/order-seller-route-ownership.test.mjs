@@ -64,16 +64,13 @@ describe("seller order mutation ownership guardrails", () => {
 
   it("keeps cached public seller stats on whole-order ownership", () => {
     const text = source("src/lib/publicSellerStats.ts");
+    const authority = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
 
-    assert.match(
-      text,
-      /EXISTS \([\s\S]*l\."sellerId" = \$\{sellerProfileId\}/,
-      "public seller stats must require at least one seller-owned item",
-    );
-    assert.match(
-      text,
-      /NOT EXISTS \([\s\S]*l\."sellerId" <> \$\{sellerProfileId\}/,
-      "public seller stats must exclude mixed-seller orders before exposing seller-order data",
-    );
+    assert.match(text, /getPublicSellerOrderStats/u);
+    assert.match(authority, /source_order\."sellerProfileId" = visible_seller\.id/u);
+    assert.match(authority, /source_item\."sellerProfileId" = visible_seller\.id/u);
+    assert.doesNotMatch(authority, /listing\."sellerId"\s*=\s*p_seller_profile_id/u);
   });
 });

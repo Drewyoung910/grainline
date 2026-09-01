@@ -39,8 +39,8 @@ The exact baseline is:
 
 | Model | Direct-access source files |
 |---|---:|
-| `Order` | 35 |
-| `OrderItem` | 9 |
+| `Order` | 31 |
+| `OrderItem` | 6 |
 | `OrderShippingRateQuote` | 2 |
 | `OrderPaymentEvent` | 2 |
 | `SellerPayoutEvent` | 3 |
@@ -54,12 +54,19 @@ through fixed source-bound authorities or database-maintained `Order`
 projections. The two remaining matches are the intentionally retained fixed
 refund-authority helpers in `orderRefundFinalization.ts` and
 `orderRefundRecordAuthority.ts`; neither grants generic table lookup or write
-authority. The separate 35-file semantic inventory remains authoritative for
+authority. The separate 36-file semantic inventory remains authoritative for
 nested projections, event-identity helpers, fixed Case/Notification functions,
 cron and provider side effects, so this smaller direct-access floor cannot hide
 semantic consumers. It includes the converted application callsites and
-`src/lib/orderEligibilityAuthority.ts`; the direct-access floor no longer counts
-the five consumers routed through its four source-bound functions.
+`src/lib/orderEligibilityAuthority.ts` and
+`src/lib/orderPublicAggregateAuthority.ts`; the direct-access floor no longer
+counts the nine consumers routed through those eight source-bound functions.
+
+The 2026-09-01 public-aggregate checkpoint preserves the historical 35/9
+post-eligibility snapshot while advancing the current direct floors to 31/6.
+It converts only public aggregate facts; seller-private analytics, maintenance
+and all Order mutation families remain independently pinned. See
+`docs/order-public-aggregate-authority.md`.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above

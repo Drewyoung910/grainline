@@ -51,19 +51,15 @@ const expectedOrderAccessFiles = [
   "src/lib/ban.ts",
   "src/lib/caseLifecycleLocks.ts",
   "src/lib/checkoutStockRestore.ts",
-  "src/lib/homepageStats.ts",
   "src/lib/labelClawbackRetry.ts",
   "src/lib/metrics.ts",
   "src/lib/orderRefundProviderReconciliation.ts",
-  "src/lib/publicSellerStats.ts",
-  "src/lib/quality-score.ts",
   "src/lib/refundLocks.ts",
-  "src/lib/site-metrics-snapshot.ts",
 ];
 
 describe("core Order pre-RLS audit", () => {
   it("pins every current direct Order source access", () => {
-    assert.equal(expectedOrderAccessFiles.length, 35);
+    assert.equal(expectedOrderAccessFiles.length, 31);
     assert.deepEqual(orderAccessFiles(), expectedOrderAccessFiles);
     for (const file of expectedOrderAccessFiles) {
       assert.equal(audit.includes(`\`${file}\``), true, file);

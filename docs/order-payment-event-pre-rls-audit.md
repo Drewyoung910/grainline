@@ -250,7 +250,9 @@ found one additional transitive semantic consumer,
 `src/lib/orderRefundFinalization.ts`, through its local-evidence event identity.
 The corrected pre-activation semantic inventory was 34 files. The 2026-09-01
 Order eligibility-authority successor adds one shared authority hub while
-retaining every converted callsite, so the current inventory is 35 files. This
+retaining every converted callsite. The public-aggregate successor adds a
+second shared authority hub while retaining the four converted aggregate
+call sites, so the current inventory is 36 files. This
 inventory is intentionally broader than the older seven-file direct-access
 floor; semantic wrapper references remain after their underlying base-table
 access is removed.
@@ -284,6 +286,7 @@ access is removed.
 - `src/lib/listingSoftDelete.ts`
 - `src/lib/metrics.ts`
 - `src/lib/orderEligibilityAuthority.ts`
+- `src/lib/orderPublicAggregateAuthority.ts`
 - `src/lib/publicSellerStats.ts`
 - `src/lib/quality-score.ts`
 - `src/lib/site-metrics-snapshot.ts`
@@ -772,8 +775,8 @@ The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
 - the historical 34-source semantic baseline converts to zero runtime
-  base-table access while the current 35-file inventory also retains the fixed
-  Order eligibility-authority hub;
+  base-table access while the current 36-file inventory also retains the fixed
+  Order eligibility and public-aggregate authority hubs;
 - fresh production data is classified with aggregate-only evidence;
 - buyer/seller/staff/service boundaries pass disposable PostgreSQL;
 - signed Stripe and local refund paths pass retry/concurrency proof;
