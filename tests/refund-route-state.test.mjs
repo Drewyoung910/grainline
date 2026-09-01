@@ -51,6 +51,12 @@ describe("refund route state", () => {
     assert.equal(refundAmountForResolution("REFUND_FULL", order, 100), 11_625);
   });
 
+  it("uses an exact provider charged total before the legacy reconstruction", () => {
+    const exactOrder = { ...order, chargedTotalCents: 10_900 };
+    assert.equal(orderRefundTotalCents(exactOrder), 10_900);
+    assert.equal(refundAmountForResolution("FULL", exactOrder, null), 10_900);
+  });
+
   it("uses the requested amount for partial refunds", () => {
     assert.equal(refundAmountForResolution("PARTIAL", order, 1_200), 1_200);
     assert.equal(refundAmountForResolution("REFUND_PARTIAL", order, 1_200), 1_200);

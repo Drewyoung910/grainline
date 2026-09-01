@@ -20,6 +20,11 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { buyerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import {
+  orderPaymentPresentationLabel,
+  orderPaymentPresentationState,
+  suppressActiveFulfillmentForPaymentState,
+} from "@/lib/orderPaymentPresentation";
+import {
   caseWindowClosedMessage,
   caseWindowClosesAt,
   isOrderCaseWindowClosed,
@@ -186,6 +191,17 @@ export default async function BuyerOrderDetailPage({
     activeCase?.refundAmountCents ??
     externalRefund?.amountCents ??
     null;
+  const paymentState = orderPaymentPresentationState({
+    paid: order.paidAt != null,
+    orderTotalCents: total,
+    refundAmountCents: refundCents,
+    refundRecorded: sellerRefundIssued || hasCaseRefund,
+    providerRefundStatus: externalRefund?.status ?? null,
+  });
+  const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
+    paymentState,
+    status,
+  );
 
   const caseOpen =
     activeCase &&
@@ -230,19 +246,29 @@ export default async function BuyerOrderDetailPage({
         </h1>
         <div className="flex items-center gap-2 text-sm text-neutral-600">
           <span>
-            Placed <LocalDate date={order.createdAt} /> · {order.paidAt ? "Paid" : "Unpaid"}
+            Placed <LocalDate date={order.createdAt} /> · {orderPaymentPresentationLabel(paymentState)}
           </span>
           <Badge>{method}</Badge>
-          <Badge>{fulfillmentStatusLabel(status)}</Badge>
+          <Badge>
+            {suppressActiveFulfillment
+              ? orderPaymentPresentationLabel(paymentState)
+              : fulfillmentStatusLabel(status)}
+          </Badge>
         </div>
       </header>
 
       <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
-        {status === "PENDING" && "Your maker is preparing your piece"}
-        {status === "SHIPPED" && <span className="flex items-center gap-1.5"><Truck size={14} className="inline shrink-0" /> Your piece is on its way!</span>}
-        {status === "DELIVERED" && "Delivered — enjoy your piece!"}
-        {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
-        {status === "PICKED_UP" && "Picked up — enjoy!"}
+        {suppressActiveFulfillment ? (
+          "Fully refunded — no fulfillment is required."
+        ) : (
+          <>
+            {status === "PENDING" && "Your maker is preparing your piece"}
+            {status === "SHIPPED" && <span className="flex items-center gap-1.5"><Truck size={14} className="inline shrink-0" /> Your piece is on its way!</span>}
+            {status === "DELIVERED" && "Delivered — enjoy your piece!"}
+            {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
+            {status === "PICKED_UP" && "Picked up — enjoy!"}
+          </>
+        )}
       </div>
 
       <OrderTimeline
@@ -258,17 +284,27 @@ export default async function BuyerOrderDetailPage({
         estimatedDeliveryDate={order.estimatedDeliveryDate}
         processingTimeMinDays={processingMins.length > 0 ? Math.min(...processingMins) : null}
         processingTimeMaxDays={processingMaxes.length > 0 ? Math.max(...processingMaxes) : null}
-        refundAmountCents={hasRefund ? refundCents : null}
+        refundAmountCents={
+          paymentState === "PARTIALLY_REFUNDED" || paymentState === "FULLY_REFUNDED"
+            ? refundCents
+            : null
+        }
         currency={currency}
       />
 
       {hasRefund && (
-        <div className="rounded-md border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-900">
+        <div className={`rounded-md border px-4 py-3 text-sm ${
+          paymentState === "REFUND_PROCESSING"
+            ? "border-amber-300 bg-amber-50 text-amber-900"
+            : "border-green-300 bg-green-50 text-green-900"
+        }`}>
           A refund of{" "}
           <span className="font-semibold">
             {refundCents != null ? fmtMoney(refundCents, currency) : "an amount"}
           </span>{" "}
-          has been issued to your original payment method. Please allow 5–10 business days.
+          {paymentState === "REFUND_PROCESSING"
+            ? "is processing. This page will update when the provider confirms it."
+            : "has been issued to your original payment method. Please allow 5–10 business days."}
         </div>
       )}
 

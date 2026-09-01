@@ -144,9 +144,15 @@ describe("Order label fixed-authority release", () => {
     assert.match(audit, /Production remains unchanged/);
   });
 
-  it("keeps the three compatible successors outside every historical FORCE gate", () => {
+  it("keeps later compatible successors outside every historical FORCE gate", () => {
     const workflow = source(".github/workflows/ci.yml");
     const packageSource = source("package.json");
+    const chargedTotalVerify = workflow.indexOf(
+      "Verify compatible Order charged-total witness",
+    );
+    const chargedTotalIsolate = workflow.indexOf(
+      "Isolate Order charged-total witness until label authority passes",
+    );
     const labelVerify = workflow.indexOf(
       "Verify compatible Order label authority release",
     );
@@ -169,7 +175,9 @@ describe("Order label fixed-authority release", () => {
       "Verify OrderPaymentEvent FORCE migration tree",
     );
     assert.ok(
-      labelVerify >= 0
+      chargedTotalVerify >= 0
+      && chargedTotalVerify < chargedTotalIsolate
+      && chargedTotalIsolate < labelVerify
       && labelVerify < labelIsolate
       && labelIsolate < fulfillmentVerify
       && fulfillmentVerify < fulfillmentIsolate
@@ -188,6 +196,9 @@ describe("Order label fixed-authority release", () => {
     const labelRestore = workflow.indexOf(
       "Restore compatible Order label authority release",
     );
+    const chargedTotalRestore = workflow.indexOf(
+      "Restore compatible Order charged-total witness",
+    );
     const compatibleApply = workflow.indexOf(
       "Apply compatible Order participant authority",
     );
@@ -195,7 +206,8 @@ describe("Order label fixed-authority release", () => {
       receiptRestore >= 0
       && receiptRestore < fulfillmentRestore
       && fulfillmentRestore < labelRestore
-      && labelRestore < compatibleApply,
+      && labelRestore < chargedTotalRestore
+      && chargedTotalRestore < compatibleApply,
       "compatible successors must be restored in migration order before application",
     );
     for (const applicationProof of [
@@ -204,7 +216,7 @@ describe("Order label fixed-authority release", () => {
     ]) {
       const restoredApplicationProof = workflow.indexOf(applicationProof);
       assert.ok(
-        restoredApplicationProof > labelRestore,
+        restoredApplicationProof > chargedTotalRestore,
         `${applicationProof} reads later migration sources and must run only after restoration`,
       );
       assert.equal(
@@ -216,6 +228,7 @@ describe("Order label fixed-authority release", () => {
       "audit:order-receipt-notification-authority-release",
       "audit:order-fulfillment-authority-release",
       "audit:order-label-authority-release",
+      "audit:order-charged-total-compatibility",
     ]) {
       assert.match(packageSource, new RegExp(`\"${command}\"`), command);
     }

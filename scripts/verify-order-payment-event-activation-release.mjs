@@ -50,6 +50,9 @@ import {
 import {
   ORDER_LABEL_AUTHORITY_MIGRATION,
 } from "./order-label-authority-catalog.mjs";
+import {
+  ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+} from "./order-charged-total-compatibility-catalog.mjs";
 
 export function verifyOrderPaymentEventActivationRelease(
   rootDirectory = process.cwd(),
@@ -148,6 +151,7 @@ export function verifyOrderPaymentEventActivationRelease(
             ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
             ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
             ORDER_LABEL_AUTHORITY_MIGRATION,
+            ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
           ]
         : []),
     ],

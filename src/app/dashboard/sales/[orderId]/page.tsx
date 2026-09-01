@@ -24,6 +24,11 @@ import { caseEscalationAvailable } from "@/lib/caseActionState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
+import {
+  orderPaymentPresentationLabel,
+  orderPaymentPresentationState,
+  suppressActiveFulfillmentForPaymentState,
+} from "@/lib/orderPaymentPresentation";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
@@ -168,6 +173,17 @@ export default async function SellerOrderDetailPage({
     activeCase?.resolution === "REFUND_FULL"
     || activeCase?.resolution === "REFUND_PARTIAL";
   const hasRefund = sellerRefundIssued || hasCaseRefund || !!externalRefund;
+  const paymentState = orderPaymentPresentationState({
+    paid: order.paidAt != null,
+    orderTotalCents: orderTotal,
+    refundAmountCents: refundCents,
+    refundRecorded: sellerRefundIssued || hasCaseRefund,
+    providerRefundStatus: externalRefund?.status ?? null,
+  });
+  const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
+    paymentState,
+    status,
+  );
   const buyerId = order.buyerId ?? "";
   const meId = me.id;
   const caseReplyUnavailableReason =
@@ -187,10 +203,14 @@ export default async function SellerOrderDetailPage({
         </h1>
         <div className="flex items-center gap-2 text-sm text-neutral-600">
           <span>
-            Placed <LocalDate date={order.createdAt} /> · {order.paidAt ? "Paid" : "Unpaid"}
+            Placed <LocalDate date={order.createdAt} /> · {orderPaymentPresentationLabel(paymentState)}
           </span>
           <Badge>{method}</Badge>
-          <Badge>{fulfillmentStatusLabel(status)}</Badge>
+          <Badge>
+            {suppressActiveFulfillment
+              ? orderPaymentPresentationLabel(paymentState)
+              : fulfillmentStatusLabel(status)}
+          </Badge>
           {order.reviewNeeded && <Badge>Review needed</Badge>}
         </div>
         <div className="text-neutral-600 text-sm">
@@ -199,11 +219,17 @@ export default async function SellerOrderDetailPage({
       </header>
 
       <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
-        {status === "PENDING" && "New order — time to get crafting!"}
-        {status === "SHIPPED" && "Shipped — nice work!"}
-        {status === "DELIVERED" && "Delivered — another happy buyer!"}
-        {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
-        {status === "PICKED_UP" && "Picked up — great work!"}
+        {suppressActiveFulfillment ? (
+          "Fully refunded — no fulfillment is required."
+        ) : (
+          <>
+            {status === "PENDING" && "New order — time to get crafting!"}
+            {status === "SHIPPED" && "Shipped — nice work!"}
+            {status === "DELIVERED" && "Delivered — another happy buyer!"}
+            {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
+            {status === "PICKED_UP" && "Picked up — great work!"}
+          </>
+        )}
       </div>
 
       <OrderTimeline
@@ -219,7 +245,11 @@ export default async function SellerOrderDetailPage({
         estimatedDeliveryDate={order.estimatedDeliveryDate}
         processingTimeMinDays={processingMins.length > 0 ? Math.min(...processingMins) : null}
         processingTimeMaxDays={processingMaxes.length > 0 ? Math.max(...processingMaxes) : null}
-        refundAmountCents={hasRefund ? refundCents : null}
+        refundAmountCents={
+          paymentState === "PARTIALLY_REFUNDED" || paymentState === "FULLY_REFUNDED"
+            ? refundCents
+            : null
+        }
         currency={currency}
       />
 
@@ -595,7 +625,7 @@ export default async function SellerOrderDetailPage({
               </div>
             );
           })()}
-          {order.processingDeadline && (() => {
+          {!suppressActiveFulfillment && order.processingDeadline && (() => {
             const overdue =
               order.processingDeadline < now &&
               !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(status);
@@ -639,13 +669,13 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          refundState="RECORDED"
+          refundState={paymentState === "REFUND_PROCESSING" ? "PROCESSING" : "RECORDED"}
           alreadyRefundedCents={externalRefund.amountCents ?? null}
         />
       )}
 
       {/* Actions */}
-      {(status !== "DELIVERED" && status !== "PICKED_UP") && (
+      {!suppressActiveFulfillment && status !== "DELIVERED" && status !== "PICKED_UP" && (
         <section className="card-section p-4 space-y-3">
           <div className="font-medium">Fulfillment actions</div>
 

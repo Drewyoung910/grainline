@@ -70,6 +70,9 @@ import {
 import {
   ORDER_LABEL_AUTHORITY_MIGRATION,
 } from "../scripts/order-label-authority-catalog.mjs";
+import {
+  ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+} from "../scripts/order-charged-total-compatibility-catalog.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/blocked-checkout-refund-delivery-production.yml",
@@ -182,6 +185,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION);
     remove(ORDER_LABEL_AUTHORITY_MIGRATION);
     remove(ORDER_FULFILLMENT_AUTHORITY_MIGRATION);
     remove(ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION);

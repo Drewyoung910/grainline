@@ -182,6 +182,7 @@
     "audit:order-receipt-notification-authority-release": "node --test tests/order-receipt-notification-authority-release.test.mjs",
     "audit:order-fulfillment-authority-release": "node --test tests/order-fulfillment-authority-release.test.mjs",
     "audit:order-label-authority-release": "node --test tests/order-label-authority-release.test.mjs",
+    "audit:order-charged-total-compatibility": "node --test tests/order-charged-total-compatibility.test.mjs tests/order-charged-total-compatibility-postgres.test.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope": "node scripts/verify-blocked-checkout-refund-delivery-production-scope.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres": "node scripts/blocked-checkout-refund-delivery-production-scope-postgres-proof.mjs",
     "audit:order-payment-compatible-production-scope": "node scripts/verify-order-payment-event-compatible-production-scope.mjs",

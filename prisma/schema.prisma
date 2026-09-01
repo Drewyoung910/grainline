@@ -582,6 +582,9 @@ model Order {
 
   // What Stripe actually charged / decided
   currency            String  @default("usd") @db.VarChar(3)
+  // Exact total from the retrieved paid Stripe Checkout Session. Nullable for
+  // legacy Orders created before the provider witness was retained.
+  chargedTotalCents   Int?
   itemsSubtotalCents  Int     @default(0) // items subtotal (excl. shipping & tax)
   shippingTitle       String? @db.VarChar(200)
   shippingAmountCents Int     @default(0)

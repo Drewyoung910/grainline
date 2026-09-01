@@ -7,6 +7,7 @@ import {
 type RefundResolution = "FULL" | "PARTIAL" | "REFUND_FULL" | "REFUND_PARTIAL" | "DISMISSED";
 
 type OrderRefundTotals = {
+  chargedTotalCents?: number | null;
   itemsSubtotalCents: number | null;
   shippingAmountCents: number | null;
   giftWrappingPriceCents: number | null;
@@ -17,6 +18,13 @@ export const STRIPE_DISPUTE_CLOSED_STATUSES = new Set(["won", "lost", "prevented
 export const NON_BLOCKING_REFUND_LEDGER_STATUSES = ["failed", "canceled", "cancelled"] as const;
 
 export function orderRefundTotalCents(order: OrderRefundTotals) {
+  if (
+    order.chargedTotalCents != null
+    && Number.isSafeInteger(order.chargedTotalCents)
+    && order.chargedTotalCents >= 0
+  ) {
+    return order.chargedTotalCents;
+  }
   return (
     (order.itemsSubtotalCents ?? 0) +
     (order.shippingAmountCents ?? 0) +
