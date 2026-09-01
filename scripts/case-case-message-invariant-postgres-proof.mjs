@@ -945,9 +945,8 @@ async function proveSellerRefundAuthority(client) {
   `);
   const runtimeExecute = grant.rows[0]?.runtime_execute;
   assert.equal(typeof runtimeExecute, "boolean");
-  if (runtimeExecute) {
-    await client.query("SET LOCAL ROLE grainline_app_runtime");
-  } else {
+  let temporaryRuntimeExecute = false;
+  if (!runtimeExecute) {
     await client.query("SET LOCAL ROLE grainline_app_runtime");
     await expectPostgresError(
       client,
@@ -959,7 +958,19 @@ async function proveSellerRefundAuthority(client) {
       /permission denied for function grainline_case_seller_refund_apply/,
     );
     await client.query("RESET ROLE");
+    // OrderPaymentEvent Phase A retired this direct runtime entry point. The
+    // application now reaches it only from the reviewed SECURITY DEFINER
+    // seller-refund recorder. Grant EXECUTE inside this rollback-only proof so
+    // the helper body can still be tested with an unprivileged caller, then
+    // revoke the proof-only grant before catalog assertions run.
+    await client.query(`
+      GRANT EXECUTE ON FUNCTION
+        public.grainline_case_seller_refund_apply(text, text)
+        TO grainline_app_runtime
+    `);
+    temporaryRuntimeExecute = true;
   }
+  await client.query("SET LOCAL ROLE grainline_app_runtime");
   await expectPostgresError(
     client,
     "forged_seller_refund_actor",
@@ -973,7 +984,7 @@ async function proveSellerRefundAuthority(client) {
     SELECT *
       FROM public.grainline_case_seller_refund_apply($1, $2)
   `, [ids.seller, paymentEventId]);
-  if (runtimeExecute) await client.query("RESET ROLE");
+  await client.query("RESET ROLE");
   assert.deepEqual(applied.rows, [{
     caseId: ids.sellerRefundCase,
     orderId: ids.sellerRefundOrder,
@@ -1097,6 +1108,13 @@ async function proveSellerRefundAuthority(client) {
     /Case seller-refund source is invalid/,
   );
   await client.query("RESET ROLE");
+  if (temporaryRuntimeExecute) {
+    await client.query(`
+      REVOKE EXECUTE ON FUNCTION
+        public.grainline_case_seller_refund_apply(text, text)
+        FROM grainline_app_runtime
+    `);
+  }
   const invalidResidue = await client.query(`
     SELECT pg_catalog.count(*)::integer AS count
       FROM public."CaseSellerRefundApplication"

@@ -114,7 +114,11 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /has_function_privilege\([\s\S]*?grainline_case_seller_refund_apply\(text,text\)[\s\S]*?'EXECUTE'/);
   assert.match(
     proof,
-    /if \(runtimeExecute\) \{[\s\S]*?SET LOCAL ROLE grainline_app_runtime[\s\S]*?\} else \{[\s\S]*?retired_runtime_seller_refund_entry_point/,
+    /if \(!runtimeExecute\) \{[\s\S]*?retired_runtime_seller_refund_entry_point[\s\S]*?GRANT EXECUTE ON FUNCTION[\s\S]*?temporaryRuntimeExecute = true/,
+  );
+  assert.match(
+    proof,
+    /if \(temporaryRuntimeExecute\) \{[\s\S]*?REVOKE EXECUTE ON FUNCTION[\s\S]*?FROM grainline_app_runtime/,
   );
   assert.match(proof, /CASE_SELLER_REFUND_APPLIED/);
   assert.match(proof, /grainline_case_staff_resolution_prepare/);

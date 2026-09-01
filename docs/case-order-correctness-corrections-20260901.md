@@ -158,8 +158,17 @@ candidate because the proof still assumed ordinary runtime could directly call
 from runtime after `OrderPaymentEvent` activation; the reviewed public refund
 operation invokes it only as an internal database-owned helper. The proof now
 reads the actual function grant, proves direct runtime denial in the retired
-posture, and tests the helper's forged-actor rejection and valid application in
-its database-owner execution context. It retains the predecessor runtime path
-when that historical grant is present. The shared rejection helper now includes
-the sanitized PostgreSQL message in assertion failures so a label cannot hide
-the next root cause. Production remained unchanged.
+posture and retains the predecessor runtime path when that historical grant is
+present. The shared rejection helper now includes the sanitized PostgreSQL
+message in assertion failures so a label cannot hide the next root cause.
+
+CI run `33565418901` then showed that resetting the simulated runtime role does
+not itself grant the CI migration session execution authority over the retired
+private helper. That was a proof-harness error, not an application or migration
+failure. The rollback-only proof now temporarily grants the runtime role
+EXECUTE only after proving the real retired denial, exercises the helper's
+forged-actor, valid, replay and forged-source paths under its real
+`SECURITY DEFINER` body, and revokes that temporary grant before the catalog
+assertions. The surrounding transaction is always rolled back, so neither the
+temporary proof grant nor any fixture can persist. Production remained
+unchanged throughout.
