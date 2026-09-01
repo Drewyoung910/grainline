@@ -51,11 +51,27 @@ describe("checkout success session parsing", () => {
     assert.equal(result.truncatedCount, 2);
   });
 
+  it("rejects overlong checkout session ids before the database boundary", () => {
+    const overlongSessionId = `cs_${"x".repeat(253)}`;
+    assert.deepEqual(
+      checkoutSuccessSessionIds({
+        sessionId: "cs_current",
+        sessionIds: `${overlongSessionId},cs_prior`,
+      }),
+      {
+        sessionIds: ["cs_prior", "cs_current"],
+        truncatedCount: 0,
+      },
+    );
+  });
+
   it("keeps the success page read-only after Stripe payment", () => {
     assert.doesNotMatch(checkoutSuccessSource, /\b(?:prisma|tx)\.order\.create\s*\(/);
     assert.doesNotMatch(checkoutSuccessSource, /prisma\.\$transaction/);
     assert.match(checkoutSuccessSource, /webhook is the only order writer/);
     assert.match(checkoutSuccessSource, /sessionMetadata\.buyerId/);
-    assert.match(checkoutSuccessSource, /buyerId: me\.id/);
+    assert.match(checkoutSuccessSource, /readBuyerCheckoutReceipts\(me\.id, sessionIds\)/);
+    assert.match(checkoutSuccessSource, /readBuyerCheckoutReceipts\(me\.id, \[sessionId\]\)/);
+    assert.doesNotMatch(checkoutSuccessSource, /\b(?:prisma|tx|client)\.order\b/);
   });
 });

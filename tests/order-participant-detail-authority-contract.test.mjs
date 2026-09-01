@@ -52,7 +52,7 @@ describe("Order participant detail authority contract", () => {
     assert.match(authority, /grainline_order_buyer_detail/);
     assert.match(authority, /grainline_order_seller_detail/);
     assert.match(state, /exactlyOneOrNone/);
-    assert.match(state, /itemsFromValue/);
+    assert.match(state, /participantOrderItemsFromValue/);
     assert.match(state, /sellerRefundAmountCents != null/);
   });
 

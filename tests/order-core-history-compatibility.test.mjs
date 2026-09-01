@@ -8,7 +8,6 @@ const record = read("docs/order-core-history-compatibility.md");
 const historicalRenderers = [
   "src/app/admin/orders/[id]/page.tsx",
   "src/app/admin/orders/page.tsx",
-  "src/app/checkout/success/page.tsx",
   "src/app/api/seller/analytics/recent-sales/route.ts",
 ];
 
@@ -45,6 +44,13 @@ describe("core Order historical compatibility", () => {
       assert.match(source, /listingSnapshot|firstItemListingSnapshot/, file);
       assert.doesNotMatch(source, /\.listing\.title|\.listing\.photos|\.listing\.seller\.displayName/, file);
     }
+    const checkoutReceipt = read("src/app/checkout/success/page.tsx");
+    assert.match(checkoutReceipt, /readBuyerCheckoutReceipts/);
+    assert.match(checkoutReceipt, /\.snapshot\.(?:title|imageUrls|sellerName)/);
+    assert.doesNotMatch(
+      checkoutReceipt,
+      /prisma\.order|listingSnapshot|readHistoricalOrderItemSnapshot/,
+    );
     for (const file of boundedSummaryRenderers) {
       const source = read(file);
       assert.match(source, /readBuyerOrderSummaryPage/, file);

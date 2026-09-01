@@ -162,7 +162,7 @@ function selectedVariantsFromValue(value: unknown): SelectedVariantSnapshot[] | 
   return result.length > 0 ? result : null;
 }
 
-function itemsFromValue(value: unknown): ParticipantOrderItem[] {
+export function participantOrderItemsFromValue(value: unknown): ParticipantOrderItem[] {
   if (!Array.isArray(value) || value.length > 100) {
     throw new TypeError("Order detail items are invalid");
   }
@@ -260,7 +260,7 @@ function baseDetail(value: Record<string, unknown>): ParticipantOrderDetailBase 
     shipToCountry: optionalText(value.ship_to_country, "ship-to country", 2),
     sellerRefundState: sellerRefundState as SellerRefundDisplayState,
     sellerRefundAmountCents,
-    items: itemsFromValue(value.items),
+    items: participantOrderItemsFromValue(value.items),
   };
   if (
     detail.buyerDataPurgedAt != null

@@ -106,11 +106,20 @@ five displayed summaries. See `docs/order-participant-cursor-authority.md`.
 
 The following 2026-09-01 participant-detail checkpoint advances the direct
 Order floor from 24 to 22 while retaining the 4-file OrderItem floor. A fresh
-product/privacy review converts both participant detail pages to corrected v2
+product/privacy review converts both participant detail pages to actor-bound
 projections, removes dead counterparty messaging actions, enforces active
 actors inside PostgreSQL, suppresses purged seller notes and stale label
-material, and narrows full-item snapshots to fields the receipt actually uses.
-See `docs/order-participant-detail-projection.md`.
+material, and derives actor-specific current Listing links. A subsequent audit
+caught the v2 projection dropping required checkout snapshot keys; immutable
+v2 is corrected by additive v3 functions that restore only the complete
+allowlisted snapshot. See `docs/order-participant-detail-projection.md`.
+
+The following checkout-success checkpoint advances the direct Order floor
+from 22 to 21. One bounded paid-only buyer projection replaces the direct read;
+the product audit fixes mutable receipt identity, inaccessible historical
+links, a no-wait retry, and duplicated receipt rendering. Strict line-item and
+subtotal agreement remains a production inspection gate. See
+`docs/order-checkout-receipt-authority.md`.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above
