@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
@@ -306,14 +306,11 @@ describe("private JSON cache headers", () => {
     }
   });
 
-  it("keeps the local dev order fixture private when explicitly enabled", () => {
-    const devOrder = source("src/app/api/dev/make-order/route.ts");
-
-    assert.match(devOrder, /import \{ privateJson \} from "@\/lib\/privateResponse"/);
-    assert.match(devOrder, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
-    assert.match(devOrder, /privateJson\(\{ ok: true, orderId: order\.id, items: order\.items \}\)/);
-    assert.doesNotMatch(devOrder, /\bNextResponse\.json\(/);
-    assert.doesNotMatch(devOrder, /status: (400|401|403|404|413)\b/);
+  it("does not retain the local paid-Order fabrication route", () => {
+    assert.equal(
+      existsSync(new URL("../src/app/api/dev/make-order/route.ts", import.meta.url)),
+      false,
+    );
   });
 
   it("keeps middleware API auth, account-state, terms, and admin rejects private", () => {

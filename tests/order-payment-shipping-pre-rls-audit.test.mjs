@@ -43,7 +43,6 @@ const expected = {
     "src/app/admin/orders/[id]/refundReconciliationActions.ts",
     "src/app/admin/orders/page.tsx",
     "src/app/admin/verification/page.tsx",
-    "src/app/api/dev/make-order/route.ts",
     "src/app/api/orders/[id]/confirm-delivery/route.ts",
     "src/app/api/orders/[id]/fulfillment/route.ts",
     "src/app/api/orders/[id]/label/route.ts",
@@ -179,7 +178,8 @@ describe("order/payment/shipping pre-RLS audit", () => {
         assert.equal(documentedSources.has(file), true, file);
       }
     }
-    assert.match(audit, /must be removed from production\s+reachability or converted to a separately gated test-only operation/);
+    assert.match(audit, /former development-only synthetic creator is retired/);
+    assert.match(audit, /does not justify\s+a runtime Order-create function or direct `INSERT`/);
     assert.match(audit, /do not justify restoring runtime\s+base-table SELECT/);
   });
 

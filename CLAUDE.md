@@ -1035,7 +1035,7 @@ Full audit of all 51 API routes. 49/51 already secure; 2 vulnerabilities fixed a
 | Webhook integrity | ✅ Stripe HMAC signature verification; Clerk Svix signature verification |
 | Role-based access | ✅ `EMPLOYEE | ADMIN` required for case resolution and admin panel; checked against DB role, not cookie |
 | HTTPS | ✅ Enforced by Vercel / Cloudflare |
-| Dev-only routes | ✅ `/api/dev/make-order` returns 404 unless `NODE_ENV === "development"`, `VERCEL !== "1"`, `VERCEL_ENV === undefined`, and `ENABLE_DEV_MAKE_ORDER=true` |
+| Dev-only routes | ✅ No runtime route may fabricate paid Orders; the former `/api/dev/make-order` fixture was retired before Order RLS because it had no provider-backed payment authority |
 | File uploads | ✅ R2 upload endpoints require auth in-route, validate endpoint/type/size, rate limit presigns, and strip EXIF for JPEG/PNG/WebP processed uploads |
 
 ### Remaining security improvements (not urgent)
