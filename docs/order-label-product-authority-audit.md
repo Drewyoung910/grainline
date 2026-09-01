@@ -401,3 +401,13 @@ the first generic migration deploy, even though the reviewed execution point
 is now the restored `OrderPaymentEvent` FORCE production prefix. The test now
 anchors the actual invariant: FORCE re-audit precedes inspection, and inspection
 precedes restoration of the compatible Order candidates.
+
+Exact-head CI run `33544838838` then passed the complete historical database
+chain, the compatible Order-label PostgreSQL proof, TypeScript, lint and the
+full application test suite before the fail-closed dependency audit detected
+new high-severity advisories in transitive `browserslist <=4.28.6` and
+`mysql2 <3.22.0`. Grainline does not use Prisma's bundled MySQL client, but the
+vulnerable package still existed in the installed tree. Exact overrides now
+converge all Browserslist consumers on `4.28.8` and Prisma's transitive MySQL
+client on `3.24.2`; dependency-hygiene tests pin both resolutions. No broad
+audit autofix or Prisma major-version change was used.
