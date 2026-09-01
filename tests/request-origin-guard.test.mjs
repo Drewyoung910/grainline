@@ -99,8 +99,8 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/orders/[id]/label/route.ts", [
       "await auth()",
       "readOptionalBoundedJson(req",
-      "ensureSellerOwnsOrder(userId, id)",
-      "UPDATE \"Order\" SET \"labelStatus\"",
+      "sellerLabelPreflight({",
+      "claimSellerLabelPurchase({",
       "shippoRequest<ShippoTransaction>",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/resolve/route.ts", [

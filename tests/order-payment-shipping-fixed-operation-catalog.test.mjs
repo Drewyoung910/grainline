@@ -31,13 +31,13 @@ test("reservation creation catalog names the source-consistent live successors",
   assert.match(catalog, /predecessor deployment coexistence/);
 });
 
-test("catalog pins every numbered operation family from 1 through 37", () => {
+test("catalog pins every numbered operation family from 1 through 39", () => {
   const operationNumbers = [...catalog.matchAll(/^([0-9]+)\. `grainline_/gm)].map(
     (match) => Number(match[1]),
   );
   assert.deepEqual(
     operationNumbers,
-    Array.from({ length: 37 }, (_, index) => index + 1),
+    Array.from({ length: 39 }, (_, index) => index + 1),
   );
 });
 
@@ -60,9 +60,8 @@ test("every mutable provider family has claim/finalize semantics", () => {
     "seller_refund_finalize",
     "seller_label_claim",
     "seller_label_provider_record",
-    "seller_label_finalize",
-    "label_clawback_claim_batch",
-    "label_clawback_finalize",
+    "order_label_clawback_claim_batch",
+    "order_label_clawback_finalize",
   ]) assert.match(catalog, new RegExp(marker), marker);
   assert.match(catalog, /exact claim generation/);
   assert.match(catalog, /stale workers cannot finalize/);

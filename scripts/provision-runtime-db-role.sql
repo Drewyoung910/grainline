@@ -2472,8 +2472,9 @@ SELECT format(
 
 -- Participant detail v3 preserves v2 actor/contact/link decisions while
 -- restoring the complete allowlisted historical snapshot. Checkout success
--- uses one bounded paid-receipt projection. Keep v2 executable through the
--- compatible deployment overlap; v1 remains runtime-private.
+-- uses one bounded paid-receipt projection. Seller v4 removes the raw signed
+-- label URL. Keep v2/v3 executable through the compatible deployment overlap;
+-- v1 remains runtime-private.
 WITH order_participant_detail_projection_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_detail"(text, text)'),
@@ -2482,6 +2483,7 @@ WITH order_participant_detail_projection_authority(function_signature) AS (
     ('public."grainline_order_seller_detail_v2"(text, text)'),
     ('public."grainline_order_buyer_detail_v3"(text, text)'),
     ('public."grainline_order_seller_detail_v3"(text, text)'),
+    ('public."grainline_order_seller_detail_v4"(text, text)'),
     ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')
 )
 SELECT format(
@@ -2499,6 +2501,7 @@ WITH order_participant_detail_projection_runtime(function_signature) AS (
     ('public."grainline_order_seller_detail_v2"(text, text)'),
     ('public."grainline_order_buyer_detail_v3"(text, text)'),
     ('public."grainline_order_seller_detail_v3"(text, text)'),
+    ('public."grainline_order_seller_detail_v4"(text, text)'),
     ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')
 )
 SELECT format(
@@ -2540,6 +2543,47 @@ SELECT format(
   :'runtime_role'
 )
   FROM order_fulfillment_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Shippo label quote/purchase/download and Stripe label-cost reconciliation
+-- use fixed, source-bound Order operations. The provider result and retry
+-- generation are database-derived; ordinary runtime receives EXECUTE only.
+WITH order_label_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_label_preflight"(text, text)'),
+    ('public."grainline_order_seller_label_quote_replace"(text, text, text, jsonb)'),
+    ('public."grainline_order_seller_label_claim"(text, text, text)'),
+    ('public."grainline_order_seller_label_provider_record"(text, text, text, bigint, text, text, text, text, integer, text, text, text, text)'),
+    ('public."grainline_order_label_clawback_finalize"(text, text, bigint, bigint, text, text, text)'),
+    ('public."grainline_order_label_clawback_claim_batch"(integer)'),
+    ('public."grainline_order_seller_label_download"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_label_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_label_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_label_preflight"(text, text)'),
+    ('public."grainline_order_seller_label_quote_replace"(text, text, text, jsonb)'),
+    ('public."grainline_order_seller_label_claim"(text, text, text)'),
+    ('public."grainline_order_seller_label_provider_record"(text, text, text, bigint, text, text, text, text, integer, text, text, text, text)'),
+    ('public."grainline_order_label_clawback_finalize"(text, text, bigint, bigint, text, text, text)'),
+    ('public."grainline_order_label_clawback_claim_batch"(integer)'),
+    ('public."grainline_order_seller_label_download"(text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_label_runtime
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 

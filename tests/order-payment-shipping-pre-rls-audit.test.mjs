@@ -43,7 +43,6 @@ const expected = {
     "src/app/admin/orders/[id]/refundReconciliationActions.ts",
     "src/app/admin/orders/page.tsx",
     "src/app/admin/verification/page.tsx",
-    "src/app/api/orders/[id]/label/route.ts",
     "src/app/api/orders/[id]/refund/route.ts",
     "src/app/api/stripe/webhook/route.ts",
     "src/lib/accountDeletion.ts",
@@ -51,7 +50,6 @@ const expected = {
     "src/lib/ban.ts",
     "src/lib/caseLifecycleLocks.ts",
     "src/lib/checkoutStockRestore.ts",
-    "src/lib/labelClawbackRetry.ts",
     "src/lib/orderRefundProviderReconciliation.ts",
     "src/lib/refundLocks.ts",
   ],
@@ -62,7 +60,6 @@ const expected = {
     "src/lib/accountDeletion.ts",
   ],
   OrderShippingRateQuote: [
-    "src/app/api/orders/[id]/label/route.ts",
     "src/lib/accountDeletion.ts",
   ],
   OrderPaymentEvent: [

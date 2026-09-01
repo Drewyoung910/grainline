@@ -11,6 +11,10 @@ import {
   ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
   verifyOrderFulfillmentAuthorityMigrationBytes,
 } from "./order-fulfillment-authority-catalog.mjs";
+import {
+  ORDER_LABEL_AUTHORITY_MIGRATION,
+  verifyOrderLabelAuthorityMigrationBytes,
+} from "./order-label-authority-catalog.mjs";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION =
   "20260831233000_prepare_order_participant_list_authority";
@@ -539,6 +543,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderFulfillmentAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_FULFILLMENT_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_LABEL_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
+      "Order label authority requires the exact fulfillment-authority predecessor",
+    );
+    verifyOrderLabelAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_LABEL_AUTHORITY_MIGRATION);
   }
   return true;
 }

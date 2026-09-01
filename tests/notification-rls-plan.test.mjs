@@ -39,12 +39,24 @@ describe("Bucket B Notification RLS inventory", () => {
     const backInStockClaimCount = files.reduce((count, file) => (
       count + (fs.readFileSync(file, "utf8").match(/await claimBackInStockNotification\(\{/g) ?? []).length
     ), 0);
+    const orderLabelAuthority = fs.readFileSync(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+      "utf8",
+    );
+    const databaseOwnedLabelCount = (
+      orderLabelAuthority.match(/'ORDER_SHIPPED'::public\."NotificationType"/g) ?? []
+    ).length;
     assert.equal(objectLiteralCreateCount, 54);
     assert.equal(indirectCreateCount, 0);
     assert.equal(objectLiteralCreateCount + indirectCreateCount, 54);
     assert.equal(fulfillmentPayloadCount, 0);
     assert.equal(backInStockClaimCount, 1);
-    assert.equal(objectLiteralCreateCount + fulfillmentPayloadCount + backInStockClaimCount, 55);
+    assert.equal(databaseOwnedLabelCount, 1);
+    assert.equal(
+      objectLiteralCreateCount + fulfillmentPayloadCount + backInStockClaimCount
+        + databaseOwnedLabelCount,
+      56,
+    );
     assert.equal(createCallers.length, 30);
     assert.deepEqual(directAccess.sort(), []);
   });
@@ -54,7 +66,7 @@ describe("Bucket B Notification RLS inventory", () => {
     const strategy = fs.readFileSync("STRATEGY.md", "utf8");
     assert.match(plan, /Bucket B means `Notification` only/);
     assert.match(plan, /54 notification-helper calls/);
-    assert.match(plan, /55 distinct emission paths/);
+    assert.match(plan, /56 distinct emission paths/);
     assert.match(plan, /column-level `UPDATE \(read\)` only/);
     assert.match(plan, /Do not grant direct `INSERT` or `DELETE`/);
     assert.match(plan, /atomic activation-transaction purge/);
@@ -69,8 +81,8 @@ describe("Bucket B Notification RLS inventory", () => {
     assert.match(plan, /activation migration remains absent/);
     assert.match(plan, /one-statement `SECURITY INVOKER`\s+recipient RPC direction/);
     assert.match(plan, /Recipient RPCs are distinct from cross-user creation\/cleanup service\s+authority/);
-    assert.match(plan, /All 55 emission paths now carry reviewed creation authority/);
-    assert.match(plan, /55 distinct emission paths\. All 55 are currently\s+authority-bound and none are source-less/);
+    assert.match(plan, /All 56 emission paths now carry reviewed creation authority/);
+    assert.match(plan, /56 distinct emission paths\. All 56 are currently\s+authority-bound and none are source-less/);
     assert.match(plan, /missing SQL wrapper\/revoke\/runtime grant/);
     assert.match(plan, /notification-create-authority-inventory\.md/);
     assert.match(plan, /fixed-column insert primitive ungranted to runtime/);
@@ -117,15 +129,16 @@ describe("Bucket B Notification RLS inventory", () => {
 
   it("pins the complete creation-authority family inventory", () => {
     const inventory = fs.readFileSync("docs/notification-create-authority-inventory.md", "utf8");
-    const familyCounts = [5, 10, 2, 3, 13, 4, 3, 3, 3, 9];
+    const familyCounts = [5, 10, 2, 3, 13, 4, 3, 3, 3, 10];
 
-    assert.equal(familyCounts.reduce((sum, count) => sum + count, 0), 55);
+    assert.equal(familyCounts.reduce((sum, count) => sum + count, 0), 56);
     assert.match(inventory, /54 notification-helper calls across 30 files/);
     assert.match(inventory, /four strict retryable\s+object-literal calls to `createNotificationOrThrow`/);
-    assert.match(inventory, /55\s+distinct emission paths/);
-    assert.match(inventory, /55 authority-bound paths/);
+    assert.match(inventory, /56\s+distinct emission paths/);
+    assert.match(inventory, /56 authority-bound paths/);
     assert.match(inventory, /0 source-less paths/);
     assert.match(inventory, /30 literal creation sites currently carrying `relatedUserId`/);
+    assert.match(inventory, /database-owned shipping-label provider-record operation/);
     assert.match(inventory, /internal fixed-column insert primitive ungranted to `PUBLIC` and the\s+runtime role/);
     assert.match(inventory, /Grant runtime only reviewed family functions/);
     assert.match(inventory, /provider and cron families[\s\S]{0,220}persisted order\/payment\/payout/);
@@ -173,6 +186,11 @@ describe("Bucket B Notification RLS inventory", () => {
     const fulfillment = fs.readFileSync("src/app/api/orders/[id]/fulfillment/route.ts", "utf8");
     const sellerRefund = fs.readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
     const refundFinalization = fs.readFileSync("src/lib/orderRefundFinalization.ts", "utf8");
+    const labelFinalization = fs.readFileSync("src/lib/orderLabelFinalization.ts", "utf8");
+    const labelAuthority = fs.readFileSync(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+      "utf8",
+    );
 
     assert.match(sources, /BLOG_COMMENT: "blog_comment"/);
     assert.match(sources, /CASE: "case"/);
@@ -257,8 +275,12 @@ describe("Bucket B Notification RLS inventory", () => {
       fulfillment,
       sellerRefund,
       refundFinalization,
+      labelFinalization,
     ].reduce((count, source) => count + (source.match(/createNotification(?:OrThrow)?\(\{[\s\S]{0,700}?sourceType:/g) ?? []).length, 0);
     assert.equal(taggedCreationCount, 41);
+    assert.doesNotMatch(labelFinalization, /createNotification(?:OrThrow)?/);
+    assert.match(labelAuthority, /INSERT INTO public\."Notification"/);
+    assert.match(labelAuthority, /locked_order\."sellerProfileId" IS DISTINCT FROM seller_id/);
   });
 
   it("uses exact related-user lifecycle metadata without broad text cleanup", () => {

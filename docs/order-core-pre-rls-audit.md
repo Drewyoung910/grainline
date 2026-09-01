@@ -409,6 +409,39 @@ methods, notes, anti-forgery, active-Case denial and direct table-write denial.
 No migration, deployment, RLS/grant or production state changed. See
 `docs/order-fulfillment-authority.md`.
 
+2026-09-01 label product/authority audit: the next direct-write family is not
+safe to seal unchanged. `labelStatus = PURCHASED` currently doubles as an
+in-flight/ambiguous provider claim; successful Shippo output is not bound to
+the selected rate amount/identity; re-quotes depend on mutable Listing package
+facts; label purchase omits the buyer Notification/email side effects; and the
+seller projection exposes a raw, potentially expiring label URL. The isolated
+successor will use a separate generation-fenced claim, retained package facts,
+exact provider binding, source-derived fulfillment side effects and an
+authenticated fresh-download boundary. Purchasing a label will continue to
+mean `SHIPPED` until a separate carrier-acceptance product exists. See
+`docs/order-label-product-authority-audit.md`; production remains unchanged.
+
+2026-09-01 label fixed-authority implementation checkpoint: the isolated,
+unapplied `20260901140000_prepare_order_label_authority` candidate now separates
+provider-pending, ambiguous, provider-recorded and finalized claims; derives
+quote expiry, rate, amount, currency, claim generation and clawback generation
+inside PostgreSQL; and retains checkout-time package facts for new OrderItems.
+The label route and clawback worker no longer directly access `Order` or
+`OrderShippingRateQuote`, reducing the direct Order inventory from 18 to 16 and
+the direct quote inventory from two files to one. A successful provider record
+co-commits the normal shipped Notification and email-outbox reservation; label
+download now goes through actor-bound database authority and a fresh Shippo
+transaction lookup. Disposable PostgreSQL proves actor isolation, money/identity
+binding, ambiguity fencing, generation finalization, `SKIP LOCKED` retry claims
+and base-table denial. Still open before release: remove raw `labelUrl` from the
+seller detail database projection, add the bounded ambiguous-claim staff
+reconciliation operator, and inspect production for duplicate Shippo transaction
+IDs plus legacy package-fallback counts. Seller detail v4 and the application
+now omit the raw label URL; predecessor v2/v3 execution remains a deliberate
+deployment-overlap grant that must be retired after the compatible app drain
+and before Order RLS activation. No migration, deployment, RLS/grant or
+production state changed.
+
 ## Current functionality verdict
 
 The order, checkout, fulfillment, refund and Case integration are not being

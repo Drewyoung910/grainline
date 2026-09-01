@@ -15,9 +15,9 @@ describe("Notification RLS activation completeness gate", () => {
   it("inventories all emission paths and reaches exact creation-authority coverage", () => {
     const result = notificationActivationReadiness();
 
-    assert.equal(result.expectedCount, 55);
-    assert.equal(result.totalCount, 55);
-    assert.equal(result.coveredCount, 55);
+    assert.equal(result.expectedCount, 56);
+    assert.equal(result.totalCount, 56);
+    assert.equal(result.coveredCount, 56);
     assert.equal(result.uncoveredCount, 0);
     assert.equal(result.unresolvedCalls.length, 0);
     assert.equal(result.ready, true);
@@ -33,6 +33,18 @@ describe("Notification RLS activation completeness gate", () => {
     assert.equal(payoutPaths.length, 1);
     assert.equal(payoutPaths[0].sourceType, "NOTIFICATION_SOURCE_TYPES.STRIPE_PAYOUT_FAILURE");
     assert.equal(payoutPaths[0].reviewedFamily, true);
+  });
+
+  it("counts the database-owned label shipment without trusting mutable Listing ownership", () => {
+    const result = collectNotificationEmissionPaths();
+    const labelPaths = result.emissions.filter(
+      (emission) => emission.kind === "database-owned" && emission.type === "ORDER_SHIPPED",
+    );
+
+    assert.equal(labelPaths.length, 1);
+    assert.equal(labelPaths[0].sourceType, "order_fulfillment");
+    assert.equal(labelPaths[0].authorityFunction, "grainline_order_seller_label_provider_record");
+    assert.equal(labelPaths[0].reviewedFamily, true);
   });
 
   it("cannot become ready through count drift or an unreviewed source constant", () => {
@@ -85,7 +97,7 @@ describe("Notification RLS activation completeness gate", () => {
     }
   });
 
-  it("exits zero only for the exact reviewed 55-path contract", () => {
+  it("exits zero only for the exact reviewed 56-path contract", () => {
     const result = spawnSync(process.execPath, ["scripts/notification-rls-activation-readiness.mjs"], {
       cwd: process.cwd(),
       encoding: "utf8",
@@ -94,7 +106,7 @@ describe("Notification RLS activation completeness gate", () => {
     assert.equal(result.status, 0);
     assert.equal(result.stderr, "");
     assert.match(result.stdout, /"ready": true/);
-    assert.match(result.stdout, /"coveredCount": 55/);
+    assert.match(result.stdout, /"coveredCount": 56/);
     assert.match(result.stdout, /"uncoveredCount": 0/);
   });
 });

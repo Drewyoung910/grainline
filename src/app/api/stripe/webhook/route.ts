@@ -1332,6 +1332,10 @@ export async function POST(req: Request) {
                         id: true,
                         userId: true,
                         displayName: true,
+                        defaultPkgWeightGrams: true,
+                        defaultPkgLengthCm: true,
+                        defaultPkgWidthCm: true,
+                        defaultPkgHeightCm: true,
                         chargesEnabled: true,
                         stripeAccountId: true,
                         user: { select: { id: true, banned: true, deletedAt: true } },
@@ -1381,6 +1385,10 @@ export async function POST(req: Request) {
                 id: true,
                 userId: true,
                 displayName: true,
+                defaultPkgWeightGrams: true,
+                defaultPkgLengthCm: true,
+                defaultPkgWidthCm: true,
+                defaultPkgHeightCm: true,
                 chargesEnabled: true,
                 stripeAccountId: true,
                 vacationMode: true,
@@ -1681,6 +1689,20 @@ export async function POST(req: Request) {
                   processingTimeMinDays: listing.processingTimeMinDays ?? null,
                   processingTimeMaxDays: listing.processingTimeMaxDays ?? null,
                   shipsWithinDays: listing.shipsWithinDays ?? null,
+                  shippingWeightGrams:
+                    listing.packagedWeightGrams ?? listing.seller?.defaultPkgWeightGrams ?? null,
+                  shippingLengthCm:
+                    listing.packagedLengthCm ?? listing.seller?.defaultPkgLengthCm ?? null,
+                  shippingWidthCm:
+                    listing.packagedWidthCm ?? listing.seller?.defaultPkgWidthCm ?? null,
+                  shippingHeightCm:
+                    listing.packagedHeightCm ?? listing.seller?.defaultPkgHeightCm ?? null,
+                  shippingPackageComplete: [
+                    listing.packagedWeightGrams ?? listing.seller?.defaultPkgWeightGrams,
+                    listing.packagedLengthCm ?? listing.seller?.defaultPkgLengthCm,
+                    listing.packagedWidthCm ?? listing.seller?.defaultPkgWidthCm,
+                    listing.packagedHeightCm ?? listing.seller?.defaultPkgHeightCm,
+                  ].every((value) => typeof value === "number" && Number.isFinite(value) && value > 0),
                   capturedAt: new Date().toISOString(),
                 },
                 selectedVariants: variantSnapshot.length > 0 ? variantSnapshot : undefined,
@@ -1772,6 +1794,10 @@ export async function POST(req: Request) {
             listingType: true,
             stockQuantity: true,
             shipsWithinDays: true,
+            packagedWeightGrams: true,
+            packagedLengthCm: true,
+            packagedWidthCm: true,
+            packagedHeightCm: true,
             // Snapshot fields
             title: true,
             description: true,
@@ -1783,6 +1809,10 @@ export async function POST(req: Request) {
                 id: true,
                 userId: true,
                 displayName: true,
+                defaultPkgWeightGrams: true,
+                defaultPkgLengthCm: true,
+                defaultPkgWidthCm: true,
+                defaultPkgHeightCm: true,
                 chargesEnabled: true,
                 stripeAccountId: true,
                 vacationMode: true,
@@ -1967,6 +1997,20 @@ export async function POST(req: Request) {
                     processingTimeMinDays: listingData?.processingTimeMinDays ?? null,
                     processingTimeMaxDays: listingData?.processingTimeMaxDays ?? null,
                     shipsWithinDays: listingData?.shipsWithinDays ?? null,
+                    shippingWeightGrams:
+                      listingData?.packagedWeightGrams ?? listingData?.seller?.defaultPkgWeightGrams ?? null,
+                    shippingLengthCm:
+                      listingData?.packagedLengthCm ?? listingData?.seller?.defaultPkgLengthCm ?? null,
+                    shippingWidthCm:
+                      listingData?.packagedWidthCm ?? listingData?.seller?.defaultPkgWidthCm ?? null,
+                    shippingHeightCm:
+                      listingData?.packagedHeightCm ?? listingData?.seller?.defaultPkgHeightCm ?? null,
+                    shippingPackageComplete: [
+                      listingData?.packagedWeightGrams ?? listingData?.seller?.defaultPkgWeightGrams,
+                      listingData?.packagedLengthCm ?? listingData?.seller?.defaultPkgLengthCm,
+                      listingData?.packagedWidthCm ?? listingData?.seller?.defaultPkgWidthCm,
+                      listingData?.packagedHeightCm ?? listingData?.seller?.defaultPkgHeightCm,
+                    ].every((value) => typeof value === "number" && Number.isFinite(value) && value > 0),
                     capturedAt: new Date().toISOString(),
                   },
                   selectedVariants,

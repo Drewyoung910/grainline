@@ -20,11 +20,17 @@ describe("historical OrderItem snapshots", () => {
       processingTimeMinDays: 14,
       processingTimeMaxDays: 21,
       shipsWithinDays: null,
+      shippingWeightGrams: 2500,
+      shippingLengthCm: 80,
+      shippingWidthCm: 50,
+      shippingHeightCm: 20,
     }, 1);
 
     assert.equal(snapshot.complete, true);
     assert.equal(snapshot.title, "Walnut desk");
     assert.equal(snapshot.priceCents, 125000);
+    assert.equal(snapshot.shippingPackageComplete, true);
+    assert.equal(snapshot.shippingWeightGrams, 2500);
     assert.deepEqual(historicalProcessingTimeDays(snapshot), { min: 14, max: 21 });
   });
 
@@ -69,6 +75,11 @@ describe("historical OrderItem snapshots", () => {
       processingTimeMinDays: null,
       processingTimeMaxDays: null,
       shipsWithinDays: null,
+      shippingWeightGrams: null,
+      shippingLengthCm: null,
+      shippingWidthCm: null,
+      shippingHeightCm: null,
+      shippingPackageComplete: false,
       complete: false,
     });
   });

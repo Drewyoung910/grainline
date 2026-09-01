@@ -84,7 +84,6 @@ export type SellerOrderDetail = ParticipantOrderDetailBase & Readonly<{
   buyerDeletedAt: Date | null;
   sellerNotes: string | null;
   labelStatus: "PURCHASED" | "EXPIRED" | "VOIDED" | null;
-  labelUrl: string | null;
   labelCarrier: string | null;
   labelTrackingNumber: string | null;
   labelPurchasedAt: Date | null;
@@ -327,7 +326,6 @@ export function sellerOrderDetailFromRows(values: unknown[]): SellerOrderDetail 
     ),
     sellerNotes: optionalText(value.seller_notes, "seller notes", 2000),
     labelStatus: labelStatus as SellerOrderDetail["labelStatus"],
-    labelUrl: optionalText(value.label_url, "label URL", 2048),
     labelCarrier: optionalText(value.label_carrier, "label carrier", 100),
     labelTrackingNumber: optionalText(value.label_tracking_number, "label tracking number", 100),
     labelPurchasedAt: optionalDateFromEpochMillis(
@@ -351,8 +349,7 @@ export function sellerOrderDetailFromRows(values: unknown[]): SellerOrderDetail 
   if (
     detail.labelStatus !== "PURCHASED"
     && (
-      detail.labelUrl != null
-      || detail.labelCarrier != null
+      detail.labelCarrier != null
       || detail.labelTrackingNumber != null
       || detail.labelPurchasedAt != null
     )

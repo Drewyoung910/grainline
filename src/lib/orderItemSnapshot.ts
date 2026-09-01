@@ -6,6 +6,8 @@ const MAX_SNAPSHOT_IMAGE_URL_LENGTH = 2048;
 const MAX_SNAPSHOT_TAGS = 50;
 const MAX_SNAPSHOT_TAG_LENGTH = 100;
 const MAX_PROCESSING_DAYS = 3650;
+const MAX_SHIPPING_WEIGHT_GRAMS = 500_000;
+const MAX_SHIPPING_DIMENSION_CM = 1_000;
 
 export type HistoricalOrderItemSnapshot = {
   title: string;
@@ -20,6 +22,11 @@ export type HistoricalOrderItemSnapshot = {
   processingTimeMinDays: number | null;
   processingTimeMaxDays: number | null;
   shipsWithinDays: number | null;
+  shippingWeightGrams: number | null;
+  shippingLengthCm: number | null;
+  shippingWidthCm: number | null;
+  shippingHeightCm: number | null;
+  shippingPackageComplete: boolean;
   complete: boolean;
 };
 
@@ -59,6 +66,13 @@ function optionalBoundedDayCount(value: unknown): number | null {
   return boundedNonNegativeInteger(value, MAX_PROCESSING_DAYS);
 }
 
+function optionalPositiveNumber(value: unknown, max: number): number | null {
+  if (value == null) return null;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= max
+    ? value
+    : null;
+}
+
 /**
  * Reads checkout-time facts for retained order history.
  *
@@ -83,6 +97,11 @@ export function readHistoricalOrderItemSnapshot(
     processingTimeMinDays: null,
     processingTimeMaxDays: null,
     shipsWithinDays: null,
+    shippingWeightGrams: null,
+    shippingLengthCm: null,
+    shippingWidthCm: null,
+    shippingHeightCm: null,
+    shippingPackageComplete: false,
     complete: false,
   };
   if (!isRecord(value)) return fallback;
@@ -106,6 +125,22 @@ export function readHistoricalOrderItemSnapshot(
   const processingTimeMinDays = optionalBoundedDayCount(value.processingTimeMinDays);
   const processingTimeMaxDays = optionalBoundedDayCount(value.processingTimeMaxDays);
   const shipsWithinDays = optionalBoundedDayCount(value.shipsWithinDays);
+  const shippingWeightGrams = optionalPositiveNumber(
+    value.shippingWeightGrams,
+    MAX_SHIPPING_WEIGHT_GRAMS,
+  );
+  const shippingLengthCm = optionalPositiveNumber(
+    value.shippingLengthCm,
+    MAX_SHIPPING_DIMENSION_CM,
+  );
+  const shippingWidthCm = optionalPositiveNumber(
+    value.shippingWidthCm,
+    MAX_SHIPPING_DIMENSION_CM,
+  );
+  const shippingHeightCm = optionalPositiveNumber(
+    value.shippingHeightCm,
+    MAX_SHIPPING_DIMENSION_CM,
+  );
 
   if (
     title == null || title.trim().length === 0 || priceCents == null ||
@@ -128,6 +163,15 @@ export function readHistoricalOrderItemSnapshot(
     processingTimeMinDays,
     processingTimeMaxDays,
     shipsWithinDays,
+    shippingWeightGrams,
+    shippingLengthCm,
+    shippingWidthCm,
+    shippingHeightCm,
+    shippingPackageComplete:
+      shippingWeightGrams !== null &&
+      shippingLengthCm !== null &&
+      shippingWidthCm !== null &&
+      shippingHeightCm !== null,
     complete: true,
   };
 }

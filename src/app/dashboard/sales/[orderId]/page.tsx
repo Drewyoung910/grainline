@@ -670,12 +670,11 @@ export default async function SellerOrderDetailPage({
                 </div>
               )}
 
-              {method === "SHIPPING" && status === "PENDING" && (
+              {method === "SHIPPING" && (status === "PENDING" || order.labelStatus === "PURCHASED") && (
                 <div className="space-y-4">
                   <LabelSection
                     orderId={order.id}
                     labelStatus={order.labelStatus ?? null}
-                    labelUrl={order.labelUrl ?? null}
                     labelCarrier={order.labelCarrier ?? null}
                     labelTrackingNumber={order.labelTrackingNumber ?? null}
                     labelPurchasedAt={order.labelPurchasedAt?.toISOString() ?? null}
@@ -684,7 +683,7 @@ export default async function SellerOrderDetailPage({
                     currency={currency}
                   />
 
-                  <div className="border-t border-neutral-100 pt-3 space-y-2">
+                  {status === "PENDING" && <div className="border-t border-neutral-100 pt-3 space-y-2">
                     <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
                       Already shipped? Enter tracking manually
                     </div>
@@ -719,7 +718,7 @@ export default async function SellerOrderDetailPage({
                         </button>
                       </div>
                     </form>
-                  </div>
+                  </div>}
                 </div>
               )}
 

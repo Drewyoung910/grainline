@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("buyer and seller detail pages use the fixed v3 participant projections", () => {
+test("buyer and seller detail pages use the fixed participant projections", () => {
   const buyer = readFileSync("src/app/dashboard/orders/[id]/page.tsx", "utf8");
   const seller = readFileSync("src/app/dashboard/sales/[orderId]/page.tsx", "utf8");
   const authority = readFileSync("src/lib/orderParticipantDetailAuthority.ts", "utf8");
@@ -15,7 +15,8 @@ test("buyer and seller detail pages use the fixed v3 participant projections", (
     assert.match(source, /it\.listingLinkAvailable/u, label);
   }
   assert.match(authority, /grainline_order_buyer_detail_v3/u);
-  assert.match(authority, /grainline_order_seller_detail_v3/u);
+  assert.match(authority, /grainline_order_seller_detail_v4/u);
+  assert.doesNotMatch(state, /labelUrl|label_url/u);
   assert.doesNotMatch(authority, /FROM public\.grainline_order_(?:buyer|seller)_detail\(/u);
   assert.match(state, /buyer purge boundary is inconsistent/u);
   assert.match(state, /seller note purge boundary is inconsistent/u);

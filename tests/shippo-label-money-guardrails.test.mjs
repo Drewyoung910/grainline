@@ -50,14 +50,15 @@ describe("Shippo label money guardrails", () => {
 
   it("keeps label purchase costs currency-scoped before Stripe reversal", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
 
-    assert.match(labelRoute, /const expectedLabelCurrency = normalizeCurrencyCode\(order\.currency\)\.toLowerCase\(\)/);
-    assert.match(labelRoute, /rateSetIncludes\(quoteSet\.rates, bodyRateObjectId, expectedLabelCurrency\)/);
-    assert.match(labelRoute, /rateCurrency !== expectedLabelCurrency/);
-    assert.match(labelRoute, /safeProviderShippingCents\(txn\.rate\?\.amount\)/);
-    assert.match(labelRoute, /txnRateCurrency === expectedLabelCurrency/);
-    assert.match(labelRoute, /labelClawbackStatus: invalidLabelCost \? "MANUAL_REVIEW" : undefined/);
-    assert.match(labelRoute, /labelCostCents != null && labelCostCents > 0/);
-    assert.doesNotMatch(labelRoute, /Math\.round\(Number\(txn\.rate\?\.amount/);
+    assert.match(labelRoute, /safeProviderShippingCents\(rate\.amount\)/);
+    assert.match(labelRoute, /amountCents !== claim\.amountCents/);
+    assert.match(labelRoute, /normalizedCurrency !== claim\.currency/);
+    assert.match(authority, /p_amount_cents IS DISTINCT FROM locked_order\."labelClaimExpectedAmountCents"/);
+    assert.match(authority, /pg_catalog\.lower\(COALESCE\(p_currency, ''\)\) IS DISTINCT FROM locked_order\."labelClaimCurrency"/);
+    assert.doesNotMatch(labelRoute, /Math\.round\(Number\(.*rate.*amount/);
   });
 });

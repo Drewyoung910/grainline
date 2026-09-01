@@ -28,12 +28,12 @@ const boundedSellerSummaryRenderers = [
 
 const durableSellerConsumers = [
   "src/app/api/account/export/route.ts",
-  "src/app/api/orders/[id]/label/route.ts",
   "src/app/api/orders/[id]/refund/route.ts",
   "src/app/api/stripe/webhook/route.ts",
   "src/lib/accountDeletion.ts",
   "src/lib/ban.ts",
   "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+  "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
 ];
 
 describe("core Order historical compatibility", () => {

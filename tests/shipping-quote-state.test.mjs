@@ -146,9 +146,9 @@ describe("shipping quote state helpers", () => {
     const labelRoute = readFileSync("src/app/api/orders/[id]/label/route.ts", "utf8");
 
     assert.match(labelRoute, /isPickupRateObjectId,[\s\S]*isQuoteOnlyRateObjectId,[\s\S]*from "@\/lib\/shippingQuoteState"/);
-    assert.match(labelRoute, /!isQuoteOnlyRateObjectId\(rateObjectId\)/);
-    assert.match(labelRoute, /const storedRateUsable =\s*isPurchasableRateObjectId\(order\.shippoRateObjectId\)/);
-    assert.match(labelRoute, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(labelRoute, /name: order\.buyerName \?\? order\.quotedToName \?\? undefined/);
+    assert.match(labelRoute, /!isQuoteOnlyRateObjectId\(value\)/);
+    assert.match(labelRoute, /!selectedRateId && !preflight\.storedRateUsable/);
+    assert.match(labelRoute, /replaceSellerLabelQuote\(\{/);
+    assert.match(labelRoute, /to: \{[\s\S]*\.\.\.preflight\.shipTo/);
   });
 });

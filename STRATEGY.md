@@ -28,6 +28,15 @@ also rejects unpaid Orders and open Stripe disputes and records a strict audit.
 The fixed-authority conversion must preserve that split and replace the final
 best-effort notification/email edge with a co-committed or restart-safe
 delivery design.
+The shipping-label audit found that this edge cannot reuse the generic
+Notification order-family validator unchanged: that historical validator still
+derives seller identity through mutable Listing ownership, while Order now
+retains the immutable checkout seller in `sellerProfileId`. The label provider-
+record operation must therefore own its source-bound `ORDER_SHIPPED`
+Notification, preference check and deterministic deduplication in the same
+database transaction. The 56-path Notification gate must count that one
+database-owned emission explicitly; do not add a synthetic application helper
+call merely to satisfy a callsite counter.
 Staff, maintenance and write
 families still remain. The checkout receipt audit also caught and corrected an
 over-narrowed snapshot projection before release. Before RLS, finish actor-specific fixed projections,
@@ -1928,7 +1937,7 @@ do not retroactively count the earlier draft run as that proof.
 
 Extra-high review accepts the current source-derived shared create function and
 split migration topology for continued proof, not production activation. The
-original 54/54 callsite result, current 55/55 result, and 59-case live result
+original 54/54 and 55/55 callsite results, current 56/56 result, and 59-case live result
 validate the architecture, the
 granted boundary, every top-level private-core source branch, every successful
 source/type pair, and the security-relevant action/recipient variants.
@@ -2006,10 +2015,10 @@ order relationships.
 
 Production activation also has a permanent completeness gate:
 `npm run audit:rls-notification-readiness`. It inventories the real TypeScript
-emission paths, requires the exact 55-path contract, and fails on dynamic calls,
+emission paths, requires the exact 56-path contract, and fails on dynamic calls,
 missing source pairs, or source constants that do not dispatch through a
 reviewed service family whose draft SQL function, `PUBLIC` execute revoke, and
-runtime grant are present. Its current 55/55 result passes the
+runtime grant are present. Its current 56/56 result passes the
 creation-authority gate; ordinary tests retain the exact count and authority
 surface tripwires so new or dynamic paths cannot disappear silently. This green
 gate is only one activation prerequisite.
@@ -2481,6 +2490,35 @@ machine, forged actors, Case fencing and direct runtime write denial. This is
 an unapplied compatibility checkpoint, not permission to deploy it or activate
 Order RLS; remaining direct Order write families and production sequencing are
 still separate gates. See `docs/order-fulfillment-authority.md`.
+
+### Core Order shipping-label authority decision (2026-09-01)
+
+Do not carry the current label route unchanged behind Order RLS. Its strongest
+idea—a pre-provider mutual-exclusion fence—is currently encoded as terminal
+`LabelStatus.PURCHASED`, so an ambiguous Shippo response can appear to the
+seller as a completed label. Separate the database-derived claim/generation
+from the completed label outcome, derive the selected rate/amount/currency
+inside PostgreSQL, attach the claim as Shippo metadata rather than inventing an
+unsupported provider idempotency key, and require exact provider identity and
+money agreement before any automatic seller-transfer deduction.
+
+Retain checkout-time package facts on new OrderItems; legacy nulls require a
+fresh aggregate inspection and an explicit fallback classification. Remove
+raw, expiring label URLs from seller projections and resolve fresh downloads
+through a seller-authorized provider route. Label purchase continues to mean
+`SHIPPED` in the current product, but must co-commit the same buyer Notification
+and email-outbox reservation as manual shipment. Multi-parcel packing and
+seller self-service carrier voids remain separate product enhancements; they
+must not be used to justify broad Order/Listing table access. See
+`docs/order-label-product-authority-audit.md`.
+
+The isolated compatible candidate is now implemented locally as
+`20260901140000_prepare_order_label_authority`; application conversion removes
+the label route and clawback worker from direct Order access. Do not release it
+until duplicate provider-transaction and legacy-package aggregate inspection,
+raw seller-projection URL removal, and the exact ambiguous-claim staff
+reconciliation operator are complete. This is still part of finishing Order,
+not a reason to skip ahead to another RLS family.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 

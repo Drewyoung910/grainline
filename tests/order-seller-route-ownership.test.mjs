@@ -8,22 +8,34 @@ function source(path) {
 
 describe("seller order mutation ownership guardrails", () => {
   it("requires seller routes to bind the checkout-owned Order seller", () => {
-    for (const path of [
-      "src/app/api/orders/[id]/refund/route.ts",
-      "src/app/api/orders/[id]/label/route.ts",
-    ]) {
-      const text = source(path);
-      assert.match(
-        text,
-        /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id(?:,|\s*\})/s,
-        `${path} must bind the Order's durable seller key in the lookup`,
-      );
-      assert.doesNotMatch(
-        text,
-        /order\.items\.(?:some|every)\(\(it\) => it\.listing\.sellerId === seller\.id\)/,
-        `${path} must not derive retained Order authority from mutable Listings`,
-      );
-    }
+    const refund = source("src/app/api/orders/[id]/refund/route.ts");
+    assert.match(
+      refund,
+      /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id(?:,|\s*\})/s,
+      "seller refund must bind the Order's durable seller key in the lookup",
+    );
+    assert.doesNotMatch(
+      refund,
+      /order\.items\.(?:some|every)\(\(it\) => it\.listing\.sellerId === seller\.id\)/,
+      "seller refund must not derive retained Order authority from mutable Listings",
+    );
+
+    const label = source("src/app/api/orders/[id]/label/route.ts");
+    const labelAuthority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
+    assert.match(
+      label,
+      /sellerLabelPreflight\(\{\s*actorUserId: actor\.id, orderId\s*\}\)/s,
+    );
+    assert.doesNotMatch(label, /\bprisma\.(?:order|orderShippingRateQuote)\b/);
+    assert.match(
+      labelAuthority,
+      /source_order\."sellerProfileId" IS DISTINCT FROM seller\.id/,
+      "seller label authority must bind the Order's durable seller key in PostgreSQL",
+    );
+    assert.match(labelAuthority, /source_seller\."userId" = actor\.id/);
+    assert.doesNotMatch(labelAuthority, /listing\."sellerId"\s*=\s*seller\.id/);
 
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
     const fulfillmentAuthority = source(

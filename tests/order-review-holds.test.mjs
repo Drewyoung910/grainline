@@ -61,11 +61,15 @@ describe("order review holds", () => {
 
   it("blocks deauthorized orders before label purchase and inside the label lock", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
+    const labelAuthority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
 
-    assert.match(labelRoute, /orderHasDeauthorizedSellerReviewHold\(order\)/);
-    assert.match(labelRoute, /DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE/);
-    assert.match(labelRoute, /DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN/);
-    assert.match(labelRoute, /COALESCE\("reviewNote", ''\) LIKE \$\{DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN\}/);
+    assert.match(labelRoute, /sellerLabelPreflight/);
+    assert.match(labelRoute, /case "seller_deauthorized"/);
+    assert.match(labelAuthority, /COALESCE\(source_order\."reviewNote", ''\) LIKE/);
+    assert.match(labelAuthority, /COALESCE\(locked_order\."reviewNote", ''\) LIKE/);
+    assert.match(labelAuthority, /'reason', 'seller_deauthorized'/);
   });
 
   it("hides seller fulfillment controls while a deauthorization hold is active", () => {

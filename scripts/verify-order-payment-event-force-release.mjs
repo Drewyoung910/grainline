@@ -45,6 +45,9 @@ import {
 import {
   ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
 } from "./order-fulfillment-authority-catalog.mjs";
+import {
+  ORDER_LABEL_AUTHORITY_MIGRATION,
+} from "./order-label-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_FORCE_PHASE =
   "order-payment-event-force-reviewed";
@@ -119,6 +122,7 @@ export function verifyOrderPaymentEventForceRelease(
           ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
           ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
           ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
+          ORDER_LABEL_AUTHORITY_MIGRATION,
         ]
       : [],
   });

@@ -71,6 +71,13 @@ describe("Case and Order lifecycle lock protocol", () => {
 
   it("takes the same Order lock before label, fulfillment, delivery confirmation, and refund reservations", () => {
     const label = source("src/app/api/orders/[id]/label/route.ts");
+    const labelAuthority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
+    const labelClaim = labelAuthority.slice(
+      labelAuthority.indexOf("CREATE FUNCTION public.grainline_order_seller_label_claim"),
+      labelAuthority.indexOf("CREATE FUNCTION public.grainline_order_seller_label_provider_record"),
+    );
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
     const confirmDelivery = source(
       "src/app/api/orders/[id]/confirm-delivery/route.ts",
@@ -88,10 +95,12 @@ describe("Case and Order lifecycle lock protocol", () => {
     );
     const refund = source("src/app/api/orders/[id]/refund/route.ts");
 
-    assertOrdered(label, [
-      ["label transaction", "const labelLockResult = await prisma.$transaction"],
-      ["label Order lock", "await lockOrderForCaseLifecycle(tx, order.id)"],
-      ["label reservation", 'UPDATE "Order"'],
+    assert.match(label, /claimSellerLabelPurchase\(\{/);
+    assert.doesNotMatch(label, /prisma\.(?:order|case)|lockOrderForCaseLifecycle/);
+    assertOrdered(labelClaim, [
+      ["label Order lock", 'FROM public."Order" AS candidate WHERE candidate.id = p_order_id'],
+      ["label active Case fence", 'FROM public."Case" AS source_case'],
+      ["label claim reservation", 'SET "labelClaimId" = claim_id'],
     ]);
     assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
     assertOrdered(sellerTransition, [
