@@ -122,16 +122,12 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 22 source files still touch Order authority directly
+### ORD-A05: 21 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
 semantic destination; simply hiding Prisma calls behind a generic repository
 would preserve the same over-broad credential authority.
-
-Participant, account and export reads:
-
-- `src/app/checkout/success/page.tsx`
 
 Staff and administrative reads/transitions:
 
@@ -288,14 +284,26 @@ larger Orders. The direct Order inventory falls from 26 to 24. See
 2026-09-01 implementation checkpoint: the isolated
 `20260901100000_prepare_order_participant_detail_projection` successor converts
 `src/app/dashboard/orders/[id]/page.tsx` and
-`src/app/dashboard/sales/[orderId]/page.tsx` to corrected v2 actor-bound
+`src/app/dashboard/sales/[orderId]/page.tsx` to corrected actor-bound
 projections. The product audit removes dead counterparty messaging actions,
 suppresses seller notes after buyer-data purge, strips label material unless
-the label is actually purchased, narrows unused snapshot fields, and requires
-an active actor inside PostgreSQL. The sealed v1 functions become
-runtime-private building blocks and only v2 remains runtime-executable. The
+the label is actually purchased, derives actor-specific historical Listing
+links, and requires an active actor inside PostgreSQL. The initially sealed v2
+projection over-narrowed valid snapshots; additive v3 functions restore the
+complete allowlisted checkout snapshot without exposing unknown JSON keys. The
+sealed v1 functions remain runtime-private building blocks. The
 direct Order inventory falls from 24 to 22. See
 `docs/order-participant-detail-projection.md`; no production state changed.
+
+2026-09-01 implementation checkpoint: the isolated
+`20260901110000_prepare_order_checkout_receipt_authority` candidate converts
+`src/app/checkout/success/page.tsx` from direct Order reads to one bounded,
+paid-only buyer projection. The product audit fixes checkout-time identity
+drift, inaccessible historical Listing links, a no-wait webhook “retry,” and
+duplicated receipt rendering. Strict parsing refuses line-item/subtotal drift;
+an aggregate-only production inspection must classify any historical mismatch
+before application. The direct Order inventory falls from 22 to 21. See
+`docs/order-checkout-receipt-authority.md`; no production state changed.
 
 ### ORD-A09: write conversion must preserve lock and provider semantics
 

@@ -11,6 +11,14 @@ const projectionMigration = readFileSync(
   "prisma/migrations/20260901100000_prepare_order_participant_detail_projection/migration.sql",
   "utf8",
 );
+const snapshotCorrectionMigration = readFileSync(
+  "prisma/migrations/20260901105000_correct_order_participant_snapshot_projection/migration.sql",
+  "utf8",
+);
+const receiptMigration = readFileSync(
+  "prisma/migrations/20260901110000_prepare_order_checkout_receipt_authority/migration.sql",
+  "utf8",
+);
 
 async function createDatabase() {
   const database = new PGlite();
@@ -39,6 +47,7 @@ async function createDatabase() {
       id text PRIMARY KEY,
       "buyerId" text REFERENCES public."User"(id),
       "sellerProfileId" text REFERENCES public."SellerProfile"(id),
+      "stripeSessionId" text UNIQUE,
       "createdAt" timestamp(3) without time zone NOT NULL,
       "paidAt" timestamp(3) without time zone,
       currency varchar(3) NOT NULL DEFAULT 'usd',
@@ -110,7 +119,7 @@ async function createDatabase() {
       ('listing-private-reserved', 'ACTIVE', 'seller-1', true, 'buyer-1'),
       ('listing-private-other', 'ACTIVE', 'seller-1', true, 'buyer-2');
     INSERT INTO public."Order" (
-      id, "buyerId", "sellerProfileId", "createdAt", "paidAt", currency,
+      id, "buyerId", "sellerProfileId", "stripeSessionId", "createdAt", "paidAt", currency,
       "itemsSubtotalCents", "shippingTitle", "shippingAmountCents", "taxAmountCents",
       "fulfillmentMethod", "fulfillmentStatus", "trackingCarrier", "trackingNumber",
       "shippedAt", "estimatedDeliveryDate", "processingDeadline", "shippingCarrier",
@@ -120,7 +129,8 @@ async function createDatabase() {
       "sellerRefundId", "sellerRefundAmountCents", "labelStatus", "labelUrl",
       "labelCarrier", "labelTrackingNumber", "labelPurchasedAt"
     ) VALUES (
-      'order-1', 'buyer-1', 'seller-1', '2026-08-31 10:00:00', '2026-08-31 10:01:00', 'usd',
+      'order-1', 'buyer-1', 'seller-1', 'cs_paid_order_1',
+      '2026-08-31 10:00:00', '2026-08-31 10:01:00', 'usd',
       500, 'Ground', 100, 50, 'SHIPPING', 'SHIPPED', 'UPS', 'track-1',
       '2026-08-31 11:00:00', '2026-09-04 11:00:00', '2026-09-02 11:00:00', 'UPS',
       'Ground', true, 'Seller Stripe account was deauthorized after payment. Staff only details',
@@ -129,13 +139,22 @@ async function createDatabase() {
       'PURCHASED', 'https://labels.example.test/label.pdf', 'UPS', 'label-track',
       '2026-08-31 11:05:00'
     ), (
-      'order-2', 'buyer-deleted', 'seller-1', '2026-08-31 09:00:00', NULL, 'usd',
+      'order-2', 'buyer-deleted', 'seller-1', 'cs_unpaid_order_2',
+      '2026-08-31 09:00:00', NULL, 'usd',
       200, NULL, 0, 0, 'PICKUP', 'PENDING', NULL, NULL,
       NULL, NULL, NULL, NULL, NULL, false, NULL,
       'Should disappear', false, NULL, 'Old address', 'Austin', 'TX', '78701', 'US',
       'Deleted Buyer', 'deleted@example.test', 'Legacy note must disappear', 'pending', 200,
       'EXPIRED', 'https://labels.example.test/stale.pdf', 'UPS', 'stale-track',
       '2026-08-31 08:00:00'
+    ), (
+      'order-3', 'buyer-1', 'seller-1', 'cs_paid_order_3',
+      '2026-08-31 08:00:00', '2026-08-31 08:01:00', 'usd',
+      300, NULL, 0, 0, 'PICKUP', 'PICKED_UP', NULL, NULL,
+      NULL, NULL, NULL, NULL, NULL, false, NULL,
+      NULL, false, NULL, NULL, NULL, NULL, NULL, NULL,
+      'Checkout Buyer Snapshot', 'snapshot@example.test', NULL, NULL, NULL,
+      NULL, NULL, NULL, NULL, NULL
     );
     UPDATE public."Order"
        SET "buyerDataPurgedAt" = '2026-08-31 13:00:00'
@@ -160,10 +179,16 @@ async function createDatabase() {
     ), (
       'item-5', 'order-1', 'listing-private-other', 100, 1, NULL, NULL,
       '2026-08-31 10:00:05'
+    ), (
+      'item-6', 'order-3', 'listing-sold-out', 300, 1,
+      '{"title":"Sold chair","priceCents":300,"imageUrls":[],"sellerName":"Maker One","listingType":"IN_STOCK","processingTimeMinDays":null,"processingTimeMaxDays":null,"shipsWithinDays":2}',
+      NULL, '2026-08-31 08:00:01'
     );
   `);
   await database.exec(migration);
   await database.exec(projectionMigration);
+  await database.exec(snapshotCorrectionMigration);
+  await database.exec(receiptMigration);
   return database;
 }
 
@@ -172,7 +197,7 @@ describe("Order participant detail authority", () => {
     const database = await createDatabase();
     try {
       const result = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v3($1, $2)",
         ["buyer-1", "order-1"],
       );
       assert.equal(result.rows.length, 1);
@@ -187,8 +212,11 @@ describe("Order participant detail authority", () => {
         [true, false, true, true, false],
       );
       assert.equal(row.items[0].listingSnapshot.title, "Table");
-      assert.equal("description" in row.items[0].listingSnapshot, false);
-      assert.equal("tags" in row.items[0].listingSnapshot, false);
+      assert.equal(row.items[0].listingSnapshot.description, "Snapshot");
+      assert.equal(row.items[0].listingSnapshot.priceCents, 500);
+      assert.equal(row.items[0].listingSnapshot.category, "FURNITURE");
+      assert.deepEqual(row.items[0].listingSnapshot.tags, ["oak"]);
+      assert.equal(row.items[0].listingSnapshot.capturedAt, "2026-08-31T10:00:00.000Z");
       assert.deepEqual(row.items[0].selectedVariants, [{
         groupName: "Finish",
         optionLabel: "Natural",
@@ -196,7 +224,7 @@ describe("Order participant detail authority", () => {
       }]);
 
       const foreign = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v3($1, $2)",
         ["buyer-2", "order-1"],
       );
       assert.equal(foreign.rows.length, 0);
@@ -209,7 +237,7 @@ describe("Order participant detail authority", () => {
     const database = await createDatabase();
     try {
       const result = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
         ["seller-user-1", "order-1"],
       );
       assert.equal(result.rows.length, 1);
@@ -225,7 +253,7 @@ describe("Order participant detail authority", () => {
       assert.equal(JSON.stringify(row).includes("re_secret_provider_id"), false);
 
       const purged = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
         ["seller-user-1", "order-2"],
       );
       assert.equal(purged.rows[0].buyer_name, null);
@@ -240,7 +268,7 @@ describe("Order participant detail authority", () => {
       assert.equal(purged.rows[0].seller_refund_amount_cents, null);
 
       const foreign = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
         ["seller-user-2", "order-1"],
       );
       assert.equal(foreign.rows.length, 0);
@@ -254,12 +282,12 @@ describe("Order participant detail authority", () => {
     try {
       await database.exec(`UPDATE public."User" SET banned = true WHERE id = 'seller-user-1'`);
       const buyerView = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v3($1, $2)",
         ["buyer-1", "order-1"],
       );
       assert.equal(buyerView.rows[0].seller_user_id, null);
       const sellerView = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
         ["seller-user-1", "order-1"],
       );
       assert.equal(sellerView.rows.length, 0);
@@ -269,12 +297,12 @@ describe("Order participant detail authority", () => {
         UPDATE public."User" SET banned = true WHERE id = 'buyer-1';
       `);
       const inactiveBuyer = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v3($1, $2)",
         ["buyer-1", "order-1"],
       );
       assert.equal(inactiveBuyer.rows.length, 0);
       const sellerWithUnavailableBuyer = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v3($1, $2)",
         ["seller-user-1", "order-1"],
       );
       assert.equal(sellerWithUnavailableBuyer.rows[0].buyer_id, null);
@@ -284,16 +312,105 @@ describe("Order participant detail authority", () => {
     }
   });
 
+  it("returns only paid buyer-owned checkout receipts from retained snapshots", async () => {
+    const database = await createDatabase();
+    try {
+      const result = await database.query(`
+        SELECT *
+          FROM public.grainline_order_buyer_receipts_by_sessions(
+            'buyer-1',
+            ARRAY['cs_paid_order_3', 'cs_unpaid_order_2', 'cs_paid_order_1']::text[]
+          )
+      `);
+      assert.deepEqual(result.rows.map((row) => row.order_id), ["order-1", "order-3"]);
+      assert.deepEqual(
+        result.rows.map((row) => row.buyer_label),
+        ["Buyer One", "Checkout Buyer Snapshot"],
+      );
+      assert.equal(result.rows[0].paid_at_epoch_millis > 0, true);
+      assert.equal(result.rows[1].items[0].listingSnapshot.title, "Sold chair");
+      assert.equal(result.rows[1].items[0].listingLinkAvailable, true);
+      assert.equal(JSON.stringify(result.rows).includes("cs_paid_order_1"), false);
+
+      const foreign = await database.query(`
+        SELECT *
+          FROM public.grainline_order_buyer_receipts_by_sessions(
+            'buyer-2',
+            ARRAY['cs_paid_order_1']::text[]
+          )
+      `);
+      assert.equal(foreign.rows.length, 0);
+
+      await database.exec(`UPDATE public."User" SET banned = true WHERE id = 'buyer-1'`);
+      const inactive = await database.query(`
+        SELECT *
+          FROM public.grainline_order_buyer_receipts_by_sessions(
+            'buyer-1',
+            ARRAY['cs_paid_order_1']::text[]
+          )
+      `);
+      assert.equal(inactive.rows.length, 0);
+    } finally {
+      await database.close();
+    }
+  });
+
+  it("rejects malformed checkout receipt sets", async () => {
+    const database = await createDatabase();
+    try {
+      await assert.rejects(
+        database.query(`
+          SELECT * FROM public.grainline_order_buyer_receipts_by_sessions(
+            'buyer-1', ARRAY['cs_duplicate', 'cs_duplicate']::text[]
+          )
+        `),
+        /input is invalid/i,
+      );
+      await assert.rejects(
+        database.query(`
+          SELECT * FROM public.grainline_order_buyer_receipts_by_sessions(
+            'buyer-1', ARRAY['not-a-session']::text[]
+          )
+        `),
+        /input is invalid/i,
+      );
+      await assert.rejects(
+        database.query(`
+          SELECT * FROM public.grainline_order_buyer_receipts_by_sessions(
+            'buyer-1', ARRAY['cs_trailing-space ']::text[]
+          )
+        `),
+        /input is invalid/i,
+      );
+      await assert.rejects(
+        database.query(`
+          SELECT * FROM public.grainline_order_buyer_receipts_by_sessions(
+            'buyer-1', ARRAY(
+              SELECT 'cs_' || value::text
+                FROM pg_catalog.generate_series(1, 51) AS value
+            )::text[]
+          )
+        `),
+        /input is invalid/i,
+      );
+    } finally {
+      await database.close();
+    }
+  });
+
   it("rejects malformed inputs and exposes only fixed runtime execute", async () => {
     const database = await createDatabase();
     try {
       await assert.rejects(
-        database.query("SELECT * FROM public.grainline_order_buyer_detail_v2('', 'order-1')"),
+        database.query("SELECT * FROM public.grainline_order_buyer_detail_v3('', 'order-1')"),
         /input is invalid/i,
       );
       for (const identity of [
         "grainline_order_buyer_detail_v2(text,text)",
         "grainline_order_seller_detail_v2(text,text)",
+        "grainline_order_buyer_detail_v3(text,text)",
+        "grainline_order_seller_detail_v3(text,text)",
+        "grainline_order_buyer_receipts_by_sessions(text,text[])",
       ]) {
         const privileges = await database.query(`
           SELECT

@@ -82,6 +82,18 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify compatible Order checkout receipt authority release
+        run: npm run audit:order-checkout-receipt-authority-release
+      - name: Isolate Order checkout receipt authority until snapshot correction passes
+        run: >-
+          mv
+          prisma/migrations/20260901110000_prepare_order_checkout_receipt_authority
+          "$RUNNER_TEMP/order-checkout-receipt-authority-release"
+      - name: Isolate Order participant snapshot correction until detail projection passes
+        run: >-
+          mv
+          prisma/migrations/20260901105000_correct_order_participant_snapshot_projection
+          "$RUNNER_TEMP/order-participant-snapshot-correction-release"
       - name: Verify compatible Order participant detail projection release
         run: npm run audit:order-participant-detail-projection-release
       - name: Isolate Order participant detail projection until cursor authority passes
@@ -1189,6 +1201,16 @@ jobs:
           mv
           "$RUNNER_TEMP/order-participant-detail-projection-release"
           prisma/migrations/20260901100000_prepare_order_participant_detail_projection
+      - name: Restore compatible Order participant snapshot correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-snapshot-correction-release"
+          prisma/migrations/20260901105000_correct_order_participant_snapshot_projection
+      - name: Restore compatible Order checkout receipt authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-checkout-receipt-authority-release"
+          prisma/migrations/20260901110000_prepare_order_checkout_receipt_authority
       - name: Re-verify compatible Order participant list authority release
         run: npm run audit:order-participant-list-authority-release
       - name: Re-verify compatible Order participant detail authority release
@@ -1211,6 +1233,8 @@ jobs:
         run: npm run audit:order-participant-cursor-authority-release
       - name: Re-verify compatible Order participant detail projection release
         run: npm run audit:order-participant-detail-projection-release
+      - name: Re-verify compatible Order checkout receipt authority release
+        run: npm run audit:order-checkout-receipt-authority-release
       - name: Apply compatible Order participant authority
         run: npx prisma migrate deploy
       - name: Converge Order participant runtime grants
@@ -1266,6 +1290,10 @@ jobs:
           tests/order-participant-detail-projection-app.test.mjs
           tests/order-participant-detail-projection-release.test.mjs
           tests/order-participant-detail-state.test.mjs
+          tests/order-checkout-receipt-authority-app.test.mjs
+          tests/order-checkout-receipt-authority-release.test.mjs
+          tests/order-checkout-receipt-state.test.mjs
+          tests/checkout-success-state.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

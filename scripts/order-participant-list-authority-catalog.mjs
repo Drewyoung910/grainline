@@ -69,6 +69,18 @@ export const ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION_SHA256 =
   "5b229132f959e444c3a2ec0d6f5f7f35935cd1b6b70f7c493355c3892246bc72";
 export const ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION_TREE_SHA256 =
   "1ccc6693ae4c752b4c33a31c01f57fb522c9536c72cdcd83a255c43734a0212f";
+export const ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION =
+  "20260901105000_correct_order_participant_snapshot_projection";
+export const ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION_SHA256 =
+  "831bf30b23d6b96a21bccbf3b51de9959f58719258351185e8e17412516159ac";
+export const ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION_TREE_SHA256 =
+  "b5a8485a00215ff829f59e017c8fbd8e8484b2c13951e923537d1815f03426b1";
+export const ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION =
+  "20260901110000_prepare_order_checkout_receipt_authority";
+export const ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION_SHA256 =
+  "0935e61efd8bc257c2c10e058b89d56cd136255ab42f5e98065a07260c96bbaf";
+export const ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION_TREE_SHA256 =
+  "c01af7ffe6dddf4bbcb3a3149e0ab0e9b60c0543f768fa901e35f048408e7417";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_count(text)",
@@ -122,6 +134,13 @@ export const ORDER_PARTICIPANT_CURSOR_AUTHORITY_FUNCTIONS = Object.freeze([
 export const ORDER_PARTICIPANT_DETAIL_PROJECTION_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_detail_v2(text,text)",
   "grainline_order_seller_detail_v2(text,text)",
+]);
+export const ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_FUNCTIONS = Object.freeze([
+  "grainline_order_buyer_detail_v3(text,text)",
+  "grainline_order_seller_detail_v3(text,text)",
+]);
+export const ORDER_CHECKOUT_RECEIPT_AUTHORITY_FUNCTIONS = Object.freeze([
+  "grainline_order_buyer_receipts_by_sessions(text,text[])",
 ]);
 
 function sha256(value) {
@@ -337,6 +356,44 @@ export function verifyOrderParticipantDetailProjectionMigrationBytes(
   return Object.freeze({ migration, migrationSha256 });
 }
 
+export function verifyOrderParticipantSnapshotCorrectionMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION_SHA256,
+    "Order participant snapshot-correction migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
+export function verifyOrderCheckoutReceiptAuthorityMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION_SHA256,
+    "Order checkout receipt-authority migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
 export function appendReviewedOrderParticipantListAuthoritySuccessor({
   root = process.cwd(),
   laterMigrations,
@@ -437,6 +494,24 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderParticipantDetailProjectionMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
+      "Order participant snapshot correction requires the exact detail-projection predecessor",
+    );
+    verifyOrderParticipantSnapshotCorrectionMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
+      "Order checkout receipt authority requires the exact snapshot-correction predecessor",
+    );
+    verifyOrderCheckoutReceiptAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION);
   }
   return true;
 }
