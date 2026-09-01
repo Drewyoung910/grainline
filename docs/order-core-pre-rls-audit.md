@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 31 source files still touch Order authority directly
+### ORD-A05: 29 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -159,8 +159,6 @@ Participant/service mutation routes:
 
 Eligibility, analytics and aggregate readers:
 
-- `src/app/api/seller/analytics/recent-sales/route.ts`
-- `src/app/api/seller/analytics/route.ts`
 - `src/lib/metrics.ts`
 
 Lifecycle, repair and retention readers/writers:
@@ -242,6 +240,19 @@ PostgreSQL. Four more files leave the direct Order inventory, reducing it from
 35 to 31, while three also leave the direct OrderItem inventory. Seller-private
 analytics and maintenance scoring remain separate named-operation work. See
 `docs/order-public-aggregate-authority.md`; no production state changed.
+
+2026-09-01 implementation checkpoint: the isolated
+`20260901060000_prepare_order_seller_analytics_authority` candidate converts
+seller dashboard summaries and buckets, top listings, recent sales and the
+account completed-order count to five actor-bound fixed functions. The product
+audit corrected immediate cart-abandonment classification, rejected a purchase
+that predates the cart item as conversion evidence, made the representative
+recent-sale item deterministic, and moved repeat-buyer grouping out of
+application memory. Save/watch copy now identifies the surviving-subscription
+semantics of the current tables. The candidate reduces the direct inventory
+from 31 to 29 Order files and from 6 to 5 OrderItem files. Guild/service
+maintenance scoring in `src/lib/metrics.ts` remains a separate cohort. See
+`docs/order-seller-analytics-authority.md`; no production state changed.
 
 ### ORD-A09: write conversion must preserve lock and provider semantics
 
@@ -326,6 +337,8 @@ debt that should be fixed before Order RLS:
   but are not applied or consumed yet;
 - account export includes internal shipping quote material;
 - aggregate consumers still rely on broad raw table access;
+- the seller analytics cohort is now isolated and product-corrected, while
+  Guild/service maintenance scoring remains direct;
 - the development fixture creates an incomplete modern Order; and
 - the nullable seller keys and snapshot shape still need final convergence.
 

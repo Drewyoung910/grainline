@@ -252,7 +252,11 @@ The corrected pre-activation semantic inventory was 34 files. The 2026-09-01
 Order eligibility-authority successor adds one shared authority hub while
 retaining every converted callsite. The public-aggregate successor adds a
 second shared authority hub while retaining the four converted aggregate
-call sites, so the current inventory is 36 files. This
+call sites. The 2026-09-01 seller-analytics successor then moves the three
+seller-private payment predicates out of application source and into a
+byte-pinned fixed-function migration. The current `src` semantic inventory is
+therefore 33 files; the removed source matches are an authority conversion,
+not deleted payment semantics. This
 inventory is intentionally broader than the older seven-file direct-access
 floor; semantic wrapper references remain after their underlying base-table
 access is removed.
@@ -273,11 +277,8 @@ access is removed.
 
 ### Eligibility and aggregate predicates
 
-- `src/app/account/page.tsx`
 - `src/app/admin/verification/page.tsx`
 - `src/app/api/reviews/route.ts`
-- `src/app/api/seller/analytics/recent-sales/route.ts`
-- `src/app/api/seller/analytics/route.ts`
 - `src/app/api/verification/apply/route.ts`
 - `src/app/dashboard/verification/page.tsx`
 - `src/components/ReviewsSection.tsx`
@@ -775,8 +776,9 @@ The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
 - the historical 34-source semantic baseline converts to zero runtime
-  base-table access while the current 36-file inventory also retains the fixed
-  Order eligibility and public-aggregate authority hubs;
+  base-table access while the current 33-file `src` inventory retains the
+  fixed Order eligibility and public-aggregate authority hubs and the
+  byte-pinned seller-analytics migration retains its payment predicates;
 - fresh production data is classified with aggregate-only evidence;
 - buyer/seller/staff/service boundaries pass disposable PostgreSQL;
 - signed Stripe and local refund paths pass retry/concurrency proof;

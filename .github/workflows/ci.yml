@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify compatible Order seller analytics authority release
+        run: npm run audit:order-seller-analytics-authority-release
+      - name: Isolate Order seller analytics authority until public aggregate authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901060000_prepare_order_seller_analytics_authority
+          "$RUNNER_TEMP/order-seller-analytics-authority-release"
       - name: Verify compatible Order public aggregate authority release
         run: npm run audit:order-public-aggregate-authority-release
       - name: Isolate Order public aggregate authority until eligibility authority passes
@@ -1129,6 +1136,11 @@ jobs:
           mv
           "$RUNNER_TEMP/order-public-aggregate-authority-release"
           prisma/migrations/20260901050000_prepare_order_public_aggregate_authority
+      - name: Restore compatible Order seller analytics authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-seller-analytics-authority-release"
+          prisma/migrations/20260901060000_prepare_order_seller_analytics_authority
       - name: Re-verify compatible Order participant list authority release
         run: npm run audit:order-participant-list-authority-release
       - name: Re-verify compatible Order participant detail authority release
@@ -1141,6 +1153,8 @@ jobs:
         run: npm run audit:order-eligibility-authority-release
       - name: Re-verify compatible Order public aggregate authority release
         run: npm run audit:order-public-aggregate-authority-release
+      - name: Re-verify compatible Order seller analytics authority release
+        run: npm run audit:order-seller-analytics-authority-release
       - name: Apply compatible Order participant authority
         run: npx prisma migrate deploy
       - name: Converge Order participant runtime grants
@@ -1179,6 +1193,9 @@ jobs:
           tests/order-public-aggregate-authority-contract.test.mjs
           tests/order-public-aggregate-authority-release.test.mjs
           tests/order-public-aggregate-authority-state.test.mjs
+          tests/order-seller-analytics-authority-postgres.test.mjs
+          tests/order-seller-analytics-authority-release.test.mjs
+          tests/order-seller-analytics-state.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

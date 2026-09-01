@@ -25,7 +25,6 @@ describe("order trust metrics guardrails", () => {
   it("requires raw-SQL marketplace trust metrics to count only Stripe-backed paid orders", () => {
     const paths = [
       "src/lib/metrics.ts",
-      "src/app/api/seller/analytics/route.ts",
       "src/app/admin/verification/page.tsx",
     ];
 
@@ -47,12 +46,16 @@ describe("order trust metrics guardrails", () => {
     );
     assert.match(publicAggregates, /source_order\."paidAt" IS NOT NULL/);
     assert.match(publicAggregates, /source_order\."stripeSessionId" IS NOT NULL/);
+    const sellerAnalytics = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
+    assert.match(sellerAnalytics, /source_order\."paidAt" IS NOT NULL/);
+    assert.match(sellerAnalytics, /source_order\."stripeSessionId" IS NOT NULL/);
+    assert.match(source("src/app/api/seller/analytics/route.ts"), /readSellerOrderAnalyticsSummary/);
   });
 
   it("requires Prisma marketplace trust metrics to count only Stripe-backed paid orders", () => {
     const paths = [
-      "src/app/api/seller/analytics/recent-sales/route.ts",
-      "src/app/account/page.tsx",
       "src/components/ReviewsSection.tsx",
     ];
 
@@ -63,6 +66,8 @@ describe("order trust metrics guardrails", () => {
       assert.doesNotMatch(text, /paidAt: \{ not: null \}/, `${path} should not hand-roll paid checks`);
       assert.doesNotMatch(text, /stripeSessionId: \{ not: null \}/, `${path} should not hand-roll Stripe refs`);
     }
+    assert.match(source("src/app/api/seller/analytics/recent-sales/route.ts"), /readSellerRecentSales/);
+    assert.match(source("src/app/account/page.tsx"), /countSellerCompletedOrders/);
     assert.match(source("src/lib/homepageStats.ts"), /getPublicFulfilledOrderCount/u);
   });
 

@@ -116,7 +116,14 @@ describe("verified audit follow-up guardrails", () => {
     for (const path of paths) {
       assert.match(source(path), /orderTotalCents/, `${path} should use orderTotalCents()`);
     }
-    assert.match(source("src/app/api/seller/analytics/recent-sales/route.ts"), /giftWrappingPriceCents: true/);
+    assert.match(
+      source("src/app/api/seller/analytics/recent-sales/route.ts"),
+      /giftWrappingPriceCents: sale\.giftWrappingPriceCents/,
+    );
+    assert.match(
+      source("prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql"),
+      /source_order\."giftWrappingPriceCents"/,
+    );
     assert.match(source("src/app/api/stripe/webhook/route.ts"), /giftWrappingPriceCents: order\.giftWrappingPriceCents/);
   });
 

@@ -50,8 +50,6 @@ const expected = {
     "src/app/api/orders/[id]/fulfillment/route.ts",
     "src/app/api/orders/[id]/label/route.ts",
     "src/app/api/orders/[id]/refund/route.ts",
-    "src/app/api/seller/analytics/recent-sales/route.ts",
-    "src/app/api/seller/analytics/route.ts",
     "src/app/api/stripe/webhook/route.ts",
     "src/app/checkout/success/page.tsx",
     "src/app/dashboard/orders/[id]/page.tsx",
@@ -70,7 +68,6 @@ const expected = {
   ],
   OrderItem: [
     "src/app/admin/verification/page.tsx",
-    "src/app/api/seller/analytics/route.ts",
     "src/app/api/stripe/webhook/route.ts",
     "src/components/ReviewsSection.tsx",
     "src/lib/accountDeletion.ts",
@@ -89,7 +86,10 @@ const expected = {
 };
 
 const baselineCounts = {
-  ...Object.fromEntries(Object.entries(expected).map(([model, files]) => [model, files.length])),
+  Order: 31,
+  OrderItem: 6,
+  OrderShippingRateQuote: 2,
+  OrderPaymentEvent: 2,
   SellerPayoutEvent: 3,
   CheckoutStockReservation: 4,
 };

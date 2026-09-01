@@ -16,11 +16,7 @@ describe("seller analytics refund guardrails", () => {
     assert.match(helper, /"paymentOpenDisputeBlocked" = true/);
     assert.doesNotMatch(helper, /OrderPaymentEvent|paymentEvents|ope\./);
 
-    for (const path of [
-      "src/app/api/seller/analytics/route.ts",
-      "src/lib/metrics.ts",
-      "src/app/admin/verification/page.tsx",
-    ]) {
+    for (const path of ["src/lib/metrics.ts", "src/app/admin/verification/page.tsx"]) {
       const text = source(path);
 
       assert.match(
@@ -34,6 +30,13 @@ describe("seller analytics refund guardrails", () => {
         `${path} should not enumerate the private payment ledger`,
       );
     }
+    const sellerAnalytics = source("src/app/api/seller/analytics/route.ts");
+    const sellerAnalyticsAuthority = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
+    assert.match(sellerAnalytics, /readSellerOrderAnalyticsSummary/);
+    assert.match(sellerAnalyticsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.doesNotMatch(sellerAnalytics, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
     for (const path of ["src/lib/site-metrics-snapshot.ts", "src/lib/quality-score.ts"]) {
       assert.match(source(path), /orderPublicAggregateAuthority|getPublic/u);
     }
@@ -45,8 +48,13 @@ describe("seller analytics refund guardrails", () => {
 
   it("keeps recent sales on the fixed Order refund projection", () => {
     const recentSales = source("src/app/api/seller/analytics/recent-sales/route.ts");
+    const analyticsAuthority = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
 
-    assert.match(recentSales, /paymentRefundBlocked: false/);
+    assert.match(recentSales, /readSellerRecentSales\(me\.id\)/);
+    assert.match(analyticsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.match(analyticsAuthority, /source_order\."sellerRefundId" IS NULL/);
     assert.doesNotMatch(recentSales, /paymentEvents:|blockingRefundLedgerWhere|OrderPaymentEvent/);
   });
 

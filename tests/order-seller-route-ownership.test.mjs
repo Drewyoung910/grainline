@@ -41,10 +41,8 @@ describe("seller order mutation ownership guardrails", () => {
 
   it("keeps seller order read surfaces on durable whole-order ownership", () => {
     for (const path of [
-      "src/app/api/seller/analytics/recent-sales/route.ts",
       "src/app/dashboard/sales/page.tsx",
       "src/app/api/account/export/route.ts",
-      "src/app/account/page.tsx",
       "src/lib/accountDeletion.ts",
       "src/lib/ban.ts",
     ]) {
@@ -60,6 +58,20 @@ describe("seller order mutation ownership guardrails", () => {
         `${path} must not derive seller Order authority from current Listings`,
       );
     }
+
+    const recentSales = source("src/app/api/seller/analytics/recent-sales/route.ts");
+    const analyticsAuthority = source("src/lib/orderSellerAnalyticsAuthority.ts");
+    const analyticsMigration = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
+    assert.match(recentSales, /readSellerRecentSales\(me\.id\)/);
+    assert.match(analyticsAuthority, /grainline_order_seller_recent_sales/);
+    assert.match(analyticsMigration, /source_order\."sellerProfileId" = seller_actor\.id/);
+    assert.doesNotMatch(recentSales, /prisma\.order\./);
+
+    const account = source("src/app/account/page.tsx");
+    assert.match(account, /countSellerCompletedOrders\(me\.id\)/);
+    assert.doesNotMatch(account, /items:\s*\{\s*(?:some|every):\s*\{\s*listing:\s*\{\s*sellerId:/s);
   });
 
   it("keeps cached public seller stats on whole-order ownership", () => {
