@@ -37,7 +37,6 @@ function authorityAccessFiles(delegate, table) {
 const expected = {
   Order: [
     "src/app/account/orders/page.tsx",
-    "src/app/account/page.tsx",
     "src/app/admin/actions.ts",
     "src/app/admin/cases/[id]/page.tsx",
     "src/app/admin/flagged/page.tsx",
@@ -53,7 +52,6 @@ const expected = {
     "src/app/api/stripe/webhook/route.ts",
     "src/app/checkout/success/page.tsx",
     "src/app/dashboard/orders/[id]/page.tsx",
-    "src/app/dashboard/orders/page.tsx",
     "src/app/dashboard/sales/[orderId]/page.tsx",
     "src/app/dashboard/sales/page.tsx",
     "src/lib/accountDeletion.ts",

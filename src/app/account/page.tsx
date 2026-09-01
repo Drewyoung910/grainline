@@ -10,8 +10,8 @@ import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
-import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 import { countSellerCompletedOrders } from "@/lib/orderSellerAnalyticsAuthority";
+import { readBuyerOrderSummaryPage } from "@/lib/orderParticipantReadAuthority";
 import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
@@ -33,30 +33,9 @@ async function AccountPageContent() {
   const me = await ensureUserForPage("/account");
   const blockedSellerIds = await getBlockedSellerProfileIdsFor(me.id);
 
-  const [recentOrders, savedItems, savedSearches, followCount, sellerProfile] = await Promise.all([
+  const [recentOrderPage, savedItems, savedSearches, followCount, sellerProfile] = await Promise.all([
     // Most recent 5 orders as a buyer
-    prisma.order.findMany({
-      where: { buyerId: me.id },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 5,
-      select: {
-        id: true,
-        createdAt: true,
-        itemsSubtotalCents: true,
-        shippingAmountCents: true,
-        taxAmountCents: true,
-        giftWrappingPriceCents: true,
-        currency: true,
-        fulfillmentStatus: true,
-        items: {
-          select: {
-            priceCents: true,
-            quantity: true,
-            listingSnapshot: true,
-          },
-        },
-      },
-    }),
+    readBuyerOrderSummaryPage({ actorUserId: me.id, limit: 5 }),
 
     // Most recent 6 saved (favorited) listings
     prisma.favorite.findMany({
@@ -99,6 +78,7 @@ async function AccountPageContent() {
       },
     }),
   ]);
+  const recentOrders = recentOrderPage.rows;
 
   // Completed order count for sellers
   let completedOrderCount = 0;
@@ -203,10 +183,7 @@ async function AccountPageContent() {
           <ul className="card-section divide-y divide-neutral-100">
             {recentOrders.map((order) => {
               const firstItem = order.items[0];
-              const firstSnapshot = firstItem
-                ? readHistoricalOrderItemSnapshot(firstItem.listingSnapshot, firstItem.priceCents)
-                : null;
-              const thumb = firstSnapshot?.imageUrls[0];
+              const thumb = firstItem?.imageUrl;
               const total = orderTotalCents(order);
 
               return (
@@ -223,7 +200,7 @@ async function AccountPageContent() {
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
-                        {firstSnapshot?.title ?? "Order"}
+                        {firstItem?.title ?? "Order"}
                       </p>
                       <p className="mt-0.5 text-xs text-neutral-500">
                         {new Date(order.createdAt).toLocaleDateString("en-US")} ·{" "}

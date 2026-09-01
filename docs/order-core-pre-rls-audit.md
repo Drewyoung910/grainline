@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 28 source files still touch Order authority directly
+### ORD-A05: 26 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -132,10 +132,8 @@ would preserve the same over-broad credential authority.
 Participant, account and export reads:
 
 - `src/app/account/orders/page.tsx`
-- `src/app/account/page.tsx`
 - `src/app/checkout/success/page.tsx`
 - `src/app/dashboard/orders/[id]/page.tsx`
-- `src/app/dashboard/orders/page.tsx`
 - `src/app/dashboard/sales/[orderId]/page.tsx`
 - `src/app/dashboard/sales/page.tsx`
 
@@ -259,9 +257,24 @@ checkout-time `Order.sellerProfileId` and `OrderItem.sellerProfileId` keys.
 Guild thresholds, private/custom paid-order inclusion, refund exclusion and
 the 90-day shipping meaning remain unchanged. The candidate reduces the
 current direct inventory from 29 to 28 Order files and from 5 to 4 OrderItem
-files. The `SellerMetrics` cache upsert remains a separately audited table
+ files. The `SellerMetrics` cache upsert remains a separately audited table
 boundary. See `docs/order-seller-metrics-authority.md`; no production state
 changed.
+
+2026-09-01 implementation checkpoint: the isolated
+`20260901080000_prepare_order_participant_summary_authority` candidate fixes a
+product gap found before participant-page conversion. The predecessor scalar
+list projection did not contain the historical item cards used by every
+buyer/seller list. Replacing it directly would have removed useful UI or
+caused an N+1 detail query for every Order. The successor instead returns at
+most five fixed checkout-time item summaries plus the complete item count in
+the same actor-scoped keyset query. `src/app/account/page.tsx` and
+`src/app/dashboard/orders/page.tsx` now use that projection, reducing the
+direct Order inventory from 28 to 26 without mutable Listing fallback or
+unbounded item payloads. The full buyer history and seller sales pages remain
+direct until their offset pagination is deliberately converted to cursor
+navigation. See `docs/order-participant-summary-authority.md`; no production
+state changed.
 
 ### ORD-A09: write conversion must preserve lock and provider semantics
 

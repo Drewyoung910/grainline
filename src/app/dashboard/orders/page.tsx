@@ -11,7 +11,10 @@ import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { BuyerOrdersSkeleton } from "@/components/SellerRouteSkeletons";
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
+import {
+  countBuyerOrders,
+  readBuyerOrderSummaryPage,
+} from "@/lib/orderParticipantReadAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -35,25 +38,11 @@ async function OrdersContent() {
   if (!me) redirect("/sign-in?redirect_url=/dashboard/orders");
 
   const LIMIT = 20;
-  const [totalOrders, orders] = await Promise.all([
-    prisma.order.count({ where: { buyerId: me.id } }),
-    prisma.order.findMany({
-      where: { buyerId: me.id },
-      include: {
-        items: {
-          select: {
-            id: true,
-            listingId: true,
-            listingSnapshot: true,
-            priceCents: true,
-            quantity: true,
-          },
-        },
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: LIMIT,
-    }),
+  const [totalOrders, orderPage] = await Promise.all([
+    countBuyerOrders(me.id),
+    readBuyerOrderSummaryPage({ actorUserId: me.id, limit: LIMIT }),
   ]);
+  const orders = orderPage.rows;
   const refundOutcomes = await buyerRefundOutcomes(
     me.id,
     orders.map((order) => order.id),
@@ -119,11 +108,7 @@ async function OrdersContent() {
 
                 <ul className="divide-y divide-neutral-100">
                   {o.items.map((it) => {
-                    const snapshot = readHistoricalOrderItemSnapshot(
-                      it.listingSnapshot,
-                      it.priceCents,
-                    );
-                    const img = snapshot.imageUrls[0];
+                    const img = it.imageUrl;
                     return (
                       <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                         {img ? (
@@ -138,13 +123,13 @@ async function OrdersContent() {
                         )}
                         <div className="min-w-0 flex-1">
                           <Link
-                            href={publicListingPath(it.listingId, snapshot.title)}
+                            href={publicListingPath(it.listingId, it.title)}
                             className="block truncate text-sm font-medium hover:underline"
                           >
-                            {snapshot.title}
+                            {it.title}
                           </Link>
                           <div className="text-xs text-neutral-500">
-                            Maker: {snapshot.sellerName}
+                            Maker: {it.sellerName}
                           </div>
                           <div className="mt-1 text-sm text-neutral-700">
                             {fmtMoney(it.priceCents, currency)} × {it.quantity}
@@ -156,6 +141,11 @@ async function OrdersContent() {
                       </li>
                     );
                   })}
+                  {o.itemCount > o.items.length && (
+                    <li className="px-4 py-3 text-sm text-neutral-500">
+                      +{o.itemCount - o.items.length} more item{o.itemCount - o.items.length === 1 ? "" : "s"}
+                    </li>
+                  )}
                 </ul>
 
                 <div className="px-4 py-3 border-t border-neutral-100 text-sm space-y-1">

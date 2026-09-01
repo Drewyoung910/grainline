@@ -51,6 +51,12 @@ export const ORDER_SELLER_METRICS_AUTHORITY_MIGRATION_SHA256 =
   "bc555f857d7fc253bd84cb01913cda5001e42d3328b4042e4945e35745b8c336";
 export const ORDER_SELLER_METRICS_AUTHORITY_MIGRATION_TREE_SHA256 =
   "ab1b2c2f91dc62aa41007b145ba7a3c9acce9505b837004a1900c12d79f11171";
+export const ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION =
+  "20260901080000_prepare_order_participant_summary_authority";
+export const ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION_SHA256 =
+  "bc400e434c07e65bdba178641ca8ff00d0ba00b7ac6a7f8b90d71b9e8164b18b";
+export const ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION_TREE_SHA256 =
+  "800a12cd2545e93327d280e58a03f805abb6a76435363aede3c0170bd6848c9b";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_count(text)",
@@ -91,6 +97,11 @@ export const ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS = Object.freeze([
 ]);
 export const ORDER_SELLER_METRICS_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_seller_metrics_facts(text,bigint)",
+]);
+export const ORDER_PARTICIPANT_SUMMARY_AUTHORITY_FUNCTIONS = Object.freeze([
+  "grainline_order_summary_items(text)",
+  "grainline_order_buyer_summary_page(text,integer,bigint,text)",
+  "grainline_order_seller_summary_page(text,integer,bigint,text)",
 ]);
 
 function sha256(value) {
@@ -249,6 +260,25 @@ export function verifyOrderSellerMetricsAuthorityMigrationBytes(
   return Object.freeze({ migration, migrationSha256 });
 }
 
+export function verifyOrderParticipantSummaryAuthorityMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION_SHA256,
+    "Order participant summary-authority migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
 export function appendReviewedOrderParticipantListAuthoritySuccessor({
   root = process.cwd(),
   laterMigrations,
@@ -322,6 +352,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderSellerMetricsAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_SELLER_METRICS_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
+      "Order participant summary authority requires the exact seller-metrics predecessor",
+    );
+    verifyOrderParticipantSummaryAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION);
   }
   return true;
 }

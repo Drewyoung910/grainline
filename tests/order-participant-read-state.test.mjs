@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 
 const {
   buyerOrderListPageFromRows,
+  buyerOrderSummaryPageFromRows,
   orderCountFromRows,
   sellerOrderListPageFromRows,
+  sellerOrderSummaryPageFromRows,
 } = await import("../src/lib/orderParticipantReadState.ts");
 
 const buyerRow = {
@@ -63,6 +65,62 @@ describe("Order participant read state", () => {
     assert.throws(
       () => orderCountFromRows([{ value: 1 }, { value: 2 }], "Buyer"),
       /count row is invalid/,
+    );
+  });
+
+  it("parses bounded minimal historical summaries and rejects oversized payloads", () => {
+    const summaryItem = {
+      id: "item-1",
+      listingId: "listing-1",
+      priceCents: 500,
+      quantity: 1,
+      title: "Original stool",
+      imageUrl: "https://example.test/stool.jpg",
+      sellerName: "Maker One",
+    };
+    const buyer = buyerOrderSummaryPageFromRows([{
+      ...buyerRow,
+      label_carrier: "UPS",
+      label_tracking_number: "TRACK-1",
+      item_count: 6,
+      items: [summaryItem],
+    }], 5);
+    assert.equal(buyer.rows[0].itemCount, 6);
+    assert.equal(buyer.rows[0].items[0].title, "Original stool");
+    assert.equal(buyer.rows[0].items[0].imageUrl, "https://example.test/stool.jpg");
+    assert.equal(buyer.rows[0].items[0].sellerName, "Maker One");
+    assert.equal(buyer.rows[0].labelTrackingNumber, "TRACK-1");
+
+    const seller = sellerOrderSummaryPageFromRows([{
+      ...buyerRow,
+      seller_notes_present: false,
+      buyer_name: "Buyer One",
+      buyer_email: "buyer@example.test",
+      buyer_data_purged_at_epoch_millis: null,
+      buyer_deleted_at_epoch_millis: null,
+      item_count: 1,
+      items: [summaryItem],
+    }], 5);
+    assert.equal(seller.rows[0].items.length, 1);
+
+    const emptyLegacyOrder = buyerOrderSummaryPageFromRows([{
+      ...buyerRow,
+      label_carrier: null,
+      label_tracking_number: null,
+      item_count: 0,
+      items: [],
+    }], 5);
+    assert.equal(emptyLegacyOrder.rows[0].itemCount, 0);
+    assert.deepEqual(emptyLegacyOrder.rows[0].items, []);
+    assert.throws(
+      () => buyerOrderSummaryPageFromRows([{
+        ...buyerRow,
+        label_carrier: null,
+        label_tracking_number: null,
+        item_count: 1,
+        items: Array.from({ length: 6 }, () => summaryItem),
+      }], 10),
+      /summary items are invalid/,
     );
   });
 });

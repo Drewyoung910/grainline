@@ -2419,18 +2419,16 @@ revoked. This service exception does not authorize generic Order access. Keep
 the `SellerMetrics` cache upsert as its own later RLS/maintenance-write
 boundary. See `docs/order-seller-metrics-authority.md`.
 
-### Core Order Guild/service metrics authority decision (2026-09-01)
+### Core Order participant-summary authority decision (2026-09-01)
 
-Audit trust metrics as product logic before moving their Order queries behind
-RLS. Preserve the published Guild thresholds and existing completed/refunded
-definitions, but bind historical sales and shipping facts to checkout-time
-`Order.sellerProfileId` and `OrderItem.sellerProfileId`; mutable Listing
-ownership must never rewrite a seller's qualification history. Use one bounded
-aggregate-only service function because cron and staff verification recalculate
-arbitrary sellers, return no Order or buyer identity, and keep PUBLIC execution
-revoked. This service exception does not authorize generic Order access. Keep
-the `SellerMetrics` cache upsert as its own later RLS/maintenance-write
-boundary. See `docs/order-seller-metrics-authority.md`.
+Do not convert participant Order lists to a scalar-only projection when the
+product still renders historical item cards. Equally, do not restore broad
+OrderItem reads or add an N+1 detail call. Use one actor-scoped keyset page
+that returns the complete item count and at most five fixed checkout-time item
+summaries. Show a remaining-item count on list surfaces and reserve the full
+item set for Order detail. Convert numbered offset pagination deliberately;
+do not emulate arbitrary page numbers by reading and discarding unbounded
+cursor pages. See `docs/order-participant-summary-authority.md`.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
