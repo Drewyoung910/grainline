@@ -16,44 +16,65 @@ describe("seller analytics refund guardrails", () => {
     assert.match(helper, /"paymentOpenDisputeBlocked" = true/);
     assert.doesNotMatch(helper, /OrderPaymentEvent|paymentEvents|ope\./);
 
-    for (const path of [
-      "src/app/api/seller/analytics/route.ts",
-      "src/lib/metrics.ts",
-      "src/app/api/verification/apply/route.ts",
-      "src/app/dashboard/verification/page.tsx",
-      "src/app/admin/verification/page.tsx",
-      "src/lib/site-metrics-snapshot.ts",
-      "src/lib/quality-score.ts",
-    ]) {
-      const text = source(path);
+    const metrics = source("src/lib/metrics.ts");
+    const metricsAuthority = source(
+      "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
+    );
+    assert.match(metrics, /readOrderSellerMetricsFacts/);
+    assert.match(metricsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.doesNotMatch(
+      metrics,
+      /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
+      "src/lib/metrics.ts should not enumerate the private payment ledger",
+    );
 
-      assert.match(
-        text,
-        /paymentRefundBlocked/,
-        `${path} should use the database-maintained refund projection`,
-      );
-      assert.doesNotMatch(
-        text,
-        /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
-        `${path} should not enumerate the private payment ledger`,
-      );
+    const adminVerification = source("src/app/admin/verification/page.tsx");
+    assert.match(adminVerification, /paymentRefundBlocked/);
+    assert.doesNotMatch(
+      adminVerification,
+      /BLOCKING_REFUND_LEDGER_SQL|ope\."eventType" = 'REFUND'|OrderPaymentEvent/,
+      "src/app/admin/verification/page.tsx should not enumerate the private payment ledger",
+    );
+    const sellerAnalytics = source("src/app/api/seller/analytics/route.ts");
+    const sellerAnalyticsAuthority = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
+    assert.match(sellerAnalytics, /readSellerOrderAnalyticsSummary/);
+    assert.match(sellerAnalyticsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.doesNotMatch(sellerAnalytics, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
+    for (const path of ["src/lib/site-metrics-snapshot.ts", "src/lib/quality-score.ts"]) {
+      assert.match(source(path), /orderPublicAggregateAuthority|getPublic/u);
     }
+    assert.match(
+      source("prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql"),
+      /source_order\."paymentRefundBlocked" = false/u,
+    );
   });
 
   it("keeps recent sales on the fixed Order refund projection", () => {
     const recentSales = source("src/app/api/seller/analytics/recent-sales/route.ts");
+    const analyticsAuthority = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
 
-    assert.match(recentSales, /paymentRefundBlocked: false/);
+    assert.match(recentSales, /readSellerRecentSales\(me\.id\)/);
+    assert.match(analyticsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.match(analyticsAuthority, /source_order\."sellerRefundId" IS NULL/);
     assert.doesNotMatch(recentSales, /paymentEvents:|blockingRefundLedgerWhere|OrderPaymentEvent/);
   });
 
   it("keeps homepage fulfilled-order statistics on the fixed Order refund projection", () => {
     const homepageStats = source("src/lib/homepageStats.ts");
+    const publicAggregateAuthority = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
 
-    assert.match(homepageStats, /sellerRefundId: null/);
-    assert.match(homepageStats, /paymentRefundBlocked: false/);
+    assert.match(homepageStats, /getPublicFulfilledOrderCount/u);
+    assert.match(publicAggregateAuthority, /source_order\."sellerRefundId" IS NULL/u);
+    assert.match(publicAggregateAuthority, /source_order\."paymentRefundBlocked" = false/u);
     assert.doesNotMatch(homepageStats, /paymentEvents:|blockingRefundLedgerWhere|OrderPaymentEvent/);
-    assert.match(homepageStats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
+    assert.match(publicAggregateAuthority, /'DELIVERED'::public\."FulfillmentStatus"/u);
+    assert.match(publicAggregateAuthority, /'PICKED_UP'::public\."FulfillmentStatus"/u);
   });
 
   it("keeps seller and staff Case refunds visible to Guild sales filters", () => {
@@ -101,11 +122,20 @@ describe("seller analytics refund guardrails", () => {
       /'amountCents', locked_claim\."refundAmountCents"/,
     );
 
-    for (const text of [verificationApplyRoute, dashboardVerification, adminVerification]) {
+    for (const text of [adminVerification]) {
       assert.match(text, /o\."sellerRefundId" IS NULL/);
       assert.match(text, /o\."paymentRefundBlocked" = false/);
       assert.doesNotMatch(text, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
     }
+    for (const text of [verificationApplyRoute, dashboardVerification]) {
+      assert.match(text, /getSellerVerificationOrderSales/);
+      assert.doesNotMatch(text, /(?:FROM|JOIN)\s+"Order"/);
+    }
+    const eligibility = source(
+      "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
+    );
+    assert.match(eligibility, /source_order\."sellerRefundId" IS NULL/);
+    assert.match(eligibility, /source_order\."paymentRefundBlocked" = false/);
   });
 
   it("orders seller refund and blocked-checkout dispute guards by Stripe event time", () => {

@@ -9,11 +9,15 @@ function source(path) {
 describe("payment and fulfillment side-effect observability", () => {
   it("keeps fulfillment mutations from being masked by notification or email failures", () => {
     const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const finalization = source("src/lib/orderFulfillmentFinalization.ts");
 
-    assert.match(route, /source: "fulfillment_notification"/);
-    assert.match(route, /source: "fulfillment_email"/);
-    assert.match(route, /async function notifyBuyer/);
-    assert.match(route, /function captureFulfillmentEmailFailure/);
+    assert.match(route, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(finalization, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(finalization, /createNotificationOrThrow\(\{/);
+    assert.match(finalization, /enqueueEmailOutboxOnce\(\{/);
+    assert.match(finalization, /dedupKey: `order-fulfillment:\$\{result\.auditLogId\}`/);
+    assert.match(finalization, /processEmailOutboxJobById\(committed\.emailOutboxId\)/);
+    assert.doesNotMatch(route, /fulfillment_notification|fulfillment_email|notifyBuyer/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
@@ -379,6 +383,9 @@ describe("payment and fulfillment side-effect observability", () => {
     const sellerAuthority = source(
       "prisma/migrations/20260824010000_prepare_order_refund_claim_generation/migration.sql",
     );
+    const labelAuthority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
 
     assert.match(sellerRoute, /orderHasPurchasedLabel/);
     assert.match(
@@ -399,26 +406,17 @@ describe("payment and fulfillment side-effect observability", () => {
       /locked_order\."labelStatus" =\s*'PURCHASED'::public\."LabelStatus"/,
     );
 
-    assert.match(labelRoute, /"sellerRefundId" IS NULL/);
-    assert.match(labelRoute, /"sellerRefundLockedAt" IS NULL/);
-    assert.match(labelRoute, /releaseStaleRefundLocks\(id\)/);
-    assert.match(labelRoute, /staleLocksReleased\.count > 0/);
-    assert.ok(
-      labelRoute.indexOf("releaseStaleRefundLocks(id)") <
-        labelRoute.indexOf("if (order.labelStatus ==="),
-      "label route should release stale refund locks before label/refund guards",
-    );
-    assert.match(labelRoute, /caseOrderActiveForSeller/);
-    assert.match(
-      labelRoute,
-      /lockOrderForCaseLifecycle\(tx, order\.id\)[\s\S]*caseOrderActiveForSeller\([\s\S]*tx,/,
-    );
+    assert.match(labelRoute, /sellerLabelPreflight/);
+    assert.match(labelRoute, /claimSellerLabelPurchase/);
+    assert.doesNotMatch(labelRoute, /releaseStaleRefundLocks|prisma\.order/);
+    assert.match(labelAuthority, /locked_order\."sellerRefundId" IS NOT NULL/);
+    assert.match(labelAuthority, /locked_order\."sellerRefundLockedAt" IS NOT NULL/);
+    assert.match(labelAuthority, /FOR UPDATE OF candidate/);
+    assert.match(labelAuthority, /FROM public\."Case" AS source_case/);
     assert.doesNotMatch(labelRoute, /SELECT 1 FROM "Case" c/);
     assert.doesNotMatch(labelRoute, /\bACTIVE_CASE_STATUSES\b/);
-    assert.match(labelRoute, /paymentRefundBlockedSql/);
-    assert.match(labelRoute, /paymentOpenDisputeBlockedSql/);
-    assert.match(labelRoute, /paymentRefundBlockedSql\(Prisma\.sql`"Order"`\)/);
-    assert.match(labelRoute, /paymentOpenDisputeBlockedSql\(Prisma\.sql`"Order"`\)/);
+    assert.match(labelAuthority, /locked_order\."paymentRefundBlocked"/);
+    assert.match(labelAuthority, /locked_order\."paymentOpenDisputeBlocked"/);
     assert.doesNotMatch(labelRoute, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
   });
 
@@ -432,13 +430,21 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("blocks fulfillment state changes on database-maintained payment projections", () => {
     const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
 
-    assert.match(route, /authz\.order\.paymentOpenDisputeBlocked/);
-    assert.match(route, /paymentRefundBlockedSql/);
-    assert.match(route, /paymentOpenDisputeBlockedSql/);
     assert.match(route, /Resolve the open Stripe dispute before changing fulfillment/);
-    assert.match(route, /UPDATE "Order"[\s\S]*paymentRefundBlockedSql\(Prisma\.sql`"Order"`\)[\s\S]*paymentOpenDisputeBlockedSql\(Prisma\.sql`"Order"`\)/);
-    assert.match(route, /"fulfillmentStatus"::text IN \(\$\{Prisma\.join\(allowed\)\}\)/);
+    assert.match(authority, /locked_order\."paymentRefundBlocked"/);
+    assert.match(authority, /locked_order\."paymentOpenDisputeBlocked"/);
+    assert.match(
+      authority,
+      /UPDATE public\."Order" AS target_order[\s\S]*"fulfillmentStatus" = 'SHIPPED'::public\."FulfillmentStatus"/,
+    );
+    assert.match(
+      authority,
+      /UPDATE public\."Order" AS target_order[\s\S]*"fulfillmentStatus" = 'READY_FOR_PICKUP'::public\."FulfillmentStatus"/,
+    );
     assert.doesNotMatch(route, /id:\s*\{\s*in: Prisma\.sql/);
     assert.doesNotMatch(route, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
   });
@@ -529,7 +535,7 @@ describe("payment and fulfillment side-effect observability", () => {
   it("sanitizes label clawback Stripe errors before console logging", () => {
     const route = source("src/app/api/orders/[id]/label/route.ts");
 
-    assert.match(route, /labelClawbackErrorMessage\(stripeErr\)/);
+    assert.match(route, /labelClawbackErrorMessage\(error\)/);
     assert.doesNotMatch(
       route,
       /console\.warn\(\s*`Stripe label cost clawback failed for order \$\{id\}:`,\s*stripeErr,?\s*\)/,
@@ -588,7 +594,9 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(existingOrderBranch, /refundClaimSource: true/);
     assert.match(existingOrderBranch, /refundClaimSourceId: true/);
     assert.doesNotMatch(existingOrderBranch, /buyerId: already\.buyerId/);
-    assert.match(existingOrderBranch, /sellerUserIds: \[/);
+    assert.match(existingOrderBranch, /sellerProfile: \{ select: \{ userId: true \} \}/);
+    assert.match(existingOrderBranch, /sellerUserIds: already\.sellerProfile\?\.userId/);
+    assert.doesNotMatch(existingOrderBranch, /listing:\s*\{\s*select:\s*\{\s*seller:/s);
     assert.match(existingOrderBranch, /blockedCheckoutRefundStillInProgress\(already\)/);
     assert.match(existingOrderBranch, /throw new Error\("Blocked checkout automatic refund is still in progress\."\)/);
     assert.match(existingOrderBranch, /if \(!orderPostPaymentSideEffectsBlocked\(already\)\) \{/);
@@ -812,21 +820,12 @@ describe("payment and fulfillment side-effect observability", () => {
 
     assert.match(route, /import \{ HTTP_STATUS \} from "@\/lib\/httpStatus"/);
     assert.match(route, /sanitizeShippoProviderErrorBody/);
-    assert.match(route, /status: HTTP_STATUS\.ACCEPTED/);
+    assert.match(route, /status: 202/);
     assert.match(route, /status: HTTP_STATUS\.BAD_GATEWAY/);
-    assert.match(route, /source: "label_lock_revert_failed"/);
     assert.match(route, /source: "shippo_label_purchase_ambiguous"/);
     assert.match(route, /source: "shippo_label_ambiguous_record_failed"/);
-    assert.match(route, /source: "shippo_label_post_purchase_db_update"/);
-    assert.match(route, /source: "shippo_label_orphan_record_failed"/);
-    assert.match(
-      route,
-      /hasLabelUrl: Boolean\(purchasedLabelDetails\?\.labelUrl\)/,
-    );
-    assert.match(
-      route,
-      /hasTrackingNumber: Boolean\(purchasedLabelDetails\?\.trackingNumber\)/,
-    );
+    assert.match(route, /source: "shippo_label_success_validation"/);
+    assert.match(route, /finalizeSellerLabelProviderResult\(\{[\s\S]*outcome: "AMBIGUOUS"/);
     assert.doesNotMatch(
       route,
       /extra: \{ orderId: id, purchasedLabelDetails \}/,
@@ -836,30 +835,10 @@ describe("payment and fulfillment side-effect observability", () => {
       /source: "shippo_label_orphan_record_failed"[\s\S]*labelUrl: purchasedLabelDetails/s,
     );
     assert.doesNotMatch(route, /Shippo label purchase failed: \$\{msgs/);
-    const ambiguousStart = route.indexOf("source: \"shippo_label_purchase_ambiguous\"");
-    const orphanStart = route.indexOf("source: \"shippo_label_post_purchase_db_update\"", ambiguousStart);
-    const ambiguousBlock = route.slice(ambiguousStart, orphanStart);
-    assert.ok(ambiguousStart >= 0, "ambiguous Shippo label branch must be present");
-    assert.ok(orphanStart > ambiguousStart, "orphan label branch must follow ambiguous branch");
-    assert.match(ambiguousBlock, /AMBIGUOUS LABEL/);
-    assert.doesNotMatch(ambiguousBlock, /revertLabelLock\(\)/);
-    const orphanBlock = route.slice(orphanStart, route.indexOf(".catch((updateError)", orphanStart));
-    assert.match(orphanBlock, /order\.stripeTransferId/);
-    assert.match(orphanBlock, /labelStatus: "PURCHASED"/);
-    assert.match(orphanBlock, /labelPurchasedAt: orphanRecordedAt/);
-    assert.match(orphanBlock, /fulfillmentStatus: "SHIPPED"/);
-    assert.match(orphanBlock, /shippedAt: orphanRecordedAt/);
-    assert.match(orphanBlock, /labelClawbackReversalAccepted/);
-    assert.match(orphanBlock, /labelClawbackStatus: "REVERSED"/);
-    assert.match(orphanBlock, /labelClawbackReversalId: acceptedLabelClawbackReversalId/);
-    assert.match(orphanBlock, /labelClawbackStatus: "RETRY_PENDING"/);
-    assert.match(orphanBlock, /labelClawbackNextAttemptAt: orphanRecordedAt/);
-    assert.match(orphanBlock, /labelClawbackStatus: "MANUAL_REVIEW"/);
-    assert.doesNotMatch(route, /order:\s*updated/);
-    assert.match(route, /order: labelPurchaseOrderResponse\(updated\)/);
-    assert.match(route, /select: labelClawbackOrderSelect/);
-    assert.match(labelClawback, /export const labelClawbackOrderSelect/);
-    assert.match(labelClawback, /select: labelClawbackOrderSelect/);
+    assert.doesNotMatch(route, /labelUrl:\s*recorded|order:\s*updated|prisma\.order/);
+    assert.match(route, /sellerLabelDownload/);
+    assert.match(labelClawback, /claimLabelClawbackBatch\(take\)/);
+    assert.match(labelClawback, /finalizeLabelClawback/);
   });
 
   it("captures best-effort checkout stock restoration failures", () => {

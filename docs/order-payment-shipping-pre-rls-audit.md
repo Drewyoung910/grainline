@@ -39,8 +39,8 @@ The exact baseline is:
 
 | Model | Direct-access source files |
 |---|---:|
-| `Order` | 41 |
-| `OrderItem` | 12 |
+| `Order` | 31 |
+| `OrderItem` | 6 |
 | `OrderShippingRateQuote` | 2 |
 | `OrderPaymentEvent` | 2 |
 | `SellerPayoutEvent` | 3 |
@@ -54,10 +54,78 @@ through fixed source-bound authorities or database-maintained `Order`
 projections. The two remaining matches are the intentionally retained fixed
 refund-authority helpers in `orderRefundFinalization.ts` and
 `orderRefundRecordAuthority.ts`; neither grants generic table lookup or write
-authority. The separate 34-file semantic inventory remains authoritative for
+authority. The separate current 32-file semantic inventory remains authoritative for
 nested projections, event-identity helpers, fixed Case/Notification functions,
 cron and provider side effects, so this smaller direct-access floor cannot hide
-semantic consumers.
+semantic consumers. The release-time application inventory was 33 files; the
+current `src` inventory is 32 after Guild payment predicates moved into a
+byte-pinned database authority migration. It includes converted application callsites and
+`src/lib/orderEligibilityAuthority.ts` and
+`src/lib/orderPublicAggregateAuthority.ts`; the direct-access floor no longer
+counts the nine consumers routed through those eight source-bound functions.
+
+The 2026-09-01 public-aggregate checkpoint preserves the historical 35/9
+post-eligibility snapshot while advancing the current direct floors to 31/6.
+It converts only public aggregate facts; seller-private analytics, maintenance
+and all Order mutation families remain independently pinned. See
+`docs/order-public-aggregate-authority.md`.
+
+The 2026-09-01 seller-private analytics checkpoint preserves the historical
+31/6 baseline table above while advancing the current direct floors to 29/5.
+It moves the two seller analytics routes and the seller completed-order count
+behind five actor-bound fixed functions, but `src/app/account/page.tsx`
+correctly remains a direct `Order` consumer for its separate buyer-order
+overview. The migration also corrects cart-abandonment timing, temporal
+purchase evidence, deterministic recent-item selection and repeat-buyer
+aggregation; it does not activate RLS or change production. See
+`docs/order-seller-analytics-authority.md`.
+
+The following 2026-09-01 Guild/service metrics checkpoint preserves those
+historical baselines while advancing the current direct floors to 28/4. It
+moves `src/lib/metrics.ts` Order facts behind one bounded service aggregate and
+corrects historical seller attribution to use durable checkout-time Order and
+OrderItem keys instead of mutable Listing ownership. The `SellerMetrics`
+upsert remains a separate table boundary. See
+`docs/order-seller-metrics-authority.md`.
+
+The following 2026-09-01 participant-summary checkpoint advances the direct
+Order floor from 28 to 26 while retaining the 4-file OrderItem floor. A product
+review found that the predecessor scalar pages could not preserve the existing
+historical item cards without N+1 detail reads. The bounded successor returns
+at most five checkout-time item summaries plus the complete item count in each
+actor-scoped page. The account overview and first buyer dashboard page are
+converted; numbered buyer history and seller sales pagination remain a
+deliberate follow-up. See `docs/order-participant-summary-authority.md`.
+
+The following 2026-09-01 bidirectional-cursor checkpoint advances the direct
+Order floor from 26 to 24 while retaining the 4-file OrderItem floor. The full
+buyer history and seller sales pages now use bounded older/newer keyset pages
+with explicit Previous/Next navigation instead of growing OFFSET scans. The
+seller list total uses the complete durable Order subtotal rather than the
+five displayed summaries. See `docs/order-participant-cursor-authority.md`.
+
+The following 2026-09-01 participant-detail checkpoint advances the direct
+Order floor from 24 to 22 while retaining the 4-file OrderItem floor. A fresh
+product/privacy review converts both participant detail pages to actor-bound
+projections, removes dead counterparty messaging actions, enforces active
+actors inside PostgreSQL, suppresses purged seller notes and stale label
+material, and derives actor-specific current Listing links. A subsequent audit
+caught the v2 projection dropping required checkout snapshot keys; immutable
+v2 is corrected by additive v3 functions that restore only the complete
+allowlisted snapshot. See `docs/order-participant-detail-projection.md`.
+
+The following checkout-success checkpoint advances the direct Order floor
+from 22 to 21. One bounded paid-only buyer projection replaces the direct read;
+the product audit fixes mutable receipt identity, inaccessible historical
+links, a no-wait retry, and duplicated receipt rendering. Strict line-item and
+subtotal agreement remains a production inspection gate. See
+`docs/order-checkout-receipt-authority.md`.
+
+The following development-fixture checkpoint advances the direct Order floor
+from 21 to 20. The unused `/api/dev/make-order` endpoint is removed after the
+product audit confirmed it fabricated paid state without provider or payment
+ledger evidence. No replacement runtime create function is added; local test
+data must use disposable databases or bounded provider-backed operators.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above
@@ -497,12 +565,11 @@ Service, safety and aggregate consumers:
   `src/lib/refundLedgerSql.ts`, `src/lib/orderRefundFinalization.ts` and
   `src/lib/labelClawbackRetry.ts`;
 - public and staff-safe aggregates: `src/lib/homepageStats.ts`,
-  `src/lib/metrics.ts`, `src/lib/publicSellerStats.ts`,
+  `src/lib/publicSellerStats.ts`,
   `src/lib/quality-score.ts` and `src/lib/site-metrics-snapshot.ts`; and
-- the development-only synthetic creator:
-  `src/app/api/dev/make-order/route.ts`, which must be removed from production
-  reachability or converted to a separately gated test-only operation before
-  runtime INSERT is revoked.
+- the former development-only synthetic creator is retired. It had no callsite
+  and fabricated paid state without provider evidence, so it does not justify
+  a runtime Order-create function or direct `INSERT` after activation.
 
 Fixed Case functions already read bounded Order facts. They must remain in the
 function-catalog/global-grant audit, but they do not justify restoring runtime

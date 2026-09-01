@@ -6,9 +6,9 @@ import {
   type SellerMetricsResult,
 } from "@/lib/metricsState";
 import { isSellerMetricsFresh } from "@/lib/metricsFreshness";
-import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { getSellerMessageResponseMetrics } from "@/lib/conversationMessageAuthority";
 import { getCaseSellerActiveCount } from "@/lib/caseSellerAggregateAuthority";
+import { readOrderSellerMetricsFacts } from "@/lib/orderSellerMetricsAuthority";
 
 const SELLER_METRICS_LOCK_NAMESPACE = 913344;
 
@@ -157,7 +157,7 @@ async function calculateSellerMetricsWithoutLock(
   // Keep metrics aggregation in the database. Loading full order/review/message
   // histories works at launch size, but it falls over exactly when seller
   // metrics become most important.
-  const [reviewAgg, completedSalesRows, shippingRows, activeCaseCount, responseRows] =
+  const [reviewAgg, orderFacts, activeCaseCount, responseRows] =
     await Promise.all([
       db.review.aggregate({
         where: { listing: { sellerId: sellerProfileId } },
@@ -165,39 +165,7 @@ async function calculateSellerMetricsWithoutLock(
         _count: { _all: true },
       }),
 
-      db.$queryRaw<Array<{ completedOrderCount: bigint; totalSalesCents: bigint | null }>>`
-        SELECT
-          COUNT(DISTINCT o.id)::bigint AS "completedOrderCount",
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0)::bigint AS "totalSalesCents"
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerProfileId}
-          ${PAID_STRIPE_ORDER_SQL}
-          AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
-          AND o."sellerRefundId" IS NULL
-          AND o."paymentRefundBlocked" = false
-      `,
-
-      db.$queryRaw<Array<{ shippedCount: bigint; onTimeCount: bigint }>>`
-        SELECT
-          COUNT(*)::bigint AS "shippedCount",
-          COUNT(*) FILTER (WHERE o."shippedAt" <= o."processingDeadline")::bigint AS "onTimeCount"
-        FROM "Order" o
-        WHERE o."sellerRefundId" IS NULL
-          ${PAID_STRIPE_ORDER_SQL}
-          AND o."paymentRefundBlocked" = false
-          AND o."shippedAt" IS NOT NULL
-          AND o."shippedAt" >= ${periodStart}
-          AND o."processingDeadline" IS NOT NULL
-          AND EXISTS (
-            SELECT 1
-            FROM "OrderItem" oi
-            JOIN "Listing" l ON l.id = oi."listingId"
-            WHERE oi."orderId" = o.id
-              AND l."sellerId" = ${sellerProfileId}
-          )
-      `,
+      readOrderSellerMetricsFacts(sellerProfileId, periodStart, db),
 
       getCaseSellerActiveCount(sellerProfileId, db),
 
@@ -212,15 +180,16 @@ async function calculateSellerMetricsWithoutLock(
       : 0;
 
   // Completed sales (all-time)
-  const completedSales = completedSalesRows[0];
-  const completedOrderCount = Number(completedSales?.completedOrderCount ?? 0);
-  const totalSalesCents = Number(completedSales?.totalSalesCents ?? 0);
+  if (!orderFacts || orderFacts.sellerProfileId !== sellerProfileId) {
+    throw new Error("Order seller-metrics authority returned no matching seller");
+  }
+  const completedOrderCount = orderFacts.completedOrderCount;
+  const totalSalesCents = orderFacts.totalSalesCents;
 
   // On-time shipping rate (period)
   // An order is on-time if shippedAt <= processingDeadline
-  const shippingStats = shippingRows[0];
-  const validShippedCount = Number(shippingStats?.shippedCount ?? 0);
-  const onTimeCount = Number(shippingStats?.onTimeCount ?? 0);
+  const validShippedCount = orderFacts.shippedCount;
+  const onTimeCount = orderFacts.onTimeCount;
   const onTimeShippingRate =
     validShippedCount > 0 ? onTimeCount / validShippedCount : 0;
 

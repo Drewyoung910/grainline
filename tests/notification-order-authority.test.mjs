@@ -8,6 +8,7 @@ function source(path) {
 
 describe("Notification order, payment, and fulfillment authority", () => {
   const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
+  const receipt = source("src/app/api/orders/[id]/confirm-delivery/route.ts");
   const refund = source("src/app/api/orders/[id]/refund/route.ts");
   const webhook = source("src/app/api/stripe/webhook/route.ts");
   const refundFinalization = source("src/lib/orderRefundFinalization.ts");
@@ -17,21 +18,38 @@ describe("Notification order, payment, and fulfillment authority", () => {
   );
   const serviceAccess = source("src/lib/notificationServiceAccess.ts");
   const sql = source("docs/rls-drafts/notification-service-authority.sql");
+  const receiptAuthority = source(
+    "prisma/migrations/20260901120000_prepare_order_receipt_notification_authority/migration.sql",
+  );
+  const fulfillmentFinalization = source("src/lib/orderFulfillmentFinalization.ts");
+  const fulfillmentWriteAuthority = source(
+    "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+  );
 
-  it("co-commits all three seller fulfillment notifications with transition audits", () => {
-    assert.match(fulfillment, /const transition = await prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(fulfillment, /action: "ORDER_FULFILLMENT_TRANSITION"/);
-    assert.match(fulfillment, /actorId: authz\.seller\.userId/);
-    assert.match(fulfillment, /previousStatus: authz\.order\.fulfillmentStatus \?\? "PENDING"/);
-    assert.match(fulfillment, /trackingCarrier: action === "shipped"/);
+  it("binds both seller-authored fulfillment notifications to transition audits", () => {
+    assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(fulfillmentWriteAuthority, /'ORDER_FULFILLMENT_TRANSITION'/);
+    assert.match(fulfillmentWriteAuthority, /'previousStatus', 'PENDING'/);
+    assert.match(fulfillmentWriteAuthority, /'trackingCarrier', CASE WHEN p_action = 'shipped'/);
+    assert.match(fulfillmentFinalization, /const result = await transitionSellerOrderFulfillment\(input, tx\)/);
     assert.equal(
-      (fulfillment.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_FULFILLMENT/g) ?? []).length,
-      3,
+      (fulfillmentFinalization.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_FULFILLMENT/g) ?? []).length,
+      4,
     );
-    assert.equal(
-      (fulfillment.match(/relatedUserId: authz\.seller\.userId/g) ?? []).length,
-      3,
-    );
+    assert.match(fulfillmentFinalization, /relatedUserId: input\.actorUserId/);
+    assert.match(fulfillmentFinalization, /enqueueEmailOutboxOnce\(\{/);
+  });
+
+  it("co-commits buyer receipt evidence and a seller notification", () => {
+    assert.match(receipt, /finalizeBuyerOrderReceipt\(\{/);
+    assert.match(fulfillmentWriteAuthority, /'ORDER_FULFILLMENT_TRANSITION'/);
+    assert.match(fulfillmentWriteAuthority, /'action', transition_action/);
+    assert.match(fulfillmentFinalization, /const result = await confirmBuyerOrderReceipt\(input, tx\)/);
+    assert.match(fulfillmentFinalization, /createNotificationOrThrow\(\{/);
+    assert.match(fulfillmentFinalization, /userId: result\.sellerUserId/);
+    assert.match(fulfillmentFinalization, /sourceId: result\.auditLogId/);
+    assert.match(fulfillmentFinalization, /relatedUserId: input\.actorUserId/);
+    assert.match(fulfillmentFinalization, /\}, tx\);/);
   });
 
   it("binds seller and blocked-checkout refunds to their existing payment ledgers", () => {
@@ -88,6 +106,15 @@ describe("Notification order, payment, and fulfillment authority", () => {
     assert.match(sql, /p_source_type = 'order_fulfillment'/);
     assert.match(sql, /source_audit\.action = 'ORDER_FULFILLMENT_TRANSITION'/);
     assert.match(sql, /source_audit\."actorId" = source_seller\."userId"/);
+    assert.match(receiptAuthority, /source_audit\."actorId" = source_order\."buyerId"/);
+    assert.match(receiptAuthority, /source_seller\.id = source_order\."sellerProfileId"/);
+    assert.match(receiptAuthority, /WHEN 'delivered' THEN 'Buyer confirmed delivery'/);
+    assert.doesNotMatch(
+      receiptAuthority.match(
+        /ELSIF p_source_type = 'order_fulfillment'[\s\S]*?ELSIF p_source_type = 'order_payment'/,
+      )?.[0] ?? "",
+      /JOIN public\."Listing"/,
+    );
     assert.match(sql, /p_source_type = 'order_payment'/);
     assert.match(sql, /source_payment\."stripeEventId" = p_source_id/);
     assert.match(sql, /source_payment\.metadata ->> 'localAction' = 'SELLER_REFUND_RECORDED'/);

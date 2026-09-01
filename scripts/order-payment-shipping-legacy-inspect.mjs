@@ -46,6 +46,7 @@ export const ORDER_PAYMENT_SHIPPING_INSPECTION_TABLES = Object.freeze([
 
 export const ORDER_PAYMENT_SHIPPING_FORCE_TABLES = Object.freeze([
   "CheckoutStockReservation",
+  "OrderPaymentEvent",
   "SellerPayoutEvent",
   "StripeWebhookEvent",
 ]);
@@ -53,7 +54,6 @@ export const ORDER_PAYMENT_SHIPPING_FORCE_TABLES = Object.freeze([
 export const ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES = Object.freeze([
   "Order",
   "OrderItem",
-  "OrderPaymentEvent",
   "OrderShippingRateQuote",
 ]);
 
@@ -95,6 +95,11 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS = Object.freeze([
   "label_purchased_missing_reference_privacy_redacted_count",
   "label_purchased_missing_reference_unexplained_count",
   "label_clawback_state_coherence_count",
+  "label_duplicate_shippo_transaction_identity_count",
+  "label_checkout_snapshot_package_candidate_count",
+  "label_legacy_live_package_candidate_count",
+  "label_unresolvable_package_candidate_count",
+  "label_invalid_address_candidate_count",
   "quote_invalid_shape_count",
   "quote_invalid_rate_member_count",
   "duplicate_live_quote_order_count",
@@ -375,6 +380,11 @@ export function normalizeOrderPaymentShippingInspectionPosture(rows) {
       rlsForced: true,
       runtimeCrudRetained: false,
     }),
+    orderPaymentEvent: Object.freeze({
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    }),
     remainingPredecessors: Object.freeze({
       tables: ORDER_PAYMENT_SHIPPING_PREDECESSOR_TABLES,
       rlsEnabled: false,
@@ -445,6 +455,22 @@ export const RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS = Object.freeze([
 
 export function reservationAuthorityInspectionDecision(counts) {
   const rejectedFields = RESERVATION_AUTHORITY_REQUIRED_ZERO_FIELDS.filter(
+    (field) => counts?.[field] !== 0,
+  );
+  return Object.freeze({
+    accepted: rejectedFields.length === 0,
+    rejectedFields: Object.freeze(rejectedFields),
+  });
+}
+
+export const ORDER_LABEL_AUTHORITY_REQUIRED_ZERO_FIELDS = Object.freeze([
+  "label_duplicate_shippo_transaction_identity_count",
+  "label_unresolvable_package_candidate_count",
+  "label_invalid_address_candidate_count",
+]);
+
+export function orderLabelAuthorityInspectionDecision(counts) {
+  const rejectedFields = ORDER_LABEL_AUTHORITY_REQUIRED_ZERO_FIELDS.filter(
     (field) => counts?.[field] !== 0,
   );
   return Object.freeze({
@@ -721,6 +747,166 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
       ${ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION},
       ${ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION}
     FROM label_state_rows
+  ), label_package_candidates AS (
+    SELECT
+      orders.id AS order_id,
+      NULLIF(pg_catalog.btrim(orders."shipToLine1"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(orders."shipToCity"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(orders."shipToState"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(orders."shipToPostalCode"), '') IS NOT NULL
+        AND COALESCE(orders."shipToCountry", 'US') ~ '^[A-Za-z]{2}$'
+        AND NULLIF(pg_catalog.btrim(
+          COALESCE(orders."buyerName", orders."quotedToName", '')
+        ), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(seller."shipFromLine1"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(seller."shipFromCity"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(seller."shipFromState"), '') IS NOT NULL
+        AND NULLIF(pg_catalog.btrim(seller."shipFromPostal"), '') IS NOT NULL
+        AND COALESCE(seller."shipFromCountry", 'US') ~ '^[A-Za-z]{2}$'
+        AND NULLIF(pg_catalog.btrim(
+          COALESCE(seller."shipFromName", seller."displayName", '')
+        ), '') IS NOT NULL AS address_resolvable
+    FROM public."Order" AS orders
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = orders."sellerProfileId"
+    JOIN public."User" AS seller_user
+      ON seller_user.id = seller."userId"
+    WHERE seller_user.banned = false
+      AND seller_user."deletedAt" IS NULL
+      AND orders."paidAt" IS NOT NULL
+      AND orders."sellerRefundId" IS NULL
+      AND orders."sellerRefundLockedAt" IS NULL
+      AND orders."paymentRefundBlocked" = false
+      AND orders."paymentOpenDisputeBlocked" = false
+      AND orders."fulfillmentStatus" = 'PENDING'
+      AND COALESCE(orders."fulfillmentMethod"::text, 'SHIPPING') = 'SHIPPING'
+      AND orders."labelStatus" IS DISTINCT FROM 'PURCHASED'::public."LabelStatus"
+      AND NOT (
+        orders."reviewNeeded"
+        AND COALESCE(orders."reviewNote", '') LIKE
+          'Seller Stripe account was deauthorized after payment.%'
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public."Case" AS source_case
+        WHERE source_case."orderId" = orders.id
+          AND source_case.status::text IN (
+            'OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE', 'UNDER_REVIEW'
+          )
+      )
+  ), label_package_rollup AS (
+    SELECT
+      candidate.order_id,
+      candidate.address_resolvable,
+      pg_catalog.count(item.id)::integer AS total_items,
+      pg_catalog.count(item.id) FILTER (
+        WHERE pg_catalog.jsonb_typeof(item."listingSnapshot") = 'object'
+          AND item.quantity > 0
+          AND item."listingSnapshot"->>'shippingPackageComplete' = 'true'
+          AND item."listingSnapshot"->>'shippingWeightGrams'
+            ~ '^[0-9]+([.][0-9]+)?$'
+          AND item."listingSnapshot"->>'shippingLengthCm'
+            ~ '^[0-9]+([.][0-9]+)?$'
+          AND item."listingSnapshot"->>'shippingWidthCm'
+            ~ '^[0-9]+([.][0-9]+)?$'
+          AND item."listingSnapshot"->>'shippingHeightCm'
+            ~ '^[0-9]+([.][0-9]+)?$'
+      )::integer AS snapshot_items,
+      pg_catalog.count(item.id) FILTER (
+        WHERE item.quantity > 0
+          AND COALESCE(
+            listing."packagedWeightGrams", seller."defaultPkgWeightGrams"
+          ) > 0
+          AND COALESCE(
+            listing."packagedWeightGrams", seller."defaultPkgWeightGrams"
+          ) <= 500000
+          AND COALESCE(
+            listing."packagedLengthCm", seller."defaultPkgLengthCm"
+          ) > 0
+          AND COALESCE(
+            listing."packagedLengthCm", seller."defaultPkgLengthCm"
+          ) <= 1000
+          AND COALESCE(
+            listing."packagedWidthCm", seller."defaultPkgWidthCm"
+          ) > 0
+          AND COALESCE(
+            listing."packagedWidthCm", seller."defaultPkgWidthCm"
+          ) <= 1000
+          AND COALESCE(
+            listing."packagedHeightCm", seller."defaultPkgHeightCm"
+          ) > 0
+          AND COALESCE(
+            listing."packagedHeightCm", seller."defaultPkgHeightCm"
+          ) <= 1000
+      )::integer AS live_items,
+      pg_catalog.sum(
+        CASE
+          WHEN pg_catalog.jsonb_typeof(item."listingSnapshot") = 'object'
+            AND item."listingSnapshot"->>'shippingPackageComplete' = 'true'
+            AND item."listingSnapshot"->>'shippingWeightGrams'
+              ~ '^[0-9]+([.][0-9]+)?$'
+          THEN (item."listingSnapshot"->>'shippingWeightGrams')::numeric
+            * item.quantity
+          ELSE NULL
+        END
+      ) AS snapshot_weight,
+      pg_catalog.max(
+        CASE WHEN item."listingSnapshot"->>'shippingLengthCm'
+          ~ '^[0-9]+([.][0-9]+)?$'
+          THEN (item."listingSnapshot"->>'shippingLengthCm')::numeric
+          ELSE NULL END
+      ) AS snapshot_length,
+      pg_catalog.max(
+        CASE WHEN item."listingSnapshot"->>'shippingWidthCm'
+          ~ '^[0-9]+([.][0-9]+)?$'
+          THEN (item."listingSnapshot"->>'shippingWidthCm')::numeric
+          ELSE NULL END
+      ) AS snapshot_width,
+      pg_catalog.max(
+        CASE WHEN item."listingSnapshot"->>'shippingHeightCm'
+          ~ '^[0-9]+([.][0-9]+)?$'
+          THEN (item."listingSnapshot"->>'shippingHeightCm')::numeric
+          ELSE NULL END
+      ) AS snapshot_height,
+      pg_catalog.sum(
+        COALESCE(listing."packagedWeightGrams", seller."defaultPkgWeightGrams")::numeric
+          * item.quantity
+      ) AS live_weight,
+      pg_catalog.max(
+        COALESCE(listing."packagedLengthCm", seller."defaultPkgLengthCm")::numeric
+      ) AS live_length,
+      pg_catalog.max(
+        COALESCE(listing."packagedWidthCm", seller."defaultPkgWidthCm")::numeric
+      ) AS live_width,
+      pg_catalog.max(
+        COALESCE(listing."packagedHeightCm", seller."defaultPkgHeightCm")::numeric
+      ) AS live_height
+    FROM label_package_candidates AS candidate
+    JOIN public."Order" AS orders ON orders.id = candidate.order_id
+    JOIN public."SellerProfile" AS seller
+      ON seller.id = orders."sellerProfileId"
+    LEFT JOIN public."OrderItem" AS item
+      ON item."orderId" = candidate.order_id
+    LEFT JOIN public."Listing" AS listing ON listing.id = item."listingId"
+    GROUP BY candidate.order_id, candidate.address_resolvable
+  ), label_package_classification AS (
+    SELECT
+      package.*,
+      package.total_items > 0
+        AND package.snapshot_items = package.total_items
+        AND package.snapshot_weight > 0 AND package.snapshot_weight <= 500000
+        AND package.snapshot_length > 0 AND package.snapshot_length <= 1000
+        AND package.snapshot_width > 0 AND package.snapshot_width <= 1000
+        AND package.snapshot_height > 0 AND package.snapshot_height <= 1000
+        AS snapshot_resolvable,
+      package.total_items > 0
+        AND package.live_items = package.total_items
+        AND package.live_weight > 0 AND package.live_weight <= 500000
+        AND package.live_length > 0 AND package.live_length <= 1000
+        AND package.live_width > 0 AND package.live_width <= 1000
+        AND package.live_height > 0 AND package.live_height <= 1000
+        AS live_resolvable
+    FROM label_package_rollup AS package
   )
   SELECT
     (SELECT pg_catalog.count(*) FROM public."Order") AS order_count,
@@ -893,6 +1079,36 @@ export const ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL = `
           )
         )
     ) AS label_clawback_state_coherence_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM (
+        SELECT "shippoTransactionId"
+        FROM public."Order"
+        WHERE "shippoTransactionId" IS NOT NULL
+        GROUP BY "shippoTransactionId"
+        HAVING pg_catalog.count(*) > 1
+      ) AS duplicate_shippo_transaction_identities
+    ) AS label_duplicate_shippo_transaction_identity_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM label_package_classification
+      WHERE snapshot_resolvable
+    ) AS label_checkout_snapshot_package_candidate_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM label_package_classification
+      WHERE NOT snapshot_resolvable AND live_resolvable
+    ) AS label_legacy_live_package_candidate_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM label_package_classification
+      WHERE NOT snapshot_resolvable AND NOT live_resolvable
+    ) AS label_unresolvable_package_candidate_count,
+    (
+      SELECT pg_catalog.count(*)
+      FROM label_package_classification
+      WHERE NOT address_resolvable
+    ) AS label_invalid_address_candidate_count,
     (
       SELECT pg_catalog.count(*)
       FROM public."OrderShippingRateQuote"
@@ -1271,6 +1487,8 @@ export async function runOrderPaymentShippingLegacyInspection(config) {
       }),
       reservationAuthorityCandidate:
         reservationAuthorityInspectionDecision(counts),
+      orderLabelAuthorityCandidate:
+        orderLabelAuthorityInspectionDecision(counts),
       transaction: Object.freeze({
         isolation: "repeatable read",
         readOnly: true,
@@ -1364,7 +1582,8 @@ async function main() {
     const evidence = Object.freeze({
       generatedAt: new Date().toISOString(),
       git,
-      status: result.reservationAuthorityCandidate.accepted
+      status: result.reservationAuthorityCandidate.accepted &&
+          result.orderLabelAuthorityCandidate.accepted
         ? "passed"
         : "blocked",
       ...result,
@@ -1378,11 +1597,17 @@ async function main() {
         "reservation authority candidate has nonzero rejected aggregate counts",
       );
     }
+    if (!evidence.orderLabelAuthorityCandidate.accepted) {
+      throw new Error(
+        "order label authority candidate has nonzero rejected aggregate counts",
+      );
+    }
     process.stdout.write(
       `${JSON.stringify({
         counts: evidence.counts,
         evidenceWritten: true,
         posture: evidence.posture,
+        orderLabelAuthorityCandidate: evidence.orderLabelAuthorityCandidate,
         releaseCommit: evidence.releaseCommit,
         retained: evidence.retained,
         status: evidence.status,

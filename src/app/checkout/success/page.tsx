@@ -1,14 +1,16 @@
 // src/app/checkout/success/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { setTimeout as delay } from "node:timers/promises";
 import { stripe } from "@/lib/stripe";
-import { prisma } from "@/lib/db";
 import LocalDate from "@/components/LocalDate";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import { checkoutSuccessSessionIds } from "@/lib/checkoutSuccessState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
-import { orderItemsSubtotalCents, orderTotalCents as calculateOrderTotalCents } from "@/lib/orderTotals";
+import { orderTotalCents as calculateOrderTotalCents } from "@/lib/orderTotals";
+import { readBuyerCheckoutReceipts } from "@/lib/orderCheckoutReceiptAuthority";
+import type { OrderCheckoutReceipt } from "@/lib/orderCheckoutReceiptState";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -18,6 +20,93 @@ export const revalidate = 0;
 
 function fmtMoney(cents: number, currency = DEFAULT_CURRENCY) {
   return formatCurrencyCents(cents, currency);
+}
+
+function ReceiptLines({
+  order,
+  includeTotal,
+}: {
+  order: OrderCheckoutReceipt;
+  includeTotal: boolean;
+}) {
+  const orderCurrency = order.currency || DEFAULT_CURRENCY;
+  const orderTotalCents = calculateOrderTotalCents(order, {
+    itemsSubtotalCents: order.itemsSubtotalCents,
+  });
+  return (
+    <>
+      <ul className="divide-y divide-neutral-100">
+        {order.items.map((item) => {
+          const image = item.snapshot.imageUrls[0];
+          return (
+            <li key={item.id} className="flex items-center gap-3 px-4 py-3">
+              {image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={image} alt="" className="h-16 w-16 rounded border object-cover" />
+              ) : (
+                <div className="h-16 w-16 rounded border bg-neutral-100" />
+              )}
+              <div className="min-w-0 flex-1">
+                {item.listingLinkAvailable ? (
+                  <Link
+                    href={publicListingPath(item.listingId, item.snapshot.title)}
+                    className="block truncate text-sm font-medium hover:underline"
+                  >
+                    {item.snapshot.title}
+                  </Link>
+                ) : (
+                  <div className="truncate text-sm font-medium">{item.snapshot.title}</div>
+                )}
+                <div className="text-xs text-neutral-500">
+                  Maker: {item.snapshot.sellerName}
+                </div>
+                <div className="mt-1 text-sm text-neutral-700">
+                  {fmtMoney(item.priceCents, orderCurrency)} × {item.quantity}
+                </div>
+              </div>
+              <div className="text-sm font-medium">
+                {fmtMoney(item.priceCents * item.quantity, orderCurrency)}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="space-y-1 border-t border-neutral-100 px-4 py-3">
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-neutral-600">Items subtotal</div>
+          <div className="font-medium">{fmtMoney(order.itemsSubtotalCents, orderCurrency)}</div>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-neutral-600">
+            Shipping{order.shippingTitle ? ` — ${order.shippingTitle}` : ""}
+          </div>
+          <div className="font-medium">{fmtMoney(order.shippingAmountCents, orderCurrency)}</div>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <div className="text-neutral-600">Tax</div>
+          <div className="font-medium">{fmtMoney(order.taxAmountCents, orderCurrency)}</div>
+        </div>
+        {(order.giftWrappingPriceCents ?? 0) > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-neutral-600">Gift wrapping</div>
+            <div className="font-medium">
+              {fmtMoney(order.giftWrappingPriceCents ?? 0, orderCurrency)}
+            </div>
+          </div>
+        )}
+        {includeTotal ? (
+          <>
+            <hr className="my-1" />
+            <div className="flex items-center justify-between text-base">
+              <div className="text-neutral-800">Total charged</div>
+              <div className="font-semibold">{fmtMoney(orderTotalCents, orderCurrency)}</div>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </>
+  );
 }
 
 export default async function CheckoutSuccessPage({
@@ -47,28 +136,15 @@ export default async function CheckoutSuccessPage({
   if (!sessionMetadata.buyerId || sessionMetadata.buyerId !== me.id) redirect("/cart");
 
   if (sessionIds.length > 1) {
-    const orders = await prisma.order.findMany({
-      where: { stripeSessionId: { in: sessionIds }, buyerId: me.id },
-      include: {
-        items: {
-          include: {
-            listing: {
-              include: {
-                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                seller: { select: { displayName: true } },
-              },
-            },
-          },
-        },
-        buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const orders = await readBuyerCheckoutReceipts(me.id, sessionIds);
 
     if (orders.length > 0) {
       const currencies = [...new Set(orders.map((order) => order.currency || DEFAULT_CURRENCY))];
       const currency = currencies[0] ?? DEFAULT_CURRENCY;
-      const totalChargedCents = orders.reduce((sum, order) => sum + calculateOrderTotalCents(order), 0);
+      const totalChargedCents = orders.reduce(
+        (sum, order) => sum + calculateOrderTotalCents(order),
+        0,
+      );
       const pendingCount = Math.max(0, sessionIds.length - orders.length);
       const hasMixedCurrencies = currencies.length > 1;
 
@@ -97,7 +173,7 @@ export default async function CheckoutSuccessPage({
               <div className="text-sm">
                 <div className="font-medium">Receipts</div>
                 <div className="text-xs text-neutral-500">
-                  Buyer: {orders[0]?.buyer?.name ?? orders[0]?.buyer?.email ?? "Guest"}
+                  Buyer: {orders[0]?.buyerLabel ?? "Guest"}
                 </div>
               </div>
               <div className="text-sm font-semibold">
@@ -108,11 +184,7 @@ export default async function CheckoutSuccessPage({
             <div className="divide-y divide-neutral-100">
               {orders.map((order) => {
                 const orderCurrency = order.currency || currency;
-                const itemsSubtotalCents = orderItemsSubtotalCents(order);
-                const shippingAmountCents = order.shippingAmountCents || 0;
-                const taxAmountCents = order.taxAmountCents || 0;
-                const giftWrappingPriceCents = order.giftWrappingPriceCents || 0;
-                const orderTotalCents = calculateOrderTotalCents(order, { itemsSubtotalCents });
+                const orderTotalCents = calculateOrderTotalCents(order);
 
                 return (
                   <div key={order.id}>
@@ -123,53 +195,7 @@ export default async function CheckoutSuccessPage({
                       </div>
                       <div className="font-semibold">{fmtMoney(orderTotalCents, orderCurrency)}</div>
                     </div>
-
-                    <ul className="divide-y divide-neutral-100">
-                      {order.items.map((it) => {
-                        const img = it.listing.photos[0]?.url;
-                        return (
-                          <li key={it.id} className="flex items-center gap-3 px-4 py-3">
-                            {img ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
-                            ) : (
-                              <div className="h-16 w-16 rounded border bg-neutral-100" />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <Link href={publicListingPath(it.listingId, it.listing.title)} className="block truncate text-sm font-medium hover:underline">
-                                {it.listing.title}
-                              </Link>
-                              <div className="text-xs text-neutral-500">Maker: {it.listing.seller.displayName}</div>
-                              <div className="mt-1 text-sm text-neutral-700">{fmtMoney(it.priceCents, orderCurrency)} x {it.quantity}</div>
-                            </div>
-                            <div className="text-sm font-medium">{fmtMoney(it.priceCents * it.quantity, orderCurrency)}</div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-
-                    <div className="px-4 py-3 border-t border-neutral-100 space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="text-neutral-600">Items subtotal</div>
-                        <div className="font-medium">{fmtMoney(itemsSubtotalCents, orderCurrency)}</div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="text-neutral-600">
-                          Shipping{order.shippingTitle ? ` — ${order.shippingTitle}` : ""}
-                        </div>
-                        <div className="font-medium">{fmtMoney(shippingAmountCents, orderCurrency)}</div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="text-neutral-600">Tax</div>
-                        <div className="font-medium">{fmtMoney(taxAmountCents, orderCurrency)}</div>
-                      </div>
-                      {giftWrappingPriceCents > 0 && (
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="text-neutral-600">Gift wrapping</div>
-                          <div className="font-medium">{fmtMoney(giftWrappingPriceCents, orderCurrency)}</div>
-                        </div>
-                      )}
-                    </div>
+                    <ReceiptLines order={order} includeTotal={false} />
                   </div>
                 );
               })}
@@ -185,43 +211,14 @@ export default async function CheckoutSuccessPage({
     }
   }
 
-  let order = await prisma.order.findFirst({
-    where: { stripeSessionId: sessionId, buyerId: me.id },
-    include: {
-      items: {
-        include: {
-          listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { displayName: true } },
-            },
-          },
-        },
-      },
-      buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
-    },
-  });
+  let order = (await readBuyerCheckoutReceipts(me.id, [sessionId]))[0] ?? null;
 
   if (!order) {
     // The webhook is the only order writer. The success page
-    // only re-queries after verifying Stripe says this paid
-    // session belongs to the signed-in buyer.
-    order = await prisma.order.findFirst({
-      where: { stripeSessionId: sessionId, buyerId: me.id },
-      include: {
-        items: {
-          include: {
-            listing: {
-              include: {
-                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                seller: { select: { displayName: true } },
-              },
-            },
-          },
-        },
-        buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
-      },
-    });
+    // waits briefly before one bounded retry after Stripe verifies
+    // this paid session belongs to the signed-in buyer.
+    await delay(250);
+    order = (await readBuyerCheckoutReceipts(me.id, [sessionId]))[0] ?? null;
   }
 
   if (!order) {
@@ -255,11 +252,7 @@ export default async function CheckoutSuccessPage({
   }
 
   const currency = order.currency || DEFAULT_CURRENCY;
-  const itemsSubtotalCents = orderItemsSubtotalCents(order);
-  const shippingAmountCents = order.shippingAmountCents || 0;
-  const taxAmountCents = order.taxAmountCents || 0;
-  const giftWrappingPriceCents = order.giftWrappingPriceCents || 0;
-  const totalChargedCents = calculateOrderTotalCents(order, { itemsSubtotalCents });
+  const totalChargedCents = calculateOrderTotalCents(order);
 
   return (
     <main className="mx-auto max-w-3xl p-8 space-y-6">
@@ -267,7 +260,7 @@ export default async function CheckoutSuccessPage({
         <h1 className="font-display text-2xl font-semibold">Thanks for your purchase!</h1>
         <p className="text-neutral-600 text-sm">
           Order <span className="font-mono">#{order.id.slice(-8)}</span>{" "}
-          {order.paidAt ? "has been paid." : "is pending."}
+          has been paid.
         </p>
       </header>
 
@@ -276,62 +269,11 @@ export default async function CheckoutSuccessPage({
           <div className="text-sm">
             <div className="font-medium">Receipt</div>
             <div className="text-neutral-500"><LocalDate date={order.createdAt} /></div>
-            <div className="text-xs text-neutral-500">Buyer: {order.buyer?.name ?? order.buyer?.email ?? "Guest"}</div>
+            <div className="text-xs text-neutral-500">Buyer: {order.buyerLabel ?? "Guest"}</div>
           </div>
           <div className="text-sm font-semibold">{fmtMoney(totalChargedCents, currency)}</div>
         </div>
-
-        <ul className="divide-y divide-neutral-100">
-          {order.items.map((it) => {
-            const img = it.listing.photos[0]?.url;
-            return (
-              <li key={it.id} className="flex items-center gap-3 px-4 py-3">
-                {img ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={img} alt="" className="h-16 w-16 rounded border object-cover" />
-                ) : (
-                  <div className="h-16 w-16 rounded border bg-neutral-100" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <Link href={publicListingPath(it.listingId, it.listing.title)} className="block truncate text-sm font-medium hover:underline">
-                    {it.listing.title}
-                  </Link>
-                  <div className="text-xs text-neutral-500">Maker: {it.listing.seller.displayName}</div>
-                  <div className="mt-1 text-sm text-neutral-700">{fmtMoney(it.priceCents, currency)} × {it.quantity}</div>
-                </div>
-                <div className="text-sm font-medium">{fmtMoney(it.priceCents * it.quantity, currency)}</div>
-              </li>
-            );
-          })}
-        </ul>
-
-        <div className="px-4 py-3 border-t border-neutral-100 space-y-1">
-          <div className="flex items-center justify-between text-sm">
-            <div className="text-neutral-600">Items subtotal</div>
-            <div className="font-medium">{fmtMoney(itemsSubtotalCents, currency)}</div>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <div className="text-neutral-600">
-              Shipping{order.shippingTitle ? ` — ${order.shippingTitle}` : ""}
-            </div>
-            <div className="font-medium">{fmtMoney(shippingAmountCents, currency)}</div>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <div className="text-neutral-600">Tax</div>
-            <div className="font-medium">{fmtMoney(taxAmountCents, currency)}</div>
-          </div>
-          {giftWrappingPriceCents > 0 && (
-            <div className="flex items-center justify-between text-sm">
-              <div className="text-neutral-600">Gift wrapping</div>
-              <div className="font-medium">{fmtMoney(giftWrappingPriceCents, currency)}</div>
-            </div>
-          )}
-          <hr className="my-1" />
-          <div className="flex items-center justify-between text-base">
-            <div className="text-neutral-800">Total charged</div>
-            <div className="font-semibold">{fmtMoney(totalChargedCents, currency)}</div>
-          </div>
-        </div>
+        <ReceiptLines order={order} includeTotal />
       </section>
 
       <div className="flex gap-3">

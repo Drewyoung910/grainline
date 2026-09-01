@@ -65,6 +65,8 @@ describe("dependency hygiene guardrails", () => {
 
     assert.equal(pkg.overrides?.["@prisma/dev"], "0.24.16");
     assert.equal(lock.packages?.["node_modules/@prisma/dev"]?.version, "0.24.16");
+    assert.equal(pkg.overrides?.browserslist, "4.28.8");
+    assert.equal(lock.packages?.["node_modules/browserslist"]?.version, "4.28.8");
     assert.equal(pkg.overrides?.["deepmerge-ts"], "8.0.2");
     assert.equal(lock.packages?.["node_modules/deepmerge-ts"]?.version, "8.0.2");
     assert.equal(pkg.overrides?.browserslist, "4.28.8");
@@ -72,6 +74,8 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(pkg.overrides?.mysql2, "3.24.2");
     assert.equal(lock.packages?.["node_modules/mysql2"]?.version, "3.24.2");
     assert.equal(lock.packages?.["node_modules/find-my-way"]?.version, "9.7.0");
+    assert.equal(pkg.overrides?.mysql2, "3.24.2");
+    assert.equal(lock.packages?.["node_modules/mysql2"]?.version, "3.24.2");
     assert.equal(pkg.overrides?.valibot, "1.4.2");
     assert.equal(lock.packages?.["node_modules/valibot"]?.version, "1.4.2");
   });

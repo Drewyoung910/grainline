@@ -35,6 +35,10 @@ import {
   exportBuyerOrderPaymentHistory,
   exportSellerOrderPaymentHistory,
 } from "@/lib/orderPaymentEventReadAuthority";
+import {
+  exportBuyerOrders,
+  exportSellerOrders,
+} from "@/lib/orderParticipantExportAuthority";
 
 export const runtime = "nodejs";
 
@@ -218,114 +222,8 @@ async function buildExport(user: NonNullable<ExportableUser>) {
           },
         })
       : [],
-    prisma.order.findMany({
-      where: { buyerId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        createdAt: true,
-        paidAt: true,
-        currency: true,
-        itemsSubtotalCents: true,
-        shippingTitle: true,
-        shippingAmountCents: true,
-        taxAmountCents: true,
-        buyerEmail: true,
-        buyerName: true,
-        shipToLine1: true,
-        shipToLine2: true,
-        shipToCity: true,
-        shipToState: true,
-        shipToPostalCode: true,
-        shipToCountry: true,
-        fulfillmentMethod: true,
-        fulfillmentStatus: true,
-        trackingCarrier: true,
-        trackingNumber: true,
-        shippedAt: true,
-        deliveredAt: true,
-        sellerRefundId: true,
-        sellerRefundAmountCents: true,
-        giftNote: true,
-        giftWrapping: true,
-        giftWrappingPriceCents: true,
-        buyerDataPurgedAt: true,
-        items: {
-          select: {
-            listingId: true,
-            quantity: true,
-            priceCents: true,
-            selectedVariants: true,
-            listingSnapshot: true,
-            listing: { select: { title: true, sellerId: true } },
-          },
-        },
-        shippingRateQuotes: {
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            orderId: true,
-            shipmentId: true,
-            rates: true,
-            expiresAt: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
-    }),
-    sellerProfile
-      ? prisma.order.findMany({
-          where: {
-            items: {
-              some: { listing: { sellerId: sellerProfile.id } },
-              every: { listing: { sellerId: sellerProfile.id } },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true,
-            createdAt: true,
-            paidAt: true,
-            currency: true,
-            itemsSubtotalCents: true,
-            shippingTitle: true,
-            shippingAmountCents: true,
-            taxAmountCents: true,
-            fulfillmentMethod: true,
-            fulfillmentStatus: true,
-            trackingCarrier: true,
-            trackingNumber: true,
-            shippedAt: true,
-            deliveredAt: true,
-            sellerRefundId: true,
-            sellerRefundAmountCents: true,
-            items: {
-              where: { listing: { sellerId: sellerProfile.id } },
-              select: {
-                listingId: true,
-                quantity: true,
-                priceCents: true,
-                selectedVariants: true,
-                listingSnapshot: true,
-                listing: { select: { title: true } },
-              },
-            },
-            shippingRateQuotes: {
-              orderBy: { createdAt: "desc" },
-              select: {
-                id: true,
-                orderId: true,
-                shipmentId: true,
-                rates: true,
-                expiresAt: true,
-                createdAt: true,
-                updatedAt: true,
-              },
-            },
-          },
-        })
-      : [],
+    exportBuyerOrders(user.id),
+    sellerProfile ? exportSellerOrders(user.id) : [],
     exportBuyerOrderPaymentHistory(user.id),
     sellerProfile ? exportSellerOrderPaymentHistory(user.id) : new Map(),
     exportActorMessages(user.id),

@@ -4,6 +4,7 @@ type OrderTotalItem = {
 };
 
 export type OrderTotalInput = {
+  chargedTotalCents?: number | null;
   itemsSubtotalCents?: number | null;
   shippingAmountCents?: number | null;
   taxAmountCents?: number | null;
@@ -23,6 +24,13 @@ export function orderTotalCents(
   order: OrderTotalInput,
   opts: { itemsSubtotalCents?: number } = {},
 ) {
+  if (
+    order.chargedTotalCents != null
+    && Number.isSafeInteger(order.chargedTotalCents)
+    && order.chargedTotalCents >= 0
+  ) {
+    return order.chargedTotalCents;
+  }
   const itemsSubtotalCents = opts.itemsSubtotalCents ?? orderItemsSubtotalCents(order);
   return (
     itemsSubtotalCents +

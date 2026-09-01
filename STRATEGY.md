@@ -4,31 +4,36 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
-### Correctness-before-Order-RLS boundary (2026-09-01)
+### Cross-domain correctness gate before core Order Phase A (2026-09-01)
 
-Continue the Order-domain program, but correct only the verified defects that
-cross its Case, refund, fulfillment, retention or deletion authority before
-Order Phase A. The bounded additive Case correction is documented in
-`docs/case-order-correctness-corrections-20260901.md`; it covers deterministic
-UTC evidence, staff refund replay eligibility, fulfilled-stock restoration,
-open-dispute PII retention and seller-deletion serialization. It also hardens
-the impossible legacy Case-message fallback without misclassifying that
-restore/drift defense as a current production P1.
+The buyer shipping quote and the already-live Case money path were re-audited
+before sealing core Order authority. The quote correction must land first: do
+not auto-select free pickup when shipping exists, do not display/sign malformed
+or duplicate provider identities, keep one bounded delivery-estimate contract
+through webhook parsing, retain pickup during provider fallback and expose a
+retry action. Seller label purchase still performs the full-address re-quote;
+the buyer quote remains deliberately city/state/postal/country only. Exact
+shipping candidate `c4a6ff8c1adb8ff7141332bdc46412fc56170be2`
+subsequently passed the non-charging Shippo test-mode provider smoke: the shared
+runtime payload returned eleven usable USD rates across two carriers with no
+Transaction or label purchase. Retain the sanitized artifact hash from the
+cross-domain record; do not reinterpret this as proof of live-mode carrier
+availability or final full-address label purchase.
 
-The buyer shipping-quote source correction remains isolated in PR #382. It
-must pass normal CI and a real test-mode provider smoke before launch because
-source tests cannot prove Shippo availability or account/address acceptance.
-That provider smoke does not block the additive Case correction or the next
-actor-bound Order implementation. After the Case correction, add the immutable
-charged-total witness and refund-aware presentation, finish label/fulfillment
-compatibility, and proceed directly to Order Phase A and FORCE; then continue
-with OrderItem and OrderShippingRateQuote as separate releases.
+Then ship a separate additive Case correction for legacy staff attribution,
+UTC money-path clocks, staff-resolution replay eligibility/final stock guards,
+the durable dispute-retention predicate and seller-side account-deletion lock.
+Do not edit applied Case migrations. Add the
+exact charged Checkout total and honest fully-refunded UI state before core
+Order Phase A; do not misuse a new `CANCELLED` fulfillment value for payment
+state. The full independent classification, including accepted hardening and
+false/outdated reviewer claims, is retained in
+`docs/verified-cross-domain-pre-rls-findings-20260901.md`.
 
-Do not expand this boundary into every defense-in-depth or product enhancement
-found during review. Dedicated cron roles, friendly support numbers, checkout
-group product semantics, retired tax-reversal columns, continuous all-table
-RLS canaries and SellerProfile projection guards stay durably gated to their
-own launch, product or later-table work.
+This gate is bounded. Continuous all-table RLS canaries, a SellerProfile
+projection guard, dedicated cron/service principals, human-readable order
+numbers and checkout-group product semantics remain tracked launch/design work;
+they must not turn the Order sequence into perpetual preparation.
 
 ### Core Order audit and activation sequence (2026-08-31)
 
@@ -41,12 +46,32 @@ Activate it separately, then continue directly with `OrderItem`, then
 Order-domain program, not unrelated work saved for later.
 
 The audit confirms that the compatible seller key and payment service-ledger
-prerequisites are real progress, but core consumers have not fully adopted
-them. Seller pages, exports and maintenance paths still derive authority from
-live Listings, buyer/seller history still renders mutable Listing facts, raw
-shipping quote payloads cross the account-export boundary, and 41 source files
-still touch Order authority directly. Before RLS, add actor-specific fixed
-projections, make historical snapshots canonical, convert every write and
+prerequisites are real progress. The isolated conversion chain has corrected
+mutable Listing attribution, historical presentation, export scope, analytics,
+pagination, participant-detail behavior and checkout receipts while reducing
+the direct Order inventory to 20 source files. The unused local make-order API
+was retired instead of preserving generic runtime `Order INSERT`; future paid
+fixtures must use disposable databases or provider-backed proof operators.
+The fulfillment audit then corrected pickup receipt authority: sellers may
+announce `READY_FOR_PICKUP`, but only the buyer may confirm `PICKED_UP`, because
+that timestamp starts the buyer's Case window. Buyer receipt confirmation now
+also rejects unpaid Orders and open Stripe disputes and records a strict audit.
+The fixed-authority conversion must preserve that split and replace the final
+best-effort notification/email edge with a co-committed or restart-safe
+delivery design.
+The shipping-label audit found that this edge cannot reuse the generic
+Notification order-family validator unchanged: that historical validator still
+derives seller identity through mutable Listing ownership, while Order now
+retains the immutable checkout seller in `sellerProfileId`. The label provider-
+record operation must therefore own its source-bound `ORDER_SHIPPED`
+Notification, preference check and deterministic deduplication in the same
+database transaction. The 56-path Notification gate must count that one
+database-owned emission explicitly; do not add a synthetic application helper
+call merely to satisfy a callsite counter.
+Staff, maintenance and write
+families still remain. The checkout receipt audit also caught and corrected an
+over-narrowed snapshot projection before release. Before RLS, finish actor-specific fixed projections,
+keep historical snapshots canonical, convert every write and
 maintenance family to a source-validating operation, rerun aggregate-only
 legacy inspection, deploy and drain the compatible app, and prove the inventory
 has reached zero ordinary-runtime Order access.
@@ -1943,7 +1968,7 @@ do not retroactively count the earlier draft run as that proof.
 
 Extra-high review accepts the current source-derived shared create function and
 split migration topology for continued proof, not production activation. The
-original 54/54 callsite result, current 55/55 result, and 59-case live result
+original 54/54 and 55/55 callsite results, current 56/56 result, and 59-case live result
 validate the architecture, the
 granted boundary, every top-level private-core source branch, every successful
 source/type pair, and the security-relevant action/recipient variants.
@@ -2021,10 +2046,10 @@ order relationships.
 
 Production activation also has a permanent completeness gate:
 `npm run audit:rls-notification-readiness`. It inventories the real TypeScript
-emission paths, requires the exact 55-path contract, and fails on dynamic calls,
+emission paths, requires the exact 56-path contract, and fails on dynamic calls,
 missing source pairs, or source constants that do not dispatch through a
 reviewed service family whose draft SQL function, `PUBLIC` execute revoke, and
-runtime grant are present. Its current 55/55 result passes the
+runtime grant are present. Its current 56/56 result passes the
 creation-authority gate; ordinary tests retain the exact count and authority
 surface tripwires so new or dynamic paths cannot disappear silently. This green
 gate is only one activation prerequisite.
@@ -2329,6 +2354,208 @@ At catalog density, consider allowing AI bots for browse-tool / on-demand fetch 
 LLMs will increasingly act as buyer intent resolvers. Marketplaces will compete to be the system the LLM calls via tool-use to fulfill an order. Grainline's existing Stripe Checkout API is already shaped correctly to be a backend for this. Direction: keep API endpoints clean and well-documented in case OpenAI Operator / Anthropic Computer Use / similar emerges as a buyer channel.
 
 ## Things explicitly NOT to do right now
+
+### Core Order historical authority decision (2026-08-31)
+
+Do not derive retained Order ownership or purchase history from the current
+Listing row. The Order-domain sequence is `Order`, then `OrderItem`, then
+`OrderShippingRateQuote`, as separate releases in one continuous program.
+Before Order activation, seller consumers must use the checkout-bound
+`Order.sellerProfileId`, historical screens must use a strict bounded
+`OrderItem.listingSnapshot` reader, and malformed or predecessor snapshots
+must render generic retained facts rather than mutable catalog content. Keep
+current Listing reads optional and catalog-only. Account-export shipping quote
+material, seller-key nullability, staff/aggregate projections and every write
+state machine remain explicit later gates; do not hide them inside this UI
+compatibility change. See `docs/order-core-pre-rls-audit.md` and
+`docs/order-core-history-compatibility.md`.
+
+### Core Order participant list authority decision (2026-08-31)
+
+The first fixed-operation slice is buyer/seller Order counts and keyset list
+pages. The four additive SECURITY DEFINER projections bind the actor inside
+PostgreSQL, route seller rows through the durable Order seller key, cap pages
+at 100, expose fixed columns and cross timestamps as UTC epoch milliseconds.
+They deliberately exclude Order items, addresses, provider identifiers,
+staff-review bodies and seller-note bodies. Detail, staff, export, aggregate
+and write families remain in the same continuous Order program; this slice is
+not permission to stop after list conversion. See
+`docs/order-participant-list-authority.md`.
+
+### Core Order participant detail authority decision (2026-08-31)
+
+Buyer and seller detail reads use separate one-statement fixed projections
+that bind actor plus Order ID in PostgreSQL and return bounded historical item
+JSON with exact keys. Participant projections derive refund state and the
+seller deauthorization hold instead of exposing raw Stripe refund IDs or staff
+review bodies; the seller UI also stops rendering provider refund IDs. PII,
+gift and address fields are suppressed after buyer-data purge, and current
+Listing data is reduced to a link-eligibility boolean. The candidate remains
+compatible and unapplied; page conversion, pooled-runtime proof, staff/export/
+aggregate projections and every write family remain required before Order RLS.
+See `docs/order-participant-detail-authority.md`.
+
+### Core Order participant detail projection decision (2026-09-01)
+
+Do not freeze dead messaging actions or over-broad historical payloads merely
+because the first detail authority was already byte-sealed. Preserve the v1
+migration and add a v2 successor that requires an active actor in PostgreSQL,
+returns a nullable counterparty contact target, suppresses seller notes after
+buyer-data purge, withholds label download material unless the label is
+`PURCHASED`, and exposes only snapshot keys used by the receipt. Buyer and
+seller detail pages must consume only v2; ordinary runtime execution of v1
+stays revoked. This conversion reduces direct Order sources from 24 to 22 but
+does not authorize activation. See
+`docs/order-participant-detail-projection.md`.
+
+### Core Order staff-read credential decision (2026-08-31)
+
+Do not grant staff Order queue/detail projections to the shared
+`grainline_app_runtime` role. These views contain buyer PII, addresses,
+internal review notes and limited provider reconciliation identity, so a
+caller-supplied staff ID is not a sufficient database capability. The dormant
+candidate requires exact `grainline_staff_read_runtime` session identity plus
+a live EMPLOYEE/ADMIN row, grants neither PUBLIC nor ordinary-runtime
+execution, and has no default ordinary Prisma client. Provisioning the
+membership-free NOBYPASSRLS login, isolating its credential, proving zero base
+table access and then granting only the reviewed functions are separate gates
+before app conversion. See `docs/order-staff-read-authority.md`.
+
+### Core Order participant export decision (2026-08-31)
+
+Account export must use bounded actor-scoped Order projections before
+policyless Order RLS. Keep buyer and seller export shapes distinct, bind seller
+authority to the durable Order seller key, strip unrecognized snapshot keys,
+and exclude raw shipping-quote/provider retry material. Export derived refund
+state and amount; keep user-facing refund event history in the separately
+protected OrderPaymentEvent export rather than disclosing provider refund IDs.
+
+### Core Order eligibility authority decision (2026-08-31)
+
+Review eligibility, Order-report access, maker-verification sales and listing
+archive blocking must remain distinct fixed operations, not a generic Order
+repository. Bind every operation to the authenticated participant inside
+PostgreSQL; return only the required boolean, aggregate cents or one review
+source pair. Keep the review function volatile and lock the parent Order in the
+same transaction as review creation. Keep seller-private analytics, public
+aggregates and maintenance scoring in later separate authority families. See
+`docs/order-eligibility-authority.md`.
+
+### Core Order public aggregate authority decision (2026-09-01)
+
+Public marketplace, seller and listing counters must not preserve broad Order
+or OrderItem reads merely because their outputs are public. Use separate fixed
+aggregate-only functions that derive current public seller/listing visibility
+and paid/refund/dispute eligibility inside PostgreSQL, revoke default PUBLIC
+execution, and return no row or participant identity. Preserve the existing
+homepage fulfilled and public seller-history semantics where their result is
+already an aggregate; apply the stricter public-catalog and conversion-dispute
+filters to listing quality and marketplace conversion metrics. Keep
+seller-private analytics, maintenance scoring and mutation state machines in
+later independent authority families. See
+`docs/order-public-aggregate-authority.md`.
+
+### Core Order seller analytics authority decision (2026-09-01)
+
+Do not treat RLS conversion as permission to freeze current dashboard behavior
+without a product audit. Seller Order analytics must use actor-bound aggregate
+or bounded projection functions keyed through the durable Order seller, never
+generic Order reads. Keep refunded Orders excluded until a deliberate net
+partial-refund metric is designed. Define current cart abandonment as an
+unpurchased item aged at least 24 hours, require purchase evidence to postdate
+the cart addition, select recent-sale item context deterministically, and
+aggregate repeat buyers inside PostgreSQL without returning buyer IDs. Label
+Favorite and StockNotification range counts as surviving subscriptions; a
+future immutable engagement ledger is required for complete event-history
+claims. Keep Guild/service scoring and its SellerMetrics write in a later
+maintenance authority family. See `docs/order-seller-analytics-authority.md`.
+
+### Core Order Guild/service metrics authority decision (2026-09-01)
+
+Audit trust metrics as product logic before moving their Order queries behind
+RLS. Preserve the published Guild thresholds and existing completed/refunded
+definitions, but bind historical sales and shipping facts to checkout-time
+`Order.sellerProfileId` and `OrderItem.sellerProfileId`; mutable Listing
+ownership must never rewrite a seller's qualification history. Use one bounded
+aggregate-only service function because cron and staff verification recalculate
+arbitrary sellers, return no Order or buyer identity, and keep PUBLIC execution
+revoked. This service exception does not authorize generic Order access. Keep
+the `SellerMetrics` cache upsert as its own later RLS/maintenance-write
+boundary. See `docs/order-seller-metrics-authority.md`.
+
+### Core Order participant-summary authority decision (2026-09-01)
+
+Do not convert participant Order lists to a scalar-only projection when the
+product still renders historical item cards. Equally, do not restore broad
+OrderItem reads or add an N+1 detail call. Use one actor-scoped keyset page
+that returns the complete item count and at most five fixed checkout-time item
+summaries. Show a remaining-item count on list surfaces and reserve the full
+item set for Order detail. Convert numbered offset pagination deliberately;
+do not emulate arbitrary page numbers by reading and discarding unbounded
+cursor pages. The selected successor uses strictly parsed opaque tokens and
+separate older/newer keyset functions, retaining Previous/Next without OFFSET.
+Seller totals must use the full durable Order subtotal rather than the five
+displayed summaries. See `docs/order-participant-summary-authority.md` and
+`docs/order-participant-cursor-authority.md`.
+
+### Core Order fulfillment and receipt decision (2026-09-01)
+
+Do not preserve seller-controlled pickup completion merely because it was the
+historical UI. `PICKED_UP` starts the buyer's 30-day Case window, so the seller
+may only move a paid pickup Order to `READY_FOR_PICKUP`; the buyer alone moves
+it to `PICKED_UP`. The same buyer receipt operation owns
+`SHIPPED -> DELIVERED`. Both paths must reject active Cases, retained refund
+evidence and open Stripe disputes under the shared Order lock. Seller shipping
+remains `PENDING -> SHIPPED` with bounded carrier/tracking, and seller notes
+remain a separate scratch-note operation rather than fulfillment authority.
+Before Order RLS, use family-specific fixed functions and make fulfillment
+Notification/email delivery co-committed or explicitly restart-safe. See
+`docs/order-fulfillment-receipt-product-audit.md`.
+
+The compatible fixed-authority implementation now exists on the isolated
+Order branch: seller fulfillment, buyer receipt and seller-note operations
+derive participant authority and audit evidence in PostgreSQL, and the
+application co-commits transition Notifications plus deterministic email
+outbox reservations. Disposable PostgreSQL proof covers the corrected state
+machine, forged actors, Case fencing and direct runtime write denial. This is
+an unapplied compatibility checkpoint, not permission to deploy it or activate
+Order RLS; remaining direct Order write families and production sequencing are
+still separate gates. See `docs/order-fulfillment-authority.md`.
+
+### Core Order shipping-label authority decision (2026-09-01)
+
+Do not carry the current label route unchanged behind Order RLS. Its strongest
+idea—a pre-provider mutual-exclusion fence—is currently encoded as terminal
+`LabelStatus.PURCHASED`, so an ambiguous Shippo response can appear to the
+seller as a completed label. Separate the database-derived claim/generation
+from the completed label outcome, derive the selected rate/amount/currency
+inside PostgreSQL, attach the claim as Shippo metadata rather than inventing an
+unsupported provider idempotency key, and require exact provider identity and
+money agreement before any automatic seller-transfer deduction.
+
+Retain checkout-time package facts on new OrderItems; legacy nulls require a
+fresh aggregate inspection and an explicit fallback classification. Remove
+raw, expiring label URLs from seller projections and resolve fresh downloads
+through a seller-authorized provider route. Label purchase continues to mean
+`SHIPPED` in the current product, but must co-commit the same buyer Notification
+and email-outbox reservation as manual shipment. Multi-parcel packing and
+seller self-service carrier voids remain separate product enhancements; they
+must not be used to justify broad Order/Listing table access. See
+`docs/order-label-product-authority-audit.md`.
+
+The isolated compatible candidate is now implemented locally as
+`20260901140000_prepare_order_label_authority`; application conversion removes
+the label route and clawback worker from direct Order access. Do not release it
+until duplicate provider-transaction and legacy-package aggregate inspection
+and the post-deploy/drain raw seller-projection URL grant retirement are
+complete. The exact ambiguous-claim operator is now implemented locally:
+ordinary runtime cannot clear an ambiguous fence; an owner-only,
+staff-authorized release requires exact provider `ERROR` evidence, while exact
+SUCCESS returns through the normal email/clawback finalizer. Provider absence
+never releases: it remains fenced for provider escalation because external
+absence is not a terminal or account-bound fact. A transaction-ID hint cannot
+bypass exhaustive same-rate uniqueness proof. This is still part of finishing
+Order, not a reason to skip ahead to another RLS family.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 

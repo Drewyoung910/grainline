@@ -1,27 +1,27 @@
 # Notification Creation Authority Inventory
 
-Snapshot refreshed: 2026-07-26. Notification RLS is production-active; this
-inventory also covers the compatible Case seller-decision path prepared after
-that activation.
+Snapshot refreshed: 2026-09-01. Notification RLS is production-active; this
+inventory also covers the compatible Case seller-decision path and the isolated
+buyer-receipt correction prepared after that activation.
 
 ## Count Contract
 
-The source has 52 notification-helper calls across 30 files. Fifty-one pass
-object literals: 50 use the existing best-effort `createNotification` helper and
-the payout path uses strict retryable `createNotificationOrThrow`. The
-fulfillment route has the remaining call in a typed `notifyBuyer(..., payload)`
-wrapper, and that wrapper has three distinct payload construction paths. One
-dedicated back-in-stock claim call derives its
-Notification write inside owner authority. The inventory therefore covers 55
+The source has 54 notification-helper calls across 30 files. All pass object
+literals: 50 use the existing best-effort `createNotification` helper, while
+payout, shipped, ready-for-pickup and buyer receipt use four strict retryable
+object-literal calls to `createNotificationOrThrow`. One dedicated back-in-stock
+claim and the database-owned shipping-label provider-record operation each
+derive their Notification write inside fixed owner authority. The inventory
+therefore covers 56
 distinct emission paths:
 
-- 55 authority-bound paths;
+- 56 authority-bound paths;
 - 0 source-less paths;
-- 27 literal creation sites currently carrying `relatedUserId`, plus back-in-stock's
-  database-derived seller relationship.
+- 30 literal creation sites currently carrying `relatedUserId`, plus the
+  back-in-stock and shipping-label operations' database-derived relationships.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
-wrapper and its three payload constructions. The complete baseline was 54 total,
+wrapper and its then-three payload constructions. The complete baseline was 54 total,
 5 tagged and 49 source-less. The social-family implementation moved three paths
 into the tagged set, and the messaging/custom-order implementation moved three
 more. The commission implementation then moved four paths, the case
@@ -29,11 +29,16 @@ implementation moved all twelve case paths. Checkout low-stock, manual low-stock
 and the dedicated back-in-stock claim then completed all three inventory paths.
 The seven staff and three cron verification/Guild transitions complete that
 family. Three listing-moderation/report paths and two staff/account-warning
-paths now bind exact audit, report, ban, and order evidence. The final nine
+paths now bind exact audit, report, ban, and order evidence. The final ten
 checkout, fulfillment, refund, dispute, and payout paths bind their existing
 order/system-audit/payment/payout ledgers. The later compatible Case work added
 one staff-decision notification for the seller, bound to the atomic staff
-`CaseMessage`, producing the current 55/0 split.
+`CaseMessage`. The fulfillment product audit then replaced seller-authored
+pickup completion with buyer-authored receipt evidence and a strict seller
+notification. The later fixed-authority conversion preserves shipped and
+ready-for-pickup as two explicit, independently inventoried strict call sites,
+preserving the current 56/0 split without preserving the unsafe seller
+transition or the old indirection.
 Tests pin direct calls, emission paths, and family state so those concepts are
 not conflated again.
 
@@ -50,8 +55,8 @@ not conflated again.
 | Social and review events | 3 | Favorite, follow, review | Implemented draft validation: `Favorite`, `Follow`, `Review`, listing/seller ownership and event actor |
 | Inventory events | 3 | Seller low stock, subscriber back in stock, webhook low stock | Implemented draft validation: checkout low-stock binds `OrderItem`, paid `Order`, and completed reservation; manual low-stock binds an atomic audit; back-in-stock binds an atomic SOLD_OUT→ACTIVE audit plus the locked subscription and performs claim/create/consume as one owner operation |
 | Messaging and custom orders | 3 | New message, custom-order request, custom-order-ready link | Implemented draft validation: `Message`, `Conversation`, participant pair and kind; ready links additionally bind the reserved `Listing`, seller, buyer, conversation and canonical route |
-| Order, payment and fulfillment | 9 | Order buyer/seller notices, refund, shipment/pickup, dispute and payout failure | Implemented draft validation: checkout and fulfillment system audits, `OrderPaymentEvent` refund/dispute evidence, `SellerPayoutEvent`, exact buyer/seller relationships, provider event identity, and derived payload/routes |
-| **Total** | **55** |  |  |
+| Order, payment and fulfillment | 10 | Order buyer/seller notices, refund, shipment/pickup/label purchase, dispute and payout failure | Implemented validation: checkout and fulfillment system audits, `OrderPaymentEvent` refund/dispute evidence, `SellerPayoutEvent`, exact buyer/seller relationships, provider event identity, and derived payload/routes. Label purchase is database-owned inside its provider-record operation so it binds the durable `Order.sellerProfileId` rather than mutable Listing ownership |
+| **Total** | **56** |  |  |
 
 ## Chosen Hybrid
 
@@ -62,7 +67,7 @@ arbitrary-recipient insert function merely because HTTP users do not insert
 notifications directly. That shortcut would restore broad cross-user authority
 to any runtime query that could invoke it.
 
-The original 54/54 result, and the current 55/55 result, were reached without
+The original 54/54 and 55/55 results, and the current 56/56 result, were reached without
 one undifferentiated provenance shape.
 Keep the ten authority families above distinct:
 
@@ -149,8 +154,12 @@ block-race orderings. The 59 creation cases cover all 38 successful source/type
 pairs and the security-relevant action/status/recipient-direction variants;
 every case proves valid creation, replay, and forged-recipient rejection. That
 was distinct from the then-current 54/54 callsite result. The later seller
-decision path reuses the already-proven staff `CaseMessage` source branch; its
-current callsite contract is 55/55.
+decision path reuses the already-proven staff `CaseMessage` source branch. The
+current callsite contract is 56/56 after replacing seller-authored pickup
+completion with buyer-authored receipt confirmation and converting seller
+fulfillment to two explicit fixed-authority finalization paths; the replacement
+`order_fulfillment` direction requires fresh PostgreSQL proof and a compatible
+production function successor before the application change may deploy.
 byte-pinned SQL review, disposable migration/rollback, authenticated real-table
 route behavior, and provider performance evidence remained open before
 production activation. The later accepted provider proof is recorded in
@@ -158,10 +167,10 @@ production activation. The later accepted provider proof is recorded in
 final review remain current gates.
 The permanent completeness gate is
 `npm run audit:rls-notification-readiness`: it inventories the real TypeScript
-call graph, requires exactly 55 emission paths, and blocks activation until all
-55 carry a source pair dispatched through a reviewed family whose SQL
+call graph, requires exactly 56 emission paths, and blocks activation until all
+56 carry a source pair dispatched through a reviewed family whose SQL
 function, `PUBLIC` execute revoke, and runtime grant are also present. Its current
-55/55 passes for creation-authority coverage. This is necessary but not
+56/56 passes for creation-authority coverage. This is necessary but not
 sufficient for activation: recipient reads, concurrency, legacy cleanup,
 complete source-branch execution, final migration/rollback proof, provider
 evidence, and the pre-activation review remain open.

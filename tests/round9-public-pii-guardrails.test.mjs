@@ -48,6 +48,7 @@ describe("Round 9 public PII and notification-link guardrails", () => {
   it("keeps drift-prone listing review and receipt helpers centralized", () => {
     const createListing = source("src/app/dashboard/listings/new/page.tsx");
     const checkoutSuccess = source("src/app/checkout/success/page.tsx");
+    const checkoutReceiptState = source("src/lib/orderCheckoutReceiptState.ts");
     const followerFanout = source("src/lib/followerListingNotifications.ts");
 
     assert.match(createListing, /import \{ backfillEmptyAltTexts \}/);
@@ -55,7 +56,9 @@ describe("Round 9 public PII and notification-link guardrails", () => {
     assert.doesNotMatch(createListing, /prisma\.photo\.findMany\(\{\s*where: \{ listingId: created\.id \}/s);
 
     assert.match(checkoutSuccess, /orderTotalCents as calculateOrderTotalCents/);
-    assert.match(checkoutSuccess, /orderItemsSubtotalCents\(order\)/);
+    assert.match(checkoutSuccess, /readBuyerCheckoutReceipts/);
+    assert.match(checkoutReceiptState, /const projectedSubtotal = items\.reduce/);
+    assert.match(checkoutReceiptState, /projectedSubtotal !== itemsSubtotalCents/);
     assert.doesNotMatch(checkoutSuccess, /itemsSubtotalCents \+ shippingAmountCents \+ taxAmountCents \+ giftWrappingPriceCents/);
 
     assert.match(followerFanout, /formatCurrencyCents\(publicListing\.priceCents, publicListing\.currency\)/);

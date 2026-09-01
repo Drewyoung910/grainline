@@ -24,11 +24,14 @@ import { caseEscalationAvailable } from "@/lib/caseActionState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
+import {
+  orderPaymentPresentationLabel,
+  orderPaymentPresentationState,
+  suppressActiveFulfillmentForPaymentState,
+} from "@/lib/orderPaymentPresentation";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
-import { isRecordedRefundId } from "@/lib/refundLockState";
 import {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
-  orderHasDeauthorizedSellerReviewHold,
 } from "@/lib/orderReviewHolds";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import type { Metadata } from "next";
@@ -37,6 +40,10 @@ import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 import CaseMessageAttachments from "@/components/CaseMessageAttachments";
 import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
 import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
+import {
+  historicalProcessingTimeDays,
+} from "@/lib/orderItemSnapshot";
+import { readSellerOrderDetail } from "@/lib/orderParticipantDetailAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -96,33 +103,14 @@ export default async function SellerOrderDetailPage({
 
   const seller = await prisma.sellerProfile.findUnique({
     where: { userId: me.id },
-    select: { id: true, displayName: true, onboardingComplete: true, manualStripeReconciliationNeeded: true },
+    select: { onboardingComplete: true, manualStripeReconciliationNeeded: true },
   });
   if (!seller) redirect("/dashboard/seller");
   if (!seller.onboardingComplete) redirect("/dashboard?setup=required");
 
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: {
-      buyer: { select: { id: true, deletedAt: true } },
-      items: {
-        include: {
-          listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { id: true } },
-            },
-          },
-        },
-      },
-    },
-  });
+  const order = await readSellerOrderDetail(me.id, orderId);
 
   if (!order) notFound();
-
-  const allItemsBelongToSeller =
-    order.items.length > 0 && order.items.every((it) => it.listing.seller.id === seller.id);
-  if (!allItemsBelongToSeller) notFound();
   const externalRefund = (
     await sellerRefundOutcomes(me.id, [order.id])
   ).get(order.id) ?? null;
@@ -149,12 +137,12 @@ export default async function SellerOrderDetailPage({
 
   const status = order.fulfillmentStatus ?? "PENDING";
   const method = order.fulfillmentMethod ?? (isPickup ? "PICKUP" : "SHIPPING");
-  const deauthorizedReviewHold = orderHasDeauthorizedSellerReviewHold(order);
+  const deauthorizedReviewHold = order.deauthorizedReviewHold;
   const processingMins = myItems
-    .map((item) => item.listing.processingTimeMinDays)
+    .map((item) => historicalProcessingTimeDays(item.snapshot).min)
     .filter((value): value is number => typeof value === "number");
   const processingMaxes = myItems
-    .map((item) => item.listing.processingTimeMaxDays)
+    .map((item) => historicalProcessingTimeDays(item.snapshot).max)
     .filter((value): value is number => typeof value === "number");
 
   const activeCase = await getVisibleCaseByOrderId({
@@ -174,7 +162,8 @@ export default async function SellerOrderDetailPage({
     throw new TypeError("Case message preflight denied a visible seller case");
   }
   const now = new Date();
-  const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
+  const sellerRefundState = order.sellerRefundState;
+  const sellerRefundIssued = sellerRefundState === "RECORDED";
   const refundCents =
     (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
     activeCase?.refundAmountCents ??
@@ -184,6 +173,17 @@ export default async function SellerOrderDetailPage({
     activeCase?.resolution === "REFUND_FULL"
     || activeCase?.resolution === "REFUND_PARTIAL";
   const hasRefund = sellerRefundIssued || hasCaseRefund || !!externalRefund;
+  const paymentState = orderPaymentPresentationState({
+    paid: order.paidAt != null,
+    orderTotalCents: orderTotal,
+    refundAmountCents: refundCents,
+    refundRecorded: sellerRefundIssued || hasCaseRefund,
+    providerRefundStatus: externalRefund?.status ?? null,
+  });
+  const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
+    paymentState,
+    status,
+  );
   const buyerId = order.buyerId ?? "";
   const meId = me.id;
   const caseReplyUnavailableReason =
@@ -203,10 +203,14 @@ export default async function SellerOrderDetailPage({
         </h1>
         <div className="flex items-center gap-2 text-sm text-neutral-600">
           <span>
-            Placed <LocalDate date={order.createdAt} /> · {order.paidAt ? "Paid" : "Unpaid"}
+            Placed <LocalDate date={order.createdAt} /> · {orderPaymentPresentationLabel(paymentState)}
           </span>
           <Badge>{method}</Badge>
-          <Badge>{fulfillmentStatusLabel(status)}</Badge>
+          <Badge>
+            {suppressActiveFulfillment
+              ? orderPaymentPresentationLabel(paymentState)
+              : fulfillmentStatusLabel(status)}
+          </Badge>
           {order.reviewNeeded && <Badge>Review needed</Badge>}
         </div>
         <div className="text-neutral-600 text-sm">
@@ -215,11 +219,17 @@ export default async function SellerOrderDetailPage({
       </header>
 
       <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 font-medium">
-        {status === "PENDING" && "New order — time to get crafting!"}
-        {status === "SHIPPED" && "Shipped — nice work!"}
-        {status === "DELIVERED" && "Delivered — another happy buyer!"}
-        {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
-        {status === "PICKED_UP" && "Picked up — great work!"}
+        {suppressActiveFulfillment ? (
+          "Fully refunded — no fulfillment is required."
+        ) : (
+          <>
+            {status === "PENDING" && "New order — time to get crafting!"}
+            {status === "SHIPPED" && "Shipped — nice work!"}
+            {status === "DELIVERED" && "Delivered — another happy buyer!"}
+            {status === "READY_FOR_PICKUP" && "Ready for pickup!"}
+            {status === "PICKED_UP" && "Picked up — great work!"}
+          </>
+        )}
       </div>
 
       <OrderTimeline
@@ -235,7 +245,11 @@ export default async function SellerOrderDetailPage({
         estimatedDeliveryDate={order.estimatedDeliveryDate}
         processingTimeMinDays={processingMins.length > 0 ? Math.min(...processingMins) : null}
         processingTimeMaxDays={processingMaxes.length > 0 ? Math.max(...processingMaxes) : null}
-        refundAmountCents={hasRefund ? refundCents : null}
+        refundAmountCents={
+          paymentState === "PARTIALLY_REFUNDED" || paymentState === "FULLY_REFUNDED"
+            ? refundCents
+            : null
+        }
         currency={currency}
       />
 
@@ -466,7 +480,7 @@ export default async function SellerOrderDetailPage({
 
         <ul className="divide-y divide-neutral-100">
           {myItems.map((it) => {
-            const img = it.listing.photos[0]?.url;
+            const img = it.snapshot.imageUrls[0];
             return (
               <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                 {img ? (
@@ -476,16 +490,16 @@ export default async function SellerOrderDetailPage({
                   <div className="h-16 w-16 rounded bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  {it.listing.status === "ACTIVE" ? (
+                  {it.listingLinkAvailable ? (
                     <Link
-                      href={publicListingPath(it.listingId, it.listing.title)}
+                      href={publicListingPath(it.listingId, it.snapshot.title)}
                       className="block truncate text-sm font-medium hover:underline"
                     >
-                      {it.listing.title}
+                      {it.snapshot.title}
                     </Link>
                   ) : (
                     <span className="block truncate text-sm font-medium text-neutral-500">
-                      {it.listing.title}
+                      {it.snapshot.title}
                     </span>
                   )}
                   {it.selectedVariants && Array.isArray(it.selectedVariants) && (it.selectedVariants as { groupName: string; optionLabel: string }[]).length > 0 && (
@@ -611,7 +625,7 @@ export default async function SellerOrderDetailPage({
               </div>
             );
           })()}
-          {order.processingDeadline && (() => {
+          {!suppressActiveFulfillment && order.processingDeadline && (() => {
             const overdue =
               order.processingDeadline < now &&
               !["SHIPPED", "DELIVERED", "PICKED_UP"].includes(status);
@@ -632,36 +646,36 @@ export default async function SellerOrderDetailPage({
       ) : null}
 
       {/* Refund panel — shown when order is paid and not already fully refunded (by seller or admin) */}
-      {order.paidAt && !order.sellerRefundId && !externalRefund && !hasCaseRefund && (
+      {order.paidAt && sellerRefundState === "NONE" && !externalRefund && !hasCaseRefund && (
         <SellerRefundPanel
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          alreadyRefundedId={null}
+          refundState="NONE"
           alreadyRefundedCents={null}
         />
       )}
-      {order.sellerRefundId && (
+      {sellerRefundState !== "NONE" && (
         <SellerRefundPanel
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          alreadyRefundedId={order.sellerRefundId}
+          refundState={sellerRefundState}
           alreadyRefundedCents={order.sellerRefundAmountCents ?? null}
         />
       )}
-      {!order.sellerRefundId && externalRefund && (
+      {sellerRefundState === "NONE" && externalRefund && (
         <SellerRefundPanel
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          alreadyRefundedId="external-refund"
+          refundState={paymentState === "REFUND_PROCESSING" ? "PROCESSING" : "RECORDED"}
           alreadyRefundedCents={externalRefund.amountCents ?? null}
         />
       )}
 
       {/* Actions */}
-      {(status !== "DELIVERED" && status !== "PICKED_UP") && (
+      {!suppressActiveFulfillment && status !== "DELIVERED" && status !== "PICKED_UP" && (
         <section className="card-section p-4 space-y-3">
           <div className="font-medium">Fulfillment actions</div>
 
@@ -681,20 +695,16 @@ export default async function SellerOrderDetailPage({
               )}
 
               {method === "PICKUP" && status === "READY_FOR_PICKUP" && (
-                <form method="post" action={`/api/orders/${order.id}/fulfillment`}>
-                  <input type="hidden" name="action" value="picked_up" />
-                  <button className="rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50">
-                    Mark picked up
-                  </button>
-                </form>
+                <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                  Waiting for the buyer to confirm pickup. This keeps the receipt date and case window buyer-controlled.
+                </div>
               )}
 
-              {method === "SHIPPING" && status === "PENDING" && (
+              {method === "SHIPPING" && (status === "PENDING" || order.labelStatus === "PURCHASED") && (
                 <div className="space-y-4">
                   <LabelSection
                     orderId={order.id}
                     labelStatus={order.labelStatus ?? null}
-                    labelUrl={order.labelUrl ?? null}
                     labelCarrier={order.labelCarrier ?? null}
                     labelTrackingNumber={order.labelTrackingNumber ?? null}
                     labelPurchasedAt={order.labelPurchasedAt?.toISOString() ?? null}
@@ -703,7 +713,7 @@ export default async function SellerOrderDetailPage({
                     currency={currency}
                   />
 
-                  <div className="border-t border-neutral-100 pt-3 space-y-2">
+                  {status === "PENDING" && <div className="border-t border-neutral-100 pt-3 space-y-2">
                     <div className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
                       Already shipped? Enter tracking manually
                     </div>
@@ -738,7 +748,7 @@ export default async function SellerOrderDetailPage({
                         </button>
                       </div>
                     </form>
-                  </div>
+                  </div>}
                 </div>
               )}
 
@@ -771,12 +781,14 @@ export default async function SellerOrderDetailPage({
         >
           Back to sales
         </Link>
-        <Link
-          href={`/messages/new?to=${order.buyer?.id ?? ""}`}
-          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-        >
-          Message buyer
-        </Link>
+        {order.buyerId ? (
+          <Link
+            href={`/messages/new?to=${order.buyerId}`}
+            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Message buyer
+          </Link>
+        ) : null}
       </div>
     </main>
   );

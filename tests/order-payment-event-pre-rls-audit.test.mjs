@@ -25,23 +25,17 @@ function sourceFiles(root = "src") {
 
 function paymentSemanticFiles() {
   const reference =
-    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|localRefundEvidence|BLOCKING_REFUND_LEDGER_SQL|paymentRefundBlocked|paymentOpenDisputeBlocked|paymentConversionDisputeBlocked/;
+    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|localRefundEvidence|BLOCKING_REFUND_LEDGER_SQL|paymentRefundBlocked|paymentOpenDisputeBlocked|paymentConversionDisputeBlocked|lockReviewEligibleOrderItem|getSellerVerificationOrderSales|getListingOrderArchiveBlocked|getPublicFulfilledOrderCount|getPublicSellerOrderStats|getPublicListingOrderCounts|getPublicMarketplaceListingMetrics/;
   return sourceFiles().filter((file) => reference.test(fs.readFileSync(file, "utf8")));
 }
 
 const expectedSemanticFiles = [
   "src/app/account/orders/page.tsx",
-  "src/app/account/page.tsx",
   "src/app/admin/orders/[id]/page.tsx",
   "src/app/admin/verification/page.tsx",
   "src/app/api/account/export/route.ts",
-  "src/app/api/orders/[id]/confirm-delivery/route.ts",
-  "src/app/api/orders/[id]/fulfillment/route.ts",
-  "src/app/api/orders/[id]/label/route.ts",
   "src/app/api/orders/[id]/refund/route.ts",
   "src/app/api/reviews/route.ts",
-  "src/app/api/seller/analytics/recent-sales/route.ts",
-  "src/app/api/seller/analytics/route.ts",
   "src/app/api/stripe/webhook/route.ts",
   "src/app/api/verification/apply/route.ts",
   "src/app/dashboard/orders/[id]/page.tsx",
@@ -55,9 +49,10 @@ const expectedSemanticFiles = [
   "src/lib/listingSoftDelete.ts",
   "src/lib/localRefundEvidence.ts",
   "src/lib/localRefundEvidenceCore.ts",
-  "src/lib/metrics.ts",
   "src/lib/orderPaymentEventLabels.ts",
   "src/lib/orderPaymentEventReadAuthority.ts",
+  "src/lib/orderEligibilityAuthority.ts",
+  "src/lib/orderPublicAggregateAuthority.ts",
   "src/lib/orderRefundFinalization.ts",
   "src/lib/publicSellerStats.ts",
   "src/lib/quality-score.ts",
@@ -68,7 +63,7 @@ const expectedSemanticFiles = [
 
 describe("OrderPaymentEvent pre-RLS domain audit", () => {
   it("pins every current semantic source reference", () => {
-    assert.equal(expectedSemanticFiles.length, 34);
+    assert.equal(expectedSemanticFiles.length, 29);
     assert.deepEqual(paymentSemanticFiles(), expectedSemanticFiles);
     for (const file of expectedSemanticFiles) {
       assert.match(audit, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

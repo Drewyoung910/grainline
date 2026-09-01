@@ -36,8 +36,6 @@ function authorityAccessFiles(delegate, table) {
 
 const expected = {
   Order: [
-    "src/app/account/orders/page.tsx",
-    "src/app/account/page.tsx",
     "src/app/admin/actions.ts",
     "src/app/admin/cases/[id]/page.tsx",
     "src/app/admin/flagged/page.tsx",
@@ -45,55 +43,23 @@ const expected = {
     "src/app/admin/orders/[id]/refundReconciliationActions.ts",
     "src/app/admin/orders/page.tsx",
     "src/app/admin/verification/page.tsx",
-    "src/app/api/account/export/route.ts",
-    "src/app/api/dev/make-order/route.ts",
-    "src/app/api/orders/[id]/confirm-delivery/route.ts",
-    "src/app/api/orders/[id]/fulfillment/route.ts",
-    "src/app/api/orders/[id]/label/route.ts",
     "src/app/api/orders/[id]/refund/route.ts",
-    "src/app/api/reviews/route.ts",
-    "src/app/api/seller/analytics/recent-sales/route.ts",
-    "src/app/api/seller/analytics/route.ts",
     "src/app/api/stripe/webhook/route.ts",
-    "src/app/api/users/[id]/report/route.ts",
-    "src/app/api/verification/apply/route.ts",
-    "src/app/checkout/success/page.tsx",
-    "src/app/dashboard/orders/[id]/page.tsx",
-    "src/app/dashboard/orders/page.tsx",
-    "src/app/dashboard/sales/[orderId]/page.tsx",
-    "src/app/dashboard/sales/page.tsx",
-    "src/app/dashboard/verification/page.tsx",
     "src/lib/accountDeletion.ts",
     "src/lib/audit.ts",
     "src/lib/ban.ts",
     "src/lib/caseLifecycleLocks.ts",
     "src/lib/checkoutStockRestore.ts",
-    "src/lib/homepageStats.ts",
-    "src/lib/labelClawbackRetry.ts",
-    "src/lib/listingSoftDelete.ts",
-    "src/lib/metrics.ts",
     "src/lib/orderRefundProviderReconciliation.ts",
-    "src/lib/publicSellerStats.ts",
-    "src/lib/quality-score.ts",
     "src/lib/refundLocks.ts",
-    "src/lib/site-metrics-snapshot.ts",
   ],
   OrderItem: [
     "src/app/admin/verification/page.tsx",
-    "src/app/api/reviews/route.ts",
-    "src/app/api/seller/analytics/route.ts",
     "src/app/api/stripe/webhook/route.ts",
-    "src/app/api/verification/apply/route.ts",
-    "src/app/dashboard/verification/page.tsx",
     "src/components/ReviewsSection.tsx",
     "src/lib/accountDeletion.ts",
-    "src/lib/metrics.ts",
-    "src/lib/publicSellerStats.ts",
-    "src/lib/quality-score.ts",
-    "src/lib/site-metrics-snapshot.ts",
   ],
   OrderShippingRateQuote: [
-    "src/app/api/orders/[id]/label/route.ts",
     "src/lib/accountDeletion.ts",
   ],
   OrderPaymentEvent: [
@@ -105,7 +71,10 @@ const expected = {
 };
 
 const baselineCounts = {
-  ...Object.fromEntries(Object.entries(expected).map(([model, files]) => [model, files.length])),
+  Order: 31,
+  OrderItem: 6,
+  OrderShippingRateQuote: 2,
+  OrderPaymentEvent: 2,
   SellerPayoutEvent: 3,
   CheckoutStockReservation: 4,
 };
@@ -204,7 +173,8 @@ describe("order/payment/shipping pre-RLS audit", () => {
         assert.equal(documentedSources.has(file), true, file);
       }
     }
-    assert.match(audit, /must be removed from production\s+reachability or converted to a separately gated test-only operation/);
+    assert.match(audit, /former development-only synthetic creator is retired/);
+    assert.match(audit, /does not justify\s+a runtime Order-create function or direct `INSERT`/);
     assert.match(audit, /do not justify restoring runtime\s+base-table SELECT/);
   });
 

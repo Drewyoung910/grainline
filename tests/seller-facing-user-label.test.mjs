@@ -28,6 +28,14 @@ describe("seller-facing user labels", () => {
       sellerFacingUserLabel({ name: null, email: "buyer@example.com", deletedAt: null }, "Deleted user"),
       "buyer@example.com",
     );
+    assert.equal(
+      sellerFacingOrderBuyerLabel({
+        buyerName: "Former Buyer",
+        buyerEmail: "buyer@example.com",
+        buyerDeletedAt: new Date(),
+      }, "Deleted user"),
+      "Deleted user",
+    );
   });
 
   it("uses the helper on seller-facing buyer labels", () => {
@@ -35,6 +43,9 @@ describe("seller-facing user labels", () => {
     const saleDetail = source("src/app/dashboard/sales/[orderId]/page.tsx");
     const customListing = source("src/app/dashboard/listings/custom/page.tsx");
     const recentSalesRoute = source("src/app/api/seller/analytics/recent-sales/route.ts");
+    const recentSalesAuthority = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
     const analyticsPage = source("src/app/dashboard/analytics/page.tsx");
 
     for (const text of [customListing]) {
@@ -57,10 +68,11 @@ describe("seller-facing user labels", () => {
     assert.match(customListing, /sellerFacingUserLabel\(buyer, "the buyer"\)/);
 
     assert.match(recentSalesRoute, /import \{ sellerFacingOrderBuyerLabel \} from "@\/lib\/sellerFacingUser"/);
-    assert.match(recentSalesRoute, /buyerName: true/);
-    assert.match(recentSalesRoute, /buyerEmail: true/);
-    assert.match(recentSalesRoute, /buyerDataPurgedAt: true/);
-    assert.match(recentSalesRoute, /buyer: \{ select: \{ deletedAt: true \} \}/);
+    assert.match(recentSalesRoute, /readSellerRecentSales\(me\.id\)/);
+    assert.match(recentSalesAuthority, /source_order\."buyerName"/);
+    assert.match(recentSalesAuthority, /source_order\."buyerEmail"/);
+    assert.match(recentSalesAuthority, /source_order\."buyerDataPurgedAt" IS NOT NULL/);
+    assert.match(recentSalesAuthority, /buyer\."deletedAt" IS NOT NULL/);
     assert.match(recentSalesRoute, /buyerLabel: sellerFacingOrderBuyerLabel/);
     assert.doesNotMatch(recentSalesRoute, /buyer: \{ select: \{[^}]*name: true/s);
     assert.doesNotMatch(recentSalesRoute, /buyer: \{ select: \{[^}]*email: true/s);

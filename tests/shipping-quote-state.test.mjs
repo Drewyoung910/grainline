@@ -10,10 +10,14 @@ const {
   carrierMatchesPreference,
   filterShippoRatesForCheckout,
   isQuoteOnlyRateObjectId,
+  normalizeShippoRatesForCheckout,
+  preferredAutomaticShippingRate,
   quoteOnlyRateObjectId,
   safeFallbackShippingCents,
   safeProviderShippingCents,
+  safeShippingEstimatedDays,
 } = await import("../src/lib/shippingQuoteState.ts");
+const { SHIPPING_ESTIMATED_DAYS_MAX } = await import("../src/lib/shippingRateBounds.ts");
 
 describe("shipping quote state helpers", () => {
   it("clamps configured fallback shipping to the minimum buyer-visible amount", () => {
@@ -58,9 +62,62 @@ describe("shipping quote state helpers", () => {
     assert.equal(quoteOnlyRateObjectId(" rate_123 "), "quote-only:rate_123");
     assert.equal(quoteOnlyRateObjectId(""), "");
     assert.equal(quoteOnlyRateObjectId(null), "");
+    assert.equal(quoteOnlyRateObjectId("rate id"), "");
+    assert.equal(quoteOnlyRateObjectId("x".repeat(256)), "");
     assert.equal(isQuoteOnlyRateObjectId("quote-only:rate_123"), true);
     assert.equal(isQuoteOnlyRateObjectId("rate_123"), false);
     assert.equal(isQuoteOnlyRateObjectId(" pickup "), false);
+  });
+
+  it("normalizes only provider rates that checkout can actually accept", () => {
+    const rates = normalizeShippoRatesForCheckout([
+      {
+        object_id: "rate_1",
+        amount: "12.34",
+        currency: "USD",
+        provider: "UPS",
+        servicelevel: { name: "Ground" },
+        estimated_days: 4,
+      },
+      {
+        object_id: "rate_1",
+        amount: "13.00",
+        currency: "USD",
+        provider: "UPS",
+        servicelevel: { name: "Duplicate" },
+        estimated_days: 3,
+      },
+      { object_id: null, amount: "8.00", currency: "USD", provider: "USPS", service: "Ground" },
+      { object_id: "rate_2", amount: "8.00", currency: "USD", provider: "", service: "Ground" },
+    ]);
+
+    assert.deepEqual(rates, [{
+      objectId: "quote-only:rate_1",
+      amountCents: 1234,
+      carrier: "UPS",
+      service: "Ground",
+      estDays: 4,
+      label: "UPS Ground (4d)",
+    }]);
+  });
+
+  it("normalizes malformed or out-of-contract delivery estimates to unknown", () => {
+    assert.equal(safeShippingEstimatedDays(1), 1);
+    assert.equal(safeShippingEstimatedDays(SHIPPING_ESTIMATED_DAYS_MAX), SHIPPING_ESTIMATED_DAYS_MAX);
+    assert.equal(safeShippingEstimatedDays(0), null);
+    assert.equal(safeShippingEstimatedDays(SHIPPING_ESTIMATED_DAYS_MAX + 1), null);
+    assert.equal(safeShippingEstimatedDays(2.5), null);
+    assert.equal(safeShippingEstimatedDays(null), null);
+  });
+
+  it("defaults to a shippable rate rather than silently selecting local pickup", () => {
+    const pickup = { objectId: "pickup", amountCents: 0 };
+    const ground = { objectId: "quote-only:ground", amountCents: 900 };
+    const priority = { objectId: "quote-only:priority", amountCents: 1400 };
+
+    assert.equal(preferredAutomaticShippingRate([pickup, priority, ground]), ground);
+    assert.equal(preferredAutomaticShippingRate([pickup]), pickup);
+    assert.equal(preferredAutomaticShippingRate([]), null);
   });
 
   it("reports when carrier preferences filtered out otherwise valid rates", () => {
@@ -97,8 +154,7 @@ describe("shipping quote state helpers", () => {
 
     assert.match(route, /fallbackRate\(\{\s*amountCents: safeFallbackShippingCents\(fallbackShippingCents\)/s);
     assert.match(route, /const filtered = filterShippoRatesForCheckout\(\{/);
-    assert.match(route, /const amountCents = safeProviderShippingCents\(r\.amount\)/);
-    assert.match(route, /if \(amountCents === null\) return \[\]/);
+    assert.match(route, /normalizeShippoRatesForCheckout\(filtered\.rates\)/);
     assert.match(route, /preferredCarriers: sellerPreferredCarriers/);
     assert.match(route, /if \(filtered\.blockedByCarrierPreference\) \{/);
     assert.match(route, /if \(sellerAllowsPickup\) \{\s*return pickupOnlyResponse/s);
@@ -123,32 +179,37 @@ describe("shipping quote state helpers", () => {
 
   it("minimizes Shippo quote destination payloads and keeps returned rate ids quote-only", () => {
     const route = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    const provider = readFileSync("src/lib/shippingQuoteProvider.ts", "utf8");
     const selector = readFileSync("src/components/ShippingRateSelector.tsx", "utf8");
 
-    assert.match(route, /quoteOnlyRateObjectId/);
+    assert.match(route, /normalizeShippoRatesForCheckout/);
     assert.doesNotMatch(route, /toName|toLine1|toLine2/);
-    assert.match(route, /street1: "Rate quote only"/);
-    const addressToBlock = route.match(/address_to:\s*\{([\s\S]*?)\n\s*\},\n\s*parcels:/)?.[1] ?? "";
-    assert.match(addressToBlock, /city: shipTo\.city/);
-    assert.match(addressToBlock, /state: shipTo\.state/);
-    assert.match(addressToBlock, /zip: shipTo\.postal/);
-    assert.match(addressToBlock, /country: shipTo\.country/);
+    assert.match(route, /buildShippoCheckoutQuoteShipment/);
+    assert.match(provider, /street1: "Rate quote only"/);
+    const addressToBlock = provider.match(/address_to:\s*\{([\s\S]*?)\n\s*\},\n\s*parcels:/)?.[1] ?? "";
+    assert.match(addressToBlock, /city: input\.to\.city/);
+    assert.match(addressToBlock, /state: input\.to\.state/);
+    assert.match(addressToBlock, /zip: input\.to\.postal/);
+    assert.match(addressToBlock, /country: input\.to\.country/);
     assert.doesNotMatch(addressToBlock, /\bname:/);
     assert.doesNotMatch(addressToBlock, /\bstreet2:/);
-    assert.match(route, /const objectId = quoteOnlyRateObjectId\(r\.object_id \?\? null\)/);
-    assert.match(route, /objectId: objectId \|\| null/);
+    assert.match(route, /normalizeShippoRatesForCheckout/);
+    assert.doesNotMatch(route, /objectId: objectId \|\| null/);
 
     assert.doesNotMatch(selector, /toName|toLine1|toLine2/);
     assert.doesNotMatch(selector, /address\.line1|address\.line2|address\.name/);
+    assert.doesNotMatch(selector, /`\$\{r\.carrier\}-\$\{r\.service\}-\$\{index\}`/);
+    assert.match(selector, /preferredAutomaticShippingRate\(mapped\)/);
+    assert.match(selector, />\s*Retry\s*</);
   });
 
   it("forces seller label purchase to re-quote quote-only rates with full order recipient data", () => {
     const labelRoute = readFileSync("src/app/api/orders/[id]/label/route.ts", "utf8");
 
     assert.match(labelRoute, /isPickupRateObjectId,[\s\S]*isQuoteOnlyRateObjectId,[\s\S]*from "@\/lib\/shippingQuoteState"/);
-    assert.match(labelRoute, /!isQuoteOnlyRateObjectId\(rateObjectId\)/);
-    assert.match(labelRoute, /const storedRateUsable =\s*isPurchasableRateObjectId\(order\.shippoRateObjectId\)/);
-    assert.match(labelRoute, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
-    assert.match(labelRoute, /name: order\.buyerName \?\? order\.quotedToName \?\? undefined/);
+    assert.match(labelRoute, /!isQuoteOnlyRateObjectId\(value\)/);
+    assert.match(labelRoute, /!selectedRateId && !preflight\.storedRateUsable/);
+    assert.match(labelRoute, /replaceSellerLabelQuote\(\{/);
+    assert.match(labelRoute, /to: \{[\s\S]*\.\.\.preflight\.shipTo/);
   });
 });

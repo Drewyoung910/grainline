@@ -36,6 +36,9 @@ describe("homepage deterministic query guardrails", () => {
 
   it("loads homepage statistics through one short-lived trusted cache", () => {
     const stats = source("src/lib/homepageStats.ts");
+    const authority = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
 
     assert.match(stats, /import \{ unstable_cache \} from "next\/cache"/);
     assert.match(stats, /HOMEPAGE_STATS_REVALIDATE_SECONDS = 5 \* 60/);
@@ -43,11 +46,12 @@ describe("homepage deterministic query guardrails", () => {
     assert.match(stats, /prisma\.listing\.count\(\{ where: publicListingWhere\(\) \}\)/);
     assert.match(stats, /prisma\.sellerProfile\.count\(\{[\s\S]*activeSellerProfileWhere\([\s\S]*listings: \{ some: publicListingWhere\(\) \}/);
     assert.match(stats, /prisma\.user\.count\(\{[\s\S]*banned: false, deletedAt: null/);
-    assert.match(stats, /\.\.\.paidStripeOrderWhere\(\)/);
-    assert.match(stats, /sellerRefundId: null/);
-    assert.match(stats, /paymentRefundBlocked: false/);
+    assert.match(stats, /getPublicFulfilledOrderCount\(\)/);
+    assert.match(authority, /source_order\."sellerRefundId" IS NULL/);
+    assert.match(authority, /source_order\."paymentRefundBlocked" = false/);
     assert.doesNotMatch(stats, /paymentEvents:|blockingRefundLedgerWhere|OrderPaymentEvent/);
-    assert.match(stats, /fulfillmentStatus: \{ in: \["DELIVERED", "PICKED_UP"\] \}/);
+    assert.match(authority, /'DELIVERED'::public\."FulfillmentStatus"/);
+    assert.match(authority, /'PICKED_UP'::public\."FulfillmentStatus"/);
     assert.match(stats, /\["homepage-stats-v1"\]/);
     assert.match(stats, /revalidate: HOMEPAGE_STATS_REVALIDATE_SECONDS/);
   });

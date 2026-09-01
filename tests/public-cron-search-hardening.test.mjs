@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
 
@@ -83,16 +83,10 @@ describe("cron and public route hardening", () => {
     assert.match(route, /status:\s*response\.ok \? HTTP_STATUS\.OK : HTTP_STATUS\.SERVICE_UNAVAILABLE/);
   });
 
-  it("keeps dev-only order fixtures disabled outside local development", () => {
-    const route = source("src/app/api/dev/make-order/route.ts");
+  it("keeps paid Order fabrication out of runtime routes", () => {
     const middleware = source("src/middleware.ts");
 
-    assert.match(route, /process\.env\.NODE_ENV === "development"/);
-    assert.match(route, /process\.env\.VERCEL !== "1"/);
-    assert.match(route, /process\.env\.VERCEL_ENV === undefined/);
-    assert.match(route, /process\.env\.ENABLE_DEV_MAKE_ORDER === "true"/);
-    assert.doesNotMatch(route, /process\.env\.NODE_ENV !== "production"/);
-    assert.doesNotMatch(route, /!process\.env\.VERCEL_ENV/);
+    assert.equal(existsSync("src/app/api/dev/make-order/route.ts"), false);
     assert.doesNotMatch(middleware, /"\/api\/dev/);
   });
 

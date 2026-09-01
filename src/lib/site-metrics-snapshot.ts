@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
+import { getPublicMarketplaceListingMetrics } from "@/lib/orderPublicAggregateAuthority";
 
 export type SiteMetricsSnapshotResult = {
   avgConversion: number;
@@ -9,41 +9,8 @@ export type SiteMetricsSnapshotResult = {
 };
 
 export async function calculateSiteMetricsSnapshot(): Promise<SiteMetricsSnapshotResult> {
-  const [trafficRows, ratingRows] = await Promise.all([
-    prisma.$queryRaw<
-      Array<{
-        totalViews: bigint;
-        totalOrders: bigint;
-        totalClicks: bigint;
-      }>
-    >`
-      WITH visible_listings AS (
-        SELECT l.id, l."viewCount", l."clickCount"
-        FROM "Listing" l
-        JOIN "SellerProfile" sp ON sp.id = l."sellerId"
-        JOIN "User" u ON u.id = sp."userId"
-        WHERE l.status = 'ACTIVE'
-          AND l."isPrivate" = false
-          AND sp."chargesEnabled" = true
-          AND (sp."stripeAccountVersion" IS NULL OR sp."stripeAccountVersion" = 'v2')
-          AND sp."vacationMode" = false
-          AND u.banned = false
-          AND u."deletedAt" IS NULL
-      )
-      SELECT
-        COALESCE((SELECT SUM("viewCount") FROM visible_listings), 0) AS "totalViews",
-        COALESCE((SELECT SUM("clickCount") FROM visible_listings), 0) AS "totalClicks",
-        COALESCE((
-          SELECT COUNT(oi.id)
-          FROM "OrderItem" oi
-          JOIN "Order" o ON o.id = oi."orderId"
-          JOIN visible_listings vl ON vl.id = oi."listingId"
-          WHERE o."sellerRefundId" IS NULL
-            ${PAID_STRIPE_ORDER_SQL}
-            AND o."paymentRefundBlocked" = false
-            AND o."paymentConversionDisputeBlocked" = false
-        ), 0) AS "totalOrders"
-    `,
+  const [traffic, ratingRows] = await Promise.all([
+    getPublicMarketplaceListingMetrics(),
     prisma.$queryRaw<Array<{ avgRating: number | null }>>`
       SELECT AVG(r."ratingX2")::float / 2.0 AS "avgRating"
       FROM "Review" r
@@ -60,10 +27,9 @@ export async function calculateSiteMetricsSnapshot(): Promise<SiteMetricsSnapsho
     `,
   ]);
 
-  const traffic = trafficRows[0];
-  const totalViews = Number(traffic?.totalViews ?? 0);
-  const totalOrders = Number(traffic?.totalOrders ?? 0);
-  const totalClicks = Number(traffic?.totalClicks ?? 0);
+  const totalViews = traffic.totalViews;
+  const totalOrders = traffic.totalOrders;
+  const totalClicks = traffic.totalClicks;
   const calculatedAt = new Date();
   const payload = {
     avgConversion: totalViews > 0 ? totalOrders / totalViews : 0,

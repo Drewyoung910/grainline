@@ -91,20 +91,18 @@ describe("query parameter parsing helpers", () => {
       "utf8",
     );
 
-    for (const source of [accountOrders, dashboardSales, adminOrders, adminCases, adminFlagged, notifications]) {
+    for (const source of [adminOrders, adminCases, adminFlagged, notifications]) {
       assert.match(source, /import \{[^}]*parseBoundedPositiveIntParam[^}]*\} from "@\/lib\/queryParams";/);
       assert.match(source, /parseBoundedPositiveIntParam\(page(?:Param|Str), 1, 1000\)/);
       assert.doesNotMatch(source, /parseInt\(page(?:Param|Str)/);
       assert.doesNotMatch(source, /Number\.parseInt\(page(?:Param|Str)/);
     }
 
-    assert.match(accountOrders, /const totalOrders = await prisma\.order\.count\(\{ where: \{ buyerId: me\.id \} \}\)/);
-    assert.match(accountOrders, /const page = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(accountOrders, /skip: \(page - 1\) \* PAGE_SIZE/);
-
-    assert.match(dashboardSales, /const total = await prisma\.order\.count\(\{ where \}\)/);
-    assert.match(dashboardSales, /const safePage = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(dashboardSales, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+    for (const source of [accountOrders, dashboardSales]) {
+      assert.match(source, /parseOrderHistoryCursor/);
+      assert.match(source, /buildOrderHistoryCursor/);
+      assert.doesNotMatch(source, /prisma\.order|skip:/);
+    }
 
     assert.match(adminOrders, /const total = await prisma\.order\.count\(\)/);
     assert.match(adminOrders, /const safePage = Math\.min\(requestedPage, totalPages\)/);
@@ -153,8 +151,12 @@ describe("query parameter parsing helpers", () => {
     const following = readFileSync("src/app/account/following/page.tsx", "utf8");
     const blocked = readFileSync("src/app/account/blocked/page.tsx", "utf8");
     const dashboardOrders = readFileSync("src/app/dashboard/orders/page.tsx", "utf8");
+    const orderSummaryAuthority = readFileSync(
+      "prisma/migrations/20260901080000_prepare_order_participant_summary_authority/migration.sql",
+      "utf8",
+    );
 
-    assert.match(account, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 5/);
+    assert.match(account, /readBuyerOrderSummaryPage\(\{ actorUserId: me\.id, limit: 5 \}\)/);
     assert.match(account, /orderBy: \[\{ createdAt: "desc" \}, \{ listingId: "desc" \}\][\s\S]*take: 6/);
     assert.match(saved, /orderBy: \[\{ createdAt: "desc" \}, \{ listingId: "desc" \}\][\s\S]*skip: \(listingPage - 1\) \* PAGE_SIZE/);
     const savedBlogPostOwnerAccess = readFileSync("src/lib/savedBlogPostOwnerAccess.ts", "utf8");
@@ -165,7 +167,8 @@ describe("query parameter parsing helpers", () => {
     assert.match(following, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: PAGE_SIZE/);
     assert.match(following, /listings: \{[\s\S]*orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 1/);
     assert.match(blocked, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: 50/);
-    assert.match(dashboardOrders, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\][\s\S]*take: LIMIT/);
+    assert.match(dashboardOrders, /readBuyerOrderSummaryPage\(\{ actorUserId: me\.id, limit: LIMIT \}\)/);
+    assert.match(orderSummaryAuthority, /ORDER BY source_order\."createdAt" DESC, source_order\.id DESC[\s\S]*LIMIT p_limit/g);
   });
 
   it("bounds browse location and shipping filters before query construction", () => {

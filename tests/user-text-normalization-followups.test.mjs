@@ -36,8 +36,8 @@ describe("user text normalization followups", () => {
     assert.match(sellerCheckout, /const giftNote = body\.giftNote \? truncateText\(sanitizeText\(body\.giftNote\), 200\) : ""/);
     assert.match(singleCheckout, /giftNote: body\.giftNote \? truncateText\(sanitizeText\(body\.giftNote\), 200\) : ""/);
     assert.match(report, /const details = body\.details \? truncateText\(sanitizeText\(body\.details\), 500\) \|\| null : null/);
-    assert.match(fulfillment, /const sellerNotes = payload\.sellerNotes \? truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null : null/);
-    assert.match(fulfillment, /data\.sellerNotes = sellerNotes/);
+    assert.match(fulfillment, /truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null/);
+    assert.match(fulfillment, /updateSellerOrderNotes\(\{[\s\S]*sellerNotes,/);
     assert.match(audit, /export function sanitizeAdminAuditReason/);
     assert.match(audit, /truncateText\(sanitizeText\(reason\), 500\) \|\| null/);
     assert.match(audit, /reason: sanitizeAdminAuditReason\(reason\)/);
@@ -86,9 +86,9 @@ describe("user text normalization followups", () => {
     assert.match(seller, /shipFromLine1[\s\S]*sanitizeAddressField\(rawShipFromLine1, 200\)/);
     assert.match(checkoutSeller, /const shippingAddress = normalizeCheckoutShippingAddress\(body\.shippingAddress\)/);
     assert.match(checkoutSingle, /const shippingAddress = normalizeCheckoutShippingAddress\(body\.shippingAddress\)/);
-    assert.match(quote, /const sanitizedToCity = sanitizeOptionalAddressField\(body\.toCity, 100\)/);
-    assert.match(quote, /const sanitizedToState = sanitizeOptionalAddressField\(body\.toState, 50\)/);
-    assert.match(quote, /const sanitizedToCountry = sanitizeOptionalAddressField\(body\.toCountry, 2\)/);
+    assert.match(quote, /const sanitizedToCity = sanitizeAddressField\(body\.toCity, 100\)/);
+    assert.match(quote, /const sanitizedToState = sanitizeAddressField\(body\.toState, 2\)/);
+    assert.match(quote, /const sanitizedToCountry = sanitizeAddressField\(body\.toCountry, 2\)/);
     assert.match(quote, /postal: sanitizeAddressField\(body\.toPostal, 20\)/);
     assert.doesNotMatch(quote, /toName|toLine1|toLine2/);
   });

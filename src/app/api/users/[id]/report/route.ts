@@ -20,6 +20,7 @@ import { rateLimitResponse, reportRatelimit, safeRateLimit } from "@/lib/ratelim
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { isActorMessageReportTarget } from "@/lib/conversationMessageAuthority";
+import { canReportOrderTarget } from "@/lib/orderEligibilityAuthority";
 
 const Schema = z.object({
   reason: z.enum(["SPAM", "HARASSMENT", "FAKE_LISTING", "INAPPROPRIATE", "OTHER"]),
@@ -126,20 +127,11 @@ export async function POST(
         }
         break;
       case "ORDER":
-        exists = await prisma.order.count({
-          where: {
-            id: body.targetId,
-            OR: [{ buyerId: reportedId }, { items: { some: { listing: { seller: { userId: reportedId } } } } }],
-            AND: [
-              {
-                OR: [
-                  { buyerId: me.id },
-                  { items: { some: { listing: { seller: { userId: me.id } } } } },
-                ],
-              },
-            ],
-          },
-        }) > 0;
+        exists = await canReportOrderTarget({
+          actorUserId: me.id,
+          reportedUserId: reportedId,
+          orderId: body.targetId,
+        });
         reporterCanAccess = exists;
         break;
       case "MESSAGE":

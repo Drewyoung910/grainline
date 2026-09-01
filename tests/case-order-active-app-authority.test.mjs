@@ -45,7 +45,7 @@ describe("Case-aware Order application authority", () => {
     );
   });
 
-  it("routes buyer and seller guards through the fixed operations before and after the Order lock", () => {
+  it("keeps Case fencing inside fixed fulfillment operations and the label lock", () => {
     const buyer = fs.readFileSync(
       "src/app/api/orders/[id]/confirm-delivery/route.ts",
       "utf8",
@@ -59,25 +59,30 @@ describe("Case-aware Order application authority", () => {
       "utf8",
     );
 
+    const authority = fs.readFileSync(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+      "utf8",
+    );
+    const labelAuthority = fs.readFileSync(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+      "utf8",
+    );
+
+    assert.match(buyer, /finalizeBuyerOrderReceipt\(\{/);
+    assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
+    assert.doesNotMatch(buyer, /caseOrderActiveForBuyer|lockOrderForCaseLifecycle/);
+    assert.doesNotMatch(fulfillment, /caseOrderActiveForSeller|lockOrderForCaseLifecycle/);
     assert.equal(
-      (buyer.match(/caseOrderActiveForBuyer/g) ?? []).length,
-      3,
+      (authority.match(/source_case\.status::text IN \(\s*'OPEN', 'IN_DISCUSSION', 'PENDING_CLOSE', 'UNDER_REVIEW'\s*\)/g) ?? []).length,
+      2,
     );
-    assert.match(
-      buyer,
-      /lockOrderForCaseLifecycle\(tx, id\)[\s\S]*caseOrderActiveForBuyer\([\s\S]*tx,[\s\S]*databaseClockTimestamp/,
+    assert.match(label, /sellerLabelPreflight\(\{ actorUserId: actor\.id, orderId \}\)/);
+    assert.match(label, /claimSellerLabelPurchase\(\{/);
+    assert.doesNotMatch(label, /caseOrderActiveForSeller|lockOrderForCaseLifecycle/);
+    assert.ok(
+      (labelAuthority.match(/FROM public\."Case" AS source_case/g) ?? []).length >= 3,
+      "label preflight, quote replacement, and claim must each fence active Cases",
     );
-    for (const source of [fulfillment, label]) {
-      assert.equal(
-        (source.match(/caseOrderActiveForSeller/g) ?? []).length,
-        3,
-      );
-      assert.match(
-        source,
-        /lockOrderForCaseLifecycle\(tx, [^)]+\)[\s\S]*caseOrderActiveForSeller\([\s\S]*tx,/,
-      );
-      assert.match(source, /actorUserId: (?:authz\.)?seller\.userId/);
-    }
 
     for (const source of [buyer, fulfillment, label]) {
       assert.doesNotMatch(source, /\bACTIVE_CASE_STATUSES?\b/);

@@ -2,7 +2,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import { publicListingWhere } from "@/lib/listingVisibility";
 import { activeSellerProfileWhere } from "@/lib/sellerVisibility";
-import { paidStripeOrderWhere } from "@/lib/orderTrust";
+import { getPublicFulfilledOrderCount } from "@/lib/orderPublicAggregateAuthority";
 
 export const HOMEPAGE_STATS_REVALIDATE_SECONDS = 5 * 60;
 
@@ -24,14 +24,7 @@ async function loadHomepageStats(): Promise<HomepageStats> {
     prisma.user.count({
       where: { banned: false, deletedAt: null },
     }),
-    prisma.order.count({
-      where: {
-        ...paidStripeOrderWhere(),
-        sellerRefundId: null,
-        paymentRefundBlocked: false,
-        fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
-      },
-    }),
+    getPublicFulfilledOrderCount(),
   ]);
 
   return { pieces, makers, members, fulfilledOrders };

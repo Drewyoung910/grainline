@@ -116,7 +116,14 @@ describe("verified audit follow-up guardrails", () => {
     for (const path of paths) {
       assert.match(source(path), /orderTotalCents/, `${path} should use orderTotalCents()`);
     }
-    assert.match(source("src/app/api/seller/analytics/recent-sales/route.ts"), /giftWrappingPriceCents: true/);
+    assert.match(
+      source("src/app/api/seller/analytics/recent-sales/route.ts"),
+      /giftWrappingPriceCents: sale\.giftWrappingPriceCents/,
+    );
+    assert.match(
+      source("prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql"),
+      /source_order\."giftWrappingPriceCents"/,
+    );
     assert.match(source("src/app/api/stripe/webhook/route.ts"), /giftWrappingPriceCents: order\.giftWrappingPriceCents/);
   });
 
@@ -193,25 +200,20 @@ describe("verified audit follow-up guardrails", () => {
 
   it("marks label-cost clawback failures for durable admin reconciliation", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
-    assert.match(labelRoute, /Atomic double-check to prevent concurrent label purchases/);
-    assert.match(labelRoute, /UPDATE "Order" SET "labelStatus" = 'PURCHASED'/);
-    assert.match(labelRoute, /"fulfillmentStatus" = 'PENDING'/);
-    assert.match(labelRoute, /markLabelClawbackForReview/);
-    assert.match(labelRoute, /recordSuccessfulLabelClawback/);
-    assert.match(labelRoute, /labelClawbackIdempotencyKey/);
-    assert.match(labelRoute, /labelClawbackReversalAccepted = true/);
-    assert.match(labelRoute, /source: "label_cost_clawback_record_failed"/);
-    assert.match(labelRoute, /reason: "missing_transfer"/);
-    assert.match(labelRoute, /reason: "stripe_reversal_failed"/);
-    const retryLib = source("src/lib/labelClawbackRetry.ts");
-    assert.match(retryLib, /reviewNeeded: true/);
-    assert.match(retryLib, /labelClawbackStatus: "RETRYING"/);
-    assert.match(retryLib, /const attemptCount = order\.labelClawbackRetryCount \+ 1/);
-    assert.match(retryLib, /labelClawbackStatusAfterFailure/);
-    assert.match(
-      retryLib,
-      /orderBy: \[\s*\{ labelClawbackNextAttemptAt: "asc" \},\s*\{ labelPurchasedAt: "asc" \},\s*\{ createdAt: "asc" \},\s*\{ id: "asc" \},\s*\]/,
+    const authority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
     );
+    assert.match(labelRoute, /claimSellerLabelPurchase/);
+    assert.match(authority, /FOR UPDATE OF candidate/);
+    assert.match(authority, /"labelClaimStatus" = 'PROVIDER_PENDING'/);
+    assert.match(labelRoute, /labelClawbackIdempotencyKey/);
+    assert.match(labelRoute, /finalizeLabelClawback/);
+    const retryLib = source("src/lib/labelClawbackRetry.ts");
+    assert.match(retryLib, /claimLabelClawbackBatch\(take\)/);
+    assert.match(retryLib, /finalizeLabelClawback/);
+    assert.match(authority, /FOR UPDATE OF source_order SKIP LOCKED/);
+    assert.match(authority, /"labelClawbackRetryCount" = target_order\."labelClawbackRetryCount" \+ 1/);
+    assert.match(authority, /next_status := 'MANUAL_REVIEW'/);
     assert.match(source("src/lib/labelClawbackState.ts"), /Staff must retry or manually reconcile/);
     assert.match(source("src/app/api/cron/label-clawback-retry/route.ts"), /processLabelClawbackRetryBatch/);
     assert.match(source("vercel.json"), /\/api\/cron\/label-clawback-retry/);

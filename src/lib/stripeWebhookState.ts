@@ -5,6 +5,9 @@ import {
   isStaleRefundLock,
 } from "./refundLockState.ts";
 import { STRIPE_DISPUTE_CLOSED_STATUSES } from "./refundRouteState.ts";
+import { SHIPPING_ESTIMATED_DAYS_MAX } from "./shippingRateBounds.ts";
+
+export { SHIPPING_ESTIMATED_DAYS_MAX };
 
 export type StripeRefundLike = {
   id?: string;
@@ -18,7 +21,6 @@ export type StripeRefundLike = {
 // up to 30 days; keep the app-side age gate aligned with that recovery window.
 export const STRIPE_WEBHOOK_MAX_EVENT_AGE_SECONDS = 30 * 24 * 60 * 60;
 export const STRIPE_WEBHOOK_FUTURE_SKEW_SECONDS = 10 * 60;
-export const SHIPPING_ESTIMATED_DAYS_MAX = 60;
 
 export function isStaleStripeEvent(
   created: number | null | undefined,
@@ -256,6 +258,13 @@ export function parseOptionalNonNegativeInt(value: string | number | null | unde
   if (value == null || value === "") return null;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 0 && parsed <= POSTGRES_INT_MAX ? parsed : null;
+}
+
+export function requireCheckoutChargedTotalCents(value: number | null | undefined): number {
+  if (!Number.isSafeInteger(value) || value == null || value < 0 || value > POSTGRES_INT_MAX) {
+    throw new Error("Retrieved paid Checkout Session is missing a valid amount_total");
+  }
+  return value;
 }
 
 type CheckoutSubtotalLineItem = {

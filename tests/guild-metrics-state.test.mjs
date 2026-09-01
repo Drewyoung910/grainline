@@ -87,12 +87,21 @@ describe("Guild metrics state", () => {
 
   it("keeps private and custom verified purchases in Guild trust metrics by policy", () => {
     const metricsSource = readFileSync(new URL("../src/lib/metrics.ts", import.meta.url), "utf8");
+    const orderAuthority = readFileSync(
+      new URL(
+        "../prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
     const verificationPage = readFileSync(new URL("../src/app/admin/verification/page.tsx", import.meta.url), "utf8");
 
     assert.match(metricsSource, /db\.review\.aggregate\(\{[\s\S]*where: \{ listing: \{ sellerId: sellerProfileId \} \}/);
-    assert.match(metricsSource, /JOIN "Listing" l ON l\.id = oi\."listingId"[\s\S]*WHERE l\."sellerId" = \$\{sellerProfileId\}/);
-    assert.match(metricsSource, /EXISTS \([\s\S]*JOIN "Listing" l ON l\.id = oi\."listingId"[\s\S]*AND l\."sellerId" = \$\{sellerProfileId\}/);
-    assert.doesNotMatch(metricsSource, /l\."isPrivate"\s*=\s*false/);
+    assert.match(metricsSource, /readOrderSellerMetricsFacts\(sellerProfileId, periodStart, db\)/);
+    assert.match(orderAuthority, /source_order\."sellerProfileId" = p_seller_profile_id/);
+    assert.match(orderAuthority, /source_item\."sellerProfileId" = p_seller_profile_id/);
+    assert.doesNotMatch(orderAuthority, /"isPrivate"\s*=\s*false/);
+    assert.doesNotMatch(orderAuthority, /JOIN public\."Listing"/);
 
     assert.match(verificationPage, /prisma\.listing\.count\(\{[\s\S]*sellerId: verification\.sellerProfileId[\s\S]*status: "ACTIVE"[\s\S]*isPrivate: false/);
   });

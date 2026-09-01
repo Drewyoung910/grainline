@@ -221,10 +221,7 @@ export async function banUser({ userId, adminId, reason }: {
             fulfillmentStatus: { in: [...OPEN_SELLER_ORDER_STATUSES] },
             sellerRefundId: null,
             paymentRefundBlocked: false,
-            items: {
-              some: { listing: { sellerId: sellerProfile.id } },
-              every: { listing: { sellerId: sellerProfile.id } },
-            },
+            sellerProfileId: sellerProfile.id,
           },
           select: {
             id: true,

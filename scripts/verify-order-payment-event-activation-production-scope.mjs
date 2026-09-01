@@ -118,6 +118,7 @@ export function assertOrderPaymentEventActivationProductionScope(
   }
   const release = verifyOrderPaymentEventActivationRelease(root, {
     allowReviewedForceSuccessor: true,
+    allowReviewedOrderParticipantListSuccessor: true,
   });
   const applied = classifyLedger(
     snapshot?.ledgerRows,

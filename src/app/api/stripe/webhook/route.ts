@@ -73,6 +73,7 @@ import {
   parseBoundedPositiveInt,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
+  requireCheckoutChargedTotalCents,
   retrievedStripeEventMatchesSignedEnvelope,
   SHIPPING_ESTIMATED_DAYS_MAX,
 } from "@/lib/stripeWebhookState";
@@ -92,6 +93,11 @@ import {
   applySignedDisputeWebhook,
   applySignedRefundWebhook,
 } from "@/lib/orderPaymentSignedWebhook";
+import {
+  readCheckoutShippingPackageMetadata,
+  readHistoricalOrderItemSnapshot,
+  type CheckoutShippingPackageSnapshot,
+} from "@/lib/orderItemSnapshot";
 
 
 export const runtime = "nodejs";
@@ -554,24 +560,24 @@ export async function POST(req: Request) {
         shipToPostalCode: true,
         buyer: { select: { name: true, email: true } },
         paymentRefundBlocked: true,
+        sellerProfile: {
+          select: {
+            id: true,
+            userId: true,
+            displayName: true,
+            user: { select: { email: true } },
+          },
+        },
         items: {
           select: {
             id: true,
             quantity: true,
             priceCents: true,
             listingId: true,
+            listingSnapshot: true,
             listing: {
               select: {
-                title: true,
                 listingType: true,
-                seller: {
-                  select: {
-                    id: true,
-                    userId: true,
-                    displayName: true,
-                    user: { select: { email: true } },
-                  },
-                },
               },
             },
           },
@@ -581,10 +587,14 @@ export async function POST(req: Request) {
     if (!order) return;
     if (orderPostPaymentSideEffectsBlocked(order)) return;
 
-    const seller = order.items[0]?.listing.seller;
+    const historicalItems = order.items.map((item) => ({
+      ...item,
+      snapshot: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents),
+    }));
+    const seller = order.sellerProfile;
     const sellerUserId = seller?.userId;
-    const sellerName = seller?.displayName ?? "Maker";
-    const firstItemTitle = order.items[0]?.listing.title ?? "an item";
+    const sellerName = historicalItems[0]?.snapshot.sellerName ?? seller?.displayName ?? "Maker";
+    const firstItemTitle = historicalItems[0]?.snapshot.title ?? "an item";
     const buyerDisplayName = order.buyer?.name ?? "A buyer";
 
     await Promise.all([
@@ -616,13 +626,13 @@ export async function POST(req: Request) {
 
     if (sellerUserId) {
       const inStockItems = new Map<string, { orderItemId: string; title: string }>();
-      for (const item of order.items) {
-        if (item.listing.listingType === "IN_STOCK") {
+      for (const item of historicalItems) {
+        if ((item.snapshot.listingType ?? item.listing.listingType) === "IN_STOCK") {
           const current = inStockItems.get(item.listingId);
           if (!current || item.id < current.orderItemId) {
             inStockItems.set(item.listingId, {
               orderItemId: item.id,
-              title: item.listing.title,
+              title: item.snapshot.title,
             });
           }
         }
@@ -651,8 +661,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const emailItems = order.items.map((item) => ({
-      title: item.listing.title,
+    const emailItems = historicalItems.map((item) => ({
+      title: item.snapshot.title,
       quantity: item.quantity,
       priceCents: item.priceCents,
     }));
@@ -690,7 +700,7 @@ export async function POST(req: Request) {
 
     if (sellerUserId && seller?.user?.email) {
       const sellerOrderCount = await prisma.order.count({
-        where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
+        where: { sellerProfileId: seller.id },
       });
       if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
         await sendOrderTransactionalEmailWithFallback({
@@ -876,15 +886,7 @@ export async function POST(req: Request) {
           paymentRefundBlocked: true,
           reviewNeeded: true,
           reviewNote: true,
-          items: {
-            select: {
-              listing: {
-                select: {
-                  seller: { select: { userId: true } },
-                },
-              },
-            },
-          },
+          sellerProfile: { select: { userId: true } },
         },
       });
       if (already) {
@@ -893,9 +895,9 @@ export async function POST(req: Request) {
           existingBlockedCheckoutRetry = {
             id: already.id,
             retryReason,
-            sellerUserIds: [
-              ...new Set(already.items.map((item) => item.listing.seller.userId).filter(Boolean)),
-            ],
+            sellerUserIds: already.sellerProfile?.userId
+              ? [already.sellerProfile.userId]
+              : [],
           };
         } else if (blockedCheckoutRefundStillInProgress(already)) {
           throw new Error("Blocked checkout automatic refund is still in progress.");
@@ -930,6 +932,8 @@ export async function POST(req: Request) {
         });
         return NextResponse.json({ ok: true });
       }
+
+      const chargedTotalCents = requireCheckoutChargedTotalCents(s.amount_total);
 
       // Stripe snapshots
       const currency: string = (s.currency || DEFAULT_CURRENCY).toLowerCase();
@@ -1151,11 +1155,7 @@ export async function POST(req: Request) {
           }
 
           refundAmountCents =
-            s.amount_total
-            ?? itemsSubtotalCents
-              + shippingAmountCents
-              + (giftWrappingPriceCents ?? 0)
-              + taxAmountCents;
+            chargedTotalCents;
           const refundClaim = await claimBlockedCheckoutOrderRefund({
             eventId: event.id,
             eventClaimGeneration: claimGeneration,
@@ -1305,7 +1305,14 @@ export async function POST(req: Request) {
         // listingId.
         // The live cart may have been modified between session creation and webhook.
         const stripeLineItems: CheckoutLineItem[] = checkoutLineItems;
-        type PaidItem = { listingId: string; cartItemId?: string; variantKey?: string; quantity: number; priceCents: number };
+        type PaidItem = {
+          listingId: string;
+          cartItemId?: string;
+          variantKey?: string;
+          quantity: number;
+          priceCents: number;
+          shippingPackage: CheckoutShippingPackageSnapshot;
+        };
         const paidItems: PaidItem[] = [];
         for (const li of stripeLineItems) {
           const prod = typeof li.price?.product === "object" ? li.price?.product : null;
@@ -1317,6 +1324,7 @@ export async function POST(req: Request) {
               variantKey: prod?.metadata?.variantKey,
               quantity: li.quantity,
               priceCents: li.price?.unit_amount ?? 0,
+              shippingPackage: readCheckoutShippingPackageMetadata(prod?.metadata),
             };
             paidItems.push(paid);
           }
@@ -1335,6 +1343,10 @@ export async function POST(req: Request) {
                         id: true,
                         userId: true,
                         displayName: true,
+                        defaultPkgWeightGrams: true,
+                        defaultPkgLengthCm: true,
+                        defaultPkgWidthCm: true,
+                        defaultPkgHeightCm: true,
                         chargesEnabled: true,
                         stripeAccountId: true,
                         user: { select: { id: true, banned: true, deletedAt: true } },
@@ -1384,6 +1396,10 @@ export async function POST(req: Request) {
                 id: true,
                 userId: true,
                 displayName: true,
+                defaultPkgWeightGrams: true,
+                defaultPkgLengthCm: true,
+                defaultPkgWidthCm: true,
+                defaultPkgHeightCm: true,
                 chargesEnabled: true,
                 stripeAccountId: true,
                 vacationMode: true,
@@ -1546,6 +1562,7 @@ export async function POST(req: Request) {
               stripeSessionId: sessionId,
 
               currency,
+              chargedTotalCents,
               itemsSubtotalCents,
               shippingTitle,
               shippingAmountCents,
@@ -1618,6 +1635,7 @@ export async function POST(req: Request) {
               invalidReason: cartInvalidState.reason ?? null,
               itemCount: checkoutItems.length,
               currency,
+              chargedTotalCents,
               itemsSubtotalCents,
               shippingAmountCents,
               taxAmountCents,
@@ -1680,6 +1698,11 @@ export async function POST(req: Request) {
                   category: listing.category ?? null,
                   tags: listing.tags ?? [],
                   sellerName: snapshotSellerName(listing.seller?.displayName),
+                  listingType: listing.listingType,
+                  processingTimeMinDays: listing.processingTimeMinDays ?? null,
+                  processingTimeMaxDays: listing.processingTimeMaxDays ?? null,
+                  shipsWithinDays: listing.shipsWithinDays ?? null,
+                  ...paid.shippingPackage,
                   capturedAt: new Date().toISOString(),
                 },
                 selectedVariants: variantSnapshot.length > 0 ? variantSnapshot : undefined,
@@ -1766,10 +1789,15 @@ export async function POST(req: Request) {
           select: {
             priceCents: true,
             priceVersion: true,
+            processingTimeMinDays: true,
             processingTimeMaxDays: true,
             listingType: true,
             stockQuantity: true,
             shipsWithinDays: true,
+            packagedWeightGrams: true,
+            packagedLengthCm: true,
+            packagedWidthCm: true,
+            packagedHeightCm: true,
             // Snapshot fields
             title: true,
             description: true,
@@ -1781,6 +1809,10 @@ export async function POST(req: Request) {
                 id: true,
                 userId: true,
                 displayName: true,
+                defaultPkgWeightGrams: true,
+                defaultPkgLengthCm: true,
+                defaultPkgWidthCm: true,
+                defaultPkgHeightCm: true,
                 chargesEnabled: true,
                 stripeAccountId: true,
                 vacationMode: true,
@@ -1819,6 +1851,13 @@ export async function POST(req: Request) {
           const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
           return product?.metadata?.listingId === listingId;
         });
+        const singlePaidProduct = singlePaidLine
+          && typeof singlePaidLine.price?.product === "object"
+          ? singlePaidLine.price.product
+          : null;
+        const singleShippingPackage = readCheckoutShippingPackageMetadata(
+          singlePaidProduct?.metadata,
+        );
         const singleOrderPriceCents = singlePaidLine?.price?.unit_amount ?? price;
         const singlePriceDrift = checkoutPriceDriftState({
           stripeUnitAmountCents: singlePaidLine?.price?.unit_amount ?? null,
@@ -1925,6 +1964,7 @@ export async function POST(req: Request) {
               stripeSessionId: sessionId,
 
               currency,
+              chargedTotalCents,
               itemsSubtotalCents,
               shippingTitle,
               shippingAmountCents,
@@ -1961,6 +2001,11 @@ export async function POST(req: Request) {
                     category: listingData?.category ?? null,
                     tags: listingData?.tags ?? [],
                     sellerName: snapshotSellerName(listingData?.seller?.displayName),
+                    listingType: listingData?.listingType ?? null,
+                    processingTimeMinDays: listingData?.processingTimeMinDays ?? null,
+                    processingTimeMaxDays: listingData?.processingTimeMaxDays ?? null,
+                    shipsWithinDays: listingData?.shipsWithinDays ?? null,
+                    ...singleShippingPackage,
                     capturedAt: new Date().toISOString(),
                   },
                   selectedVariants,
@@ -2017,6 +2062,7 @@ export async function POST(req: Request) {
               listingId,
               quantity,
               currency,
+              chargedTotalCents,
               itemsSubtotalCents,
               shippingAmountCents,
               taxAmountCents,
@@ -2282,7 +2328,7 @@ export async function POST(req: Request) {
               where: {
                 reviewNeeded: false,
                 fulfillmentStatus: { in: ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] },
-                items: { some: { listing: { sellerId: { in: affectedSellerIds } } } },
+                sellerProfileId: { in: affectedSellerIds },
               },
               data: {
                 reviewNeeded: true,

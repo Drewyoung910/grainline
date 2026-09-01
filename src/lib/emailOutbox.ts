@@ -37,6 +37,8 @@ export const EMAIL_OUTBOX_TEMPLATE_NAMES = [
   "followed_maker_new_listing",
   "order_confirmed_buyer",
   "order_confirmed_seller",
+  "order_shipped",
+  "ready_for_pickup",
   "refund_issued",
   "seller_broadcast",
   "welcome",

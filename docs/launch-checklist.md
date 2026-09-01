@@ -77,6 +77,10 @@ Use distinct production secrets. Rotate any credential that appeared in terminal
 - Resend/DNS: SPF, DKIM, and DMARC policy verified. Move DMARC to `p=reject` only after monitoring shows legitimate mail is aligned.
 - Resend: webhook endpoint registered at `https://thegrainline.com/api/resend/webhook` with bounce, complaint, failed, and suppressed events enabled; `RESEND_WEBHOOK_SECRET` configured in production. Delivery-delayed provider events may be monitored in the Resend dashboard, but the app intentionally ignores them for durable suppression.
 - Shippo: live API key configured.
+- Shippo: `npm run audit:shippo-quote-test-mode` passes from a clean exact
+  release candidate with a test key and sanitized mode-0600 evidence. This
+  proves the minimized buyer-quote request is provider-accepted without buying
+  a label; retain a separate full-address label smoke before launch.
 - Cloudflare R2: bucket CORS and public URL verified.
 - Cloudflare R2: `npm run audit:r2-upload` passes with production-like credentials after any R2 credential, CORS, public-domain, or bucket-policy change. `/api/health` only proves `HeadBucket` reachability.
 - Cloudflare R2: public bucket listing/ListBucket exposure is disabled or otherwise non-public, with dashboard or CLI evidence retained.

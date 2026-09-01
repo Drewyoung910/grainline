@@ -14,7 +14,6 @@ type Rate = {
 export type LabelSectionProps = {
   orderId: string;
   labelStatus: string | null;
-  labelUrl: string | null;
   labelCarrier: string | null;
   labelTrackingNumber: string | null;
   labelPurchasedAt: string | null; // ISO string
@@ -32,7 +31,6 @@ const TERMINAL_STATUSES = ["SHIPPED", "DELIVERED", "PICKED_UP"];
 export default function LabelSection({
   orderId,
   labelStatus,
-  labelUrl,
   labelCarrier,
   labelTrackingNumber,
   labelPurchasedAt,
@@ -51,16 +49,14 @@ export default function LabelSection({
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          {labelUrl && (
-            <a
-              href={labelUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-            >
-              Download Label
-            </a>
-          )}
+          <a
+            href={`/api/orders/${orderId}/label`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+          >
+            Download Label
+          </a>
           <span className="text-sm font-medium text-green-700">Label purchased</span>
         </div>
         <div className="space-y-0.5 text-xs text-neutral-500">

@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -515,6 +515,55 @@ Public discovery routes are split by purpose. `/browse` remains the full filter 
 ### Checkout And Orders
 
 Checkout uses Stripe Checkout Sessions and local lock/idempotency state. Destination-charge accounting keeps platform tax handling and seller transfer math explicit. Order, payment event, refund, dispute, label, and case state transitions must be idempotent and race-aware. Full refunds restore eligible in-stock inventory automatically before buyer handoff; seller and staff partial refunds restore inventory only through explicit bounded quantities validated against purchased in-stock order items. The launch fee is 5% of item subtotal; application callers share `calculateCheckoutAmounts()`, while the prepared database refund finalizers independently validate that same frozen contract. Because historical Orders do not yet persist their checkout-time fee/transfer snapshot, changing the fee requires that snapshot plus successor fixed functions before the rate changes; applied migrations remain immutable.
+
+Order RLS work starts with a product-and-authority audit for each operation
+family. It must not mechanically preserve a query whose business meaning is
+wrong. Participant history uses checkout snapshots and durable Order seller
+keys; public aggregates, seller-private analytics, staff reads, maintenance
+and write state machines use separate fixed operations. Seller analytics
+defines cart abandonment as a current cart item left unpurchased for at least
+24 hours, selects recent-sale representative items deterministically, and
+aggregates repeat-buyer counts without returning buyer IDs. Favorite and
+back-in-stock metrics are surviving subscriptions, not immutable event
+history. Guild sales and shipping facts use a bounded service aggregate keyed
+by checkout-time `Order.sellerProfileId` and `OrderItem.sellerProfileId`, so
+mutable Listing ownership cannot rewrite historical qualification. The
+participant list contract returns at most five checkout-time item summaries
+plus the full item count in the same keyset page; this preserves useful list
+cards without N+1 detail reads or unbounded payloads. The `SellerMetrics` cache
+write remains a separate later database boundary. Full participant histories
+use strict opaque older/newer `(createdAt,id)` keyset cursors so deep pages do
+not grow OFFSET work and Previous navigation remains available. Seller list
+totals use the complete durable Order subtotal, never the five displayed item
+summaries. Participant detail reads use distinct v3 buyer and seller
+projections that preserve v2 authorization decisions, require an active actor
+in PostgreSQL, make counterparty
+contact explicitly nullable, suppress seller notes after buyer-data purge,
+expose label download material only for `PURCHASED` labels, and return the
+complete allowlisted checkout-time snapshot required by the strict historical
+reader. Checkout success uses a bounded paid-only buyer receipt projection,
+checkout-time identity and one real bounded webhook-race retry; it remains
+read-only. The UI must not label a generic
+inbox link as a counterparty messaging action when that contact target is
+unavailable. See
+`docs/order-core-pre-rls-audit.md`, `docs/order-seller-analytics-authority.md`
+`docs/order-seller-metrics-authority.md` and
+`docs/order-participant-summary-authority.md` and
+`docs/order-participant-cursor-authority.md` and
+`docs/order-participant-detail-projection.md` and
+`docs/order-checkout-receipt-authority.md`.
+
+Seller fulfillment, buyer receipt confirmation and seller-private notes are
+separate fixed-authority operations. Sellers may move a paid shipping Order
+only from `PENDING` to `SHIPPED`, or a pickup Order from `PENDING` to
+`READY_FOR_PICKUP`; only the buyer may confirm `SHIPPED -> DELIVERED` or
+`READY_FOR_PICKUP -> PICKED_UP`. The fixed operations derive durable
+participant ownership, lock actor then Order, reject active Cases, refunds,
+open disputes and stale state, and write source audit evidence without exposing
+generic Order update authority. Fulfillment Notifications and deterministic
+email-outbox reservations co-commit with the transition, while provider email
+delivery occurs after commit and remains retryable. See
+`docs/order-fulfillment-authority.md`.
 
 ### Messaging
 

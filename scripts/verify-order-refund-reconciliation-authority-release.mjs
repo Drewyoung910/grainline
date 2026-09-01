@@ -61,6 +61,12 @@ import {
   CASE_CORRECTNESS_MIGRATION,
   verifyOptionalCaseCorrectnessSuccessor,
 } from "./build-case-correctness-migration.mjs";
+import {
+  appendReviewedOrderParticipantListAuthoritySuccessor,
+} from "./order-participant-list-authority-catalog.mjs";
+import {
+  ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+} from "./order-charged-total-compatibility-catalog.mjs";
 
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_PHASE =
   "order-refund-reconciliation-authority-prepared";
@@ -243,16 +249,6 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     verifyOrderPaymentEventForceMigrationBytes(rootDirectory);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_FORCE_MIGRATION);
   }
-  const caseCorrectnessSuccessor =
-    verifyOptionalCaseCorrectnessSuccessor(rootDirectory);
-  if (caseCorrectnessSuccessor) {
-    assert.equal(
-      reviewedSuccessors.at(-1),
-      ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
-      "Case correctness requires the OrderPaymentEvent FORCE successor",
-    );
-    reviewedSuccessors.push(CASE_CORRECTNESS_MIGRATION);
-  }
   const laterMigrations = fs.readdirSync(
     path.join(rootDirectory, "prisma/migrations"),
     { withFileTypes: true },
@@ -262,6 +258,22 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     .filter(
       (name) => name > ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
     );
+  appendReviewedOrderParticipantListAuthoritySuccessor({
+    root: rootDirectory,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+  });
+  const caseCorrectnessSuccessor =
+    verifyOptionalCaseCorrectnessSuccessor(rootDirectory);
+  if (caseCorrectnessSuccessor) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+      "Case correctness requires the charged-total compatibility successor",
+    );
+    reviewedSuccessors.push(CASE_CORRECTNESS_MIGRATION);
+  }
   assert.deepEqual(
     laterMigrations,
     reviewedSuccessors,

@@ -271,6 +271,13 @@ test("transition smoke is route-only, non-paying, non-migrating, and exercises t
     new URL("../src/app/api/reviews/route.ts", import.meta.url),
     "utf8",
   );
+  const eligibilityAuthority = fs.readFileSync(
+    new URL(
+      "../prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   assert.match(source, /NOTIFICATION_CANARY_EXTERNAL_ID/);
   assert.match(source, /\/api\/reviews/);
   assert.match(source, /\/account/);
@@ -293,8 +300,10 @@ test("transition smoke is route-only, non-paying, non-migrating, and exercises t
   assert.match(launcher, /runTransitionSmoke/);
   assert.match(release, /transition routes are not[\s\S]*directly exercised/i);
   assert.match(release, /authority\/concurrency proof remains separate/i);
-  assert.match(reviewRoute, /o\."paymentRefundBlocked" = false/);
-  assert.match(reviewRoute, /FOR UPDATE OF o/);
+  assert.match(reviewRoute, /lockReviewEligibleOrderItem/);
+  assert.doesNotMatch(reviewRoute, /FROM public\."Order"/);
+  assert.match(eligibilityAuthority, /source_order\."paymentRefundBlocked" = false/);
+  assert.match(eligibilityAuthority, /FOR UPDATE OF source_order/);
   assert.match(
     reviewRoute,
     /You can leave a review after your order has been delivered\./,

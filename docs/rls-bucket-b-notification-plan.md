@@ -74,7 +74,7 @@ Notification RPC's owner, SECURITY mode, `search_path`, overload count, and
 direct non-grantable runtime/PUBLIC ACL. These are activation artifacts, not
 evidence that the current drafts are ready to migrate; their live PostgreSQL
 behavior still has to be exercised with the final migration.
-All 55 creation paths, exact account cleanup, exact admin source cleanup, and
+All 56 creation paths, exact account cleanup, exact admin source cleanup, and
 retention cron are wired to these draft functions in the isolated branch. Admin cleanup
 uses only exact source RPCs, and account deletion uses only recipient plus
 `relatedUserId` cleanup for Notification. Existing pre-authority rows are not
@@ -138,12 +138,12 @@ by the same transaction. The audit-backed paths validate recorded transition
 metadata instead of mutable current status, so a legitimate later case change
 does not silently suppress an already-committed event.
 
-Creation-authority classification is now complete. All 55 emission paths now carry reviewed creation authority:
+Creation-authority classification is now complete. All 56 emission paths now carry reviewed creation authority:
 a non-null source pair and dispatch through one of ten reviewed creation
 families or the dedicated back-in-stock claim. The 26 family-dispatched source
 types validated by database joins, plus the dedicated back-in-stock operation,
 still require PostgreSQL parse/apply and provider performance evidence before
-promotion. This 55/55 result does not select the recipient read architecture,
+promotion. This 56/56 result does not select the recipient read architecture,
 complete guarded legacy inspection plus the atomic activation-purge artifact,
 prove block races in PostgreSQL, or prove live isolation.
 
@@ -179,11 +179,15 @@ banned-seller warning uses `<ban-audit-id>:<order-id>` as a validated compound
 event key, proves the order appears in the audit snapshot, derives the buyer and
 banned seller, and keeps each affected order's replay identity distinct.
 
-The order, payment, and fulfillment family binds the final nine paths. Checkout
+The order, payment, and fulfillment family binds the final ten paths. Checkout
 buyer/seller notices validate the atomic checkout-order audit, paid order, exact
 buyer, and single seller. Seller fulfillment changes co-commit a user-attributed
 system audit with the row-locked order transition, and the owner wrapper derives
-the buyer payload from the recorded transition. Seller refunds and blocked
+the buyer payload from the recorded transition. The September 2026 Order
+product audit replaces seller-authored pickup completion with buyer-authored
+receipt confirmation and a co-committed seller notice derived from the durable
+Order seller key; this direction remains isolated until its compatible
+PostgreSQL successor is proven and deployed database-first. Seller refunds and blocked
 checkout refunds bind durable `OrderPaymentEvent` rows; Stripe disputes require
 both the provider event ledger and the applied-side-effects system audit; payout
 failure binds `SellerPayoutEvent`. Recipient, counterpart, payload, canonical
@@ -892,12 +896,16 @@ Bucket B means `Notification` only. It does not include `StockNotification`,
 `Case`, or `CaseMessage`. Those retain separate coverage-matrix groups and
 production releases.
 
-The refreshed source snapshot contains 52 notification-helper calls across 30
-caller files: 50 best-effort object-literal calls, one strict retryable payout
-object-literal call, plus the fulfillment route's typed wrapper call. That
-wrapper serves three distinct fulfillment payloads,
-and back-in-stock uses one dedicated owner-backed claim, so the authority
-inventory contains 55 distinct emission paths. All 55 are currently
+The refreshed source snapshot contains 54 notification-helper calls across 30
+caller files: 50 best-effort object-literal calls plus four strict retryable
+object-literal calls for payout, shipped, ready-for-pickup and buyer receipt.
+Purchased-label shipment is the one database-owned emission: the fixed provider-
+record operation derives its recipient, durable Order seller, payload, source and
+replay identity and inserts it atomically with the fulfillment audit.
+Seller fulfillment now keeps both actions as explicit fixed-authority paths,
+buyer receipt confirmation co-commits one strict seller notice, and back-in-stock
+uses one dedicated owner-backed claim, so the authority
+inventory still contains 56 distinct emission paths. All 56 are currently
 authority-bound and none are source-less. This broad fanout surface is the main
 reason the table cannot receive a copied SavedSearch owner-only policy; the
 completed source inventory does not remove its asymmetric service-authority
@@ -912,7 +920,7 @@ requirements.
 | Retention cron | Delete old read and unread rows globally in bounded batches | Parameter-free or tightly bounded owner RPC using server time and code-pinned retention windows; no general runtime `DELETE` |
 | Account deletion | Delete the departing user's rows and related-user residue across other recipients | Use one narrow account-lifecycle RPC for recipient plus `relatedUserId` deletion; do not grant direct table `DELETE`. The prelaunch activation transaction removes pre-authority rows before this invariant becomes mandatory |
 | Staff blog/broadcast deletion | Delete notifications tied to a deleted comment or broadcast across recipients | Use exact `sourceType`/`sourceId` service cleanup only; no title/body/link matching remains in runtime code |
-| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 55 emission paths dispatch through ten reviewed family wrappers or the dedicated back-in-stock claim; the gate also requires the corresponding SQL function, revoke, and runtime grant |
+| Admin, webhook, cron, order/case/message/social flows | Create recipient notifications through reviewed service access | All 56 emission paths dispatch through ten reviewed family wrappers or the dedicated back-in-stock claim; the gate also requires the corresponding SQL function, revoke, and runtime grant |
 
 Current access files are deliberately pinned by test. There are no remaining
 direct Prisma Notification owner reads or updates outside the RPC helper:
@@ -1000,7 +1008,7 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
 ### B2 - Production activation
 
 - Require Phase B and runtime credential separation already live and healthy.
-- Run `npm run audit:rls-notification-readiness` and require an exact 55/55
+- Run `npm run audit:rls-notification-readiness` and require an exact 56/56
   result. The AST-backed gate fails on count drift, dynamic/unrecognized helper
   calls, missing source pairs, source constants not dispatched by a reviewed
   service family, or a missing SQL wrapper/revoke/runtime grant. Its current
@@ -1023,7 +1031,7 @@ direct Prisma Notification owner reads or updates outside the RPC helper:
 - Existing pre-authority Notification rows still require the guarded aggregate
   inspection and an atomic activation-transaction purge. The purge must not run
   if real users begin relying on notifications; that change requires a backfill.
-- Creation authority and owner-derived payload callsite coverage are 55/55.
+- Creation authority and owner-derived payload callsite coverage are 56/56.
   PostgreSQL 16 run `29893071538` at exact source
   `187ac2fa5a5b7c08a3889b27ef57c873ee7a79ea` passed disposable-database
   parse/apply, catalog/grant, own/foreign/direct-denial, every granted creation

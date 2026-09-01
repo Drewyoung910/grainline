@@ -582,6 +582,9 @@ model Order {
 
   // What Stripe actually charged / decided
   currency            String  @default("usd") @db.VarChar(3)
+  // Exact total from the retrieved paid Stripe Checkout Session. Nullable for
+  // legacy Orders created before the provider witness was retained.
+  chargedTotalCents   Int?
   itemsSubtotalCents  Int     @default(0) // items subtotal (excl. shipping & tax)
   shippingTitle       String? @db.VarChar(200)
   shippingAmountCents Int     @default(0)
@@ -684,21 +687,34 @@ model Order {
   paymentConversionDisputeBlocked Boolean @default(false)
 
   // Shippo label
-  shippoShipmentId           String?      @db.VarChar(255)
-  shippoRateObjectId         String?      @db.VarChar(255)
-  shippoTransactionId        String?      @db.VarChar(255)
-  labelUrl                   String?      @db.VarChar(2048)
-  labelCarrier               String?      @db.VarChar(100)
-  labelTrackingNumber        String?      @db.VarChar(100)
-  labelPurchasedAt           DateTime?
-  labelCostCents             Int?
-  labelStatus                LabelStatus?
-  labelClawbackStatus        String?      @db.VarChar(50)
-  labelClawbackReversalId    String?      @db.VarChar(255)
-  labelClawbackRetryCount    Int          @default(0)
-  labelClawbackLastAttemptAt DateTime?
-  labelClawbackNextAttemptAt DateTime?
-  labelClawbackResolvedAt    DateTime?
+  shippoShipmentId              String?      @db.VarChar(255)
+  shippoRateObjectId            String?      @db.VarChar(255)
+  shippoTransactionId           String?      @db.VarChar(255)
+  labelUrl                      String?      @db.VarChar(2048)
+  labelCarrier                  String?      @db.VarChar(100)
+  labelTrackingNumber           String?      @db.VarChar(100)
+  labelPurchasedAt              DateTime?
+  labelCostCents                Int?
+  labelStatus                   LabelStatus?
+  labelClawbackStatus           String?      @db.VarChar(50)
+  labelClawbackReversalId       String?      @db.VarChar(255)
+  labelClawbackRetryCount       Int          @default(0)
+  labelClawbackLastAttemptAt    DateTime?
+  labelClawbackNextAttemptAt    DateTime?
+  labelClawbackResolvedAt       DateTime?
+  // Database-derived Shippo purchase lease. The runtime may transport the
+  // opaque claim id, but it cannot choose the rate, amount, currency, target
+  // Order, retry generation, or provider-recovery posture.
+  labelClaimId                  String?      @db.VarChar(255)
+  labelClaimGeneration          BigInt       @default(0)
+  labelClaimStatus              String?      @db.VarChar(32)
+  labelClaimActorUserId         String?      @db.VarChar(191)
+  labelClaimRateObjectId        String?      @db.VarChar(255)
+  labelClaimExpectedAmountCents Int?
+  labelClaimCurrency            String?      @db.VarChar(3)
+  labelClaimStartedAt           DateTime?
+  labelClaimProviderRecordedAt  DateTime?
+  labelClawbackGeneration       BigInt       @default(0)
 
   // Gift options
   giftNote               String?   @db.VarChar(500)
@@ -721,6 +737,7 @@ model Order {
   @@index([sellerRefundId, sellerRefundLockedAt])
   @@index([refundClaimId, refundClaimGeneration])
   @@index([labelClawbackStatus, labelClawbackNextAttemptAt])
+  @@index([labelClaimId, labelClaimGeneration])
   @@index([buyerDataPurgedAt, fulfillmentStatus, deliveredAt, pickedUpAt], map: "Order_buyer_pii_prune_idx")
   @@index([sellerProfileId, createdAt, id])
   @@index([sellerProfileId, fulfillmentStatus, createdAt, id])

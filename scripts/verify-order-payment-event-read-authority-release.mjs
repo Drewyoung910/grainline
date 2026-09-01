@@ -34,6 +34,12 @@ import {
   CASE_CORRECTNESS_MIGRATION,
   verifyOptionalCaseCorrectnessSuccessor,
 } from "./build-case-correctness-migration.mjs";
+import {
+  appendReviewedOrderParticipantListAuthoritySuccessor,
+} from "./order-participant-list-authority-catalog.mjs";
+import {
+  ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+} from "./order-charged-total-compatibility-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_READ_AUTHORITY_PHASE =
   "order-payment-event-read-authority-reviewed";
@@ -101,12 +107,18 @@ export function verifyOrderPaymentEventReadAuthorityRelease(root = process.cwd()
     verifyOrderPaymentEventForceMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_FORCE_MIGRATION);
   }
+  appendReviewedOrderParticipantListAuthoritySuccessor({
+    root,
+    laterMigrations: migrationNames,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+  });
   const caseCorrectnessSuccessor = verifyOptionalCaseCorrectnessSuccessor(root);
   if (caseCorrectnessSuccessor) {
     assert.equal(
       reviewedSuccessors.at(-1),
-      ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
-      "Case correctness requires the OrderPaymentEvent FORCE successor",
+      ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+      "Case correctness requires the charged-total compatibility successor",
     );
     reviewedSuccessors.push(CASE_CORRECTNESS_MIGRATION);
   }

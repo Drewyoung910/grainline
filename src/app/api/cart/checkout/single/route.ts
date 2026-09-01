@@ -53,6 +53,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
+import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
 
 const CheckoutSingleSchema = z.object({
   listingId: z.string().min(1),
@@ -484,7 +485,19 @@ export async function POST(req: Request) {
           product_data: {
             name: `${listing.title}${variantDesc}`,
             images: listing.photos.length ? [listing.photos[0].url] : undefined,
-            metadata: { listingId: listing.id },
+            metadata: {
+              listingId: listing.id,
+              ...checkoutShippingPackageMetadata({
+                shippingWeightGrams:
+                  listing.packagedWeightGrams ?? listing.seller.defaultPkgWeightGrams,
+                shippingLengthCm:
+                  listing.packagedLengthCm ?? listing.seller.defaultPkgLengthCm,
+                shippingWidthCm:
+                  listing.packagedWidthCm ?? listing.seller.defaultPkgWidthCm,
+                shippingHeightCm:
+                  listing.packagedHeightCm ?? listing.seller.defaultPkgHeightCm,
+              }),
+            },
             tax_code: "txcd_99999999", // General - Tangible Personal Property
           },
         },

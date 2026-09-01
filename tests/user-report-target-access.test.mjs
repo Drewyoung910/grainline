@@ -18,11 +18,12 @@ describe("user report target access guardrails", () => {
     assert.match(source, /let reporterCanAccess = false/);
     assert.match(source, /!exists \|\| !reporterCanAccess/);
 
-    assert.match(
-      source,
-      /buyerId: me\.id/,
-      "order reports must require the reporter to be the buyer or seller",
+    assert.match(source, /canReportOrderTarget\(\{/);
+    const orderAuthority = readFileSync(
+      "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
+      "utf8",
     );
+    assert.match(orderAuthority, /source_order\."buyerId" = p_actor_user_id OR seller\."userId" = p_actor_user_id/);
     assert.match(
       source,
       /isActorMessageReportTarget\(\s*me\.id,\s*reportedId,\s*body\.targetType,\s*body\.targetId,\s*\)/,

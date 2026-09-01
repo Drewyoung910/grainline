@@ -95,11 +95,22 @@ describe("Order/payment/shipping legacy inspection PostgreSQL proof", () => {
     assert.doesNotMatch(proof, /process\.env\.DATABASE_URL/);
   });
 
-  it("runs after the compatible migration tree in PostgreSQL 16 CI", () => {
+  it("runs at the reviewed live prefix in PostgreSQL 16 CI", () => {
     assert.match(ci, /image: postgres:16/);
-    assert.match(
-      ci,
-      /Apply migrations to CI Postgres[\s\S]*Prove Order\/payment\/shipping legacy inspection SQL in ephemeral PostgreSQL/,
+    const forceAudit = ci.indexOf(
+      "Re-audit restored OrderPaymentEvent FORCE posture",
+    );
+    const inspection = ci.indexOf(
+      "Prove Order/payment/shipping legacy inspection SQL at the reviewed production prefix",
+    );
+    const candidateRestore = ci.indexOf(
+      "Restore compatible Order participant list authority release",
+    );
+    assert.ok(
+      forceAudit >= 0
+      && forceAudit < inspection
+      && inspection < candidateRestore,
+      "legacy inspection must run after restored FORCE and before compatible Order candidates",
     );
     assert.match(
       ci,
