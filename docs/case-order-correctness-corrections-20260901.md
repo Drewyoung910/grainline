@@ -172,3 +172,12 @@ forged-actor, valid, replay and forged-source paths under its real
 assertions. The surrounding transaction is always rolled back, so neither the
 temporary proof grant nor any fixture can persist. Production remained
 unchanged throughout.
+
+CI run `33566222495` advanced through that retired-helper body proof, then
+PostgreSQL refused the next rollback-only `ALTER TABLE "Order" ... DISABLE
+TRIGGER` because the preceding fixtures had left deferred foreign-key or
+invariant events pending on `Order`. The harness now makes those deferred
+checks immediate, then restores deferred mode, before toggling the trigger that
+models a later signed dispute. This strengthens the proof: queued constraints
+must pass before the later-state simulation can begin. It does not change the
+candidate migration, runtime grants or production state.

@@ -104,6 +104,10 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     assert.match(proof, new RegExp(`"${check}"`), check);
   }
   assert.match(proof, /SET CONSTRAINTS ALL IMMEDIATE/);
+  assert.match(
+    proof,
+    /if \(correctnessExpected\) \{[\s\S]*?RESET ROLE[\s\S]*?setConstraintsImmediate\(client\)[\s\S]*?ALTER TABLE public\."Order"[\s\S]*?DISABLE TRIGGER grainline_order_payment_open_dispute_guard/,
+  );
   assert.match(proof, /SET LOCAL ROLE grainline_app_runtime/);
   assert.match(proof, /RELEASED_NO_PROVIDER_EFFECT/);
   assert.match(proof, /openedByPaymentEventId/);

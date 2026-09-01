@@ -1264,6 +1264,11 @@ async function proveStaffResolutionAuthority(
 
   if (correctnessExpected) {
     await client.query("RESET ROLE");
+    // The seller-refund fixtures above can leave deferred FK and invariant
+    // events queued against Order. PostgreSQL refuses ALTER TABLE while those
+    // events are pending, so prove and flush them before this rollback-only
+    // trigger toggle models a later signed dispute.
+    await setConstraintsImmediate(client);
     await client.query(`
       ALTER TABLE public."Order"
         DISABLE TRIGGER grainline_order_payment_open_dispute_guard
