@@ -16,21 +16,25 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
     assert.match(fulfillment, /Tracking carrier is required/);
     assert.match(fulfillment, /Tracking number is required/);
     assert.match(fulfillment, /TRACKING_NUMBER_RE\.test\(trackingNumber\)/);
-    assert.match(fulfillment, /BUYER_DELIVERY_CONFIRMATION_ERROR/);
+    assert.doesNotMatch(fulfillment, /"picked_up"|"delivered"/);
 
     assert.match(buyerConfirm, /ensureUserByClerkId\(clerkId\)/);
     assert.match(buyerConfirm, /getExplicitCrossOriginPostRejection\(req\)/);
     assert.match(buyerConfirm, /safeRateLimit\(fulfillmentRatelimit, `confirm-delivery:\$\{me\.id\}`\)/);
     assert.match(buyerConfirm, /buyerId: me\.id/);
-    assert.match(buyerConfirm, /fulfillmentStatus: "SHIPPED"/);
-    assert.match(buyerConfirm, /fulfillmentStatus: "DELIVERED"/);
-    assert.match(buyerConfirm, /const deliveredAt = await databaseClockTimestamp\(tx\)/);
-    assert.match(buyerConfirm, /deliveredAt,/);
+    assert.match(buyerConfirm, /orderReceiptConfirmationTransition\(order\)/);
+    assert.match(buyerConfirm, /paymentOpenDisputeBlocked: false/);
+    assert.match(buyerConfirm, /const confirmedAt = await databaseClockTimestamp\(tx\)/);
+    assert.match(buyerConfirm, /action: "ORDER_FULFILLMENT_TRANSITION"/);
+    assert.match(buyerConfirm, /await createNotificationOrThrow\(\{/);
 
     assert.doesNotMatch(salesPage, /name="action" value="delivered"/);
     assert.doesNotMatch(salesPage, /Mark delivered/);
+    assert.doesNotMatch(salesPage, /name="action" value="picked_up"/);
+    assert.match(salesPage, /Waiting for the buyer to confirm pickup/);
     assert.match(buyerPage, /action=\{`\/api\/orders\/\$\{order\.id\}\/confirm-delivery`\}/);
     assert.match(buyerPage, /Confirm delivery/);
+    assert.match(buyerPage, /Confirm pickup/);
   });
 
   it("blocks account deletion for recent terminal orders inside the case window", () => {

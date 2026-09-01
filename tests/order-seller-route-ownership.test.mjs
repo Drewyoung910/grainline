@@ -16,7 +16,7 @@ describe("seller order mutation ownership guardrails", () => {
       const text = source(path);
       assert.match(
         text,
-        /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s,
+        /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id(?:,|\s*\})/s,
         `${path} must bind the Order's durable seller key in the lookup`,
       );
       assert.doesNotMatch(

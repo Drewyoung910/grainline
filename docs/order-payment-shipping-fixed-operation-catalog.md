@@ -130,10 +130,11 @@ Participants never execute these writers and never read raw provider rows.
     and canonical snapshots; validates totals/currency; creates exactly one
     Order and at least one same-seller OrderItem; and is idempotent.
 14. `grainline_seller_fulfillment_transition(...)` derives seller authority,
-    locks the Order and permits only reviewed shipping/pickup transitions and
-    bounded tracking fields.
-15. `grainline_buyer_delivery_confirm(p_actor_user_id, p_order_id)` derives
-    buyer ownership, locks the Order and permits only shipped to delivered.
+    locks the paid Order and permits only `PENDING -> SHIPPED` or
+    `PENDING -> READY_FOR_PICKUP` with bounded tracking fields.
+15. `grainline_buyer_receipt_confirm(p_actor_user_id, p_order_id)` derives
+    buyer ownership, locks the paid Order and permits only
+    `SHIPPED -> DELIVERED` or `READY_FOR_PICKUP -> PICKED_UP`.
 16. `grainline_seller_refund_claim(...)` derives seller authority and maximum
     refundable amount under the Order lock, returning a database-derived claim
     ID, generation and Stripe idempotency key.

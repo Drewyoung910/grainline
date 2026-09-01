@@ -467,21 +467,28 @@ export default async function BuyerOrderDetailPage({
         </section>
       ) : null}
 
-      {method === "SHIPPING" && status === "SHIPPED" && !activeCase && !hasRefund && (
+      {(
+        (method === "SHIPPING" && status === "SHIPPED")
+        || (method === "PICKUP" && status === "READY_FOR_PICKUP")
+      ) && !activeCase && !hasRefund && (
         <section className="card-section bg-white px-4 py-3 text-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="font-medium text-neutral-800">Received your order?</div>
+              <div className="font-medium text-neutral-800">
+                {method === "PICKUP" ? "Picked up your order?" : "Received your order?"}
+              </div>
               <div className="mt-0.5 text-neutral-600">
-                Confirm delivery once the piece is in your hands.
+                Confirm receipt once the piece is in your hands.
               </div>
             </div>
             <form method="post" action={`/api/orders/${order.id}/confirm-delivery`}>
               <ConfirmButton
-                confirm="Confirm that you received this order?"
+                confirm={method === "PICKUP"
+                  ? "Confirm that you picked up this order?"
+                  : "Confirm that you received this order?"}
                 className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
               >
-                Confirm delivery
+                {method === "PICKUP" ? "Confirm pickup" : "Confirm delivery"}
               </ConfirmButton>
             </form>
           </div>

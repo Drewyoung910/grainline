@@ -183,7 +183,11 @@ The order, payment, and fulfillment family binds the final nine paths. Checkout
 buyer/seller notices validate the atomic checkout-order audit, paid order, exact
 buyer, and single seller. Seller fulfillment changes co-commit a user-attributed
 system audit with the row-locked order transition, and the owner wrapper derives
-the buyer payload from the recorded transition. Seller refunds and blocked
+the buyer payload from the recorded transition. The September 2026 Order
+product audit replaces seller-authored pickup completion with buyer-authored
+receipt confirmation and a co-committed seller notice derived from the durable
+Order seller key; this direction remains isolated until its compatible
+PostgreSQL successor is proven and deployed database-first. Seller refunds and blocked
 checkout refunds bind durable `OrderPaymentEvent` rows; Stripe disputes require
 both the provider event ledger and the applied-side-effects system audit; payout
 failure binds `SellerPayoutEvent`. Recipient, counterpart, payload, canonical
@@ -892,10 +896,11 @@ Bucket B means `Notification` only. It does not include `StockNotification`,
 `Case`, or `CaseMessage`. Those retain separate coverage-matrix groups and
 production releases.
 
-The refreshed source snapshot contains 52 notification-helper calls across 30
-caller files: 50 best-effort object-literal calls, one strict retryable payout
-object-literal call, plus the fulfillment route's typed wrapper call. That
-wrapper serves three distinct fulfillment payloads,
+The refreshed source snapshot contains 53 notification-helper calls across 31
+caller files: 50 best-effort object-literal calls, two strict retryable
+object-literal calls for payout and buyer receipt, plus the fulfillment route's
+typed wrapper call. That wrapper serves two seller-authored fulfillment
+payloads, while buyer receipt confirmation co-commits one strict seller notice,
 and back-in-stock uses one dedicated owner-backed claim, so the authority
 inventory contains 55 distinct emission paths. All 55 are currently
 authority-bound and none are source-less. This broad fanout surface is the main

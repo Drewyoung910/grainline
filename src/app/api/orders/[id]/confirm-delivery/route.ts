@@ -13,6 +13,10 @@ import {
   lockOrderForCaseLifecycle,
 } from "@/lib/caseLifecycleLocks";
 import { caseOrderActiveForBuyer } from "@/lib/caseOrderActiveAuthority";
+import { logSystemActionOrThrow } from "@/lib/systemAudit";
+import { orderReceiptConfirmationTransition } from "@/lib/orderReceiptConfirmationState";
+import { createNotificationOrThrow } from "@/lib/notifications";
+import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
 
 export const runtime = "nodejs";
 
@@ -44,13 +48,15 @@ export async function POST(
 
     const { id } = await params;
     const order = await prisma.order.findFirst({
-      where: { id, buyerId: me.id },
+      where: { id, buyerId: me.id, paidAt: { not: null } },
       select: {
         buyerId: true,
         fulfillmentMethod: true,
         fulfillmentStatus: true,
         sellerRefundId: true,
         paymentRefundBlocked: true,
+        paymentOpenDisputeBlocked: true,
+        sellerProfile: { select: { userId: true } },
       },
     });
 
@@ -69,13 +75,20 @@ export async function POST(
       );
     }
     if (orderHasRefundLedger(order)) {
-      return privateJson({ error: "Refunded orders cannot be confirmed delivered." }, { status: 400 });
+      return privateJson({ error: "Refunded orders cannot be confirmed received." }, { status: 400 });
     }
-    if ((order.fulfillmentMethod ?? "SHIPPING") !== "SHIPPING") {
-      return privateJson({ error: "Only shipped orders can be confirmed delivered." }, { status: 400 });
+    if (order.paymentOpenDisputeBlocked) {
+      return privateJson(
+        { error: "Resolve the open Stripe dispute before confirming receipt." },
+        { status: 409 },
+      );
     }
-    if (order.fulfillmentStatus !== "SHIPPED") {
-      return privateJson({ error: "Only shipped orders can be confirmed delivered." }, { status: 400 });
+    const confirmation = orderReceiptConfirmationTransition(order);
+    if (!confirmation) {
+      return privateJson(
+        { error: "Only shipped or ready-for-pickup orders can be confirmed received." },
+        { status: 400 },
+      );
     }
 
     const updatedCount = await prisma.$transaction(async (tx) => {
@@ -86,29 +99,64 @@ export async function POST(
         tx,
       );
       if (lockedActiveCase !== false) return 0;
-      const deliveredAt = await databaseClockTimestamp(tx);
+      const confirmedAt = await databaseClockTimestamp(tx);
       const updated = await tx.order.updateMany({
         where: {
           id,
           buyerId: me.id,
-          fulfillmentStatus: "SHIPPED",
+          paidAt: { not: null },
+          fulfillmentStatus: confirmation.previousStatus,
           sellerRefundId: null,
           paymentRefundBlocked: false,
-          AND: [
-            {
-              OR: [
-                { fulfillmentMethod: "SHIPPING" },
-                { fulfillmentMethod: null },
-              ],
-            },
-          ],
+          paymentOpenDisputeBlocked: false,
+          ...(confirmation.fulfillmentMethod === "SHIPPING"
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { fulfillmentMethod: "SHIPPING" as const },
+                      { fulfillmentMethod: null },
+                    ],
+                  },
+                ],
+              }
+            : { fulfillmentMethod: "PICKUP" as const }),
         },
         data: {
-          fulfillmentMethod: "SHIPPING",
-          fulfillmentStatus: "DELIVERED",
-          deliveredAt,
+          fulfillmentMethod: confirmation.fulfillmentMethod,
+          fulfillmentStatus: confirmation.newStatus,
+          [confirmation.timestampField]: confirmedAt,
         },
       });
+      if (updated.count !== 1) return updated.count;
+      const auditLogId = await logSystemActionOrThrow({
+        client: tx,
+        actorType: "user",
+        actorId: me.id,
+        action: "ORDER_FULFILLMENT_TRANSITION",
+        targetType: "ORDER",
+        targetId: id,
+        metadata: {
+          action: confirmation.newStatus === "DELIVERED" ? "delivered" : "picked_up",
+          fulfillmentMethod: confirmation.fulfillmentMethod,
+          previousStatus: confirmation.previousStatus,
+          newStatus: confirmation.newStatus,
+        },
+      });
+      if (order.sellerProfile?.userId) {
+        await createNotificationOrThrow({
+          userId: order.sellerProfile.userId,
+          type: "ORDER_DELIVERED",
+          title: "Buyer confirmed receipt",
+          body: confirmation.newStatus === "DELIVERED"
+            ? "The buyer confirmed delivery."
+            : "The buyer confirmed pickup.",
+          link: `/dashboard/sales/${id}`,
+          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT,
+          sourceId: auditLogId,
+          relatedUserId: me.id,
+        }, tx);
+      }
       return updated.count;
     });
 

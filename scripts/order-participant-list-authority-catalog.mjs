@@ -3,6 +3,11 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import {
+  ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
+  verifyOrderReceiptNotificationAuthorityMigrationBytes,
+} from "./order-receipt-notification-authority-catalog.mjs";
+
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION =
   "20260831233000_prepare_order_participant_list_authority";
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION_SHA256 =
@@ -512,6 +517,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderCheckoutReceiptAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
+      "Order receipt Notification authority requires the exact checkout-receipt predecessor",
+    );
+    verifyOrderReceiptNotificationAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION);
   }
   return true;
 }

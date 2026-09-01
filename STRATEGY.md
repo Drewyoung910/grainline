@@ -21,6 +21,13 @@ pagination, participant-detail behavior and checkout receipts while reducing
 the direct Order inventory to 20 source files. The unused local make-order API
 was retired instead of preserving generic runtime `Order INSERT`; future paid
 fixtures must use disposable databases or provider-backed proof operators.
+The fulfillment audit then corrected pickup receipt authority: sellers may
+announce `READY_FOR_PICKUP`, but only the buyer may confirm `PICKED_UP`, because
+that timestamp starts the buyer's Case window. Buyer receipt confirmation now
+also rejects unpaid Orders and open Stripe disputes and records a strict audit.
+The fixed-authority conversion must preserve that split and replace the final
+best-effort notification/email edge with a co-committed or restart-safe
+delivery design.
 Staff, maintenance and write
 families still remain. The checkout receipt audit also caught and corrected an
 over-narrowed snapshot projection before release. Before RLS, finish actor-specific fixed projections,
@@ -2450,6 +2457,20 @@ separate older/newer keyset functions, retaining Previous/Next without OFFSET.
 Seller totals must use the full durable Order subtotal rather than the five
 displayed summaries. See `docs/order-participant-summary-authority.md` and
 `docs/order-participant-cursor-authority.md`.
+
+### Core Order fulfillment and receipt decision (2026-09-01)
+
+Do not preserve seller-controlled pickup completion merely because it was the
+historical UI. `PICKED_UP` starts the buyer's 30-day Case window, so the seller
+may only move a paid pickup Order to `READY_FOR_PICKUP`; the buyer alone moves
+it to `PICKED_UP`. The same buyer receipt operation owns
+`SHIPPED -> DELIVERED`. Both paths must reject active Cases, retained refund
+evidence and open Stripe disputes under the shared Order lock. Seller shipping
+remains `PENDING -> SHIPPED` with bounded carrier/tracking, and seller notes
+remain a separate scratch-note operation rather than fulfillment authority.
+Before Order RLS, use family-specific fixed functions and make fulfillment
+Notification/email delivery co-committed or explicitly restart-safe. See
+`docs/order-fulfillment-receipt-product-audit.md`.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 

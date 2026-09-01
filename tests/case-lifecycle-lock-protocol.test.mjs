@@ -102,11 +102,19 @@ describe("Case and Order lifecycle lock protocol", () => {
       ],
       [
         "delivery-confirmation post-lock timestamp",
-        "const deliveredAt = await databaseClockTimestamp(tx)",
+        "const confirmedAt = await databaseClockTimestamp(tx)",
       ],
       [
         "delivery-confirmation transition",
         "await tx.order.updateMany",
+      ],
+      [
+        "delivery-confirmation audit",
+        'action: "ORDER_FULFILLMENT_TRANSITION"',
+      ],
+      [
+        "delivery-confirmation seller notification",
+        "await createNotificationOrThrow",
       ],
     ]);
     assertOrdered(refund, [

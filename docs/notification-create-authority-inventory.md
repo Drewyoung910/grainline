@@ -1,27 +1,28 @@
 # Notification Creation Authority Inventory
 
-Snapshot refreshed: 2026-07-26. Notification RLS is production-active; this
-inventory also covers the compatible Case seller-decision path prepared after
-that activation.
+Snapshot refreshed: 2026-09-01. Notification RLS is production-active; this
+inventory also covers the compatible Case seller-decision path and the isolated
+buyer-receipt correction prepared after that activation.
 
 ## Count Contract
 
-The source has 52 notification-helper calls across 30 files. Fifty-one pass
-object literals: 50 use the existing best-effort `createNotification` helper and
-the payout path uses strict retryable `createNotificationOrThrow`. The
+The source has 53 notification-helper calls across 31 files. Fifty-two pass
+object literals: 50 use the existing best-effort `createNotification` helper,
+while payout and buyer receipt use strict retryable
+`createNotificationOrThrow`. The
 fulfillment route has the remaining call in a typed `notifyBuyer(..., payload)`
-wrapper, and that wrapper has three distinct payload construction paths. One
+wrapper, and that wrapper has two seller-authored payload construction paths. One
 dedicated back-in-stock claim call derives its
 Notification write inside owner authority. The inventory therefore covers 55
 distinct emission paths:
 
 - 55 authority-bound paths;
 - 0 source-less paths;
-- 27 literal creation sites currently carrying `relatedUserId`, plus back-in-stock's
+- 28 literal creation sites currently carrying `relatedUserId`, plus back-in-stock's
   database-derived seller relationship.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
-wrapper and its three payload constructions. The complete baseline was 54 total,
+wrapper and its then-three payload constructions. The complete baseline was 54 total,
 5 tagged and 49 source-less. The social-family implementation moved three paths
 into the tagged set, and the messaging/custom-order implementation moved three
 more. The commission implementation then moved four paths, the case
@@ -33,7 +34,10 @@ paths now bind exact audit, report, ban, and order evidence. The final nine
 checkout, fulfillment, refund, dispute, and payout paths bind their existing
 order/system-audit/payment/payout ledgers. The later compatible Case work added
 one staff-decision notification for the seller, bound to the atomic staff
-`CaseMessage`, producing the current 55/0 split.
+`CaseMessage`. The fulfillment product audit then replaced seller-authored
+pickup completion with buyer-authored receipt evidence and a strict seller
+notification, preserving the current 55/0 split without preserving the unsafe
+seller transition.
 Tests pin direct calls, emission paths, and family state so those concepts are
 not conflated again.
 
@@ -149,8 +153,11 @@ block-race orderings. The 59 creation cases cover all 38 successful source/type
 pairs and the security-relevant action/status/recipient-direction variants;
 every case proves valid creation, replay, and forged-recipient rejection. That
 was distinct from the then-current 54/54 callsite result. The later seller
-decision path reuses the already-proven staff `CaseMessage` source branch; its
-current callsite contract is 55/55.
+decision path reuses the already-proven staff `CaseMessage` source branch. The
+current callsite contract remains 55/55 after replacing seller-authored pickup
+completion with buyer-authored receipt confirmation; the replacement
+`order_fulfillment` direction requires fresh PostgreSQL proof and a compatible
+production function successor before the application change may deploy.
 byte-pinned SQL review, disposable migration/rollback, authenticated real-table
 route behavior, and provider performance evidence remained open before
 production activation. The later accepted provider proof is recorded in

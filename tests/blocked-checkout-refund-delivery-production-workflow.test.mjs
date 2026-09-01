@@ -61,6 +61,9 @@ import {
   ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
   ORDER_STAFF_READ_AUTHORITY_MIGRATION,
 } from "../scripts/order-participant-list-authority-catalog.mjs";
+import {
+  ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
+} from "../scripts/order-receipt-notification-authority-catalog.mjs";
 
 const workflow = readFileSync(
   ".github/workflows/blocked-checkout-refund-delivery-production.yml",
@@ -173,6 +176,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION);
     remove(ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION);
     remove(ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION);
     remove(ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION);

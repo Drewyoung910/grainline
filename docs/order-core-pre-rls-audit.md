@@ -382,6 +382,22 @@ must be provisioned and proved before any grant or page conversion. Retain the
 Admin-PIN application gate; the database role is an additional boundary, not
 a replacement for Clerk or the PIN.
 
+### ORD-A14: pickup completion must be buyer-controlled
+
+The fulfillment product audit found that the seller could move a pickup Order
+from `READY_FOR_PICKUP` to `PICKED_UP`. Because `pickedUpAt` starts the buyer's
+30-day Case window, this let a seller assert handoff and start that clock
+without buyer evidence. The isolated correction limits sellers to
+`PENDING -> READY_FOR_PICKUP` and lets only the buyer confirm
+`READY_FOR_PICKUP -> PICKED_UP`. The same receipt route retains buyer-only
+`SHIPPED -> DELIVERED`, rejects unpaid Orders and open Stripe disputes, and
+co-commits a derived transition audit. Dead seller `delivered` and impossible
+`READY_FOR_PICKUP -> SHIPPED` vocabulary is removed.
+
+The eventual fixed operations must preserve this product split and close the
+remaining post-commit Notification/email reliability gap. See
+`docs/order-fulfillment-receipt-product-audit.md`.
+
 ## Current functionality verdict
 
 The order, checkout, fulfillment, refund and Case integration are not being
@@ -398,7 +414,9 @@ debt that should be fixed before Order RLS:
   Guild order facts, but the separate `SellerMetrics` cache write remains;
 - the seller analytics and Guild Order-facts cohorts are isolated and
   product-corrected;
-- the development fixture creates an incomplete modern Order; and
+- seller fulfillment and buyer receipt semantics are product-corrected so a
+  seller cannot assert pickup completion or start the buyer's Case window;
+- the incomplete development Order fixture is retired; and
 - the nullable seller keys and snapshot shape still need final convergence.
 
 None of these findings require abandoning the existing checkout/refund design.

@@ -40,7 +40,7 @@ import {
 import { caseOrderActiveForSeller } from "@/lib/caseOrderActiveAuthority";
 
 const FulfillmentSchema = z.object({
-  action: z.enum(["ready_for_pickup", "picked_up", "shipped", "delivered", "update_notes"]),
+  action: z.enum(["ready_for_pickup", "shipped", "update_notes"]),
   trackingCarrier: z.string().max(100).optional().nullable(),
   trackingNumber: z.string().max(100).optional().nullable(),
   sellerNotes: z.string().max(2000).optional().nullable(),
@@ -51,7 +51,6 @@ export const maxDuration = 30;
 
 const VALID_TRACKING_CARRIERS = new Set(["UPS", "USPS", "FedEx", "DHL", "Other"]);
 const TRACKING_NUMBER_RE = /^[A-Za-z0-9][A-Za-z0-9 -]{4,99}$/;
-const BUYER_DELIVERY_CONFIRMATION_ERROR = "Buyers confirm delivery for shipped orders.";
 const FULFILLMENT_JSON_BODY_MAX_BYTES = 24 * 1024;
 const FULFILLMENT_FORM_BODY_MAX_BYTES = 24 * 1024;
 
@@ -95,7 +94,7 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   if (!seller) return null;
 
   const order = await prisma.order.findFirst({
-    where: { id: orderId, sellerProfileId: seller.id },
+    where: { id: orderId, sellerProfileId: seller.id, paidAt: { not: null } },
   });
   if (!order) return null;
   return { order, seller };
@@ -207,10 +206,8 @@ export async function POST(
 
     // Prevent backwards state transitions
     const validTransitions: Partial<Record<typeof action, FulfillmentStatus[]>> = {
-      shipped: ["PENDING", "READY_FOR_PICKUP"],
-      delivered: ["SHIPPED"],
+      shipped: ["PENDING"],
       ready_for_pickup: ["PENDING"],
-      picked_up: ["READY_FOR_PICKUP"],
     };
     const allowed = validTransitions[action];
     if (allowed && !allowed.includes(authz.order.fulfillmentStatus ?? "PENDING")) {
@@ -222,25 +219,18 @@ export async function POST(
 
     // Guard: shipping orders can only use shipped/delivered actions, not pickup
     const currentMethod = authz.order.fulfillmentMethod ?? "SHIPPING";
-    if ((action === "ready_for_pickup" || action === "picked_up") && currentMethod === "SHIPPING") {
+    if (action === "ready_for_pickup" && currentMethod === "SHIPPING") {
       return privateJson(
         { error: "Cannot use pickup actions on a shipping order." },
         { status: 400 },
       );
     }
-    if ((action === "shipped" || action === "delivered") && currentMethod === "PICKUP") {
+    if (action === "shipped" && currentMethod === "PICKUP") {
       return privateJson(
         { error: "Cannot use shipping actions on a pickup order." },
         { status: 400 },
       );
     }
-    if (action === "delivered") {
-      return privateJson(
-        { error: BUYER_DELIVERY_CONFIRMATION_ERROR },
-        { status: 400 },
-      );
-    }
-
     const data: Record<string, unknown> = {};
     let notesWriteRequiresUnpurgedOrder = false;
     const now = new Date();
@@ -250,11 +240,6 @@ export async function POST(
         data.fulfillmentMethod = "PICKUP";
         data.fulfillmentStatus = "READY_FOR_PICKUP";
         data.pickupReadyAt = now;
-        break;
-      case "picked_up":
-        data.fulfillmentMethod = "PICKUP";
-        data.fulfillmentStatus = "PICKED_UP";
-        data.pickedUpAt = now;
         break;
       case "shipped": {
         const trackingCarrier = payload.trackingCarrier?.trim() ?? "";
@@ -334,13 +319,7 @@ export async function POST(
                 "fulfillmentStatus" = 'READY_FOR_PICKUP'::"FulfillmentStatus",
                 "pickupReadyAt" = ${transitionAt}
               `
-            : action === "picked_up"
-              ? Prisma.sql`
-                  "fulfillmentMethod" = 'PICKUP'::"FulfillmentMethod",
-                  "fulfillmentStatus" = 'PICKED_UP'::"FulfillmentStatus",
-                  "pickedUpAt" = ${transitionAt}
-                `
-              : Prisma.sql`
+            : Prisma.sql`
                   "fulfillmentMethod" = 'SHIPPING'::"FulfillmentMethod",
                   "fulfillmentStatus" = 'SHIPPED'::"FulfillmentStatus",
                   "shippedAt" = ${transitionAt},
@@ -361,9 +340,7 @@ export async function POST(
         if (Number(count) === 0) return { count: 0, auditLogId: null as string | null };
         const newStatus = action === "ready_for_pickup"
           ? "READY_FOR_PICKUP"
-          : action === "picked_up"
-            ? "PICKED_UP"
-            : "SHIPPED";
+          : "SHIPPED";
         const auditLogId = await logSystemActionOrThrow({
           client: tx,
           actorType: "user",
@@ -428,21 +405,6 @@ export async function POST(
         } catch (error) {
           captureFulfillmentEmailFailure(error, id, action);
         }
-      }
-    }
-
-    if (action === "picked_up") {
-      if (updated.buyerId) {
-        await notifyBuyer(id, updated.buyerId, {
-          userId: updated.buyerId,
-          type: "ORDER_DELIVERED",
-          title: "Order picked up!",
-          body: "Your order has been picked up. Enjoy!",
-          link: `/dashboard/orders/${id}`,
-          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT,
-          sourceId: requiredFulfillmentAuditId(fulfillmentAuditId),
-          relatedUserId: authz.seller.userId,
-        });
       }
     }
 

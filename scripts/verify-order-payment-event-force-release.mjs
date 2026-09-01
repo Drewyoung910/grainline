@@ -39,6 +39,9 @@ import {
   ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
   ORDER_STAFF_READ_AUTHORITY_MIGRATION,
 } from "./order-participant-list-authority-catalog.mjs";
+import {
+  ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
+} from "./order-receipt-notification-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_FORCE_PHASE =
   "order-payment-event-force-reviewed";
@@ -111,6 +114,7 @@ export function verifyOrderPaymentEventForceRelease(
           ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
           ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
           ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
+          ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
         ]
       : [],
   });
