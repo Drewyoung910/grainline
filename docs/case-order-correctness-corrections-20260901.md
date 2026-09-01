@@ -14,7 +14,10 @@ an unbounded prerequisite program.
 The candidate migration is additive. It does not edit sealed historical
 migrations, enable or FORCE RLS, add policies, change table grants, or change
 provider state. It replaces existing functions only after byte-derived
-function-body preflight checks and reconverges their existing EXECUTE grants.
+function-body preflight checks and reconverges their current activation-aware
+EXECUTE partition. In particular, it must not revive the retired
+`grainline_case_seller_refund_apply` entry point after `OrderPaymentEvent`
+Phase A replaced that predecessor authority.
 
 ## Corrected in the candidate
 
@@ -108,3 +111,9 @@ the buyer quote corrections and the complete claim-by-claim audit record:
   stock-restoration refusal, PII dispute retention and seller-deletion locking;
 - full TypeScript, lint, repository tests and build;
 - an exact migration byte pin plus separate production migration gate.
+
+GitHub CI run `33556027456` failed closed when the first candidate re-granted
+the retired seller-refund Case function. No migration or production change
+occurred. The corrected builder now encodes runtime EXECUTE as part of both the
+predecessor and postflight catalog, keeps that one function runtime-ungranted,
+and has a class-specific regression test against future revival.

@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 export const CASE_CORRECTNESS_MIGRATION =
   "20260901160000_correct_case_order_invariants";
 export const CASE_CORRECTNESS_MIGRATION_SHA256 =
-  "f3b1c5ff208166d978ad54935742df627e71354a306acab7f9ac8e0c58d5fc85";
+  "aaaf788a42d493c7cf77471cafa2b1ee69690c279df15574cef9d4b91547265e";
 
 const PREDECESSORS = Object.freeze({
   caseAccountDeletion: Object.freeze({
@@ -60,6 +60,9 @@ const FUNCTIONS = Object.freeze([
     identity: "public.grainline_case_seller_refund_apply(text,text)",
     grantSignature: "text, text",
     predecessor: "caseSellerRefund",
+    // OrderPaymentEvent Phase A retired this predecessor entry point after
+    // replacing its source binding. Redefining the body must not revive it.
+    runtimeExecute: false,
   }),
   Object.freeze({
     key: "caseStaffPrepare",
@@ -450,20 +453,26 @@ export function caseCorrectnessDefinitions(rootDirectory = process.cwd()) {
   return { corrected, original };
 }
 
-function sqlRows(definitions, kind) {
+function sqlRows(definitions) {
   return FUNCTIONS.map((entry) => {
     const source = extractFunctionSource(definitions[entry.key], entry.name);
-    return `      ('${entry.identity}', '${sha256(source)}')`;
+    const runtimeExecute = entry.runtimeExecute === false ? "false" : "true";
+    return `      ('${entry.identity}', '${sha256(source)}', ${runtimeExecute})`;
   }).join(",\n");
 }
 
 function grantSql() {
-  return FUNCTIONS.map((entry) => `REVOKE ALL ON FUNCTION
-  public.${entry.name}(${entry.grantSignature})
-  FROM PUBLIC, grainline_app_runtime;
+  return FUNCTIONS.map((entry) => {
+    const grant = entry.runtimeExecute === false
+      ? ""
+      : `
 GRANT EXECUTE ON FUNCTION
   public.${entry.name}(${entry.grantSignature})
-  TO grainline_app_runtime;`).join("\n\n");
+  TO grainline_app_runtime;`;
+    return `REVOKE ALL ON FUNCTION
+  public.${entry.name}(${entry.grantSignature})
+  FROM PUBLIC, grainline_app_runtime;${grant}`;
+  }).join("\n\n");
 }
 
 function verificationBlock(label, rows, expectedPhase) {
@@ -477,7 +486,7 @@ BEGIN
     SELECT *
       FROM (VALUES
 ${rows}
-      ) AS expected_functions(identity, source_sha256)
+      ) AS expected_functions(identity, source_sha256, runtime_execute)
   LOOP
     function_oid := pg_catalog.to_regprocedure(expected.identity);
     IF function_oid IS NULL THEN
@@ -503,10 +512,10 @@ ${rows}
       RAISE EXCEPTION '${expectedPhase} Case correctness function % drifted',
         expected.identity;
     END IF;
-${label === "postflight" ? `
-    IF NOT pg_catalog.has_function_privilege(
+
+    IF pg_catalog.has_function_privilege(
          'grainline_app_runtime', function_oid, 'EXECUTE'
-       )
+       ) IS DISTINCT FROM expected.runtime_execute
        OR EXISTS (
          SELECT 1
            FROM pg_catalog.pg_proc AS routine,
@@ -520,10 +529,10 @@ ${label === "postflight" ? `
             AND acl.grantee = 0
             AND acl.privilege_type = 'EXECUTE'
        ) THEN
-      RAISE EXCEPTION 'Corrected Case function % grant posture drifted',
+      RAISE EXCEPTION '${expectedPhase} Case function % grant posture drifted',
         expected.identity;
     END IF;
-` : ""}  END LOOP;
+  END LOOP;
 END
 $grainline_case_correctness_${label}$;`;
 }

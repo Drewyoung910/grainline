@@ -14,16 +14,16 @@ BEGIN
   FOR expected IN
     SELECT *
       FROM (VALUES
-      ('public.grainline_case_message_page(text,text,timestamp,text,integer)', 'b7c4d553ba8775ea67956621e934d94ae16fc8910ed1d3c9fa8c2d2972f3c3e8'),
-      ('public.grainline_case_stripe_dispute_apply(text)', '9a4ae92cb4ffe1ba5b6bcf0b4d9aa3dd2cfa9585db34fe10e479569c1ea595f0'),
-      ('public.grainline_case_seller_refund_apply(text,text)', 'b12f31cea071753b539be9f919d9a834884a65b2777ff4dbdfa5c44ceaebf544'),
-      ('public.grainline_case_staff_resolution_prepare(text,text,public."CaseResolution",integer,jsonb)', 'ac1a0b8108eb2fb80430cc98f98ca030d209d8f64bf2bd18a197733dbba379ad'),
-      ('public.grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)', 'de3dd4f70dd90e014a9779bf93b661cdee41008d1c47cf615f6adf149e1973c0'),
-      ('public.grainline_case_staff_resolution_finalize(text,text)', '9a0fe6b594af14a4c836dac40e930dc5d7773f10f81a43cc0e4539d6595f9caf'),
-      ('public.grainline_case_staff_resolution_reconcile(text,text,text,text)', '41881c430c0647b3ad3b91913009bbfc068abe0fbffedb04c01e00c570c872aa'),
-      ('public.grainline_order_buyer_pii_prune_batch(integer)', 'ba07d9d0c2cf644e3d55022d302106f3a010b25f2ccb1875205d6ddf104625a1'),
-      ('public.grainline_case_account_deletion_redact(text)', '4638c92b47399b99572df952b130790bd046953c08579b6138bf03e937c8c9f8')
-      ) AS expected_functions(identity, source_sha256)
+      ('public.grainline_case_message_page(text,text,timestamp,text,integer)', 'b7c4d553ba8775ea67956621e934d94ae16fc8910ed1d3c9fa8c2d2972f3c3e8', true),
+      ('public.grainline_case_stripe_dispute_apply(text)', '9a4ae92cb4ffe1ba5b6bcf0b4d9aa3dd2cfa9585db34fe10e479569c1ea595f0', true),
+      ('public.grainline_case_seller_refund_apply(text,text)', 'b12f31cea071753b539be9f919d9a834884a65b2777ff4dbdfa5c44ceaebf544', false),
+      ('public.grainline_case_staff_resolution_prepare(text,text,public."CaseResolution",integer,jsonb)', 'ac1a0b8108eb2fb80430cc98f98ca030d209d8f64bf2bd18a197733dbba379ad', true),
+      ('public.grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)', 'de3dd4f70dd90e014a9779bf93b661cdee41008d1c47cf615f6adf149e1973c0', true),
+      ('public.grainline_case_staff_resolution_finalize(text,text)', '9a0fe6b594af14a4c836dac40e930dc5d7773f10f81a43cc0e4539d6595f9caf', true),
+      ('public.grainline_case_staff_resolution_reconcile(text,text,text,text)', '41881c430c0647b3ad3b91913009bbfc068abe0fbffedb04c01e00c570c872aa', true),
+      ('public.grainline_order_buyer_pii_prune_batch(integer)', 'ba07d9d0c2cf644e3d55022d302106f3a010b25f2ccb1875205d6ddf104625a1', true),
+      ('public.grainline_case_account_deletion_redact(text)', '4638c92b47399b99572df952b130790bd046953c08579b6138bf03e937c8c9f8', true)
+      ) AS expected_functions(identity, source_sha256, runtime_execute)
   LOOP
     function_oid := pg_catalog.to_regprocedure(expected.identity);
     IF function_oid IS NULL THEN
@@ -47,6 +47,26 @@ BEGIN
 
     IF actual_hash IS DISTINCT FROM expected.source_sha256 THEN
       RAISE EXCEPTION 'Predecessor Case correctness function % drifted',
+        expected.identity;
+    END IF;
+
+    IF pg_catalog.has_function_privilege(
+         'grainline_app_runtime', function_oid, 'EXECUTE'
+       ) IS DISTINCT FROM expected.runtime_execute
+       OR EXISTS (
+         SELECT 1
+           FROM pg_catalog.pg_proc AS routine,
+                LATERAL pg_catalog.aclexplode(
+                  COALESCE(
+                    routine.proacl,
+                    pg_catalog.acldefault('f', routine.proowner)
+                  )
+                ) AS acl
+          WHERE routine.oid = function_oid
+            AND acl.grantee = 0
+            AND acl.privilege_type = 'EXECUTE'
+       ) THEN
+      RAISE EXCEPTION 'Predecessor Case function % grant posture drifted',
         expected.identity;
     END IF;
   END LOOP;
@@ -3104,9 +3124,6 @@ GRANT EXECUTE ON FUNCTION
 REVOKE ALL ON FUNCTION
   public.grainline_case_seller_refund_apply(text, text)
   FROM PUBLIC, grainline_app_runtime;
-GRANT EXECUTE ON FUNCTION
-  public.grainline_case_seller_refund_apply(text, text)
-  TO grainline_app_runtime;
 
 REVOKE ALL ON FUNCTION
   public.grainline_case_staff_resolution_prepare(text, text, public."CaseResolution", integer, jsonb)
@@ -3159,16 +3176,16 @@ BEGIN
   FOR expected IN
     SELECT *
       FROM (VALUES
-      ('public.grainline_case_message_page(text,text,timestamp,text,integer)', 'be41b07f88b91a3aa29219998ea7fc5c4fc6e4d4e5f84deca921a4d33b2d9286'),
-      ('public.grainline_case_stripe_dispute_apply(text)', '0ccbd8bbd0daf6a519618c87e4c3b1b352b314cc99d43c38c53805b4289b74a1'),
-      ('public.grainline_case_seller_refund_apply(text,text)', '1298be7c5b6750d24ff295909f8188c347745b94396c9311649cdba4848e477e'),
-      ('public.grainline_case_staff_resolution_prepare(text,text,public."CaseResolution",integer,jsonb)', 'c433e9d779eb6f482ab7ed34ee9d341220dec8a426f69e1954fa1002167b49ae'),
-      ('public.grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)', '721ab18d24daa5e9c65f77a33c132dc9f5ad5096d366f5fadb5758d301c74af5'),
-      ('public.grainline_case_staff_resolution_finalize(text,text)', '7b7ff76969a059f6bd4a947a790dc3482d6c1aaabfb14eaf3bafc953b51782c8'),
-      ('public.grainline_case_staff_resolution_reconcile(text,text,text,text)', '20407470f8702837f7f98bab8a5ce684e084cc067d07ea0db013f7011b8e39a2'),
-      ('public.grainline_order_buyer_pii_prune_batch(integer)', '148d3a7041af2b92f159ece8c8be3999bc4906b47f578231990322d8dc456e0b'),
-      ('public.grainline_case_account_deletion_redact(text)', 'cf1f9284608b9204cfe7538ec38f86e92ce0a712aad1c2d777c5d018b5d1b4c8')
-      ) AS expected_functions(identity, source_sha256)
+      ('public.grainline_case_message_page(text,text,timestamp,text,integer)', 'be41b07f88b91a3aa29219998ea7fc5c4fc6e4d4e5f84deca921a4d33b2d9286', true),
+      ('public.grainline_case_stripe_dispute_apply(text)', '0ccbd8bbd0daf6a519618c87e4c3b1b352b314cc99d43c38c53805b4289b74a1', true),
+      ('public.grainline_case_seller_refund_apply(text,text)', '1298be7c5b6750d24ff295909f8188c347745b94396c9311649cdba4848e477e', false),
+      ('public.grainline_case_staff_resolution_prepare(text,text,public."CaseResolution",integer,jsonb)', 'c433e9d779eb6f482ab7ed34ee9d341220dec8a426f69e1954fa1002167b49ae', true),
+      ('public.grainline_case_staff_resolution_provider_record(text,text,text,text,text[],text[],text,integer,boolean,boolean)', '721ab18d24daa5e9c65f77a33c132dc9f5ad5096d366f5fadb5758d301c74af5', true),
+      ('public.grainline_case_staff_resolution_finalize(text,text)', '7b7ff76969a059f6bd4a947a790dc3482d6c1aaabfb14eaf3bafc953b51782c8', true),
+      ('public.grainline_case_staff_resolution_reconcile(text,text,text,text)', '20407470f8702837f7f98bab8a5ce684e084cc067d07ea0db013f7011b8e39a2', true),
+      ('public.grainline_order_buyer_pii_prune_batch(integer)', '148d3a7041af2b92f159ece8c8be3999bc4906b47f578231990322d8dc456e0b', true),
+      ('public.grainline_case_account_deletion_redact(text)', 'cf1f9284608b9204cfe7538ec38f86e92ce0a712aad1c2d777c5d018b5d1b4c8', true)
+      ) AS expected_functions(identity, source_sha256, runtime_execute)
   LOOP
     function_oid := pg_catalog.to_regprocedure(expected.identity);
     IF function_oid IS NULL THEN
@@ -3195,9 +3212,9 @@ BEGIN
         expected.identity;
     END IF;
 
-    IF NOT pg_catalog.has_function_privilege(
+    IF pg_catalog.has_function_privilege(
          'grainline_app_runtime', function_oid, 'EXECUTE'
-       )
+       ) IS DISTINCT FROM expected.runtime_execute
        OR EXISTS (
          SELECT 1
            FROM pg_catalog.pg_proc AS routine,

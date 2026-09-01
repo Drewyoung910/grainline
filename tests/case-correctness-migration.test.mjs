@@ -31,7 +31,11 @@ test("Case correctness migration is deterministic and additive", () => {
     9,
   );
   assert.equal(count(/REVOKE ALL ON FUNCTION/gu), 9);
-  assert.equal(count(/GRANT EXECUTE ON FUNCTION/gu), 9);
+  assert.equal(count(/GRANT EXECUTE ON FUNCTION/gu), 8);
+  assert.doesNotMatch(
+    migration,
+    /GRANT EXECUTE ON FUNCTION\s+public\.grainline_case_seller_refund_apply/iu,
+  );
   assert.doesNotMatch(migration, /ALTER TABLE[\s\S]*ROW LEVEL SECURITY/iu);
   assert.doesNotMatch(migration, /CREATE POLICY/iu);
   assert.doesNotMatch(migration, /GRANT\s+(?:SELECT|INSERT|UPDATE|DELETE)\s+ON/iu);
@@ -125,5 +129,40 @@ test("migration rejects unknown predecessor bodies and verifies corrected bodies
   assert.match(migration, /Corrected Case correctness function % drifted/u);
   assert.equal(count(/source_sha256/gu), 4);
   assert.equal(count(/pg_catalog\.to_regprocedure\(expected\.identity\)/gu), 2);
+  assert.match(migration, /Predecessor Case function % grant posture drifted/u);
   assert.match(migration, /Corrected Case function % grant posture drifted/u);
+  assert.match(
+    migration,
+    /grainline_case_seller_refund_apply\(text,text\)'[^\n]*false/u,
+  );
+});
+
+test("retired seller-refund Case authority stays retired after body correction", () => {
+  const audit = fs.readFileSync("scripts/audit-runtime-db-grants.mjs", "utf8");
+  const activationCatalog = fs.readFileSync(
+    "scripts/order-payment-event-activation-catalog.mjs",
+    "utf8",
+  );
+  const provisioning = fs.readFileSync("scripts/provision-runtime-db-role.sql", "utf8");
+
+  assert.match(
+    activationCatalog,
+    /ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES[\s\S]*grainline_case_seller_refund_apply/u,
+  );
+  assert.match(
+    audit,
+    /ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES\.map/u,
+  );
+  assert.match(
+    provisioning,
+    /retired_order_payment_event_service[\s\S]*grainline_case_seller_refund_apply/u,
+  );
+  assert.match(
+    migration,
+    /REVOKE ALL ON FUNCTION\s+public\.grainline_case_seller_refund_apply\(text, text\)\s+FROM PUBLIC, grainline_app_runtime;/u,
+  );
+  assert.doesNotMatch(
+    migration,
+    /GRANT EXECUTE ON FUNCTION\s+public\.grainline_case_seller_refund_apply/u,
+  );
 });
