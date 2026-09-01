@@ -25,7 +25,7 @@ import { publicListingPath } from "@/lib/publicPaths";
 import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
-import { isRecordedRefundId } from "@/lib/refundLockState";
+import { sellerRefundDisplayState } from "@/lib/refundLockState";
 import {
   DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
   orderHasDeauthorizedSellerReviewHold,
@@ -180,7 +180,8 @@ export default async function SellerOrderDetailPage({
     throw new TypeError("Case message preflight denied a visible seller case");
   }
   const now = new Date();
-  const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
+  const sellerRefundState = sellerRefundDisplayState(order.sellerRefundId);
+  const sellerRefundIssued = sellerRefundState === "RECORDED";
   const refundCents =
     (sellerRefundIssued ? order.sellerRefundAmountCents : null) ??
     activeCase?.refundAmountCents ??
@@ -643,7 +644,7 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          alreadyRefundedId={null}
+          refundState="NONE"
           alreadyRefundedCents={null}
         />
       )}
@@ -652,7 +653,7 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          alreadyRefundedId={order.sellerRefundId}
+          refundState={sellerRefundState}
           alreadyRefundedCents={order.sellerRefundAmountCents ?? null}
         />
       )}
@@ -661,7 +662,7 @@ export default async function SellerOrderDetailPage({
           orderId={order.id}
           currency={currency}
           orderTotalCents={orderTotal}
-          alreadyRefundedId="external-refund"
+          refundState="RECORDED"
           alreadyRefundedCents={externalRefund.amountCents ?? null}
         />
       )}

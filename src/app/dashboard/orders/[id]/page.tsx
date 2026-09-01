@@ -29,7 +29,7 @@ import {
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
-import { isRecordedRefundId } from "@/lib/refundLockState";
+import { sellerRefundDisplayState } from "@/lib/refundLockState";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
@@ -182,7 +182,7 @@ export default async function BuyerOrderDetailPage({
   if (activeCase && !caseMessagePreflight) {
     throw new TypeError("Case message preflight denied a visible buyer case");
   }
-  const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
+  const sellerRefundIssued = sellerRefundDisplayState(order.sellerRefundId) === "RECORDED";
   const hasCaseRefund =
     activeCase?.resolution === "REFUND_FULL"
     || activeCase?.resolution === "REFUND_PARTIAL";

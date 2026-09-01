@@ -2331,6 +2331,19 @@ and write families remain in the same continuous Order program; this slice is
 not permission to stop after list conversion. See
 `docs/order-participant-list-authority.md`.
 
+### Core Order participant detail authority decision (2026-08-31)
+
+Buyer and seller detail reads use separate one-statement fixed projections
+that bind actor plus Order ID in PostgreSQL and return bounded historical item
+JSON with exact keys. Participant projections derive refund state and the
+seller deauthorization hold instead of exposing raw Stripe refund IDs or staff
+review bodies; the seller UI also stops rendering provider refund IDs. PII,
+gift and address fields are suppressed after buyer-data purge, and current
+Listing data is reduced to a link-eligibility boolean. The candidate remains
+compatible and unapplied; page conversion, pooled-runtime proof, staff/export/
+aggregate projections and every write family remain required before Order RLS.
+See `docs/order-participant-detail-authority.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

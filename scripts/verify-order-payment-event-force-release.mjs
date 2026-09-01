@@ -25,6 +25,7 @@ import {
   verifyOrderPaymentEventActivationRelease,
 } from "./verify-order-payment-event-activation-release.mjs";
 import {
+  ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
 } from "./order-participant-list-authority-catalog.mjs";
 
@@ -85,7 +86,10 @@ export function verifyOrderPaymentEventForceRelease(
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,
     rootDirectory,
     omittedReviewedMigrationNames: allowReviewedOrderParticipantListSuccessor
-      ? [ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION]
+      ? [
+          ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+        ]
       : [],
   });
   return Object.freeze({

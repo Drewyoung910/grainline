@@ -27,6 +27,7 @@ import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
 } from "./stage-order-payment-event-force-migration.mjs";
 import {
+  ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
 } from "./order-participant-list-authority-catalog.mjs";
 
@@ -110,7 +111,10 @@ export function verifyOrderPaymentEventActivationRelease(
     omittedReviewedMigrationNames: [
       ...(allowReviewedForceSuccessor ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION] : []),
       ...(allowReviewedOrderParticipantListSuccessor
-        ? [ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION]
+        ? [
+            ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+            ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+          ]
         : []),
     ],
   });

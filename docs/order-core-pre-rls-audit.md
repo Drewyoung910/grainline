@@ -263,6 +263,19 @@ keyset/cursor paging on `(sellerProfileId,createdAt,id)` and
 `(buyerId,createdAt,id)`. Preserve bounded page sizes and avoid exposing an
 unbounded export or dashboard function.
 
+### ORD-A12: participant screens exposed a raw Stripe refund identifier
+
+The seller detail panel rendered `Order.sellerRefundId` after a completed
+refund. That identifier is provider/reconciliation metadata, not a seller
+receipt requirement, and its presence encouraged a future detail function to
+return the raw provider column merely to preserve UI behavior.
+
+The isolated detail-authority candidate changes the panel to a derived
+`NONE | PROCESSING | AMBIGUOUS | RECORDED` display state and removes the raw ID
+from participant rendering. The fixed buyer/seller detail functions derive the
+same state inside PostgreSQL and return an amount only for `RECORDED`. Staff
+and reconciliation projections may retain exact provider identity separately.
+
 ## Current functionality verdict
 
 The order, checkout, fulfillment, refund and Case integration are not being
@@ -272,7 +285,8 @@ PostgreSQL proof coverage, but this fresh audit found concrete architectural
 debt that should be fixed before Order RLS:
 
 - historical views and seller authority still depend on live Listings;
-- fixed read projections do not yet cover core Order rows;
+- fixed read projections now have isolated list/count and detail candidates,
+  but are not applied or consumed yet;
 - account export includes internal shipping quote material;
 - aggregate consumers still rely on broad raw table access;
 - the development fixture creates an incomplete modern Order; and

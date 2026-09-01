@@ -2153,6 +2153,50 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Compatible Order participant-detail authority. The participant projections
+-- derive safe refund/hold state and fixed historical item keys without
+-- granting ordinary runtime access to provider identifiers or staff notes.
+WITH order_participant_detail_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail"(text, text)'),
+    ('public."grainline_order_seller_detail"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_participant_detail_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_detail_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail"(text, text)'),
+    ('public."grainline_order_seller_detail"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_detail_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_detail_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail"(text, text)'),
+    ('public."grainline_order_seller_detail"(text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_detail_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_participant_list_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_count"(text)'),
