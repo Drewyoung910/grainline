@@ -150,12 +150,9 @@ describe("core Order historical compatibility", () => {
     assert.doesNotMatch(webhook, /order\.items\[0\]\?\.listing\.seller/);
   });
 
-  it("keeps the development fixture modern and production unreachable", () => {
-    const fixture = read("src/app/api/dev/make-order/route.ts");
-    assert.match(fixture, /process\.env\.NODE_ENV === "development"/);
-    assert.match(fixture, /process\.env\.VERCEL !== "1"/);
-    assert.match(fixture, /sellerProfileId: listing\.sellerId/g);
-    assert.match(fixture, /listingSnapshot: \{/);
+  it("does not expose a runtime paid-Order fabrication route", () => {
+    assert.equal(fs.existsSync("src/app/api/dev/make-order/route.ts"), false);
+    assert.doesNotMatch(read(".env.example"), /ENABLE_DEV_MAKE_ORDER/);
   });
 
   it("records the remaining boundaries without claiming RLS activation", () => {

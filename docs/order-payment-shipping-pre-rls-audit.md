@@ -121,6 +121,12 @@ links, a no-wait retry, and duplicated receipt rendering. Strict line-item and
 subtotal agreement remains a production inspection gate. See
 `docs/order-checkout-receipt-authority.md`.
 
+The following development-fixture checkpoint advances the direct Order floor
+from 21 to 20. The unused `/api/dev/make-order` endpoint is removed after the
+product audit confirmed it fabricated paid state without provider or payment
+ledger evidence. No replacement runtime create function is added; local test
+data must use disposable databases or bounded provider-backed operators.
+
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above
 intentionally retains their three-file and four-file production/predecessor
@@ -561,10 +567,9 @@ Service, safety and aggregate consumers:
 - public and staff-safe aggregates: `src/lib/homepageStats.ts`,
   `src/lib/publicSellerStats.ts`,
   `src/lib/quality-score.ts` and `src/lib/site-metrics-snapshot.ts`; and
-- the development-only synthetic creator:
-  `src/app/api/dev/make-order/route.ts`, which must be removed from production
-  reachability or converted to a separately gated test-only operation before
-  runtime INSERT is revoked.
+- the former development-only synthetic creator is retired. It had no callsite
+  and fabricated paid state without provider evidence, so it does not justify
+  a runtime Order-create function or direct `INSERT` after activation.
 
 Fixed Case functions already read bounded Order facts. They must remain in the
 function-catalog/global-grant audit, but they do not justify restoring runtime

@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 21 source files still touch Order authority directly
+### ORD-A05: 20 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -158,21 +158,22 @@ Lifecycle, repair and retention readers/writers:
 - `src/lib/orderRefundProviderReconciliation.ts`
 - `src/lib/refundLocks.ts`
 
-Development-only fixture path:
+### ORD-A06: the development Order creator is retired
 
-- `src/app/api/dev/make-order/route.ts`
+The former `/api/dev/make-order` route was correctly unreachable outside
+explicit local non-Vercel development and was not a production back door. A
+fresh product/authority audit nevertheless found that it fabricated a `paidAt`
+Order without a Stripe Checkout Session, PaymentIntent, Charge, payment-event
+evidence, buyer snapshot, or charged subtotal. That synthetic state could
+pollute local sales, review and refund behavior and would require preserving a
+generic ordinary-runtime `Order INSERT` solely for an unused convenience
+endpoint.
 
-### ORD-A06: the development Order creator is unreachable in production but incomplete
-
-`/api/dev/make-order` correctly requires local development, absence of Vercel,
-an explicit feature flag, authentication and an active account. It is not a
-production back door. It nevertheless creates a paid Order without an explicit
-seller key or historical snapshot and is a direct ordinary-runtime Order
-creator in the source inventory.
-
-Before activation, either convert it to a separately gated test fixture
-operation that produces a fully valid modern Order or remove it. Do not grant a
-generic create function solely to preserve this convenience route.
+No application, script or test called the route, so it is removed rather than
+given a privileged database function. Future payment fixtures must remain
+outside the application runtime and must use a disposable database or a
+provider-backed proof operator with explicit cleanup. This reduces the direct
+Order inventory from 21 to 20 without adding database authority.
 
 ### ORD-A07: account export crosses the shipping-quote boundary
 
@@ -304,6 +305,12 @@ duplicated receipt rendering. Strict parsing refuses line-item/subtotal drift;
 an aggregate-only production inspection must classify any historical mismatch
 before application. The direct Order inventory falls from 22 to 21. See
 `docs/order-checkout-receipt-authority.md`; no production state changed.
+
+2026-09-01 implementation checkpoint: the unused local-only
+`/api/dev/make-order` route is retired after the product audit found it
+fabricated paid state without Stripe session, charge or payment-event evidence.
+It had no application or test callsite. The direct Order inventory falls from
+21 to 20 without adding a runtime create function; no production state changed.
 
 ### ORD-A09: write conversion must preserve lock and provider semantics
 

@@ -31,7 +31,6 @@ const expectedOrderAccessFiles = [
   "src/app/admin/orders/[id]/refundReconciliationActions.ts",
   "src/app/admin/orders/page.tsx",
   "src/app/admin/verification/page.tsx",
-  "src/app/api/dev/make-order/route.ts",
   "src/app/api/orders/[id]/confirm-delivery/route.ts",
   "src/app/api/orders/[id]/fulfillment/route.ts",
   "src/app/api/orders/[id]/label/route.ts",
@@ -49,7 +48,7 @@ const expectedOrderAccessFiles = [
 
 describe("core Order pre-RLS audit", () => {
   it("pins every current direct Order source access", () => {
-    assert.equal(expectedOrderAccessFiles.length, 21);
+    assert.equal(expectedOrderAccessFiles.length, 20);
     assert.deepEqual(orderAccessFiles(), expectedOrderAccessFiles);
     for (const file of expectedOrderAccessFiles) {
       assert.equal(audit.includes(`\`${file}\``), true, file);
@@ -75,7 +74,8 @@ describe("core Order pre-RLS audit", () => {
     assert.match(audit, /historical rendering still prefers live Listing data/);
     assert.match(audit, /fetches an Order by ID and then compares `buyerId`/);
     assert.match(audit, /account export crosses the shipping-quote boundary/);
-    assert.match(audit, /development Order creator is unreachable in production but incomplete/);
+    assert.match(audit, /development Order creator is retired/);
+    assert.match(audit, /without a Stripe Checkout Session, PaymentIntent, Charge, payment-event/);
     assert.match(audit, /nullable seller keys are not the final invariant/);
   });
 

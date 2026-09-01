@@ -18,7 +18,10 @@ The audit confirms that the compatible seller key and payment service-ledger
 prerequisites are real progress. The isolated conversion chain has corrected
 mutable Listing attribution, historical presentation, export scope, analytics,
 pagination, participant-detail behavior and checkout receipts while reducing
-the direct Order inventory to 21 source files. Staff, maintenance and write
+the direct Order inventory to 20 source files. The unused local make-order API
+was retired instead of preserving generic runtime `Order INSERT`; future paid
+fixtures must use disposable databases or provider-backed proof operators.
+Staff, maintenance and write
 families still remain. The checkout receipt audit also caught and corrected an
 over-narrowed snapshot projection before release. Before RLS, finish actor-specific fixed projections,
 keep historical snapshots canonical, convert every write and

@@ -74,11 +74,12 @@ describe("order trust metrics guardrails", () => {
     assert.match(source("src/lib/homepageStats.ts"), /getPublicFulfilledOrderCount/u);
   });
 
-  it("documents that local dev order fixtures require VERCEL_ENV to be unset", () => {
+  it("documents that local-only helpers require VERCEL_ENV to be unset", () => {
     const envExample = source(".env.example");
 
-    assert.match(envExample, /Leave VERCEL_ENV unset for local-only dev fixtures/);
+    assert.match(envExample, /Leave VERCEL_ENV unset for local-only helpers/);
     assert.match(envExample, /disposable local DB, never shared demo\/QA data/);
+    assert.doesNotMatch(envExample, /ENABLE_DEV_MAKE_ORDER/);
     assert.doesNotMatch(envExample, /^# VERCEL_ENV=development$/m);
   });
 });
