@@ -7,15 +7,18 @@ const record = read("docs/order-core-history-compatibility.md");
 
 const historicalRenderers = [
   "src/app/account/orders/page.tsx",
-  "src/app/account/page.tsx",
   "src/app/admin/orders/[id]/page.tsx",
   "src/app/admin/orders/page.tsx",
   "src/app/checkout/success/page.tsx",
   "src/app/dashboard/orders/[id]/page.tsx",
-  "src/app/dashboard/orders/page.tsx",
   "src/app/dashboard/sales/[orderId]/page.tsx",
   "src/app/dashboard/sales/page.tsx",
   "src/app/api/seller/analytics/recent-sales/route.ts",
+];
+
+const boundedSummaryRenderers = [
+  "src/app/account/page.tsx",
+  "src/app/dashboard/orders/page.tsx",
 ];
 
 const durableSellerConsumers = [
@@ -38,6 +41,17 @@ describe("core Order historical compatibility", () => {
       assert.match(source, /listingSnapshot|firstItemListingSnapshot/, file);
       assert.doesNotMatch(source, /\.listing\.title|\.listing\.photos|\.listing\.seller\.displayName/, file);
     }
+    for (const file of boundedSummaryRenderers) {
+      const source = read(file);
+      assert.match(source, /readBuyerOrderSummaryPage/, file);
+      assert.doesNotMatch(source, /prisma\.order|\.listing\.title|\.listing\.photos/, file);
+    }
+    const summaryAuthority = read(
+      "prisma/migrations/20260901080000_prepare_order_participant_summary_authority/migration.sql",
+    );
+    assert.match(summaryAuthority, /summary_item\."listingSnapshot"/);
+    assert.match(summaryAuthority, /LIMIT 5/);
+    assert.doesNotMatch(summaryAuthority, /JOIN public\."Listing"/);
   });
 
   it("uses the durable Order seller key for converted seller authority", () => {

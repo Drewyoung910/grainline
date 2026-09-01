@@ -37,6 +37,28 @@ export type SellerOrderListRow = BuyerOrderListRow & Readonly<{
   buyerDeletedAt: Date | null;
 }>;
 
+export type OrderSummaryItem = Readonly<{
+  id: string;
+  listingId: string;
+  priceCents: number;
+  quantity: number;
+  title: string;
+  imageUrl: string | null;
+  sellerName: string;
+}>;
+
+export type BuyerOrderSummaryRow = BuyerOrderListRow & Readonly<{
+  labelCarrier: string | null;
+  labelTrackingNumber: string | null;
+  itemCount: number;
+  items: OrderSummaryItem[];
+}>;
+
+export type SellerOrderSummaryRow = SellerOrderListRow & Readonly<{
+  itemCount: number;
+  items: OrderSummaryItem[];
+}>;
+
 export type OrderListPage<T> = Readonly<{
   rows: T[];
   cursor: OrderListCursor | null;
@@ -132,6 +154,34 @@ function baseBuyerRow(value: unknown): BuyerOrderListRow {
   };
 }
 
+function summaryItems(value: Record<string, unknown>) {
+  const itemCount = safeInteger(value.item_count, "item count", 0, 2_147_483_647);
+  if (!Array.isArray(value.items) || value.items.length > 5 || value.items.length > itemCount) {
+    throw new TypeError("Order list summary items are invalid");
+  }
+  const items = value.items.map((candidate) => {
+    if (!isRecord(candidate)) throw new TypeError("Order list summary item is invalid");
+    const id = requiredText(candidate.id, "item id", 191);
+    const listingId = requiredText(candidate.listingId, "listing id", 191);
+    if (!ORDER_ID_PATTERN.test(id) || !ORDER_ID_PATTERN.test(listingId)) {
+      throw new TypeError("Order list summary item identity is invalid");
+    }
+    const priceCents = safeInteger(candidate.priceCents, "item price", 0, MAX_CENTS);
+    const title = optionalText(candidate.title, "item title", 200)?.trim();
+    const sellerName = optionalText(candidate.sellerName, "item seller name", 100)?.trim();
+    return {
+      id,
+      listingId,
+      priceCents,
+      quantity: safeInteger(candidate.quantity, "item quantity", 1, 10_000),
+      title: title && title.length > 0 ? title : "Purchased item",
+      imageUrl: optionalText(candidate.imageUrl, "item image URL", 2048),
+      sellerName: sellerName && sellerName.length > 0 ? sellerName : "Maker",
+    };
+  });
+  return { itemCount, items };
+}
+
 export function buyerOrderListPageFromRows(
   values: unknown[],
   requestedLimit: number,
@@ -184,6 +234,45 @@ export function sellerOrderListPageFromRows(
     cursor: last && rows.length === requestedLimit
       ? { createdAtEpochMillis: last.createdAt.getTime(), orderId: last.id }
       : null,
+  };
+}
+
+export function buyerOrderSummaryPageFromRows(
+  values: unknown[],
+  requestedLimit: number,
+): OrderListPage<BuyerOrderSummaryRow> {
+  const page = buyerOrderListPageFromRows(values, requestedLimit);
+  return {
+    rows: page.rows.map((row, index) => {
+      const value = values[index];
+      if (!isRecord(value)) throw new TypeError("Buyer Order summary row is invalid");
+      return {
+        ...row,
+        labelCarrier: optionalText(value.label_carrier, "label carrier", 100),
+        labelTrackingNumber: optionalText(
+          value.label_tracking_number,
+          "label tracking number",
+          100,
+        ),
+        ...summaryItems(value),
+      };
+    }),
+    cursor: page.cursor,
+  };
+}
+
+export function sellerOrderSummaryPageFromRows(
+  values: unknown[],
+  requestedLimit: number,
+): OrderListPage<SellerOrderSummaryRow> {
+  const page = sellerOrderListPageFromRows(values, requestedLimit);
+  return {
+    rows: page.rows.map((row, index) => {
+      const value = values[index];
+      if (!isRecord(value)) throw new TypeError("Seller Order summary row is invalid");
+      return { ...row, ...summaryItems(value) };
+    }),
+    cursor: page.cursor,
   };
 }
 

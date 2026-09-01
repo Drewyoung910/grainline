@@ -88,6 +88,15 @@ OrderItem keys instead of mutable Listing ownership. The `SellerMetrics`
 upsert remains a separate table boundary. See
 `docs/order-seller-metrics-authority.md`.
 
+The following 2026-09-01 participant-summary checkpoint advances the direct
+Order floor from 28 to 26 while retaining the 4-file OrderItem floor. A product
+review found that the predecessor scalar pages could not preserve the existing
+historical item cards without N+1 detail reads. The bounded successor returns
+at most five checkout-time item summaries plus the complete item count in each
+actor-scoped page. The account overview and first buyer dashboard page are
+converted; numbered buyer history and seller sales pagination remain a
+deliberate follow-up. See `docs/order-participant-summary-authority.md`.
+
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above
 intentionally retains their three-file and four-file production/predecessor

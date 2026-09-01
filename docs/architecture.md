@@ -528,9 +528,13 @@ back-in-stock metrics are surviving subscriptions, not immutable event
 history. Guild sales and shipping facts use a bounded service aggregate keyed
 by checkout-time `Order.sellerProfileId` and `OrderItem.sellerProfileId`, so
 mutable Listing ownership cannot rewrite historical qualification. The
-`SellerMetrics` cache write remains a separate later database boundary. See
+participant list contract returns at most five checkout-time item summaries
+plus the full item count in the same keyset page; this preserves useful list
+cards without N+1 detail reads or unbounded payloads. The `SellerMetrics` cache
+write remains a separate later database boundary. See
 `docs/order-core-pre-rls-audit.md`, `docs/order-seller-analytics-authority.md`
-and `docs/order-seller-metrics-authority.md`.
+`docs/order-seller-metrics-authority.md` and
+`docs/order-participant-summary-authority.md`.
 
 ### Messaging
 

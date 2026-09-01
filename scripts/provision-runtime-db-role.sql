@@ -2408,6 +2408,38 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Participant list summaries preserve bounded historical item context without
+-- per-Order detail reads. The shared item helper stays owner-private; only the
+-- actor-bound buyer/seller summary pages are executable by ordinary runtime.
+WITH order_participant_summary_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_summary_items"(text)'),
+    ('public."grainline_order_buyer_summary_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_summary_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_summary_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_summary_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_summary_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_summary_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_summary_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_participant_export_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),

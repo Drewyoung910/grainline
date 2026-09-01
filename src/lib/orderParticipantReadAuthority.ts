@@ -3,8 +3,10 @@ import { prisma } from "@/lib/db";
 import { normalizeDbUserContextUserId } from "@/lib/dbUserContextState";
 import {
   buyerOrderListPageFromRows,
+  buyerOrderSummaryPageFromRows,
   orderCountFromRows,
   sellerOrderListPageFromRows,
+  sellerOrderSummaryPageFromRows,
   type OrderListCursor,
 } from "@/lib/orderParticipantReadState";
 
@@ -96,4 +98,50 @@ export async function readSellerOrderPage(
       )
   `);
   return sellerOrderListPageFromRows(rows, limit);
+}
+
+export async function readBuyerOrderSummaryPage(
+  input: {
+    actorUserId: string;
+    limit: number;
+    cursor?: OrderListCursor | null;
+  },
+  client: OrderReadClient = prisma,
+) {
+  const actorUserId = normalizeDbUserContextUserId(input.actorUserId);
+  const limit = boundedLimit(input.limit);
+  const cursor = normalizedCursor(input.cursor ?? null);
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_order_buyer_summary_page(
+        ${actorUserId},
+        ${limit},
+        ${cursor?.createdAtEpochMillis ?? null},
+        ${cursor?.orderId ?? null}
+      )
+  `);
+  return buyerOrderSummaryPageFromRows(rows, limit);
+}
+
+export async function readSellerOrderSummaryPage(
+  input: {
+    actorUserId: string;
+    limit: number;
+    cursor?: OrderListCursor | null;
+  },
+  client: OrderReadClient = prisma,
+) {
+  const actorUserId = normalizeDbUserContextUserId(input.actorUserId);
+  const limit = boundedLimit(input.limit);
+  const cursor = normalizedCursor(input.cursor ?? null);
+  const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+    SELECT *
+      FROM public.grainline_order_seller_summary_page(
+        ${actorUserId},
+        ${limit},
+        ${cursor?.createdAtEpochMillis ?? null},
+        ${cursor?.orderId ?? null}
+      )
+  `);
+  return sellerOrderSummaryPageFromRows(rows, limit);
 }
