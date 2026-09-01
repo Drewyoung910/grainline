@@ -549,5 +549,6 @@ fresh `OrderItem` audit/activation work, followed by
 - seller keys and other authority-relevant invariants pass fresh inspection;
 - the compatible app is deployed and predecessor overlap is drained;
 - the migration, grants, rollback and separate-login PostgreSQL proofs pass;
-  and
+- the verified buyer quote defects and cross-domain Case money-path blockers
+  in `docs/verified-cross-domain-pre-rls-findings-20260901.md` are closed; and
 - Phase A and FORCE remain distinct production releases.

@@ -7,15 +7,14 @@ import { shippoRequest } from "@/lib/shippo";
 import { shippingRateSubjectHash, signRate } from "@/lib/shipping-token";
 import {
   filterShippoRatesForCheckout,
-  quoteOnlyRateObjectId,
-  safeProviderShippingCents,
+  normalizeShippoRatesForCheckout,
   safeFallbackShippingCents,
   type ShippoQuoteRate,
 } from "@/lib/shippingQuoteState";
 import { sellerOrderBlockMessage, sellerOrderBlockReason } from "@/lib/sellerOrderState";
 import { shippingQuoteRatelimit, safeRateLimit, rateLimitResponse } from "@/lib/ratelimit";
 import { DEFAULT_CURRENCY } from "@/lib/money";
-import { sanitizeAddressField, sanitizeOptionalAddressField } from "@/lib/addressFields";
+import { sanitizeAddressField } from "@/lib/addressFields";
 import { logServerError } from "@/lib/serverErrorLogger";
 import {
   isInvalidJsonBodyError,
@@ -38,9 +37,9 @@ const ShippingQuoteSchema = z.object({
   // what the buyer's checkout address submits. A default here would
   // cause every signature to mismatch on verification.
   toPostal: z.string().min(1).max(20),
-  toState: z.string().max(50).optional().nullable(),
-  toCity: z.string().max(100).optional().nullable(),
-  toCountry: z.string().max(2).optional().nullable(),
+  toState: z.string().length(2),
+  toCity: z.string().min(1).max(100),
+  toCountry: z.string().length(2),
 });
 
 export const runtime = "nodejs";
@@ -160,9 +159,9 @@ function quoteBlockedResponse(error: string, status = HTTP_STATUS.BAD_REQUEST) {
 /**
  * POST /api/shipping/quote
  * Body:
- *   { mode: "cart", cartId: string, sellerId?: string, toPostal?, toState?, toCity?, toCountry? }
+ *   { mode: "cart", cartId: string, sellerId?: string, toPostal, toState, toCity, toCountry }
  *   OR
- *   { mode: "single", listingId: string, quantity?: number, toPostal?, toState?, toCity?, toCountry? }
+ *   { mode: "single", listingId: string, quantity?: number, toPostal, toState, toCity, toCountry }
  *
  * Response:
  *   { rates: [{ label, amountCents, currency, carrier?, service?, estDays?, taxBehavior? }] }
@@ -231,14 +230,14 @@ export async function POST(req: Request) {
     // toPostal is required by the Zod schema — the HMAC signing
     // below uses this exact value, and it must match what the
     // checkout route receives in body.shippingAddress.postalCode.
-    const sanitizedToCity = sanitizeOptionalAddressField(body.toCity, 100);
-    const sanitizedToState = sanitizeOptionalAddressField(body.toState, 50);
-    const sanitizedToCountry = sanitizeOptionalAddressField(body.toCountry, 2);
+    const sanitizedToCity = sanitizeAddressField(body.toCity, 100);
+    const sanitizedToState = sanitizeAddressField(body.toState, 2);
+    const sanitizedToCountry = sanitizeAddressField(body.toCountry, 2);
     const shipTo = {
       postal: sanitizeAddressField(body.toPostal, 20),
-      state: sanitizedToState || "NY",
-      city: sanitizedToCity || "New York",
-      country: sanitizedToCountry?.toUpperCase() || "US",
+      state: sanitizedToState.toUpperCase(),
+      city: sanitizedToCity,
+      country: sanitizedToCountry.toUpperCase(),
     };
 
     if (mode === "cart") {
@@ -581,18 +580,22 @@ export async function POST(req: Request) {
           extra: { mode, sellerId, contextId },
         });
       }
-      return privateJson({
-        rates: [
-          fallbackRate({
-            amountCents: safeFallbackShippingCents(fallbackShippingCents),
-            currency,
-            contextId,
-            buyerId: me.id,
-            buyerPostal: shipTo.postal,
-            subjectHash,
-          }),
-        ],
-      });
+      const fallbackRates = [
+        fallbackRate({
+          amountCents: safeFallbackShippingCents(fallbackShippingCents),
+          currency,
+          contextId,
+          buyerId: me.id,
+          buyerPostal: shipTo.postal,
+          subjectHash,
+        }),
+      ];
+      if (sellerAllowsPickup) {
+        fallbackRates.push(
+          pickupRate({ currency, contextId, buyerId: me.id, buyerPostal: shipTo.postal, subjectHash }),
+        );
+      }
+      return privateJson({ rates: fallbackRates });
     }
 
     // Filter by seller's preferred carriers (if set) before signing.
@@ -613,24 +616,10 @@ export async function POST(req: Request) {
       });
     }
 
-    const validRates = filtered.rates
-      .flatMap((r) => {
-        const amountCents = safeProviderShippingCents(r.amount);
-        if (amountCents === null) return [];
-        return [{ rate: r, amountCents }];
-      })
-      .slice(0, 12);
+    const validRates = normalizeShippoRatesForCheckout(filtered.rates).slice(0, 12);
 
     const out = validRates
-      .map(({ rate: r, amountCents }) => {
-        const label = `${r.provider || r.carrier} ${r.servicelevel?.name || r.service} (${
-          r.estimated_days ? `${r.estimated_days}d` : "—"
-        })`;
-        const carrier = r.provider || r.carrier || "";
-        const service = r.servicelevel?.name || r.service || "";
-        const estDays = r.estimated_days ?? null;
-        const objectId = quoteOnlyRateObjectId(r.object_id ?? null);
-
+      .map(({ label, amountCents, carrier, service, estDays, objectId }) => {
         const { token, expiresAt } = signRate({
           objectId,
           amountCents,
@@ -652,7 +641,7 @@ export async function POST(req: Request) {
           service,
           estDays,
           taxBehavior: "exclusive" as const,
-          objectId: objectId || null,
+          objectId,
           token,
           expiresAt,
           subjectHash,

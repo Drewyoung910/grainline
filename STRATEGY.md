@@ -4,6 +4,30 @@ Operational notes and strategic direction. AGENTS.md is the codebase contract (w
 
 ## Immediate priorities
 
+### Cross-domain correctness gate before core Order Phase A (2026-09-01)
+
+The buyer shipping quote and the already-live Case money path were re-audited
+before sealing core Order authority. The quote correction must land first: do
+not auto-select free pickup when shipping exists, do not display/sign malformed
+or duplicate provider identities, keep one bounded delivery-estimate contract
+through webhook parsing, retain pickup during provider fallback and expose a
+retry action. Seller label purchase still performs the full-address re-quote;
+the buyer quote remains deliberately city/state/postal/country only.
+
+Then ship a separate additive Case correction for legacy staff attribution,
+UTC money-path clocks, staff-resolution replay eligibility/final stock guards
+and the PII-prune/chargeback race. Do not edit applied Case migrations. Add the
+exact charged Checkout total and honest fully-refunded UI state before core
+Order Phase A; do not misuse a new `CANCELLED` fulfillment value for payment
+state. The full independent classification, including accepted hardening and
+false/outdated reviewer claims, is retained in
+`docs/verified-cross-domain-pre-rls-findings-20260901.md`.
+
+This gate is bounded. Continuous all-table RLS canaries, a SellerProfile
+projection guard, dedicated cron/service principals, human-readable order
+numbers and checkout-group product semantics remain tracked launch/design work;
+they must not turn the Order sequence into perpetual preparation.
+
 ### Core Order audit and activation sequence (2026-08-31)
 
 The fresh current-source audit is pinned in

@@ -347,6 +347,23 @@ already occurred, but cannot create or release a claim.
 
 These are release gates, not deferred cleanup. Production remains unchanged.
 
+### Buyer shipping-quote correctness gate
+
+The label lifecycle audit also rechecked the earlier buyer quote rather than
+assuming that successful seller re-quotes proved the checkout UI. It found
+that free pickup was silently auto-selected as the cheapest rate, malformed
+provider identities could be displayed and then rejected only at checkout,
+delivery-day estimates were not normalized at the provider boundary, a
+provider failure dropped pickup, and the UI offered no retry action.
+
+The isolated correction now drops malformed/duplicate provider rates before
+signing, shares one bounded delivery-estimate contract across quote, checkout
+and webhook parsing, requires the actual normalized city/state/postal/country,
+defaults to shipping when shipping exists, retains pickup as an explicit
+choice and exposes a retry button. Full street/name data remains absent from
+the buyer quote and is used only by the seller's authenticated label re-quote.
+See `docs/verified-cross-domain-pre-rls-findings-20260901.md`.
+
 ### CI release-chain correction
 
 Draft PR #382 first failed CI run `33540533675` before any PostgreSQL mutation:
