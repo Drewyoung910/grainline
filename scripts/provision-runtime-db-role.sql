@@ -2229,6 +2229,36 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Dormant staff Order projections must remain unavailable to the shared
+-- application runtime. A separate reviewed operator will provision and grant
+-- only grainline_staff_read_runtime after credential isolation is proved.
+WITH order_staff_read_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_order_staff_detail"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_staff_read_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_staff_read_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_order_staff_detail"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_staff_read_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- OrderPaymentEvent becomes a policyless service ledger at Phase A. The bulk
 -- predecessor grant and the two legacy compatibility entry points above are
 -- intentional only while RLS is off. If provisioning is rerun after ENABLE,

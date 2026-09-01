@@ -276,6 +276,22 @@ from participant rendering. The fixed buyer/seller detail functions derive the
 same state inside PostgreSQL and return an amount only for `RECORDED`. Staff
 and reconciliation projections may retain exact provider identity separately.
 
+### ORD-A13: staff PII cannot use the shared runtime actor-argument boundary
+
+The staff Order queue/detail legitimately needs buyer PII, addresses, internal
+review notes and limited provider reconciliation identity. Granting that
+projection to `grainline_app_runtime` would let any code path holding the
+shared credential call it with the ID of a live staff row. The participant
+actor-argument pattern is therefore too broad for this data class.
+
+The isolated staff-read candidate is dormant and instead requires exact
+`SESSION_USER = grainline_staff_read_runtime`, revalidates the live staff row,
+and grants neither PUBLIC nor ordinary-runtime execution. A separate
+membership-free, NOBYPASSRLS staff-read login and isolated application client
+must be provisioned and proved before any grant or page conversion. Retain the
+Admin-PIN application gate; the database role is an additional boundary, not
+a replacement for Clerk or the PIN.
+
 ## Current functionality verdict
 
 The order, checkout, fulfillment, refund and Case integration are not being
@@ -315,8 +331,10 @@ fixed column exposure in disposable PostgreSQL.
 
 Add explicit staff queue/detail, participant export, review eligibility,
 verification and aggregate operations. Remove raw quote payloads from Order
-exports. Prove staff role changes, no participant provider-column exposure and
-bounded aggregate semantics.
+exports. Staff projections require a separate database login and must remain
+dormant until its credential, zero-table-privilege posture and dedicated
+client are proved. Prove staff role changes, ordinary-runtime denial, no
+participant provider-column exposure and bounded aggregate semantics.
 
 ### O3 — write and maintenance authority
 

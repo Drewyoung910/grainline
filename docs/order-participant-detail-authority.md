@@ -86,8 +86,10 @@ migration-tree prefix are sealed by the release verifier.
 Application pages are not switched in this preparation. The migration must be
 reviewed, merged, applied through the guarded compatibility workflow, proven
 through the pooled runtime role, and followed by a compatible app deployment
-before predecessor detail reads can be retired. Staff, export, aggregate,
-eligibility, write and maintenance operations remain unfinished O2/O3 work.
+before predecessor detail reads can be retired. Staff reads use a separate
+dormant credential boundary documented in `docs/order-staff-read-authority.md`;
+export, aggregate, eligibility, write and maintenance operations remain
+unfinished O2/O3 work.
 This detail slice is not an `Order` RLS readiness claim and does not authorize
 `OrderItem` or `OrderShippingRateQuote` activation.
 

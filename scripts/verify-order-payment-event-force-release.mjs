@@ -27,6 +27,7 @@ import {
 import {
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+  ORDER_STAFF_READ_AUTHORITY_MIGRATION,
 } from "./order-participant-list-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_FORCE_PHASE =
@@ -89,6 +90,7 @@ export function verifyOrderPaymentEventForceRelease(
       ? [
           ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
           ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+          ORDER_STAFF_READ_AUTHORITY_MIGRATION,
         ]
       : [],
   });

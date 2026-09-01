@@ -2344,6 +2344,19 @@ compatible and unapplied; page conversion, pooled-runtime proof, staff/export/
 aggregate projections and every write family remain required before Order RLS.
 See `docs/order-participant-detail-authority.md`.
 
+### Core Order staff-read credential decision (2026-08-31)
+
+Do not grant staff Order queue/detail projections to the shared
+`grainline_app_runtime` role. These views contain buyer PII, addresses,
+internal review notes and limited provider reconciliation identity, so a
+caller-supplied staff ID is not a sufficient database capability. The dormant
+candidate requires exact `grainline_staff_read_runtime` session identity plus
+a live EMPLOYEE/ADMIN row, grants neither PUBLIC nor ordinary-runtime
+execution, and has no default ordinary Prisma client. Provisioning the
+membership-free NOBYPASSRLS login, isolating its credential, proving zero base
+table access and then granting only the reviewed functions are separate gates
+before app conversion. See `docs/order-staff-read-authority.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

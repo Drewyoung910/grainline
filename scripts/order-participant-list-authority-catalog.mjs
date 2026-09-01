@@ -15,6 +15,12 @@ export const ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION_SHA256 =
   "7f971c993418c4900b9e37972b24a8e5e6ef8e4a846b73b8b739e4364d96d054";
 export const ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION_TREE_SHA256 =
   "800d7e486e2108e021988b79d534ac7ef40914edabe590844f048216881ffea4";
+export const ORDER_STAFF_READ_AUTHORITY_MIGRATION =
+  "20260901020000_prepare_order_staff_read_authority";
+export const ORDER_STAFF_READ_AUTHORITY_MIGRATION_SHA256 =
+  "fe0f35a081f58a62eaf1d655a1cb5749b7f042b00cc9206cd61abf957b4e2912";
+export const ORDER_STAFF_READ_AUTHORITY_MIGRATION_TREE_SHA256 =
+  "2e39518ebf1c7874472bf0751d9978fc9ccb7c4e70b1e468ef01917dd3cdadc2";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_count(text)",
@@ -25,6 +31,10 @@ export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
 export const ORDER_PARTICIPANT_DETAIL_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_detail(text,text)",
   "grainline_order_seller_detail(text,text)",
+]);
+export const ORDER_STAFF_READ_AUTHORITY_FUNCTIONS = Object.freeze([
+  "grainline_order_staff_page(text,text,integer,integer)",
+  "grainline_order_staff_detail(text,text)",
 ]);
 
 function sha256(value) {
@@ -69,6 +79,25 @@ export function verifyOrderParticipantDetailAuthorityMigrationBytes(
   return Object.freeze({ migration, migrationSha256 });
 }
 
+export function verifyOrderStaffReadAuthorityMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_STAFF_READ_AUTHORITY_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_STAFF_READ_AUTHORITY_MIGRATION_SHA256,
+    "Order staff read-authority migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
 export function appendReviewedOrderParticipantListAuthoritySuccessor({
   root = process.cwd(),
   laterMigrations,
@@ -88,6 +117,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
   if (laterMigrations.includes(ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION)) {
     verifyOrderParticipantDetailAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_STAFF_READ_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+      "Order staff read authority requires the exact detail-authority predecessor",
+    );
+    verifyOrderStaffReadAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_STAFF_READ_AUTHORITY_MIGRATION);
   }
   return true;
 }
