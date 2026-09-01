@@ -47,6 +47,10 @@ describe("Case-aware Order PostgreSQL proof", () => {
     assert.match(source, /open-dispute-retains-buyer-evidence/);
     assert.match(source, /paymentOpenDisputeBlocked/);
     assert.match(source, /CASE_CORRECTNESS_EXPECTED === "1"/);
+    assert.match(
+      source,
+      /if \(correctnessExpected\) \{[\s\S]*?SET CONSTRAINTS ALL IMMEDIATE[\s\S]*?DISABLE TRIGGER grainline_order_payment_open_dispute_guard[\s\S]*?ENABLE TRIGGER grainline_order_payment_open_dispute_guard[\s\S]*?SET CONSTRAINTS ALL DEFERRED/,
+    );
     assert.match(source, /retention-skip-locked-race/);
     assert.match(source, /order-lock-serializes-case-open/);
     assert.match(source, /opening-message/);

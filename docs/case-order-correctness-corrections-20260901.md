@@ -201,3 +201,14 @@ restores only that exact historical EXECUTE grant after table-posture
 normalization, runs the original Case Phase-A and FORCE proofs, then revokes it
 again after the activation rollback. The historical pre-activation invocation
 does not use this compatibility branch. Production grants remain unchanged.
+
+CI run `33567909464` accepted the complete corrected staff-refund and
+finalization proof, including the historical Phase-A/FORCE replay, then found
+the same PostgreSQL deferred-event requirement in the separate Case-aware
+Order retention harness. Its fixture transaction attempted to disable the
+open-dispute guard while preceding Order relationships were still queued for
+deferred validation. That harness now flushes all deferred constraints before
+the rollback-only trigger toggle and restores deferred mode afterward. This
+changes neither the Case/Order implementation nor production; it makes the
+retention proof validate its prior fixtures before simulating the attested
+open-dispute state.

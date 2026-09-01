@@ -428,6 +428,10 @@ async function seedFixtures(client, { correctnessExpected = false } = {}) {
       ]);
     }
     if (correctnessExpected) {
+      // The fixture inserts above can leave deferred FK and invariant events
+      // queued against Order. Flush them before this rollback-only trigger
+      // toggle models the already-attested open-dispute witness.
+      await client.query("SET CONSTRAINTS ALL IMMEDIATE");
       await client.query(`
         ALTER TABLE public."Order"
           DISABLE TRIGGER grainline_order_payment_open_dispute_guard
@@ -441,6 +445,7 @@ async function seedFixtures(client, { correctnessExpected = false } = {}) {
         ALTER TABLE public."Order"
           ENABLE TRIGGER grainline_order_payment_open_dispute_guard
       `);
+      await client.query("SET CONSTRAINTS ALL DEFERRED");
     }
     await client.query("COMMIT");
   } catch (error) {
