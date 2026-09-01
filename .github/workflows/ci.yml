@@ -82,6 +82,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify compatible Order participant cursor authority release
+        run: npm run audit:order-participant-cursor-authority-release
+      - name: Isolate Order participant cursor authority until summary authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901090000_prepare_order_participant_cursor_authority
+          "$RUNNER_TEMP/order-participant-cursor-authority-release"
       - name: Verify compatible Order participant summary authority release
         run: npm run audit:order-participant-summary-authority-release
       - name: Isolate Order participant summary authority until seller metrics passes
@@ -1165,6 +1172,11 @@ jobs:
           mv
           "$RUNNER_TEMP/order-participant-summary-authority-release"
           prisma/migrations/20260901080000_prepare_order_participant_summary_authority
+      - name: Restore compatible Order participant cursor authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-cursor-authority-release"
+          prisma/migrations/20260901090000_prepare_order_participant_cursor_authority
       - name: Re-verify compatible Order participant list authority release
         run: npm run audit:order-participant-list-authority-release
       - name: Re-verify compatible Order participant detail authority release
@@ -1183,6 +1195,8 @@ jobs:
         run: npm run audit:order-seller-metrics-authority-release
       - name: Re-verify compatible Order participant summary authority release
         run: npm run audit:order-participant-summary-authority-release
+      - name: Re-verify compatible Order participant cursor authority release
+        run: npm run audit:order-participant-cursor-authority-release
       - name: Apply compatible Order participant authority
         run: npx prisma migrate deploy
       - name: Converge Order participant runtime grants
@@ -1230,6 +1244,9 @@ jobs:
           tests/order-participant-summary-authority-app.test.mjs
           tests/order-participant-summary-authority-postgres.test.mjs
           tests/order-participant-summary-authority-release.test.mjs
+          tests/order-history-cursor.test.mjs
+          tests/order-participant-cursor-authority-app.test.mjs
+          tests/order-participant-cursor-authority-release.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

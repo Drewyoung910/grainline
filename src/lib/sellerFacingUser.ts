@@ -17,11 +17,17 @@ export function sellerFacingOrderBuyerLabel(
     buyerName?: string | null;
     buyerEmail?: string | null;
     buyerDataPurgedAt?: Date | string | null;
+    buyerDeletedAt?: Date | string | null;
     buyer?: { deletedAt?: Date | string | null } | null;
   },
   fallback: string,
 ) {
-  if (order.buyerDataPurgedAt || order.buyer?.deletedAt || isDeletedAccountEmail(order.buyerEmail)) {
+  if (
+    order.buyerDataPurgedAt
+    || order.buyerDeletedAt
+    || order.buyer?.deletedAt
+    || isDeletedAccountEmail(order.buyerEmail)
+  ) {
     return fallback;
   }
   return order.buyerName ?? order.buyerEmail ?? fallback;

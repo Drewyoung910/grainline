@@ -6,19 +6,22 @@ const read = (file) => fs.readFileSync(file, "utf8");
 const record = read("docs/order-core-history-compatibility.md");
 
 const historicalRenderers = [
-  "src/app/account/orders/page.tsx",
   "src/app/admin/orders/[id]/page.tsx",
   "src/app/admin/orders/page.tsx",
   "src/app/checkout/success/page.tsx",
   "src/app/dashboard/orders/[id]/page.tsx",
   "src/app/dashboard/sales/[orderId]/page.tsx",
-  "src/app/dashboard/sales/page.tsx",
   "src/app/api/seller/analytics/recent-sales/route.ts",
 ];
 
 const boundedSummaryRenderers = [
+  "src/app/account/orders/page.tsx",
   "src/app/account/page.tsx",
   "src/app/dashboard/orders/page.tsx",
+];
+
+const boundedSellerSummaryRenderers = [
+  "src/app/dashboard/sales/page.tsx",
 ];
 
 const durableSellerConsumers = [
@@ -28,7 +31,6 @@ const durableSellerConsumers = [
   "src/app/api/orders/[id]/refund/route.ts",
   "src/app/api/stripe/webhook/route.ts",
   "src/app/dashboard/sales/[orderId]/page.tsx",
-  "src/app/dashboard/sales/page.tsx",
   "src/lib/accountDeletion.ts",
   "src/lib/ban.ts",
 ];
@@ -44,6 +46,11 @@ describe("core Order historical compatibility", () => {
     for (const file of boundedSummaryRenderers) {
       const source = read(file);
       assert.match(source, /readBuyerOrderSummaryPage/, file);
+      assert.doesNotMatch(source, /prisma\.order|\.listing\.title|\.listing\.photos/, file);
+    }
+    for (const file of boundedSellerSummaryRenderers) {
+      const source = read(file);
+      assert.match(source, /readSellerOrderSummaryPage/, file);
       assert.doesNotMatch(source, /prisma\.order|\.listing\.title|\.listing\.photos/, file);
     }
     const summaryAuthority = read(

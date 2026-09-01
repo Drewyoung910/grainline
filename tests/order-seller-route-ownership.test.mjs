@@ -41,7 +41,6 @@ describe("seller order mutation ownership guardrails", () => {
 
   it("keeps seller order read surfaces on durable whole-order ownership", () => {
     for (const path of [
-      "src/app/dashboard/sales/page.tsx",
       "src/app/api/account/export/route.ts",
       "src/lib/accountDeletion.ts",
       "src/lib/ban.ts",
@@ -58,6 +57,14 @@ describe("seller order mutation ownership guardrails", () => {
         `${path} must not derive seller Order authority from current Listings`,
       );
     }
+
+    const sales = source("src/app/dashboard/sales/page.tsx");
+    const summaryAuthority = source(
+      "prisma/migrations/20260901080000_prepare_order_participant_summary_authority/migration.sql",
+    );
+    assert.match(sales, /readSellerOrderSummaryPage/);
+    assert.match(summaryAuthority, /seller\.id = source_order\."sellerProfileId"/);
+    assert.match(summaryAuthority, /seller\."userId" = p_actor_user_id/);
 
     const recentSales = source("src/app/api/seller/analytics/recent-sales/route.ts");
     const analyticsAuthority = source("src/lib/orderSellerAnalyticsAuthority.ts");

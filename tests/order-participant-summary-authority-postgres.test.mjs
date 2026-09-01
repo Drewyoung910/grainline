@@ -7,6 +7,10 @@ const migration = readFileSync(
   "prisma/migrations/20260901080000_prepare_order_participant_summary_authority/migration.sql",
   "utf8",
 );
+const cursorMigration = readFileSync(
+  "prisma/migrations/20260901090000_prepare_order_participant_cursor_authority/migration.sql",
+  "utf8",
+);
 
 async function createDatabase() {
   const database = new PGlite();
@@ -63,7 +67,9 @@ async function createDatabase() {
       "labelCarrier", "labelTrackingNumber"
     ) VALUES
       ('order-1', 'buyer-1', 'seller-1', '2026-08-31 11:00:00', '2026-08-31 11:01:00', 1500, 100, 50, 'SHIPPED', 'Buyer One', 'buyer1@example.test', 'UPS', 'TRACK-1'),
-      ('order-2', 'buyer-2', 'seller-2', '2026-08-31 10:00:00', NULL, 900, 0, 0, 'PENDING', 'Buyer Two', 'buyer2@example.test', NULL, NULL);
+      ('order-2', 'buyer-2', 'seller-2', '2026-08-31 10:00:00', NULL, 900, 0, 0, 'PENDING', 'Buyer Two', 'buyer2@example.test', NULL, NULL),
+      ('order-3', 'buyer-1', 'seller-1', '2026-08-31 09:00:00', '2026-08-31 09:01:00', 700, 0, 0, 'DELIVERED', 'Buyer One', 'buyer1@example.test', NULL, NULL),
+      ('order-4', 'buyer-1', 'seller-1', '2026-08-31 08:00:00', '2026-08-31 08:01:00', 600, 0, 0, 'DELIVERED', 'Buyer One', 'buyer1@example.test', NULL, NULL);
   `);
   for (let index = 1; index <= 6; index += 1) {
     await database.query(`
@@ -93,7 +99,18 @@ async function createDatabase() {
       "listingSnapshot", "createdAt"
     ) VALUES ('foreign-item', 'order-2', 'foreign-listing', 900, 1, '{}', '2026-08-31 10:01:00')
   `);
+  await database.exec(`
+    INSERT INTO public."OrderItem" (
+      id, "orderId", "listingId", "priceCents", quantity,
+      "listingSnapshot", "createdAt"
+    ) VALUES
+      ('item-order-3', 'order-3', 'listing-order-3', 700, 1,
+       '{"title":"Historical three","imageUrls":[],"sellerName":"Maker One"}', '2026-08-31 09:01:00'),
+      ('item-order-4', 'order-4', 'listing-order-4', 600, 1,
+       '{"title":"Historical four","imageUrls":[],"sellerName":"Maker One"}', '2026-08-31 08:01:00');
+  `);
   await database.exec(migration);
+  await database.exec(cursorMigration);
   return database;
 }
 
@@ -106,7 +123,7 @@ describe("Order participant summary authority", () => {
           'buyer-1', 20, NULL, NULL
         )
       `);
-      assert.equal(buyer.rows.length, 1);
+      assert.equal(buyer.rows.length, 3);
       assert.equal(buyer.rows[0].order_id, "order-1");
       assert.equal(buyer.rows[0].item_count, 6);
       assert.equal(buyer.rows[0].items.length, 5);
@@ -128,8 +145,46 @@ describe("Order participant summary authority", () => {
           'seller-user-1', 20, NULL, NULL
         )
       `);
-      assert.deepEqual(seller.rows.map((row) => row.order_id), ["order-1"]);
+      assert.deepEqual(
+        seller.rows.map((row) => row.order_id),
+        ["order-1", "order-3", "order-4"],
+      );
       assert.equal(seller.rows[0].buyer_email, "buyer1@example.test");
+    } finally {
+      await database.close();
+    }
+  });
+
+  it("returns exact newer pages in descending UI order without OFFSET", async () => {
+    const database = await createDatabase();
+    try {
+      const older = await database.query(`
+        SELECT * FROM public.grainline_order_buyer_summary_page(
+          'buyer-1', 2, NULL, NULL
+        )
+      `);
+      assert.deepEqual(older.rows.map((row) => row.order_id), ["order-1", "order-3"]);
+
+      const finalPage = await database.query(`
+        SELECT * FROM public.grainline_order_buyer_summary_page(
+          'buyer-1', 2, 1788166800000, 'order-3'
+        )
+      `);
+      assert.deepEqual(finalPage.rows.map((row) => row.order_id), ["order-4"]);
+
+      const previous = await database.query(`
+        SELECT * FROM public.grainline_order_buyer_summary_after_page(
+          'buyer-1', 2, 1788163200000, 'order-4'
+        )
+      `);
+      assert.deepEqual(previous.rows.map((row) => row.order_id), ["order-1", "order-3"]);
+
+      const sellerPrevious = await database.query(`
+        SELECT * FROM public.grainline_order_seller_summary_after_page(
+          'seller-user-1', 2, 1788163200000, 'order-4'
+        )
+      `);
+      assert.deepEqual(sellerPrevious.rows.map((row) => row.order_id), ["order-1", "order-3"]);
     } finally {
       await database.close();
     }
@@ -142,6 +197,8 @@ describe("Order participant summary authority", () => {
         "grainline_order_summary_items(text)",
         "grainline_order_buyer_summary_page(text,integer,bigint,text)",
         "grainline_order_seller_summary_page(text,integer,bigint,text)",
+        "grainline_order_buyer_summary_after_page(text,integer,bigint,text)",
+        "grainline_order_seller_summary_after_page(text,integer,bigint,text)",
       ]) {
         const privileges = await database.query(`
           SELECT

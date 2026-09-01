@@ -91,20 +91,18 @@ describe("query parameter parsing helpers", () => {
       "utf8",
     );
 
-    for (const source of [accountOrders, dashboardSales, adminOrders, adminCases, adminFlagged, notifications]) {
+    for (const source of [adminOrders, adminCases, adminFlagged, notifications]) {
       assert.match(source, /import \{[^}]*parseBoundedPositiveIntParam[^}]*\} from "@\/lib\/queryParams";/);
       assert.match(source, /parseBoundedPositiveIntParam\(page(?:Param|Str), 1, 1000\)/);
       assert.doesNotMatch(source, /parseInt\(page(?:Param|Str)/);
       assert.doesNotMatch(source, /Number\.parseInt\(page(?:Param|Str)/);
     }
 
-    assert.match(accountOrders, /const totalOrders = await prisma\.order\.count\(\{ where: \{ buyerId: me\.id \} \}\)/);
-    assert.match(accountOrders, /const page = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(accountOrders, /skip: \(page - 1\) \* PAGE_SIZE/);
-
-    assert.match(dashboardSales, /const total = await prisma\.order\.count\(\{ where \}\)/);
-    assert.match(dashboardSales, /const safePage = Math\.min\(requestedPage, totalPages\)/);
-    assert.match(dashboardSales, /skip: \(safePage - 1\) \* PAGE_SIZE/);
+    for (const source of [accountOrders, dashboardSales]) {
+      assert.match(source, /parseOrderHistoryCursor/);
+      assert.match(source, /buildOrderHistoryCursor/);
+      assert.doesNotMatch(source, /prisma\.order|skip:/);
+    }
 
     assert.match(adminOrders, /const total = await prisma\.order\.count\(\)/);
     assert.match(adminOrders, /const safePage = Math\.min\(requestedPage, totalPages\)/);

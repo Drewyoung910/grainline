@@ -97,6 +97,13 @@ actor-scoped page. The account overview and first buyer dashboard page are
 converted; numbered buyer history and seller sales pagination remain a
 deliberate follow-up. See `docs/order-participant-summary-authority.md`.
 
+The following 2026-09-01 bidirectional-cursor checkpoint advances the direct
+Order floor from 26 to 24 while retaining the 4-file OrderItem floor. The full
+buyer history and seller sales pages now use bounded older/newer keyset pages
+with explicit Previous/Next navigation instead of growing OFFSET scans. The
+seller list total uses the complete durable Order subtotal rather than the
+five displayed summaries. See `docs/order-participant-cursor-authority.md`.
+
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above
 intentionally retains their three-file and four-file production/predecessor

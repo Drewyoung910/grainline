@@ -28,6 +28,14 @@ describe("seller-facing user labels", () => {
       sellerFacingUserLabel({ name: null, email: "buyer@example.com", deletedAt: null }, "Deleted user"),
       "buyer@example.com",
     );
+    assert.equal(
+      sellerFacingOrderBuyerLabel({
+        buyerName: "Former Buyer",
+        buyerEmail: "buyer@example.com",
+        buyerDeletedAt: new Date(),
+      }, "Deleted user"),
+      "Deleted user",
+    );
   });
 
   it("uses the helper on seller-facing buyer labels", () => {

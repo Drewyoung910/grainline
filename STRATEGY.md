@@ -2428,7 +2428,11 @@ that returns the complete item count and at most five fixed checkout-time item
 summaries. Show a remaining-item count on list surfaces and reserve the full
 item set for Order detail. Convert numbered offset pagination deliberately;
 do not emulate arbitrary page numbers by reading and discarding unbounded
-cursor pages. See `docs/order-participant-summary-authority.md`.
+cursor pages. The selected successor uses strictly parsed opaque tokens and
+separate older/newer keyset functions, retaining Previous/Next without OFFSET.
+Seller totals must use the full durable Order subtotal rather than the five
+displayed summaries. See `docs/order-participant-summary-authority.md` and
+`docs/order-participant-cursor-authority.md`.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 

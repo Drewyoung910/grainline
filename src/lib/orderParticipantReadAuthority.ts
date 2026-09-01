@@ -105,12 +105,32 @@ export async function readBuyerOrderSummaryPage(
     actorUserId: string;
     limit: number;
     cursor?: OrderListCursor | null;
+    direction?: "older" | "newer";
   },
   client: OrderReadClient = prisma,
 ) {
   const actorUserId = normalizeDbUserContextUserId(input.actorUserId);
   const limit = boundedLimit(input.limit);
   const cursor = normalizedCursor(input.cursor ?? null);
+  const direction = input.direction ?? "older";
+  if (direction !== "older" && direction !== "newer") {
+    throw new TypeError("Order summary direction is invalid");
+  }
+  if (direction === "newer" && cursor === null) {
+    throw new TypeError("Newer Order summary page requires a cursor");
+  }
+  if (direction === "newer") {
+    const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      SELECT *
+        FROM public.grainline_order_buyer_summary_after_page(
+          ${actorUserId},
+          ${limit},
+          ${cursor?.createdAtEpochMillis ?? null},
+          ${cursor?.orderId ?? null}
+        )
+    `);
+    return buyerOrderSummaryPageFromRows(rows, limit);
+  }
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
     SELECT *
       FROM public.grainline_order_buyer_summary_page(
@@ -128,12 +148,32 @@ export async function readSellerOrderSummaryPage(
     actorUserId: string;
     limit: number;
     cursor?: OrderListCursor | null;
+    direction?: "older" | "newer";
   },
   client: OrderReadClient = prisma,
 ) {
   const actorUserId = normalizeDbUserContextUserId(input.actorUserId);
   const limit = boundedLimit(input.limit);
   const cursor = normalizedCursor(input.cursor ?? null);
+  const direction = input.direction ?? "older";
+  if (direction !== "older" && direction !== "newer") {
+    throw new TypeError("Order summary direction is invalid");
+  }
+  if (direction === "newer" && cursor === null) {
+    throw new TypeError("Newer Order summary page requires a cursor");
+  }
+  if (direction === "newer") {
+    const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
+      SELECT *
+        FROM public.grainline_order_seller_summary_after_page(
+          ${actorUserId},
+          ${limit},
+          ${cursor?.createdAtEpochMillis ?? null},
+          ${cursor?.orderId ?? null}
+        )
+    `);
+    return sellerOrderSummaryPageFromRows(rows, limit);
+  }
   const rows = await client.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
     SELECT *
       FROM public.grainline_order_seller_summary_page(
