@@ -1041,7 +1041,6 @@ jobs:
       - name: Prove OrderPaymentEvent aggregate authority in disposable PostgreSQL
         run: >-
           node --test
-          tests/order-payment-event-aggregate-authority-app.test.mjs
           tests/order-payment-event-aggregate-authority-ci-scope-proof.test.mjs
           tests/order-payment-event-aggregate-authority-postgres.test.mjs
           tests/order-payment-event-aggregate-authority-proof.test.mjs
@@ -1344,6 +1343,7 @@ jobs:
           tests/order-label-authority-release.test.mjs
           tests/order-label-authority-postgres.test.mjs
           tests/order-label-ambiguous-reconciliation-operator.test.mjs
+          tests/order-payment-event-aggregate-authority-app.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

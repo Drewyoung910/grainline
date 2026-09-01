@@ -367,3 +367,11 @@ restored `OrderPaymentEvent` FORCE posture is re-audited and before any later
 Order participant/label candidate is restored. A regression assertion pins
 that exact live-prefix position instead of weakening the SQL for a historical
 schema it is not intended to inspect.
+
+The third CI run passed both new boundaries and then exposed a pre-existing
+test-placement mismatch: the historical `OrderPaymentEvent` aggregate database
+gate also invoked an application-source test that reads later eligibility and
+seller-metrics migration files after those directories had intentionally been
+isolated. The database gate remains at its historical prefix; only that
+application-source assertion now runs after all compatible Order candidates
+are restored. CI pins that it appears once and only after restoration.
