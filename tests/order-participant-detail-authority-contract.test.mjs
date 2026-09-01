@@ -59,12 +59,12 @@ describe("Order participant detail authority contract", () => {
   it("removes provider refund identifiers from seller-facing UI", () => {
     assert.match(panel, /refundState: SellerRefundDisplayState/);
     assert.doesNotMatch(panel, /Stripe refund ID|alreadyRefundedId/);
-    assert.match(sellerPage, /sellerRefundDisplayState\(order\.sellerRefundId\)/);
-    assert.doesNotMatch(sellerPage, /alreadyRefundedId=/);
+    assert.match(sellerPage, /const sellerRefundState = order\.sellerRefundState/);
+    assert.doesNotMatch(sellerPage, /alreadyRefundedId=|sellerRefundId/);
   });
 
   it("records the honest compatibility and residual boundaries", () => {
-    assert.match(record, /has not been merged, applied,\s+deployed/);
+    assert.match(record, /has not been merged, applied,(?: or)?\s+deployed/);
     assert.match(record, /`Order` RLS remains off/);
     assert.match(record, /Application pages are not switched/);
     assert.match(record, /not an `Order` RLS readiness claim/);

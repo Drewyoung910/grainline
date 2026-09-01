@@ -50,8 +50,6 @@ const expected = {
     "src/app/api/orders/[id]/refund/route.ts",
     "src/app/api/stripe/webhook/route.ts",
     "src/app/checkout/success/page.tsx",
-    "src/app/dashboard/orders/[id]/page.tsx",
-    "src/app/dashboard/sales/[orderId]/page.tsx",
     "src/lib/accountDeletion.ts",
     "src/lib/audit.ts",
     "src/lib/ban.ts",

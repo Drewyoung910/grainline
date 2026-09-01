@@ -535,11 +535,18 @@ write remains a separate later database boundary. Full participant histories
 use strict opaque older/newer `(createdAt,id)` keyset cursors so deep pages do
 not grow OFFSET work and Previous navigation remains available. Seller list
 totals use the complete durable Order subtotal, never the five displayed item
-summaries. See
+summaries. Participant detail reads use distinct v2 buyer and seller
+projections that require an active actor in PostgreSQL, make counterparty
+contact explicitly nullable, suppress seller notes after buyer-data purge,
+expose label download material only for `PURCHASED` labels, and return only the
+historical snapshot keys used by the receipt. The UI must not label a generic
+inbox link as a counterparty messaging action when that contact target is
+unavailable. See
 `docs/order-core-pre-rls-audit.md`, `docs/order-seller-analytics-authority.md`
 `docs/order-seller-metrics-authority.md` and
 `docs/order-participant-summary-authority.md` and
-`docs/order-participant-cursor-authority.md`.
+`docs/order-participant-cursor-authority.md` and
+`docs/order-participant-detail-projection.md`.
 
 ### Messaging
 

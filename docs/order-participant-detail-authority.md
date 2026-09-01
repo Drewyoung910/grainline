@@ -1,7 +1,9 @@
 # Order participant detail authority
 
-Status: isolated compatible candidate. It has not been merged, applied,
-deployed or used by application pages. `Order` RLS remains off.
+Status: sealed predecessor candidate. It has not been merged, applied, or
+deployed. Its bytes remain immutable, and the isolated v2 successor in
+`docs/order-participant-detail-projection.md` now owns application conversion.
+`Order` RLS remains off.
 
 Prepared: 2026-08-31
 
@@ -47,9 +49,12 @@ checks item identity, quantity, cents, enum values, timestamps, variant bounds
 and snapshot shape. Malformed legacy snapshots render the documented generic
 retained fallback rather than consulting mutable Listing text or images.
 
-The sole live-Listing fact is a derived `listingActive` boolean used to decide
-whether the historical title can link to a current catalog route. Current
-Listing title, image, seller and processing fields are never projected.
+The sole live-Listing fact is a derived `listingLinkAvailable` boolean used to
+decide whether the historical title can link to a route the active actor may
+actually view. It includes public active or sold-out listings, an actor-owned
+listing, and an active private listing reserved for that buyer; it rejects
+unavailable seller state and unrelated private listings. Current Listing title,
+image, seller and processing fields are never projected.
 
 ## Product and privacy correction
 
@@ -83,10 +88,12 @@ migration-tree prefix are sealed by the release verifier.
 
 ## Remaining gates
 
-Application pages are not switched in this preparation. The migration must be
+Application pages are not switched to these v1 functions. The v2 successor
+adds active-actor, unavailable-counterparty, purge, stale-label, and narrower
+snapshot boundaries, then converts both detail pages. Both migrations must be
 reviewed, merged, applied through the guarded compatibility workflow, proven
 through the pooled runtime role, and followed by a compatible app deployment
-before predecessor detail reads can be retired. Staff reads use a separate
+before direct detail reads can be retired. Staff reads use a separate
 dormant credential boundary documented in `docs/order-staff-read-authority.md`;
 export, aggregate, eligibility, write and maintenance operations remain
 unfinished O2/O3 work.

@@ -45,7 +45,7 @@ function baseRow() {
       listingId: "listing-1",
       priceCents: 500,
       quantity: 1,
-      listingActive: true,
+      listingLinkAvailable: true,
       listingSnapshot: null,
       selectedVariants: null,
     }],
@@ -74,6 +74,59 @@ describe("Order participant detail state", () => {
       label_purchased_at_epoch_millis: null,
     }]);
     assert.equal(seller?.buyerName, "Buyer");
+    assert.equal(
+      buyerOrderDetailFromRows([{ ...baseRow(), seller_user_id: null }])?.sellerUserId,
+      null,
+    );
+  });
+
+  it("fails closed on purge, contact, and stale-label boundary drift", () => {
+    assert.throws(
+      () => buyerOrderDetailFromRows([{
+        ...baseRow(),
+        seller_user_id: "seller-1",
+        buyer_data_purged_at_epoch_millis: 1_700_000_000_001,
+        ship_to_line_1: "must not escape",
+      }]),
+      /purge boundary is inconsistent/i,
+    );
+    assert.throws(
+      () => sellerOrderDetailFromRows([{
+        ...baseRow(),
+        processing_deadline_epoch_millis: null,
+        deauthorized_review_hold: false,
+        buyer_data_purged_at_epoch_millis: 1_700_000_000_001,
+        buyer_id: "buyer-1",
+        buyer_name: null,
+        buyer_email: null,
+        buyer_deleted_at_epoch_millis: null,
+        seller_notes: null,
+        label_status: null,
+        label_url: null,
+        label_carrier: null,
+        label_tracking_number: null,
+        label_purchased_at_epoch_millis: null,
+      }]),
+      /identity boundary is inconsistent/i,
+    );
+    assert.throws(
+      () => sellerOrderDetailFromRows([{
+        ...baseRow(),
+        processing_deadline_epoch_millis: null,
+        deauthorized_review_hold: false,
+        buyer_id: "buyer-1",
+        buyer_name: "Buyer",
+        buyer_email: "buyer@example.test",
+        buyer_deleted_at_epoch_millis: null,
+        seller_notes: null,
+        label_status: "EXPIRED",
+        label_url: "https://labels.example.test/stale.pdf",
+        label_carrier: null,
+        label_tracking_number: null,
+        label_purchased_at_epoch_millis: null,
+      }]),
+      /label boundary is inconsistent/i,
+    );
   });
 
   it("fails closed on duplicate rows, inconsistent refund fields, and malformed items", () => {

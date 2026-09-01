@@ -27,11 +27,17 @@ describe("seller order mutation ownership guardrails", () => {
     }
 
     const detail = source("src/app/dashboard/sales/[orderId]/page.tsx");
+    const detailAuthority = source(
+      "prisma/migrations/20260901010000_prepare_order_participant_detail_authority/migration.sql",
+    );
     assert.match(
       detail,
-      /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s,
-      "seller sales detail must bind the Order's durable seller key",
+      /readSellerOrderDetail\(me\.id, orderId\)/,
+      "seller sales detail must use the actor-bound database projection",
     );
+    assert.match(detailAuthority, /seller\.id = source_order\."sellerProfileId"/);
+    assert.match(detailAuthority, /seller\."userId" = p_actor_user_id/);
+    assert.doesNotMatch(detail, /prisma\.order\./);
     assert.doesNotMatch(
       detail,
       /myItems\.length === 0/,

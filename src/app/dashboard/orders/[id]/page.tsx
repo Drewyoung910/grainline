@@ -29,7 +29,6 @@ import {
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
-import { sellerRefundDisplayState } from "@/lib/refundLockState";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
@@ -40,8 +39,8 @@ import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
 import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
 import {
   historicalProcessingTimeDays,
-  readHistoricalOrderItemSnapshot,
 } from "@/lib/orderItemSnapshot";
+import { readBuyerOrderDetail } from "@/lib/orderParticipantDetailAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -114,31 +113,10 @@ export default async function BuyerOrderDetailPage({
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) redirect("/sign-in?redirect_url=/dashboard/orders");
 
-  const order = await prisma.order.findFirst({
-    where: { id, buyerId: me.id },
-    include: {
-      sellerProfile: { select: { userId: true } },
-      items: {
-        select: {
-          id: true,
-          listingId: true,
-          listingSnapshot: true,
-          selectedVariants: true,
-          priceCents: true,
-          quantity: true,
-          listing: {
-            select: { status: true },
-          },
-        },
-      },
-    },
-  });
+  const order = await readBuyerOrderDetail(me.id, id);
 
   if (!order) notFound();
-  const historicalItems = order.items.map((item) => ({
-    ...item,
-    snapshot: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents),
-  }));
+  const historicalItems = order.items;
   const externalRefund = (
     await buyerRefundOutcomes(me.id, [order.id])
   ).get(order.id) ?? null;
@@ -182,7 +160,7 @@ export default async function BuyerOrderDetailPage({
   if (activeCase && !caseMessagePreflight) {
     throw new TypeError("Case message preflight denied a visible buyer case");
   }
-  const sellerRefundIssued = sellerRefundDisplayState(order.sellerRefundId) === "RECORDED";
+  const sellerRefundIssued = order.sellerRefundState === "RECORDED";
   const hasCaseRefund =
     activeCase?.resolution === "REFUND_FULL"
     || activeCase?.resolution === "REFUND_PARTIAL";
@@ -230,8 +208,8 @@ export default async function BuyerOrderDetailPage({
     : false;
 
   // Conversation link for "contact seller" fallback
-  const sellerUserId = order.sellerProfile?.userId ?? null;
-  let messageHref = "/messages";
+  const sellerUserId = order.sellerUserId;
+  let messageHref: string | null = null;
   if (sellerUserId) {
     const convo = await findActorConversationPair(me.id, sellerUserId);
     messageHref = convo
@@ -326,7 +304,7 @@ export default async function BuyerOrderDetailPage({
                   <div className="h-16 w-16 rounded bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  {it.listing.status === "ACTIVE" ? (
+                  {it.listingLinkAvailable ? (
                     <Link
                       href={publicListingPath(it.listingId, it.snapshot.title)}
                       className="block truncate text-sm font-medium hover:underline"
@@ -624,13 +602,21 @@ export default async function BuyerOrderDetailPage({
             </span>
             .
           </div>
-        ) : (
+        ) : messageHref ? (
           <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
             If you have an issue with your order, please{" "}
             <Link href={messageHref} className="underline hover:text-neutral-900">
               contact the maker directly via messages
             </Link>
             .
+          </div>
+        ) : (
+          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+            The maker&apos;s account is not available for messages. Please{" "}
+            <Link href="/support" className="underline hover:text-neutral-900">
+              contact Grainline support
+            </Link>
+            {" "}if you need help with this order.
           </div>
         )
       ) : null}
@@ -642,12 +628,21 @@ export default async function BuyerOrderDetailPage({
         >
           Back to orders
         </Link>
-        <Link
-          href={messageHref}
-          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-        >
-          Message maker
-        </Link>
+        {messageHref ? (
+          <Link
+            href={messageHref}
+            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Message maker
+          </Link>
+        ) : (
+          <Link
+            href="/support"
+            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Contact support
+          </Link>
+        )}
       </div>
     </main>
   );

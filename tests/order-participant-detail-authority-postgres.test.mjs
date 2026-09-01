@@ -7,6 +7,10 @@ const migration = readFileSync(
   "prisma/migrations/20260901010000_prepare_order_participant_detail_authority/migration.sql",
   "utf8",
 );
+const projectionMigration = readFileSync(
+  "prisma/migrations/20260901100000_prepare_order_participant_detail_projection/migration.sql",
+  "utf8",
+);
 
 async function createDatabase() {
   const database = new PGlite();
@@ -14,15 +18,22 @@ async function createDatabase() {
     CREATE ROLE grainline_app_runtime LOGIN NOINHERIT;
     CREATE TABLE public."User" (
       id text PRIMARY KEY,
+      banned boolean NOT NULL DEFAULT false,
       "deletedAt" timestamp(3) without time zone
     );
     CREATE TABLE public."SellerProfile" (
       id text PRIMARY KEY,
-      "userId" text NOT NULL UNIQUE REFERENCES public."User"(id)
+      "userId" text NOT NULL UNIQUE REFERENCES public."User"(id),
+      "chargesEnabled" boolean NOT NULL DEFAULT true,
+      "stripeAccountVersion" text,
+      "vacationMode" boolean NOT NULL DEFAULT false
     );
     CREATE TABLE public."Listing" (
       id text PRIMARY KEY,
-      status text NOT NULL
+      status text NOT NULL,
+      "sellerId" text NOT NULL REFERENCES public."SellerProfile"(id),
+      "isPrivate" boolean NOT NULL DEFAULT false,
+      "reservedForUserId" text REFERENCES public."User"(id)
     );
     CREATE TABLE public."Order" (
       id text PRIMARY KEY,
@@ -90,8 +101,14 @@ async function createDatabase() {
       ('seller-user-1', NULL), ('seller-user-2', NULL);
     INSERT INTO public."SellerProfile" (id, "userId") VALUES
       ('seller-1', 'seller-user-1'), ('seller-2', 'seller-user-2');
-    INSERT INTO public."Listing" (id, status) VALUES
-      ('listing-active', 'ACTIVE'), ('listing-hidden', 'HIDDEN');
+    INSERT INTO public."Listing" (
+      id, status, "sellerId", "isPrivate", "reservedForUserId"
+    ) VALUES
+      ('listing-active', 'ACTIVE', 'seller-1', false, NULL),
+      ('listing-hidden', 'HIDDEN', 'seller-1', false, NULL),
+      ('listing-sold-out', 'SOLD_OUT', 'seller-1', false, NULL),
+      ('listing-private-reserved', 'ACTIVE', 'seller-1', true, 'buyer-1'),
+      ('listing-private-other', 'ACTIVE', 'seller-1', true, 'buyer-2');
     INSERT INTO public."Order" (
       id, "buyerId", "sellerProfileId", "createdAt", "paidAt", currency,
       "itemsSubtotalCents", "shippingTitle", "shippingAmountCents", "taxAmountCents",
@@ -116,8 +133,9 @@ async function createDatabase() {
       200, NULL, 0, 0, 'PICKUP', 'PENDING', NULL, NULL,
       NULL, NULL, NULL, NULL, NULL, false, NULL,
       'Should disappear', false, NULL, 'Old address', 'Austin', 'TX', '78701', 'US',
-      'Deleted Buyer', 'deleted@example.test', NULL, 'pending', 200,
-      NULL, NULL, NULL, NULL, NULL
+      'Deleted Buyer', 'deleted@example.test', 'Legacy note must disappear', 'pending', 200,
+      'EXPIRED', 'https://labels.example.test/stale.pdf', 'UPS', 'stale-track',
+      '2026-08-31 08:00:00'
     );
     UPDATE public."Order"
        SET "buyerDataPurgedAt" = '2026-08-31 13:00:00'
@@ -133,9 +151,19 @@ async function createDatabase() {
     ), (
       'item-2', 'order-1', 'listing-hidden', 100, 2, NULL, NULL,
       '2026-08-31 10:00:02'
+    ), (
+      'item-3', 'order-1', 'listing-sold-out', 100, 1, NULL, NULL,
+      '2026-08-31 10:00:03'
+    ), (
+      'item-4', 'order-1', 'listing-private-reserved', 100, 1, NULL, NULL,
+      '2026-08-31 10:00:04'
+    ), (
+      'item-5', 'order-1', 'listing-private-other', 100, 1, NULL, NULL,
+      '2026-08-31 10:00:05'
     );
   `);
   await database.exec(migration);
+  await database.exec(projectionMigration);
   return database;
 }
 
@@ -144,7 +172,7 @@ describe("Order participant detail authority", () => {
     const database = await createDatabase();
     try {
       const result = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v2($1, $2)",
         ["buyer-1", "order-1"],
       );
       assert.equal(result.rows.length, 1);
@@ -154,8 +182,13 @@ describe("Order participant detail authority", () => {
       assert.equal(row.seller_user_id, "seller-user-1");
       assert.equal(JSON.stringify(row).includes("re_secret_provider_id"), false);
       assert.equal(JSON.stringify(row).includes("unexpectedSecret"), false);
-      assert.deepEqual(row.items.map((item) => item.listingActive), [true, false]);
+      assert.deepEqual(
+        row.items.map((item) => item.listingLinkAvailable),
+        [true, false, true, true, false],
+      );
       assert.equal(row.items[0].listingSnapshot.title, "Table");
+      assert.equal("description" in row.items[0].listingSnapshot, false);
+      assert.equal("tags" in row.items[0].listingSnapshot, false);
       assert.deepEqual(row.items[0].selectedVariants, [{
         groupName: "Finish",
         optionLabel: "Natural",
@@ -163,7 +196,7 @@ describe("Order participant detail authority", () => {
       }]);
 
       const foreign = await database.query(
-        "SELECT * FROM public.grainline_order_buyer_detail($1, $2)",
+        "SELECT * FROM public.grainline_order_buyer_detail_v2($1, $2)",
         ["buyer-2", "order-1"],
       );
       assert.equal(foreign.rows.length, 0);
@@ -176,7 +209,7 @@ describe("Order participant detail authority", () => {
     const database = await createDatabase();
     try {
       const result = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
         ["seller-user-1", "order-1"],
       );
       assert.equal(result.rows.length, 1);
@@ -184,25 +217,68 @@ describe("Order participant detail authority", () => {
       assert.equal(row.deauthorized_review_hold, true);
       assert.equal(row.seller_notes, "Seller-only note");
       assert.equal(row.label_status, "PURCHASED");
+      assert.deepEqual(
+        row.items.map((item) => item.listingLinkAvailable),
+        [true, true, true, true, true],
+      );
       assert.equal(JSON.stringify(row).includes("Staff only details"), false);
       assert.equal(JSON.stringify(row).includes("re_secret_provider_id"), false);
 
       const purged = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
         ["seller-user-1", "order-2"],
       );
       assert.equal(purged.rows[0].buyer_name, null);
       assert.equal(purged.rows[0].buyer_email, null);
+      assert.equal(purged.rows[0].buyer_id, null);
       assert.equal(purged.rows[0].gift_note, null);
       assert.equal(purged.rows[0].ship_to_line_1, null);
+      assert.equal(purged.rows[0].seller_notes, null);
+      assert.equal(purged.rows[0].label_url, null);
+      assert.equal(purged.rows[0].label_tracking_number, null);
       assert.equal(purged.rows[0].seller_refund_state, "PROCESSING");
       assert.equal(purged.rows[0].seller_refund_amount_cents, null);
 
       const foreign = await database.query(
-        "SELECT * FROM public.grainline_order_seller_detail($1, $2)",
+        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
         ["seller-user-2", "order-1"],
       );
       assert.equal(foreign.rows.length, 0);
+    } finally {
+      await database.close();
+    }
+  });
+
+  it("suppresses unavailable contact targets and inactive actors", async () => {
+    const database = await createDatabase();
+    try {
+      await database.exec(`UPDATE public."User" SET banned = true WHERE id = 'seller-user-1'`);
+      const buyerView = await database.query(
+        "SELECT * FROM public.grainline_order_buyer_detail_v2($1, $2)",
+        ["buyer-1", "order-1"],
+      );
+      assert.equal(buyerView.rows[0].seller_user_id, null);
+      const sellerView = await database.query(
+        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
+        ["seller-user-1", "order-1"],
+      );
+      assert.equal(sellerView.rows.length, 0);
+
+      await database.exec(`
+        UPDATE public."User" SET banned = false WHERE id = 'seller-user-1';
+        UPDATE public."User" SET banned = true WHERE id = 'buyer-1';
+      `);
+      const inactiveBuyer = await database.query(
+        "SELECT * FROM public.grainline_order_buyer_detail_v2($1, $2)",
+        ["buyer-1", "order-1"],
+      );
+      assert.equal(inactiveBuyer.rows.length, 0);
+      const sellerWithUnavailableBuyer = await database.query(
+        "SELECT * FROM public.grainline_order_seller_detail_v2($1, $2)",
+        ["seller-user-1", "order-1"],
+      );
+      assert.equal(sellerWithUnavailableBuyer.rows[0].buyer_id, null);
+      assert.equal(sellerWithUnavailableBuyer.rows[0].buyer_name, "Buyer One");
     } finally {
       await database.close();
     }
@@ -212,12 +288,12 @@ describe("Order participant detail authority", () => {
     const database = await createDatabase();
     try {
       await assert.rejects(
-        database.query("SELECT * FROM public.grainline_order_buyer_detail('', 'order-1')"),
+        database.query("SELECT * FROM public.grainline_order_buyer_detail_v2('', 'order-1')"),
         /input is invalid/i,
       );
       for (const identity of [
-        "grainline_order_buyer_detail(text,text)",
-        "grainline_order_seller_detail(text,text)",
+        "grainline_order_buyer_detail_v2(text,text)",
+        "grainline_order_seller_detail_v2(text,text)",
       ]) {
         const privileges = await database.query(`
           SELECT
@@ -237,6 +313,17 @@ describe("Order participant detail authority", () => {
         `);
         assert.equal(privileges.rows[0].runtime_execute, true, identity);
         assert.equal(privileges.rows[0].public_execute, false, identity);
+      }
+      for (const identity of [
+        "grainline_order_buyer_detail(text,text)",
+        "grainline_order_seller_detail(text,text)",
+      ]) {
+        const privileges = await database.query(`
+          SELECT pg_catalog.has_function_privilege(
+            'grainline_app_runtime', '${identity}', 'EXECUTE'
+          ) AS runtime_execute
+        `);
+        assert.equal(privileges.rows[0].runtime_execute, false, identity);
       }
     } finally {
       await database.close();

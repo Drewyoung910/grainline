@@ -30,7 +30,7 @@ export type ParticipantOrderItem = Readonly<{
   listingId: string;
   priceCents: number;
   quantity: number;
-  listingActive: boolean;
+  listingLinkAvailable: boolean;
   snapshot: HistoricalOrderItemSnapshot;
   selectedVariants: SelectedVariantSnapshot[] | null;
 }>;
@@ -72,7 +72,7 @@ type ParticipantOrderDetailBase = Readonly<{
 }>;
 
 export type BuyerOrderDetail = ParticipantOrderDetailBase & Readonly<{
-  sellerUserId: string;
+  sellerUserId: string | null;
 }>;
 
 export type SellerOrderDetail = ParticipantOrderDetailBase & Readonly<{
@@ -179,7 +179,10 @@ function itemsFromValue(value: unknown): ParticipantOrderItem[] {
       listingId,
       priceCents,
       quantity: safeInteger(candidate.quantity, "item quantity", 1, 10_000),
-      listingActive: requiredBoolean(candidate.listingActive, "listing visibility"),
+      listingLinkAvailable: requiredBoolean(
+        candidate.listingLinkAvailable,
+        "listing link availability",
+      ),
       snapshot: readHistoricalOrderItemSnapshot(candidate.listingSnapshot, priceCents),
       selectedVariants: selectedVariantsFromValue(candidate.selectedVariants),
     };
@@ -213,7 +216,7 @@ function baseDetail(value: Record<string, unknown>): ParticipantOrderDetailBase 
     throw new TypeError("Order detail refund amount is inconsistent");
   }
 
-  return {
+  const detail = {
     id,
     createdAt: dateFromEpochMillis(value.created_at_epoch_millis, "created time"),
     paidAt: optionalDateFromEpochMillis(value.paid_at_epoch_millis, "paid time"),
@@ -259,6 +262,21 @@ function baseDetail(value: Record<string, unknown>): ParticipantOrderDetailBase 
     sellerRefundAmountCents,
     items: itemsFromValue(value.items),
   };
+  if (
+    detail.buyerDataPurgedAt != null
+    && (
+      detail.giftNote != null
+      || detail.shipToLine1 != null
+      || detail.shipToLine2 != null
+      || detail.shipToCity != null
+      || detail.shipToState != null
+      || detail.shipToPostalCode != null
+      || detail.shipToCountry != null
+    )
+  ) {
+    throw new TypeError("Order detail buyer purge boundary is inconsistent");
+  }
+  return detail;
 }
 
 function exactlyOneOrNone(values: unknown[], label: string) {
@@ -272,8 +290,10 @@ function exactlyOneOrNone(values: unknown[], label: string) {
 export function buyerOrderDetailFromRows(values: unknown[]): BuyerOrderDetail | null {
   const value = exactlyOneOrNone(values, "Buyer");
   if (!value) return null;
-  const sellerUserId = requiredText(value.seller_user_id, "seller user id", 191);
-  if (!ID_PATTERN.test(sellerUserId)) throw new TypeError("Order detail seller user id is invalid");
+  const sellerUserId = optionalText(value.seller_user_id, "seller user id", 191);
+  if (sellerUserId != null && !ID_PATTERN.test(sellerUserId)) {
+    throw new TypeError("Order detail seller user id is invalid");
+  }
   return { ...baseDetail(value), sellerUserId };
 }
 
@@ -288,7 +308,7 @@ export function sellerOrderDetailFromRows(values: unknown[]): SellerOrderDetail 
   if (labelStatus != null && !LABEL_STATUSES.has(labelStatus)) {
     throw new TypeError("Order detail label status is invalid");
   }
-  return {
+  const detail = {
     ...baseDetail(value),
     processingDeadline: optionalDateFromEpochMillis(
       value.processing_deadline_epoch_millis,
@@ -315,4 +335,29 @@ export function sellerOrderDetailFromRows(values: unknown[]): SellerOrderDetail 
       "label purchase time",
     ),
   };
+  if (
+    (detail.buyerDataPurgedAt != null || detail.buyerDeletedAt != null)
+    && (
+      detail.buyerId != null
+      || detail.buyerName != null
+      || detail.buyerEmail != null
+    )
+  ) {
+    throw new TypeError("Order detail buyer identity boundary is inconsistent");
+  }
+  if (detail.buyerDataPurgedAt != null && detail.sellerNotes != null) {
+    throw new TypeError("Order detail seller note purge boundary is inconsistent");
+  }
+  if (
+    detail.labelStatus !== "PURCHASED"
+    && (
+      detail.labelUrl != null
+      || detail.labelCarrier != null
+      || detail.labelTrackingNumber != null
+      || detail.labelPurchasedAt != null
+    )
+  ) {
+    throw new TypeError("Order detail label boundary is inconsistent");
+  }
+  return detail;
 }

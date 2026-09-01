@@ -63,6 +63,12 @@ export const ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION_SHA256 =
   "374b6f43af74b45e8abaecea9610cd9083f9c94cadab1118f94607a4cfc31af4";
 export const ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION_TREE_SHA256 =
   "4cd6bff3ea76a287465ccd083b40b4ef17f047fdd31241929dcdc151c0fe9bee";
+export const ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION =
+  "20260901100000_prepare_order_participant_detail_projection";
+export const ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION_SHA256 =
+  "5b229132f959e444c3a2ec0d6f5f7f35935cd1b6b70f7c493355c3892246bc72";
+export const ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION_TREE_SHA256 =
+  "1ccc6693ae4c752b4c33a31c01f57fb522c9536c72cdcd83a255c43734a0212f";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_count(text)",
@@ -112,6 +118,10 @@ export const ORDER_PARTICIPANT_SUMMARY_AUTHORITY_FUNCTIONS = Object.freeze([
 export const ORDER_PARTICIPANT_CURSOR_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_summary_after_page(text,integer,bigint,text)",
   "grainline_order_seller_summary_after_page(text,integer,bigint,text)",
+]);
+export const ORDER_PARTICIPANT_DETAIL_PROJECTION_FUNCTIONS = Object.freeze([
+  "grainline_order_buyer_detail_v2(text,text)",
+  "grainline_order_seller_detail_v2(text,text)",
 ]);
 
 function sha256(value) {
@@ -308,6 +318,25 @@ export function verifyOrderParticipantCursorAuthorityMigrationBytes(
   return Object.freeze({ migration, migrationSha256 });
 }
 
+export function verifyOrderParticipantDetailProjectionMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION_SHA256,
+    "Order participant detail-projection migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
 export function appendReviewedOrderParticipantListAuthoritySuccessor({
   root = process.cwd(),
   laterMigrations,
@@ -399,6 +428,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderParticipantCursorAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION,
+      "Order participant detail projection requires the exact cursor-authority predecessor",
+    );
+    verifyOrderParticipantDetailProjectionMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION);
   }
   return true;
 }
