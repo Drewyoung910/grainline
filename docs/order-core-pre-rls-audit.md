@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 29 source files still touch Order authority directly
+### ORD-A05: 28 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -156,10 +156,6 @@ Participant/service mutation routes:
 - `src/app/api/orders/[id]/label/route.ts`
 - `src/app/api/orders/[id]/refund/route.ts`
 - `src/app/api/stripe/webhook/route.ts`
-
-Eligibility, analytics and aggregate readers:
-
-- `src/lib/metrics.ts`
 
 Lifecycle, repair and retention readers/writers:
 
@@ -254,6 +250,19 @@ from 31 to 29 Order files and from 6 to 5 OrderItem files. Guild/service
 maintenance scoring in `src/lib/metrics.ts` remains a separate cohort. See
 `docs/order-seller-analytics-authority.md`; no production state changed.
 
+2026-09-01 implementation checkpoint: the isolated
+`20260901070000_prepare_order_seller_metrics_authority` candidate moves Guild
+sales and shipping facts behind one bounded service aggregate. The product
+audit found and corrected mutable Listing ownership as a historical
+attribution source: both completed sales and on-time shipping now use the
+checkout-time `Order.sellerProfileId` and `OrderItem.sellerProfileId` keys.
+Guild thresholds, private/custom paid-order inclusion, refund exclusion and
+the 90-day shipping meaning remain unchanged. The candidate reduces the
+current direct inventory from 29 to 28 Order files and from 5 to 4 OrderItem
+files. The `SellerMetrics` cache upsert remains a separately audited table
+boundary. See `docs/order-seller-metrics-authority.md`; no production state
+changed.
+
 ### ORD-A09: write conversion must preserve lock and provider semantics
 
 Order creation, fulfillment, delivery, label purchase/finalization, label
@@ -336,9 +345,10 @@ debt that should be fixed before Order RLS:
 - fixed read projections now have isolated list/count and detail candidates,
   but are not applied or consumed yet;
 - account export includes internal shipping quote material;
-- aggregate consumers still rely on broad raw table access;
-- the seller analytics cohort is now isolated and product-corrected, while
-  Guild/service maintenance scoring remains direct;
+- the remaining aggregate consumers are named fixed authorities, including
+  Guild order facts, but the separate `SellerMetrics` cache write remains;
+- the seller analytics and Guild Order-facts cohorts are isolated and
+  product-corrected;
 - the development fixture creates an incomplete modern Order; and
 - the nullable seller keys and snapshot shape still need final convergence.
 

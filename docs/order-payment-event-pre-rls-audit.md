@@ -254,9 +254,10 @@ retaining every converted callsite. The public-aggregate successor adds a
 second shared authority hub while retaining the four converted aggregate
 call sites. The 2026-09-01 seller-analytics successor then moves the three
 seller-private payment predicates out of application source and into a
-byte-pinned fixed-function migration. The current `src` semantic inventory is
-therefore 33 files; the removed source matches are an authority conversion,
-not deleted payment semantics. This
+byte-pinned fixed-function migration. The later Guild Order-facts successor
+moves `src/lib/metrics.ts` behind another byte-pinned fixed projection. The
+current `src` semantic inventory is therefore 32 files; the removed source
+matches are authority conversions, not deleted payment semantics. This
 inventory is intentionally broader than the older seven-file direct-access
 floor; semantic wrapper references remain after their underlying base-table
 access is removed.
@@ -776,9 +777,10 @@ The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
 - the historical 34-source semantic baseline converts to zero runtime
-  base-table access while the current 33-file `src` inventory retains the
+  base-table access while the current 32-file `src` inventory retains the
   fixed Order eligibility and public-aggregate authority hubs and the
-  byte-pinned seller-analytics migration retains its payment predicates;
+  byte-pinned seller-analytics and seller-metrics migrations retain their
+  payment predicates;
 - fresh production data is classified with aggregate-only evidence;
 - buyer/seller/staff/service boundaries pass disposable PostgreSQL;
 - signed Stripe and local refund paths pass retry/concurrency proof;

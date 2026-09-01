@@ -67,6 +67,18 @@ describe("core Order historical compatibility", () => {
       sellerAnalyticsAuthority,
       /seller\.id = source_order\."sellerProfileId"/,
     );
+    const sellerMetricsAuthority = read(
+      "prisma/migrations/20260901070000_prepare_order_seller_metrics_authority/migration.sql",
+    );
+    assert.match(
+      sellerMetricsAuthority,
+      /source_order\."sellerProfileId" = p_seller_profile_id/,
+    );
+    assert.match(
+      sellerMetricsAuthority,
+      /source_item\."sellerProfileId" = p_seller_profile_id/,
+    );
+    assert.doesNotMatch(sellerMetricsAuthority, /JOIN public\."Listing"/);
   });
 
   it("binds participant detail reads in the database predicate", () => {

@@ -1,6 +1,6 @@
 # Grainline Architecture
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 This document is the human onboarding map for Grainline. `CLAUDE.md` remains the detailed implementation memory and behavior-contract log; this file is the shorter architectural overview a new engineer should read first.
 
@@ -525,8 +525,12 @@ defines cart abandonment as a current cart item left unpurchased for at least
 24 hours, selects recent-sale representative items deterministically, and
 aggregates repeat-buyer counts without returning buyer IDs. Favorite and
 back-in-stock metrics are surviving subscriptions, not immutable event
-history. See `docs/order-core-pre-rls-audit.md` and
-`docs/order-seller-analytics-authority.md`.
+history. Guild sales and shipping facts use a bounded service aggregate keyed
+by checkout-time `Order.sellerProfileId` and `OrderItem.sellerProfileId`, so
+mutable Listing ownership cannot rewrite historical qualification. The
+`SellerMetrics` cache write remains a separate later database boundary. See
+`docs/order-core-pre-rls-audit.md`, `docs/order-seller-analytics-authority.md`
+and `docs/order-seller-metrics-authority.md`.
 
 ### Messaging
 

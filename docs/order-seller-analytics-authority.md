@@ -25,10 +25,13 @@ This family converts:
 - the ten most recent non-refunded sales; and
 - the account-page completed-order count.
 
-It does not cover Guild/service scoring in `src/lib/metrics.ts`, the
-`SellerMetrics` maintenance write, staff analytics, Order mutation state
-machines or lifecycle repair. Those remain separate named-operation cohorts
-rather than receiving generic table access.
+It did not originally cover Guild/service scoring in `src/lib/metrics.ts`.
+That Order-facts query is now the immediately following isolated
+`20260901070000_prepare_order_seller_metrics_authority` cohort; see
+`docs/order-seller-metrics-authority.md`. The `SellerMetrics` maintenance
+write, staff analytics, Order mutation state machines and lifecycle repair
+remain separate named-operation cohorts rather than receiving generic table
+access.
 
 ## Product-logic audit findings and corrections
 

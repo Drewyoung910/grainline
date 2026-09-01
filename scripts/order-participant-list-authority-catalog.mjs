@@ -45,6 +45,12 @@ export const ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION_SHA256 =
   "647b84643f0dbc58fe447a123f17d92dd91920e5d1b28fe0b43c6ba8e9adbcbf";
 export const ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION_TREE_SHA256 =
   "69bb1ff415709b6e1412d00beb8cf5e5abcc2aed81ffc662ce096996d4b3c7da";
+export const ORDER_SELLER_METRICS_AUTHORITY_MIGRATION =
+  "20260901070000_prepare_order_seller_metrics_authority";
+export const ORDER_SELLER_METRICS_AUTHORITY_MIGRATION_SHA256 =
+  "bc555f857d7fc253bd84cb01913cda5001e42d3328b4042e4945e35745b8c336";
+export const ORDER_SELLER_METRICS_AUTHORITY_MIGRATION_TREE_SHA256 =
+  "ab1b2c2f91dc62aa41007b145ba7a3c9acce9505b837004a1900c12d79f11171";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_count(text)",
@@ -82,6 +88,9 @@ export const ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_seller_analytics_top_listings(text,bigint,bigint,boolean,boolean)",
   "grainline_order_seller_recent_sales(text)",
   "grainline_order_seller_completed_count(text)",
+]);
+export const ORDER_SELLER_METRICS_AUTHORITY_FUNCTIONS = Object.freeze([
+  "grainline_order_seller_metrics_facts(text,bigint)",
 ]);
 
 function sha256(value) {
@@ -221,6 +230,25 @@ export function verifyOrderSellerAnalyticsAuthorityMigrationBytes(
   return Object.freeze({ migration, migrationSha256 });
 }
 
+export function verifyOrderSellerMetricsAuthorityMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_SELLER_METRICS_AUTHORITY_MIGRATION_SHA256,
+    "Order seller metrics-authority migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
 export function appendReviewedOrderParticipantListAuthoritySuccessor({
   root = process.cwd(),
   laterMigrations,
@@ -285,6 +313,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderSellerAnalyticsAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_SELLER_METRICS_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION,
+      "Order seller metrics authority requires the exact seller-analytics predecessor",
+    );
+    verifyOrderSellerMetricsAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_SELLER_METRICS_AUTHORITY_MIGRATION);
   }
   return true;
 }

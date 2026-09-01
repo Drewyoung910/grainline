@@ -145,9 +145,13 @@ ledger join:
 - `src/lib/quality-score.ts`
 - `src/lib/site-metrics-snapshot.ts`
 
-The class-wide semantic inventory remains exactly 33 files: replacing a direct
-ledger reference with a projection does not make the consumer disappear from
-the audit. A separate test pins the 15-file no-enumeration boundary.
+The release-time class-wide semantic inventory was exactly 33 files: replacing
+a direct ledger reference with a projection did not make the consumer
+disappear from that audit. The later Guild Order-facts conversion moved
+`src/lib/metrics.ts` payment predicates into the byte-pinned
+`20260901070000_prepare_order_seller_metrics_authority` migration, so the
+current `src` inventory is 32 while the historical 33-file release record and
+15-file no-enumeration boundary remain retained.
 
 ## Product/race review
 
