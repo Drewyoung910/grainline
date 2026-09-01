@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import {
   ORDER_LABEL_REFERENCE_REDACTION_CLASSIFICATION_PROJECTION,
+  ORDER_LABEL_AUTHORITY_REQUIRED_ZERO_FIELDS,
   ORDER_LABEL_STATE_CLASSIFICATION_PROJECTION,
   ORDER_LABEL_STATE_INVALID_PREDICATE,
   ORDER_PAYMENT_SHIPPING_FORCE_TABLES,
@@ -21,6 +22,7 @@ import {
   assertOrderPaymentShippingLegacyInspectionGitState,
   normalizeOrderPaymentShippingLegacyCounts,
   normalizeOrderPaymentShippingInspectionPosture,
+  orderLabelAuthorityInspectionDecision,
   orderPaymentShippingLegacyInspectionFailureCode,
   parseOrderPaymentShippingLegacyInspectionConfig,
   reservationAuthorityInspectionDecision,
@@ -165,7 +167,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
   });
 
   it("normalizes only the exact nonnegative aggregate shape", () => {
-    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 81);
+    assert.equal(ORDER_PAYMENT_SHIPPING_LEGACY_COUNT_FIELDS.length, 86);
     const normalized = normalizeOrderPaymentShippingLegacyCounts(countRow("2"));
     assert.equal(
       Object.keys(normalized).length,
@@ -235,6 +237,11 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       "label_purchased_missing_reference_privacy_redacted_count",
       "label_purchased_missing_reference_unexplained_count",
       "label_clawback_state_coherence_count",
+      "label_duplicate_shippo_transaction_identity_count",
+      "label_checkout_snapshot_package_candidate_count",
+      "label_legacy_live_package_candidate_count",
+      "label_unresolvable_package_candidate_count",
+      "label_invalid_address_candidate_count",
       "quote_invalid_rate_member_count",
       "duplicate_live_quote_order_count",
       "payment_currency_mismatch_count",
@@ -368,6 +375,44 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     );
   });
 
+  it("makes label activation fail closed on duplicate provider identity or an unshippable candidate", () => {
+    const clean = normalizeOrderPaymentShippingLegacyCounts(countRow());
+    assert.deepEqual(orderLabelAuthorityInspectionDecision(clean), {
+      accepted: true,
+      rejectedFields: [],
+    });
+    for (const field of ORDER_LABEL_AUTHORITY_REQUIRED_ZERO_FIELDS) {
+      assert.deepEqual(
+        orderLabelAuthorityInspectionDecision({ ...clean, [field]: 1 }),
+        { accepted: false, rejectedFields: [field] },
+      );
+    }
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /HAVING pg_catalog\.count\(\*\) > 1[\s\S]*label_duplicate_shippo_transaction_identity_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /label_package_candidates[\s\S]*shippingPackageComplete[\s\S]*label_package_classification/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /NOT snapshot_resolvable AND live_resolvable[\s\S]*label_legacy_live_package_candidate_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /NOT snapshot_resolvable AND NOT live_resolvable[\s\S]*label_unresolvable_package_candidate_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /btrim\(orders\."shipToLine1"\)[\s\S]*btrim\(seller\."shipFromLine1"\)[\s\S]*label_invalid_address_candidate_count/,
+    );
+    assert.match(
+      ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_SQL,
+      /item\.quantity > 0[\s\S]*live_items[\s\S]*package\.live_items = package\.total_items/,
+    );
+  });
+
   it("requires completed service-ledger FORCE and exact remaining predecessor CRUD", () => {
     const script = fs.readFileSync(
       "scripts/order-payment-shipping-legacy-inspect.mjs",
@@ -379,6 +424,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       [...ORDER_PAYMENT_SHIPPING_FORCE_TABLES],
       [
         "CheckoutStockReservation",
+        "OrderPaymentEvent",
         "SellerPayoutEvent",
         "StripeWebhookEvent",
       ],
@@ -388,7 +434,6 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       [
         "Order",
         "OrderItem",
-        "OrderPaymentEvent",
         "OrderShippingRateQuote",
       ],
     );
@@ -403,6 +448,11 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
       runtimeCrudRetained: false,
     });
     assert.deepEqual(posture.sellerPayoutEvent, {
+      rlsEnabled: true,
+      rlsForced: true,
+      runtimeCrudRetained: false,
+    });
+    assert.deepEqual(posture.orderPaymentEvent, {
       rlsEnabled: true,
       rlsForced: true,
       runtimeCrudRetained: false,
@@ -431,6 +481,14 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
         runtime_can_update: true,
         runtime_can_delete: true,
       }),
+      postureRowsWith("OrderPaymentEvent", {
+        rls_enabled: false,
+        rls_forced: false,
+        runtime_can_select: true,
+        runtime_can_insert: true,
+        runtime_can_update: true,
+        runtime_can_delete: true,
+      }),
       postureRowsWith("Order", { policy_count: "1" }),
       postureRowsWith("OrderItem", {
         owner_name: "grainline_app_runtime",
@@ -448,7 +506,7 @@ describe("Order/payment/shipping aggregate-only legacy inspection", () => {
     );
     assert.match(
       script,
-      /status: result\.reservationAuthorityCandidate\.accepted[\s\S]*\? "passed"[\s\S]*: "blocked"/,
+      /status: result\.reservationAuthorityCandidate\.accepted &&[\s\S]*result\.orderLabelAuthorityCandidate\.accepted[\s\S]*\? "passed"[\s\S]*: "blocked"/,
     );
   });
 

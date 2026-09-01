@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   ORDER_LABEL_AUTHORITY_FUNCTIONS,
+  ORDER_LABEL_PRIVATE_FUNCTIONS,
   verifyOrderLabelAuthorityMigrationBytes,
 } from "../scripts/order-label-authority-catalog.mjs";
 
@@ -19,9 +20,13 @@ describe("Order label fixed-authority release", () => {
       const name = identity.slice(0, identity.indexOf("("));
       assert.match(migration, new RegExp(`CREATE FUNCTION public\\.${name}\\(`), name);
     }
-    assert.equal((migration.match(/SECURITY DEFINER/g) ?? []).length, 8);
-    assert.equal((migration.match(/SET search_path = pg_catalog/g) ?? []).length, 8);
-    assert.equal((migration.match(/FROM PUBLIC;/g) ?? []).length, 8);
+    for (const identity of ORDER_LABEL_PRIVATE_FUNCTIONS) {
+      const name = identity.slice(0, identity.indexOf("("));
+      assert.match(migration, new RegExp(`CREATE FUNCTION public\\.${name}\\(`), name);
+    }
+    assert.equal((migration.match(/SECURITY DEFINER/g) ?? []).length, 10);
+    assert.equal((migration.match(/SET search_path = pg_catalog/g) ?? []).length, 10);
+    assert.equal((migration.match(/FROM PUBLIC;/g) ?? []).length, 10);
     assert.equal((migration.match(/TO grainline_app_runtime;/g) ?? []).length, 8);
   });
 
@@ -33,6 +38,9 @@ describe("Order label fixed-authority release", () => {
     assert.match(migration, /p_provider_rate_object_id IS DISTINCT FROM locked_order\."labelClaimRateObjectId"/);
     assert.match(migration, /p_amount_cents IS DISTINCT FROM locked_order\."labelClaimExpectedAmountCents"/);
     assert.match(migration, /"labelClaimStatus" = 'PROVIDER_AMBIGUOUS'/);
+    assert.match(migration, /IF locked_order\."labelClaimStatus" <> 'PROVIDER_PENDING'/);
+    assert.match(migration, /'ORDER_LABEL_AMBIGUOUS_RELEASED'/);
+    assert.match(migration, /interval '1 hour'/);
     assert.match(migration, /FOR UPDATE OF source_order SKIP LOCKED/);
     assert.match(migration, /"labelClawbackGeneration" = target_order\."labelClawbackGeneration" \+ 1/);
   });
@@ -49,6 +57,10 @@ describe("Order label fixed-authority release", () => {
     assert.match(route, /claimSellerLabelPurchase/);
     assert.match(route, /finalizeSellerLabelProviderResult/);
     assert.match(route, /sellerLabelDownload/);
+    assert.ok(
+      (route.match(/transaction\.test !== shippoCredentialTestMode\(\)/g) ?? []).length >= 2,
+    );
+    assert.match(route, /source: "shippo_label_mode_mismatch"/);
     assert.doesNotMatch(route, /return privateJson\(\{[\s\S]{0,200}labelUrl/);
     assert.match(component, /href=\{`\/api\/orders\/\$\{orderId\}\/label`\}/);
     assert.doesNotMatch(component, /labelUrl/);
@@ -65,6 +77,9 @@ describe("Order label fixed-authority release", () => {
   it("co-commits shipped side effects and retains new checkout package facts", () => {
     const finalization = source("src/lib/orderLabelFinalization.ts");
     const webhook = source("src/app/api/stripe/webhook/route.ts");
+    const snapshotHelper = source("src/lib/orderItemSnapshot.ts");
+    const cartCheckout = source("src/app/api/cart/checkout-seller/route.ts");
+    const singleCheckout = source("src/app/api/cart/checkout/single/route.ts");
     const notificationAuthority = source(
       "prisma/migrations/20260722051500_prepare_notification_rls/migration.sql",
     );
@@ -87,8 +102,17 @@ describe("Order label fixed-authority release", () => {
       "shippingWeightGrams", "shippingLengthCm", "shippingWidthCm",
       "shippingHeightCm", "shippingPackageComplete",
     ]) {
-      assert.ok((webhook.match(new RegExp(field, "g")) ?? []).length >= 2, field);
+      assert.ok((snapshotHelper.match(new RegExp(field, "g")) ?? []).length >= 2, field);
     }
+    assert.match(cartCheckout, /checkoutShippingPackageMetadata/);
+    assert.match(singleCheckout, /checkoutShippingPackageMetadata/);
+    assert.ok(
+      (webhook.match(/readCheckoutShippingPackageMetadata/g) ?? []).length >= 3,
+    );
+    assert.doesNotMatch(
+      webhook,
+      /shippingWeightGrams:\s*\n?\s*listing(?:Data)?\?*\.packagedWeightGrams/,
+    );
   });
 
   it("converges runtime grants while preserving a fail-closed release boundary", () => {
@@ -98,11 +122,25 @@ describe("Order label fixed-authority release", () => {
       const sqlIdentity = `public.\"${identity.slice(0, identity.indexOf("("))}\"${identity.slice(identity.indexOf("("))}`;
       assert.ok(compactProvision.includes(sqlIdentity), identity);
     }
+    for (const identity of ORDER_LABEL_PRIVATE_FUNCTIONS) {
+      const sqlIdentity = `public.\"${identity.slice(0, identity.indexOf("("))}\"${identity.slice(identity.indexOf("("))}`;
+      assert.ok(compactProvision.includes(sqlIdentity), identity);
+      assert.doesNotMatch(
+        compactProvision,
+        new RegExp(`GRANTEXECUTEONFUNCTION${sqlIdentity.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}TO`),
+        `${identity} must remain migration-owner-only`,
+      );
+    }
     const audit = source("docs/order-label-product-authority-audit.md");
     assert.match(audit, /production inspection proving `shippoTransactionId` has no\s+duplicates/);
     assert.match(audit, /legacy Orders that will require `LEGACY_LIVE` package\s+fallback/);
     assert.match(audit, /raw `labelUrl` no longer crosses any\s+ordinary-runtime database authority boundary/);
-    assert.match(audit, /bounded staff operator for an exact `PROVIDER_AMBIGUOUS` claim/);
+    assert.match(audit, /bounded ambiguous-claim operator path is now implemented/);
+    assert.match(audit, /No-transaction evidence is therefore\s+diagnostic only/);
+    const operator = source("scripts/order-label-ambiguous-reconciliation-operator.mjs");
+    assert.match(operator, /grainline_order_label_ambiguous_claim_read/);
+    assert.match(operator, /grainline_order_label_ambiguous_release/);
+    assert.match(operator, /ordinary runtime cannot call/i);
     assert.match(audit, /Production remains unchanged/);
   });
 });

@@ -6,7 +6,7 @@ import path from "node:path";
 export const ORDER_LABEL_AUTHORITY_MIGRATION =
   "20260901140000_prepare_order_label_authority";
 export const ORDER_LABEL_AUTHORITY_MIGRATION_SHA256 =
-  "3bd75ec60b09774282dfb0efaa0b9c74cbed19e2efed3e8cb71640ae8d61bfa4";
+  "fd9fec2567a7c5071ffd850bb5fc5b81a32a2156d77de35bcea5b4b622385977";
 export const ORDER_LABEL_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_seller_label_preflight(text,text)",
   "grainline_order_seller_label_quote_replace(text,text,text,jsonb)",
@@ -16,6 +16,10 @@ export const ORDER_LABEL_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_label_clawback_claim_batch(integer)",
   "grainline_order_seller_label_download(text,text)",
   "grainline_order_seller_detail_v4(text,text)",
+]);
+export const ORDER_LABEL_PRIVATE_FUNCTIONS = Object.freeze([
+  "grainline_order_label_ambiguous_claim_read(text,text,text,bigint)",
+  "grainline_order_label_ambiguous_release(text,text,text,bigint,text,text)",
 ]);
 
 export function verifyOrderLabelAuthorityMigrationBytes(root = process.cwd()) {

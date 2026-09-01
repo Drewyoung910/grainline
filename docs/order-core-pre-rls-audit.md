@@ -433,14 +433,29 @@ co-commits the normal shipped Notification and email-outbox reservation; label
 download now goes through actor-bound database authority and a fresh Shippo
 transaction lookup. Disposable PostgreSQL proves actor isolation, money/identity
 binding, ambiguity fencing, generation finalization, `SKIP LOCKED` retry claims
-and base-table denial. Still open before release: remove raw `labelUrl` from the
-seller detail database projection, add the bounded ambiguous-claim staff
-reconciliation operator, and inspect production for duplicate Shippo transaction
-IDs plus legacy package-fallback counts. Seller detail v4 and the application
-now omit the raw label URL; predecessor v2/v3 execution remains a deliberate
-deployment-overlap grant that must be retired after the compatible app drain
-and before Order RLS activation. No migration, deployment, RLS/grant or
-production state changed.
+and base-table denial. Seller detail v4 and the application now omit the raw
+label URL; predecessor v2/v3 execution remains a deliberate deployment-overlap
+grant that must be retired after the compatible app drain and before Order RLS
+activation. Aggregate production inspection for duplicate Shippo transaction
+identities and legacy package-fallback counts also remains required. No
+migration, deployment, RLS/grant or production state changed.
+
+2026-09-01 label authority hardening continuation: the bounded staff
+reconciliation path is now implemented and proven locally rather than left as
+future cleanup. Runtime can no longer falsely release an ambiguous claim as a
+provider rejection. Two owner-only, staff-authorized functions read/release one
+exact ambiguous generation; the local operator uses an exhaustive Shippo
+rate/metadata scan, rejects incomplete or drifted pagination, records exact
+SUCCESS through the normal email/clawback finalization path, and permits an
+audited release only for exact `ERROR`. Provider absence is diagnostic only:
+it leaves the claim fenced because Shippo provides no immutable absence or
+idempotency guarantee. A requested transaction ID cannot bypass exhaustive
+same-rate uniqueness proof, and release audit attribution distinguishes the
+database session principal from the authorizing staff row.
+Provider mode is now checked both when creating and freshly retrieving labels.
+The remaining release gates are the aggregate-only production counts and the
+post-deploy/drain retirement of seller-detail v2/v3. Production remains
+unchanged.
 
 ## Current functionality verdict
 
@@ -462,7 +477,8 @@ debt that should be fixed before Order RLS:
   seller cannot assert pickup completion or start the buyer's Case window, and
   their isolated fixed operations close the Notification/email crash gap;
 - the incomplete development Order fixture is retired; and
-- the nullable seller keys and snapshot shape still need final convergence.
+- the nullable seller keys and historical non-package snapshot shape still
+  need final convergence.
 
 None of these findings require abandoning the existing checkout/refund design.
 They define the compatibility work that makes the eventual RLS boundary match

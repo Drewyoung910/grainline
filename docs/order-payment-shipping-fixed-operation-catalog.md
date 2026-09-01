@@ -175,29 +175,40 @@ finalizer transaction and preserve the existing Case authority functions.
 27. `grainline_order_seller_detail_v4(...)` retains the reviewed seller detail
     projection but omits `label_url`; predecessor v2/v3 execution is a bounded
     compatibility grant that must be revoked after deployment drain.
+28. `grainline_order_label_ambiguous_claim_read(...)` is owner-only and returns
+    only one exact ambiguous claim to a current EMPLOYEE/ADMIN. It exposes no
+    buyer address, provider URL or general Order lookup.
+29. `grainline_order_label_ambiguous_release(...)` is owner-only, relocks the
+    exact generation and releases it only for an exact provider `ERROR`.
+    Provider absence is non-mutating and remains fenced for escalation because
+    Shippo supplies no immutable absence watermark. It derives the audit
+    identity, records the database session principal separately from the
+    authorizing staff row, and retains only the sanitized provider-scan
+    SHA-256. Ordinary runtime receives no EXECUTE on either reconciliation
+    operation.
 
 ## Fixed participant and staff projections
 
-28. `grainline_buyer_order_page(...)` returns buyer-owned order/list item
+30. `grainline_buyer_order_page(...)` returns buyer-owned order/list item
     snapshots, totals, bounded refund outcome, fulfillment and tracking. It
     excludes raw Stripe, Shippo, internal review, seller-note and reconciliation
     fields.
-29. `grainline_buyer_order_detail(...)` adds retained buyer shipping/gift facts
+31. `grainline_buyer_order_detail(...)` adds retained buyer shipping/gift facts
     and participant Case summary only for the buyer.
-30. `grainline_seller_order_page(...)` derives SellerProfile and pages by the
+32. `grainline_seller_order_page(...)` derives SellerProfile and pages by the
     durable seller key, returning seller-safe buyer label, snapshots and totals.
-31. `grainline_seller_order_detail(...)` adds retained fulfillment address,
+33. `grainline_seller_order_detail(...)` adds retained fulfillment address,
     gift, label/refund outcome and active Case summary, but no raw payment-event
     rows.
-32. `grainline_staff_order_page(...)` and
+34. `grainline_staff_order_page(...)` and
     `grainline_staff_order_detail(...)` require a live EMPLOYEE/ADMIN row and
     expose only reviewed queue/detail columns.
-33. `grainline_checkout_success_order(p_actor_user_id, p_session_id)` returns a
+35. `grainline_checkout_success_order(p_actor_user_id, p_session_id)` returns a
     buyer-bound projection; knowing a Stripe session ID is insufficient.
-34. `grainline_order_review_eligibility(...)` and
+36. `grainline_order_review_eligibility(...)` and
     `grainline_order_report_eligibility(...)` return booleans/minimal source IDs,
     never Order rows.
-35. `grainline_buyer_order_export_page(...)`,
+37. `grainline_buyer_order_export_page(...)`,
     `grainline_seller_order_export_page(...)`,
     `grainline_seller_payout_export_page(...)` and
     `grainline_buyer_reservation_export_page(...)` return only the matching
@@ -211,20 +222,20 @@ The application conversion merged in PR #226 at exact main
 `99591a8f93c45f9324fb834fcbc1ea525867ace8` and exact-main CI `31925636570`
 passed. It remains undeployed; RLS remains off and predecessor CRUD remains
 available.
-36. `grainline_seller_order_analytics(...)` and
+38. `grainline_seller_order_analytics(...)` and
     `grainline_public_order_metrics(...)` return dedicated aggregate-only
     projections with fixed periods and caps; no arbitrary predicate or raw row
     set escapes.
 
 ## Stripe prerequisite maintenance catalog
 
-37. `grainline_stripe_webhook_prune_batch(p_limit integer)` deletes only
+39. `grainline_stripe_webhook_prune_batch(p_limit integer)` deletes only
     processed rows older than the fixed retention interval in stable order,
     with a hard cap. The caller cannot supply row IDs or a cutoff.
-38. `grainline_stripe_webhook_health_summary()` returns only fixed-window
+40. `grainline_stripe_webhook_health_summary()` returns only fixed-window
     aggregate counts for failed, released and stale leases; it cannot enumerate
     event IDs, types or retained errors.
-39. `grainline_legacy_stock_restore_claim(p_session_id text)` derives the
+41. `grainline_legacy_stock_restore_claim(p_session_id text)` derives the
     canonical `checkout-stock-restore:` identity and fixed event type inside
     the function, locks the checkout session mutation key and returns whether
     this exact legacy restoration was first. The caller cannot mint an

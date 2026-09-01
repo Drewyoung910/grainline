@@ -59,6 +59,7 @@ import {
 } from "../scripts/order-fulfillment-authority-catalog.mjs";
 import {
   ORDER_LABEL_AUTHORITY_FUNCTIONS,
+  ORDER_LABEL_PRIVATE_FUNCTIONS,
 } from "../scripts/order-label-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
@@ -1522,6 +1523,9 @@ describe("database grant inventory guardrails", () => {
       ...ORDER_LABEL_AUTHORITY_FUNCTIONS.map(
         (identity) => identity.slice(0, identity.indexOf("(")),
       ),
+      ...ORDER_LABEL_PRIVATE_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
@@ -1583,6 +1587,7 @@ describe("database grant inventory guardrails", () => {
         + ORDER_CHECKOUT_RECEIPT_AUTHORITY_FUNCTIONS.length
         + ORDER_FULFILLMENT_AUTHORITY_FUNCTIONS.length
         + ORDER_LABEL_AUTHORITY_FUNCTIONS.length
+        + ORDER_LABEL_PRIVATE_FUNCTIONS.length
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)

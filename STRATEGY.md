@@ -2515,10 +2515,16 @@ must not be used to justify broad Order/Listing table access. See
 The isolated compatible candidate is now implemented locally as
 `20260901140000_prepare_order_label_authority`; application conversion removes
 the label route and clawback worker from direct Order access. Do not release it
-until duplicate provider-transaction and legacy-package aggregate inspection,
-raw seller-projection URL removal, and the exact ambiguous-claim staff
-reconciliation operator are complete. This is still part of finishing Order,
-not a reason to skip ahead to another RLS family.
+until duplicate provider-transaction and legacy-package aggregate inspection
+and the post-deploy/drain raw seller-projection URL grant retirement are
+complete. The exact ambiguous-claim operator is now implemented locally:
+ordinary runtime cannot clear an ambiguous fence; an owner-only,
+staff-authorized release requires exact provider `ERROR` evidence, while exact
+SUCCESS returns through the normal email/clawback finalizer. Provider absence
+never releases: it remains fenced for provider escalation because external
+absence is not a terminal or account-bound fact. A transaction-ID hint cannot
+bypass exhaustive same-rate uniqueness proof. This is still part of finishing
+Order, not a reason to skip ahead to another RLS family.
 
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 

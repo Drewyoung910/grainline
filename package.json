@@ -190,6 +190,7 @@
     "audit:rls-seller-payout-event-force-rollback": "node scripts/seller-payout-event-force-rollback-proof.mjs",
     "ops:seller-payout-event-predecessor-drain": "node scripts/seller-payout-event-predecessor-drain.mjs",
     "ops:order-payment-shipping-legacy-inspect": "node scripts/order-payment-shipping-legacy-inspect.mjs",
+    "ops:order-label-ambiguous-reconcile": "node scripts/order-label-ambiguous-reconciliation-operator.mjs",
     "ops:case-force-postflight": "node scripts/case-activation-production-postflight.mjs --post-force",
     "audit:rls-case-participant-resolution": "node scripts/case-participant-resolution-postgres-proof.mjs",
     "audit:rls-case-open-authority": "node scripts/case-open-authority-postgres-proof.mjs",

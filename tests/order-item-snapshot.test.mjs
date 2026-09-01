@@ -1,11 +1,43 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  checkoutShippingPackageMetadata,
   historicalProcessingTimeDays,
+  readCheckoutShippingPackageMetadata,
   readHistoricalOrderItemSnapshot,
 } from "../src/lib/orderItemSnapshot.ts";
 
 describe("historical OrderItem snapshots", () => {
+  it("round-trips only a complete bounded checkout package through provider metadata", () => {
+    const metadata = checkoutShippingPackageMetadata({
+      shippingWeightGrams: 2500,
+      shippingLengthCm: 80.5,
+      shippingWidthCm: 50,
+      shippingHeightCm: 20,
+    });
+    assert.deepEqual(readCheckoutShippingPackageMetadata(metadata), {
+      shippingWeightGrams: 2500,
+      shippingLengthCm: 80.5,
+      shippingWidthCm: 50,
+      shippingHeightCm: 20,
+      shippingPackageComplete: true,
+    });
+    assert.deepEqual(
+      checkoutShippingPackageMetadata({ shippingWeightGrams: 2500 }),
+      { shippingPackageComplete: "false" },
+    );
+    assert.deepEqual(readCheckoutShippingPackageMetadata({
+      ...metadata,
+      shippingLengthCm: "1001",
+    }), {
+      shippingWeightGrams: null,
+      shippingLengthCm: null,
+      shippingWidthCm: null,
+      shippingHeightCm: null,
+      shippingPackageComplete: false,
+    });
+  });
+
   it("returns bounded checkout-time facts without consulting a live Listing", () => {
     const snapshot = readHistoricalOrderItemSnapshot({
       title: "Walnut desk",

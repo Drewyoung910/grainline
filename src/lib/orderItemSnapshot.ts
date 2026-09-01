@@ -9,6 +9,14 @@ const MAX_PROCESSING_DAYS = 3650;
 const MAX_SHIPPING_WEIGHT_GRAMS = 500_000;
 const MAX_SHIPPING_DIMENSION_CM = 1_000;
 
+export type CheckoutShippingPackageSnapshot = Readonly<{
+  shippingWeightGrams: number | null;
+  shippingLengthCm: number | null;
+  shippingWidthCm: number | null;
+  shippingHeightCm: number | null;
+  shippingPackageComplete: boolean;
+}>;
+
 export type HistoricalOrderItemSnapshot = {
   title: string;
   description: string | null;
@@ -71,6 +79,88 @@ function optionalPositiveNumber(value: unknown, max: number): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= max
     ? value
     : null;
+}
+
+function checkoutShippingPackageSnapshot(value: {
+  shippingWeightGrams?: unknown;
+  shippingLengthCm?: unknown;
+  shippingWidthCm?: unknown;
+  shippingHeightCm?: unknown;
+}): CheckoutShippingPackageSnapshot {
+  const shippingWeightGrams = optionalPositiveNumber(
+    value.shippingWeightGrams,
+    MAX_SHIPPING_WEIGHT_GRAMS,
+  );
+  const shippingLengthCm = optionalPositiveNumber(
+    value.shippingLengthCm,
+    MAX_SHIPPING_DIMENSION_CM,
+  );
+  const shippingWidthCm = optionalPositiveNumber(
+    value.shippingWidthCm,
+    MAX_SHIPPING_DIMENSION_CM,
+  );
+  const shippingHeightCm = optionalPositiveNumber(
+    value.shippingHeightCm,
+    MAX_SHIPPING_DIMENSION_CM,
+  );
+  const shippingPackageComplete =
+    shippingWeightGrams !== null &&
+    shippingLengthCm !== null &&
+    shippingWidthCm !== null &&
+    shippingHeightCm !== null;
+  return Object.freeze({
+    shippingWeightGrams,
+    shippingLengthCm,
+    shippingWidthCm,
+    shippingHeightCm,
+    shippingPackageComplete,
+  });
+}
+
+/**
+ * Seals package facts into Stripe's immutable checkout-line product metadata.
+ * Incomplete packages carry only an explicit false marker; callers must not
+ * reconstruct missing checkout facts from a later mutable Listing.
+ */
+export function checkoutShippingPackageMetadata(value: {
+  shippingWeightGrams?: unknown;
+  shippingLengthCm?: unknown;
+  shippingWidthCm?: unknown;
+  shippingHeightCm?: unknown;
+}): Record<string, string> {
+  const packageSnapshot = checkoutShippingPackageSnapshot(value);
+  if (!packageSnapshot.shippingPackageComplete) {
+    return { shippingPackageComplete: "false" };
+  }
+  return {
+    shippingPackageComplete: "true",
+    shippingWeightGrams: String(packageSnapshot.shippingWeightGrams),
+    shippingLengthCm: String(packageSnapshot.shippingLengthCm),
+    shippingWidthCm: String(packageSnapshot.shippingWidthCm),
+    shippingHeightCm: String(packageSnapshot.shippingHeightCm),
+  };
+}
+
+/** Reads only a complete, bounded package witness returned by Stripe. */
+export function readCheckoutShippingPackageMetadata(
+  metadata: Record<string, string> | null | undefined,
+): CheckoutShippingPackageSnapshot {
+  if (metadata?.shippingPackageComplete !== "true") {
+    return checkoutShippingPackageSnapshot({});
+  }
+  const parse = (value: string | undefined) =>
+    typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value)
+      ? Number(value)
+      : null;
+  const packageSnapshot = checkoutShippingPackageSnapshot({
+    shippingWeightGrams: parse(metadata.shippingWeightGrams),
+    shippingLengthCm: parse(metadata.shippingLengthCm),
+    shippingWidthCm: parse(metadata.shippingWidthCm),
+    shippingHeightCm: parse(metadata.shippingHeightCm),
+  });
+  return packageSnapshot.shippingPackageComplete
+    ? packageSnapshot
+    : checkoutShippingPackageSnapshot({});
 }
 
 /**

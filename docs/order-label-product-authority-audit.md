@@ -160,6 +160,75 @@ asynchronous outcomes and is not required to make current refund authority
 honest. Keep it staff-only until a separate provider-backed void state machine
 is designed.
 
+### OL-A09: only a terminal provider error may release a pending claim
+
+Shippo can represent a transaction as `WAITING` or `QUEUED` as well as
+`SUCCESS` or `ERROR`. Treating every non-success response as rejection would
+release the database fence while the carrier transaction could still become a
+label. The compatible route now classifies only exact `ERROR` as releasable;
+unknown, absent, waiting and queued statuses become `PROVIDER_AMBIGUOUS` and
+must use the exact-claim reconciler. Exact success remains recordable from
+either pending or ambiguous state even if the seller becomes inactive after
+the provider call, because the carrier effect has already occurred.
+
+### OL-A10: checkout package facts must come back from the paid session
+
+The first compatible implementation wrote package fields from the live
+Listing read performed during webhook delivery. That is not a checkout-time
+snapshot: a seller edit between Checkout Session creation and the signed
+webhook could change it. Cart and Buy Now line-item products now carry a
+bounded package witness in Stripe metadata, and the webhook accepts only a
+complete bounded witness. Predecessor sessions or incomplete packages are
+explicitly stored as incomplete and remain measurable `LEGACY_LIVE`
+candidates; the webhook never reconstructs missing checkout facts from a
+later Listing.
+
+The rest of `listingSnapshot` is still assembled at webhook time. Exact
+checkout-time title/description/category/tag preservation remains the existing
+`ORD-A03` historical-snapshot product boundary; it is documented rather than
+misrepresented as solved by this label change.
+
+### OL-A11: replacement and legacy fallback must cover the whole Order
+
+The first quote replacement candidate deleted only expired quotes, allowing
+multiple unexpired rate sets for one Order. It also used an inner Listing join
+for legacy package aggregation, which could omit a deleted Listing and
+silently calculate a partial package. Replacement now removes every prior
+quote for the locked Order before inserting one bounded current set. Legacy
+aggregation counts every OrderItem, uses seller package defaults when a
+Listing is missing, and rejects the whole package if any item or address is
+invalid. The aggregate inspection applies the same item, package and trimmed-
+address predicates before activation.
+
+### OL-A12: audit evidence must fail closed on identity collision
+
+Provider success and ambiguous release use deterministic audit IDs derived
+from the database claim. `ON CONFLICT DO NOTHING` could have allowed the Order
+state mutation to commit while an unrelated pre-existing audit row occupied
+that ID. The candidate now lets an audit-ID collision abort and roll back the
+entire state transition. Disposable PostgreSQL proves both provider-record and
+staff-release collisions preserve the prior claim state.
+
+### OL-A13: provider absence is not a terminal fact
+
+The first reconciliation candidate allowed an owner operator to clear an
+ambiguous claim when a rate-filtered Shippo scan found no matching transaction
+after one hour. That was unsafe. PostgreSQL cannot lock Shippo, Shippo does not
+document an immutable absence watermark or application idempotency key for
+label creation, and a same-mode credential can still belong to the wrong
+Shippo account. A transaction that becomes visible after release would lose
+its durable claim/generation fence and a later seller retry could buy a second
+label.
+
+No-transaction evidence is therefore diagnostic only. It leaves the exact
+claim `PROVIDER_AMBIGUOUS`, writes no production row, and requires provider
+escalation. Only an exact terminal `ERROR` may release. A requested transaction
+ID is only an assertion about the unique match: the operator still exhaustively
+pages the rate scope and rejects multiple exact-claim transactions before
+recording `SUCCESS` or releasing `ERROR`. Release audit attribution records the
+actual database session principal and separately records the authorizing staff
+row instead of presenting the caller-supplied staff ID as session identity.
+
 ## Target state machine
 
 ```text
@@ -218,7 +287,11 @@ checkout-created OrderItems retain bounded package facts and an explicit
 completeness marker; successful provider record co-commits the standard shipped
 Notification and email-outbox reservation. Provider success now fails closed
 when rate currency or carrier evidence is absent rather than substituting a
-default value.
+default value. The implementation audit also caught that the first candidate
+documented provider-mode binding without enforcing it. Create responses and
+fresh label downloads now require Shippo's `test` flag to match the configured
+`shippo_test_` or `shippo_live_` credential prefix; an absent or mismatched flag
+fences the claim as ambiguous rather than releasing or completing it.
 
 The cross-system audit caught and corrected a Notification source-contract
 defect before deployment: the first candidate wrote an
@@ -245,8 +318,31 @@ ambiguity and worker-generation boundaries. The release remains blocked on:
   fallback;
 - revoking predecessor seller-detail v2/v3 runtime execution after the
   compatible application deploy/drain so raw `labelUrl` no longer crosses any
-  ordinary-runtime database authority boundary; and
-- a bounded staff operator for an exact `PROVIDER_AMBIGUOUS` claim after Shippo
-  reconciliation.
+  ordinary-runtime database authority boundary.
+
+The bounded ambiguous-claim operator path is now implemented, but remains
+unexecuted. Two owner-only functions expose and release only one exact claim to
+a current EMPLOYEE/ADMIN; ordinary runtime and PUBLIC have no EXECUTE. A
+release requires an exact Shippo `ERROR` transaction carrying the
+database-derived metadata. An exhaustive rate-filtered scan with no matching
+metadata is non-mutating evidence and leaves the claim fenced for provider
+escalation. A successful
+transaction is not released: it is validated for exact provider mode, rate,
+amount, currency, HTTPS label and carrier, then recorded through the same app
+wrapper that owns the deterministic email-outbox reservation and Stripe
+clawback. A reversal failure is durably returned to the existing retry state.
+The operator refuses incomplete, duplicate, count-drifted, cross-origin or
+cross-rate provider pagination. An optional transaction ID cannot bypass the
+exhaustive uniqueness scan. Evidence retains only hashed identities in a fresh
+mode-0600 file.
+
+The authority review also closed a privilege flaw in the first candidate:
+ordinary runtime could previously submit `REJECTED` against an already
+ambiguous claim and clear the fence without provider proof. Runtime rejection
+now releases only `PROVIDER_PENDING`; all ambiguous release is owner-only,
+staff-authorized and audit-backed, with the database session principal recorded
+separately from the authorizing staff row. Exact successful evidence remains recordable
+after the originating seller becomes inactive because the provider effect
+already occurred, but cannot create or release a claim.
 
 These are release gates, not deferred cleanup. Production remains unchanged.

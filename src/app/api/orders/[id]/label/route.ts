@@ -33,7 +33,9 @@ import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { sanitizeShippoProviderErrorBody } from "@/lib/shippoErrorSanitize";
 import {
+  classifyShippoTransactionStatus,
   normalizeShippoRateCurrency,
+  shippoCredentialTestMode,
   shippoRequest,
   shippoRatesMultiPiece,
 } from "@/lib/shippo";
@@ -60,6 +62,7 @@ type ShippoRateEvidence = {
 };
 
 type ShippoTransaction = {
+  test?: boolean | null;
   status?: string | null;
   messages?: { text?: string | null }[];
   object_id?: string | null;
@@ -274,14 +277,45 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return privateJson({ error: "Shippo label status is unclear. Support must reconcile it before retrying." }, { status: HTTP_STATUS.BAD_GATEWAY });
     }
 
-    if (transaction.status !== "SUCCESS") {
+    if (transaction.test !== shippoCredentialTestMode()) {
+      const modeError = new TypeError(
+        "Shippo label result mode did not match the configured credential",
+      );
+      await finalizeSellerLabelProviderResult({
+        actorUserId: actor.id, orderId, claimId: claim.claimId,
+        claimGeneration: claim.claimGeneration, outcome: "AMBIGUOUS",
+        errorSummary: labelClawbackErrorMessage(modeError),
+      });
+      Sentry.captureException(modeError, {
+        tags: { source: "shippo_label_mode_mismatch" },
+        extra: { orderId, claimId: claim.claimId },
+      });
+      return privateJson({ error: "Shippo label status is unclear. Support must reconcile it before retrying." }, { status: HTTP_STATUS.BAD_GATEWAY });
+    }
+
+    const providerOutcome = classifyShippoTransactionStatus(transaction.status);
+    if (providerOutcome !== "SUCCESS") {
       const providerMessage = (transaction.messages ?? [])
         .map((message) => message.text).filter(Boolean).join("; ");
       await finalizeSellerLabelProviderResult({
         actorUserId: actor.id, orderId, claimId: claim.claimId,
-        claimGeneration: claim.claimGeneration, outcome: "REJECTED",
+        claimGeneration: claim.claimGeneration, outcome: providerOutcome,
         errorSummary: providerMessage.slice(0, 500),
       });
+      if (providerOutcome === "AMBIGUOUS") {
+        const statusError = new TypeError(
+          "Shippo label returned a nonterminal or unknown transaction status",
+        );
+        Sentry.captureException(statusError, {
+          level: "warning",
+          tags: { source: "shippo_label_nonterminal_status" },
+          extra: { orderId, claimId: claim.claimId, status: transaction.status ?? null },
+        });
+        return privateJson(
+          { error: "Shippo label status is unclear. Support must reconcile it before retrying." },
+          { status: HTTP_STATUS.BAD_GATEWAY },
+        );
+      }
       const detail = sanitizeShippoProviderErrorBody(
         providerMessage || transaction.status || "provider rejected the transaction",
       );
@@ -387,7 +421,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const normalizedCurrency = rate.currency == null
       ? null
       : normalizeShippoRateCurrency(rate.currency);
-    if (transaction.status !== "SUCCESS" || transaction.object_id !== proof.transactionId
+    if (transaction.status !== "SUCCESS"
+      || transaction.test !== shippoCredentialTestMode()
+      || transaction.object_id !== proof.transactionId
       || !isValidProviderLabelUrl(transaction.label_url)
       || safeProviderShippingCents(rate.amount) !== proof.amountCents
       || normalizedCurrency !== proof.currency) {

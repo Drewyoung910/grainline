@@ -92,7 +92,11 @@ import {
   applySignedDisputeWebhook,
   applySignedRefundWebhook,
 } from "@/lib/orderPaymentSignedWebhook";
-import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
+import {
+  readCheckoutShippingPackageMetadata,
+  readHistoricalOrderItemSnapshot,
+  type CheckoutShippingPackageSnapshot,
+} from "@/lib/orderItemSnapshot";
 
 
 export const runtime = "nodejs";
@@ -1302,7 +1306,14 @@ export async function POST(req: Request) {
         // listingId.
         // The live cart may have been modified between session creation and webhook.
         const stripeLineItems: CheckoutLineItem[] = checkoutLineItems;
-        type PaidItem = { listingId: string; cartItemId?: string; variantKey?: string; quantity: number; priceCents: number };
+        type PaidItem = {
+          listingId: string;
+          cartItemId?: string;
+          variantKey?: string;
+          quantity: number;
+          priceCents: number;
+          shippingPackage: CheckoutShippingPackageSnapshot;
+        };
         const paidItems: PaidItem[] = [];
         for (const li of stripeLineItems) {
           const prod = typeof li.price?.product === "object" ? li.price?.product : null;
@@ -1314,6 +1325,7 @@ export async function POST(req: Request) {
               variantKey: prod?.metadata?.variantKey,
               quantity: li.quantity,
               priceCents: li.price?.unit_amount ?? 0,
+              shippingPackage: readCheckoutShippingPackageMetadata(prod?.metadata),
             };
             paidItems.push(paid);
           }
@@ -1689,20 +1701,7 @@ export async function POST(req: Request) {
                   processingTimeMinDays: listing.processingTimeMinDays ?? null,
                   processingTimeMaxDays: listing.processingTimeMaxDays ?? null,
                   shipsWithinDays: listing.shipsWithinDays ?? null,
-                  shippingWeightGrams:
-                    listing.packagedWeightGrams ?? listing.seller?.defaultPkgWeightGrams ?? null,
-                  shippingLengthCm:
-                    listing.packagedLengthCm ?? listing.seller?.defaultPkgLengthCm ?? null,
-                  shippingWidthCm:
-                    listing.packagedWidthCm ?? listing.seller?.defaultPkgWidthCm ?? null,
-                  shippingHeightCm:
-                    listing.packagedHeightCm ?? listing.seller?.defaultPkgHeightCm ?? null,
-                  shippingPackageComplete: [
-                    listing.packagedWeightGrams ?? listing.seller?.defaultPkgWeightGrams,
-                    listing.packagedLengthCm ?? listing.seller?.defaultPkgLengthCm,
-                    listing.packagedWidthCm ?? listing.seller?.defaultPkgWidthCm,
-                    listing.packagedHeightCm ?? listing.seller?.defaultPkgHeightCm,
-                  ].every((value) => typeof value === "number" && Number.isFinite(value) && value > 0),
+                  ...paid.shippingPackage,
                   capturedAt: new Date().toISOString(),
                 },
                 selectedVariants: variantSnapshot.length > 0 ? variantSnapshot : undefined,
@@ -1851,6 +1850,13 @@ export async function POST(req: Request) {
           const product = typeof lineItem.price?.product === "object" ? lineItem.price.product : null;
           return product?.metadata?.listingId === listingId;
         });
+        const singlePaidProduct = singlePaidLine
+          && typeof singlePaidLine.price?.product === "object"
+          ? singlePaidLine.price.product
+          : null;
+        const singleShippingPackage = readCheckoutShippingPackageMetadata(
+          singlePaidProduct?.metadata,
+        );
         const singleOrderPriceCents = singlePaidLine?.price?.unit_amount ?? price;
         const singlePriceDrift = checkoutPriceDriftState({
           stripeUnitAmountCents: singlePaidLine?.price?.unit_amount ?? null,
@@ -1997,20 +2003,7 @@ export async function POST(req: Request) {
                     processingTimeMinDays: listingData?.processingTimeMinDays ?? null,
                     processingTimeMaxDays: listingData?.processingTimeMaxDays ?? null,
                     shipsWithinDays: listingData?.shipsWithinDays ?? null,
-                    shippingWeightGrams:
-                      listingData?.packagedWeightGrams ?? listingData?.seller?.defaultPkgWeightGrams ?? null,
-                    shippingLengthCm:
-                      listingData?.packagedLengthCm ?? listingData?.seller?.defaultPkgLengthCm ?? null,
-                    shippingWidthCm:
-                      listingData?.packagedWidthCm ?? listingData?.seller?.defaultPkgWidthCm ?? null,
-                    shippingHeightCm:
-                      listingData?.packagedHeightCm ?? listingData?.seller?.defaultPkgHeightCm ?? null,
-                    shippingPackageComplete: [
-                      listingData?.packagedWeightGrams ?? listingData?.seller?.defaultPkgWeightGrams,
-                      listingData?.packagedLengthCm ?? listingData?.seller?.defaultPkgLengthCm,
-                      listingData?.packagedWidthCm ?? listingData?.seller?.defaultPkgWidthCm,
-                      listingData?.packagedHeightCm ?? listingData?.seller?.defaultPkgHeightCm,
-                    ].every((value) => typeof value === "number" && Number.isFinite(value) && value > 0),
+                    ...singleShippingPackage,
                     capturedAt: new Date().toISOString(),
                   },
                   selectedVariants,

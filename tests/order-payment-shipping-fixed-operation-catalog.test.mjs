@@ -31,13 +31,13 @@ test("reservation creation catalog names the source-consistent live successors",
   assert.match(catalog, /predecessor deployment coexistence/);
 });
 
-test("catalog pins every numbered operation family from 1 through 39", () => {
+test("catalog pins every numbered operation family from 1 through 41", () => {
   const operationNumbers = [...catalog.matchAll(/^([0-9]+)\. `grainline_/gm)].map(
     (match) => Number(match[1]),
   );
   assert.deepEqual(
     operationNumbers,
-    Array.from({ length: 39 }, (_, index) => index + 1),
+    Array.from({ length: 41 }, (_, index) => index + 1),
   );
 });
 

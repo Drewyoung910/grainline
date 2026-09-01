@@ -10,6 +10,18 @@ const SHIPPO_API_KEY = requiredProductionEnv("SHIPPO_API_KEY");
 const SHIPPO_BASE = "https://api.goshippo.com";
 const ISO_CURRENCY_CODE = /^[A-Z]{3}$/i;
 
+export function shippoCredentialTestMode(apiKey = SHIPPO_API_KEY) {
+  if (apiKey.startsWith("shippo_test_")) return true;
+  if (apiKey.startsWith("shippo_live_")) return false;
+  throw new Error("SHIPPO_API_KEY does not declare a reviewed test/live mode");
+}
+
+export function classifyShippoTransactionStatus(status: unknown) {
+  if (status === "SUCCESS") return "SUCCESS" as const;
+  if (status === "ERROR") return "REJECTED" as const;
+  return "AMBIGUOUS" as const;
+}
+
 type Address = {
   name?: string;
   street1: string;

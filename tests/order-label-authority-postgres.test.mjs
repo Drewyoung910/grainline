@@ -20,6 +20,7 @@ async function createDatabase() {
     CREATE TYPE public."NotificationType" AS ENUM ('ORDER_SHIPPED');
     CREATE TABLE public."User" (
       id text PRIMARY KEY, name text, email text,
+      role text NOT NULL DEFAULT 'USER',
       "notificationPreferences" jsonb NOT NULL DEFAULT '{}'::jsonb,
       banned boolean NOT NULL DEFAULT false,
       "deletedAt" timestamp(3) without time zone
@@ -114,6 +115,8 @@ async function createDatabase() {
       ('buyer-1', 'Buyer', 'buyer@example.test'),
       ('seller-user-1', 'Seller', 'seller@example.test'),
       ('seller-user-2', 'Other', 'other@example.test');
+    INSERT INTO public."User" (id, name, email, role) VALUES
+      ('staff-1', 'Staff', 'staff@example.test', 'ADMIN');
     INSERT INTO public."SellerProfile" (
       id, "userId", "displayName", "shipFromName", "shipFromLine1",
       "shipFromCity", "shipFromState", "shipFromPostal", "shipFromCountry",
@@ -148,6 +151,79 @@ async function asRuntime(database, sql) {
 }
 
 describe("Order label fixed authority in PostgreSQL", () => {
+  it("rejects incomplete legacy packages and replaces rather than accumulates quotes", async () => {
+    const database = await createDatabase();
+    try {
+      const legacy = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-2', 'order-2'
+        ) AS result
+      `);
+      assert.equal(legacy.rows[0].result.outcome, "ready");
+      assert.equal(legacy.rows[0].result.packageSource, "LEGACY_LIVE");
+      await database.exec(`DELETE FROM public."Listing" WHERE id = 'listing-1'`);
+      await database.exec(`
+        INSERT INTO public."OrderItem" (
+          id, "orderId", "listingId", quantity, "listingSnapshot"
+        ) VALUES ('item-3', 'order-2', 'missing-listing', 1, NULL)
+      `);
+      const defaultedLegacy = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-2', 'order-2'
+        ) AS result
+      `);
+      assert.equal(defaultedLegacy.rows[0].result.outcome, "ready");
+      assert.equal(Number(defaultedLegacy.rows[0].result.packageWeightGrams), 2000);
+      await database.exec(`
+        UPDATE public."SellerProfile"
+           SET "defaultPkgWeightGrams" = NULL,
+               "defaultPkgLengthCm" = NULL,
+               "defaultPkgWidthCm" = NULL,
+               "defaultPkgHeightCm" = NULL
+         WHERE id = 'seller-2'
+      `);
+      const missingLegacy = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-2', 'order-2'
+        ) AS result
+      `);
+      assert.equal(missingLegacy.rows[0].result.reason, "package_missing");
+
+      await database.exec(`
+        INSERT INTO public."Listing" (
+          id, "packagedWeightGrams", "packagedLengthCm",
+          "packagedWidthCm", "packagedHeightCm"
+        ) VALUES ('listing-1', 900, 19, 14, 9)
+      `);
+      for (const [shipment, rate] of [["shipment-a", "rate-a"], ["shipment-b", "rate-b"]]) {
+        const replaced = await asRuntime(database, `
+          SELECT public.grainline_order_seller_label_quote_replace(
+            'seller-user-1', 'order-1', '${shipment}',
+            '[{"objectId":"${rate}","amountCents":725,"currency":"usd","label":"UPS Ground","carrier":"UPS","service":"Ground"}]'::jsonb
+          ) AS result
+        `);
+        assert.equal(replaced.rows[0].result.outcome, "changed");
+      }
+      const quotes = await database.query(`
+        SELECT pg_catalog.count(*)::integer AS count,
+               pg_catalog.min("shipmentId") AS shipment
+          FROM public."OrderShippingRateQuote"
+         WHERE "orderId" = 'order-1'
+      `);
+      assert.deepEqual(quotes.rows, [{ count: 1, shipment: "shipment-b" }]);
+
+      await database.exec(`
+        UPDATE public."Order" SET "shipToLine1" = '   ' WHERE id = 'order-1'
+      `);
+      const invalidAddress = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_preflight(
+          'seller-user-1', 'order-1'
+        ) AS result
+      `);
+      assert.equal(invalidAddress.rows[0].result.reason, "address_missing");
+    } finally { await database.close(); }
+  });
+
   it("derives package facts and binds quote, claim, provider result, and download", async () => {
     const database = await createDatabase();
     try {
@@ -184,6 +260,15 @@ describe("Order label fixed authority in PostgreSQL", () => {
       `);
       assert.equal(record.rows[0].result.outcome, "recorded");
       assert.equal(record.rows[0].result.clawbackStatus, "RETRYING");
+      const recordedRecovery = await database.query(`
+        SELECT public.grainline_order_label_ambiguous_claim_read(
+          'staff-1', 'order-1', '${claim.rows[0].result.claimId}',
+          ${claim.rows[0].result.claimGeneration}
+        ) AS result
+      `);
+      assert.equal(recordedRecovery.rows[0].result.outcome, "recorded");
+      assert.equal(recordedRecovery.rows[0].result.transactionId, "txn-1");
+      assert.equal(recordedRecovery.rows[0].result.clawbackStatus, "RETRYING");
       const audit = await database.query(`
         SELECT action, metadata
           FROM public."SystemAuditLog"
@@ -324,6 +409,212 @@ describe("Order label fixed authority in PostgreSQL", () => {
         `SELECT public.grainline_order_label_clawback_claim_batch(10) AS result`);
       assert.equal(first.rows[0].result.length, 1);
       assert.equal(secondBatch.rows[0].result.length, 0);
+    } finally { await database.close(); }
+  });
+
+  it("keeps ambiguous release private, staff-authorized, ERROR-only and audit-backed", async () => {
+    const database = await createDatabase();
+    try {
+      await database.exec(`
+        UPDATE public."Order" SET "labelStatus" = 'EXPIRED' WHERE id = 'order-1'
+      `);
+      const claim = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_claim(
+          'seller-user-1', 'order-1', NULL
+        ) AS result
+      `);
+      await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_provider_record(
+          'seller-user-1', 'order-1', '${claim.rows[0].result.claimId}',
+          ${claim.rows[0].result.claimGeneration}, 'AMBIGUOUS',
+          NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'timeout'
+        )
+      `);
+      const forgedRelease = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_provider_record(
+          'seller-user-1', 'order-1', '${claim.rows[0].result.claimId}',
+          ${claim.rows[0].result.claimGeneration}, 'REJECTED',
+          NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'not found'
+        ) AS result
+      `);
+      assert.equal(forgedRelease.rows[0].result.reason, "stale_claim");
+      await assert.rejects(
+        asRuntime(database, `
+          SELECT public.grainline_order_label_ambiguous_claim_read(
+            'staff-1', 'order-1', '${claim.rows[0].result.claimId}',
+            ${claim.rows[0].result.claimGeneration}
+          )
+        `),
+        /permission denied/i,
+      );
+      const nonstaff = await database.query(`
+        SELECT public.grainline_order_label_ambiguous_claim_read(
+          'buyer-1', 'order-1', '${claim.rows[0].result.claimId}',
+          ${claim.rows[0].result.claimGeneration}
+        ) AS result
+      `);
+      assert.equal(nonstaff.rows[0].result, null);
+      const read = await database.query(`
+        SELECT public.grainline_order_label_ambiguous_claim_read(
+          'staff-1', 'order-1', '${claim.rows[0].result.claimId}',
+          ${claim.rows[0].result.claimGeneration}
+        ) AS result
+      `);
+      assert.equal(read.rows[0].result.outcome, "ready");
+      assert.equal(read.rows[0].result.rateObjectId, "rate-old");
+      await assert.rejects(
+        database.query(`
+          SELECT public.grainline_order_label_ambiguous_release(
+            'staff-1', 'order-1', '${claim.rows[0].result.claimId}',
+            ${claim.rows[0].result.claimGeneration}, 'NO_TRANSACTION',
+            '${"a".repeat(64)}'
+          )
+        `),
+        /input is invalid/i,
+      );
+      const released = await database.query(`
+        SELECT public.grainline_order_label_ambiguous_release(
+          'staff-1', 'order-1', '${claim.rows[0].result.claimId}',
+          ${claim.rows[0].result.claimGeneration}, 'PROVIDER_ERROR',
+          '${"a".repeat(64)}'
+        ) AS result
+      `);
+      assert.equal(released.rows[0].result.outcome, "released");
+      const audit = await database.query(`
+        SELECT action, "actorType", "actorId", metadata
+          FROM public."SystemAuditLog"
+         WHERE id = '${released.rows[0].result.auditLogId}'
+      `);
+      assert.equal(audit.rows[0].action, "ORDER_LABEL_AMBIGUOUS_RELEASED");
+      assert.equal(audit.rows[0].actorType, "database_operator");
+      assert.equal(audit.rows[0].actorId, "postgres");
+      assert.equal(audit.rows[0].metadata.authorizingStaffUserId, "staff-1");
+      assert.equal(audit.rows[0].metadata.databaseSessionUser, "postgres");
+      assert.equal(audit.rows[0].metadata.providerScanSha256, "a".repeat(64));
+      const recoveredRelease = await database.query(`
+        SELECT public.grainline_order_label_ambiguous_claim_read(
+          'staff-1', 'order-1', '${claim.rows[0].result.claimId}',
+          ${claim.rows[0].result.claimGeneration}
+        ) AS result
+      `);
+      assert.equal(recoveredRelease.rows[0].result.outcome, "released");
+      assert.equal(recoveredRelease.rows[0].result.resolution, "PROVIDER_ERROR");
+      assert.equal(
+        recoveredRelease.rows[0].result.providerScanSha256,
+        "a".repeat(64),
+      );
+    } finally { await database.close(); }
+  });
+
+  it("accepts exact pending or ambiguous provider success after the seller is disabled", async () => {
+    for (const [index, makeAmbiguous] of [false, true].entries()) {
+      const database = await createDatabase();
+      try {
+        const claim = await asRuntime(database, `
+          SELECT public.grainline_order_seller_label_claim(
+            'seller-user-1', 'order-1', NULL
+          ) AS result
+        `);
+        if (makeAmbiguous) {
+          await asRuntime(database, `
+            SELECT public.grainline_order_seller_label_provider_record(
+              'seller-user-1', 'order-1', '${claim.rows[0].result.claimId}',
+              ${claim.rows[0].result.claimGeneration}, 'AMBIGUOUS',
+              NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'timeout'
+            )
+          `);
+        }
+        await database.exec(
+          `UPDATE public."User" SET banned = true WHERE id = 'seller-user-1'`,
+        );
+        const transactionId = `txn-late-${index}`;
+        const recorded = await asRuntime(database, `
+          SELECT public.grainline_order_seller_label_provider_record(
+            'seller-user-1', 'order-1', '${claim.rows[0].result.claimId}',
+            ${claim.rows[0].result.claimGeneration}, 'SUCCESS', '${transactionId}',
+            'https://labels.example.test/late.pdf', 'rate-old', 900, 'usd',
+            'UPS', NULL, NULL
+          ) AS result
+        `);
+        assert.equal(recorded.rows[0].result.outcome, "recorded");
+        assert.equal(recorded.rows[0].result.transactionId, transactionId);
+      } finally { await database.close(); }
+    }
+  });
+
+  it("rolls back label state when deterministic audit identities collide", async () => {
+    const database = await createDatabase();
+    try {
+      const claim = await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_claim(
+          'seller-user-1', 'order-1', NULL
+        ) AS result
+      `);
+      const claimId = claim.rows[0].result.claimId;
+      const generation = claim.rows[0].result.claimGeneration;
+      const providerAuditId = claimId.replace(
+        "order-label-claim:",
+        "order-label-audit:",
+      );
+      await database.exec(`
+        INSERT INTO public."SystemAuditLog" (
+          id, "actorType", "actorId", action, "targetType", "targetId",
+          metadata, "createdAt"
+        ) VALUES (
+          '${providerAuditId}', 'system', 'collision', 'COLLISION',
+          'ORDER', 'order-1', '{}'::jsonb, CURRENT_TIMESTAMP
+        )
+      `);
+      await assert.rejects(
+        asRuntime(database, `
+          SELECT public.grainline_order_seller_label_provider_record(
+            'seller-user-1', 'order-1', '${claimId}', ${generation},
+            'SUCCESS', 'txn-collision',
+            'https://labels.example.test/collision.pdf', 'rate-old', 900,
+            'usd', 'UPS', NULL, NULL
+          )
+        `),
+        /duplicate key|unique constraint/i,
+      );
+      const stillPending = await database.query(`
+        SELECT "labelClaimStatus" AS status, "shippoTransactionId" AS transaction
+          FROM public."Order" WHERE id = 'order-1'
+      `);
+      assert.deepEqual(stillPending.rows, [{ status: "PROVIDER_PENDING", transaction: null }]);
+
+      await asRuntime(database, `
+        SELECT public.grainline_order_seller_label_provider_record(
+          'seller-user-1', 'order-1', '${claimId}', ${generation},
+          'AMBIGUOUS', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'timeout'
+        )
+      `);
+      const releaseAuditId = claimId.replace(
+        "order-label-claim:",
+        "order-label-ambiguous-release:",
+      );
+      await database.exec(`
+        INSERT INTO public."SystemAuditLog" (
+          id, "actorType", "actorId", action, "targetType", "targetId",
+          metadata, "createdAt"
+        ) VALUES (
+          '${releaseAuditId}', 'system', 'collision', 'COLLISION',
+          'ORDER', 'order-1', '{}'::jsonb, CURRENT_TIMESTAMP
+        );
+      `);
+      await assert.rejects(
+        database.query(`
+          SELECT public.grainline_order_label_ambiguous_release(
+            'staff-1', 'order-1', '${claimId}', ${generation},
+            'PROVIDER_ERROR', '${"b".repeat(64)}'
+          )
+        `),
+        /duplicate key|unique constraint/i,
+      );
+      const stillAmbiguous = await database.query(`
+        SELECT "labelClaimStatus" AS status
+          FROM public."Order" WHERE id = 'order-1'
+      `);
+      assert.deepEqual(stillAmbiguous.rows, [{ status: "PROVIDER_AMBIGUOUS" }]);
     } finally { await database.close(); }
   });
 });

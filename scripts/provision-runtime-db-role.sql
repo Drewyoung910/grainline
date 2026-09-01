@@ -2557,7 +2557,9 @@ WITH order_label_authority(function_signature) AS (
     ('public."grainline_order_seller_label_provider_record"(text, text, text, bigint, text, text, text, text, integer, text, text, text, text)'),
     ('public."grainline_order_label_clawback_finalize"(text, text, bigint, bigint, text, text, text)'),
     ('public."grainline_order_label_clawback_claim_batch"(integer)'),
-    ('public."grainline_order_seller_label_download"(text, text)')
+    ('public."grainline_order_seller_label_download"(text, text)'),
+    ('public."grainline_order_label_ambiguous_claim_read"(text, text, text, bigint)'),
+    ('public."grainline_order_label_ambiguous_release"(text, text, text, bigint, text, text)')
 )
 SELECT format(
   'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',

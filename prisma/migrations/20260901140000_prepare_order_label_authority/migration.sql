@@ -89,6 +89,7 @@ DECLARE
   package_width numeric;
   package_height numeric;
   snapshot_items integer;
+  legacy_items integer;
   total_items integer;
 BEGIN
   IF p_actor_user_id IS NULL
@@ -160,16 +161,29 @@ BEGIN
     );
   END IF;
 
-  IF source_order."shipToLine1" IS NULL OR source_order."shipToCity" IS NULL
-     OR source_order."shipToState" IS NULL OR source_order."shipToPostalCode" IS NULL
-     OR seller."shipFromLine1" IS NULL OR seller."shipFromCity" IS NULL
-     OR seller."shipFromState" IS NULL OR seller."shipFromPostal" IS NULL THEN
+  IF NULLIF(pg_catalog.btrim(source_order."shipToLine1"), '') IS NULL
+     OR NULLIF(pg_catalog.btrim(source_order."shipToCity"), '') IS NULL
+     OR NULLIF(pg_catalog.btrim(source_order."shipToState"), '') IS NULL
+     OR NULLIF(pg_catalog.btrim(source_order."shipToPostalCode"), '') IS NULL
+     OR COALESCE(source_order."shipToCountry", 'US') !~ '^[A-Za-z]{2}$'
+     OR NULLIF(pg_catalog.btrim(
+       COALESCE(source_order."buyerName", source_order."quotedToName", '')
+     ), '') IS NULL
+     OR NULLIF(pg_catalog.btrim(seller."shipFromLine1"), '') IS NULL
+     OR NULLIF(pg_catalog.btrim(seller."shipFromCity"), '') IS NULL
+     OR NULLIF(pg_catalog.btrim(seller."shipFromState"), '') IS NULL
+     OR NULLIF(pg_catalog.btrim(seller."shipFromPostal"), '') IS NULL
+     OR COALESCE(seller."shipFromCountry", 'US') !~ '^[A-Za-z]{2}$'
+     OR NULLIF(pg_catalog.btrim(
+       COALESCE(seller."shipFromName", seller."displayName", '')
+     ), '') IS NULL THEN
     RETURN pg_catalog.jsonb_build_object('outcome', 'conflict', 'reason', 'address_missing');
   END IF;
 
   SELECT pg_catalog.count(*)::integer,
          pg_catalog.count(*) FILTER (
            WHERE pg_catalog.jsonb_typeof(item."listingSnapshot") = 'object'
+             AND item.quantity > 0
              AND item."listingSnapshot"->>'shippingPackageComplete' = 'true'
              AND item."listingSnapshot"->>'shippingWeightGrams' ~ '^[0-9]+([.][0-9]+)?$'
              AND item."listingSnapshot"->>'shippingLengthCm' ~ '^[0-9]+([.][0-9]+)?$'
@@ -195,19 +209,30 @@ BEGIN
      WHERE item."orderId" = source_order.id;
     package_source := 'CHECKOUT_SNAPSHOT';
   ELSE
-    SELECT
+    SELECT pg_catalog.count(*) FILTER (
+             WHERE item.quantity > 0
+               AND COALESCE(listing."packagedWeightGrams", seller."defaultPkgWeightGrams") > 0
+               AND COALESCE(listing."packagedWeightGrams", seller."defaultPkgWeightGrams") <= 500000
+               AND COALESCE(listing."packagedLengthCm", seller."defaultPkgLengthCm") > 0
+               AND COALESCE(listing."packagedLengthCm", seller."defaultPkgLengthCm") <= 1000
+               AND COALESCE(listing."packagedWidthCm", seller."defaultPkgWidthCm") > 0
+               AND COALESCE(listing."packagedWidthCm", seller."defaultPkgWidthCm") <= 1000
+               AND COALESCE(listing."packagedHeightCm", seller."defaultPkgHeightCm") > 0
+               AND COALESCE(listing."packagedHeightCm", seller."defaultPkgHeightCm") <= 1000
+           )::integer,
       pg_catalog.sum(COALESCE(listing."packagedWeightGrams", seller."defaultPkgWeightGrams")::numeric * item.quantity),
       pg_catalog.max(COALESCE(listing."packagedLengthCm", seller."defaultPkgLengthCm")::numeric),
       pg_catalog.max(COALESCE(listing."packagedWidthCm", seller."defaultPkgWidthCm")::numeric),
       pg_catalog.max(COALESCE(listing."packagedHeightCm", seller."defaultPkgHeightCm")::numeric)
-      INTO package_weight, package_length, package_width, package_height
+      INTO legacy_items, package_weight, package_length, package_width, package_height
       FROM public."OrderItem" AS item
-      JOIN public."Listing" AS listing ON listing.id = item."listingId"
+      LEFT JOIN public."Listing" AS listing ON listing.id = item."listingId"
      WHERE item."orderId" = source_order.id;
     package_source := 'LEGACY_LIVE';
   END IF;
 
-  IF package_weight IS NULL OR package_weight <= 0 OR package_weight > 500000
+  IF (package_source = 'LEGACY_LIVE' AND legacy_items <> total_items)
+     OR package_weight IS NULL OR package_weight <= 0 OR package_weight > 500000
      OR package_length IS NULL OR package_length <= 0 OR package_length > 1000
      OR package_width IS NULL OR package_width <= 0 OR package_width > 1000
      OR package_height IS NULL OR package_height <= 0 OR package_height > 1000 THEN
@@ -232,16 +257,24 @@ BEGIN
     'packageWidthCm', package_width,
     'packageHeightCm', package_height,
     'shipFrom', pg_catalog.jsonb_build_object(
-      'name', seller."shipFromName", 'street1', seller."shipFromLine1",
-      'street2', seller."shipFromLine2", 'city', seller."shipFromCity",
-      'state', seller."shipFromState", 'zip', seller."shipFromPostal",
+      'name', COALESCE(NULLIF(pg_catalog.btrim(seller."shipFromName"), ''),
+        pg_catalog.btrim(seller."displayName")),
+      'street1', pg_catalog.btrim(seller."shipFromLine1"),
+      'street2', seller."shipFromLine2",
+      'city', pg_catalog.btrim(seller."shipFromCity"),
+      'state', pg_catalog.btrim(seller."shipFromState"),
+      'zip', pg_catalog.btrim(seller."shipFromPostal"),
       'country', COALESCE(seller."shipFromCountry", 'US')
     ),
     'shipTo', pg_catalog.jsonb_build_object(
-      'name', COALESCE(source_order."buyerName", source_order."quotedToName"),
-      'street1', source_order."shipToLine1", 'street2', source_order."shipToLine2",
-      'city', source_order."shipToCity", 'state', source_order."shipToState",
-      'zip', source_order."shipToPostalCode",
+      'name', pg_catalog.btrim(
+        COALESCE(source_order."buyerName", source_order."quotedToName")
+      ),
+      'street1', pg_catalog.btrim(source_order."shipToLine1"),
+      'street2', source_order."shipToLine2",
+      'city', pg_catalog.btrim(source_order."shipToCity"),
+      'state', pg_catalog.btrim(source_order."shipToState"),
+      'zip', pg_catalog.btrim(source_order."shipToPostalCode"),
       'country', COALESCE(source_order."shipToCountry", 'US')
     )
   );
@@ -330,6 +363,8 @@ BEGIN
 
   now_utc := pg_catalog.clock_timestamp() AT TIME ZONE 'UTC';
   quote_id := 'order-label-quote:' || pg_catalog.gen_random_uuid()::text;
+  DELETE FROM public."OrderShippingRateQuote"
+   WHERE "orderId" = locked_order.id;
   UPDATE public."Order" SET "shippoShipmentId" = p_shipment_id WHERE id = locked_order.id;
   INSERT INTO public."OrderShippingRateQuote" (
     id, "orderId", "shipmentId", rates, "expiresAt", "createdAt", "updatedAt"
@@ -337,9 +372,6 @@ BEGIN
     quote_id, locked_order.id, p_shipment_id, p_rates,
     now_utc + interval '30 minutes', now_utc, now_utc
   );
-  DELETE FROM public."OrderShippingRateQuote"
-   WHERE "orderId" = locked_order.id AND "expiresAt" < now_utc;
-
   RETURN pg_catalog.jsonb_build_object(
     'outcome', 'changed', 'orderId', locked_order.id,
     'shipmentId', p_shipment_id, 'quoteId', quote_id,
@@ -540,7 +572,23 @@ BEGIN
     FROM public."User" AS actor
     JOIN public."SellerProfile" AS seller ON seller."userId" = actor.id
    WHERE actor.id = p_actor_user_id AND NOT actor.banned AND actor."deletedAt" IS NULL;
-  IF NOT FOUND THEN RETURN NULL; END IF;
+  IF NOT FOUND THEN
+    -- Provider success may arrive after the originating seller is disabled.
+    -- Exact evidence for the already-created pending or ambiguous claim may
+    -- cross that timing boundary; a disabled actor cannot release or create a
+    -- claim.
+    IF p_outcome <> 'SUCCESS' THEN RETURN NULL; END IF;
+    SELECT candidate."sellerProfileId" INTO seller_id
+      FROM public."Order" AS candidate
+     WHERE candidate.id = p_order_id
+       AND candidate."labelClaimId" = p_claim_id
+       AND candidate."labelClaimGeneration" = p_claim_generation
+       AND candidate."labelClaimActorUserId" = p_actor_user_id
+       AND candidate."labelClaimStatus" IN (
+         'PROVIDER_PENDING', 'PROVIDER_AMBIGUOUS'
+       );
+    IF NOT FOUND THEN RETURN NULL; END IF;
+  END IF;
 
   SELECT candidate.* INTO locked_order
     FROM public."Order" AS candidate WHERE candidate.id = p_order_id
@@ -560,7 +608,9 @@ BEGIN
   );
 
   IF p_outcome = 'REJECTED' THEN
-    IF locked_order."labelClaimStatus" NOT IN ('PROVIDER_PENDING', 'PROVIDER_AMBIGUOUS') THEN
+    -- Synchronous provider rejection may release only a pending claim. Once
+    -- ambiguous, ordinary runtime authority cannot assert provider absence.
+    IF locked_order."labelClaimStatus" <> 'PROVIDER_PENDING' THEN
       RETURN pg_catalog.jsonb_build_object('outcome', 'conflict', 'reason', 'stale_claim');
     END IF;
     UPDATE public."Order"
@@ -674,7 +724,7 @@ BEGIN
         'currency', pg_catalog.lower(p_currency), 'transactionId', p_transaction_id,
         'carrier', p_carrier, 'hasTrackingNumber', p_tracking_number IS NOT NULL
       ), now_utc
-    ) ON CONFLICT (id) DO NOTHING;
+    );
   END IF;
 
   SELECT buyer.id, buyer.name, buyer.email, buyer."notificationPreferences"
@@ -960,6 +1010,220 @@ AS $grainline_order_seller_label_download$
    AND source_order."sellerProfileId" = seller.id
 $grainline_order_seller_label_download$;
 
+-- Owner-invoked staff reconciliation reads only one exact ambiguous claim.
+-- Ordinary runtime receives no EXECUTE on either private function below.
+CREATE FUNCTION public.grainline_order_label_ambiguous_claim_read(
+  p_staff_user_id text,
+  p_order_id text,
+  p_claim_id text,
+  p_claim_generation bigint
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+PARALLEL SAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_order_label_ambiguous_claim_read$
+DECLARE
+  source_order public."Order"%ROWTYPE;
+  release_audit public."SystemAuditLog"%ROWTYPE;
+  release_audit_id text;
+BEGIN
+  IF p_staff_user_id IS NULL
+     OR p_staff_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_order_id IS NULL OR p_order_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_claim_id IS NULL
+     OR p_claim_id !~ '^order-label-claim:[0-9a-f-]{36}$'
+     OR p_claim_generation IS NULL OR p_claim_generation < 1 THEN
+    RAISE EXCEPTION 'Order label ambiguous read input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public."User" AS staff
+     WHERE staff.id = p_staff_user_id
+       AND NOT staff.banned AND staff."deletedAt" IS NULL
+       AND staff.role::text IN ('EMPLOYEE', 'ADMIN')
+  ) THEN RETURN NULL; END IF;
+
+  SELECT candidate.* INTO source_order
+    FROM public."Order" AS candidate
+   WHERE candidate.id = p_order_id
+     AND candidate."labelClaimId" = p_claim_id
+     AND candidate."labelClaimGeneration" = p_claim_generation;
+  IF FOUND THEN
+    IF source_order."labelClaimStatus" = 'PROVIDER_AMBIGUOUS' THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'outcome', 'ready',
+        'orderId', source_order.id,
+        'claimId', source_order."labelClaimId",
+        'claimGeneration', source_order."labelClaimGeneration",
+        'sellerActorUserId', source_order."labelClaimActorUserId",
+        'rateObjectId', source_order."labelClaimRateObjectId",
+        'amountCents', source_order."labelClaimExpectedAmountCents",
+        'currency', source_order."labelClaimCurrency",
+        'claimStartedAtEpochMillis',
+          pg_catalog.floor(
+            EXTRACT(epoch FROM source_order."labelClaimStartedAt") * 1000
+          )::bigint
+      );
+    END IF;
+    IF source_order."labelClaimStatus" IN ('PROVIDER_RECORDED', 'FINALIZED')
+       AND source_order."labelStatus"::text = 'PURCHASED'
+       AND source_order."shippoTransactionId" IS NOT NULL THEN
+      RETURN pg_catalog.jsonb_build_object(
+        'outcome', 'recorded',
+        'orderId', source_order.id,
+        'claimId', source_order."labelClaimId",
+        'claimGeneration', source_order."labelClaimGeneration",
+        'sellerActorUserId', source_order."labelClaimActorUserId",
+        'rateObjectId', source_order."labelClaimRateObjectId",
+        'amountCents', source_order."labelCostCents",
+        'currency', source_order."labelClaimCurrency",
+        'transactionId', source_order."shippoTransactionId",
+        'clawbackGeneration', source_order."labelClawbackGeneration",
+        'clawbackStatus', source_order."labelClawbackStatus",
+        'stripeTransferId', source_order."stripeTransferId"
+      );
+    END IF;
+    RETURN pg_catalog.jsonb_build_object(
+      'outcome', 'conflict', 'reason', 'claim_state_changed'
+    );
+  END IF;
+
+  release_audit_id := pg_catalog.replace(
+    p_claim_id,
+    'order-label-claim:',
+    'order-label-ambiguous-release:'
+  );
+  SELECT candidate.* INTO release_audit
+    FROM public."SystemAuditLog" AS candidate
+   WHERE candidate.id = release_audit_id
+     AND candidate.action = 'ORDER_LABEL_AMBIGUOUS_RELEASED'
+     AND candidate."targetType" = 'ORDER'
+     AND candidate."targetId" = p_order_id
+     AND candidate.metadata->>'claimId' = p_claim_id
+     AND candidate.metadata->>'claimGeneration' = p_claim_generation::text
+     AND candidate.metadata->>'resolution' = 'PROVIDER_ERROR'
+     AND candidate.metadata->>'providerScanSha256' ~ '^[0-9a-f]{64}$';
+  IF FOUND THEN
+    RETURN pg_catalog.jsonb_build_object(
+      'outcome', 'released',
+      'orderId', p_order_id,
+      'claimId', p_claim_id,
+      'claimGeneration', p_claim_generation,
+      'resolution', release_audit.metadata->>'resolution',
+      'providerScanSha256', release_audit.metadata->>'providerScanSha256',
+      'auditLogId', release_audit.id
+    );
+  END IF;
+
+  RETURN NULL;
+END
+$grainline_order_label_ambiguous_claim_read$;
+
+CREATE FUNCTION public.grainline_order_label_ambiguous_release(
+  p_staff_user_id text,
+  p_order_id text,
+  p_claim_id text,
+  p_claim_generation bigint,
+  p_resolution text,
+  p_provider_scan_sha256 text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+PARALLEL UNSAFE
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $grainline_order_label_ambiguous_release$
+DECLARE
+  locked_order public."Order"%ROWTYPE;
+  audit_id text;
+  now_utc timestamp(3) without time zone;
+BEGIN
+  IF p_staff_user_id IS NULL
+     OR p_staff_user_id !~ '^[A-Za-z0-9._:-]{1,128}$'
+     OR p_order_id IS NULL OR p_order_id !~ '^[A-Za-z0-9._:-]{1,191}$'
+     OR p_claim_id IS NULL
+     OR p_claim_id !~ '^order-label-claim:[0-9a-f-]{36}$'
+     OR p_claim_generation IS NULL OR p_claim_generation < 1
+     OR p_resolution <> 'PROVIDER_ERROR'
+     OR p_provider_scan_sha256 IS NULL
+     OR p_provider_scan_sha256 !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'Order label ambiguous release input is invalid'
+      USING ERRCODE = '22023';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public."User" AS staff
+     WHERE staff.id = p_staff_user_id
+       AND NOT staff.banned AND staff."deletedAt" IS NULL
+       AND staff.role::text IN ('EMPLOYEE', 'ADMIN')
+  ) THEN RETURN NULL; END IF;
+
+  SELECT candidate.* INTO locked_order
+    FROM public."Order" AS candidate
+   WHERE candidate.id = p_order_id
+   FOR UPDATE OF candidate;
+  IF NOT FOUND
+     OR locked_order."labelClaimId" IS DISTINCT FROM p_claim_id
+     OR locked_order."labelClaimGeneration" <> p_claim_generation
+     OR locked_order."labelClaimStatus" <> 'PROVIDER_AMBIGUOUS'
+     OR locked_order."shippoTransactionId" IS NOT NULL
+     OR locked_order."labelStatus"::text = 'PURCHASED' THEN
+    RETURN pg_catalog.jsonb_build_object(
+      'outcome', 'conflict', 'reason', 'stale_claim'
+    );
+  END IF;
+  now_utc := pg_catalog.clock_timestamp() AT TIME ZONE 'UTC';
+  audit_id := pg_catalog.replace(
+    p_claim_id,
+    'order-label-claim:',
+    'order-label-ambiguous-release:'
+  );
+  UPDATE public."Order"
+     SET "labelClaimId" = NULL,
+         "labelClaimStatus" = NULL,
+         "labelClaimActorUserId" = NULL,
+         "labelClaimRateObjectId" = NULL,
+         "labelClaimExpectedAmountCents" = NULL,
+         "labelClaimCurrency" = NULL,
+         "labelClaimStartedAt" = NULL,
+         "labelClaimProviderRecordedAt" = NULL,
+         "reviewNeeded" = true,
+         "reviewNote" = pg_catalog.left(
+           COALESCE(NULLIF("reviewNote", '') || E'\n\n', '') ||
+           'AMBIGUOUS LABEL RESOLVED: Shippo returned an exact ERROR transaction for claim ' ||
+           p_claim_id || '. Evidence SHA-256 ' || p_provider_scan_sha256 || '.',
+           10000
+         )
+   WHERE id = locked_order.id;
+
+  INSERT INTO public."SystemAuditLog" (
+    id, "actorType", "actorId", action, "targetType", "targetId",
+    reason, metadata, "createdAt"
+  ) VALUES (
+    audit_id, 'database_operator', session_user,
+    'ORDER_LABEL_AMBIGUOUS_RELEASED',
+    'ORDER', locked_order.id,
+    'Exact Shippo transaction ended in ERROR',
+    pg_catalog.jsonb_build_object(
+      'authorizingStaffUserId', p_staff_user_id,
+      'claimId', p_claim_id,
+      'claimGeneration', p_claim_generation,
+      'databaseSessionUser', session_user,
+      'resolution', p_resolution,
+      'providerScanSha256', p_provider_scan_sha256
+    ), now_utc
+  );
+
+  RETURN pg_catalog.jsonb_build_object(
+    'outcome', 'released', 'orderId', locked_order.id,
+    'auditLogId', audit_id
+  );
+END
+$grainline_order_label_ambiguous_release$;
+
 -- Seller order detail v4 keeps the compatible v3 participant, purge and
 -- historical-snapshot decisions while removing the stored signed label URL
 -- from the ordinary runtime projection. Sellers retrieve a fresh provider URL
@@ -1080,6 +1344,12 @@ REVOKE ALL ON FUNCTION public.grainline_order_label_clawback_finalize(
 REVOKE ALL ON FUNCTION public.grainline_order_label_clawback_claim_batch(integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.grainline_order_seller_label_download(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.grainline_order_seller_detail_v4(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.grainline_order_label_ambiguous_claim_read(
+  text, text, text, bigint
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.grainline_order_label_ambiguous_release(
+  text, text, text, bigint, text, text
+) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.grainline_order_seller_label_preflight(text, text)
   TO grainline_app_runtime;
