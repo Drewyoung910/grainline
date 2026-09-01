@@ -1861,6 +1861,29 @@ Open work:
   Prisma config/schema load and client generation, full tests, TypeScript,
   lint and a production build before merge.
 
+## Dependency advisory refresh (2026-09-01)
+
+- GitHub CI run `33568378386` completed the full Case/Order PostgreSQL proof,
+  TypeScript, lint and 3,865 tests, then failed closed at the dependency audit
+  after three newly published high-severity advisories appeared.
+- `browserslist<=4.28.6` is vulnerable to unbounded query-cache growth and an
+  unsafe custom-stats normalization path. The lockfile now resolves the
+  patched `4.28.8` release through a narrow override.
+- Prisma `7.9.0` pins `mysql2@3.15.3`, which is vulnerable to an authentication
+  plugin downgrade that can disclose MySQL credentials. Grainline uses
+  PostgreSQL and does not exercise that MySQL code path, but production audit
+  policy still forbids shipping a known high-severity package. Prisma remains
+  aligned at `7.9.0`; only the compatible transitive driver is overridden to
+  patched `3.24.2` instead of accepting npm's unsafe Prisma 6 downgrade.
+- The directly used user-content sanitizer moves from `sanitize-html@2.17.6`
+  to `2.17.7` for the SVG SMIL scheme-policy bypass. Although npm classifies
+  that advisory as moderate, Grainline uses this dependency at stored-content
+  rendering boundaries, so it is patched in the same isolated update.
+- Dependency-hygiene coverage pins all three resolved versions. Acceptance
+  requires a clean install, Prisma generation, zero production/full-tree
+  advisories, focused sanitizer coverage, the full suite, TypeScript, lint and
+  a production build. No advisory exception or broad force-fix is permitted.
+
 ## SellerPayoutEvent disposable linked-seller correction (2026-08-21)
 
 - The Vercel deployment-reader correction merged at exact main
