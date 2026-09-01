@@ -35,6 +35,9 @@ import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
   verifyOrderPaymentEventForceMigrationBytes,
 } from "./stage-order-payment-event-force-migration.mjs";
+import {
+  appendReviewedOrderParticipantListAuthoritySuccessor,
+} from "./order-participant-list-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_INVARIANTS_PHASE =
   "order-payment-event-invariants-reviewed";
@@ -117,6 +120,12 @@ export function verifyOrderPaymentEventInvariantsRelease(
     verifyOrderPaymentEventForceMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_FORCE_MIGRATION);
   }
+  appendReviewedOrderParticipantListAuthoritySuccessor({
+    root,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+  });
   assert.deepEqual(
     laterMigrations,
     reviewedSuccessors,

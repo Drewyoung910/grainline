@@ -433,7 +433,7 @@ async function redactOrderReviewNotesForDeletedAccount(
     OR: [
       { buyerId: deletedUserId },
       ...(sellerProfileId
-        ? [{ items: { some: { listing: { sellerId: sellerProfileId } } } }]
+        ? [{ sellerProfileId }]
         : []),
     ],
   };
@@ -1353,10 +1353,7 @@ export async function anonymizeUserAccount(
             ? [
                 {
                   order: {
-                    items: {
-                      some: { listing: { sellerId: user.sellerProfile.id } },
-                      every: { listing: { sellerId: user.sellerProfile.id } },
-                    },
+                    sellerProfileId: user.sellerProfile.id,
                   },
                 },
               ]
@@ -1539,12 +1536,7 @@ export async function anonymizeUserAccount(
         where: { sellerProfileId: user.sellerProfile.id },
       });
       await tx.order.updateMany({
-        where: {
-          items: {
-            some: { listing: { sellerId: user.sellerProfile.id } },
-            every: { listing: { sellerId: user.sellerProfile.id } },
-          },
-        },
+        where: { sellerProfileId: user.sellerProfile.id },
         data: {
           trackingCarrier: null,
           trackingNumber: null,

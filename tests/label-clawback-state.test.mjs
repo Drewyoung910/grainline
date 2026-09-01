@@ -109,29 +109,26 @@ describe("label clawback reconciliation state", () => {
 
   it("advances stale retry claims instead of reusing the previous attempt count", () => {
     const retry = source("src/lib/labelClawbackRetry.ts");
+    const authority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
 
-    assert.match(retry, /const attemptCount = order\.labelClawbackRetryCount \+ 1/);
-    assert.doesNotMatch(retry, /Math\.max\(1, order\.labelClawbackRetryCount\)/);
+    assert.match(retry, /claimLabelClawbackBatch\(take\)/);
+    assert.match(authority, /"labelClawbackRetryCount" = target_order\."labelClawbackRetryCount" \+ 1/);
+    assert.match(authority, /FOR UPDATE OF source_order SKIP LOCKED/);
   });
 
   it("preserves accepted Stripe reversals if the local success write fails", () => {
     const route = source("src/app/api/orders/[id]/label/route.ts");
-    const orphanStart = route.indexOf("const orphanRecordedAt = new Date()");
-    const orphanEnd = route.indexOf(".catch((updateError)", orphanStart);
-    const orphanBlock = route.slice(orphanStart, orphanEnd);
-
-    assert.match(route, /let labelClawbackReversalAccepted = false/);
-    assert.match(route, /labelClawbackReversalAccepted = true/);
-    assert.match(route, /acceptedLabelClawbackReversalId = reversal\.id \?\? null/);
-    assert.match(route, /source: "label_cost_clawback_record_failed"/);
-    assert.match(orphanBlock, /labelClawbackReversalAccepted/);
-    assert.match(orphanBlock, /labelClawbackStatus: "REVERSED" as const/);
-    assert.match(orphanBlock, /labelClawbackReversalId: acceptedLabelClawbackReversalId/);
-    assert.ok(
-      orphanBlock.indexOf('labelClawbackStatus: "REVERSED" as const') <
-        orphanBlock.indexOf('labelClawbackStatus: "RETRY_PENDING" as const'),
-      "accepted reversals should be preserved before retry-pending fallback",
+    const authority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
     );
+
+    assert.match(route, /idempotencyKey: labelClawbackIdempotencyKey/);
+    assert.match(route, /finalizeLabelClawback\(\{[\s\S]*outcome: "SUCCESS"/);
+    assert.match(authority, /"labelClawbackReversalId" = p_reversal_id/);
+    assert.match(authority, /"labelClaimStatus" = 'FINALIZED'/);
+    assert.match(authority, /'outcome', 'conflict', 'reason', 'stale_claim'/);
   });
 
   it("keeps active label-cost reconciliation holds visible to staff", () => {

@@ -54,6 +54,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { hashIdentifierForTelemetry } from "@/lib/privacyTelemetry";
+import { checkoutShippingPackageMetadata } from "@/lib/orderItemSnapshot";
 
 const CheckoutSellerSchema = z.object({
   sellerId: z.string().min(1),
@@ -398,6 +399,16 @@ export async function POST(req: Request) {
               listingId: i.listing.id,
               cartItemId: i.id,
               variantKey: i.variantKey,
+              ...checkoutShippingPackageMetadata({
+                shippingWeightGrams:
+                  i.listing.packagedWeightGrams ?? i.listing.seller.defaultPkgWeightGrams,
+                shippingLengthCm:
+                  i.listing.packagedLengthCm ?? i.listing.seller.defaultPkgLengthCm,
+                shippingWidthCm:
+                  i.listing.packagedWidthCm ?? i.listing.seller.defaultPkgWidthCm,
+                shippingHeightCm:
+                  i.listing.packagedHeightCm ?? i.listing.seller.defaultPkgHeightCm,
+              }),
             },
             tax_code: "txcd_99999999", // General - Tangible Personal Property
           },

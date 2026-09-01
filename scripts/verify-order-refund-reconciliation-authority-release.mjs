@@ -57,6 +57,9 @@ import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
   verifyOrderPaymentEventForceMigrationBytes,
 } from "./stage-order-payment-event-force-migration.mjs";
+import {
+  appendReviewedOrderParticipantListAuthoritySuccessor,
+} from "./order-participant-list-authority-catalog.mjs";
 
 export const ORDER_REFUND_RECONCILIATION_AUTHORITY_PHASE =
   "order-refund-reconciliation-authority-prepared";
@@ -248,6 +251,12 @@ export function verifyOrderRefundReconciliationAuthorityRelease(
     .filter(
       (name) => name > ORDER_REFUND_RECONCILIATION_AUTHORITY_MIGRATION,
     );
+  appendReviewedOrderParticipantListAuthoritySuccessor({
+    root: rootDirectory,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+  });
   assert.deepEqual(
     laterMigrations,
     reviewedSuccessors,

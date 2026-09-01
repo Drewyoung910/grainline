@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export const EXPECTED_NOTIFICATION_EMISSION_PATHS = 55;
+export const EXPECTED_NOTIFICATION_EMISSION_PATHS = 56;
 
 const FAMILY_SQL_FUNCTION_BY_SOURCE_KEY = {
   BLOG_COMMENT: "grainline_notification_create_source_fanout",
@@ -139,10 +139,46 @@ function backInStockEmission(file, sourceFile, object, serviceAccess, authorityS
   };
 }
 
+function orderLabelDatabaseEmission(migrationPath, applicationPath) {
+  if (!fs.existsSync(migrationPath) || !fs.existsSync(applicationPath)) return null;
+  const migration = fs.readFileSync(migrationPath, "utf8");
+  const application = fs.readFileSync(applicationPath, "utf8");
+  const authorityFunction = "grainline_order_seller_label_provider_record";
+  const hasSourcePair = /'order_fulfillment',[\s\S]{0,120}audit_id/.test(migration)
+    && /'ORDER_SHIPPED'::public\."NotificationType"/.test(migration);
+  const hasServiceDispatch = application.includes(`public.${authorityFunction}(`);
+  const hasSqlAuthority = new RegExp(
+    `CREATE FUNCTION public\\.${authorityFunction}\\([\\s\\S]*?INSERT INTO public\\."Notification"`,
+  ).test(migration)
+    && /locked_order\."sellerProfileId" IS DISTINCT FROM seller_id/.test(migration)
+    && /ON CONFLICT \("userId", type, "dedupKey"\) DO NOTHING/.test(migration)
+    && new RegExp(
+      `REVOKE ALL ON FUNCTION public\\.${authorityFunction}\\([\\s\\S]{0,400}FROM PUBLIC;`,
+    ).test(migration)
+    && new RegExp(
+      `GRANT EXECUTE ON FUNCTION public\\.${authorityFunction}\\([\\s\\S]{0,400}TO grainline_app_runtime;`,
+    ).test(migration);
+  return {
+    id: `${migrationPath}:ORDER_SHIPPED`,
+    file: migrationPath,
+    line: migration.slice(0, migration.indexOf("'ORDER_SHIPPED'::public.")).split("\n").length,
+    kind: "database-owned",
+    type: "ORDER_SHIPPED",
+    sourceType: "order_fulfillment",
+    hasSourcePair,
+    authorityFunction,
+    hasServiceDispatch,
+    hasSqlAuthority,
+    reviewedFamily: hasServiceDispatch && hasSqlAuthority && hasSourcePair,
+  };
+}
+
 export function collectNotificationEmissionPaths({
   sourceRoot = "src",
   serviceAccessPath = "src/lib/notificationServiceAccess.ts",
   authoritySqlPath = "docs/rls-drafts/notification-service-authority.sql",
+  orderLabelMigrationPath = "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+  orderLabelApplicationPath = "src/lib/orderLabelAuthority.ts",
 } = {}) {
   const serviceAccess = fs.readFileSync(serviceAccessPath, "utf8");
   const authoritySql = fs.readFileSync(authoritySqlPath, "utf8");
@@ -211,6 +247,12 @@ export function collectNotificationEmissionPaths({
     };
     visit(sourceFile);
   }
+
+  const orderLabelEmission = orderLabelDatabaseEmission(
+    orderLabelMigrationPath,
+    orderLabelApplicationPath,
+  );
+  if (orderLabelEmission) emissions.push(orderLabelEmission);
 
   return { emissions, unresolvedCalls };
 }

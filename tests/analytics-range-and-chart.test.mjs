@@ -102,55 +102,25 @@ describe("seller analytics chart layout", () => {
 describe("seller analytics Top Listings range", () => {
   it("scopes every displayed listing statistic to the selected time range", () => {
     const route = source("src/app/api/seller/analytics/route.ts");
-    const queryStart = route.indexOf("const topListingRowsPromise");
-    const queryEnd = route.indexOf("type RatingRow", queryStart);
+    const authority = source("src/lib/orderSellerAnalyticsAuthority.ts");
+    const migration = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
 
-    assert.ok(queryStart > -1 && queryEnd > queryStart, "Top Listings query should be present");
-    const query = route.slice(queryStart, queryEnd);
-
-    assert.match(query, /WITH scoped_listing_stats AS/);
+    assert.match(route, /readSellerOrderTopListings\(\{[\s\S]*actorUserId: me\.id/);
+    assert.match(route, /startDate,[\s\S]*endDate,[\s\S]*endExclusive,[\s\S]*allTime: range === "alltime"/);
+    assert.match(authority, /grainline_order_seller_analytics_top_listings/);
+    assert.match(migration, /WITH seller_actor AS \([\s\S]*seller\."userId" = p_actor_user_id/);
+    assert.match(migration, /sales AS \([\s\S]*source_order\."createdAt" >= range_start/);
+    assert.match(migration, /daily_views AS \([\s\S]*view_daily\.date >= range_start/);
+    assert.match(migration, /favorites AS \([\s\S]*favorite\."createdAt" >= range_start/);
+    assert.match(migration, /watchers AS \([\s\S]*stock_notification\."createdAt" >= range_start/);
+    assert.match(migration, /WHEN p_all_time THEN seller_listings\."viewCount"::bigint/);
+    assert.match(migration, /WHEN p_all_time THEN seller_listings\."clickCount"::bigint/);
+    assert.match(migration, /WHERE combined\.revenue > 0[\s\S]*OR combined\.watcher_value > 0/);
     assert.match(
-      query,
-      /WHEN \$\{range\} = 'alltime' THEN l\."viewCount"::bigint[\s\S]*?ELSE COALESCE\(\([\s\S]*?SELECT SUM\(lvd\.views\)::bigint/,
-    );
-    assert.match(
-      query,
-      /WHEN \$\{range\} = 'alltime' THEN l\."clickCount"::bigint[\s\S]*?ELSE COALESCE\(\([\s\S]*?SELECT SUM\(lvd\.clicks\)::bigint/,
-    );
-    assert.match(
-      query,
-      /SELECT SUM\(lvd\.views\)::bigint[\s\S]*?AND lvd\.date >= \$\{startDate\}[\s\S]*?AND lvd\.date \$\{rangeEndSql\}/,
-    );
-    assert.match(
-      query,
-      /SELECT SUM\(lvd\.clicks\)::bigint[\s\S]*?AND lvd\.date >= \$\{startDate\}[\s\S]*?AND lvd\.date \$\{rangeEndSql\}/,
-    );
-    assert.match(
-      query,
-      /FROM "Favorite" f[\s\S]*?AND f\."createdAt" >= \$\{startDate\}[\s\S]*?AND f\."createdAt" \$\{rangeEndSql\}/,
-    );
-    assert.match(
-      query,
-      /FROM "StockNotification" sn[\s\S]*?AND sn\."createdAt" >= \$\{startDate\}[\s\S]*?AND sn\."createdAt" \$\{rangeEndSql\}/,
-    );
-    assert.match(
-      query,
-      /LEFT JOIN "Order" o[\s\S]*?AND o\."createdAt" >= \$\{startDate\}[\s\S]*?AND o\."createdAt" \$\{rangeEndSql\}/,
-    );
-    assert.match(query, /FROM scoped_listing_stats scoped/);
-    for (const metric of [
-      "total_revenue",
-      "units_sold",
-      "view_count",
-      "click_count",
-      "favorite_count",
-      "stock_notification_count",
-    ]) {
-      assert.match(query, new RegExp(`OR scoped\\.${metric} > 0|WHERE scoped\\.${metric} > 0`));
-    }
-    assert.match(
-      query,
-      /ORDER BY scoped\.total_revenue DESC, scoped\.view_count DESC, scoped\.click_count DESC, scoped\.id ASC/,
+      migration,
+      /ORDER BY combined\.revenue DESC, combined\.views DESC,[\s\S]*combined\.clicks DESC, combined\.id ASC/,
     );
   });
 
@@ -160,7 +130,7 @@ describe("seller analytics Top Listings range", () => {
 
     assert.match(
       route,
-      /const activeStartMs = Math\.max\(startDate\.getTime\(\), new Date\(r\.created_at\)\.getTime\(\)\)/,
+      /const activeStartMs = Math\.max\(startDate\.getTime\(\), r\.createdAt\.getTime\(\)\)/,
     );
     assert.match(
       route,
@@ -168,7 +138,7 @@ describe("seller analytics Top Listings range", () => {
     );
     assert.match(
       route,
-      /revenuePerActiveDayCents: Math\.round\(Number\(r\.total_revenue\) \/ activeDaysInRange\)/,
+      /revenuePerActiveDayCents: Math\.round\(r\.totalRevenueCents \/ activeDaysInRange\)/,
     );
     assert.doesNotMatch(route, /const daysSinceCreated/);
     assert.match(page, /No listing activity for this period\./);

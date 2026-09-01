@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 const {
+  classifyShippoTransactionStatus,
   normalizeShippoRateCurrency,
   normalizeShippoShipmentRates,
+  shippoCredentialTestMode,
 } = await import("../src/lib/shippo.ts");
 
 function source(path) {
@@ -12,6 +14,23 @@ function source(path) {
 }
 
 describe("Shippo label money guardrails", () => {
+  it("releases only terminal provider errors and fences every unknown status", () => {
+    assert.equal(classifyShippoTransactionStatus("SUCCESS"), "SUCCESS");
+    assert.equal(classifyShippoTransactionStatus("ERROR"), "REJECTED");
+    assert.equal(classifyShippoTransactionStatus("WAITING"), "AMBIGUOUS");
+    assert.equal(classifyShippoTransactionStatus("QUEUED"), "AMBIGUOUS");
+    assert.equal(classifyShippoTransactionStatus(null), "AMBIGUOUS");
+  });
+
+  it("derives one explicit provider mode from the credential prefix", () => {
+    assert.equal(shippoCredentialTestMode("shippo_test_example"), true);
+    assert.equal(shippoCredentialTestMode("shippo_live_example"), false);
+    assert.throws(
+      () => shippoCredentialTestMode("legacy_example"),
+      /does not declare a reviewed test\/live mode/,
+    );
+  });
+
   it("normalizes provider shipment rates before label re-quote persistence", () => {
     assert.equal(normalizeShippoRateCurrency(" USD "), "usd");
     assert.equal(normalizeShippoRateCurrency(null), "usd");
@@ -50,14 +69,18 @@ describe("Shippo label money guardrails", () => {
 
   it("keeps label purchase costs currency-scoped before Stripe reversal", () => {
     const labelRoute = source("src/app/api/orders/[id]/label/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
 
-    assert.match(labelRoute, /const expectedLabelCurrency = normalizeCurrencyCode\(order\.currency\)\.toLowerCase\(\)/);
-    assert.match(labelRoute, /rateSetIncludes\(quoteSet\.rates, bodyRateObjectId, expectedLabelCurrency\)/);
-    assert.match(labelRoute, /rateCurrency !== expectedLabelCurrency/);
-    assert.match(labelRoute, /safeProviderShippingCents\(txn\.rate\?\.amount\)/);
-    assert.match(labelRoute, /txnRateCurrency === expectedLabelCurrency/);
-    assert.match(labelRoute, /labelClawbackStatus: invalidLabelCost \? "MANUAL_REVIEW" : undefined/);
-    assert.match(labelRoute, /labelCostCents != null && labelCostCents > 0/);
-    assert.doesNotMatch(labelRoute, /Math\.round\(Number\(txn\.rate\?\.amount/);
+    assert.match(labelRoute, /safeProviderShippingCents\(rate\.amount\)/);
+    assert.match(labelRoute, /amountCents !== claim\.amountCents/);
+    assert.match(labelRoute, /normalizedCurrency !== claim\.currency/);
+    assert.match(labelRoute, /transaction\.test !== shippoCredentialTestMode\(\)/);
+    assert.match(labelRoute, /source: "shippo_label_mode_mismatch"/);
+    assert.match(labelRoute, /source: "shippo_label_nonterminal_status"/);
+    assert.match(authority, /p_amount_cents IS DISTINCT FROM locked_order\."labelClaimExpectedAmountCents"/);
+    assert.match(authority, /pg_catalog\.lower\(COALESCE\(p_currency, ''\)\) IS DISTINCT FROM locked_order\."labelClaimCurrency"/);
+    assert.doesNotMatch(labelRoute, /Math\.round\(Number\(.*rate.*amount/);
   });
 });

@@ -82,6 +82,116 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+      - name: Verify compatible Order label authority release
+        run: npm run audit:order-label-authority-release
+      - name: Isolate Order label authority until fulfillment authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901140000_prepare_order_label_authority
+          "$RUNNER_TEMP/order-label-authority-release"
+      - name: Verify compatible Order fulfillment authority release
+        run: npm run audit:order-fulfillment-authority-release
+      - name: Isolate Order fulfillment authority until receipt Notification authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901130000_prepare_order_fulfillment_authority
+          "$RUNNER_TEMP/order-fulfillment-authority-release"
+      - name: Verify compatible Order receipt Notification authority release
+        run: npm run audit:order-receipt-notification-authority-release
+      - name: Isolate Order receipt Notification authority until checkout receipt authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
+          "$RUNNER_TEMP/order-receipt-notification-authority-release"
+      - name: Verify compatible Order checkout receipt authority release
+        run: npm run audit:order-checkout-receipt-authority-release
+      - name: Isolate Order checkout receipt authority until snapshot correction passes
+        run: >-
+          mv
+          prisma/migrations/20260901110000_prepare_order_checkout_receipt_authority
+          "$RUNNER_TEMP/order-checkout-receipt-authority-release"
+      - name: Isolate Order participant snapshot correction until detail projection passes
+        run: >-
+          mv
+          prisma/migrations/20260901105000_correct_order_participant_snapshot_projection
+          "$RUNNER_TEMP/order-participant-snapshot-correction-release"
+      - name: Verify compatible Order participant detail projection release
+        run: npm run audit:order-participant-detail-projection-release
+      - name: Isolate Order participant detail projection until cursor authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901100000_prepare_order_participant_detail_projection
+          "$RUNNER_TEMP/order-participant-detail-projection-release"
+      - name: Verify compatible Order participant cursor authority release
+        run: npm run audit:order-participant-cursor-authority-release
+      - name: Isolate Order participant cursor authority until summary authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901090000_prepare_order_participant_cursor_authority
+          "$RUNNER_TEMP/order-participant-cursor-authority-release"
+      - name: Verify compatible Order participant summary authority release
+        run: npm run audit:order-participant-summary-authority-release
+      - name: Isolate Order participant summary authority until seller metrics passes
+        run: >-
+          mv
+          prisma/migrations/20260901080000_prepare_order_participant_summary_authority
+          "$RUNNER_TEMP/order-participant-summary-authority-release"
+      - name: Verify compatible Order seller metrics authority release
+        run: npm run audit:order-seller-metrics-authority-release
+      - name: Isolate Order seller metrics authority until seller analytics passes
+        run: >-
+          mv
+          prisma/migrations/20260901070000_prepare_order_seller_metrics_authority
+          "$RUNNER_TEMP/order-seller-metrics-authority-release"
+      - name: Verify compatible Order seller analytics authority release
+        run: npm run audit:order-seller-analytics-authority-release
+      - name: Isolate Order seller analytics authority until public aggregate authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901060000_prepare_order_seller_analytics_authority
+          "$RUNNER_TEMP/order-seller-analytics-authority-release"
+      - name: Verify compatible Order public aggregate authority release
+        run: npm run audit:order-public-aggregate-authority-release
+      - name: Isolate Order public aggregate authority until eligibility authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901050000_prepare_order_public_aggregate_authority
+          "$RUNNER_TEMP/order-public-aggregate-authority-release"
+      - name: Verify compatible Order eligibility authority release
+        run: npm run audit:order-eligibility-authority-release
+      - name: Isolate Order eligibility authority until participant export passes
+        run: >-
+          mv
+          prisma/migrations/20260901040000_prepare_order_eligibility_authority
+          "$RUNNER_TEMP/order-eligibility-authority-release"
+      - name: Verify compatible Order participant export authority release
+        run: npm run audit:order-participant-export-authority-release
+      - name: Isolate Order participant export authority until staff authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901030000_prepare_order_participant_export_authority
+          "$RUNNER_TEMP/order-participant-export-authority-release"
+      - name: Verify dormant Order staff read authority release
+        run: npm run audit:order-staff-read-authority-release
+      - name: Isolate Order staff read authority until participant detail passes
+        run: >-
+          mv
+          prisma/migrations/20260901020000_prepare_order_staff_read_authority
+          "$RUNNER_TEMP/order-staff-read-authority-release"
+      - name: Verify compatible Order participant detail authority release
+        run: npm run audit:order-participant-detail-authority-release
+      - name: Isolate Order participant detail authority until list authority passes
+        run: >-
+          mv
+          prisma/migrations/20260901010000_prepare_order_participant_detail_authority
+          "$RUNNER_TEMP/order-participant-detail-authority-release"
+      - name: Verify compatible Order participant list authority release
+        run: npm run audit:order-participant-list-authority-release
+      - name: Isolate Order participant list authority until OrderPaymentEvent FORCE passes
+        run: >-
+          mv
+          prisma/migrations/20260831233000_prepare_order_participant_list_authority
+          "$RUNNER_TEMP/order-participant-list-authority-release"
       - name: Prove OrderPaymentEvent application zero-direct-access
         run: npm run audit:order-payment-event-zero-direct-access
       - name: Verify OrderPaymentEvent FORCE migration tree
@@ -400,10 +510,6 @@ jobs:
         run: npm run audit:rls-case-legacy-inspection
         env:
           CASE_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
-      - name: Prove Order/payment/shipping legacy inspection SQL in ephemeral PostgreSQL
-        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
-        env:
-          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Prove compatible Order seller key in rollback-only PostgreSQL
         run: npm run audit:rls-order-seller-key-compatibility
         env:
@@ -935,7 +1041,6 @@ jobs:
       - name: Prove OrderPaymentEvent aggregate authority in disposable PostgreSQL
         run: >-
           node --test
-          tests/order-payment-event-aggregate-authority-app.test.mjs
           tests/order-payment-event-aggregate-authority-ci-scope-proof.test.mjs
           tests/order-payment-event-aggregate-authority-postgres.test.mjs
           tests/order-payment-event-aggregate-authority-proof.test.mjs
@@ -970,7 +1075,6 @@ jobs:
         run: >-
           node --test
           tests/order-payment-event-dispute-state-postgres.test.mjs
-          tests/order-payment-event-transition-authority-app.test.mjs
           tests/order-payment-event-transition-authority-postgres.test.mjs
           tests/order-payment-event-transition-authority-proof.test.mjs
           tests/order-payment-event-transition-authority-release.test.mjs
@@ -1057,6 +1161,189 @@ jobs:
           ORDER_PAYMENT_EVENT_ACTIVATION_PROOF_RUNTIME_DATABASE_URL: postgresql://grainline_app_runtime:grainline-ci-runtime-postflight-only@localhost:5432/grainline_ci?sslmode=disable
       - name: Re-audit restored OrderPaymentEvent FORCE posture
         run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove Order/payment/shipping legacy inspection SQL at the reviewed production prefix
+        run: npm run audit:rls-order-payment-shipping-legacy-inspection-postgres
+        env:
+          ORDER_PAYMENT_SHIPPING_LEGACY_INSPECTION_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Restore compatible Order participant list authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-list-authority-release"
+          prisma/migrations/20260831233000_prepare_order_participant_list_authority
+      - name: Restore compatible Order participant detail authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-detail-authority-release"
+          prisma/migrations/20260901010000_prepare_order_participant_detail_authority
+      - name: Restore dormant Order staff read authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-staff-read-authority-release"
+          prisma/migrations/20260901020000_prepare_order_staff_read_authority
+      - name: Restore compatible Order participant export authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-export-authority-release"
+          prisma/migrations/20260901030000_prepare_order_participant_export_authority
+      - name: Restore compatible Order eligibility authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-eligibility-authority-release"
+          prisma/migrations/20260901040000_prepare_order_eligibility_authority
+      - name: Restore compatible Order public aggregate authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-public-aggregate-authority-release"
+          prisma/migrations/20260901050000_prepare_order_public_aggregate_authority
+      - name: Restore compatible Order seller analytics authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-seller-analytics-authority-release"
+          prisma/migrations/20260901060000_prepare_order_seller_analytics_authority
+      - name: Restore compatible Order seller metrics authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-seller-metrics-authority-release"
+          prisma/migrations/20260901070000_prepare_order_seller_metrics_authority
+      - name: Restore compatible Order participant summary authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-summary-authority-release"
+          prisma/migrations/20260901080000_prepare_order_participant_summary_authority
+      - name: Restore compatible Order participant cursor authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-cursor-authority-release"
+          prisma/migrations/20260901090000_prepare_order_participant_cursor_authority
+      - name: Restore compatible Order participant detail projection release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-detail-projection-release"
+          prisma/migrations/20260901100000_prepare_order_participant_detail_projection
+      - name: Restore compatible Order participant snapshot correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-snapshot-correction-release"
+          prisma/migrations/20260901105000_correct_order_participant_snapshot_projection
+      - name: Restore compatible Order checkout receipt authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-checkout-receipt-authority-release"
+          prisma/migrations/20260901110000_prepare_order_checkout_receipt_authority
+      - name: Restore compatible Order receipt Notification authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-receipt-notification-authority-release"
+          prisma/migrations/20260901120000_prepare_order_receipt_notification_authority
+      - name: Restore compatible Order fulfillment authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-fulfillment-authority-release"
+          prisma/migrations/20260901130000_prepare_order_fulfillment_authority
+      - name: Restore compatible Order label authority release
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-label-authority-release"
+          prisma/migrations/20260901140000_prepare_order_label_authority
+      - name: Re-verify compatible Order participant list authority release
+        run: npm run audit:order-participant-list-authority-release
+      - name: Re-verify compatible Order participant detail authority release
+        run: npm run audit:order-participant-detail-authority-release
+      - name: Re-verify dormant Order staff read authority release
+        run: npm run audit:order-staff-read-authority-release
+      - name: Re-verify compatible Order participant export authority release
+        run: npm run audit:order-participant-export-authority-release
+      - name: Re-verify compatible Order eligibility authority release
+        run: npm run audit:order-eligibility-authority-release
+      - name: Re-verify compatible Order public aggregate authority release
+        run: npm run audit:order-public-aggregate-authority-release
+      - name: Re-verify compatible Order seller analytics authority release
+        run: npm run audit:order-seller-analytics-authority-release
+      - name: Re-verify compatible Order seller metrics authority release
+        run: npm run audit:order-seller-metrics-authority-release
+      - name: Re-verify compatible Order participant summary authority release
+        run: npm run audit:order-participant-summary-authority-release
+      - name: Re-verify compatible Order participant cursor authority release
+        run: npm run audit:order-participant-cursor-authority-release
+      - name: Re-verify compatible Order participant detail projection release
+        run: npm run audit:order-participant-detail-projection-release
+      - name: Re-verify compatible Order checkout receipt authority release
+        run: npm run audit:order-checkout-receipt-authority-release
+      - name: Re-verify compatible Order receipt Notification authority release
+        run: npm run audit:order-receipt-notification-authority-release
+      - name: Re-verify compatible Order fulfillment authority release
+        run: npm run audit:order-fulfillment-authority-release
+      - name: Re-verify compatible Order label authority release
+        run: npm run audit:order-label-authority-release
+      - name: Apply compatible Order participant authority
+        run: npx prisma migrate deploy
+      - name: Converge Order participant runtime grants
+        run: >-
+          psql "$DIRECT_URL"
+          --set=ON_ERROR_STOP=on
+          --set=runtime_role=grainline_app_runtime
+          --set=migration_role=ci
+          --file=scripts/provision-runtime-db-role.sql
+      - name: Audit Order participant grants and retained Order posture
+        run: GRANT_AUDIT_DATABASE_URL="$DIRECT_URL" RUNTIME_DB_ROLE=grainline_app_runtime MIGRATION_DB_ROLE=ci npm run audit:db-grants -- --allow-loopback-ci
+      - name: Prove compatible Order participant authority
+        run: >-
+          node --test
+          tests/order-participant-list-authority-contract.test.mjs
+          tests/order-participant-list-authority-postgres.test.mjs
+          tests/order-participant-list-authority-release.test.mjs
+          tests/order-participant-read-state.test.mjs
+          tests/order-participant-detail-authority-postgres.test.mjs
+          tests/order-participant-detail-authority-contract.test.mjs
+          tests/order-participant-detail-authority-release.test.mjs
+          tests/order-participant-detail-state.test.mjs
+          tests/order-staff-read-authority-postgres.test.mjs
+          tests/order-staff-read-authority-contract.test.mjs
+          tests/order-staff-read-authority-release.test.mjs
+          tests/order-staff-read-state.test.mjs
+          tests/order-participant-export-authority-postgres.test.mjs
+          tests/order-participant-export-authority-contract.test.mjs
+          tests/order-participant-export-authority-release.test.mjs
+          tests/order-participant-export-state.test.mjs
+          tests/order-eligibility-authority-postgres.test.mjs
+          tests/order-eligibility-authority-contract.test.mjs
+          tests/order-eligibility-authority-release.test.mjs
+          tests/order-eligibility-authority-state.test.mjs
+          tests/order-public-aggregate-authority-postgres.test.mjs
+          tests/order-public-aggregate-authority-contract.test.mjs
+          tests/order-public-aggregate-authority-release.test.mjs
+          tests/order-public-aggregate-authority-state.test.mjs
+          tests/order-seller-analytics-authority-postgres.test.mjs
+          tests/order-seller-analytics-authority-release.test.mjs
+          tests/order-seller-analytics-state.test.mjs
+          tests/order-seller-metrics-authority-postgres.test.mjs
+          tests/order-seller-metrics-authority-release.test.mjs
+          tests/order-seller-metrics-state.test.mjs
+          tests/order-participant-summary-authority-app.test.mjs
+          tests/order-participant-summary-authority-postgres.test.mjs
+          tests/order-participant-summary-authority-release.test.mjs
+          tests/order-history-cursor.test.mjs
+          tests/order-participant-cursor-authority-app.test.mjs
+          tests/order-participant-cursor-authority-release.test.mjs
+          tests/order-participant-detail-authority-contract.test.mjs
+          tests/order-participant-detail-authority-postgres.test.mjs
+          tests/order-participant-detail-projection-app.test.mjs
+          tests/order-participant-detail-projection-release.test.mjs
+          tests/order-participant-detail-state.test.mjs
+          tests/order-checkout-receipt-authority-app.test.mjs
+          tests/order-checkout-receipt-authority-release.test.mjs
+          tests/order-checkout-receipt-state.test.mjs
+          tests/checkout-success-state.test.mjs
+          tests/notification-order-authority.test.mjs
+          tests/order-receipt-notification-authority-release.test.mjs
+          tests/order-receipt-notification-authority-postgres.test.mjs
+          tests/order-fulfillment-authority-release.test.mjs
+          tests/order-fulfillment-authority-postgres.test.mjs
+          tests/order-label-authority-release.test.mjs
+          tests/order-label-authority-postgres.test.mjs
+          tests/order-label-ambiguous-reconciliation-operator.test.mjs
+          tests/order-payment-event-aggregate-authority-app.test.mjs
+          tests/order-payment-event-transition-authority-app.test.mjs
       - name: Prove Conversation and Message FORCE rollback in ephemeral PostgreSQL
         run: npm run audit:rls-conversation-message-force-rollback
         env:

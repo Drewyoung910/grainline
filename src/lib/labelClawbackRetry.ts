@@ -1,15 +1,12 @@
 import * as Sentry from "@sentry/nextjs";
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
 import { stripe as defaultStripe } from "@/lib/stripe";
 import {
-  appendLabelClawbackReviewNote,
+  claimLabelClawbackBatch,
+  finalizeLabelClawback,
+} from "@/lib/orderLabelAuthority";
+import {
   labelClawbackErrorMessage,
   labelClawbackIdempotencyKey,
-  labelClawbackNextAttemptAt,
-  labelClawbackReviewNote,
-  labelClawbackStatusAfterFailure,
-  type LabelClawbackFailureReason,
 } from "@/lib/labelClawbackState";
 
 type StripeTransferReversalClient = {
@@ -22,127 +19,21 @@ type StripeTransferReversalClient = {
   };
 };
 
-const LABEL_CLAWBACK_RETRY_STALE_MS = 30 * 60 * 1000;
-
-export const labelClawbackOrderSelect = {
-  id: true,
-  reviewNote: true,
-  labelUrl: true,
-  labelCarrier: true,
-  labelTrackingNumber: true,
-  labelCostCents: true,
-  labelStatus: true,
-  labelPurchasedAt: true,
-  fulfillmentStatus: true,
-  shippedAt: true,
-  trackingNumber: true,
-  trackingCarrier: true,
-} as const satisfies Prisma.OrderSelect;
-
-export type LabelClawbackOrder = Prisma.OrderGetPayload<{
-  select: typeof labelClawbackOrderSelect;
-}>;
-
-export async function markLabelClawbackForReview(opts: {
-  orderId: string;
-  existingReviewNote?: string | null;
-  amountCents: number;
-  currency?: string | null;
-  reason: LabelClawbackFailureReason;
-  shippoTransactionId?: string | null;
-  stripeTransferId?: string | null;
-  errorMessage?: string | null;
-  now?: Date;
-}) {
-  const now = opts.now ?? new Date();
-  const failedAttempts = opts.reason === "stripe_reversal_failed" ? 1 : 0;
-  const note = appendLabelClawbackReviewNote(
-    opts.existingReviewNote,
-    labelClawbackReviewNote(opts),
-  );
-
-  return prisma.order.update({
-    where: { id: opts.orderId },
-    data: {
-      reviewNeeded: true,
-      reviewNote: note,
-      labelClawbackStatus: opts.reason === "missing_transfer"
-        ? "MANUAL_REVIEW"
-        : labelClawbackStatusAfterFailure(failedAttempts),
-      labelClawbackRetryCount: failedAttempts,
-      labelClawbackLastAttemptAt: opts.reason === "stripe_reversal_failed" ? now : null,
-      labelClawbackNextAttemptAt: opts.reason === "stripe_reversal_failed"
-        ? labelClawbackNextAttemptAt(failedAttempts, now)
-        : null,
-      labelClawbackResolvedAt: null,
-      labelClawbackReversalId: null,
-    },
-    select: labelClawbackOrderSelect,
-  });
-}
-
-export async function recordSuccessfulLabelClawback(opts: {
-  orderId: string;
-  reversalId?: string | null;
-  now?: Date;
-}) {
-  const now = opts.now ?? new Date();
-  return prisma.order.update({
-    where: { id: opts.orderId },
-    data: {
-      labelClawbackStatus: "REVERSED",
-      labelClawbackReversalId: opts.reversalId ?? null,
-      labelClawbackLastAttemptAt: now,
-      labelClawbackResolvedAt: now,
-      labelClawbackNextAttemptAt: null,
-    },
-    select: labelClawbackOrderSelect,
-  });
-}
-
+/**
+ * Claims retry work through the fixed SKIP LOCKED operation and finalizes only
+ * the exact returned generation. Runtime code never scans or mutates Order
+ * rows directly, which keeps this worker valid after Order RLS activation.
+ */
 export async function processLabelClawbackRetryBatch(opts: {
   take?: number;
-  now?: Date;
   stripeClient?: StripeTransferReversalClient;
 } = {}) {
-  const now = opts.now ?? new Date();
   const take = Math.max(1, Math.min(opts.take ?? 10, 50));
   const stripeClient = opts.stripeClient ?? defaultStripe;
-  const staleRetryCutoff = new Date(now.getTime() - LABEL_CLAWBACK_RETRY_STALE_MS);
-
-  const orders = await prisma.order.findMany({
-    where: {
-      labelStatus: "PURCHASED",
-      labelCostCents: { gt: 0 },
-      stripeTransferId: { not: null },
-      OR: [
-        { labelClawbackStatus: "RETRY_PENDING", labelClawbackNextAttemptAt: { lte: now } },
-        { labelClawbackStatus: "RETRYING", labelClawbackLastAttemptAt: { lte: staleRetryCutoff } },
-      ],
-    },
-    orderBy: [
-      { labelClawbackNextAttemptAt: "asc" },
-      { labelPurchasedAt: "asc" },
-      { createdAt: "asc" },
-      { id: "asc" },
-    ],
-    take,
-    select: {
-      id: true,
-      reviewNote: true,
-      shippoTransactionId: true,
-      shippoRateObjectId: true,
-      stripeTransferId: true,
-      labelCostCents: true,
-      labelClawbackStatus: true,
-      labelClawbackRetryCount: true,
-      currency: true,
-    },
-  });
-
+  const claims = await claimLabelClawbackBatch(take);
   const result = {
     ok: true,
-    scanned: orders.length,
+    scanned: claims.length,
     attempted: 0,
     reversed: 0,
     failed: 0,
@@ -150,84 +41,58 @@ export async function processLabelClawbackRetryBatch(opts: {
     skipped: 0,
   };
 
-  for (const order of orders) {
-    const attemptCount = order.labelClawbackRetryCount + 1;
-    const claim = await prisma.order.updateMany({
-      where: {
-        id: order.id,
-        labelStatus: "PURCHASED",
-        labelCostCents: { gt: 0 },
-        stripeTransferId: { not: null },
-        OR: [
-          { labelClawbackStatus: "RETRY_PENDING", labelClawbackNextAttemptAt: { lte: now } },
-          { labelClawbackStatus: "RETRYING", labelClawbackLastAttemptAt: { lte: staleRetryCutoff } },
-        ],
-      },
-      data: {
-        labelClawbackStatus: "RETRYING",
-        labelClawbackRetryCount: attemptCount,
-        labelClawbackLastAttemptAt: now,
-      },
-    });
-    if (claim.count !== 1 || !order.stripeTransferId || !order.labelCostCents) {
-      result.skipped += 1;
-      continue;
-    }
-
+  for (const claim of claims) {
     result.attempted += 1;
     try {
-      const reversal = await stripeClient.transfers.createReversal(order.stripeTransferId, {
-        amount: order.labelCostCents,
-        metadata: { orderId: order.id, reason: "label_cost_deduction_retry" },
-      }, {
-        idempotencyKey: labelClawbackIdempotencyKey({
-          orderId: order.id,
-          shippoTransactionId: order.shippoTransactionId,
-          shippoRateObjectId: order.shippoRateObjectId,
-          amountCents: order.labelCostCents,
-        }),
-      });
-
-      await recordSuccessfulLabelClawback({
-        orderId: order.id,
-        reversalId: reversal.id ?? null,
-        now: new Date(),
-      });
-      result.reversed += 1;
-    } catch (error) {
-      const status = labelClawbackStatusAfterFailure(attemptCount);
-      const nextAttemptAt = labelClawbackNextAttemptAt(attemptCount, now);
-      const errorMessage = labelClawbackErrorMessage(error);
-      const reviewNote = appendLabelClawbackReviewNote(
-        order.reviewNote,
-        labelClawbackReviewNote({
-          amountCents: order.labelCostCents,
-          currency: order.currency,
-          reason: "stripe_reversal_failed",
-          shippoTransactionId: order.shippoTransactionId,
-          stripeTransferId: order.stripeTransferId,
-          errorMessage,
-        }),
-      );
-
-      await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          reviewNeeded: true,
-          reviewNote,
-          labelClawbackStatus: status,
-          labelClawbackNextAttemptAt: nextAttemptAt,
-          labelClawbackLastAttemptAt: now,
+      const reversal = await stripeClient.transfers.createReversal(
+        claim.stripeTransferId,
+        {
+          amount: claim.amountCents,
+          metadata: { orderId: claim.orderId, reason: "label_cost_deduction_retry" },
         },
+        {
+          idempotencyKey: labelClawbackIdempotencyKey({
+            orderId: claim.orderId,
+            shippoTransactionId: claim.transactionId,
+            shippoRateObjectId: claim.rateObjectId,
+            amountCents: claim.amountCents,
+          }),
+        },
+      );
+      const finalized = await finalizeLabelClawback({
+        orderId: claim.orderId,
+        claimId: claim.claimId,
+        claimGeneration: claim.claimGeneration,
+        clawbackGeneration: claim.clawbackGeneration,
+        outcome: "SUCCESS",
+        reversalId: reversal.id ?? null,
       });
-      result.failed += 1;
-      if (status === "MANUAL_REVIEW") result.manualReview += 1;
+      if (finalized.outcome === "finalized") result.reversed += 1;
+      else result.skipped += 1;
+    } catch (error) {
+      const finalized = await finalizeLabelClawback({
+        orderId: claim.orderId,
+        claimId: claim.claimId,
+        claimGeneration: claim.claimGeneration,
+        clawbackGeneration: claim.clawbackGeneration,
+        outcome: "FAILED",
+        errorSummary: labelClawbackErrorMessage(error),
+      });
+      if (finalized.outcome === "recorded_failure") {
+        result.failed += 1;
+        if (finalized.clawbackStatus === "MANUAL_REVIEW") result.manualReview += 1;
+      } else {
+        result.skipped += 1;
+      }
       Sentry.captureException(error, {
-        tags: { source: "label_cost_clawback_retry", status },
-        extra: { orderId: order.id, stripeTransferId: order.stripeTransferId, labelCostCents: order.labelCostCents, attemptCount },
+        tags: { source: "label_cost_clawback_retry" },
+        extra: {
+          orderId: claim.orderId,
+          claimId: claim.claimId,
+          attemptCount: claim.attemptCount,
+        },
       });
     }
   }
-
   return result;
 }

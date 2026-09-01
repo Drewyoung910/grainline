@@ -779,17 +779,17 @@ export default function AnalyticsPage() {
               {
                 label: "Cart Abandoned",
                 value: data.engagement.cartAbandonment.toLocaleString("en-US"),
-                note: "items added to cart but not purchased · in range",
+                note: "current cart items unpurchased for 24+ hours · added in range",
               },
               {
                 label: "Saved",
                 value: data.engagement.favoritesCount.toLocaleString("en-US"),
-                note: "new saves this period",
+                note: "current saves added this period",
               },
               {
                 label: "Watching",
                 value: data.engagement.stockNotificationSubs.toLocaleString("en-US"),
-                note: "new watchers this period",
+                note: "current watchers added this period",
               },
               {
                 label: "Repeat Buyers",
@@ -1032,7 +1032,7 @@ function RecentSales() {
         currency: string;
         fulfillmentStatus: string | null;
         buyerLabel: string;
-        items: Array<{ listing: { title: string } }>;
+        items: Array<{ title: string }>;
       }[]
   >(null);
   const [loading, setLoading] = useState(true);
@@ -1120,7 +1120,7 @@ function RecentSales() {
                   taxAmountCents: order.taxAmountCents,
                   giftWrappingPriceCents: order.giftWrappingPriceCents,
                 });
-                const title = order.items[0]?.listing.title ?? "Order";
+                const title = order.items[0]?.title ?? "Order";
                 const buyerFirstName = order.buyerLabel.split(" ")[0] || "Buyer";
                 return (
                   <tr key={order.id} className="hover:bg-neutral-50">

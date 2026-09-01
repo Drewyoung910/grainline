@@ -1,3 +1,5 @@
+import { SHIPPING_ESTIMATED_DAYS_MAX } from "./shippingRateBounds.ts";
+
 export const DEFAULT_FALLBACK_SHIPPING_CENTS = 1500;
 export const MIN_FALLBACK_SHIPPING_CENTS = 500;
 export const MAX_FALLBACK_SHIPPING_CENTS = 5000;
@@ -38,11 +40,79 @@ export function isPickupRateObjectId(value: string | null | undefined) {
 
 export function quoteOnlyRateObjectId(objectId: string | null | undefined) {
   const trimmed = objectId?.trim();
-  return trimmed ? `${SHIPPO_QUOTE_ONLY_RATE_PREFIX}${trimmed}` : "";
+  return trimmed && /^[A-Za-z0-9._:-]{1,255}$/.test(trimmed)
+    ? `${SHIPPO_QUOTE_ONLY_RATE_PREFIX}${trimmed}`
+    : "";
 }
 
 export function isQuoteOnlyRateObjectId(value: string | null | undefined) {
   return typeof value === "string" && value.startsWith(SHIPPO_QUOTE_ONLY_RATE_PREFIX);
+}
+
+export function safeShippingEstimatedDays(value: number | null | undefined) {
+  return typeof value === "number"
+    && Number.isSafeInteger(value)
+    && value >= 1
+    && value <= SHIPPING_ESTIMATED_DAYS_MAX
+    ? value
+    : null;
+}
+
+function safeProviderLabelPart(value: string | null | undefined, maxLength: number) {
+  return (value ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+export type NormalizedCheckoutShippoRate = {
+  objectId: string;
+  amountCents: number;
+  carrier: string;
+  service: string;
+  estDays: number | null;
+  label: string;
+};
+
+/**
+ * Converts provider rates into the exact bounded shape accepted by checkout.
+ * Invalid or duplicate provider identities are dropped before they can be
+ * displayed or signed, so a rate that appears selectable cannot fail later
+ * merely because its provider payload was incomplete.
+ */
+export function normalizeShippoRatesForCheckout(rates: readonly ShippoQuoteRate[]) {
+  const seen = new Set<string>();
+  const normalized: NormalizedCheckoutShippoRate[] = [];
+
+  for (const rate of rates) {
+    const amountCents = safeProviderShippingCents(rate.amount);
+    const objectId = quoteOnlyRateObjectId(rate.object_id);
+    const carrier = safeProviderLabelPart(rate.provider || rate.carrier, 100);
+    const service = safeProviderLabelPart(rate.servicelevel?.name || rate.service, 100);
+    if (amountCents === null || !objectId || !carrier || !service || seen.has(objectId)) {
+      continue;
+    }
+
+    const estDays = safeShippingEstimatedDays(rate.estimated_days);
+    const estimate = estDays === null ? "" : ` (${estDays}d)`;
+    const label = `${carrier} ${service}${estimate}`.slice(0, 100);
+    seen.add(objectId);
+    normalized.push({ objectId, amountCents, carrier, service, estDays, label });
+  }
+
+  return normalized;
+}
+
+export function preferredAutomaticShippingRate<
+  T extends { objectId: string; amountCents: number },
+>(rates: readonly T[]): T | null {
+  if (rates.length === 0) return null;
+  const shippableRates = rates.filter((rate) => !isPickupRateObjectId(rate.objectId));
+  const candidates = shippableRates.length > 0 ? shippableRates : rates;
+  return candidates.reduce((cheapest, rate) =>
+    rate.amountCents < cheapest.amountCents ? rate : cheapest,
+  );
 }
 
 function normalizeCarrier(value: string) {

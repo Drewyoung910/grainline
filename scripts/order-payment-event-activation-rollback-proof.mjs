@@ -136,7 +136,10 @@ export async function runOrderPaymentEventActivationRollbackProof(
 ) {
   const { ownerUrl, runtimeUrl } =
     parseOrderPaymentEventActivationProofConfig(env);
-  verifyOrderPaymentEventActivationRelease();
+  verifyOrderPaymentEventActivationRelease(process.cwd(), {
+    allowReviewedForceSuccessor: true,
+    allowReviewedOrderParticipantListSuccessor: true,
+  });
   const rollbackSql = fs.readFileSync(ROLLBACK_PATH, "utf8");
   const activationSql = fs.readFileSync(
     `prisma/migrations/${ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION}/migration.sql`,

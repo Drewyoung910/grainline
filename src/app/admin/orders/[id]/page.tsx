@@ -13,6 +13,7 @@ import { caseResolutionLabel } from "@/lib/caseLabels";
 import { orderPaymentEventTypeLabel } from "@/lib/orderPaymentEventLabels";
 import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
 import { staffOrderPaymentTimeline } from "@/lib/orderPaymentEventReadAuthority";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 
 function fmtMoney(cents: number | null | undefined, currency = DEFAULT_CURRENCY) {
   if (cents == null) return "—";
@@ -59,14 +60,14 @@ export default async function AdminOrderDetailPage({
     where: { id },
     include: {
       buyer: { select: { name: true, email: true, clerkId: true } },
+      sellerProfile: { select: { id: true, displayName: true } },
       items: {
-        include: {
-          listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { id: true, displayName: true } },
-            },
-          },
+        select: {
+          id: true,
+          listingId: true,
+          listingSnapshot: true,
+          priceCents: true,
+          quantity: true,
         },
       },
     },
@@ -103,10 +104,17 @@ export default async function AdminOrderDetailPage({
     { label: "Delivered", at: order.deliveredAt },
   ].filter((e) => e.at !== null);
 
-  // Unique sellers across items
-  const sellers = Array.from(
-    new Map(order.items.map((it) => [it.listing.seller.id, it.listing.seller])).values()
-  );
+  const historicalItems = order.items.map((item) => ({
+    ...item,
+    snapshot: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents),
+  }));
+  const sellers = [{
+    id: order.sellerProfile?.id ?? "legacy-order-seller",
+    displayName:
+      historicalItems[0]?.snapshot.sellerName
+      ?? order.sellerProfile?.displayName
+      ?? "Unnamed seller",
+  }];
   const externalRefund = latestRefundLedgerEvent(paymentEvents);
 
   return (
@@ -196,8 +204,8 @@ export default async function AdminOrderDetailPage({
       {/* Items */}
       <Section title="Order Items">
         <ul className="divide-y divide-neutral-100 -my-1">
-          {order.items.map((it) => {
-            const img = it.listing.photos[0]?.url;
+          {historicalItems.map((it) => {
+            const img = it.snapshot.imageUrls[0];
             return (
               <li key={it.id} className="flex items-center gap-3 py-3">
                 {img ? (
@@ -208,13 +216,13 @@ export default async function AdminOrderDetailPage({
                 )}
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={publicListingPath(it.listingId, it.listing.title)}
+                    href={publicListingPath(it.listingId, it.snapshot.title)}
                     className="block truncate text-sm font-medium text-neutral-800 hover:underline"
                   >
-                    {it.listing.title}
+                    {it.snapshot.title}
                   </Link>
                   <div className="mt-0.5 text-xs text-neutral-500">
-                    {it.listing.seller.displayName} · {fmtMoney(it.priceCents, currency)} ×{" "}
+                    {it.snapshot.sellerName} · {fmtMoney(it.priceCents, currency)} ×{" "}
                     {it.quantity}
                   </div>
                 </div>

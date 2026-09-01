@@ -147,11 +147,15 @@ describe("currency formatting drift guardrails", () => {
     const state = source("src/lib/labelClawbackState.ts");
     const retry = source("src/lib/labelClawbackRetry.ts");
     const route = source("src/app/api/orders/[id]/label/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901140000_prepare_order_label_authority/migration.sql",
+    );
 
     assert.match(state, /import \{ DEFAULT_CURRENCY, formatCurrencyCents \} from "\.\/money\.ts"/);
     assert.match(state, /formatCurrencyCents\(cents, currency\)/);
     assert.doesNotMatch(state, /cents \/ 100|toFixed\(2\)/);
-    assert.match(retry, /currency: order\.currency/);
-    assert.match(route, /currency: order\.currency/);
+    assert.match(retry, /claimLabelClawbackBatch\(take\)/);
+    assert.match(route, /currency: normalizedCurrency/);
+    assert.match(authority, /pg_catalog\.upper\(currency\)/);
   });
 });

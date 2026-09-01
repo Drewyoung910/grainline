@@ -2,6 +2,8 @@ export const REFUND_LOCK_SENTINEL = "pending";
 export const REFUND_AMBIGUOUS_SENTINEL = "ambiguous_refund_pending_reconciliation";
 export const REFUND_LOCK_STALE_MS = 15 * 60 * 1000;
 
+export type SellerRefundDisplayState = "NONE" | "PROCESSING" | "AMBIGUOUS" | "RECORDED";
+
 type RefundLockState = {
   sellerRefundId: string | null;
   sellerRefundLockedAt: Date | null;
@@ -30,4 +32,13 @@ export function isRefundProcessingState(sellerRefundId: string | null | undefine
 
 export function isRecordedRefundId(sellerRefundId: string | null | undefined) {
   return Boolean(sellerRefundId && !isRefundProcessingState(sellerRefundId));
+}
+
+export function sellerRefundDisplayState(
+  sellerRefundId: string | null | undefined,
+): SellerRefundDisplayState {
+  if (!sellerRefundId) return "NONE";
+  if (sellerRefundId === REFUND_LOCK_SENTINEL) return "PROCESSING";
+  if (sellerRefundId === REFUND_AMBIGUOUS_SENTINEL) return "AMBIGUOUS";
+  return "RECORDED";
 }

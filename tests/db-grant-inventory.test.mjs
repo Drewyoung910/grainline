@@ -39,6 +39,30 @@ import {
 import {
   ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_FUNCTIONS,
 } from "../scripts/order-payment-event-transition-authority-catalog.mjs";
+import {
+  ORDER_ELIGIBILITY_AUTHORITY_FUNCTIONS,
+  ORDER_PARTICIPANT_DETAIL_AUTHORITY_FUNCTIONS,
+  ORDER_PARTICIPANT_DETAIL_PROJECTION_FUNCTIONS,
+  ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_FUNCTIONS,
+  ORDER_CHECKOUT_RECEIPT_AUTHORITY_FUNCTIONS,
+  ORDER_PARTICIPANT_CURSOR_AUTHORITY_FUNCTIONS,
+  ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS,
+  ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS,
+  ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
+  ORDER_PARTICIPANT_SUMMARY_AUTHORITY_FUNCTIONS,
+  ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS,
+  ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS,
+  ORDER_SELLER_METRICS_AUTHORITY_FUNCTIONS,
+  ORDER_STAFF_READ_AUTHORITY_FUNCTIONS,
+} from "../scripts/order-participant-list-authority-catalog.mjs";
+import {
+  ORDER_FULFILLMENT_AUTHORITY_FUNCTIONS,
+} from "../scripts/order-fulfillment-authority-catalog.mjs";
+import {
+  ORDER_LABEL_AUTHORITY_FUNCTIONS,
+  ORDER_LABEL_PRIVATE_FUNCTIONS,
+  ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
+} from "../scripts/order-label-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
 const SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES = [
@@ -682,6 +706,8 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
+      ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
+      ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
     ]) {
       assert.equal(
         RUNTIME_PRIVATE_FUNCTIONS.includes(functionName),
@@ -1456,6 +1482,54 @@ describe("database grant inventory guardrails", () => {
       ),
       ...ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_FUNCTIONS,
       ...ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_FUNCTIONS,
+      ...ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_PARTICIPANT_DETAIL_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_PARTICIPANT_DETAIL_PROJECTION_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_CHECKOUT_RECEIPT_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_STAFF_READ_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_ELIGIBILITY_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_SELLER_METRICS_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_PARTICIPANT_SUMMARY_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_PARTICIPANT_CURSOR_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_FULFILLMENT_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_LABEL_AUTHORITY_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
+      ...ORDER_LABEL_PRIVATE_FUNCTIONS.map(
+        (identity) => identity.slice(0, identity.indexOf("(")),
+      ),
       ...SELLER_PAYOUT_EVENT_CANDIDATE_FUNCTION_NAMES,
       "grainline_stripe_webhook_begin",
       "grainline_stripe_webhook_complete",
@@ -1502,6 +1576,22 @@ describe("database grant inventory guardrails", () => {
         + ORDER_PAYMENT_EVENT_READ_AUTHORITY_FUNCTIONS.length
         + ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_FUNCTIONS.length
         + ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_FUNCTIONS.length
+        + ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS.length
+        + ORDER_PARTICIPANT_DETAIL_AUTHORITY_FUNCTIONS.length
+        + ORDER_STAFF_READ_AUTHORITY_FUNCTIONS.length
+        + ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS.length
+        + ORDER_ELIGIBILITY_AUTHORITY_FUNCTIONS.length
+        + ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS.length
+        + ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS.length
+        + ORDER_SELLER_METRICS_AUTHORITY_FUNCTIONS.length
+        + ORDER_PARTICIPANT_SUMMARY_AUTHORITY_FUNCTIONS.length
+        + ORDER_PARTICIPANT_CURSOR_AUTHORITY_FUNCTIONS.length
+        + ORDER_PARTICIPANT_DETAIL_PROJECTION_FUNCTIONS.length
+        + ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_FUNCTIONS.length
+        + ORDER_CHECKOUT_RECEIPT_AUTHORITY_FUNCTIONS.length
+        + ORDER_FULFILLMENT_AUTHORITY_FUNCTIONS.length
+        + ORDER_LABEL_AUTHORITY_FUNCTIONS.length
+        + ORDER_LABEL_PRIVATE_FUNCTIONS.length
         + 1 // OrderRefundReconciliation table revoke from PUBLIC
         + 1 // inactive-seller successor converges seller-record PUBLIC/runtime EXECUTE before regrant
         + (checkoutStockReservationRlsActivationExpected(inventory) ? 2 : 0)
@@ -1608,6 +1698,136 @@ describe("database grant inventory guardrails", () => {
         )),
         true,
         `${functionName} must revoke PUBLIC execution in the transition-authority migration`,
+      );
+    }
+    for (const identity of ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the participant list-authority migration`,
+      );
+    }
+    for (const identity of ORDER_PARTICIPANT_DETAIL_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the participant detail-authority migration`,
+      );
+    }
+    for (const identity of ORDER_STAFF_READ_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the staff read-authority migration`,
+      );
+    }
+    for (const identity of ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the participant export-authority migration`,
+      );
+    }
+    for (const identity of ORDER_ELIGIBILITY_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the eligibility-authority migration`,
+      );
+    }
+    for (const identity of ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the public aggregate-authority migration`,
+      );
+    }
+    for (const identity of ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the seller analytics-authority migration`,
+      );
+    }
+    for (const identity of ORDER_SELLER_METRICS_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the seller metrics-authority migration`,
+      );
+    }
+    for (const identity of ORDER_PARTICIPANT_SUMMARY_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the participant summary-authority migration`,
+      );
+    }
+    for (const identity of ORDER_PARTICIPANT_CURSOR_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the participant cursor-authority migration`,
+      );
+    }
+    for (const identity of ORDER_PARTICIPANT_DETAIL_PROJECTION_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the participant detail-projection migration`,
+      );
+    }
+    for (const identity of ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the snapshot-correction migration`,
+      );
+    }
+    for (const identity of ORDER_CHECKOUT_RECEIPT_AUTHORITY_FUNCTIONS) {
+      const functionName = identity.slice(0, identity.indexOf("("));
+      assert.equal(
+        inventory.publicRevokes.some((statement) => (
+          statement.includes(`public.${functionName}(`)
+        )),
+        true,
+        `${functionName} must revoke PUBLIC execution in the checkout-receipt migration`,
       );
     }
     if (conversationMessageAuthorityPrepared) {

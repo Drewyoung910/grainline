@@ -29,7 +29,6 @@ import {
   unavailableCaseRecipientMessage,
 } from "@/lib/caseMessagingState";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
-import { isRecordedRefundId } from "@/lib/refundLockState";
 import type { CaseStatus } from "@prisma/client";
 import type { Metadata } from "next";
 import { findActorConversationPair } from "@/lib/conversationMessageAuthority";
@@ -38,6 +37,10 @@ import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 import CaseMessageAttachments from "@/components/CaseMessageAttachments";
 import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
 import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
+import {
+  historicalProcessingTimeDays,
+} from "@/lib/orderItemSnapshot";
+import { readBuyerOrderDetail } from "@/lib/orderParticipantDetailAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -110,24 +113,10 @@ export default async function BuyerOrderDetailPage({
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) redirect("/sign-in?redirect_url=/dashboard/orders");
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: {
-      buyer: { select: { id: true, name: true, imageUrl: true } },
-      items: {
-        include: {
-          listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { displayName: true, userId: true } },
-            },
-          },
-        },
-      },
-    },
-  });
+  const order = await readBuyerOrderDetail(me.id, id);
 
-  if (!order || order.buyerId !== me.id) notFound();
+  if (!order) notFound();
+  const historicalItems = order.items;
   const externalRefund = (
     await buyerRefundOutcomes(me.id, [order.id])
   ).get(order.id) ?? null;
@@ -136,7 +125,7 @@ export default async function BuyerOrderDetailPage({
   const itemsSubtotal =
     order.itemsSubtotalCents && order.itemsSubtotalCents > 0
       ? order.itemsSubtotalCents
-      : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+      : historicalItems.reduce((s, it) => s + it.priceCents * it.quantity, 0);
   const shipping = order.shippingAmountCents ?? 0;
   const tax = order.taxAmountCents ?? 0;
   const giftWrapping = order.giftWrappingPriceCents ?? 0;
@@ -149,11 +138,11 @@ export default async function BuyerOrderDetailPage({
 
   const status = order.fulfillmentStatus ?? "PENDING";
   const method = order.fulfillmentMethod ?? (hasAddress ? "SHIPPING" : "PICKUP");
-  const processingMins = order.items
-    .map((item) => item.listing.processingTimeMinDays)
+  const processingMins = historicalItems
+    .map((item) => historicalProcessingTimeDays(item.snapshot).min)
     .filter((value): value is number => typeof value === "number");
-  const processingMaxes = order.items
-    .map((item) => item.listing.processingTimeMaxDays)
+  const processingMaxes = historicalItems
+    .map((item) => historicalProcessingTimeDays(item.snapshot).max)
     .filter((value): value is number => typeof value === "number");
   const activeCase = await getVisibleCaseByOrderId({
     actorUserId: me.id,
@@ -171,7 +160,7 @@ export default async function BuyerOrderDetailPage({
   if (activeCase && !caseMessagePreflight) {
     throw new TypeError("Case message preflight denied a visible buyer case");
   }
-  const sellerRefundIssued = isRecordedRefundId(order.sellerRefundId);
+  const sellerRefundIssued = order.sellerRefundState === "RECORDED";
   const hasCaseRefund =
     activeCase?.resolution === "REFUND_FULL"
     || activeCase?.resolution === "REFUND_PARTIAL";
@@ -219,8 +208,8 @@ export default async function BuyerOrderDetailPage({
     : false;
 
   // Conversation link for "contact seller" fallback
-  const sellerUserId = order.items[0]?.listing.seller.userId ?? null;
-  let messageHref = "/messages";
+  const sellerUserId = order.sellerUserId;
+  let messageHref: string | null = null;
   if (sellerUserId) {
     const convo = await findActorConversationPair(me.id, sellerUserId);
     messageHref = convo
@@ -304,8 +293,8 @@ export default async function BuyerOrderDetailPage({
         </div>
 
         <ul className="divide-y divide-neutral-100">
-          {order.items.map((it) => {
-            const img = it.listing.photos[0]?.url;
+          {historicalItems.map((it) => {
+            const img = it.snapshot.imageUrls[0];
             return (
               <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                 {img ? (
@@ -315,20 +304,20 @@ export default async function BuyerOrderDetailPage({
                   <div className="h-16 w-16 rounded bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  {it.listing.status === "ACTIVE" ? (
+                  {it.listingLinkAvailable ? (
                     <Link
-                      href={publicListingPath(it.listingId, it.listing.title)}
+                      href={publicListingPath(it.listingId, it.snapshot.title)}
                       className="block truncate text-sm font-medium hover:underline"
                     >
-                      {it.listing.title}
+                      {it.snapshot.title}
                     </Link>
                   ) : (
                     <span className="block truncate text-sm font-medium text-neutral-500">
-                      {it.listing.title}
+                      {it.snapshot.title}
                     </span>
                   )}
                   <div className="text-xs text-neutral-500">
-                    Maker: {it.listing.seller.displayName}
+                    Maker: {it.snapshot.sellerName}
                   </div>
                   {it.selectedVariants && Array.isArray(it.selectedVariants) && (it.selectedVariants as { groupName: string; optionLabel: string }[]).length > 0 && (
                     <p className="text-xs text-neutral-500 mt-0.5">
@@ -478,21 +467,28 @@ export default async function BuyerOrderDetailPage({
         </section>
       ) : null}
 
-      {method === "SHIPPING" && status === "SHIPPED" && !activeCase && !hasRefund && (
+      {(
+        (method === "SHIPPING" && status === "SHIPPED")
+        || (method === "PICKUP" && status === "READY_FOR_PICKUP")
+      ) && !activeCase && !hasRefund && (
         <section className="card-section bg-white px-4 py-3 text-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="font-medium text-neutral-800">Received your order?</div>
+              <div className="font-medium text-neutral-800">
+                {method === "PICKUP" ? "Picked up your order?" : "Received your order?"}
+              </div>
               <div className="mt-0.5 text-neutral-600">
-                Confirm delivery once the piece is in your hands.
+                Confirm receipt once the piece is in your hands.
               </div>
             </div>
             <form method="post" action={`/api/orders/${order.id}/confirm-delivery`}>
               <ConfirmButton
-                confirm="Confirm that you received this order?"
+                confirm={method === "PICKUP"
+                  ? "Confirm that you picked up this order?"
+                  : "Confirm that you received this order?"}
                 className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
               >
-                Confirm delivery
+                {method === "PICKUP" ? "Confirm pickup" : "Confirm delivery"}
               </ConfirmButton>
             </form>
           </div>
@@ -613,13 +609,21 @@ export default async function BuyerOrderDetailPage({
             </span>
             .
           </div>
-        ) : (
+        ) : messageHref ? (
           <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
             If you have an issue with your order, please{" "}
             <Link href={messageHref} className="underline hover:text-neutral-900">
               contact the maker directly via messages
             </Link>
             .
+          </div>
+        ) : (
+          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+            The maker&apos;s account is not available for messages. Please{" "}
+            <Link href="/support" className="underline hover:text-neutral-900">
+              contact Grainline support
+            </Link>
+            {" "}if you need help with this order.
           </div>
         )
       ) : null}
@@ -631,12 +635,21 @@ export default async function BuyerOrderDetailPage({
         >
           Back to orders
         </Link>
-        <Link
-          href={messageHref}
-          className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
-        >
-          Message maker
-        </Link>
+        {messageHref ? (
+          <Link
+            href={messageHref}
+            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Message maker
+          </Link>
+        ) : (
+          <Link
+            href="/support"
+            className="inline-flex items-center rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Contact support
+          </Link>
+        )}
       </div>
     </main>
   );

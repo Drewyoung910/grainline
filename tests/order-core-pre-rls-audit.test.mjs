@@ -24,8 +24,6 @@ function orderAccessFiles() {
 }
 
 const expectedOrderAccessFiles = [
-  "src/app/account/orders/page.tsx",
-  "src/app/account/page.tsx",
   "src/app/admin/actions.ts",
   "src/app/admin/cases/[id]/page.tsx",
   "src/app/admin/flagged/page.tsx",
@@ -33,43 +31,20 @@ const expectedOrderAccessFiles = [
   "src/app/admin/orders/[id]/refundReconciliationActions.ts",
   "src/app/admin/orders/page.tsx",
   "src/app/admin/verification/page.tsx",
-  "src/app/api/account/export/route.ts",
-  "src/app/api/dev/make-order/route.ts",
-  "src/app/api/orders/[id]/confirm-delivery/route.ts",
-  "src/app/api/orders/[id]/fulfillment/route.ts",
-  "src/app/api/orders/[id]/label/route.ts",
   "src/app/api/orders/[id]/refund/route.ts",
-  "src/app/api/reviews/route.ts",
-  "src/app/api/seller/analytics/recent-sales/route.ts",
-  "src/app/api/seller/analytics/route.ts",
   "src/app/api/stripe/webhook/route.ts",
-  "src/app/api/users/[id]/report/route.ts",
-  "src/app/api/verification/apply/route.ts",
-  "src/app/checkout/success/page.tsx",
-  "src/app/dashboard/orders/[id]/page.tsx",
-  "src/app/dashboard/orders/page.tsx",
-  "src/app/dashboard/sales/[orderId]/page.tsx",
-  "src/app/dashboard/sales/page.tsx",
-  "src/app/dashboard/verification/page.tsx",
   "src/lib/accountDeletion.ts",
   "src/lib/audit.ts",
   "src/lib/ban.ts",
   "src/lib/caseLifecycleLocks.ts",
   "src/lib/checkoutStockRestore.ts",
-  "src/lib/homepageStats.ts",
-  "src/lib/labelClawbackRetry.ts",
-  "src/lib/listingSoftDelete.ts",
-  "src/lib/metrics.ts",
   "src/lib/orderRefundProviderReconciliation.ts",
-  "src/lib/publicSellerStats.ts",
-  "src/lib/quality-score.ts",
   "src/lib/refundLocks.ts",
-  "src/lib/site-metrics-snapshot.ts",
 ];
 
 describe("core Order pre-RLS audit", () => {
   it("pins every current direct Order source access", () => {
-    assert.equal(expectedOrderAccessFiles.length, 41);
+    assert.equal(expectedOrderAccessFiles.length, 16);
     assert.deepEqual(orderAccessFiles(), expectedOrderAccessFiles);
     for (const file of expectedOrderAccessFiles) {
       assert.equal(audit.includes(`\`${file}\``), true, file);
@@ -95,7 +70,8 @@ describe("core Order pre-RLS audit", () => {
     assert.match(audit, /historical rendering still prefers live Listing data/);
     assert.match(audit, /fetches an Order by ID and then compares `buyerId`/);
     assert.match(audit, /account export crosses the shipping-quote boundary/);
-    assert.match(audit, /development Order creator is unreachable in production but incomplete/);
+    assert.match(audit, /development Order creator is retired/);
+    assert.match(audit, /without a Stripe Checkout Session, PaymentIntent, Charge, payment-event/);
     assert.match(audit, /nullable seller keys are not the final invariant/);
   });
 

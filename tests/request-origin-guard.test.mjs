@@ -81,13 +81,13 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/orders/[id]/fulfillment/route.ts", [
       "await auth()",
       "await req.formData()",
-      "prisma.order.updateMany",
+      "finalizeSellerOrderFulfillment({",
+      "updateSellerOrderNotes({",
     ]);
     assertGuardBefore("src/app/api/orders/[id]/confirm-delivery/route.ts", [
       "await auth()",
       "safeRateLimit(",
-      "prisma.order.findUnique",
-      "tx.order.updateMany",
+      "finalizeBuyerOrderReceipt({",
     ]);
     assertGuardBefore("src/app/api/orders/[id]/refund/route.ts", [
       "await auth()",
@@ -99,8 +99,8 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/orders/[id]/label/route.ts", [
       "await auth()",
       "readOptionalBoundedJson(req",
-      "ensureSellerOwnsOrder(userId, id)",
-      "UPDATE \"Order\" SET \"labelStatus\"",
+      "sellerLabelPreflight({",
+      "claimSellerLabelPurchase({",
       "shippoRequest<ShippoTransaction>",
     ]);
     assertGuardBefore("src/app/api/cases/[id]/resolve/route.ts", [

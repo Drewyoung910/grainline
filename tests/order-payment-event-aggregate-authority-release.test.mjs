@@ -28,7 +28,8 @@ describe("OrderPaymentEvent aggregate-authority release", () => {
     assert.match(decision, /`VOLATILE` is intentional/u);
     assert.match(decision, /revoke execution from `PUBLIC` and\s+`grainline_app_runtime`/u);
     assert.match(decision, /locks the qualifying parent\s+Order `FOR UPDATE`/u);
-    assert.match(decision, /semantic inventory remains exactly 33 files/u);
+    assert.match(decision, /release-time class-wide semantic inventory was exactly 33 files/u);
+    assert.match(decision, /current `src` inventory is 32/u);
     assert.match(decision, /policyless `ENABLE` and later `FORCE` RLS as separate releases/u);
     assert.match(decision, /compatible aggregate authority is live/u);
     assert.match(

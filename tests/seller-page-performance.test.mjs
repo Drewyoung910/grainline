@@ -95,6 +95,9 @@ describe("seller public page query guardrails", () => {
   it("keeps public sold and shipping-speed stats behind a cross-request cache", () => {
     const sellerPage = source("src/app/seller/[id]/page.tsx");
     const publicSellerStats = source("src/lib/publicSellerStats.ts");
+    const publicOrderAuthority = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
 
     assert.doesNotMatch(sellerPage, /prisma\.orderItem\.count/);
     assert.doesNotMatch(sellerPage, /prisma\.order\.findMany/);
@@ -105,11 +108,12 @@ describe("seller public page query guardrails", () => {
     assert.match(publicSellerStats, /PUBLIC_SELLER_STATS_REVALIDATE_SECONDS = 5 \* 60/);
     assert.match(publicSellerStats, /export const getCachedPublicSellerStats = unstable_cache\(/);
     assert.doesNotMatch(publicSellerStats, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
-    assert.match(publicSellerStats, /SUM\(oi\.quantity\)/);
-    assert.match(publicSellerStats, /o\."sellerRefundId" IS NULL/);
-    assert.match(publicSellerStats, /o\."paymentRefundBlocked" = false/);
-    assert.match(publicSellerStats, /ORDER BY o\."shippedAt" DESC/);
-    assert.match(publicSellerStats, /LIMIT 30/);
+    assert.match(publicSellerStats, /getPublicSellerOrderStats/u);
+    assert.match(publicOrderAuthority, /pg_catalog\.sum\(source_item\.quantity::bigint\)/u);
+    assert.match(publicOrderAuthority, /source_order\."sellerRefundId" IS NULL/u);
+    assert.match(publicOrderAuthority, /source_order\."paymentRefundBlocked" = false/u);
+    assert.match(publicOrderAuthority, /ORDER BY source_order\."shippedAt" DESC/u);
+    assert.match(publicOrderAuthority, /LIMIT 30/u);
   });
 
   it("includes curated featured listings in saved-state hydration", () => {

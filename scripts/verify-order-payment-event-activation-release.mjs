@@ -26,10 +26,37 @@ import {
 import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
 } from "./stage-order-payment-event-force-migration.mjs";
+import {
+  ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
+  ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
+  ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
+  ORDER_PUBLIC_AGGREGATE_AUTHORITY_MIGRATION,
+  ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION,
+  ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
+  ORDER_STAFF_READ_AUTHORITY_MIGRATION,
+} from "./order-participant-list-authority-catalog.mjs";
+import {
+  ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
+} from "./order-receipt-notification-authority-catalog.mjs";
+import {
+  ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
+} from "./order-fulfillment-authority-catalog.mjs";
+import {
+  ORDER_LABEL_AUTHORITY_MIGRATION,
+} from "./order-label-authority-catalog.mjs";
 
 export function verifyOrderPaymentEventActivationRelease(
   rootDirectory = process.cwd(),
-  { allowReviewedForceSuccessor = false } = {},
+  {
+    allowReviewedForceSuccessor = false,
+    allowReviewedOrderParticipantListSuccessor = false,
+  } = {},
 ) {
   verifyOrderPaymentEventTransitionAuthorityMigrationBytes(rootDirectory);
   const zeroDirect = verifyOrderPaymentEventZeroDirectAccess(rootDirectory);
@@ -101,9 +128,29 @@ export function verifyOrderPaymentEventActivationRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedForceSuccessor
-      ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION]
-      : [],
+    omittedReviewedMigrationNames: [
+      ...(allowReviewedForceSuccessor ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION] : []),
+      ...(allowReviewedOrderParticipantListSuccessor
+        ? [
+            ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+            ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+            ORDER_STAFF_READ_AUTHORITY_MIGRATION,
+            ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
+            ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
+            ORDER_PUBLIC_AGGREGATE_AUTHORITY_MIGRATION,
+            ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION,
+            ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
+            ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION,
+            ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION,
+            ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
+            ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
+            ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
+            ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
+            ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
+            ORDER_LABEL_AUTHORITY_MIGRATION,
+          ]
+        : []),
+    ],
   });
   return Object.freeze({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,

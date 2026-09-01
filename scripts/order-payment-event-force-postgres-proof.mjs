@@ -171,7 +171,9 @@ async function proveRuntimeBoundary(runtime) {
 export async function runOrderPaymentEventForcePostgresProof(env = process.env) {
   const { ownerUrl, runtimeUrl } =
     parseOrderPaymentEventActivationProofConfig(env);
-  verifyOrderPaymentEventForceRelease();
+  verifyOrderPaymentEventForceRelease(process.cwd(), {
+    allowReviewedOrderParticipantListSuccessor: true,
+  });
   const owner = new Client({ connectionString: ownerUrl });
   const runtime = new Client({ connectionString: runtimeUrl });
   await owner.connect();

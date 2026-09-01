@@ -3,22 +3,23 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 describe("seller refund route source-order guardrails", () => {
-  it("releases stale refund locks only after seller item ownership is established", () => {
+  it("releases stale refund locks only after durable Order ownership is established", () => {
     const source = readFileSync("src/app/api/orders/[id]/refund/route.ts", "utf8");
 
     const ownershipCheck = source.search(
-      /if \(!allItemsBelongToSeller\)\s*return privateJson\(\{ error: "Forbidden\." \}, \{ status: HTTP_STATUS\.FORBIDDEN \}\);/,
+      /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s,
     );
     const lockRelease = "const staleLocksReleased = await releaseStaleRefundLocks(orderId);";
     const disputeCheck = "if (order.paymentOpenDisputeBlocked)";
 
-    assert.match(source, /order\.items\.every\(\(it\) => it\.listing\.sellerId === seller\.id\)/);
+    assert.match(source, /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s);
+    assert.doesNotMatch(source, /order\.items\.(?:some|every)\(\(it\) => it\.listing\.sellerId === seller\.id\)/);
     assert.notEqual(ownershipCheck, -1);
     assert.notEqual(source.indexOf(lockRelease), -1);
     assert.notEqual(source.indexOf(disputeCheck), -1);
     assert.ok(
       ownershipCheck < source.indexOf(lockRelease),
-      "refund lock cleanup must not run before order item ownership is verified",
+      "refund lock cleanup must not run before durable Order ownership is verified",
     );
     assert.ok(
       source.indexOf(lockRelease) < source.indexOf(disputeCheck),

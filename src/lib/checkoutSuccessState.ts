@@ -11,7 +11,7 @@ export function checkoutSuccessSessionIds(input: {
     input.sessionId ?? "",
   ]
     .map((id) => id.trim())
-    .filter((id) => /^cs_/.test(id));
+    .filter((id) => id.startsWith("cs_") && id.length <= 255);
   const uniqueIds = [...new Set(orderedIds)];
   return {
     sessionIds: uniqueIds.slice(0, limit),

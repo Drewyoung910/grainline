@@ -31,7 +31,7 @@ import {
   type ListingQualityScoreRow,
   type QualityScoreGlobalMeans,
 } from "./qualityScoreFormula.ts";
-import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
+import { getPublicListingOrderCounts } from "@/lib/orderPublicAggregateAuthority";
 
 const BATCH_SIZE = 200;
 
@@ -49,14 +49,13 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
     ? Prisma.sql`AND l.id > ${cursorId}`
     : Prisma.empty;
 
-  return prisma.$queryRaw<ListingQualityScoreRow[]>(Prisma.sql`
+  const rows = await prisma.$queryRaw<Array<Omit<ListingQualityScoreRow, "orderCount">>>(Prisma.sql`
     SELECT
       l.id,
       l."sellerId",
       l."viewCount",
       l."clickCount",
       COALESCE(fav.cnt, 0) AS "favCount",
-      COALESCE(ord.cnt, 0) AS "orderCount",
       COALESCE(ph.cnt, 0) AS "photoCount",
       COALESCE(ph."hasAlt", false) AS "hasAltText",
       COALESCE(LENGTH(l.description), 0) AS "descLength",
@@ -82,16 +81,6 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
         )
     ) fav ON true
     LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS cnt
-      FROM "OrderItem" oi
-      JOIN "Order" o ON o.id = oi."orderId"
-      WHERE oi."listingId" = l.id
-        ${PAID_STRIPE_ORDER_SQL}
-        AND o."sellerRefundId" IS NULL
-        AND o."paymentRefundBlocked" = false
-        AND o."paymentConversionDisputeBlocked" = false
-    ) ord ON true
-    LEFT JOIN LATERAL (
       SELECT COUNT(*) AS cnt,
              BOOL_OR(p."altText" IS NOT NULL AND p."altText" != '') AS "hasAlt"
       FROM "Photo" p WHERE p."listingId" = l.id
@@ -109,6 +98,12 @@ async function fetchActiveListingBatch(cursorId: string | null): Promise<Listing
     ORDER BY l.id ASC
     LIMIT ${BATCH_SIZE}
   `);
+  if (rows.length === 0) return [];
+  const orderCounts = await getPublicListingOrderCounts(rows.map((row) => row.id));
+  return rows.map((row) => ({
+    ...row,
+    orderCount: orderCounts.get(row.id) ?? 0n,
+  }));
 }
 
 export async function recalculateAllQualityScores(): Promise<{

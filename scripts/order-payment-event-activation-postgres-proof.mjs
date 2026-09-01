@@ -193,7 +193,10 @@ export async function runOrderPaymentEventActivationPostgresProof(
 ) {
   const { ownerUrl, runtimeUrl } =
     parseOrderPaymentEventActivationProofConfig(env);
-  verifyOrderPaymentEventActivationRelease();
+  verifyOrderPaymentEventActivationRelease(process.cwd(), {
+    allowReviewedForceSuccessor: true,
+    allowReviewedOrderParticipantListSuccessor: true,
+  });
   const owner = client(ownerUrl, "grainline-ope-activation-owner-proof");
   const runtime = client(runtimeUrl, "grainline-ope-activation-runtime-proof");
   await owner.connect();

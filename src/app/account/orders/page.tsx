@@ -1,13 +1,21 @@
 // src/app/account/orders/page.tsx
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
 import { ensureUserForPage } from "@/lib/pageAuth";
 import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { buyerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
-import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCurrencyCents } from "@/lib/money";
+import {
+  countBuyerOrders,
+  readBuyerOrderSummaryPage,
+} from "@/lib/orderParticipantReadAuthority";
+import {
+  buildOrderHistoryCursor,
+  orderListCursorFromRow,
+  parseOrderHistoryCursor,
+} from "@/lib/orderHistoryCursor";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -20,58 +28,49 @@ const PAGE_SIZE = 20;
 export default async function AccountOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ cursor?: string | string[] }>;
 }) {
   const me = await ensureUserForPage("/account/orders");
 
-  const { page: pageParam } = await searchParams;
-  const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
-
-  const totalOrders = await prisma.order.count({ where: { buyerId: me.id } });
+  const { cursor: rawCursor } = await searchParams;
+  const historyCursor = parseOrderHistoryCursor(rawCursor);
+  const page = historyCursor?.page ?? 1;
+  const [totalOrders, orderPage] = await Promise.all([
+    countBuyerOrders(me.id),
+    readBuyerOrderSummaryPage({
+      actorUserId: me.id,
+      limit: PAGE_SIZE,
+      cursor: historyCursor?.boundary ?? null,
+      direction: historyCursor?.direction ?? "older",
+    }),
+  ]);
   const totalPages = Math.max(1, Math.ceil(totalOrders / PAGE_SIZE));
-  const page = Math.min(requestedPage, totalPages);
-
-  const orders = await prisma.order.findMany({
-    where: { buyerId: me.id },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    skip: (page - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-    select: {
-      id: true,
-      createdAt: true,
-      currency: true,
-      itemsSubtotalCents: true,
-      shippingAmountCents: true,
-      taxAmountCents: true,
-      giftWrappingPriceCents: true,
-      sellerRefundAmountCents: true,
-      fulfillmentStatus: true,
-      labelTrackingNumber: true,
-      labelCarrier: true,
-      items: {
-        select: {
-          id: true,
-          priceCents: true,
-          quantity: true,
-          listing: {
-            select: {
-              id: true,
-              title: true,
-              photos: {
-                take: 1,
-                orderBy: { sortOrder: "asc" },
-                select: { url: true },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+  const orders = orderPage.rows;
+  if (historyCursor && (page > totalPages || (totalOrders > 0 && orders.length === 0))) {
+    redirect("/account/orders");
+  }
   const refundOutcomes = await buyerRefundOutcomes(
     me.id,
     orders.map((order) => order.id),
   );
+  const firstOrder = orders[0];
+  const lastOrder = orders.at(-1);
+  const previousHref = page <= 1 || !firstOrder
+    ? null
+    : page === 2
+      ? "/account/orders"
+      : `/account/orders?cursor=${encodeURIComponent(buildOrderHistoryCursor({
+          direction: "newer",
+          page: page - 1,
+          boundary: orderListCursorFromRow(firstOrder),
+        }))}`;
+  const nextHref = page >= totalPages || !lastOrder
+    ? null
+    : `/account/orders?cursor=${encodeURIComponent(buildOrderHistoryCursor({
+        direction: "older",
+        page: page + 1,
+        boundary: orderListCursorFromRow(lastOrder),
+      }))}`;
 
   function formatStatus(status: string | null) {
     if (!status) return "Processing";
@@ -146,7 +145,7 @@ export default async function AccountOrdersPage({
                 {/* Items */}
                 <ul className="divide-y divide-neutral-100">
                   {order.items.map((item) => {
-                    const thumb = item.listing.photos[0]?.url;
+                    const thumb = item.imageUrl;
                     return (
                       <li key={item.id} className="flex items-center gap-3 px-4 py-3">
                         {thumb ? (
@@ -157,10 +156,10 @@ export default async function AccountOrdersPage({
                         )}
                         <div className="flex-1 min-w-0">
                           <Link
-                            href={publicListingPath(item.listing.id, item.listing.title)}
+                            href={publicListingPath(item.listingId, item.title)}
                             className="text-sm font-medium hover:underline truncate block"
                           >
-                            {item.listing.title}
+                            {item.title}
                           </Link>
                           <p className="text-xs text-neutral-500 mt-0.5">
                             Qty {item.quantity} ·{" "}
@@ -170,6 +169,11 @@ export default async function AccountOrdersPage({
                       </li>
                     );
                   })}
+                  {order.itemCount > order.items.length && (
+                    <li className="px-4 py-3 text-sm text-neutral-500">
+                      +{order.itemCount - order.items.length} more item{order.itemCount - order.items.length === 1 ? "" : "s"}
+                    </li>
+                  )}
                 </ul>
 
                 {/* Order footer */}
@@ -208,9 +212,9 @@ export default async function AccountOrdersPage({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-8 flex items-center justify-center gap-4">
-          {page > 1 && (
+          {previousHref && (
             <Link
-              href={`/account/orders?page=${page - 1}`}
+              href={previousHref}
               className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
             >
               ← Previous
@@ -219,9 +223,9 @@ export default async function AccountOrdersPage({
           <span className="text-sm text-neutral-600">
             Page {page} of {totalPages}
           </span>
-          {page < totalPages && (
+          {nextHref && (
             <Link
-              href={`/account/orders?page=${page + 1}`}
+              href={nextHref}
               className="inline-flex min-h-[40px] items-center rounded-md border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
             >
               Next →

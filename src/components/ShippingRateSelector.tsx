@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { readApiErrorMessage } from "@/lib/apiError";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
+import { preferredAutomaticShippingRate } from "@/lib/shippingQuoteState";
 import type { ShippingAddress, SelectedShippingRate } from "@/types/checkout";
 
 type QuoteRate = {
@@ -30,9 +31,9 @@ type Props = {
   quoteBodyExtra?: Record<string, string>;
 };
 
-function toSelectedRate(r: QuoteRate, index: number): SelectedShippingRate {
+function toSelectedRate(r: QuoteRate): SelectedShippingRate {
   return {
-    objectId: r.objectId ?? `${r.carrier}-${r.service}-${index}`,
+    objectId: r.objectId ?? "",
     amountCents: r.amountCents,
     currency: (r.currency ?? DEFAULT_CURRENCY).toLowerCase(),
     displayName: r.label,
@@ -58,6 +59,7 @@ export default function ShippingRateSelector({
   const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("Unable to get shipping rates. Check the address or try again before continuing.");
   const [warningMessage, setWarningMessage] = useState("");
+  const [requestRevision, setRequestRevision] = useState(0);
   const selectedRateRef = useRef<SelectedShippingRate | null>(selectedRate);
 
   const quoteBodyStr = JSON.stringify(quoteBodyExtra ?? null);
@@ -104,14 +106,18 @@ export default function ShippingRateSelector({
           return;
         }
         if (typeof data.warning === "string") setWarningMessage(data.warning);
-        const mapped = quoteRates.map(toSelectedRate);
+        const mapped = quoteRates.map(toSelectedRate).filter((rate) => rate.objectId && rate.token);
+        if (mapped.length === 0) {
+          onSelect(null);
+          setError(true);
+          return;
+        }
         setRates(mapped);
         const previousSelection = selectedRateRef.current;
         const matchingFreshRate = previousSelection
           ? mapped.find((rate) => rate.objectId === previousSelection.objectId)
           : null;
-        const cheapest = mapped.reduce((min, r) => (r.amountCents < min.amountCents ? r : min), mapped[0]);
-        onSelect(matchingFreshRate ?? cheapest);
+        onSelect(matchingFreshRate ?? preferredAutomaticShippingRate(mapped));
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
         if ((e as Error).message) setErrorMessage((e as Error).message);
@@ -124,7 +130,7 @@ export default function ShippingRateSelector({
     fetchRates();
     return () => ac.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellerId, address.postalCode, address.state, address.city, quoteBodyStr]);
+  }, [sellerId, address.postalCode, address.state, address.city, quoteBodyStr, requestRevision]);
 
   if (loading) {
     return (
@@ -147,8 +153,15 @@ export default function ShippingRateSelector({
     return (
       <div className="space-y-2">
         <p className="text-sm font-medium text-neutral-500">Shipping from {sellerDisplayName}</p>
-        <div className="p-3 rounded-md border border-neutral-200 text-sm text-neutral-500">
-          {errorMessage}
+        <div className="flex items-center justify-between gap-3 p-3 rounded-md border border-neutral-200 text-sm text-neutral-500">
+          <span role="alert">{errorMessage}</span>
+          <button
+            type="button"
+            onClick={() => setRequestRevision((revision) => revision + 1)}
+            className="shrink-0 border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

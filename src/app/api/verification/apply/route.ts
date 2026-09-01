@@ -14,9 +14,9 @@ import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { formatCurrencyCents } from "@/lib/money";
 import { z } from "zod";
-import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
+import { getSellerVerificationOrderSales } from "@/lib/orderEligibilityAuthority";
 
 export const runtime = "nodejs";
 
@@ -83,19 +83,17 @@ export async function POST(req: Request) {
       return privateJson({ error: applicationBlockReason }, { status: 409 });
     }
 
-    const [activeListings, salesRows, longCaseCount] = await Promise.all([
+    const [activeListings, totalSalesCents, longCaseCount] = await Promise.all([
       prisma.listing.count({ where: { sellerId: seller.id, status: "ACTIVE", isPrivate: false } }),
-      prisma.$queryRaw<Array<{ total: bigint | null }>>`
-        SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS total
-        FROM "OrderItem" oi
-        INNER JOIN "Order" o ON o.id = oi."orderId"
-        INNER JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${seller.id}
-          ${PAID_STRIPE_ORDER_SQL}
-          AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
-          AND o."sellerRefundId" IS NULL
-          AND o."paymentRefundBlocked" = false
-      `,
+      getSellerVerificationOrderSales({
+        actorUserId: me.id,
+        sellerProfileId: seller.id,
+      }).then((result) => {
+        if (result == null) {
+          throw new Error("Order seller verification authority denied seller access");
+        }
+        return result;
+      }),
       getCaseSellerVerificationEligibility({
         actorUserId: me.id,
         sellerProfileId: seller.id,
@@ -107,7 +105,6 @@ export async function POST(req: Request) {
       }),
     ]);
 
-    const totalSalesCents = Number(salesRows[0]?.total ?? 0);
     const accountAgeDays = sellerData.user?.createdAt
       ? Math.floor((Date.now() - new Date(sellerData.user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
       : 0;

@@ -247,6 +247,9 @@ describe("public query determinism", () => {
     const customerPhotosPage = source("src/app/seller/[id]/customer-photos/page.tsx");
     const footerMetros = source("src/lib/footerMetros.ts");
     const publicSellerStats = source("src/lib/publicSellerStats.ts");
+    const publicOrderAuthority = source(
+      "prisma/migrations/20260901050000_prepare_order_public_aggregate_authority/migration.sql",
+    );
     const blogCommentLimits = source("src/lib/blogCommentLimits.ts");
     const blogCommentApi = source("src/app/api/blog/[slug]/comments/route.ts");
     const blogDetail = source("src/app/blog/[slug]/page.tsx");
@@ -277,7 +280,9 @@ describe("public query determinism", () => {
     assert.match(customerPhotosPage, /Page \{page\} of \{totalPages\}/);
 
     assert.match(footerMetros, /orderBy: \[\{ listings: \{ _count: "desc" \} \}, \{ name: "asc" \}, \{ slug: "asc" \}\]/);
-    assert.match(publicSellerStats, /ORDER BY o\."shippedAt" DESC, o\.id DESC/);
+    assert.match(publicSellerStats, /getPublicSellerOrderStats/u);
+    assert.match(publicOrderAuthority, /ORDER BY source_order\."shippedAt" DESC, source_order\.id DESC/);
+    assert.match(publicOrderAuthority, /LIMIT 30/);
 
     assert.match(blogCommentLimits, /TOP_LEVEL_BLOG_COMMENT_LIMIT = 100/);
     assert.match(blogCommentLimits, /BLOG_REPLY_COMMENT_LIMIT = 50/);

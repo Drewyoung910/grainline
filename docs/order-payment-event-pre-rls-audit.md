@@ -248,9 +248,19 @@ then found that the inventory matcher did not include the shared
 silently omitted six genuine aggregate consumers. The transition audit then
 found one additional transitive semantic consumer,
 `src/lib/orderRefundFinalization.ts`, through its local-evidence event identity.
-The corrected semantic inventory is 34 files. This inventory is intentionally broader than the older
-seven-file direct-access floor; semantic wrapper references remain after their
-underlying base-table access is removed.
+The corrected pre-activation semantic inventory was 34 files. The 2026-09-01
+Order eligibility-authority successor adds one shared authority hub while
+retaining every converted callsite. The public-aggregate successor adds a
+second shared authority hub while retaining the four converted aggregate
+call sites. The 2026-09-01 seller-analytics successor then moves the three
+seller-private payment predicates out of application source and into a
+byte-pinned fixed-function migration. The later Guild Order-facts successor
+moves `src/lib/metrics.ts` behind another byte-pinned fixed projection. The
+current `src` semantic inventory is therefore 32 files; the removed source
+matches are authority conversions, not deleted payment semantics. This
+inventory is intentionally broader than the older seven-file direct-access
+floor; semantic wrapper references remain after their underlying base-table
+access is removed.
 
 ### Participant and staff projections
 
@@ -268,11 +278,8 @@ underlying base-table access is removed.
 
 ### Eligibility and aggregate predicates
 
-- `src/app/account/page.tsx`
 - `src/app/admin/verification/page.tsx`
 - `src/app/api/reviews/route.ts`
-- `src/app/api/seller/analytics/recent-sales/route.ts`
-- `src/app/api/seller/analytics/route.ts`
 - `src/app/api/verification/apply/route.ts`
 - `src/app/dashboard/verification/page.tsx`
 - `src/components/ReviewsSection.tsx`
@@ -280,14 +287,14 @@ underlying base-table access is removed.
 - `src/lib/homepageStats.ts`
 - `src/lib/listingSoftDelete.ts`
 - `src/lib/metrics.ts`
+- `src/lib/orderEligibilityAuthority.ts`
+- `src/lib/orderPublicAggregateAuthority.ts`
 - `src/lib/publicSellerStats.ts`
 - `src/lib/quality-score.ts`
 - `src/lib/site-metrics-snapshot.ts`
 
 ### Contended Order transitions
 
-- `src/app/api/orders/[id]/confirm-delivery/route.ts`
-- `src/app/api/orders/[id]/fulfillment/route.ts`
 - `src/app/api/orders/[id]/label/route.ts`
 - `src/app/api/orders/[id]/refund/route.ts`
 
@@ -326,8 +333,10 @@ The subsequent aggregate-authority candidate converts every file in the
 `Order.paymentRefundBlocked` and, where required,
 `Order.paymentConversionDisputeBlocked`. Database triggers derive and guard
 both facts from the immutable ledger; ordinary runtime receives no projection
-function execution. The semantic inventory deliberately remains 34 files even
-though this group no longer enumerates base rows. See
+function execution. The semantic inventory deliberately remained 34 files at
+that checkpoint even though this group no longer enumerated base rows. The
+later eligibility successor raises it to 35 by recording its fixed authority
+hub rather than dropping converted consumers. See
 `docs/order-payment-event-aggregate-authority.md`.
 
 ## Findings and required disposition
@@ -765,8 +774,11 @@ failed-attempt chronology, correction rationale and cleanup certificate.
 The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
-- the 34-source semantic baseline converts to zero runtime base-table access
-  while retaining all 34 sources in the semantic inventory;
+- the historical 34-source semantic baseline converts to zero runtime
+  base-table access while the current 32-file `src` inventory retains the
+  fixed Order eligibility and public-aggregate authority hubs and the
+  byte-pinned seller-analytics and seller-metrics migrations retain their
+  payment predicates;
 - fresh production data is classified with aggregate-only evidence;
 - buyer/seller/staff/service boundaries pass disposable PostgreSQL;
 - signed Stripe and local refund paths pass retry/concurrency proof;

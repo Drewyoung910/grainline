@@ -24,6 +24,30 @@ import {
 import {
   verifyOrderPaymentEventActivationRelease,
 } from "./verify-order-payment-event-activation-release.mjs";
+import {
+  ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
+  ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
+  ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
+  ORDER_PUBLIC_AGGREGATE_AUTHORITY_MIGRATION,
+  ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION,
+  ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
+  ORDER_STAFF_READ_AUTHORITY_MIGRATION,
+} from "./order-participant-list-authority-catalog.mjs";
+import {
+  ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
+} from "./order-receipt-notification-authority-catalog.mjs";
+import {
+  ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
+} from "./order-fulfillment-authority-catalog.mjs";
+import {
+  ORDER_LABEL_AUTHORITY_MIGRATION,
+} from "./order-label-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_FORCE_PHASE =
   "order-payment-event-force-reviewed";
@@ -39,9 +63,11 @@ function migrationPrefix(rootDirectory, finalMigration) {
 
 export function verifyOrderPaymentEventForceRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedOrderParticipantListSuccessor = false } = {},
 ) {
   const activation = verifyOrderPaymentEventActivationRelease(rootDirectory, {
     allowReviewedForceSuccessor: true,
+    allowReviewedOrderParticipantListSuccessor,
   });
   if (
     activation.migration !== ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION
@@ -79,6 +105,26 @@ export function verifyOrderPaymentEventForceRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,
     rootDirectory,
+    omittedReviewedMigrationNames: allowReviewedOrderParticipantListSuccessor
+      ? [
+          ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+          ORDER_STAFF_READ_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
+          ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
+          ORDER_PUBLIC_AGGREGATE_AUTHORITY_MIGRATION,
+          ORDER_SELLER_ANALYTICS_AUTHORITY_MIGRATION,
+          ORDER_SELLER_METRICS_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_SUMMARY_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_CURSOR_AUTHORITY_MIGRATION,
+          ORDER_PARTICIPANT_DETAIL_PROJECTION_MIGRATION,
+          ORDER_PARTICIPANT_SNAPSHOT_CORRECTION_MIGRATION,
+          ORDER_CHECKOUT_RECEIPT_AUTHORITY_MIGRATION,
+          ORDER_RECEIPT_NOTIFICATION_AUTHORITY_MIGRATION,
+          ORDER_FULFILLMENT_AUTHORITY_MIGRATION,
+          ORDER_LABEL_AUTHORITY_MIGRATION,
+        ]
+      : [],
   });
   return Object.freeze({
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,

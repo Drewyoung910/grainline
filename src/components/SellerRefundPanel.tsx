@@ -3,13 +3,13 @@
 
 import * as React from "react";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
-import { isAmbiguousRefundState, isRefundProcessingState } from "@/lib/refundLockState";
+import type { SellerRefundDisplayState } from "@/lib/refundLockState";
 
 type Props = {
   orderId: string;
   currency: string;
   orderTotalCents: number;
-  alreadyRefundedId: string | null;
+  refundState: SellerRefundDisplayState;
   alreadyRefundedCents: number | null;
 };
 
@@ -21,15 +21,15 @@ export default function SellerRefundPanel({
   orderId,
   currency,
   orderTotalCents,
-  alreadyRefundedId,
+  refundState,
   alreadyRefundedCents,
 }: Props) {
   const [confirming, setConfirming] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<{ refundAmountCents: number } | null>(null);
-  const refundProcessing = isRefundProcessingState(alreadyRefundedId);
-  const refundAmbiguous = isAmbiguousRefundState(alreadyRefundedId);
+  const refundProcessing = refundState === "PROCESSING" || refundState === "AMBIGUOUS";
+  const refundAmbiguous = refundState === "AMBIGUOUS";
 
   if (refundProcessing && !result) {
     return (
@@ -44,14 +44,13 @@ export default function SellerRefundPanel({
     );
   }
 
-  if (alreadyRefundedId && !result) {
+  if (refundState === "RECORDED" && !result) {
     return (
       <div className="rounded-md border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-900">
         <div className="font-semibold">Refund issued</div>
         {alreadyRefundedCents != null && (
           <div>Amount: {fmtMoney(alreadyRefundedCents, currency)}</div>
         )}
-        <div className="mt-1 text-xs text-green-700">Stripe refund ID: {alreadyRefundedId}</div>
       </div>
     );
   }

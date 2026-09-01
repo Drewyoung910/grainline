@@ -2135,6 +2135,474 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Compatible Order participant-list authority. These fixed actor-bound
+-- projections are additive before Order RLS activation and remain the only
+-- intended runtime list/count surface after direct Order reads are retired.
+WITH order_participant_list_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_count"(text)'),
+    ('public."grainline_order_buyer_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_count"(text)'),
+    ('public."grainline_order_seller_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_participant_list_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Compatible Order participant-detail authority. The participant projections
+-- derive safe refund/hold state and fixed historical item keys without
+-- granting ordinary runtime access to provider identifiers or staff notes.
+WITH order_participant_detail_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail"(text, text)'),
+    ('public."grainline_order_seller_detail"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_participant_detail_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_detail_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail"(text, text)'),
+    ('public."grainline_order_seller_detail"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_detail_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_detail_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail"(text, text)'),
+    ('public."grainline_order_seller_detail"(text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_detail_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_list_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_count"(text)'),
+    ('public."grainline_order_buyer_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_count"(text)'),
+    ('public."grainline_order_seller_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_list_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_list_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_count"(text)'),
+    ('public."grainline_order_buyer_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_count"(text)'),
+    ('public."grainline_order_seller_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_list_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Dormant staff Order projections must remain unavailable to the shared
+-- application runtime. A separate reviewed operator will provision and grant
+-- only grainline_staff_read_runtime after credential isolation is proved.
+WITH order_staff_read_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_order_staff_detail"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_staff_read_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_staff_read_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_staff_page"(text, text, integer, integer)'),
+    ('public."grainline_order_staff_detail"(text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_staff_read_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Compatible participant Order exports are fixed, bounded and actor-scoped.
+-- Keep their PUBLIC boundary closed and converge only ordinary-runtime
+-- execution while the application transitions away from direct table reads.
+WITH order_participant_export_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_export_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_participant_export_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Compatible Order eligibility operations return only actor-bound booleans,
+-- aggregate cents, or the one locked review source pair. Keep PUBLIC closed
+-- and converge ordinary-runtime EXECUTE while predecessor table grants remain.
+WITH order_eligibility_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_review_eligibility_lock"(text, text, bigint)'),
+    ('public."grainline_order_report_target_access"(text, text, text)'),
+    ('public."grainline_order_seller_verification_sales"(text, text)'),
+    ('public."grainline_listing_order_archive_blocked"(text, text, bigint)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_eligibility_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_eligibility_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_review_eligibility_lock"(text, text, bigint)'),
+    ('public."grainline_order_report_target_access"(text, text, text)'),
+    ('public."grainline_order_seller_verification_sales"(text, text)'),
+    ('public."grainline_listing_order_archive_blocked"(text, text, bigint)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_eligibility_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Public Order aggregate operations return counts and timing summaries only.
+-- Keep PUBLIC closed and converge runtime EXECUTE while predecessor table
+-- grants remain available for the still-unconverted private/maintenance paths.
+WITH order_public_aggregate_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_public_fulfilled_count"()'),
+    ('public."grainline_order_public_seller_stats"(text, bigint)'),
+    ('public."grainline_order_public_listing_counts"(text[])'),
+    ('public."grainline_order_public_marketplace_listing_metrics"()')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_public_aggregate_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_public_aggregate_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_public_fulfilled_count"()'),
+    ('public."grainline_order_public_seller_stats"(text, bigint)'),
+    ('public."grainline_order_public_listing_counts"(text[])'),
+    ('public."grainline_order_public_marketplace_listing_metrics"()')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_public_aggregate_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Seller-private Order analytics bind every aggregate or recent-sale
+-- projection to SellerProfile.userId inside PostgreSQL. Keep PUBLIC closed and
+-- converge ordinary-runtime EXECUTE while predecessor table grants remain.
+WITH order_seller_analytics_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_analytics_summary"(text, bigint, bigint, boolean)'),
+    ('public."grainline_order_seller_analytics_buckets"(text, bigint, bigint, boolean, text)'),
+    ('public."grainline_order_seller_analytics_top_listings"(text, bigint, bigint, boolean, boolean)'),
+    ('public."grainline_order_seller_recent_sales"(text)'),
+    ('public."grainline_order_seller_completed_count"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_seller_analytics_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_seller_analytics_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_analytics_summary"(text, bigint, bigint, boolean)'),
+    ('public."grainline_order_seller_analytics_buckets"(text, bigint, bigint, boolean, text)'),
+    ('public."grainline_order_seller_analytics_top_listings"(text, bigint, bigint, boolean, boolean)'),
+    ('public."grainline_order_seller_recent_sales"(text)'),
+    ('public."grainline_order_seller_completed_count"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_seller_analytics_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Guild/service seller metrics expose only bounded aggregate facts. Seller
+-- ownership is taken from durable Order and OrderItem keys, not mutable Listing
+-- ownership. Keep PUBLIC closed and converge ordinary-runtime EXECUTE while
+-- predecessor Order table grants remain compatible.
+WITH order_seller_metrics_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_metrics_facts"(text, bigint)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_seller_metrics_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_seller_metrics_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_metrics_facts"(text, bigint)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_seller_metrics_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Participant list summaries preserve bounded historical item context without
+-- per-Order detail reads. The shared item helper stays owner-private; only the
+-- actor-bound buyer/seller summary pages are executable by ordinary runtime.
+WITH order_participant_summary_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_summary_items"(text)'),
+    ('public."grainline_order_buyer_summary_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_summary_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_summary_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_summary_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_summary_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_summary_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_summary_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Bidirectional participant history adds only the newer-page half of the
+-- reviewed keyset contract. Both functions remain actor-bound and bounded.
+WITH order_participant_cursor_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_summary_after_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_summary_after_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_cursor_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_cursor_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_summary_after_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_summary_after_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+ FROM order_participant_cursor_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Participant detail v3 preserves v2 actor/contact/link decisions while
+-- restoring the complete allowlisted historical snapshot. Checkout success
+-- uses one bounded paid-receipt projection. Seller v4 removes the raw signed
+-- label URL. Keep v2/v3 executable through the compatible deployment overlap;
+-- v1 remains runtime-private.
+WITH order_participant_detail_projection_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail"(text, text)'),
+    ('public."grainline_order_seller_detail"(text, text)'),
+    ('public."grainline_order_buyer_detail_v2"(text, text)'),
+    ('public."grainline_order_seller_detail_v2"(text, text)'),
+    ('public."grainline_order_buyer_detail_v3"(text, text)'),
+    ('public."grainline_order_seller_detail_v3"(text, text)'),
+    ('public."grainline_order_seller_detail_v4"(text, text)'),
+    ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_detail_projection_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_detail_projection_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_detail_v2"(text, text)'),
+    ('public."grainline_order_seller_detail_v2"(text, text)'),
+    ('public."grainline_order_buyer_detail_v3"(text, text)'),
+    ('public."grainline_order_seller_detail_v3"(text, text)'),
+    ('public."grainline_order_seller_detail_v4"(text, text)'),
+    ('public."grainline_order_buyer_receipts_by_sessions"(text, text[])')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_detail_projection_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Seller fulfillment, buyer receipt and seller-private notes are compatible
+-- fixed Order operations. They derive participant authority and state inside
+-- PostgreSQL; the ordinary runtime receives exact EXECUTE only.
+WITH order_fulfillment_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_fulfillment_transition"(text, text, text, text, text)'),
+    ('public."grainline_order_buyer_receipt_confirm"(text, text)'),
+    ('public."grainline_order_seller_notes_update"(text, text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_fulfillment_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_fulfillment_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_fulfillment_transition"(text, text, text, text, text)'),
+    ('public."grainline_order_buyer_receipt_confirm"(text, text)'),
+    ('public."grainline_order_seller_notes_update"(text, text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_fulfillment_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+-- Shippo label quote/purchase/download and Stripe label-cost reconciliation
+-- use fixed, source-bound Order operations. The provider result and retry
+-- generation are database-derived; ordinary runtime receives EXECUTE only.
+WITH order_label_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_label_preflight"(text, text)'),
+    ('public."grainline_order_seller_label_quote_replace"(text, text, text, jsonb)'),
+    ('public."grainline_order_seller_label_claim"(text, text, text)'),
+    ('public."grainline_order_seller_label_provider_record"(text, text, text, bigint, text, text, text, text, integer, text, text, text, text)'),
+    ('public."grainline_order_label_clawback_finalize"(text, text, bigint, bigint, text, text, text)'),
+    ('public."grainline_order_label_clawback_claim_batch"(integer)'),
+    ('public."grainline_order_seller_label_download"(text, text)'),
+    ('public."grainline_order_label_ambiguous_claim_read"(text, text, text, bigint)'),
+    ('public."grainline_order_label_ambiguous_release"(text, text, text, bigint, text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_label_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_label_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_label_preflight"(text, text)'),
+    ('public."grainline_order_seller_label_quote_replace"(text, text, text, jsonb)'),
+    ('public."grainline_order_seller_label_claim"(text, text, text)'),
+    ('public."grainline_order_seller_label_provider_record"(text, text, text, bigint, text, text, text, text, integer, text, text, text, text)'),
+    ('public."grainline_order_label_clawback_finalize"(text, text, bigint, bigint, text, text, text)'),
+    ('public."grainline_order_label_clawback_claim_batch"(integer)'),
+    ('public."grainline_order_seller_label_download"(text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_label_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_export_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_export_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_export_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- OrderPaymentEvent becomes a policyless service ledger at Phase A. The bulk
 -- predecessor grant and the two legacy compatibility entry points above are
 -- intentional only while RLS is off. If provisioning is rerun after ENABLE,
