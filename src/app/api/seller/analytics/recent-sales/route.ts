@@ -8,6 +8,7 @@ import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 
 export const runtime = "nodejs";
 
@@ -41,10 +42,7 @@ export async function GET() {
 
     const sales = await prisma.order.findMany({
       where: {
-        items: {
-          some: { listing: { sellerId: sellerProfile.id } },
-          every: { listing: { sellerId: sellerProfile.id } },
-        },
+        sellerProfileId: sellerProfile.id,
         ...paidStripeOrderWhere(),
         sellerRefundId: null,
         paymentRefundBlocked: false,
@@ -65,16 +63,18 @@ export async function GET() {
         buyerDataPurgedAt: true,
         buyer: { select: { deletedAt: true } },
         items: {
-          where: { listing: { sellerId: sellerProfile.id } },
           take: 1,
-          select: { listing: { select: { title: true } } },
+          select: { priceCents: true, listingSnapshot: true },
         },
       },
     });
 
     return privateJson({
-      sales: sales.map(({ buyerName, buyerEmail, buyerDataPurgedAt, buyer, ...sale }) => ({
+      sales: sales.map(({ buyerName, buyerEmail, buyerDataPurgedAt, buyer, items, ...sale }) => ({
         ...sale,
+        items: items.map((item) => ({
+          title: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents).title,
+        })),
         buyerLabel: sellerFacingOrderBuyerLabel(
           { buyerName, buyerEmail, buyerDataPurgedAt, buyer },
           "Buyer",

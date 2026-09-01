@@ -5,6 +5,7 @@ import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { requireAdminPageAccess } from "@/lib/adminPageAccess";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 
 const PAGE_SIZE = 25;
 
@@ -32,14 +33,12 @@ export default async function AllOrdersPage({
     take: PAGE_SIZE,
     include: {
       buyer: { select: { name: true, email: true } },
+      sellerProfile: { select: { id: true, displayName: true } },
       items: {
-        include: {
-          listing: {
-            select: {
-              title: true,
-              seller: { select: { id: true, displayName: true } },
-            },
-          },
+        select: {
+          priceCents: true,
+          quantity: true,
+          listingSnapshot: true,
         },
       },
     },
@@ -75,17 +74,26 @@ export default async function AllOrdersPage({
               <tbody className="divide-y divide-neutral-100">
                 {orders.map((order) => {
                   const rowTotal = orderTotalCents(order);
-                  const sellers = Array.from(
-                    new Map(
-                      order.items.map((item) => [
-                        item.listing.seller.id,
-                        item.listing.seller.displayName ?? "Unnamed seller",
-                      ]),
-                    ).values(),
-                  );
+                  const historicalItems = order.items.map((item) => ({
+                    ...item,
+                    snapshot: readHistoricalOrderItemSnapshot(
+                      item.listingSnapshot,
+                      item.priceCents,
+                    ),
+                  }));
+                  const sellerName =
+                    historicalItems[0]?.snapshot.sellerName
+                    ?? order.sellerProfile?.displayName
+                    ?? "Unnamed seller";
                   const itemSummary = order.items
                     .slice(0, 3)
-                    .map((item) => `${item.quantity}× ${item.listing.title}`)
+                    .map((item) => {
+                      const snapshot = readHistoricalOrderItemSnapshot(
+                        item.listingSnapshot,
+                        item.priceCents,
+                      );
+                      return `${item.quantity}× ${snapshot.title}`;
+                    })
                     .join(", ");
                   const remainingItems = Math.max(0, order.items.length - 3);
                   const buyer = order.buyerDataPurgedAt
@@ -118,7 +126,7 @@ export default async function AllOrdersPage({
                         )}
                       </td>
                       <td className="px-4 py-3 text-neutral-700">
-                        <div className="font-medium">{sellers.length > 0 ? sellers.join(", ") : "—"}</div>
+                        <div className="font-medium">{sellerName}</div>
                         <div className="mt-0.5 max-w-xs text-xs text-neutral-500">
                           {itemSummary}
                           {remainingItems > 0 ? `, +${remainingItems} more` : ""}

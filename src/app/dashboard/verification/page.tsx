@@ -61,8 +61,7 @@ async function getGuildMemberEligibility({
       SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0)::bigint AS "totalSalesCents"
       FROM "OrderItem" oi
       JOIN "Order" o ON o.id = oi."orderId"
-      JOIN "Listing" l ON l.id = oi."listingId"
-      WHERE l."sellerId" = ${sellerProfileId}
+      WHERE o."sellerProfileId" = ${sellerProfileId}
         ${PAID_STRIPE_ORDER_SQL}
         AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
         AND o."sellerRefundId" IS NULL

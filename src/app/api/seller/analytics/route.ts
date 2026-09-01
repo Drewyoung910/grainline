@@ -200,9 +200,8 @@ export async function GET(req: Request) {
         SUM(oi."priceCents" * oi.quantity) AS total_revenue,
         COUNT(DISTINCT o.id) AS total_orders
       FROM "OrderItem" oi
-      JOIN "Listing" l ON l.id = oi."listingId"
       JOIN "Order" o ON o.id = oi."orderId"
-      WHERE l."sellerId" = ${sellerId}
+      WHERE o."sellerProfileId" = ${sellerId}
         ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
         AND o."paymentRefundBlocked" = false
@@ -252,9 +251,7 @@ export async function GET(req: Request) {
     const buyerRowsPromise = prisma.$queryRaw<RepeatRow[]>`
       SELECT o."buyerId" AS buyer_id, COUNT(DISTINCT o.id) AS cnt
       FROM "Order" o
-      JOIN "OrderItem" oi ON oi."orderId" = o.id
-      JOIN "Listing" l ON l.id = oi."listingId"
-      WHERE l."sellerId" = ${sellerId}
+      WHERE o."sellerProfileId" = ${sellerId}
         AND o."buyerId" IS NOT NULL
         ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
@@ -266,9 +263,7 @@ export async function GET(req: Request) {
     const processingRowsPromise = prisma.$queryRaw<ProcessingRow[]>`
       SELECT AVG(EXTRACT(EPOCH FROM (o."shippedAt" - o."createdAt")) / 3600) AS avg_hours
       FROM "Order" o
-      JOIN "OrderItem" oi ON oi."orderId" = o.id
-      JOIN "Listing" l ON l.id = oi."listingId"
-      WHERE l."sellerId" = ${sellerId}
+      WHERE o."sellerProfileId" = ${sellerId}
         AND o."shippedAt" IS NOT NULL
         ${PAID_STRIPE_ORDER_SQL}
         AND o."sellerRefundId" IS NULL
@@ -290,8 +285,7 @@ export async function GET(req: Request) {
           COUNT(DISTINCT o.id) AS orders
         FROM "Order" o
         JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerId}
+        WHERE o."sellerProfileId" = ${sellerId}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
           AND o."paymentRefundBlocked" = false
@@ -308,8 +302,7 @@ export async function GET(req: Request) {
           COUNT(DISTINCT o.id) AS orders
         FROM "Order" o
         JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerId}
+        WHERE o."sellerProfileId" = ${sellerId}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
           AND o."paymentRefundBlocked" = false
@@ -326,8 +319,7 @@ export async function GET(req: Request) {
           COUNT(DISTINCT o.id) AS orders
         FROM "Order" o
         JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerId}
+        WHERE o."sellerProfileId" = ${sellerId}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
           AND o."paymentRefundBlocked" = false
@@ -343,8 +335,7 @@ export async function GET(req: Request) {
           COUNT(DISTINCT o.id) AS orders
         FROM "Order" o
         JOIN "OrderItem" oi ON oi."orderId" = o.id
-        JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${sellerId}
+        WHERE o."sellerProfileId" = ${sellerId}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."sellerRefundId" IS NULL
           AND o."paymentRefundBlocked" = false

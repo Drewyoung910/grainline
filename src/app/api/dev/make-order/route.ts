@@ -55,18 +55,51 @@ export async function POST(req: Request) {
   }
   const { listingId } = devParsed;
 
-  const listing = await prisma.listing.findUnique({ where: { id: listingId } });
+  const listing = await prisma.listing.findUnique({
+    where: { id: listingId },
+    select: {
+      id: true,
+      sellerId: true,
+      title: true,
+      description: true,
+      priceCents: true,
+      category: true,
+      tags: true,
+      listingType: true,
+      processingTimeMinDays: true,
+      processingTimeMaxDays: true,
+      shipsWithinDays: true,
+      photos: { orderBy: { sortOrder: "asc" }, select: { url: true } },
+      seller: { select: { displayName: true } },
+    },
+  });
   if (!listing) return privateJson({ error: "Listing not found" }, { status: HTTP_STATUS.NOT_FOUND });
 
   const order = await prisma.order.create({
     data: {
       buyerId: me.id,
+      sellerProfileId: listing.sellerId,
       paidAt: new Date(),
       items: {
         create: [{
           listingId,
+          sellerProfileId: listing.sellerId,
           quantity: 1,
           priceCents: listing.priceCents,
+          listingSnapshot: {
+            title: listing.title,
+            description: listing.description,
+            priceCents: listing.priceCents,
+            imageUrls: listing.photos.map((photo) => photo.url),
+            category: listing.category,
+            tags: listing.tags,
+            sellerName: listing.seller.displayName,
+            listingType: listing.listingType,
+            processingTimeMinDays: listing.processingTimeMinDays,
+            processingTimeMaxDays: listing.processingTimeMaxDays,
+            shipsWithinDays: listing.shipsWithinDays,
+            capturedAt: new Date().toISOString(),
+          },
         }],
       },
     },

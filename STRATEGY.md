@@ -2304,6 +2304,21 @@ LLMs will increasingly act as buyer intent resolvers. Marketplaces will compete 
 
 ## Things explicitly NOT to do right now
 
+### Core Order historical authority decision (2026-08-31)
+
+Do not derive retained Order ownership or purchase history from the current
+Listing row. The Order-domain sequence is `Order`, then `OrderItem`, then
+`OrderShippingRateQuote`, as separate releases in one continuous program.
+Before Order activation, seller consumers must use the checkout-bound
+`Order.sellerProfileId`, historical screens must use a strict bounded
+`OrderItem.listingSnapshot` reader, and malformed or predecessor snapshots
+must render generic retained facts rather than mutable catalog content. Keep
+current Listing reads optional and catalog-only. Account-export shipping quote
+material, seller-key nullability, staff/aggregate projections and every write
+state machine remain explicit later gates; do not hide them inside this UI
+compatibility change. See `docs/order-core-pre-rls-audit.md` and
+`docs/order-core-history-compatibility.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

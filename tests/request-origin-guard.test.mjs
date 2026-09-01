@@ -86,7 +86,7 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/orders/[id]/confirm-delivery/route.ts", [
       "await auth()",
       "safeRateLimit(",
-      "prisma.order.findUnique",
+      "prisma.order.findFirst",
       "tx.order.updateMany",
     ]);
     assertGuardBefore("src/app/api/orders/[id]/refund/route.ts", [

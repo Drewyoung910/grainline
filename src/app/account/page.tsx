@@ -10,6 +10,7 @@ import { getBlockedSellerProfileIdsFor } from "@/lib/blocks";
 import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
@@ -51,17 +52,7 @@ async function AccountPageContent() {
           select: {
             priceCents: true,
             quantity: true,
-            listing: {
-              select: {
-                id: true,
-                title: true,
-                photos: {
-                  take: 1,
-                  orderBy: { sortOrder: "asc" },
-                  select: { url: true },
-                },
-              },
-            },
+            listingSnapshot: true,
           },
         },
       },
@@ -114,10 +105,7 @@ async function AccountPageContent() {
   if (sellerProfile) {
     completedOrderCount = await prisma.order.count({
       where: {
-        items: {
-          some: { listing: { sellerId: sellerProfile.id } },
-          every: { listing: { sellerId: sellerProfile.id } },
-        },
+        sellerProfileId: sellerProfile.id,
         ...paidStripeOrderWhere(),
         sellerRefundId: null,
         paymentRefundBlocked: false,
@@ -223,7 +211,10 @@ async function AccountPageContent() {
           <ul className="card-section divide-y divide-neutral-100">
             {recentOrders.map((order) => {
               const firstItem = order.items[0];
-              const thumb = firstItem?.listing.photos[0]?.url;
+              const firstSnapshot = firstItem
+                ? readHistoricalOrderItemSnapshot(firstItem.listingSnapshot, firstItem.priceCents)
+                : null;
+              const thumb = firstSnapshot?.imageUrls[0];
               const total = orderTotalCents(order);
 
               return (
@@ -240,7 +231,7 @@ async function AccountPageContent() {
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
-                        {firstItem?.listing.title ?? "Order"}
+                        {firstSnapshot?.title ?? "Order"}
                       </p>
                       <p className="mt-0.5 text-xs text-neutral-500">
                         {new Date(order.createdAt).toLocaleDateString("en-US")} ·{" "}

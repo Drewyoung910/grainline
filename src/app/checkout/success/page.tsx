@@ -9,6 +9,7 @@ import { checkoutSuccessSessionIds } from "@/lib/checkoutSuccessState";
 import { publicListingPath } from "@/lib/publicPaths";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { orderItemsSubtotalCents, orderTotalCents as calculateOrderTotalCents } from "@/lib/orderTotals";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -51,13 +52,12 @@ export default async function CheckoutSuccessPage({
       where: { stripeSessionId: { in: sessionIds }, buyerId: me.id },
       include: {
         items: {
-          include: {
-            listing: {
-              include: {
-                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                seller: { select: { displayName: true } },
-              },
-            },
+          select: {
+            id: true,
+            listingId: true,
+            listingSnapshot: true,
+            priceCents: true,
+            quantity: true,
           },
         },
         buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
@@ -126,7 +126,11 @@ export default async function CheckoutSuccessPage({
 
                     <ul className="divide-y divide-neutral-100">
                       {order.items.map((it) => {
-                        const img = it.listing.photos[0]?.url;
+                        const snapshot = readHistoricalOrderItemSnapshot(
+                          it.listingSnapshot,
+                          it.priceCents,
+                        );
+                        const img = snapshot.imageUrls[0];
                         return (
                           <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                             {img ? (
@@ -136,10 +140,10 @@ export default async function CheckoutSuccessPage({
                               <div className="h-16 w-16 rounded border bg-neutral-100" />
                             )}
                             <div className="min-w-0 flex-1">
-                              <Link href={publicListingPath(it.listingId, it.listing.title)} className="block truncate text-sm font-medium hover:underline">
-                                {it.listing.title}
+                              <Link href={publicListingPath(it.listingId, snapshot.title)} className="block truncate text-sm font-medium hover:underline">
+                                {snapshot.title}
                               </Link>
-                              <div className="text-xs text-neutral-500">Maker: {it.listing.seller.displayName}</div>
+                              <div className="text-xs text-neutral-500">Maker: {snapshot.sellerName}</div>
                               <div className="mt-1 text-sm text-neutral-700">{fmtMoney(it.priceCents, orderCurrency)} x {it.quantity}</div>
                             </div>
                             <div className="text-sm font-medium">{fmtMoney(it.priceCents * it.quantity, orderCurrency)}</div>
@@ -189,13 +193,12 @@ export default async function CheckoutSuccessPage({
     where: { stripeSessionId: sessionId, buyerId: me.id },
     include: {
       items: {
-        include: {
-          listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { displayName: true } },
-            },
-          },
+        select: {
+          id: true,
+          listingId: true,
+          listingSnapshot: true,
+          priceCents: true,
+          quantity: true,
         },
       },
       buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
@@ -210,13 +213,12 @@ export default async function CheckoutSuccessPage({
       where: { stripeSessionId: sessionId, buyerId: me.id },
       include: {
         items: {
-          include: {
-            listing: {
-              include: {
-                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                seller: { select: { displayName: true } },
-              },
-            },
+          select: {
+            id: true,
+            listingId: true,
+            listingSnapshot: true,
+            priceCents: true,
+            quantity: true,
           },
         },
         buyer: { select: { id: true, name: true, email: true, imageUrl: true } },
@@ -283,7 +285,11 @@ export default async function CheckoutSuccessPage({
 
         <ul className="divide-y divide-neutral-100">
           {order.items.map((it) => {
-            const img = it.listing.photos[0]?.url;
+            const snapshot = readHistoricalOrderItemSnapshot(
+              it.listingSnapshot,
+              it.priceCents,
+            );
+            const img = snapshot.imageUrls[0];
             return (
               <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                 {img ? (
@@ -293,10 +299,10 @@ export default async function CheckoutSuccessPage({
                   <div className="h-16 w-16 rounded border bg-neutral-100" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <Link href={publicListingPath(it.listingId, it.listing.title)} className="block truncate text-sm font-medium hover:underline">
-                    {it.listing.title}
+                  <Link href={publicListingPath(it.listingId, snapshot.title)} className="block truncate text-sm font-medium hover:underline">
+                    {snapshot.title}
                   </Link>
-                  <div className="text-xs text-neutral-500">Maker: {it.listing.seller.displayName}</div>
+                  <div className="text-xs text-neutral-500">Maker: {snapshot.sellerName}</div>
                   <div className="mt-1 text-sm text-neutral-700">{fmtMoney(it.priceCents, currency)} × {it.quantity}</div>
                 </div>
                 <div className="text-sm font-medium">{fmtMoney(it.priceCents * it.quantity, currency)}</div>

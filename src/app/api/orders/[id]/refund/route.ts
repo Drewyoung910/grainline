@@ -132,35 +132,18 @@ export async function POST(
       );
     }
 
-    // Verify seller owns this order (has a seller profile with items in it)
+    // Verify seller owns this Order through the checkout-bound durable key.
     const seller = await prisma.sellerProfile.findUnique({
       where: { userId: me.id },
       select: { id: true },
     });
     if (!seller) return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
 
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        items: {
-          include: {
-            listing: {
-              select: {
-                sellerId: true,
-              },
-            },
-          },
-        },
-      },
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, sellerProfileId: seller.id },
     });
     if (!order)
       return privateJson({ error: "Order not found." }, { status: HTTP_STATUS.NOT_FOUND });
-
-    const allItemsBelongToSeller =
-      order.items.length > 0 &&
-      order.items.every((it) => it.listing.sellerId === seller.id);
-    if (!allItemsBelongToSeller)
-      return privateJson({ error: "Forbidden." }, { status: HTTP_STATUS.FORBIDDEN });
 
     const staleLocksReleased = await releaseStaleRefundLocks(orderId);
     const orderForRefundState = {

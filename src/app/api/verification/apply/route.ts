@@ -89,8 +89,7 @@ export async function POST(req: Request) {
         SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS total
         FROM "OrderItem" oi
         INNER JOIN "Order" o ON o.id = oi."orderId"
-        INNER JOIN "Listing" l ON l.id = oi."listingId"
-        WHERE l."sellerId" = ${seller.id}
+        WHERE o."sellerProfileId" = ${seller.id}
           ${PAID_STRIPE_ORDER_SQL}
           AND o."fulfillmentStatus" IN ('DELIVERED'::"FulfillmentStatus", 'PICKED_UP'::"FulfillmentStatus")
           AND o."sellerRefundId" IS NULL

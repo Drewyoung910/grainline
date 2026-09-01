@@ -37,6 +37,10 @@ import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 import CaseMessageAttachments from "@/components/CaseMessageAttachments";
 import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
 import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
+import {
+  historicalProcessingTimeDays,
+  readHistoricalOrderItemSnapshot,
+} from "@/lib/orderItemSnapshot";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -101,17 +105,20 @@ export default async function SellerOrderDetailPage({
   if (!seller) redirect("/dashboard/seller");
   if (!seller.onboardingComplete) redirect("/dashboard?setup=required");
 
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, sellerProfileId: seller.id },
     include: {
       buyer: { select: { id: true, deletedAt: true } },
       items: {
-        include: {
+        select: {
+          id: true,
+          listingId: true,
+          listingSnapshot: true,
+          selectedVariants: true,
+          priceCents: true,
+          quantity: true,
           listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { id: true } },
-            },
+            select: { status: true },
           },
         },
       },
@@ -119,14 +126,13 @@ export default async function SellerOrderDetailPage({
   });
 
   if (!order) notFound();
-
-  const allItemsBelongToSeller =
-    order.items.length > 0 && order.items.every((it) => it.listing.seller.id === seller.id);
-  if (!allItemsBelongToSeller) notFound();
   const externalRefund = (
     await sellerRefundOutcomes(me.id, [order.id])
   ).get(order.id) ?? null;
-  const myItems = order.items;
+  const myItems = order.items.map((item) => ({
+    ...item,
+    snapshot: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents),
+  }));
 
   const currency = order.currency ?? DEFAULT_CURRENCY;
   const myItemsSubtotal = myItems.reduce((s, it) => s + it.priceCents * it.quantity, 0);
@@ -151,10 +157,10 @@ export default async function SellerOrderDetailPage({
   const method = order.fulfillmentMethod ?? (isPickup ? "PICKUP" : "SHIPPING");
   const deauthorizedReviewHold = orderHasDeauthorizedSellerReviewHold(order);
   const processingMins = myItems
-    .map((item) => item.listing.processingTimeMinDays)
+    .map((item) => historicalProcessingTimeDays(item.snapshot).min)
     .filter((value): value is number => typeof value === "number");
   const processingMaxes = myItems
-    .map((item) => item.listing.processingTimeMaxDays)
+    .map((item) => historicalProcessingTimeDays(item.snapshot).max)
     .filter((value): value is number => typeof value === "number");
 
   const activeCase = await getVisibleCaseByOrderId({
@@ -466,7 +472,7 @@ export default async function SellerOrderDetailPage({
 
         <ul className="divide-y divide-neutral-100">
           {myItems.map((it) => {
-            const img = it.listing.photos[0]?.url;
+            const img = it.snapshot.imageUrls[0];
             return (
               <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                 {img ? (
@@ -478,14 +484,14 @@ export default async function SellerOrderDetailPage({
                 <div className="min-w-0 flex-1">
                   {it.listing.status === "ACTIVE" ? (
                     <Link
-                      href={publicListingPath(it.listingId, it.listing.title)}
+                      href={publicListingPath(it.listingId, it.snapshot.title)}
                       className="block truncate text-sm font-medium hover:underline"
                     >
-                      {it.listing.title}
+                      {it.snapshot.title}
                     </Link>
                   ) : (
                     <span className="block truncate text-sm font-medium text-neutral-500">
-                      {it.listing.title}
+                      {it.snapshot.title}
                     </span>
                   )}
                   {it.selectedVariants && Array.isArray(it.selectedVariants) && (it.selectedVariants as { groupName: string; optionLabel: string }[]).length > 0 && (

@@ -43,8 +43,8 @@ export async function POST(
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many delivery confirmations."));
 
     const { id } = await params;
-    const order = await prisma.order.findUnique({
-      where: { id },
+    const order = await prisma.order.findFirst({
+      where: { id, buyerId: me.id },
       select: {
         buyerId: true,
         fulfillmentMethod: true,
@@ -55,7 +55,6 @@ export async function POST(
     });
 
     if (!order) return privateJson({ error: "Order not found." }, { status: 404 });
-    if (order.buyerId !== me.id) return privateJson({ error: "Forbidden." }, { status: 403 });
     const activeCase = await caseOrderActiveForBuyer({
       actorUserId: me.id,
       orderId: id,

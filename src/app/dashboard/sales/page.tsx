@@ -15,6 +15,7 @@ import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { SalesListSkeleton } from "@/components/CommerceRouteSkeletons";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -104,12 +105,7 @@ async function SalesContent({
   const { page: pageParam } = await searchParams;
   const requestedPage = parseBoundedPositiveIntParam(pageParam, 1, 1000);
 
-  const where = {
-    items: {
-      some: { listing: { sellerId: seller.id } },
-      every: { listing: { sellerId: seller.id } },
-    },
-  } as const;
+  const where = { sellerProfileId: seller.id } as const;
 
   const total = await prisma.order.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -119,13 +115,12 @@ async function SalesContent({
     where,
     include: {
       items: {
-        include: {
-          listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { id: true } },
-            },
-          },
+        select: {
+          id: true,
+          listingId: true,
+          listingSnapshot: true,
+          priceCents: true,
+          quantity: true,
         },
       },
       buyer: { select: { id: true, deletedAt: true } },
@@ -152,7 +147,7 @@ async function SalesContent({
         <>
           <ul className="space-y-4">
             {orders.map((o) => {
-              const myItems = o.items.filter((it) => it.listing.seller.id === seller.id);
+              const myItems = o.items;
               const mySubtotalCents = myItems.reduce(
                 (s, it) => s + it.priceCents * it.quantity,
                 0
@@ -200,7 +195,11 @@ async function SalesContent({
 
                   <ul className="divide-y divide-neutral-100">
                     {myItems.map((it) => {
-                      const img = it.listing.photos[0]?.url;
+                      const snapshot = readHistoricalOrderItemSnapshot(
+                        it.listingSnapshot,
+                        it.priceCents,
+                      );
+                      const img = snapshot.imageUrls[0];
                       return (
                         <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                           {img ? (
@@ -211,10 +210,10 @@ async function SalesContent({
                           )}
                           <div className="min-w-0 flex-1">
                             <a
-                              href={publicListingPath(it.listingId, it.listing.title)}
+                              href={publicListingPath(it.listingId, snapshot.title)}
                               className="block truncate text-sm font-medium hover:underline"
                             >
-                              {it.listing.title}
+                              {snapshot.title}
                             </a>
                             <div className="mt-1 text-sm text-neutral-700">
                               {fmtMoney(it.priceCents, currency)} × {it.quantity}

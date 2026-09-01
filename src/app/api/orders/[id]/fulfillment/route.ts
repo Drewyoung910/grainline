@@ -94,16 +94,11 @@ async function ensureSellerOwnsOrder(userId: string, orderId: string) {
   });
   if (!seller) return null;
 
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: {
-      items: { include: { listing: { select: { sellerId: true } } } },
-    },
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, sellerProfileId: seller.id },
   });
   if (!order) return null;
-
-  const ownsEntireOrder = order.items.length > 0 && order.items.every((it) => it.listing.sellerId === seller.id);
-  return ownsEntireOrder ? { order, seller } : null;
+  return { order, seller };
 }
 
 export async function POST(
@@ -401,10 +396,7 @@ export async function POST(
         buyerId: true,
         estimatedDeliveryDate: true,
         buyer: { select: { name: true, email: true } },
-        items: {
-          take: 1,
-          select: { listing: { select: { seller: { select: { displayName: true } } } } },
-        },
+        sellerProfile: { select: { displayName: true } },
       },
     });
 
@@ -468,7 +460,7 @@ export async function POST(
         });
       }
       if (buyerEmail) {
-        const sellerName = updated.items[0]?.listing.seller.displayName;
+        const sellerName = updated.sellerProfile?.displayName;
         try {
           await sendReadyForPickup({
             order: { id },

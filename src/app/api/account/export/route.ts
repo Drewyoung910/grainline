@@ -257,7 +257,6 @@ async function buildExport(user: NonNullable<ExportableUser>) {
             priceCents: true,
             selectedVariants: true,
             listingSnapshot: true,
-            listing: { select: { title: true, sellerId: true } },
           },
         },
         shippingRateQuotes: {
@@ -276,12 +275,7 @@ async function buildExport(user: NonNullable<ExportableUser>) {
     }),
     sellerProfile
       ? prisma.order.findMany({
-          where: {
-            items: {
-              some: { listing: { sellerId: sellerProfile.id } },
-              every: { listing: { sellerId: sellerProfile.id } },
-            },
-          },
+          where: { sellerProfileId: sellerProfile.id },
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
@@ -301,14 +295,12 @@ async function buildExport(user: NonNullable<ExportableUser>) {
             sellerRefundId: true,
             sellerRefundAmountCents: true,
             items: {
-              where: { listing: { sellerId: sellerProfile.id } },
               select: {
                 listingId: true,
                 quantity: true,
                 priceCents: true,
                 selectedVariants: true,
                 listingSnapshot: true,
-                listing: { select: { title: true } },
               },
             },
             shippingRateQuotes: {

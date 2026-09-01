@@ -129,12 +129,12 @@ export async function POST(
         exists = await prisma.order.count({
           where: {
             id: body.targetId,
-            OR: [{ buyerId: reportedId }, { items: { some: { listing: { seller: { userId: reportedId } } } } }],
+            OR: [{ buyerId: reportedId }, { sellerProfile: { userId: reportedId } }],
             AND: [
               {
                 OR: [
                   { buyerId: me.id },
-                  { items: { some: { listing: { seller: { userId: me.id } } } } },
+                  { sellerProfile: { userId: me.id } },
                 ],
               },
             ],

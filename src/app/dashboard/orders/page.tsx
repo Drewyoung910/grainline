@@ -11,6 +11,7 @@ import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { BuyerOrdersSkeleton } from "@/components/SellerRouteSkeletons";
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -40,13 +41,12 @@ async function OrdersContent() {
       where: { buyerId: me.id },
       include: {
         items: {
-          include: {
-            listing: {
-              include: {
-                photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-                seller: { select: { displayName: true } },
-              },
-            },
+          select: {
+            id: true,
+            listingId: true,
+            listingSnapshot: true,
+            priceCents: true,
+            quantity: true,
           },
         },
       },
@@ -119,7 +119,11 @@ async function OrdersContent() {
 
                 <ul className="divide-y divide-neutral-100">
                   {o.items.map((it) => {
-                    const img = it.listing.photos[0]?.url;
+                    const snapshot = readHistoricalOrderItemSnapshot(
+                      it.listingSnapshot,
+                      it.priceCents,
+                    );
+                    const img = snapshot.imageUrls[0];
                     return (
                       <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                         {img ? (
@@ -134,13 +138,13 @@ async function OrdersContent() {
                         )}
                         <div className="min-w-0 flex-1">
                           <Link
-                            href={publicListingPath(it.listingId, it.listing.title)}
+                            href={publicListingPath(it.listingId, snapshot.title)}
                             className="block truncate text-sm font-medium hover:underline"
                           >
-                            {it.listing.title}
+                            {snapshot.title}
                           </Link>
                           <div className="text-xs text-neutral-500">
-                            Maker: {it.listing.seller.displayName}
+                            Maker: {snapshot.sellerName}
                           </div>
                           <div className="mt-1 text-sm text-neutral-700">
                             {fmtMoney(it.priceCents, currency)} × {it.quantity}

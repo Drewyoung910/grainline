@@ -46,8 +46,7 @@ describe("Round 9 account deletion PII guardrails", () => {
     );
     assert.match(deletion, /tx\.orderShippingRateQuote\.deleteMany\(\{/);
     assert.match(deletion, /order: \{ buyerId: user\.id \}/);
-    assert.match(deletion, /some: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
-    assert.match(deletion, /every: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+    assert.match(deletion, /order: \{\s*sellerProfileId: user\.sellerProfile\.id,?\s*\}/s);
     assert.match(
       retention,
       /EXISTS \(\s*SELECT 1\s*FROM public\."OrderShippingRateQuote" AS quote/s,
@@ -85,8 +84,8 @@ describe("Round 9 account deletion PII guardrails", () => {
     const sellerOrderUpdate = deletion.slice(sellerOrderStart, sellerOrderEnd);
 
     assert.ok(sellerOrderStart > -1, "seller deletion must update seller-owned retained orders");
-    assert.match(sellerOrderUpdate, /some: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
-    assert.match(sellerOrderUpdate, /every: \{ listing: \{ sellerId: user\.sellerProfile\.id \} \}/);
+    assert.match(sellerOrderUpdate, /where: \{ sellerProfileId: user\.sellerProfile\.id \}/);
+    assert.doesNotMatch(sellerOrderUpdate, /listing:\s*\{\s*sellerId:/);
     for (const field of [
       "trackingCarrier",
       "trackingNumber",
@@ -159,7 +158,8 @@ describe("Round 9 account deletion PII guardrails", () => {
     assert.match(deletion, /async function redactOrderReviewNotesForDeletedAccount/);
     assert.match(deletion, /reviewNote: \{ not: null \}/);
     assert.match(deletion, /\{ buyerId: deletedUserId \}/);
-    assert.match(deletion, /items: \{ some: \{ listing: \{ sellerId: sellerProfileId \} \} \}/);
+    assert.match(deletion, /\{ sellerProfileId \}/);
+    assert.doesNotMatch(deletion, /items: \{ some: \{ listing: \{ sellerId: sellerProfileId \} \} \}/);
     assert.match(deletion, /redactAccountDeletionText\(order\.reviewNote, sensitiveValues\)/);
     assert.match(deletion, /data: \{ reviewNote: reviewNote\.text \}/);
     assert.match(deletion, /redactOrderReviewNotesForDeletedAccount\(\s*tx,\s*user\.id,\s*user\.sellerProfile\?\.id \?\? null,\s*accountSensitiveValues,\s*\)/s);

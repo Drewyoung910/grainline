@@ -1032,7 +1032,7 @@ function RecentSales() {
         currency: string;
         fulfillmentStatus: string | null;
         buyerLabel: string;
-        items: Array<{ listing: { title: string } }>;
+        items: Array<{ title: string }>;
       }[]
   >(null);
   const [loading, setLoading] = useState(true);
@@ -1120,7 +1120,7 @@ function RecentSales() {
                   taxAmountCents: order.taxAmountCents,
                   giftWrappingPriceCents: order.giftWrappingPriceCents,
                 });
-                const title = order.items[0]?.listing.title ?? "Order";
+                const title = order.items[0]?.title ?? "Order";
                 const buyerFirstName = order.buyerLabel.split(" ")[0] || "Buyer";
                 return (
                   <tr key={order.id} className="hover:bg-neutral-50">

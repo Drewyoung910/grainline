@@ -184,14 +184,13 @@ async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
   });
   if (!seller) return null;
 
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, sellerProfileId: seller.id },
     include: {
       items: {
         include: {
           listing: {
             select: {
-              sellerId: true,
               packagedWeightGrams: true,
               packagedLengthCm: true,
               packagedWidthCm: true,
@@ -203,11 +202,7 @@ async function ensureSellerOwnsOrder(clerkUserId: string, orderId: string) {
     },
   });
   if (!order) return null;
-
-  const ownsEntireOrder =
-    order.items.length > 0 &&
-    order.items.every((it) => it.listing.sellerId === seller.id);
-  return ownsEntireOrder ? { order, seller } : null;
+  return { order, seller };
 }
 
 export async function POST(

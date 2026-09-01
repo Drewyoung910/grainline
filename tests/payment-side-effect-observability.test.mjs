@@ -588,7 +588,9 @@ describe("payment and fulfillment side-effect observability", () => {
     assert.match(existingOrderBranch, /refundClaimSource: true/);
     assert.match(existingOrderBranch, /refundClaimSourceId: true/);
     assert.doesNotMatch(existingOrderBranch, /buyerId: already\.buyerId/);
-    assert.match(existingOrderBranch, /sellerUserIds: \[/);
+    assert.match(existingOrderBranch, /sellerProfile: \{ select: \{ userId: true \} \}/);
+    assert.match(existingOrderBranch, /sellerUserIds: already\.sellerProfile\?\.userId/);
+    assert.doesNotMatch(existingOrderBranch, /listing:\s*\{\s*select:\s*\{\s*seller:/s);
     assert.match(existingOrderBranch, /blockedCheckoutRefundStillInProgress\(already\)/);
     assert.match(existingOrderBranch, /throw new Error\("Blocked checkout automatic refund is still in progress\."\)/);
     assert.match(existingOrderBranch, /if \(!orderPostPaymentSideEffectsBlocked\(already\)\) \{/);

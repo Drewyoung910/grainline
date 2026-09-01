@@ -151,11 +151,11 @@ export async function POST(req: NextRequest) {
       const [eligibleOrderItem] = await tx.$queryRaw<
         Array<{ orderItemId: string; sellerProfileId: string }>
       >`
-        SELECT oi.id AS "orderItemId", listing."sellerId" AS "sellerProfileId"
+        SELECT oi.id AS "orderItemId", oi."sellerProfileId" AS "sellerProfileId"
           FROM "OrderItem" AS oi
           JOIN "Order" AS o ON o.id = oi."orderId"
-          JOIN "Listing" AS listing ON listing.id = oi."listingId"
          WHERE oi."listingId" = ${listingId}
+           AND oi."sellerProfileId" IS NOT NULL
            AND o."buyerId" = ${me.id}
            AND o."createdAt" >= ${since}
            AND o."fulfillmentStatus" IN (

@@ -7,7 +7,7 @@ function source(path) {
 }
 
 describe("seller order mutation ownership guardrails", () => {
-  it("requires seller routes to own the entire order, not just one order item", () => {
+  it("requires seller routes to bind the checkout-owned Order seller", () => {
     for (const path of [
       "src/app/api/orders/[id]/refund/route.ts",
       "src/app/api/orders/[id]/fulfillment/route.ts",
@@ -16,21 +16,21 @@ describe("seller order mutation ownership guardrails", () => {
       const text = source(path);
       assert.match(
         text,
-        /order\.items\.length > 0\s*&&\s*order\.items\.every\(\(it\) => it\.listing\.sellerId === seller\.id\)/,
-        `${path} must require every order item to belong to the seller`,
+        /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s,
+        `${path} must bind the Order's durable seller key in the lookup`,
       );
       assert.doesNotMatch(
         text,
-        /order\.items\.some\(\(it\) => it\.listing\.sellerId === seller\.id\)/,
-        `${path} must not authorize whole-order mutations from partial order ownership`,
+        /order\.items\.(?:some|every)\(\(it\) => it\.listing\.sellerId === seller\.id\)/,
+        `${path} must not derive retained Order authority from mutable Listings`,
       );
     }
 
     const detail = source("src/app/dashboard/sales/[orderId]/page.tsx");
     assert.match(
       detail,
-      /order\.items\.length > 0\s*&&\s*order\.items\.every\(\(it\) => it\.listing\.seller\.id === seller\.id\)/,
-      "seller sales detail must require every order item to belong to the seller",
+      /findFirst\(\{\s*where: \{ id: orderId, sellerProfileId: seller\.id \}/s,
+      "seller sales detail must bind the Order's durable seller key",
     );
     assert.doesNotMatch(
       detail,
@@ -39,7 +39,7 @@ describe("seller order mutation ownership guardrails", () => {
     );
   });
 
-  it("keeps seller order read surfaces on whole-order ownership", () => {
+  it("keeps seller order read surfaces on durable whole-order ownership", () => {
     for (const path of [
       "src/app/api/seller/analytics/recent-sales/route.ts",
       "src/app/dashboard/sales/page.tsx",
@@ -51,13 +51,13 @@ describe("seller order mutation ownership guardrails", () => {
       const text = source(path);
       assert.match(
         text,
-        /some:\s*{\s*listing:\s*{\s*sellerId:/,
-        `${path} must require at least one seller-owned item`,
+        /sellerProfileId:/,
+        `${path} must use the checkout-bound Order seller key`,
       );
-      assert.match(
+      assert.doesNotMatch(
         text,
-        /every:\s*{\s*listing:\s*{\s*sellerId:/,
-        `${path} must require every order item to belong to the seller before exposing seller-order data`,
+        /items:\s*{\s*(?:some|every):\s*{\s*listing:\s*{\s*sellerId:/s,
+        `${path} must not derive seller Order authority from current Listings`,
       );
     }
   });

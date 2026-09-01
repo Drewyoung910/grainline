@@ -8,6 +8,7 @@ import { buyerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
 import { parseBoundedPositiveIntParam } from "@/lib/queryParams";
 import { formatCurrencyCents } from "@/lib/money";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -51,19 +52,10 @@ export default async function AccountOrdersPage({
       items: {
         select: {
           id: true,
+          listingId: true,
           priceCents: true,
           quantity: true,
-          listing: {
-            select: {
-              id: true,
-              title: true,
-              photos: {
-                take: 1,
-                orderBy: { sortOrder: "asc" },
-                select: { url: true },
-              },
-            },
-          },
+          listingSnapshot: true,
         },
       },
     },
@@ -146,7 +138,11 @@ export default async function AccountOrdersPage({
                 {/* Items */}
                 <ul className="divide-y divide-neutral-100">
                   {order.items.map((item) => {
-                    const thumb = item.listing.photos[0]?.url;
+                    const snapshot = readHistoricalOrderItemSnapshot(
+                      item.listingSnapshot,
+                      item.priceCents,
+                    );
+                    const thumb = snapshot.imageUrls[0];
                     return (
                       <li key={item.id} className="flex items-center gap-3 px-4 py-3">
                         {thumb ? (
@@ -157,10 +153,10 @@ export default async function AccountOrdersPage({
                         )}
                         <div className="flex-1 min-w-0">
                           <Link
-                            href={publicListingPath(item.listing.id, item.listing.title)}
+                            href={publicListingPath(item.listingId, snapshot.title)}
                             className="text-sm font-medium hover:underline truncate block"
                           >
-                            {item.listing.title}
+                            {snapshot.title}
                           </Link>
                           <p className="text-xs text-neutral-500 mt-0.5">
                             Qty {item.quantity} ·{" "}

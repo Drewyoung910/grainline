@@ -92,6 +92,7 @@ import {
   applySignedDisputeWebhook,
   applySignedRefundWebhook,
 } from "@/lib/orderPaymentSignedWebhook";
+import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
 
 
 export const runtime = "nodejs";
@@ -554,24 +555,24 @@ export async function POST(req: Request) {
         shipToPostalCode: true,
         buyer: { select: { name: true, email: true } },
         paymentRefundBlocked: true,
+        sellerProfile: {
+          select: {
+            id: true,
+            userId: true,
+            displayName: true,
+            user: { select: { email: true } },
+          },
+        },
         items: {
           select: {
             id: true,
             quantity: true,
             priceCents: true,
             listingId: true,
+            listingSnapshot: true,
             listing: {
               select: {
-                title: true,
                 listingType: true,
-                seller: {
-                  select: {
-                    id: true,
-                    userId: true,
-                    displayName: true,
-                    user: { select: { email: true } },
-                  },
-                },
               },
             },
           },
@@ -581,10 +582,14 @@ export async function POST(req: Request) {
     if (!order) return;
     if (orderPostPaymentSideEffectsBlocked(order)) return;
 
-    const seller = order.items[0]?.listing.seller;
+    const historicalItems = order.items.map((item) => ({
+      ...item,
+      snapshot: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents),
+    }));
+    const seller = order.sellerProfile;
     const sellerUserId = seller?.userId;
-    const sellerName = seller?.displayName ?? "Maker";
-    const firstItemTitle = order.items[0]?.listing.title ?? "an item";
+    const sellerName = historicalItems[0]?.snapshot.sellerName ?? seller?.displayName ?? "Maker";
+    const firstItemTitle = historicalItems[0]?.snapshot.title ?? "an item";
     const buyerDisplayName = order.buyer?.name ?? "A buyer";
 
     await Promise.all([
@@ -616,13 +621,13 @@ export async function POST(req: Request) {
 
     if (sellerUserId) {
       const inStockItems = new Map<string, { orderItemId: string; title: string }>();
-      for (const item of order.items) {
-        if (item.listing.listingType === "IN_STOCK") {
+      for (const item of historicalItems) {
+        if ((item.snapshot.listingType ?? item.listing.listingType) === "IN_STOCK") {
           const current = inStockItems.get(item.listingId);
           if (!current || item.id < current.orderItemId) {
             inStockItems.set(item.listingId, {
               orderItemId: item.id,
-              title: item.listing.title,
+              title: item.snapshot.title,
             });
           }
         }
@@ -651,8 +656,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const emailItems = order.items.map((item) => ({
-      title: item.listing.title,
+    const emailItems = historicalItems.map((item) => ({
+      title: item.snapshot.title,
       quantity: item.quantity,
       priceCents: item.priceCents,
     }));
@@ -690,7 +695,7 @@ export async function POST(req: Request) {
 
     if (sellerUserId && seller?.user?.email) {
       const sellerOrderCount = await prisma.order.count({
-        where: { items: { some: { listing: { seller: { userId: sellerUserId } } } } },
+        where: { sellerProfileId: seller.id },
       });
       if (await shouldSendEmail(sellerUserId, "EMAIL_NEW_ORDER")) {
         await sendOrderTransactionalEmailWithFallback({
@@ -876,15 +881,7 @@ export async function POST(req: Request) {
           paymentRefundBlocked: true,
           reviewNeeded: true,
           reviewNote: true,
-          items: {
-            select: {
-              listing: {
-                select: {
-                  seller: { select: { userId: true } },
-                },
-              },
-            },
-          },
+          sellerProfile: { select: { userId: true } },
         },
       });
       if (already) {
@@ -893,9 +890,9 @@ export async function POST(req: Request) {
           existingBlockedCheckoutRetry = {
             id: already.id,
             retryReason,
-            sellerUserIds: [
-              ...new Set(already.items.map((item) => item.listing.seller.userId).filter(Boolean)),
-            ],
+            sellerUserIds: already.sellerProfile?.userId
+              ? [already.sellerProfile.userId]
+              : [],
           };
         } else if (blockedCheckoutRefundStillInProgress(already)) {
           throw new Error("Blocked checkout automatic refund is still in progress.");
@@ -1680,6 +1677,10 @@ export async function POST(req: Request) {
                   category: listing.category ?? null,
                   tags: listing.tags ?? [],
                   sellerName: snapshotSellerName(listing.seller?.displayName),
+                  listingType: listing.listingType,
+                  processingTimeMinDays: listing.processingTimeMinDays ?? null,
+                  processingTimeMaxDays: listing.processingTimeMaxDays ?? null,
+                  shipsWithinDays: listing.shipsWithinDays ?? null,
                   capturedAt: new Date().toISOString(),
                 },
                 selectedVariants: variantSnapshot.length > 0 ? variantSnapshot : undefined,
@@ -1766,6 +1767,7 @@ export async function POST(req: Request) {
           select: {
             priceCents: true,
             priceVersion: true,
+            processingTimeMinDays: true,
             processingTimeMaxDays: true,
             listingType: true,
             stockQuantity: true,
@@ -1961,6 +1963,10 @@ export async function POST(req: Request) {
                     category: listingData?.category ?? null,
                     tags: listingData?.tags ?? [],
                     sellerName: snapshotSellerName(listingData?.seller?.displayName),
+                    listingType: listingData?.listingType ?? null,
+                    processingTimeMinDays: listingData?.processingTimeMinDays ?? null,
+                    processingTimeMaxDays: listingData?.processingTimeMaxDays ?? null,
+                    shipsWithinDays: listingData?.shipsWithinDays ?? null,
                     capturedAt: new Date().toISOString(),
                   },
                   selectedVariants,
@@ -2282,7 +2288,7 @@ export async function POST(req: Request) {
               where: {
                 reviewNeeded: false,
                 fulfillmentStatus: { in: ["PENDING", "READY_FOR_PICKUP", "SHIPPED"] },
-                items: { some: { listing: { sellerId: { in: affectedSellerIds } } } },
+                sellerProfileId: { in: affectedSellerIds },
               },
               data: {
                 reviewNeeded: true,

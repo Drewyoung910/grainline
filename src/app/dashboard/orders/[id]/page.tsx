@@ -38,6 +38,10 @@ import { caseMessageAuthorLabel } from "@/lib/caseMessageAuthor";
 import CaseMessageAttachments from "@/components/CaseMessageAttachments";
 import { getVisibleCaseByOrderId } from "@/lib/caseReadAuthority";
 import { getCaseMessagePreflight } from "@/lib/caseMessagePreflightAuthority";
+import {
+  historicalProcessingTimeDays,
+  readHistoricalOrderItemSnapshot,
+} from "@/lib/orderItemSnapshot";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -110,24 +114,31 @@ export default async function BuyerOrderDetailPage({
   const me = await prisma.user.findUnique({ where: { clerkId: userId } });
   if (!me) redirect("/sign-in?redirect_url=/dashboard/orders");
 
-  const order = await prisma.order.findUnique({
-    where: { id },
+  const order = await prisma.order.findFirst({
+    where: { id, buyerId: me.id },
     include: {
-      buyer: { select: { id: true, name: true, imageUrl: true } },
+      sellerProfile: { select: { userId: true } },
       items: {
-        include: {
+        select: {
+          id: true,
+          listingId: true,
+          listingSnapshot: true,
+          selectedVariants: true,
+          priceCents: true,
+          quantity: true,
           listing: {
-            include: {
-              photos: { orderBy: { sortOrder: "asc" }, take: 1 },
-              seller: { select: { displayName: true, userId: true } },
-            },
+            select: { status: true },
           },
         },
       },
     },
   });
 
-  if (!order || order.buyerId !== me.id) notFound();
+  if (!order) notFound();
+  const historicalItems = order.items.map((item) => ({
+    ...item,
+    snapshot: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents),
+  }));
   const externalRefund = (
     await buyerRefundOutcomes(me.id, [order.id])
   ).get(order.id) ?? null;
@@ -136,7 +147,7 @@ export default async function BuyerOrderDetailPage({
   const itemsSubtotal =
     order.itemsSubtotalCents && order.itemsSubtotalCents > 0
       ? order.itemsSubtotalCents
-      : order.items.reduce((s, it) => s + it.priceCents * it.quantity, 0);
+      : historicalItems.reduce((s, it) => s + it.priceCents * it.quantity, 0);
   const shipping = order.shippingAmountCents ?? 0;
   const tax = order.taxAmountCents ?? 0;
   const giftWrapping = order.giftWrappingPriceCents ?? 0;
@@ -149,11 +160,11 @@ export default async function BuyerOrderDetailPage({
 
   const status = order.fulfillmentStatus ?? "PENDING";
   const method = order.fulfillmentMethod ?? (hasAddress ? "SHIPPING" : "PICKUP");
-  const processingMins = order.items
-    .map((item) => item.listing.processingTimeMinDays)
+  const processingMins = historicalItems
+    .map((item) => historicalProcessingTimeDays(item.snapshot).min)
     .filter((value): value is number => typeof value === "number");
-  const processingMaxes = order.items
-    .map((item) => item.listing.processingTimeMaxDays)
+  const processingMaxes = historicalItems
+    .map((item) => historicalProcessingTimeDays(item.snapshot).max)
     .filter((value): value is number => typeof value === "number");
   const activeCase = await getVisibleCaseByOrderId({
     actorUserId: me.id,
@@ -219,7 +230,7 @@ export default async function BuyerOrderDetailPage({
     : false;
 
   // Conversation link for "contact seller" fallback
-  const sellerUserId = order.items[0]?.listing.seller.userId ?? null;
+  const sellerUserId = order.sellerProfile?.userId ?? null;
   let messageHref = "/messages";
   if (sellerUserId) {
     const convo = await findActorConversationPair(me.id, sellerUserId);
@@ -304,8 +315,8 @@ export default async function BuyerOrderDetailPage({
         </div>
 
         <ul className="divide-y divide-neutral-100">
-          {order.items.map((it) => {
-            const img = it.listing.photos[0]?.url;
+          {historicalItems.map((it) => {
+            const img = it.snapshot.imageUrls[0];
             return (
               <li key={it.id} className="flex items-center gap-3 px-4 py-3">
                 {img ? (
@@ -317,18 +328,18 @@ export default async function BuyerOrderDetailPage({
                 <div className="min-w-0 flex-1">
                   {it.listing.status === "ACTIVE" ? (
                     <Link
-                      href={publicListingPath(it.listingId, it.listing.title)}
+                      href={publicListingPath(it.listingId, it.snapshot.title)}
                       className="block truncate text-sm font-medium hover:underline"
                     >
-                      {it.listing.title}
+                      {it.snapshot.title}
                     </Link>
                   ) : (
                     <span className="block truncate text-sm font-medium text-neutral-500">
-                      {it.listing.title}
+                      {it.snapshot.title}
                     </span>
                   )}
                   <div className="text-xs text-neutral-500">
-                    Maker: {it.listing.seller.displayName}
+                    Maker: {it.snapshot.sellerName}
                   </div>
                   {it.selectedVariants && Array.isArray(it.selectedVariants) && (it.selectedVariants as { groupName: string; optionLabel: string }[]).length > 0 && (
                     <p className="text-xs text-neutral-500 mt-0.5">
