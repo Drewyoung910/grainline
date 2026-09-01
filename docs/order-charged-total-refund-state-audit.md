@@ -68,14 +68,22 @@ fallback, but must never be relabeled as signed provider evidence.
 
 1. merge and accept the independent shipping-quote/label and Case-correctness
    prerequisites;
-2. apply the nullable column, check constraint and corrected fixed-function
-   bodies database-first;
+2. apply only the additive nullable column and check constraint database-first;
 3. deploy the compatible application that writes the witness and renders the
    refund state;
-4. run an aggregate-only legacy classification plus authenticated checkout,
+4. after the separate Case correction is accepted, prepare a successor
+   fixed-authority migration that prefers
+   `COALESCE("chargedTotalCents", legacy-derived-total)` without reviving any
+   retired function;
+5. run an aggregate-only legacy classification plus authenticated checkout,
    seller refund and staff Case refund proofs;
-5. only then resume core `Order` policyless Phase A and its separate FORCE
+6. only then resume core `Order` policyless Phase A and its separate FORCE
    release.
+
+The additive `20260901150000_prepare_order_charged_total` migration deliberately
+does not contain the fixed-function changes. Keeping that database compatibility
+step independent avoids coupling it to the still-separate Case correction and
+prevents a forced restack of byte-sealed migration history.
 
 ## Explicit limitations
 
@@ -97,8 +105,11 @@ fallback, but must never be relabeled as signed provider evidence.
   refund presentation and terminal-logistics preservation;
 - two checkout paths reject invalid provider totals and persist the exact
   retrieved amount;
-- disposable PostgreSQL proves the nullable check plus exact/fallback refund
-  authority without reviving retired runtime functions;
+- this compatibility candidate's disposable PostgreSQL proof covers nullable
+  legacy rows, exact zero/positive values, the negative-value check and
+  unchanged predecessor RLS/grants;
+- the later fixed-authority candidate separately proves exact/fallback refund
+  arithmetic without reviving retired runtime functions;
 - focused, TypeScript, lint and full repository suites pass;
 - guarded production inspection and migration/deployment/postflight remain
   separate later boundaries.
