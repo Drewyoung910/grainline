@@ -86,9 +86,9 @@ describe("user text normalization followups", () => {
     assert.match(seller, /shipFromLine1[\s\S]*sanitizeAddressField\(rawShipFromLine1, 200\)/);
     assert.match(checkoutSeller, /const shippingAddress = normalizeCheckoutShippingAddress\(body\.shippingAddress\)/);
     assert.match(checkoutSingle, /const shippingAddress = normalizeCheckoutShippingAddress\(body\.shippingAddress\)/);
-    assert.match(quote, /const sanitizedToCity = sanitizeOptionalAddressField\(body\.toCity, 100\)/);
-    assert.match(quote, /const sanitizedToState = sanitizeOptionalAddressField\(body\.toState, 50\)/);
-    assert.match(quote, /const sanitizedToCountry = sanitizeOptionalAddressField\(body\.toCountry, 2\)/);
+    assert.match(quote, /const sanitizedToCity = sanitizeAddressField\(body\.toCity, 100\)/);
+    assert.match(quote, /const sanitizedToState = sanitizeAddressField\(body\.toState, 2\)/);
+    assert.match(quote, /const sanitizedToCountry = sanitizeAddressField\(body\.toCountry, 2\)/);
     assert.match(quote, /postal: sanitizeAddressField\(body\.toPostal, 20\)/);
     assert.doesNotMatch(quote, /toName|toLine1|toLine2/);
   });
