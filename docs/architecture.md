@@ -553,6 +553,18 @@ unavailable. See
 `docs/order-participant-detail-projection.md` and
 `docs/order-checkout-receipt-authority.md`.
 
+Seller fulfillment, buyer receipt confirmation and seller-private notes are
+separate fixed-authority operations. Sellers may move a paid shipping Order
+only from `PENDING` to `SHIPPED`, or a pickup Order from `PENDING` to
+`READY_FOR_PICKUP`; only the buyer may confirm `SHIPPED -> DELIVERED` or
+`READY_FOR_PICKUP -> PICKED_UP`. The fixed operations derive durable
+participant ownership, lock actor then Order, reject active Cases, refunds,
+open disputes and stale state, and write source audit evidence without exposing
+generic Order update authority. Fulfillment Notifications and deterministic
+email-outbox reservations co-commit with the transition, while provider email
+delivery occurs after commit and remains retryable. See
+`docs/order-fulfillment-authority.md`.
+
 ### Messaging
 
 Conversations are participant-scoped, with specific staff/admin exceptions only where intentionally implemented. Listing context attached to conversations must be visible and valid for the parties.

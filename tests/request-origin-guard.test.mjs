@@ -81,13 +81,13 @@ describe("request origin guard", () => {
     assertGuardBefore("src/app/api/orders/[id]/fulfillment/route.ts", [
       "await auth()",
       "await req.formData()",
-      "prisma.order.updateMany",
+      "finalizeSellerOrderFulfillment({",
+      "updateSellerOrderNotes({",
     ]);
     assertGuardBefore("src/app/api/orders/[id]/confirm-delivery/route.ts", [
       "await auth()",
       "safeRateLimit(",
-      "prisma.order.findFirst",
-      "tx.order.updateMany",
+      "finalizeBuyerOrderReceipt({",
     ]);
     assertGuardBefore("src/app/api/orders/[id]/refund/route.ts", [
       "await auth()",

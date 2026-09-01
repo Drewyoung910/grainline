@@ -15,10 +15,9 @@ describe("Order fulfillment product-audit contract", () => {
 
     assert.match(sellerRoute, /z\.enum\(\["ready_for_pickup", "shipped", "update_notes"\]\)/);
     assert.doesNotMatch(sellerRoute, /case "picked_up"|case "delivered"/);
-    assert.match(buyerRoute, /orderReceiptConfirmationTransition\(order\)/);
-    assert.match(buyerRoute, /action: "ORDER_FULFILLMENT_TRANSITION"/);
-    assert.match(buyerRoute, /createNotificationOrThrow\(\{/);
-    assert.match(buyerRoute, /type: "ORDER_DELIVERED"/);
+    assert.match(sellerRoute, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(sellerRoute, /updateSellerOrderNotes\(\{/);
+    assert.match(buyerRoute, /finalizeBuyerOrderReceipt\(\{/);
     assert.doesNotMatch(sellerPage, /name="action" value="picked_up"/);
     assert.match(sellerPage, /case window buyer-controlled/);
     assert.match(buyerPage, /Confirm pickup/);
@@ -32,7 +31,7 @@ describe("Order fulfillment product-audit contract", () => {
     assert.match(audit, /buyer-authored\s+`ORDER_FULFILLMENT_TRANSITION`/);
     assert.match(
       audit,
-      /Direct best-effort email is not the desired final enterprise reliability\s+boundary/,
+      /Direct best-effort email is no longer the fulfillment reliability boundary/,
     );
     assert.match(audit, /No migration, RLS posture, grant, deployment or provider state changed/);
   });

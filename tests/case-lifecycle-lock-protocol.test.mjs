@@ -75,6 +75,17 @@ describe("Case and Order lifecycle lock protocol", () => {
     const confirmDelivery = source(
       "src/app/api/orders/[id]/confirm-delivery/route.ts",
     );
+    const fulfillmentAuthority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
+    const sellerTransition = fulfillmentAuthority.slice(
+      fulfillmentAuthority.indexOf("CREATE FUNCTION public.grainline_order_seller_fulfillment_transition"),
+      fulfillmentAuthority.indexOf("CREATE FUNCTION public.grainline_order_buyer_receipt_confirm"),
+    );
+    const buyerReceipt = fulfillmentAuthority.slice(
+      fulfillmentAuthority.indexOf("CREATE FUNCTION public.grainline_order_buyer_receipt_confirm"),
+      fulfillmentAuthority.indexOf("CREATE FUNCTION public.grainline_order_seller_notes_update"),
+    );
     const refund = source("src/app/api/orders/[id]/refund/route.ts");
 
     assertOrdered(label, [
@@ -82,40 +93,23 @@ describe("Case and Order lifecycle lock protocol", () => {
       ["label Order lock", "await lockOrderForCaseLifecycle(tx, order.id)"],
       ["label reservation", 'UPDATE "Order"'],
     ]);
-    assertOrdered(fulfillment, [
-      ["fulfillment transaction", "const transition = await prisma.$transaction"],
-      ["fulfillment Order lock", "await lockOrderForCaseLifecycle(tx, id)"],
-      [
-        "fulfillment post-lock timestamp",
-        "const transitionAt = await databaseClockTimestamp(tx)",
-      ],
-      ["fulfillment transition", 'UPDATE "Order"'],
+    assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
+    assertOrdered(sellerTransition, [
+      ["fulfillment actor lock", 'FROM public."User" AS actor'],
+      ["fulfillment Order lock", 'FROM public."Order" AS source_order'],
+      ["fulfillment active Case fence", 'FROM public."Case" AS source_case'],
+      ["fulfillment post-lock timestamp", "transition_at := pg_catalog.clock_timestamp()"],
+      ["fulfillment transition", 'UPDATE public."Order"'],
+      ["fulfillment audit", 'INSERT INTO public."SystemAuditLog"'],
     ]);
-    assertOrdered(confirmDelivery, [
-      [
-        "delivery-confirmation transaction",
-        "const updatedCount = await prisma.$transaction",
-      ],
-      [
-        "delivery-confirmation Order lock",
-        "await lockOrderForCaseLifecycle(tx, id)",
-      ],
-      [
-        "delivery-confirmation post-lock timestamp",
-        "const confirmedAt = await databaseClockTimestamp(tx)",
-      ],
-      [
-        "delivery-confirmation transition",
-        "await tx.order.updateMany",
-      ],
-      [
-        "delivery-confirmation audit",
-        'action: "ORDER_FULFILLMENT_TRANSITION"',
-      ],
-      [
-        "delivery-confirmation seller notification",
-        "await createNotificationOrThrow",
-      ],
+    assert.match(confirmDelivery, /finalizeBuyerOrderReceipt\(\{/);
+    assertOrdered(buyerReceipt, [
+      ["delivery actor lock", 'FROM public."User" AS actor'],
+      ["delivery Order lock", 'FROM public."Order" AS source_order'],
+      ["delivery active Case fence", 'FROM public."Case" AS source_case'],
+      ["delivery post-lock timestamp", "transition_at := pg_catalog.clock_timestamp()"],
+      ["delivery transition", 'UPDATE public."Order"'],
+      ["delivery audit", 'INSERT INTO public."SystemAuditLog"'],
     ]);
     assertOrdered(refund, [
       ["refund database claim", "const refundClaim = await claimSellerOrderRefund"],

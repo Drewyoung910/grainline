@@ -46,12 +46,17 @@ describe("order review holds", () => {
 
   it("blocks deauthorized orders in fulfillment prechecks and final predicates", () => {
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
 
-    assert.match(fulfillment, /orderHasDeauthorizedSellerReviewHold\(authz\.order\)/);
     assert.match(fulfillment, /DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE/);
-    assert.match(fulfillment, /action !== "update_notes" && orderHasDeauthorizedSellerReviewHold\(authz\.order\)/);
-    assert.match(fulfillment, /DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN/);
-    assert.match(fulfillment, /COALESCE\("reviewNote", ''\) LIKE \$\{DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN\}/);
+    assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(
+      authority,
+      /COALESCE\(locked_order\."reviewNote", ''\) LIKE\s+'Seller Stripe account was deauthorized after payment\.%'/,
+    );
+    assert.match(authority, /'reason', 'seller_deauthorized'/);
   });
 
   it("blocks deauthorized orders before label purchase and inside the label lock", () => {

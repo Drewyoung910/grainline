@@ -896,12 +896,12 @@ Bucket B means `Notification` only. It does not include `StockNotification`,
 `Case`, or `CaseMessage`. Those retain separate coverage-matrix groups and
 production releases.
 
-The refreshed source snapshot contains 53 notification-helper calls across 31
-caller files: 50 best-effort object-literal calls, two strict retryable
-object-literal calls for payout and buyer receipt, plus the fulfillment route's
-typed wrapper call. That wrapper serves two seller-authored fulfillment
-payloads, while buyer receipt confirmation co-commits one strict seller notice,
-and back-in-stock uses one dedicated owner-backed claim, so the authority
+The refreshed source snapshot contains 54 notification-helper calls across 30
+caller files: 50 best-effort object-literal calls plus four strict retryable
+object-literal calls for payout, shipped, ready-for-pickup and buyer receipt.
+Seller fulfillment now keeps both actions as explicit fixed-authority paths,
+buyer receipt confirmation co-commits one strict seller notice, and back-in-stock
+uses one dedicated owner-backed claim, so the authority
 inventory contains 55 distinct emission paths. All 55 are currently
 authority-bound and none are source-less. This broad fanout surface is the main
 reason the table cannot receive a copied SavedSearch owner-only policy; the

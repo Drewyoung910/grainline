@@ -295,8 +295,6 @@ access is removed.
 
 ### Contended Order transitions
 
-- `src/app/api/orders/[id]/confirm-delivery/route.ts`
-- `src/app/api/orders/[id]/fulfillment/route.ts`
 - `src/app/api/orders/[id]/label/route.ts`
 - `src/app/api/orders/[id]/refund/route.ts`
 

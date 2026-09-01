@@ -20,13 +20,9 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
 
     assert.match(buyerConfirm, /ensureUserByClerkId\(clerkId\)/);
     assert.match(buyerConfirm, /getExplicitCrossOriginPostRejection\(req\)/);
-    assert.match(buyerConfirm, /safeRateLimit\(fulfillmentRatelimit, `confirm-delivery:\$\{me\.id\}`\)/);
-    assert.match(buyerConfirm, /buyerId: me\.id/);
-    assert.match(buyerConfirm, /orderReceiptConfirmationTransition\(order\)/);
-    assert.match(buyerConfirm, /paymentOpenDisputeBlocked: false/);
-    assert.match(buyerConfirm, /const confirmedAt = await databaseClockTimestamp\(tx\)/);
-    assert.match(buyerConfirm, /action: "ORDER_FULFILLMENT_TRANSITION"/);
-    assert.match(buyerConfirm, /await createNotificationOrThrow\(\{/);
+    assert.match(buyerConfirm, /safeRateLimit\([\s\S]*fulfillmentRatelimit,[\s\S]*`confirm-delivery:\$\{me\.id\}`/);
+    assert.match(buyerConfirm, /finalizeBuyerOrderReceipt\(\{ actorUserId: me\.id, orderId: id \}\)/);
+    assert.doesNotMatch(buyerConfirm, /prisma\.order\./);
 
     assert.doesNotMatch(salesPage, /name="action" value="delivered"/);
     assert.doesNotMatch(salesPage, /Mark delivered/);

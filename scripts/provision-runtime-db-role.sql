@@ -2510,6 +2510,39 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Seller fulfillment, buyer receipt and seller-private notes are compatible
+-- fixed Order operations. They derive participant authority and state inside
+-- PostgreSQL; the ordinary runtime receives exact EXECUTE only.
+WITH order_fulfillment_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_fulfillment_transition"(text, text, text, text, text)'),
+    ('public."grainline_order_buyer_receipt_confirm"(text, text)'),
+    ('public."grainline_order_seller_notes_update"(text, text, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_fulfillment_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_fulfillment_runtime(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_fulfillment_transition"(text, text, text, text, text)'),
+    ('public."grainline_order_buyer_receipt_confirm"(text, text)'),
+    ('public."grainline_order_seller_notes_update"(text, text, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_fulfillment_runtime
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_participant_export_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),

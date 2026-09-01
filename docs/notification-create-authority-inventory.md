@@ -6,19 +6,17 @@ buyer-receipt correction prepared after that activation.
 
 ## Count Contract
 
-The source has 53 notification-helper calls across 31 files. Fifty-two pass
-object literals: 50 use the existing best-effort `createNotification` helper,
-while payout and buyer receipt use strict retryable
-`createNotificationOrThrow`. The
-fulfillment route has the remaining call in a typed `notifyBuyer(..., payload)`
-wrapper, and that wrapper has two seller-authored payload construction paths. One
-dedicated back-in-stock claim call derives its
-Notification write inside owner authority. The inventory therefore covers 55
+The source has 54 notification-helper calls across 30 files. All pass object
+literals: 50 use the existing best-effort `createNotification` helper, while
+payout, shipped, ready-for-pickup and buyer receipt use four strict retryable
+object-literal calls to `createNotificationOrThrow`. One dedicated back-in-stock
+claim call derives its Notification write inside owner authority. The inventory
+therefore covers 55
 distinct emission paths:
 
 - 55 authority-bound paths;
 - 0 source-less paths;
-- 28 literal creation sites currently carrying `relatedUserId`, plus back-in-stock's
+- 30 literal creation sites currently carrying `relatedUserId`, plus back-in-stock's
   database-derived seller relationship.
 
 The earlier count of 51 calls and 46 source-less paths omitted the fulfillment
@@ -36,8 +34,10 @@ order/system-audit/payment/payout ledgers. The later compatible Case work added
 one staff-decision notification for the seller, bound to the atomic staff
 `CaseMessage`. The fulfillment product audit then replaced seller-authored
 pickup completion with buyer-authored receipt evidence and a strict seller
-notification, preserving the current 55/0 split without preserving the unsafe
-seller transition.
+notification. The later fixed-authority conversion preserves shipped and
+ready-for-pickup as two explicit, independently inventoried strict call sites,
+preserving the current 55/0 split without preserving the unsafe seller
+transition or the old indirection.
 Tests pin direct calls, emission paths, and family state so those concepts are
 not conflated again.
 
@@ -155,7 +155,8 @@ every case proves valid creation, replay, and forged-recipient rejection. That
 was distinct from the then-current 54/54 callsite result. The later seller
 decision path reuses the already-proven staff `CaseMessage` source branch. The
 current callsite contract remains 55/55 after replacing seller-authored pickup
-completion with buyer-authored receipt confirmation; the replacement
+completion with buyer-authored receipt confirmation and converting seller
+fulfillment to two explicit fixed-authority finalization paths; the replacement
 `order_fulfillment` direction requires fresh PostgreSQL proof and a compatible
 production function successor before the application change may deploy.
 byte-pinned SQL review, disposable migration/rollback, authenticated real-table

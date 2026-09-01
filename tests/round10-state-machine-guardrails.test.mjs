@@ -215,11 +215,15 @@ describe("Round 10 state-machine guardrails", () => {
 
   it("coordinates label/manual shipping, admin approval fanout, and mark-resolved notifications", () => {
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const fulfillmentAuthority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
     const adminReview = source("src/app/api/admin/listings/[id]/review/route.ts");
     const markResolved = source("src/app/api/cases/[id]/mark-resolved/route.ts");
 
-    assert.match(fulfillment, /authz\.order\.labelStatus === "PURCHASED"/);
-    assert.match(fulfillment, /"labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus"/);
+    assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(fulfillmentAuthority, /locked_order\."labelStatus"::text = 'PURCHASED'/);
+    assert.match(fulfillmentAuthority, /'reason', 'label_purchased'/);
     assert.match(adminReview, /fanOutListingToFollowers/);
     assert.match(adminReview, /admin-approved-listing:\$\{listing\.id\}:\$\{followerId\}/);
     assert.match(adminReview, /source: 'admin_listing_review_follower_fanout'/);

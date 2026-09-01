@@ -1,24 +1,47 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
 import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { finalizeBuyerOrderReceipt } from "@/lib/orderFulfillmentFinalization";
+import type { OrderFulfillmentConflictReason } from "@/lib/orderFulfillmentAuthority";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { orderHasRefundLedger } from "@/lib/refundRouteState";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
-import {
-  databaseClockTimestamp,
-  lockOrderForCaseLifecycle,
-} from "@/lib/caseLifecycleLocks";
-import { caseOrderActiveForBuyer } from "@/lib/caseOrderActiveAuthority";
-import { logSystemActionOrThrow } from "@/lib/systemAudit";
-import { orderReceiptConfirmationTransition } from "@/lib/orderReceiptConfirmationState";
-import { createNotificationOrThrow } from "@/lib/notifications";
-import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
+import { HTTP_STATUS } from "@/lib/httpStatus";
 
 export const runtime = "nodejs";
+
+function conflictResponse(reason: OrderFulfillmentConflictReason) {
+  switch (reason) {
+    case "active_case":
+      return privateJson(
+        { error: "Resolve the open case before confirming receipt." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    case "refunded":
+      return privateJson(
+        { error: "Refunded orders cannot be confirmed received." },
+        { status: 400 },
+      );
+    case "open_dispute":
+      return privateJson(
+        { error: "Resolve the open Stripe dispute before confirming receipt." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    case "unpaid":
+    case "state_changed":
+    case "method_mismatch":
+      return privateJson(
+        { error: "Only shipped or ready-for-pickup orders can be confirmed received." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    case "seller_deauthorized":
+    case "label_purchased":
+    case "buyer_data_purged":
+      throw new TypeError("Buyer receipt returned a seller-only conflict reason");
+  }
+}
 
 export async function POST(
   req: Request,
@@ -43,128 +66,25 @@ export async function POST(
       throw error;
     }
 
-    const { success, reset } = await safeRateLimit(fulfillmentRatelimit, `confirm-delivery:${me.id}`);
-    if (!success) return privateResponse(rateLimitResponse(reset, "Too many delivery confirmations."));
+    const { success, reset } = await safeRateLimit(
+      fulfillmentRatelimit,
+      `confirm-delivery:${me.id}`,
+    );
+    if (!success) {
+      return privateResponse(rateLimitResponse(reset, "Too many delivery confirmations."));
+    }
 
     const { id } = await params;
-    const order = await prisma.order.findFirst({
-      where: { id, buyerId: me.id, paidAt: { not: null } },
-      select: {
-        buyerId: true,
-        fulfillmentMethod: true,
-        fulfillmentStatus: true,
-        sellerRefundId: true,
-        paymentRefundBlocked: true,
-        paymentOpenDisputeBlocked: true,
-        sellerProfile: { select: { userId: true } },
-      },
-    });
+    const result = await finalizeBuyerOrderReceipt({ actorUserId: me.id, orderId: id });
+    if (result.outcome === "unauthorized") {
+      return privateJson({ error: "Order not found." }, { status: 404 });
+    }
+    if (result.outcome === "conflict") return conflictResponse(result.reason);
 
-    if (!order) return privateJson({ error: "Order not found." }, { status: 404 });
-    const activeCase = await caseOrderActiveForBuyer({
-      actorUserId: me.id,
-      orderId: id,
-    });
-    if (activeCase === null) {
-      return privateJson({ error: "Forbidden." }, { status: 403 });
-    }
-    if (activeCase) {
-      return privateJson(
-        { error: "Resolve the open case before confirming delivery." },
-        { status: 409 },
-      );
-    }
-    if (orderHasRefundLedger(order)) {
-      return privateJson({ error: "Refunded orders cannot be confirmed received." }, { status: 400 });
-    }
-    if (order.paymentOpenDisputeBlocked) {
-      return privateJson(
-        { error: "Resolve the open Stripe dispute before confirming receipt." },
-        { status: 409 },
-      );
-    }
-    const confirmation = orderReceiptConfirmationTransition(order);
-    if (!confirmation) {
-      return privateJson(
-        { error: "Only shipped or ready-for-pickup orders can be confirmed received." },
-        { status: 400 },
-      );
-    }
-
-    const updatedCount = await prisma.$transaction(async (tx) => {
-      const orderExists = await lockOrderForCaseLifecycle(tx, id);
-      if (!orderExists) return 0;
-      const lockedActiveCase = await caseOrderActiveForBuyer(
-        { actorUserId: me.id, orderId: id },
-        tx,
-      );
-      if (lockedActiveCase !== false) return 0;
-      const confirmedAt = await databaseClockTimestamp(tx);
-      const updated = await tx.order.updateMany({
-        where: {
-          id,
-          buyerId: me.id,
-          paidAt: { not: null },
-          fulfillmentStatus: confirmation.previousStatus,
-          sellerRefundId: null,
-          paymentRefundBlocked: false,
-          paymentOpenDisputeBlocked: false,
-          ...(confirmation.fulfillmentMethod === "SHIPPING"
-            ? {
-                AND: [
-                  {
-                    OR: [
-                      { fulfillmentMethod: "SHIPPING" as const },
-                      { fulfillmentMethod: null },
-                    ],
-                  },
-                ],
-              }
-            : { fulfillmentMethod: "PICKUP" as const }),
-        },
-        data: {
-          fulfillmentMethod: confirmation.fulfillmentMethod,
-          fulfillmentStatus: confirmation.newStatus,
-          [confirmation.timestampField]: confirmedAt,
-        },
-      });
-      if (updated.count !== 1) return updated.count;
-      const auditLogId = await logSystemActionOrThrow({
-        client: tx,
-        actorType: "user",
-        actorId: me.id,
-        action: "ORDER_FULFILLMENT_TRANSITION",
-        targetType: "ORDER",
-        targetId: id,
-        metadata: {
-          action: confirmation.newStatus === "DELIVERED" ? "delivered" : "picked_up",
-          fulfillmentMethod: confirmation.fulfillmentMethod,
-          previousStatus: confirmation.previousStatus,
-          newStatus: confirmation.newStatus,
-        },
-      });
-      if (order.sellerProfile?.userId) {
-        await createNotificationOrThrow({
-          userId: order.sellerProfile.userId,
-          type: "ORDER_DELIVERED",
-          title: "Buyer confirmed receipt",
-          body: confirmation.newStatus === "DELIVERED"
-            ? "The buyer confirmed delivery."
-            : "The buyer confirmed pickup.",
-          link: `/dashboard/sales/${id}`,
-          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT,
-          sourceId: auditLogId,
-          relatedUserId: me.id,
-        }, tx);
-      }
-      return updated.count;
-    });
-
-    if (updatedCount === 0) {
-      return privateJson({ error: "Order status changed. Refresh and try again." }, { status: 409 });
-    }
-
-    return NextResponse.redirect(new URL(`/dashboard/orders/${id}`, APP_BASE_URL), { status: 303 });
+    return NextResponse.redirect(
+      new URL(`/dashboard/orders/${id}`, APP_BASE_URL),
+      { status: 303 },
+    );
   } catch (error) {
     logServerError(error, { source: "buyer_confirm_delivery_route" });
     return privateJson({ error: "Server error" }, { status: 500 });

@@ -88,36 +88,43 @@ deleted or reinterpreted. This is a forward behavior correction.
   purchased-label and deauthorized-seller states in the final write predicate,
   not only by a stale pre-read.
 
-## Required fixed-authority follow-up
+## Fixed-authority follow-up
 
-The product correction does not itself make Order ready for RLS. The compatible
-authority release must still provide separate source-validating functions:
+The product correction does not itself make Order ready for RLS. The isolated
+compatible authority checkpoint now provides separate source-validating
+functions:
 
-- `grainline_seller_fulfillment_transition(...)` for only paid, seller-owned
+- `grainline_order_seller_fulfillment_transition(...)` for only paid, seller-owned
   `PENDING -> SHIPPED` and `PENDING -> READY_FOR_PICKUP` transitions;
-- `grainline_buyer_receipt_confirm(p_actor_user_id, p_order_id)` for only paid,
+- `grainline_order_buyer_receipt_confirm(p_actor_user_id, p_order_id)` for only paid,
   buyer-owned `SHIPPED -> DELIVERED` and
   `READY_FOR_PICKUP -> PICKED_UP`; and
 - a separate bounded seller-note operation, because private scratch notes are
   not fulfillment state and must not inherit provider-transition authority.
 
-Each function must derive actor, target, method, previous/new state, database
+Each function derives actor, target, method, previous/new state, database
 clock and audit payload internally; lock the active actor and Order in the
 reviewed global order; reject active Cases/refunds/disputes as applicable; and
 grant execute only to the reviewed runtime role.
 
-The current in-app Notification and shipping/pickup email calls occur after the
-Order transaction. Their failures are observable and do not return a false
-500, but a successful transition can therefore outlive a failed delivery side
-effect. Before Order activation, the authority conversion must either:
+The fixed application finalizer co-commits the source-validated Notification
+and deterministic EmailOutbox reservation with the Order transition. The
+immediate email attempt occurs after commit, and the scheduled worker can
+recover a process exit or provider failure without replaying the transition.
+An inactive or deleted counterparty is not a delivery target and does not block
+the paid Order transition. Seller-private notes retain their predecessor
+post-refund editability for recordkeeping while remaining unavailable for new
+text after buyer-data purge.
+This selects the durable branch of the original decision:
 
 - co-commit the source-validated Notification and a deduplicated EmailOutbox
   reservation with the transition; or
 - retain an explicit restart-safe side-effect repair operation keyed by the
   immutable transition audit.
 
-Direct best-effort email is not the desired final enterprise reliability
-boundary.
+Direct best-effort email is no longer the fulfillment reliability boundary.
+See `docs/order-fulfillment-authority.md`. The migration remains unapplied and
+Order RLS remains unchanged.
 
 ## Not changed by this audit
 

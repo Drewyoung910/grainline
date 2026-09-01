@@ -10,7 +10,6 @@ describe("seller order mutation ownership guardrails", () => {
   it("requires seller routes to bind the checkout-owned Order seller", () => {
     for (const path of [
       "src/app/api/orders/[id]/refund/route.ts",
-      "src/app/api/orders/[id]/fulfillment/route.ts",
       "src/app/api/orders/[id]/label/route.ts",
     ]) {
       const text = source(path);
@@ -25,6 +24,19 @@ describe("seller order mutation ownership guardrails", () => {
         `${path} must not derive retained Order authority from mutable Listings`,
       );
     }
+
+    const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const fulfillmentAuthority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
+    assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(fulfillment, /updateSellerOrderNotes\(\{/);
+    assert.doesNotMatch(fulfillment, /prisma\.order\./);
+    assert.match(
+      fulfillmentAuthority,
+      /locked_order\."sellerProfileId" IS DISTINCT FROM source_seller\.id/,
+    );
+    assert.doesNotMatch(fulfillmentAuthority, /JOIN public\."Listing"/);
 
     const detail = source("src/app/dashboard/sales/[orderId]/page.tsx");
     const detailAuthority = source(

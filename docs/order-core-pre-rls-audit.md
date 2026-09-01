@@ -398,6 +398,17 @@ The eventual fixed operations must preserve this product split and close the
 remaining post-commit Notification/email reliability gap. See
 `docs/order-fulfillment-receipt-product-audit.md`.
 
+2026-09-01 fixed-authority checkpoint: the three separate fulfillment,
+buyer-receipt and seller-note operations are implemented in the isolated
+`20260901130000_prepare_order_fulfillment_authority` candidate. Both HTTP routes
+now delegate to these functions; seller transition Notification and a
+deterministic email-outbox reservation co-commit with the derived audit, while
+buyer receipt and its seller Notification share one transaction. The direct
+Order inventory falls from 20 to 18. Disposable PostgreSQL proves both delivery
+methods, notes, anti-forgery, active-Case denial and direct table-write denial.
+No migration, deployment, RLS/grant or production state changed. See
+`docs/order-fulfillment-authority.md`.
+
 ## Current functionality verdict
 
 The order, checkout, fulfillment, refund and Case integration are not being
@@ -415,7 +426,8 @@ debt that should be fixed before Order RLS:
 - the seller analytics and Guild Order-facts cohorts are isolated and
   product-corrected;
 - seller fulfillment and buyer receipt semantics are product-corrected so a
-  seller cannot assert pickup completion or start the buyer's Case window;
+  seller cannot assert pickup completion or start the buyer's Case window, and
+  their isolated fixed operations close the Notification/email crash gap;
 - the incomplete development Order fixture is retired; and
 - the nullable seller keys and snapshot shape still need final convergence.
 

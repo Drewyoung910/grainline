@@ -61,13 +61,19 @@ describe("Round 9 account deletion PII guardrails", () => {
   it("prevents seller notes from reintroducing retained order PII after prune", () => {
     const retention = source("src/lib/orderPiiRetention.ts");
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
     const salesPage = source("src/app/dashboard/sales/[orderId]/page.tsx");
 
     assert.doesNotMatch(retention, /WHERE "buyerDataPurgedAt" IS NULL/);
-    assert.match(fulfillment, /const sellerNotes = payload\.sellerNotes \? truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null : null/);
-    assert.match(fulfillment, /if \(sellerNotes && authz\.order\.buyerDataPurgedAt\)/);
-    assert.match(fulfillment, /notesWriteRequiresUnpurgedOrder = sellerNotes !== null/);
-    assert.match(fulfillment, /\.\.\.\(notesWriteRequiresUnpurgedOrder \? \{ buyerDataPurgedAt: null \} : \{\}\)/);
+    assert.match(fulfillment, /truncateText\(sanitizeText\(payload\.sellerNotes\), 2000\) \|\| null/);
+    assert.match(fulfillment, /updateSellerOrderNotes\(\{/);
+    assert.match(
+      authority,
+      /p_seller_notes IS NOT NULL AND locked_order\."buyerDataPurgedAt" IS NOT NULL/,
+    );
+    assert.match(authority, /'reason', 'buyer_data_purged'/);
     assert.ok(
       salesPage.indexOf("order.buyerDataPurgedAt ?") < salesPage.indexOf("<SellerNotesForm"),
       "seller notes form should only render before buyer data is purged",

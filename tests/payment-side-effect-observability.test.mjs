@@ -9,11 +9,15 @@ function source(path) {
 describe("payment and fulfillment side-effect observability", () => {
   it("keeps fulfillment mutations from being masked by notification or email failures", () => {
     const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const finalization = source("src/lib/orderFulfillmentFinalization.ts");
 
-    assert.match(route, /source: "fulfillment_notification"/);
-    assert.match(route, /source: "fulfillment_email"/);
-    assert.match(route, /async function notifyBuyer/);
-    assert.match(route, /function captureFulfillmentEmailFailure/);
+    assert.match(route, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(finalization, /prisma\.\$transaction\(async \(tx\) =>/);
+    assert.match(finalization, /createNotificationOrThrow\(\{/);
+    assert.match(finalization, /enqueueEmailOutboxOnce\(\{/);
+    assert.match(finalization, /dedupKey: `order-fulfillment:\$\{result\.auditLogId\}`/);
+    assert.match(finalization, /processEmailOutboxJobById\(committed\.emailOutboxId\)/);
+    assert.doesNotMatch(route, /fulfillment_notification|fulfillment_email|notifyBuyer/);
     assert.doesNotMatch(route, /catch \{\s*\/\* non-fatal \*\/\s*\}/);
   });
 
@@ -432,13 +436,21 @@ describe("payment and fulfillment side-effect observability", () => {
 
   it("blocks fulfillment state changes on database-maintained payment projections", () => {
     const route = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const authority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
 
-    assert.match(route, /authz\.order\.paymentOpenDisputeBlocked/);
-    assert.match(route, /paymentRefundBlockedSql/);
-    assert.match(route, /paymentOpenDisputeBlockedSql/);
     assert.match(route, /Resolve the open Stripe dispute before changing fulfillment/);
-    assert.match(route, /UPDATE "Order"[\s\S]*paymentRefundBlockedSql\(Prisma\.sql`"Order"`\)[\s\S]*paymentOpenDisputeBlockedSql\(Prisma\.sql`"Order"`\)/);
-    assert.match(route, /"fulfillmentStatus"::text IN \(\$\{Prisma\.join\(allowed\)\}\)/);
+    assert.match(authority, /locked_order\."paymentRefundBlocked"/);
+    assert.match(authority, /locked_order\."paymentOpenDisputeBlocked"/);
+    assert.match(
+      authority,
+      /UPDATE public\."Order" AS target_order[\s\S]*"fulfillmentStatus" = 'SHIPPED'::public\."FulfillmentStatus"/,
+    );
+    assert.match(
+      authority,
+      /UPDATE public\."Order" AS target_order[\s\S]*"fulfillmentStatus" = 'READY_FOR_PICKUP'::public\."FulfillmentStatus"/,
+    );
     assert.doesNotMatch(route, /id:\s*\{\s*in: Prisma\.sql/);
     assert.doesNotMatch(route, /OrderPaymentEvent|paymentEvents\s*:|latestOpenDisputeLedgerExistsSql/);
   });

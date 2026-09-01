@@ -21,32 +21,35 @@ describe("Notification order, payment, and fulfillment authority", () => {
   const receiptAuthority = source(
     "prisma/migrations/20260901120000_prepare_order_receipt_notification_authority/migration.sql",
   );
+  const fulfillmentFinalization = source("src/lib/orderFulfillmentFinalization.ts");
+  const fulfillmentWriteAuthority = source(
+    "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+  );
 
   it("binds both seller-authored fulfillment notifications to transition audits", () => {
-    assert.match(fulfillment, /const transition = await prisma\.\$transaction\(async \(tx\) =>/);
-    assert.match(fulfillment, /action: "ORDER_FULFILLMENT_TRANSITION"/);
-    assert.match(fulfillment, /actorId: authz\.seller\.userId/);
-    assert.match(fulfillment, /previousStatus: authz\.order\.fulfillmentStatus \?\? "PENDING"/);
-    assert.match(fulfillment, /trackingCarrier: action === "shipped"/);
+    assert.match(fulfillment, /finalizeSellerOrderFulfillment\(\{/);
+    assert.match(fulfillmentWriteAuthority, /'ORDER_FULFILLMENT_TRANSITION'/);
+    assert.match(fulfillmentWriteAuthority, /'previousStatus', 'PENDING'/);
+    assert.match(fulfillmentWriteAuthority, /'trackingCarrier', CASE WHEN p_action = 'shipped'/);
+    assert.match(fulfillmentFinalization, /const result = await transitionSellerOrderFulfillment\(input, tx\)/);
     assert.equal(
-      (fulfillment.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_FULFILLMENT/g) ?? []).length,
-      2,
+      (fulfillmentFinalization.match(/sourceType: NOTIFICATION_SOURCE_TYPES\.ORDER_FULFILLMENT/g) ?? []).length,
+      4,
     );
-    assert.equal(
-      (fulfillment.match(/relatedUserId: authz\.seller\.userId/g) ?? []).length,
-      2,
-    );
+    assert.match(fulfillmentFinalization, /relatedUserId: input\.actorUserId/);
+    assert.match(fulfillmentFinalization, /enqueueEmailOutboxOnce\(\{/);
   });
 
   it("co-commits buyer receipt evidence and a seller notification", () => {
-    assert.match(receipt, /action: "ORDER_FULFILLMENT_TRANSITION"/);
-    assert.match(receipt, /actorId: me\.id/);
-    assert.match(receipt, /action: confirmation\.newStatus === "DELIVERED" \? "delivered" : "picked_up"/);
-    assert.match(receipt, /createNotificationOrThrow\(\{/);
-    assert.match(receipt, /userId: order\.sellerProfile\.userId/);
-    assert.match(receipt, /sourceId: auditLogId/);
-    assert.match(receipt, /relatedUserId: me\.id/);
-    assert.match(receipt, /\}, tx\);/);
+    assert.match(receipt, /finalizeBuyerOrderReceipt\(\{/);
+    assert.match(fulfillmentWriteAuthority, /'ORDER_FULFILLMENT_TRANSITION'/);
+    assert.match(fulfillmentWriteAuthority, /'action', transition_action/);
+    assert.match(fulfillmentFinalization, /const result = await confirmBuyerOrderReceipt\(input, tx\)/);
+    assert.match(fulfillmentFinalization, /createNotificationOrThrow\(\{/);
+    assert.match(fulfillmentFinalization, /userId: result\.sellerUserId/);
+    assert.match(fulfillmentFinalization, /sourceId: result\.auditLogId/);
+    assert.match(fulfillmentFinalization, /relatedUserId: input\.actorUserId/);
+    assert.match(fulfillmentFinalization, /\}, tx\);/);
   });
 
   it("binds seller and blocked-checkout refunds to their existing payment ledgers", () => {

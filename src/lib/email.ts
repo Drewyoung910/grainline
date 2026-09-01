@@ -450,7 +450,7 @@ export async function sendOrderConfirmedSeller(opts: Parameters<typeof renderOrd
   await sendRenderedEmail(renderOrderConfirmedSellerEmail(opts));
 }
 
-export async function sendOrderShipped(opts: {
+export function renderOrderShippedEmail(opts: {
   order: { id: string; estimatedDeliveryDate?: Date | null };
   buyer: { name?: string | null; email: string };
   carrier?: string | null;
@@ -474,10 +474,18 @@ export async function sendOrderShipped(opts: {
     ${btn("View order", orderUrl)}
   `;
 
-  await send(buyer.email, `Your piece is on its way${orderSubjectSuffix(order.id)}`, baseTemplate("Your order has shipped", body));
+  return {
+    to: buyer.email,
+    subject: `Your piece is on its way${orderSubjectSuffix(order.id)}`,
+    html: baseTemplate("Your order has shipped", body),
+  };
 }
 
-export async function sendReadyForPickup(opts: {
+export async function sendOrderShipped(opts: Parameters<typeof renderOrderShippedEmail>[0]) {
+  await sendRenderedEmail(renderOrderShippedEmail(opts));
+}
+
+export function renderReadyForPickupEmail(opts: {
   order: { id: string };
   buyer: { name?: string | null; email: string };
   seller: { displayName?: string | null };
@@ -493,7 +501,15 @@ export async function sendReadyForPickup(opts: {
     ${btn("View order details", orderUrl)}
   `;
 
-  await send(buyer.email, `Your order is ready for pickup${orderSubjectSuffix(order.id)}`, baseTemplate("Ready for Pickup", body));
+  return {
+    to: buyer.email,
+    subject: `Your order is ready for pickup${orderSubjectSuffix(order.id)}`,
+    html: baseTemplate("Ready for Pickup", body),
+  };
+}
+
+export async function sendReadyForPickup(opts: Parameters<typeof renderReadyForPickupEmail>[0]) {
+  await sendRenderedEmail(renderReadyForPickupEmail(opts));
 }
 
 export async function sendOrderDelivered(opts: {

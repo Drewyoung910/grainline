@@ -36,15 +36,19 @@ describe("OrderPaymentEvent transition-authority application conversion", () => 
       "src/app/api/orders/[id]/confirm-delivery/route.ts",
     );
     const fulfillment = source("src/app/api/orders/[id]/fulfillment/route.ts");
+    const fulfillmentAuthority = source(
+      "prisma/migrations/20260901130000_prepare_order_fulfillment_authority/migration.sql",
+    );
     const label = source("src/app/api/orders/[id]/label/route.ts");
     const refund = source("src/app/api/orders/[id]/refund/route.ts");
     const webhook = source("src/app/api/stripe/webhook/route.ts");
 
-    assert.match(confirmation, /paymentRefundBlocked/u);
-    for (const value of [fulfillment, label]) {
-      assert.match(value, /paymentRefundBlockedSql/u);
-      assert.match(value, /paymentOpenDisputeBlockedSql/u);
-    }
+    assert.match(confirmation, /finalizeBuyerOrderReceipt/u);
+    assert.match(fulfillment, /finalizeSellerOrderFulfillment/u);
+    assert.match(fulfillmentAuthority, /locked_order\."paymentRefundBlocked"/u);
+    assert.match(fulfillmentAuthority, /locked_order\."paymentOpenDisputeBlocked"/u);
+    assert.match(label, /paymentRefundBlockedSql/u);
+    assert.match(label, /paymentOpenDisputeBlockedSql/u);
     assert.match(refund, /paymentOpenDisputeBlocked/u);
     assert.match(webhook, /paymentRefundBlocked/u);
     assert.match(webhook, /paymentOpenDisputeBlocked/u);

@@ -1,23 +1,14 @@
-// src/app/api/orders/[id]/fulfillment/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import * as Sentry from "@sentry/nextjs";
-import { prisma } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
-import { NOTIFICATION_SOURCE_TYPES } from "@/lib/notificationSources";
-import { logSystemActionOrThrow } from "@/lib/systemAudit";
-import { sendOrderShipped, sendReadyForPickup } from "@/lib/email";
+import { z } from "zod";
+import { ensureUserByClerkId, isAccountAccessError } from "@/lib/ensureUser";
+import { finalizeSellerOrderFulfillment } from "@/lib/orderFulfillmentFinalization";
+import {
+  updateSellerOrderNotes,
+  type OrderFulfillmentConflictReason,
+} from "@/lib/orderFulfillmentAuthority";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { fulfillmentRatelimit, rateLimitResponse, safeRateLimit } from "@/lib/ratelimit";
-import { orderHasRefundLedger } from "@/lib/refundRouteState";
-import {
-  paymentOpenDisputeBlockedSql,
-  paymentRefundBlockedSql,
-} from "@/lib/refundLedgerSql";
-import {
-  databaseClockTimestamp,
-  lockOrderForCaseLifecycle,
-} from "@/lib/caseLifecycleLocks";
 import {
   assertKnownContentLengthUnder,
   isInvalidContentLengthError,
@@ -27,17 +18,10 @@ import {
 } from "@/lib/requestBody";
 import { HTTP_STATUS } from "@/lib/httpStatus";
 import { getExplicitCrossOriginPostRejection } from "@/lib/requestOriginGuard";
-import { Prisma, type FulfillmentStatus } from "@prisma/client";
-import { z } from "zod";
 import { sanitizeText, truncateText } from "@/lib/sanitize";
 import { logServerError } from "@/lib/serverErrorLogger";
 import { APP_BASE_URL } from "@/lib/appBaseUrl";
-import {
-  DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE,
-  DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN,
-  orderHasDeauthorizedSellerReviewHold,
-} from "@/lib/orderReviewHolds";
-import { caseOrderActiveForSeller } from "@/lib/caseOrderActiveAuthority";
+import { DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE } from "@/lib/orderReviewHolds";
 
 const FulfillmentSchema = z.object({
   action: z.enum(["ready_for_pickup", "shipped", "update_notes"]),
@@ -54,55 +38,48 @@ const TRACKING_NUMBER_RE = /^[A-Za-z0-9][A-Za-z0-9 -]{4,99}$/;
 const FULFILLMENT_JSON_BODY_MAX_BYTES = 24 * 1024;
 const FULFILLMENT_FORM_BODY_MAX_BYTES = 24 * 1024;
 
-async function notifyBuyer(orderId: string, buyerId: string, payload: Parameters<typeof createNotification>[0]) {
-  try {
-    await createNotification(payload);
-  } catch (error) {
-    Sentry.captureException(error, {
-      level: "warning",
-      tags: { source: "fulfillment_notification" },
-      extra: { orderId, buyerId, notificationType: payload.type },
-    });
+function conflictResponse(reason: OrderFulfillmentConflictReason) {
+  switch (reason) {
+    case "active_case":
+      return privateJson(
+        { error: "Resolve the open case before changing fulfillment." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    case "refunded":
+      return privateJson({ error: "Refunded orders cannot be fulfilled." }, { status: 400 });
+    case "open_dispute":
+      return privateJson(
+        { error: "Resolve the open Stripe dispute before changing fulfillment." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    case "seller_deauthorized":
+      return privateJson(
+        { error: DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    case "label_purchased":
+      return privateJson(
+        { error: "A Grainline shipping label has already been purchased for this order." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    case "buyer_data_purged":
+      return privateJson(
+        { error: "Seller notes are unavailable after buyer data is purged." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
+    case "unpaid":
+    case "state_changed":
+    case "method_mismatch":
+      return privateJson(
+        { error: "Order state changed. Refresh and try again." },
+        { status: HTTP_STATUS.CONFLICT },
+      );
   }
-}
-
-function captureFulfillmentEmailFailure(error: unknown, orderId: string, action: string) {
-  Sentry.captureException(error, {
-    level: "warning",
-    tags: { source: "fulfillment_email", action },
-    extra: { orderId },
-  });
-}
-
-function requiredFulfillmentAuditId(value: string | null): string {
-  if (!value) throw new Error("Fulfillment transition did not return its audit authority");
-  return value;
-}
-
-async function ensureSellerOwnsOrder(userId: string, orderId: string) {
-  const me = await prisma.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true, banned: true, deletedAt: true },
-  });
-  if (!me) return null;
-  if (me.banned || me.deletedAt) return null;
-
-  const seller = await prisma.sellerProfile.findUnique({
-    where: { userId: me.id },
-    select: { id: true, userId: true },
-  });
-  if (!seller) return null;
-
-  const order = await prisma.order.findFirst({
-    where: { id: orderId, sellerProfileId: seller.id, paidAt: { not: null } },
-  });
-  if (!order) return null;
-  return { order, seller };
 }
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const crossOriginRejection = getExplicitCrossOriginPostRejection(req);
@@ -110,22 +87,32 @@ export async function POST(
       return privateJson({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { id } = await params;
+    const { userId: clerkId } = await auth();
+    if (!clerkId) return privateJson({ error: "Unauthorized" }, { status: 401 });
 
-    const { userId } = await auth();
-    if (!userId) return privateJson({ error: "Unauthorized" }, { status: 401 });
+    let me: Awaited<ReturnType<typeof ensureUserByClerkId>>;
+    try {
+      me = await ensureUserByClerkId(clerkId);
+    } catch (error) {
+      if (isAccountAccessError(error)) {
+        return privateJson({ error: error.message, code: error.code }, { status: error.status });
+      }
+      throw error;
+    }
 
-    const { success, reset } = await safeRateLimit(fulfillmentRatelimit, userId);
+    const { success, reset } = await safeRateLimit(fulfillmentRatelimit, me.id);
     if (!success) return privateResponse(rateLimitResponse(reset, "Too many fulfillment updates."));
 
-    const authz = await ensureSellerOwnsOrder(userId, id);
-    if (!authz) return privateJson({ error: "Forbidden" }, { status: 403 });
-
+    const { id } = await params;
     let rawPayload: Record<string, unknown> = {};
     const contentType = req.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       try {
-        rawPayload = (await readOptionalBoundedJson(req, FULFILLMENT_JSON_BODY_MAX_BYTES, {})) as Record<string, unknown>;
+        rawPayload = (await readOptionalBoundedJson(
+          req,
+          FULFILLMENT_JSON_BODY_MAX_BYTES,
+          {},
+        )) as Record<string, unknown>;
       } catch (error) {
         if (isRequestBodyTooLargeError(error)) {
           return privateJson({ error: "Request body too large" }, { status: 413 });
@@ -137,13 +124,22 @@ export async function POST(
         assertKnownContentLengthUnder(req, FULFILLMENT_FORM_BODY_MAX_BYTES);
       } catch (error) {
         if (isRequestBodyTooLargeError(error)) {
-          return privateJson({ error: "Request body too large" }, { status: HTTP_STATUS.PAYLOAD_TOO_LARGE });
+          return privateJson(
+            { error: "Request body too large" },
+            { status: HTTP_STATUS.PAYLOAD_TOO_LARGE },
+          );
         }
         if (isMissingContentLengthError(error)) {
-          return privateJson({ error: "Content-Length header is required" }, { status: HTTP_STATUS.LENGTH_REQUIRED });
+          return privateJson(
+            { error: "Content-Length header is required" },
+            { status: HTTP_STATUS.LENGTH_REQUIRED },
+          );
         }
         if (isInvalidContentLengthError(error)) {
-          return privateJson({ error: "Invalid Content-Length header" }, { status: HTTP_STATUS.BAD_REQUEST });
+          return privateJson(
+            { error: "Invalid Content-Length header" },
+            { status: HTTP_STATUS.BAD_REQUEST },
+          );
         }
         throw error;
       }
@@ -151,99 +147,33 @@ export async function POST(
       rawPayload = Object.fromEntries(form.entries()) as Record<string, unknown>;
     }
 
-    let payload;
+    let payload: z.infer<typeof FulfillmentSchema>;
     try {
       payload = FulfillmentSchema.parse(rawPayload);
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return privateJson({ error: "Invalid input", details: e.issues }, { status: 400 });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return privateJson({ error: "Invalid input", details: error.issues }, { status: 400 });
       }
       return privateJson({ error: "Invalid input" }, { status: 400 });
     }
 
-    const action = payload.action;
-    if (action !== "update_notes") {
-      const activeCase = await caseOrderActiveForSeller({
-        actorUserId: authz.seller.userId,
+    if (payload.action === "update_notes") {
+      const sellerNotes = payload.sellerNotes
+        ? truncateText(sanitizeText(payload.sellerNotes), 2000) || null
+        : null;
+      const result = await updateSellerOrderNotes({
+        actorUserId: me.id,
         orderId: id,
+        sellerNotes,
       });
-      if (activeCase === null) {
+      if (result.outcome === "unauthorized") {
         return privateJson({ error: "Forbidden" }, { status: 403 });
       }
-      if (activeCase) {
-        return privateJson(
-          { error: "Resolve the open case before changing fulfillment." },
-          { status: 409 },
-        );
-      }
-    }
-    if (action !== "update_notes" && orderHasRefundLedger(authz.order)) {
-      return privateJson(
-        { error: "Refunded orders cannot be fulfilled." },
-        { status: 400 },
-      );
-    }
-    if (action !== "update_notes") {
-      if (authz.order.paymentOpenDisputeBlocked) {
-        return privateJson(
-          { error: "Resolve the open Stripe dispute before changing fulfillment." },
-          { status: HTTP_STATUS.CONFLICT },
-        );
-      }
-    }
-    if (action !== "update_notes" && orderHasDeauthorizedSellerReviewHold(authz.order)) {
-      return privateJson(
-        { error: DEAUTHORIZED_SELLER_FULFILLMENT_HOLD_MESSAGE },
-        { status: 409 },
-      );
-    }
-    if (action === "shipped" && authz.order.labelStatus === "PURCHASED") {
-      return privateJson(
-        { error: "A Grainline shipping label has already been purchased for this order." },
-        { status: 409 },
-      );
-    }
-
-    // Prevent backwards state transitions
-    const validTransitions: Partial<Record<typeof action, FulfillmentStatus[]>> = {
-      shipped: ["PENDING"],
-      ready_for_pickup: ["PENDING"],
-    };
-    const allowed = validTransitions[action];
-    if (allowed && !allowed.includes(authz.order.fulfillmentStatus ?? "PENDING")) {
-      return privateJson(
-        { error: `Cannot transition from ${authz.order.fulfillmentStatus ?? "PENDING"} to ${action}.` },
-        { status: 400 },
-      );
-    }
-
-    // Guard: shipping orders can only use shipped/delivered actions, not pickup
-    const currentMethod = authz.order.fulfillmentMethod ?? "SHIPPING";
-    if (action === "ready_for_pickup" && currentMethod === "SHIPPING") {
-      return privateJson(
-        { error: "Cannot use pickup actions on a shipping order." },
-        { status: 400 },
-      );
-    }
-    if (action === "shipped" && currentMethod === "PICKUP") {
-      return privateJson(
-        { error: "Cannot use shipping actions on a pickup order." },
-        { status: 400 },
-      );
-    }
-    const data: Record<string, unknown> = {};
-    let notesWriteRequiresUnpurgedOrder = false;
-    const now = new Date();
-
-    switch (action) {
-      case "ready_for_pickup":
-        data.fulfillmentMethod = "PICKUP";
-        data.fulfillmentStatus = "READY_FOR_PICKUP";
-        data.pickupReadyAt = now;
-        break;
-      case "shipped": {
-        const trackingCarrier = payload.trackingCarrier?.trim() ?? "";
-        const trackingNumber = payload.trackingNumber?.trim() ?? "";
+      if (result.outcome === "conflict") return conflictResponse(result.reason);
+    } else {
+      const trackingCarrier = payload.trackingCarrier?.trim() || null;
+      const trackingNumber = payload.trackingNumber?.trim() || null;
+      if (payload.action === "shipped") {
         if (!trackingCarrier) {
           return privateJson({ error: "Tracking carrier is required." }, { status: 400 });
         }
@@ -256,193 +186,26 @@ export async function POST(
         if (!TRACKING_NUMBER_RE.test(trackingNumber)) {
           return privateJson({ error: "Invalid tracking number." }, { status: 400 });
         }
-        data.fulfillmentMethod = "SHIPPING";
-        data.fulfillmentStatus = "SHIPPED";
-        data.shippedAt = now;
-        data.trackingCarrier = trackingCarrier;
-        data.trackingNumber = trackingNumber;
-        break;
       }
-      case "update_notes": {
-        const sellerNotes = payload.sellerNotes ? truncateText(sanitizeText(payload.sellerNotes), 2000) || null : null;
-        if (sellerNotes && authz.order.buyerDataPurgedAt) {
-          return privateJson(
-            { error: "Seller notes are unavailable after buyer data is purged." },
-            { status: HTTP_STATUS.CONFLICT },
-          );
-        }
-        notesWriteRequiresUnpurgedOrder = sellerNotes !== null;
-        data.sellerNotes = sellerNotes;
-        break;
-      }
-      default:
-        return privateJson({ error: "Unknown action" }, { status: 400 });
-    }
-
-    let updatedCount: number;
-    let fulfillmentAuditId: string | null = null;
-    if (action === "update_notes") {
-      const updated = await prisma.order.updateMany({
-        where: {
-          id,
-          sellerRefundId: null,
-          paymentRefundBlocked: false,
-          ...(notesWriteRequiresUnpurgedOrder ? { buyerDataPurgedAt: null } : {}),
-        },
-        data,
+      const result = await finalizeSellerOrderFulfillment({
+        actorUserId: me.id,
+        orderId: id,
+        action: payload.action,
+        trackingCarrier,
+        trackingNumber,
       });
-      updatedCount = updated.count;
-    } else {
-      const allowedStatusSql = allowed
-        ? Prisma.sql`AND "fulfillmentStatus"::text IN (${Prisma.join(allowed)})`
-        : Prisma.empty;
-      const labelStatusSql = action === "shipped"
-        ? Prisma.sql`AND ("labelStatus" IS NULL OR "labelStatus" != 'PURCHASED'::"LabelStatus")`
-        : Prisma.empty;
-      const transition = await prisma.$transaction(async (tx) => {
-        const orderExists = await lockOrderForCaseLifecycle(tx, id);
-        if (!orderExists) {
-          return { count: 0, auditLogId: null as string | null };
-        }
-        const lockedActiveCase = await caseOrderActiveForSeller(
-          { actorUserId: authz.seller.userId, orderId: id },
-          tx,
-        );
-        if (lockedActiveCase !== false) {
-          return { count: 0, auditLogId: null as string | null };
-        }
-        const transitionAt = await databaseClockTimestamp(tx);
-        const mutationSql =
-          action === "ready_for_pickup"
-            ? Prisma.sql`
-                "fulfillmentMethod" = 'PICKUP'::"FulfillmentMethod",
-                "fulfillmentStatus" = 'READY_FOR_PICKUP'::"FulfillmentStatus",
-                "pickupReadyAt" = ${transitionAt}
-              `
-            : Prisma.sql`
-                  "fulfillmentMethod" = 'SHIPPING'::"FulfillmentMethod",
-                  "fulfillmentStatus" = 'SHIPPED'::"FulfillmentStatus",
-                  "shippedAt" = ${transitionAt},
-                  "trackingCarrier" = ${data.trackingCarrier as string},
-                  "trackingNumber" = ${data.trackingNumber as string}
-                `;
-        const count = await tx.$executeRaw`
-          UPDATE "Order"
-          SET ${mutationSql}
-          WHERE id = ${id}
-            AND "sellerRefundId" IS NULL
-            AND NOT (${paymentRefundBlockedSql(Prisma.sql`"Order"`)})
-            ${allowedStatusSql}
-            ${labelStatusSql}
-            AND NOT ("reviewNeeded" = true AND COALESCE("reviewNote", '') LIKE ${DEAUTHORIZED_SELLER_REVIEW_NOTE_SQL_PATTERN})
-            AND NOT (${paymentOpenDisputeBlockedSql(Prisma.sql`"Order"`)})
-        `;
-        if (Number(count) === 0) return { count: 0, auditLogId: null as string | null };
-        const newStatus = action === "ready_for_pickup"
-          ? "READY_FOR_PICKUP"
-          : "SHIPPED";
-        const auditLogId = await logSystemActionOrThrow({
-          client: tx,
-          actorType: "user",
-          actorId: authz.seller.userId,
-          action: "ORDER_FULFILLMENT_TRANSITION",
-          targetType: "ORDER",
-          targetId: id,
-          metadata: {
-            action,
-            previousStatus: authz.order.fulfillmentStatus ?? "PENDING",
-            newStatus,
-            trackingCarrier: action === "shipped" ? data.trackingCarrier as string : null,
-          },
-        });
-        return { count: Number(count), auditLogId };
-      });
-      updatedCount = transition.count;
-      fulfillmentAuditId = transition.auditLogId;
-    }
-    if (updatedCount === 0) {
-      return privateJson({ error: "Order status changed. Refresh and try again." }, { status: 409 });
-    }
-    if (action !== "update_notes" && !fulfillmentAuditId) {
-      throw new Error("Fulfillment transition did not return its audit authority");
-    }
-
-    const updated = await prisma.order.findUniqueOrThrow({
-      where: { id },
-      select: {
-        buyerId: true,
-        estimatedDeliveryDate: true,
-        buyer: { select: { name: true, email: true } },
-        sellerProfile: { select: { displayName: true } },
-      },
-    });
-
-    const buyerEmail = updated.buyer?.email;
-
-    if (action === "shipped") {
-      const carrier = typeof data.trackingCarrier === "string" ? data.trackingCarrier : null;
-      const trackingNumber = typeof data.trackingNumber === "string" ? data.trackingNumber : null;
-      if (updated.buyerId) {
-        await notifyBuyer(id, updated.buyerId, {
-          userId: updated.buyerId,
-          type: "ORDER_SHIPPED",
-          title: "Your piece is on its way!",
-          body: carrier ? `Shipped via ${carrier}` : "Your order has been shipped",
-          link: `/dashboard/orders/${id}`,
-          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT,
-          sourceId: requiredFulfillmentAuditId(fulfillmentAuditId),
-          relatedUserId: authz.seller.userId,
-        });
+      if (result.outcome === "unauthorized") {
+        return privateJson({ error: "Forbidden" }, { status: 403 });
       }
-      if (buyerEmail) {
-        try {
-          await sendOrderShipped({
-            order: { id, estimatedDeliveryDate: updated.estimatedDeliveryDate },
-            buyer: { name: updated.buyer?.name, email: buyerEmail },
-            carrier,
-            trackingNumber,
-          });
-        } catch (error) {
-          captureFulfillmentEmailFailure(error, id, action);
-        }
-      }
+      if (result.outcome === "conflict") return conflictResponse(result.reason);
     }
 
-    if (action === "ready_for_pickup") {
-      if (updated.buyerId) {
-        await notifyBuyer(id, updated.buyerId, {
-          userId: updated.buyerId,
-          type: "ORDER_SHIPPED",
-          title: "Ready for pickup!",
-          body: "Your order is ready for pickup.",
-          link: `/dashboard/orders/${id}`,
-          sourceType: NOTIFICATION_SOURCE_TYPES.ORDER_FULFILLMENT,
-          sourceId: requiredFulfillmentAuditId(fulfillmentAuditId),
-          relatedUserId: authz.seller.userId,
-        });
-      }
-      if (buyerEmail) {
-        const sellerName = updated.sellerProfile?.displayName;
-        try {
-          await sendReadyForPickup({
-            order: { id },
-            buyer: { name: updated.buyer?.name, email: buyerEmail },
-            seller: { displayName: sellerName },
-          });
-        } catch (error) {
-          captureFulfillmentEmailFailure(error, id, action);
-        }
-      }
-    }
-
-    // Redirect with 303 so the browser converts POST to GET. Use the canonical
-    // app origin instead of trusting request Host/Origin fallback headers.
     return NextResponse.redirect(
       new URL(`/dashboard/sales/${id}`, APP_BASE_URL),
       { status: 303 },
     );
-  } catch (err) {
-    logServerError(err, { source: "order_fulfillment_route" });
+  } catch (error) {
+    logServerError(error, { source: "order_fulfillment_route" });
     return privateJson({ error: "Server error" }, { status: 500 });
   }
 }

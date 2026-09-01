@@ -2472,6 +2472,16 @@ Before Order RLS, use family-specific fixed functions and make fulfillment
 Notification/email delivery co-committed or explicitly restart-safe. See
 `docs/order-fulfillment-receipt-product-audit.md`.
 
+The compatible fixed-authority implementation now exists on the isolated
+Order branch: seller fulfillment, buyer receipt and seller-note operations
+derive participant authority and audit evidence in PostgreSQL, and the
+application co-commits transition Notifications plus deterministic email
+outbox reservations. Disposable PostgreSQL proof covers the corrected state
+machine, forged actors, Case fencing and direct runtime write denial. This is
+an unapplied compatibility checkpoint, not permission to deploy it or activate
+Order RLS; remaining direct Order write families and production sequencing are
+still separate gates. See `docs/order-fulfillment-authority.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single
