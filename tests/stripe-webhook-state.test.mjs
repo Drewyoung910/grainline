@@ -21,6 +21,7 @@ const {
   parseBoundedPositiveInt,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
+  requireCheckoutChargedTotalCents,
   retrievedStripeEventMatchesSignedEnvelope,
   SHIPPING_ESTIMATED_DAYS_MAX,
   shouldApplyDisputeWebhookSideEffects,
@@ -42,6 +43,16 @@ function seller(overrides = {}) {
 }
 
 describe("Stripe webhook state helpers", () => {
+  it("requires an exact PostgreSQL-safe paid Checkout total", () => {
+    assert.equal(requireCheckoutChargedTotalCents(12_345), 12_345);
+    for (const value of [null, undefined, -1, 1.5, Number.MAX_SAFE_INTEGER]) {
+      assert.throws(
+        () => requireCheckoutChargedTotalCents(value),
+        /missing a valid amount_total/,
+      );
+    }
+  });
+
   it("keeps checkout session shipping-address casting centralized in the webhook", () => {
     const source = readFileSync("src/app/api/stripe/webhook/route.ts", "utf8");
 

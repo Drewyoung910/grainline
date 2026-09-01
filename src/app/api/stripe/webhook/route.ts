@@ -73,6 +73,7 @@ import {
   parseBoundedPositiveInt,
   parseOptionalNonNegativeInt,
   parsePositiveInt,
+  requireCheckoutChargedTotalCents,
   retrievedStripeEventMatchesSignedEnvelope,
   SHIPPING_ESTIMATED_DAYS_MAX,
 } from "@/lib/stripeWebhookState";
@@ -932,6 +933,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      const chargedTotalCents = requireCheckoutChargedTotalCents(s.amount_total);
+
       // Stripe snapshots
       const currency: string = (s.currency || DEFAULT_CURRENCY).toLowerCase();
       const shippingAmountCents: number = s.shipping_cost?.amount_subtotal ?? 0;
@@ -1152,11 +1155,7 @@ export async function POST(req: Request) {
           }
 
           refundAmountCents =
-            s.amount_total
-            ?? itemsSubtotalCents
-              + shippingAmountCents
-              + (giftWrappingPriceCents ?? 0)
-              + taxAmountCents;
+            chargedTotalCents;
           const refundClaim = await claimBlockedCheckoutOrderRefund({
             eventId: event.id,
             eventClaimGeneration: claimGeneration,
@@ -1563,6 +1562,7 @@ export async function POST(req: Request) {
               stripeSessionId: sessionId,
 
               currency,
+              chargedTotalCents,
               itemsSubtotalCents,
               shippingTitle,
               shippingAmountCents,
@@ -1635,6 +1635,7 @@ export async function POST(req: Request) {
               invalidReason: cartInvalidState.reason ?? null,
               itemCount: checkoutItems.length,
               currency,
+              chargedTotalCents,
               itemsSubtotalCents,
               shippingAmountCents,
               taxAmountCents,
@@ -1963,6 +1964,7 @@ export async function POST(req: Request) {
               stripeSessionId: sessionId,
 
               currency,
+              chargedTotalCents,
               itemsSubtotalCents,
               shippingTitle,
               shippingAmountCents,
@@ -2060,6 +2062,7 @@ export async function POST(req: Request) {
               listingId,
               quantity,
               currency,
+              chargedTotalCents,
               itemsSubtotalCents,
               shippingAmountCents,
               taxAmountCents,

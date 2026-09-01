@@ -7,6 +7,11 @@ import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { buyerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
+import {
+  orderPaymentPresentationLabel,
+  orderPaymentPresentationState,
+  suppressActiveFulfillmentForPaymentState,
+} from "@/lib/orderPaymentPresentation";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { BuyerOrdersSkeleton } from "@/components/SellerRouteSkeletons";
 import { Suspense } from "react";
@@ -81,8 +86,21 @@ async function OrdersContent() {
             const shipping = o.shippingAmountCents ?? 0;
             const tax = o.taxAmountCents ?? 0;
             const total = orderTotalCents(o, { itemsSubtotalCents: itemsSubtotal });
+            const refundOutcome = refundOutcomes.get(o.id) ?? null;
             const refundAmountCents =
-              o.sellerRefundAmountCents ?? refundOutcomes.get(o.id)?.amountCents ?? null;
+              o.sellerRefundAmountCents ?? refundOutcome?.amountCents ?? null;
+            const paymentState = orderPaymentPresentationState({
+              paid: o.paidAt != null,
+              orderTotalCents: total,
+              refundAmountCents,
+              refundRecorded: o.sellerRefundState === "RECORDED",
+              providerRefundStatus: refundOutcome?.status ?? null,
+            });
+            const paymentLabel = orderPaymentPresentationLabel(paymentState);
+            const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
+              paymentState,
+              o.fulfillmentStatus,
+            );
 
             return (
               <li key={o.id} className="card-section">
@@ -98,7 +116,8 @@ async function OrdersContent() {
                     </div>
                     <div className="text-neutral-500">
                       <LocalDate date={o.createdAt} />
-                      {o.paidAt ? " · Paid" : " · Unpaid"}
+                      {` · ${paymentLabel}`}
+                      {suppressActiveFulfillment ? " · Fulfillment closed" : ""}
                     </div>
                   </div>
                   <div className="text-sm font-semibold">

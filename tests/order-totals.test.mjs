@@ -46,4 +46,17 @@ describe("order total helpers", () => {
       10_300,
     );
   });
+
+  it("prefers the exact provider charged total over reconstructed components", () => {
+    assert.equal(
+      orderTotalCents({
+        chargedTotalCents: 12_345,
+        itemsSubtotalCents: 10_000,
+        shippingAmountCents: 1_000,
+        taxAmountCents: 800,
+        giftWrappingPriceCents: 500,
+      }),
+      12_345,
+    );
+  });
 });

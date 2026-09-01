@@ -260,6 +260,13 @@ export function parseOptionalNonNegativeInt(value: string | number | null | unde
   return Number.isInteger(parsed) && parsed >= 0 && parsed <= POSTGRES_INT_MAX ? parsed : null;
 }
 
+export function requireCheckoutChargedTotalCents(value: number | null | undefined): number {
+  if (!Number.isSafeInteger(value) || value == null || value < 0 || value > POSTGRES_INT_MAX) {
+    throw new Error("Retrieved paid Checkout Session is missing a valid amount_total");
+  }
+  return value;
+}
+
 type CheckoutSubtotalLineItem = {
   amount_subtotal?: number | null;
   quantity?: number | null;

@@ -6,6 +6,11 @@ import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { buyerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
+import {
+  orderPaymentPresentationLabel,
+  orderPaymentPresentationState,
+  suppressActiveFulfillmentForPaymentState,
+} from "@/lib/orderPaymentPresentation";
 import { formatCurrencyCents } from "@/lib/money";
 import {
   countBuyerOrders,
@@ -121,8 +126,20 @@ export default async function AccountOrdersPage({
         <ul className="space-y-4">
           {orders.map((order) => {
             const total = orderTotalCents(order);
+            const refundOutcome = refundOutcomes.get(order.id) ?? null;
             const refundAmountCents =
-              order.sellerRefundAmountCents ?? refundOutcomes.get(order.id)?.amountCents ?? null;
+              order.sellerRefundAmountCents ?? refundOutcome?.amountCents ?? null;
+            const paymentState = orderPaymentPresentationState({
+              paid: order.paidAt != null,
+              orderTotalCents: total,
+              refundAmountCents,
+              refundRecorded: order.sellerRefundState === "RECORDED",
+              providerRefundStatus: refundOutcome?.status ?? null,
+            });
+            const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
+              paymentState,
+              order.fulfillmentStatus,
+            );
 
             return (
               <li key={order.id} className="card-section overflow-hidden">
@@ -136,8 +153,14 @@ export default async function AccountOrdersPage({
                     <span className="text-xs text-neutral-500">
                       <LocalDate date={order.createdAt} />
                     </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(order.fulfillmentStatus)}`}>
-                      {formatStatus(order.fulfillmentStatus)}
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      suppressActiveFulfillment
+                        ? "bg-green-100 text-green-800"
+                        : statusColor(order.fulfillmentStatus)
+                    }`}>
+                      {suppressActiveFulfillment
+                        ? orderPaymentPresentationLabel(paymentState)
+                        : formatStatus(order.fulfillmentStatus)}
                     </span>
                   </div>
                 </div>

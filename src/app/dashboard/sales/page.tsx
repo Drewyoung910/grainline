@@ -8,6 +8,11 @@ import LocalDate from "@/components/LocalDate";
 import { publicListingPath } from "@/lib/publicPaths";
 import { sellerRefundOutcomes } from "@/lib/orderPaymentEventReadAuthority";
 import { orderTotalCents } from "@/lib/orderTotals";
+import {
+  orderPaymentPresentationLabel,
+  orderPaymentPresentationState,
+  suppressActiveFulfillmentForPaymentState,
+} from "@/lib/orderPaymentPresentation";
 import { DEFAULT_CURRENCY, formatCurrencyCents } from "@/lib/money";
 import { fulfillmentStatusLabel } from "@/lib/fulfillmentLabels";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
@@ -43,6 +48,14 @@ function StatusBadge({ status }: { status: FulfillmentStatus }) {
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${styles[status]}`}>
       {fulfillmentStatusLabel(status)}
+    </span>
+  );
+}
+
+function RefundedBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+      Fully refunded
     </span>
   );
 }
@@ -172,8 +185,20 @@ async function SalesContent({
               // not the five item summaries rendered on this list card.
               const orderTotal = orderTotalCents(o, { itemsSubtotalCents: mySubtotalCents });
               const status = o.fulfillmentStatus ?? "PENDING";
+              const refundOutcome = refundOutcomes.get(o.id) ?? null;
               const refundAmountCents =
-                o.sellerRefundAmountCents ?? refundOutcomes.get(o.id)?.amountCents ?? null;
+                o.sellerRefundAmountCents ?? refundOutcome?.amountCents ?? null;
+              const paymentState = orderPaymentPresentationState({
+                paid: o.paidAt != null,
+                orderTotalCents: orderTotal,
+                refundAmountCents,
+                refundRecorded: o.sellerRefundState === "RECORDED",
+                providerRefundStatus: refundOutcome?.status ?? null,
+              });
+              const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
+                paymentState,
+                status,
+              );
 
               return (
                 <li key={o.id} className="card-section">
@@ -186,7 +211,7 @@ async function SalesContent({
                         >
                           Order <span className="text-neutral-500">#{o.id.slice(-8)}</span>
                         </Link>
-                        <StatusBadge status={status} />
+                        {suppressActiveFulfillment ? <RefundedBadge /> : <StatusBadge status={status} />}
                         {o.sellerNotesPresent && (
                           <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
                             Notes
@@ -195,7 +220,7 @@ async function SalesContent({
                       </div>
                       <div className="text-neutral-500">
                         <LocalDate date={o.createdAt} />
-                        {o.paidAt ? " · Paid" : " · Unpaid"}
+                        {` · ${orderPaymentPresentationLabel(paymentState)}`}
                       </div>
                       <div className="text-xs text-neutral-500">
                         Buyer: {sellerFacingOrderBuyerLabel(o, "Deleted user")}
