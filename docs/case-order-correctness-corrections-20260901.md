@@ -181,3 +181,14 @@ checks immediate, then restores deferred mode, before toggling the trigger that
 models a later signed dispute. This strengthens the proof: queued constraints
 must pass before the later-state simulation can begin. It does not change the
 candidate migration, runtime grants or production state.
+
+CI run `33566765556` passed the corrected seller-refund and staff-finalization
+sequence, then reached the harness's historical Case Phase-A replay while the
+disposable database was already at the current FORCE posture. The old harness
+assumed it was always running before activation. It now classifies the exact
+three-table posture and, only inside the outer rollback transaction, uses the
+reviewed FORCE rollback and Phase-A rollback releases to normalize FORCE or
+ENABLE back to the pre-activation state before replaying Phase A. The original
+pre-activation invocation remains unchanged, while mixed or unknown posture
+still fails closed. The entire normalization is rolled back and cannot affect
+production.

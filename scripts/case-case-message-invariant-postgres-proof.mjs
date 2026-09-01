@@ -1990,6 +1990,47 @@ async function provePolicylessActivation(
   forceBody,
   forceRollbackBody,
 ) {
+  const initialPosture = await client.query(`
+    SELECT
+      pg_catalog.count(*)::integer AS table_count,
+      pg_catalog.count(*) FILTER (
+        WHERE class.relrowsecurity AND class.relforcerowsecurity
+      )::integer AS forced_count,
+      pg_catalog.count(*) FILTER (
+        WHERE class.relrowsecurity AND NOT class.relforcerowsecurity
+      )::integer AS enabled_count,
+      pg_catalog.count(*) FILTER (
+        WHERE NOT class.relrowsecurity AND NOT class.relforcerowsecurity
+      )::integer AS disabled_count
+      FROM pg_catalog.pg_class AS class
+      JOIN pg_catalog.pg_namespace AS namespace
+        ON namespace.oid = class.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND class.relname IN (
+         'Case',
+         'CaseMessage',
+         'CaseMessageAttachment'
+       )
+       AND class.relkind = 'r'
+  `);
+  const posture = initialPosture.rows[0];
+  assert.equal(posture?.table_count, 3);
+  if (posture.forced_count === 3) {
+    await setConstraintsImmediate(client);
+    await client.query(forceRollbackBody);
+    await client.query(activationRollbackBody);
+  } else if (posture.enabled_count === 3) {
+    await setConstraintsImmediate(client);
+    await client.query(activationRollbackBody);
+  } else {
+    assert.deepEqual(posture, {
+      table_count: 3,
+      forced_count: 0,
+      enabled_count: 0,
+      disabled_count: 3,
+    });
+  }
+
   await insertParticipantCase(
     client,
     ids.activationCase,

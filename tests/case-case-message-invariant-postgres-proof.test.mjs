@@ -138,6 +138,11 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /CASE_CORRECTNESS_EXPECTED === "1"/);
   assert.match(proof, /provePolicylessActivation/);
   assert.match(proof, /case_force_candidate/);
+  assert.match(
+    proof,
+    /if \(posture\.forced_count === 3\) \{[\s\S]*?forceRollbackBody[\s\S]*?activationRollbackBody[\s\S]*?else if \(posture\.enabled_count === 3\)[\s\S]*?activationRollbackBody/,
+  );
+  assert.match(proof, /disabled_count: 3/);
 });
 
 test("Case invariant provider fixtures satisfy the current immutable ledger shape", () => {
