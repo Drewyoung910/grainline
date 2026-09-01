@@ -198,6 +198,27 @@ test("seller-refund proof parameters have one explicit PostgreSQL type", () => {
   assert.doesNotMatch(sellerRefundProof, /\$4::text/);
 });
 
+test("dispute fixtures pin shared PostgreSQL parameters to one type", () => {
+  const helper = proof.match(
+    /async function insertDisputePaymentEvent\(client, \{[\s\S]*?\n\}\n\nasync function seedBaseFixtures/,
+  )?.[0] ?? "";
+  assert.ok(helper, "dispute fixture helper is missing");
+  assert.equal((helper.match(/\$4::varchar\(255\)/g) ?? []).length, 4);
+  assert.doesNotMatch(helper, /\$4::text/);
+  for (const parameter of [
+    /\$1::text/,
+    /\$2::text/,
+    /\$3::varchar\(255\)/,
+    /\$5::varchar\(255\)/,
+    /\$6::text/,
+    /\$7::bigint/,
+    /\$8::varchar\(100\)/,
+    /\$9::varchar\(255\)/,
+  ]) {
+    assert.match(helper, parameter);
+  }
+});
+
 test("Case invariant proof is rollback-only and emits no credentials", () => {
   assert.match(proof, /await client\.query\("BEGIN"\)/);
   assert.match(proof, /await client\.query\("ROLLBACK"\)/);

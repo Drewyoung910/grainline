@@ -141,3 +141,12 @@ weakens or removes the current signed-event witness; it merely keeps the
 predecessor invocation valid enough to reach the Case invariant being tested.
 Static coverage requires both catalog branches and all seven dispute fixtures
 to use the shared helper. No production state changed in either failed run.
+
+CI run `33564458000` confirmed the dual-schema selection advanced past the
+missing-column failure, then PostgreSQL rejected the helper because its dispute
+identifier parameter was inferred as both `varchar(255)` by the table column
+and `text` by a JSON metadata cast. The helper now gives every shared parameter
+one explicit type matching the real table schema in both branches, including
+`varchar(255)` for the dispute identifier everywhere. A focused regression test
+rejects a future mixed cast. This remains proof-only correction work; the
+candidate migration and production were unchanged.

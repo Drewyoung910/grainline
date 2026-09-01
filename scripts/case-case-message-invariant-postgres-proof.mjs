@@ -261,11 +261,11 @@ async function insertDisputePaymentEvent(client, {
     reason,
   ];
   const sharedValues = `
-    $1, $2, $3, $4, 'dispute', 'DISPUTE',
-    'usd', $8, $9,
+    $1::text, $2::text, $3::varchar(255), $4::varchar(255),
+    'dispute', 'DISPUTE', 'usd', $8::varchar(100), $9::varchar(255),
     pg_catalog.jsonb_build_object(
-      'chargeId', $5::text,
-      'disputeId', $4::text,
+      'chargeId', $5::varchar(255),
+      'disputeId', $4::varchar(255),
       'stripeEventType', $6::text,
       'stripeEventCreated', $7::bigint
     ),
@@ -279,11 +279,12 @@ async function insertDisputePaymentEvent(client, {
         currency, status, reason, metadata, "createdAt", "updatedAt"
       )
       VALUES (
-        $1, $2, $3, $4, 'dispute', 'DISPUTE', $7::bigint,
-        'usd', $8, $9,
+        $1::text, $2::text, $3::varchar(255), $4::varchar(255),
+        'dispute', 'DISPUTE', $7::bigint,
+        'usd', $8::varchar(100), $9::varchar(255),
         pg_catalog.jsonb_build_object(
-          'chargeId', $5::text,
-          'disputeId', $4::text,
+          'chargeId', $5::varchar(255),
+          'disputeId', $4::varchar(255),
           'stripeEventType', $6::text,
           'stripeEventCreated', $7::bigint
         ),
