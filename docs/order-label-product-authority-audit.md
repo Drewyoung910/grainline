@@ -358,3 +358,12 @@ in ascending order afterward, re-verifies their byte-pinned releases, applies
 them only to the disposable CI database, converges grants and runs their focused
 PostgreSQL proofs. A static regression test pins that ordering. This changes no
 production migration workflow or production state.
+
+The next replacement CI run reached the expanded aggregate inspection and
+failed before mutation because that proof was still scheduled against the old
+DirectUpload-era schema, which predates the Order payment-hold columns the
+current inspection deliberately classifies. The proof now runs only after the
+restored `OrderPaymentEvent` FORCE posture is re-audited and before any later
+Order participant/label candidate is restored. A regression assertion pins
+that exact live-prefix position instead of weakening the SQL for a historical
+schema it is not intended to inspect.

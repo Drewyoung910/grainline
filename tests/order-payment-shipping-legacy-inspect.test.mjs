@@ -36,6 +36,7 @@ const workflow = fs.readFileSync(
   ".github/workflows/order-payment-shipping-legacy-inspection.yml",
   "utf8",
 );
+const ciWorkflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
 const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
 function tempDirectory() {
@@ -101,6 +102,28 @@ function postureRowsWith(tableName, changes) {
 }
 
 describe("Order/payment/shipping aggregate-only legacy inspection", () => {
+  it("proves current inspection SQL at the exact live FORCE prefix", () => {
+    const forceAudit = ciWorkflow.indexOf(
+      "Re-audit restored OrderPaymentEvent FORCE posture",
+    );
+    const inspection = ciWorkflow.indexOf(
+      "Prove Order/payment/shipping legacy inspection SQL at the reviewed production prefix",
+    );
+    const laterRestore = ciWorkflow.indexOf(
+      "Restore compatible Order participant list authority release",
+    );
+    assert.ok(
+      forceAudit >= 0
+      && forceAudit < inspection
+      && inspection < laterRestore,
+      "inspection proof must see the production FORCE prefix without later compatible candidates",
+    );
+    assert.equal(
+      ciWorkflow.match(/npm run audit:rls-order-payment-shipping-legacy-inspection-postgres/g)?.length,
+      1,
+    );
+  });
+
   it("accepts only the exact manual-main protected owner binding", () => {
     const directory = tempDirectory();
     try {
