@@ -95,7 +95,8 @@ async function expectPostgresError(client, name, work, pattern) {
   await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
   await client.query(`RELEASE SAVEPOINT ${savepoint}`);
   assert.ok(caught, `${name} unexpectedly succeeded`);
-  assert.match(safeError(caught), pattern, name);
+  const safeMessage = safeError(caught);
+  assert.match(safeMessage, pattern, `${name}: ${safeMessage}`);
 }
 
 async function resetPromotedInvariantForProof(client) {
@@ -935,7 +936,30 @@ async function proveSellerRefundAuthority(client) {
     refundId,
   ]);
 
-  await client.query("SET LOCAL ROLE grainline_app_runtime");
+  const grant = await client.query(`
+    SELECT pg_catalog.has_function_privilege(
+      'grainline_app_runtime',
+      'public.grainline_case_seller_refund_apply(text,text)',
+      'EXECUTE'
+    ) AS runtime_execute
+  `);
+  const runtimeExecute = grant.rows[0]?.runtime_execute;
+  assert.equal(typeof runtimeExecute, "boolean");
+  if (runtimeExecute) {
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+  } else {
+    await client.query("SET LOCAL ROLE grainline_app_runtime");
+    await expectPostgresError(
+      client,
+      "retired_runtime_seller_refund_entry_point",
+      () => client.query(`
+        SELECT *
+          FROM public.grainline_case_seller_refund_apply($1, $2)
+      `, [ids.seller, paymentEventId]),
+      /permission denied for function grainline_case_seller_refund_apply/,
+    );
+    await client.query("RESET ROLE");
+  }
   await expectPostgresError(
     client,
     "forged_seller_refund_actor",
@@ -949,7 +973,7 @@ async function proveSellerRefundAuthority(client) {
     SELECT *
       FROM public.grainline_case_seller_refund_apply($1, $2)
   `, [ids.seller, paymentEventId]);
-  await client.query("RESET ROLE");
+  if (runtimeExecute) await client.query("RESET ROLE");
   assert.deepEqual(applied.rows, [{
     caseId: ids.sellerRefundCase,
     orderId: ids.sellerRefundOrder,

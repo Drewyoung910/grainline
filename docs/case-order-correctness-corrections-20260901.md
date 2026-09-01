@@ -150,3 +150,16 @@ one explicit type matching the real table schema in both branches, including
 `varchar(255)` for the dispute identifier everywhere. A focused regression test
 rejects a future mixed cast. This remains proof-only correction work; the
 candidate migration and production were unchanged.
+
+CI run `33564722371` passed the repaired proof in the predecessor phase and the
+entire historical migration/authority matrix, then failed after applying this
+candidate because the proof still assumed ordinary runtime could directly call
+`grainline_case_seller_refund_apply`. That entry point is intentionally retired
+from runtime after `OrderPaymentEvent` activation; the reviewed public refund
+operation invokes it only as an internal database-owned helper. The proof now
+reads the actual function grant, proves direct runtime denial in the retired
+posture, and tests the helper's forged-actor rejection and valid application in
+its database-owner execution context. It retains the predecessor runtime path
+when that historical grant is present. The shared rejection helper now includes
+the sanitized PostgreSQL message in assertion failures so a label cannot hide
+the next root cause. Production remained unchanged.

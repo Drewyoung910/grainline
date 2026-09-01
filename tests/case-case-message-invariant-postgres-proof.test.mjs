@@ -85,6 +85,7 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     "runtime_direct_dispute_application_read",
     "runtime_direct_seller_refund_application_read",
     "forged_dispute_order_charge",
+    "retired_runtime_seller_refund_entry_point",
     "superseded_dispute_source",
     "forged_seller_refund_actor",
     "forged_seller_refund_source",
@@ -110,6 +111,11 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
   assert.match(proof, /grainline_case_stripe_dispute_apply/);
   assert.match(proof, /CaseSellerRefundApplication/);
   assert.match(proof, /grainline_case_seller_refund_apply/);
+  assert.match(proof, /has_function_privilege\([\s\S]*?grainline_case_seller_refund_apply\(text,text\)[\s\S]*?'EXECUTE'/);
+  assert.match(
+    proof,
+    /if \(runtimeExecute\) \{[\s\S]*?SET LOCAL ROLE grainline_app_runtime[\s\S]*?\} else \{[\s\S]*?retired_runtime_seller_refund_entry_point/,
+  );
   assert.match(proof, /CASE_SELLER_REFUND_APPLIED/);
   assert.match(proof, /grainline_case_staff_resolution_prepare/);
   assert.match(proof, /grainline_case_staff_resolution_provider_record/);
@@ -227,6 +233,7 @@ test("Case invariant proof is rollback-only and emits no credentials", () => {
   assert.match(proof, /productionChanged: false/);
   assert.doesNotMatch(proof, /process\.env\.DATABASE_URL/);
   assert.doesNotMatch(proof, /console\.log\(databaseUrl\)/);
+  assert.match(proof, /`\$\{name\}: \$\{safeMessage\}`/);
 });
 
 test("promoted invariant proof reconstructs pre-migration state only inside rollback transactions", () => {
