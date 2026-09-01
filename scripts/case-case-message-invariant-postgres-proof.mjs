@@ -227,6 +227,81 @@ async function setConstraintsImmediate(client) {
   await client.query("SET CONSTRAINTS ALL DEFERRED");
 }
 
+async function insertDisputePaymentEvent(client, {
+  id,
+  orderId,
+  stripeEventId,
+  disputeId,
+  chargeId,
+  stripeEventType,
+  stripeEventCreatedSeconds,
+  status = null,
+  reason = null,
+}) {
+  const capability = await client.query(`
+    SELECT EXISTS (
+      SELECT 1
+        FROM pg_catalog.pg_attribute AS attribute
+       WHERE attribute.attrelid =
+               'public."OrderPaymentEvent"'::pg_catalog.regclass
+         AND attribute.attname = 'stripeEventCreatedSeconds'
+         AND attribute.attnum > 0
+         AND NOT attribute.attisdropped
+    ) AS has_signed_event_time
+  `);
+  const parameters = [
+    id,
+    orderId,
+    stripeEventId,
+    disputeId,
+    chargeId,
+    stripeEventType,
+    stripeEventCreatedSeconds,
+    status,
+    reason,
+  ];
+  const sharedValues = `
+    $1, $2, $3, $4, 'dispute', 'DISPUTE',
+    'usd', $8, $9,
+    pg_catalog.jsonb_build_object(
+      'chargeId', $5::text,
+      'disputeId', $4::text,
+      'stripeEventType', $6::text,
+      'stripeEventCreated', $7::bigint
+    ),
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  `;
+  if (capability.rows[0]?.has_signed_event_time) {
+    await client.query(`
+      INSERT INTO public."OrderPaymentEvent" (
+        id, "orderId", "stripeEventId", "stripeObjectId",
+        "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
+        currency, status, reason, metadata, "createdAt", "updatedAt"
+      )
+      VALUES (
+        $1, $2, $3, $4, 'dispute', 'DISPUTE', $7::bigint,
+        'usd', $8, $9,
+        pg_catalog.jsonb_build_object(
+          'chargeId', $5::text,
+          'disputeId', $4::text,
+          'stripeEventType', $6::text,
+          'stripeEventCreated', $7::bigint
+        ),
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+    `, parameters);
+    return;
+  }
+  await client.query(`
+    INSERT INTO public."OrderPaymentEvent" (
+      id, "orderId", "stripeEventId", "stripeObjectId",
+      "stripeObjectType", "eventType", currency, status, reason, metadata,
+      "createdAt", "updatedAt"
+    )
+    VALUES (${sharedValues})
+  `, parameters);
+}
+
 async function seedBaseFixtures(client) {
   await client.query(`
     INSERT INTO public."User" (
@@ -524,27 +599,15 @@ async function proveCaseAndMessageInvariants(client) {
   // Seed the forged source outside the rejection assertion. This must satisfy
   // the promoted immutable OrderPaymentEvent ledger shape so the negative
   // proof can fail only at the Case-to-Order charge-binding boundary.
-  await client.query(`
-    INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
-      currency, metadata,
-      "createdAt", "updatedAt"
-    )
-    VALUES (
-      'case-invariant-proof-forged-case-dispute-event',
-      $1, 'evt_caseinvariantproofforgedcasedispute',
-      'du_caseinvariantproofforged', 'dispute', 'DISPUTE',
-      1770000000, 'usd',
-      pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_wrongcaseinvariantproof',
-        'disputeId', 'du_caseinvariantproofforged',
-        'stripeEventType', 'charge.dispute.created',
-        'stripeEventCreated', 1770000000
-      ),
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-    )
-  `, [ids.sourceOrder]);
+  await insertDisputePaymentEvent(client, {
+    id: "case-invariant-proof-forged-case-dispute-event",
+    orderId: ids.sourceOrder,
+    stripeEventId: "evt_caseinvariantproofforgedcasedispute",
+    disputeId: "du_caseinvariantproofforged",
+    chargeId: "ch_wrongcaseinvariantproof",
+    stripeEventType: "charge.dispute.created",
+    stripeEventCreatedSeconds: 1770000000,
+  });
 
   await expectPostgresError(
     client,
@@ -568,27 +631,15 @@ async function proveCaseAndMessageInvariants(client) {
     /Case webhook opening source is invalid/,
   );
 
-  await client.query(`
-    INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
-      currency, metadata,
-      "createdAt", "updatedAt"
-    )
-    VALUES (
-      'case-invariant-proof-dispute-event',
-      $1, 'evt_caseinvariantproofdispute',
-      'du_caseinvariantproof', 'dispute', 'DISPUTE',
-      1770000000, 'usd',
-      pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_caseinvariantproof1',
-        'disputeId', 'du_caseinvariantproof',
-        'stripeEventType', 'charge.dispute.created',
-        'stripeEventCreated', 1770000000
-      ),
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-    )
-  `, [ids.sourceOrder]);
+  await insertDisputePaymentEvent(client, {
+    id: "case-invariant-proof-dispute-event",
+    orderId: ids.sourceOrder,
+    stripeEventId: "evt_caseinvariantproofdispute",
+    disputeId: "du_caseinvariantproof",
+    chargeId: "ch_caseinvariantproof1",
+    stripeEventType: "charge.dispute.created",
+    stripeEventCreatedSeconds: 1770000000,
+  });
 
   await client.query("SET LOCAL ROLE grainline_app_runtime");
   const appliedDispute = await client.query(`
@@ -670,28 +721,16 @@ async function proveStripeDisputeAuthority(client) {
      WHERE id = $1
   `, [ids.ordinaryCase, ids.staff]);
 
-  await client.query(`
-    INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
-      currency, reason, metadata,
-      "createdAt", "updatedAt"
-    )
-    VALUES (
-      'case-invariant-proof-reopen-event',
-      $1, 'evt_caseinvariantproofreopen',
-      'du_caseinvariantreopen', 'dispute', 'DISPUTE',
-      1770000001, 'usd',
-      'fraudulent',
-      pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_caseinvariantproof0',
-        'disputeId', 'du_caseinvariantreopen',
-        'stripeEventType', 'charge.dispute.created',
-        'stripeEventCreated', 1770000001
-      ),
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-    )
-  `, [ids.ordinaryOrder]);
+  await insertDisputePaymentEvent(client, {
+    id: "case-invariant-proof-reopen-event",
+    orderId: ids.ordinaryOrder,
+    stripeEventId: "evt_caseinvariantproofreopen",
+    disputeId: "du_caseinvariantreopen",
+    chargeId: "ch_caseinvariantproof0",
+    stripeEventType: "charge.dispute.created",
+    stripeEventCreatedSeconds: 1770000001,
+    reason: "fraudulent",
+  });
 
   const reopened = await client.query(`
     SELECT *
@@ -753,27 +792,16 @@ async function proveStripeDisputeAuthority(client) {
     resolution: "DISMISSED",
   });
 
-  await client.query(`
-    INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
-      currency, status, metadata,
-      "createdAt", "updatedAt"
-    )
-    VALUES (
-      'case-invariant-proof-reopen-terminal-event',
-      $1, 'evt_caseinvariantproofreopenterminal',
-      'du_caseinvariantreopen', 'dispute', 'DISPUTE',
-      1770000002, 'usd', 'won',
-      pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_caseinvariantproof0',
-        'disputeId', 'du_caseinvariantreopen',
-        'stripeEventType', 'charge.dispute.closed',
-        'stripeEventCreated', 1770000002
-      ),
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-    )
-  `, [ids.ordinaryOrder]);
+  await insertDisputePaymentEvent(client, {
+    id: "case-invariant-proof-reopen-terminal-event",
+    orderId: ids.ordinaryOrder,
+    stripeEventId: "evt_caseinvariantproofreopenterminal",
+    disputeId: "du_caseinvariantreopen",
+    chargeId: "ch_caseinvariantproof0",
+    stripeEventType: "charge.dispute.closed",
+    stripeEventCreatedSeconds: 1770000002,
+    status: "won",
+  });
   const replayedAfterTerminal = await client.query(`
     SELECT *
       FROM public.grainline_case_stripe_dispute_apply(
@@ -791,43 +819,26 @@ async function proveStripeDisputeAuthority(client) {
     resolution: "DISMISSED",
   });
 
-  await client.query(`
-    INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
-      currency, status, metadata,
-      "createdAt", "updatedAt"
-    )
-    VALUES
-      (
-        'case-invariant-proof-superseded-dispute-event',
-        $1, 'evt_caseinvariantproofsuperseded',
-        'du_caseinvariantsuperseded', 'dispute', 'DISPUTE',
-        1770000002, 'usd',
-        'needs_response',
-        pg_catalog.jsonb_build_object(
-          'chargeId', 'ch_caseinvariantproof3',
-          'disputeId', 'du_caseinvariantsuperseded',
-          'stripeEventType', 'charge.dispute.created',
-          'stripeEventCreated', 1770000002
-        ),
-        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      ),
-      (
-        'case-invariant-proof-terminal-dispute-event',
-        $1, 'evt_caseinvariantproofterminal',
-        'du_caseinvariantsuperseded', 'dispute', 'DISPUTE',
-        1770000003, 'usd',
-        'won',
-        pg_catalog.jsonb_build_object(
-          'chargeId', 'ch_caseinvariantproof3',
-          'disputeId', 'du_caseinvariantsuperseded',
-          'stripeEventType', 'charge.dispute.closed',
-          'stripeEventCreated', 1770000003
-        ),
-        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
-  `, [ids.releaseOrder]);
+  await insertDisputePaymentEvent(client, {
+    id: "case-invariant-proof-superseded-dispute-event",
+    orderId: ids.releaseOrder,
+    stripeEventId: "evt_caseinvariantproofsuperseded",
+    disputeId: "du_caseinvariantsuperseded",
+    chargeId: "ch_caseinvariantproof3",
+    stripeEventType: "charge.dispute.created",
+    stripeEventCreatedSeconds: 1770000002,
+    status: "needs_response",
+  });
+  await insertDisputePaymentEvent(client, {
+    id: "case-invariant-proof-terminal-dispute-event",
+    orderId: ids.releaseOrder,
+    stripeEventId: "evt_caseinvariantproofterminal",
+    disputeId: "du_caseinvariantsuperseded",
+    chargeId: "ch_caseinvariantproof3",
+    stripeEventType: "charge.dispute.closed",
+    stripeEventCreatedSeconds: 1770000003,
+    status: "won",
+  });
   await expectPostgresError(
     client,
     "superseded_dispute_source",
@@ -858,27 +869,15 @@ async function proveStripeDisputeAuthority(client) {
     application_count: 0,
   });
 
-  await client.query(`
-    INSERT INTO public."OrderPaymentEvent" (
-      id, "orderId", "stripeEventId", "stripeObjectId",
-      "stripeObjectType", "eventType", "stripeEventCreatedSeconds",
-      currency, metadata,
-      "createdAt", "updatedAt"
-    )
-    VALUES (
-      'case-invariant-proof-invalid-dispute-event',
-      $1, 'evt_caseinvariantproofinvaliddispute',
-      'du_caseinvariantinvalid', 'dispute', 'DISPUTE',
-      1770000004, 'usd',
-      pg_catalog.jsonb_build_object(
-        'chargeId', 'ch_caseinvariantproofwrong',
-        'disputeId', 'du_caseinvariantinvalid',
-        'stripeEventType', 'charge.dispute.created',
-        'stripeEventCreated', 1770000004
-      ),
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-    )
-  `, [ids.releaseOrder]);
+  await insertDisputePaymentEvent(client, {
+    id: "case-invariant-proof-invalid-dispute-event",
+    orderId: ids.releaseOrder,
+    stripeEventId: "evt_caseinvariantproofinvaliddispute",
+    disputeId: "du_caseinvariantinvalid",
+    chargeId: "ch_caseinvariantproofwrong",
+    stripeEventType: "charge.dispute.created",
+    stripeEventCreatedSeconds: 1770000004,
+  });
   await expectPostgresError(
     client,
     "forged_dispute_order_charge",

@@ -150,9 +150,27 @@ test("Case invariant provider fixtures satisfy the current immutable ledger shap
     ).filter((value) => !providerIdShape.test(value)),
     ["evt_good-bad", "du_good.bad", "re_good bad", "ch_good/bad"],
   );
+  assert.match(proof, /async function insertDisputePaymentEvent\(client,/);
   assert.match(
     proof,
-    /'du_caseinvariantproofforged'.*1770000000, 'usd'.*'chargeId', 'ch_wrongcaseinvariantproof'.*'stripeEventCreated', 1770000000/s,
+    /attribute\.attname = 'stripeEventCreatedSeconds'/,
+  );
+  assert.match(proof, /AS has_signed_event_time/);
+  assert.match(
+    proof,
+    /if \(capability\.rows\[0\]\?\.has_signed_event_time\) \{[\s\S]*?"stripeEventCreatedSeconds"[\s\S]*?\$7::bigint/,
+  );
+  assert.match(
+    proof,
+    /INSERT INTO public\."OrderPaymentEvent" \([\s\S]*?"eventType", currency, status, reason, metadata,[\s\S]*?VALUES \(\$\{sharedValues\}\)/,
+  );
+  assert.equal(
+    (proof.match(/await insertDisputePaymentEvent\(client, \{/g) ?? []).length,
+    7,
+  );
+  assert.match(
+    proof,
+    /disputeId: "du_caseinvariantproofforged"[\s\S]*?chargeId: "ch_wrongcaseinvariantproof"[\s\S]*?stripeEventCreatedSeconds: 1770000000/,
   );
   assert.match(
     proof,

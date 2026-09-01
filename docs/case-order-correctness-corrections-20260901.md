@@ -129,3 +129,15 @@ matching signed event-time fields and valid local refund evidence, so the
 negative Case test reaches the intended boundary: a structurally valid dispute
 event whose `chargeId` does not match the locked Order must be rejected by
 `grainline_case_relationship_valid`. Production remained unchanged.
+
+The next CI run, `33563825398`, proved a second historical-boundary issue: the
+same rollback-only Case harness runs before the signed-event identity migration
+and again after the complete current migration chain. The first invocation
+correctly has no `OrderPaymentEvent.stripeEventCreatedSeconds` column, while the
+second must satisfy that column and the promoted source-shape constraint. The
+proof now reads the local disposable database catalog and inserts the same
+canonical dispute evidence through one of two explicit schemas. It never
+weakens or removes the current signed-event witness; it merely keeps the
+predecessor invocation valid enough to reach the Case invariant being tested.
+Static coverage requires both catalog branches and all seven dispute fixtures
+to use the shared helper. No production state changed in either failed run.
