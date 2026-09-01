@@ -29,6 +29,18 @@ describe("order refund presentation integration", () => {
     assert.match(page, /!suppressActiveFulfillment && order\.processingDeadline/);
   });
 
+  it("uses the bounded summary's finalized amount without inventing a refund-state field", () => {
+    for (const path of [
+      "src/app/account/orders/page.tsx",
+      "src/app/dashboard/orders/page.tsx",
+      "src/app/dashboard/sales/page.tsx",
+    ]) {
+      const page = source(path);
+      assert.match(page, /refundRecorded:\s*(?:order|o)\.sellerRefundAmountCents != null/);
+      assert.doesNotMatch(page, /sellerRefundState/);
+    }
+  });
+
   it("persists the exact paid Checkout total in both Order creation paths", () => {
     const webhook = source("src/app/api/stripe/webhook/route.ts");
     assert.match(webhook, /requireCheckoutChargedTotalCents\(s\.amount_total\)/);

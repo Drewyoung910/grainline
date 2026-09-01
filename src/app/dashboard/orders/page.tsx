@@ -93,7 +93,9 @@ async function OrdersContent() {
               paid: o.paidAt != null,
               orderTotalCents: total,
               refundAmountCents,
-              refundRecorded: o.sellerRefundState === "RECORDED",
+              // The bounded summary exposes an amount only after local record
+              // finalization; pending provider state comes from refundOutcome.
+              refundRecorded: o.sellerRefundAmountCents != null,
               providerRefundStatus: refundOutcome?.status ?? null,
             });
             const paymentLabel = orderPaymentPresentationLabel(paymentState);

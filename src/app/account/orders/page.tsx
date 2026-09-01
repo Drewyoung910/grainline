@@ -133,7 +133,9 @@ export default async function AccountOrdersPage({
               paid: order.paidAt != null,
               orderTotalCents: total,
               refundAmountCents,
-              refundRecorded: order.sellerRefundState === "RECORDED",
+              // The bounded summary exposes an amount only after local record
+              // finalization; pending provider state comes from refundOutcome.
+              refundRecorded: order.sellerRefundAmountCents != null,
               providerRefundStatus: refundOutcome?.status ?? null,
             });
             const suppressActiveFulfillment = suppressActiveFulfillmentForPaymentState(
