@@ -48,6 +48,7 @@ import {
 } from "../scripts/stage-order-payment-event-force-migration.mjs";
 import {
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
+  ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
   ORDER_STAFF_READ_AUTHORITY_MIGRATION,
 } from "../scripts/order-participant-list-authority-catalog.mjs";
@@ -163,6 +164,7 @@ test("production staging makes each sealed predecessor the visible leaf", () => 
   });
   const remove = (name) => rmSync(join(migrations, name), { recursive: true });
   try {
+    remove(ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION);
     remove(ORDER_STAFF_READ_AUTHORITY_MIGRATION);
     remove(ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION);
     remove(ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION);

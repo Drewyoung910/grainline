@@ -2357,6 +2357,15 @@ membership-free NOBYPASSRLS login, isolating its credential, proving zero base
 table access and then granting only the reviewed functions are separate gates
 before app conversion. See `docs/order-staff-read-authority.md`.
 
+### Core Order participant export decision (2026-08-31)
+
+Account export must use bounded actor-scoped Order projections before
+policyless Order RLS. Keep buyer and seller export shapes distinct, bind seller
+authority to the durable Order seller key, strip unrecognized snapshot keys,
+and exclude raw shipping-quote/provider retry material. Export derived refund
+state and amount; keep user-facing refund event history in the separately
+protected OrderPaymentEvent export rather than disclosing provider refund IDs.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

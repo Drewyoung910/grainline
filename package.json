@@ -170,6 +170,7 @@
     "audit:order-participant-list-authority-release": "node scripts/verify-order-participant-list-authority-release.mjs",
     "audit:order-participant-detail-authority-release": "node scripts/verify-order-participant-detail-authority-release.mjs",
     "audit:order-staff-read-authority-release": "node scripts/verify-order-staff-read-authority-release.mjs",
+    "audit:order-participant-export-authority-release": "node scripts/verify-order-participant-export-authority-release.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope": "node scripts/verify-blocked-checkout-refund-delivery-production-scope.mjs",
     "audit:order-payment-blocked-checkout-refund-delivery-production-scope-postgres": "node scripts/blocked-checkout-refund-delivery-production-scope-postgres-proof.mjs",
     "audit:order-payment-compatible-production-scope": "node scripts/verify-order-payment-event-compatible-production-scope.mjs",

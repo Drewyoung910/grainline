@@ -6,18 +6,6 @@ function source(path) {
   return readFileSync(path, "utf8");
 }
 
-function orderExportBlocks(route) {
-  const buyerStart = route.indexOf("prisma.order.findMany({\n      where: { buyerId: user.id }");
-  const sellerStart = route.indexOf("sellerProfile\n      ? prisma.order.findMany({", buyerStart);
-  assert.ok(buyerStart >= 0, "account export must query buyer orders");
-  assert.ok(sellerStart >= 0, "account export must query seller orders");
-
-  return [
-    route.slice(buyerStart, sellerStart),
-    route.slice(sellerStart, route.indexOf("exportActorMessages(user.id)", sellerStart)),
-  ];
-}
-
 describe("account export privacy coverage", () => {
   it("exports only actor-related messages through the fixed recipient projection", () => {
     const route = source("src/app/api/account/export/route.ts");
@@ -32,19 +20,18 @@ describe("account export privacy coverage", () => {
 
   it("exports owned listing photo originals and only actor-safe refund history", () => {
     const route = source("src/app/api/account/export/route.ts");
+    const authority = source("src/lib/orderParticipantExportAuthority.ts");
+    const migration = source(
+      "prisma/migrations/20260901030000_prepare_order_participant_export_authority/migration.sql",
+    );
 
     assert.match(route, /photos: \{ orderBy: \{ sortOrder: "asc" \}, select: \{ url: true, originalUrl: true/);
-    const [buyerOrderBlock, sellerOrderBlock] = orderExportBlocks(route);
-    for (const orderBlock of [buyerOrderBlock, sellerOrderBlock]) {
-      const shippingQuoteStart = orderBlock.indexOf("shippingRateQuotes: {");
-      const shippingQuoteBlock = orderBlock.slice(shippingQuoteStart);
-
-      assert.ok(shippingQuoteStart >= 0, "order export must include shipping rate quotes");
-      assert.doesNotMatch(orderBlock, /paymentEvents:\s*\{/);
-      for (const field of ["id", "orderId", "shipmentId", "rates", "expiresAt", "createdAt", "updatedAt"]) {
-        assert.match(shippingQuoteBlock, new RegExp(`${field}: true`), `shipping quote export must select ${field}`);
-      }
-    }
+    assert.match(route, /exportBuyerOrders\(user\.id\)/);
+    assert.match(route, /exportSellerOrders\(user\.id\)/);
+    assert.doesNotMatch(route, /prisma\.order\.findMany|shippingRateQuotes/);
+    assert.match(authority, /grainline_order_buyer_export_page/);
+    assert.match(authority, /grainline_order_seller_export_page/);
+    assert.doesNotMatch(migration, /OrderShippingRateQuote|'sellerRefundId'|'shipmentId'|'rates'/);
     assert.match(route, /exportBuyerOrderPaymentHistory\(user\.id\)/);
     assert.match(route, /exportSellerOrderPaymentHistory\(user\.id\)/);
     assert.match(route, /paymentEvents: buyerPaymentHistory\.get\(order\.id\) \?\? \[\]/);

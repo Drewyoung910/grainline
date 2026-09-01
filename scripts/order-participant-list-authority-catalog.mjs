@@ -21,6 +21,12 @@ export const ORDER_STAFF_READ_AUTHORITY_MIGRATION_SHA256 =
   "fe0f35a081f58a62eaf1d655a1cb5749b7f042b00cc9206cd61abf957b4e2912";
 export const ORDER_STAFF_READ_AUTHORITY_MIGRATION_TREE_SHA256 =
   "2e39518ebf1c7874472bf0751d9978fc9ccb7c4e70b1e468ef01917dd3cdadc2";
+export const ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION =
+  "20260901030000_prepare_order_participant_export_authority";
+export const ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION_SHA256 =
+  "0afda9317f3b81c7869aa4d0ca7bb4c261d0017c533d808b1411b310c30c6619";
+export const ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION_TREE_SHA256 =
+  "c697eff5672fa8a1302e8767417fc44aa3f4608db5578b4bb287032ea635bd3a";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_count(text)",
@@ -35,6 +41,10 @@ export const ORDER_PARTICIPANT_DETAIL_AUTHORITY_FUNCTIONS = Object.freeze([
 export const ORDER_STAFF_READ_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_staff_page(text,text,integer,integer)",
   "grainline_order_staff_detail(text,text)",
+]);
+export const ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS = Object.freeze([
+  "grainline_order_buyer_export_page(text,integer,bigint,text)",
+  "grainline_order_seller_export_page(text,integer,bigint,text)",
 ]);
 
 function sha256(value) {
@@ -98,6 +108,25 @@ export function verifyOrderStaffReadAuthorityMigrationBytes(
   return Object.freeze({ migration, migrationSha256 });
 }
 
+export function verifyOrderParticipantExportAuthorityMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION_SHA256,
+    "Order participant export-authority migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
 export function appendReviewedOrderParticipantListAuthoritySuccessor({
   root = process.cwd(),
   laterMigrations,
@@ -126,6 +155,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderStaffReadAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_STAFF_READ_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_STAFF_READ_AUTHORITY_MIGRATION,
+      "Order participant export authority requires the exact staff-authority predecessor",
+    );
+    verifyOrderParticipantExportAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION);
   }
   return true;
 }
