@@ -12,11 +12,18 @@ not auto-select free pickup when shipping exists, do not display/sign malformed
 or duplicate provider identities, keep one bounded delivery-estimate contract
 through webhook parsing, retain pickup during provider fallback and expose a
 retry action. Seller label purchase still performs the full-address re-quote;
-the buyer quote remains deliberately city/state/postal/country only.
+the buyer quote remains deliberately city/state/postal/country only. Exact
+shipping candidate `c4a6ff8c1adb8ff7141332bdc46412fc56170be2`
+subsequently passed the non-charging Shippo test-mode provider smoke: the shared
+runtime payload returned eleven usable USD rates across two carriers with no
+Transaction or label purchase. Retain the sanitized artifact hash from the
+cross-domain record; do not reinterpret this as proof of live-mode carrier
+availability or final full-address label purchase.
 
 Then ship a separate additive Case correction for legacy staff attribution,
-UTC money-path clocks, staff-resolution replay eligibility/final stock guards
-and the PII-prune/chargeback race. Do not edit applied Case migrations. Add the
+UTC money-path clocks, staff-resolution replay eligibility/final stock guards,
+the durable dispute-retention predicate and seller-side account-deletion lock.
+Do not edit applied Case migrations. Add the
 exact charged Checkout total and honest fully-refunded UI state before core
 Order Phase A; do not misuse a new `CANCELLED` fulfillment value for payment
 state. The full independent classification, including accepted hardening and

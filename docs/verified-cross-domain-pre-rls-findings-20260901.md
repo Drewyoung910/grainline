@@ -62,6 +62,18 @@ do not incur charges. The smoke proves the exact Grainline account/request
 combination; it does not prove live-mode carrier availability or the final
 street-address label re-quote.
 
+### Accepted provider evidence
+
+The exact clean/pushed commit
+`c4a6ff8c1adb8ff7141332bdc46412fc56170be2` passed the test-mode smoke on
+2026-09-01. Shippo accepted the shared minimized payload and returned eleven
+checkout-usable USD rates across two carriers. No Transaction was created, no
+label was purchased, and no application database was accessed. The sanitized
+mode-0600 artifact is retained outside the repository as
+`shippo-quote-test-mode-c4a6ff8c1adb8ff7141332bdc46412fc56170be2.json`,
+SHA-256
+`96e55d3d601ab8df7442d42fa2fc8dec4218300c239ba10540a7bdada39c1959`.
+
 ## Reviewer-claim verdicts
 
 | # | Verdict | Current classification | Required action |
