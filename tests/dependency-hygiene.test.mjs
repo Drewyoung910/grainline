@@ -67,6 +67,10 @@ describe("dependency hygiene guardrails", () => {
     assert.equal(lock.packages?.["node_modules/@prisma/dev"]?.version, "0.24.16");
     assert.equal(pkg.overrides?.["deepmerge-ts"], "8.0.2");
     assert.equal(lock.packages?.["node_modules/deepmerge-ts"]?.version, "8.0.2");
+    assert.equal(pkg.overrides?.browserslist, "4.28.8");
+    assert.equal(lock.packages?.["node_modules/browserslist"]?.version, "4.28.8");
+    assert.equal(pkg.overrides?.mysql2, "3.24.2");
+    assert.equal(lock.packages?.["node_modules/mysql2"]?.version, "3.24.2");
     assert.equal(lock.packages?.["node_modules/find-my-way"]?.version, "9.7.0");
     assert.equal(pkg.overrides?.valibot, "1.4.2");
     assert.equal(lock.packages?.["node_modules/valibot"]?.version, "1.4.2");
@@ -110,8 +114,8 @@ describe("dependency hygiene guardrails", () => {
     const pkg = json("package.json");
     const lock = json("package-lock.json");
 
-    assert.equal(pkg.dependencies?.["sanitize-html"], "^2.17.6");
-    assert.equal(lock.packages?.["node_modules/sanitize-html"]?.version, "2.17.6");
+    assert.equal(pkg.dependencies?.["sanitize-html"], "^2.17.7");
+    assert.equal(lock.packages?.["node_modules/sanitize-html"]?.version, "2.17.7");
   });
 
   it("keeps every Sharp install on the reviewed patched line", () => {
