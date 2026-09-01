@@ -384,3 +384,13 @@ historical prefix. The transition database proof remains at that prefix. Only
 the static application assertion moves after compatible-candidate restoration,
 and the release test now pins both source-reading assertions to that later
 position exactly once.
+
+The fifth CI run `33542988628` passed the complete historical chain and every
+new release verifier, then failed at the final global grant audit. The audit's
+function inventory had not classified seven already-reviewed private
+functions: the retired v1 buyer/seller detail projections, the dormant
+staff-only page/detail pair, the owner-private summary helper and the two
+owner-only ambiguous-label reconciliation operations. Their runtime grants
+were correctly absent; granting them would have been the unsafe correction.
+The catalogs now declare those names as ordinary-runtime-private and the grant
+inventory test pins the classification.

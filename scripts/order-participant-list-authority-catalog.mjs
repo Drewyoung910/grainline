@@ -156,6 +156,19 @@ export const ORDER_CHECKOUT_RECEIPT_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_receipts_by_sessions(text,text[])",
 ]);
 
+// These functions are present in the compatible migration chain but are not
+// ordinary-runtime RPCs in its final posture. The v1 detail functions are
+// private predecessors of the v2/v3 projections, the staff readers require a
+// separately provisioned staff-only login, and the summary helper is invoked
+// only from the actor-bound page functions.
+export const ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES = Object.freeze([
+  "grainline_order_buyer_detail",
+  "grainline_order_seller_detail",
+  "grainline_order_staff_page",
+  "grainline_order_staff_detail",
+  "grainline_order_summary_items",
+]);
+
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }

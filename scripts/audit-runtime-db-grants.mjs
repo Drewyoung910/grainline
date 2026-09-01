@@ -47,6 +47,12 @@ import {
 import {
   ORDER_PAYMENT_EVENT_RETIRED_RUNTIME_FUNCTION_IDENTITIES,
 } from "./order-payment-event-activation-catalog.mjs";
+import {
+  ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
+} from "./order-participant-list-authority-catalog.mjs";
+import {
+  ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
+} from "./order-label-authority-catalog.mjs";
 
 const { Client } = pg;
 
@@ -230,6 +236,8 @@ export const RUNTIME_PRIVATE_FUNCTIONS = Object.freeze([
   ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
   ...ORDER_PAYMENT_EVENT_AGGREGATE_AUTHORITY_FUNCTIONS,
   ...ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_FUNCTIONS,
+  ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
+  ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
 ]);
 
 const RUNTIME_PRIVATE_TABLE_NAME_SET = new Set(RUNTIME_PRIVATE_TABLES);

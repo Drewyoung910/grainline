@@ -48,6 +48,7 @@ import {
   ORDER_PARTICIPANT_CURSOR_AUTHORITY_FUNCTIONS,
   ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS,
   ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS,
+  ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
   ORDER_PARTICIPANT_SUMMARY_AUTHORITY_FUNCTIONS,
   ORDER_PUBLIC_AGGREGATE_AUTHORITY_FUNCTIONS,
   ORDER_SELLER_ANALYTICS_AUTHORITY_FUNCTIONS,
@@ -60,6 +61,7 @@ import {
 import {
   ORDER_LABEL_AUTHORITY_FUNCTIONS,
   ORDER_LABEL_PRIVATE_FUNCTIONS,
+  ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
 } from "../scripts/order-label-authority-catalog.mjs";
 import { postgresChannelBindingClientOptions } from "../scripts/postgres-url-safety.mjs";
 
@@ -704,6 +706,8 @@ describe("database grant inventory guardrails", () => {
       "grainline_order_seller_key_assert",
       "grainline_order_seller_key_complete",
       ...ORDER_PAYMENT_EVENT_INVARIANT_FUNCTIONS,
+      ...ORDER_PARTICIPANT_RUNTIME_PRIVATE_FUNCTION_NAMES,
+      ...ORDER_LABEL_PRIVATE_FUNCTION_NAMES,
     ]) {
       assert.equal(
         RUNTIME_PRIVATE_FUNCTIONS.includes(functionName),

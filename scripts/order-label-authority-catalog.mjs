@@ -21,6 +21,11 @@ export const ORDER_LABEL_PRIVATE_FUNCTIONS = Object.freeze([
   "grainline_order_label_ambiguous_claim_read(text,text,text,bigint)",
   "grainline_order_label_ambiguous_release(text,text,text,bigint,text,text)",
 ]);
+export const ORDER_LABEL_PRIVATE_FUNCTION_NAMES = Object.freeze(
+  ORDER_LABEL_PRIVATE_FUNCTIONS.map((identity) =>
+    identity.slice(0, identity.indexOf("(")),
+  ),
+);
 
 export function verifyOrderLabelAuthorityMigrationBytes(root = process.cwd()) {
   const migrationPath = path.join(
