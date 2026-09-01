@@ -198,17 +198,20 @@ describe("Order label fixed-authority release", () => {
       && labelRestore < compatibleApply,
       "compatible successors must be restored in migration order before application",
     );
-    const restoredApplicationProof = workflow.indexOf(
+    for (const applicationProof of [
       "tests/order-payment-event-aggregate-authority-app.test.mjs",
-    );
-    assert.ok(
-      restoredApplicationProof > labelRestore,
-      "application tests that read later migration sources must run only after restoration",
-    );
-    assert.equal(
-      workflow.match(/tests\/order-payment-event-aggregate-authority-app\.test\.mjs/g)?.length,
-      1,
-    );
+      "tests/order-payment-event-transition-authority-app.test.mjs",
+    ]) {
+      const restoredApplicationProof = workflow.indexOf(applicationProof);
+      assert.ok(
+        restoredApplicationProof > labelRestore,
+        `${applicationProof} reads later migration sources and must run only after restoration`,
+      );
+      assert.equal(
+        workflow.match(new RegExp(applicationProof.replaceAll(".", "\\."), "g"))?.length,
+        1,
+      );
+    }
     for (const command of [
       "audit:order-receipt-notification-authority-release",
       "audit:order-fulfillment-authority-release",

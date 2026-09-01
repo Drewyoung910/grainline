@@ -375,3 +375,12 @@ seller-metrics migration files after those directories had intentionally been
 isolated. The database gate remains at its historical prefix; only that
 application-source assertion now runs after all compatible Order candidates
 are restored. CI pins that it appears once and only after restoration.
+
+The fourth CI run `33542191639` reached the historical `OrderPaymentEvent`
+transition-authority PostgreSQL gate and exposed the same source-placement
+class for its application assertion: that assertion now reads the later
+fulfillment and label migration sources, which are intentionally absent at the
+historical prefix. The transition database proof remains at that prefix. Only
+the static application assertion moves after compatible-candidate restoration,
+and the release test now pins both source-reading assertions to that later
+position exactly once.
