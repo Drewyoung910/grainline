@@ -2343,6 +2343,42 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Seller-private Order analytics bind every aggregate or recent-sale
+-- projection to SellerProfile.userId inside PostgreSQL. Keep PUBLIC closed and
+-- converge ordinary-runtime EXECUTE while predecessor table grants remain.
+WITH order_seller_analytics_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_analytics_summary"(text, bigint, bigint, boolean)'),
+    ('public."grainline_order_seller_analytics_buckets"(text, bigint, bigint, boolean, text)'),
+    ('public."grainline_order_seller_analytics_top_listings"(text, bigint, bigint, boolean, boolean)'),
+    ('public."grainline_order_seller_recent_sales"(text)'),
+    ('public."grainline_order_seller_completed_count"(text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_seller_analytics_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_seller_analytics_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_seller_analytics_summary"(text, bigint, bigint, boolean)'),
+    ('public."grainline_order_seller_analytics_buckets"(text, bigint, bigint, boolean, text)'),
+    ('public."grainline_order_seller_analytics_top_listings"(text, bigint, bigint, boolean, boolean)'),
+    ('public."grainline_order_seller_recent_sales"(text)'),
+    ('public."grainline_order_seller_completed_count"(text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_seller_analytics_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_participant_export_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),

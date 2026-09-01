@@ -11,7 +11,7 @@ import { savedListingFavoriteWhere } from "@/lib/savedListingVisibility";
 import { listOwnerSavedSearches } from "@/lib/savedSearchOwnerAccess";
 import { formatCurrencyCents, formatCurrencyMinorUnitAmount } from "@/lib/money";
 import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
-import { paidStripeOrderWhere } from "@/lib/orderTrust";
+import { countSellerCompletedOrders } from "@/lib/orderSellerAnalyticsAuthority";
 import { Suspense } from "react";
 import { AccountOverviewSkeleton } from "@/components/RouteSkeletons";
 import ScrollFadeRow from "@/components/ScrollFadeRow";
@@ -103,15 +103,7 @@ async function AccountPageContent() {
   // Completed order count for sellers
   let completedOrderCount = 0;
   if (sellerProfile) {
-    completedOrderCount = await prisma.order.count({
-      where: {
-        sellerProfileId: sellerProfile.id,
-        ...paidStripeOrderWhere(),
-        sellerRefundId: null,
-        paymentRefundBlocked: false,
-        fulfillmentStatus: { in: ["DELIVERED", "PICKED_UP"] },
-      },
-    });
+    completedOrderCount = await countSellerCompletedOrders(me.id);
   }
 
   function savedSearchHref(search: (typeof savedSearches)[number]) {

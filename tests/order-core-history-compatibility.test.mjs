@@ -19,12 +19,10 @@ const historicalRenderers = [
 ];
 
 const durableSellerConsumers = [
-  "src/app/account/page.tsx",
   "src/app/api/account/export/route.ts",
   "src/app/api/orders/[id]/fulfillment/route.ts",
   "src/app/api/orders/[id]/label/route.ts",
   "src/app/api/orders/[id]/refund/route.ts",
-  "src/app/api/seller/analytics/recent-sales/route.ts",
   "src/app/api/stripe/webhook/route.ts",
   "src/app/dashboard/sales/[orderId]/page.tsx",
   "src/app/dashboard/sales/page.tsx",
@@ -37,7 +35,7 @@ describe("core Order historical compatibility", () => {
     for (const file of historicalRenderers) {
       const source = read(file);
       assert.match(source, /readHistoricalOrderItemSnapshot/, file);
-      assert.match(source, /listingSnapshot/, file);
+      assert.match(source, /listingSnapshot|firstItemListingSnapshot/, file);
       assert.doesNotMatch(source, /\.listing\.title|\.listing\.photos|\.listing\.seller\.displayName/, file);
     }
   });
@@ -52,6 +50,23 @@ describe("core Order historical compatibility", () => {
         file,
       );
     }
+
+    assert.match(read("src/app/account/page.tsx"), /countSellerCompletedOrders\(me\.id\)/);
+    assert.match(
+      read("src/app/api/seller/analytics/recent-sales/route.ts"),
+      /readSellerRecentSales\(me\.id\)/,
+    );
+    const sellerAnalyticsAuthority = read(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
+    assert.match(
+      sellerAnalyticsAuthority,
+      /source_order\."sellerProfileId" = seller_actor\.id/,
+    );
+    assert.match(
+      sellerAnalyticsAuthority,
+      /seller\.id = source_order\."sellerProfileId"/,
+    );
   });
 
   it("binds participant detail reads in the database predicate", () => {

@@ -516,6 +516,18 @@ Public discovery routes are split by purpose. `/browse` remains the full filter 
 
 Checkout uses Stripe Checkout Sessions and local lock/idempotency state. Destination-charge accounting keeps platform tax handling and seller transfer math explicit. Order, payment event, refund, dispute, label, and case state transitions must be idempotent and race-aware. Full refunds restore eligible in-stock inventory automatically before buyer handoff; seller and staff partial refunds restore inventory only through explicit bounded quantities validated against purchased in-stock order items. The launch fee is 5% of item subtotal; application callers share `calculateCheckoutAmounts()`, while the prepared database refund finalizers independently validate that same frozen contract. Because historical Orders do not yet persist their checkout-time fee/transfer snapshot, changing the fee requires that snapshot plus successor fixed functions before the rate changes; applied migrations remain immutable.
 
+Order RLS work starts with a product-and-authority audit for each operation
+family. It must not mechanically preserve a query whose business meaning is
+wrong. Participant history uses checkout snapshots and durable Order seller
+keys; public aggregates, seller-private analytics, staff reads, maintenance
+and write state machines use separate fixed operations. Seller analytics
+defines cart abandonment as a current cart item left unpurchased for at least
+24 hours, selects recent-sale representative items deterministically, and
+aggregates repeat-buyer counts without returning buyer IDs. Favorite and
+back-in-stock metrics are surviving subscriptions, not immutable event
+history. See `docs/order-core-pre-rls-audit.md` and
+`docs/order-seller-analytics-authority.md`.
+
 ### Messaging
 
 Conversations are participant-scoped, with specific staff/admin exceptions only where intentionally implemented. Listing context attached to conversations must be visible and valid for the parties.

@@ -54,7 +54,7 @@ through fixed source-bound authorities or database-maintained `Order`
 projections. The two remaining matches are the intentionally retained fixed
 refund-authority helpers in `orderRefundFinalization.ts` and
 `orderRefundRecordAuthority.ts`; neither grants generic table lookup or write
-authority. The separate 36-file semantic inventory remains authoritative for
+authority. The separate current 33-file semantic inventory remains authoritative for
 nested projections, event-identity helpers, fixed Case/Notification functions,
 cron and provider side effects, so this smaller direct-access floor cannot hide
 semantic consumers. It includes the converted application callsites and
@@ -67,6 +67,16 @@ post-eligibility snapshot while advancing the current direct floors to 31/6.
 It converts only public aggregate facts; seller-private analytics, maintenance
 and all Order mutation families remain independently pinned. See
 `docs/order-public-aggregate-authority.md`.
+
+The 2026-09-01 seller-private analytics checkpoint preserves the historical
+31/6 baseline table above while advancing the current direct floors to 29/5.
+It moves the two seller analytics routes and the seller completed-order count
+behind five actor-bound fixed functions, but `src/app/account/page.tsx`
+correctly remains a direct `Order` consumer for its separate buyer-order
+overview. The migration also corrects cart-abandonment timing, temporal
+purchase evidence, deterministic recent-item selection and repeat-buyer
+aggregation; it does not activate RLS or change production. See
+`docs/order-seller-analytics-authority.md`.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above

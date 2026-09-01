@@ -12,8 +12,13 @@ import {
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { formatCurrencyCents } from "@/lib/money";
+import {
+  readSellerOrderAnalyticsBuckets,
+  readSellerOrderAnalyticsSummary,
+  readSellerOrderTopListings,
+} from "@/lib/orderSellerAnalyticsAuthority";
+import type { SellerOrderAnalyticsBucket } from "@/lib/orderSellerAnalyticsState";
 
 export const runtime = "nodejs";
 
@@ -141,11 +146,6 @@ function generateYearBuckets(startDate: Date, endDate: Date): { label: string; t
   return buckets;
 }
 
-type OrderRowHour = { bucket: number; revenue: bigint; orders: bigint };
-type OrderRowDay = { bucket: Date; revenue: bigint; orders: bigint };
-type OrderRowMonth = { bucket: Date; revenue: bigint; orders: bigint };
-type OrderRowYear = { bucket: Date; revenue: bigint; orders: bigint };
-
 export async function GET(req: Request) {
   try {
     const { userId } = await auth();
@@ -187,27 +187,19 @@ export async function GET(req: Request) {
     const range = validRanges.includes(rangeParam as RangeKey) ? (rangeParam as RangeKey) : "last30";
 
     const { startDate, endDate, chartGrouping } = getRangeDates(range, new Date(sellerProfile.createdAt));
-    const dateEndFilter = range === "yesterday" ? { lt: endDate } : { lte: endDate };
+    const endExclusive = range === "yesterday";
+    const dateEndFilter = endExclusive ? { lt: endDate } : { lte: endDate };
     const analyticsDateRange = { gte: startDate, ...dateEndFilter };
-    const rangeEndSql = range === "yesterday" ? Prisma.sql`< ${endDate}` : Prisma.sql`<= ${endDate}`;
+    const rangeEndSql = endExclusive ? Prisma.sql`< ${endDate}` : Prisma.sql`<= ${endDate}`;
 
     // ── Start independent reads before awaiting broad analytics work ───────────
 
-    type OverviewRow = { total_revenue: bigint | null; total_orders: bigint };
-    type CountRow = { count: bigint };
-    const overviewRowsPromise = prisma.$queryRaw<OverviewRow[]>`
-      SELECT
-        SUM(oi."priceCents" * oi.quantity) AS total_revenue,
-        COUNT(DISTINCT o.id) AS total_orders
-      FROM "OrderItem" oi
-      JOIN "Order" o ON o.id = oi."orderId"
-      WHERE o."sellerProfileId" = ${sellerId}
-        ${PAID_STRIPE_ORDER_SQL}
-        AND o."sellerRefundId" IS NULL
-        AND o."paymentRefundBlocked" = false
-        AND o."createdAt" >= ${startDate}
-        AND o."createdAt" ${rangeEndSql}
-    `;
+    const orderSummaryPromise = readSellerOrderAnalyticsSummary({
+      actorUserId: me.id,
+      startDate,
+      endDate,
+      endExclusive,
+    });
     const activeListingCountPromise = prisma.listing.count({
       where: { sellerId, status: "ACTIVE" },
     });
@@ -225,220 +217,24 @@ export async function GET(req: Request) {
     const stockNotificationSubsPromise = prisma.stockNotification.count({
       where: { listing: { sellerId }, createdAt: analyticsDateRange },
     });
-    const cartAbandonmentPromise = prisma.$queryRaw<CountRow[]>`
-      SELECT COUNT(*)::bigint AS count
-      FROM "CartItem" ci
-      JOIN "Cart" c ON c.id = ci."cartId"
-      JOIN "Listing" l ON l.id = ci."listingId"
-      WHERE l."sellerId" = ${sellerId}
-        AND ci."createdAt" >= ${startDate}
-        AND ci."createdAt" ${rangeEndSql}
-        AND NOT EXISTS (
-          SELECT 1
-          FROM "OrderItem" oi
-          JOIN "Order" o ON o.id = oi."orderId"
-          WHERE oi."listingId" = ci."listingId"
-            AND o."buyerId" = c."userId"
-            ${PAID_STRIPE_ORDER_SQL}
-            AND o."sellerRefundId" IS NULL
-            AND o."paymentRefundBlocked" = false
-            AND o."createdAt" >= ${startDate}
-            AND o."createdAt" ${rangeEndSql}
-        )
-    `;
-
-    type RepeatRow = { buyer_id: string; cnt: bigint };
-    const buyerRowsPromise = prisma.$queryRaw<RepeatRow[]>`
-      SELECT o."buyerId" AS buyer_id, COUNT(DISTINCT o.id) AS cnt
-      FROM "Order" o
-      WHERE o."sellerProfileId" = ${sellerId}
-        AND o."buyerId" IS NOT NULL
-        ${PAID_STRIPE_ORDER_SQL}
-        AND o."sellerRefundId" IS NULL
-        AND o."paymentRefundBlocked" = false
-      GROUP BY o."buyerId"
-    `;
-
-    type ProcessingRow = { avg_hours: number | null };
-    const processingRowsPromise = prisma.$queryRaw<ProcessingRow[]>`
-      SELECT AVG(EXTRACT(EPOCH FROM (o."shippedAt" - o."createdAt")) / 3600) AS avg_hours
-      FROM "Order" o
-      WHERE o."sellerProfileId" = ${sellerId}
-        AND o."shippedAt" IS NOT NULL
-        ${PAID_STRIPE_ORDER_SQL}
-        AND o."sellerRefundId" IS NULL
-        AND o."paymentRefundBlocked" = false
-        AND o."createdAt" >= ${startDate}
-        AND o."createdAt" ${rangeEndSql}
-    `;
     const dailyViewDataPromise = prisma.listingViewDaily.findMany({
       where: { sellerProfileId: sellerId, date: analyticsDateRange },
       select: { date: true, views: true, clicks: true },
     });
-    const chartOrderRowsPromise: Promise<
-      OrderRowHour[] | OrderRowDay[] | OrderRowMonth[] | OrderRowYear[]
-    > = chartGrouping === "hour"
-      ? prisma.$queryRaw<OrderRowHour[]>`
-        SELECT
-          EXTRACT(HOUR FROM o."createdAt" AT TIME ZONE 'UTC')::int AS bucket,
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
-          COUNT(DISTINCT o.id) AS orders
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        WHERE o."sellerProfileId" = ${sellerId}
-          ${PAID_STRIPE_ORDER_SQL}
-          AND o."sellerRefundId" IS NULL
-          AND o."paymentRefundBlocked" = false
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" ${rangeEndSql}
-        GROUP BY bucket
-        ORDER BY bucket
-      `
-      : chartGrouping === "day"
-        ? prisma.$queryRaw<OrderRowDay[]>`
-        SELECT
-          DATE_TRUNC('day', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
-          COUNT(DISTINCT o.id) AS orders
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        WHERE o."sellerProfileId" = ${sellerId}
-          ${PAID_STRIPE_ORDER_SQL}
-          AND o."sellerRefundId" IS NULL
-          AND o."paymentRefundBlocked" = false
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" ${rangeEndSql}
-        GROUP BY bucket
-        ORDER BY bucket
-      `
-        : chartGrouping === "month"
-          ? prisma.$queryRaw<OrderRowMonth[]>`
-        SELECT
-          DATE_TRUNC('month', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
-          COUNT(DISTINCT o.id) AS orders
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        WHERE o."sellerProfileId" = ${sellerId}
-          ${PAID_STRIPE_ORDER_SQL}
-          AND o."sellerRefundId" IS NULL
-          AND o."paymentRefundBlocked" = false
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" ${rangeEndSql}
-        GROUP BY bucket
-        ORDER BY bucket
-      `
-          : prisma.$queryRaw<OrderRowYear[]>`
-        SELECT
-          DATE_TRUNC('year', o."createdAt" AT TIME ZONE 'UTC') AS bucket,
-          COALESCE(SUM(oi."priceCents" * oi.quantity), 0) AS revenue,
-          COUNT(DISTINCT o.id) AS orders
-        FROM "Order" o
-        JOIN "OrderItem" oi ON oi."orderId" = o.id
-        WHERE o."sellerProfileId" = ${sellerId}
-          ${PAID_STRIPE_ORDER_SQL}
-          AND o."sellerRefundId" IS NULL
-          AND o."paymentRefundBlocked" = false
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" ${rangeEndSql}
-        GROUP BY bucket
-        ORDER BY bucket
-      `;
-
-    type TopListingRow = {
-      id: string;
-      title: string;
-      image_url: string | null;
-      total_revenue: bigint;
-      units_sold: bigint;
-      avg_price: bigint;
-      view_count: bigint;
-      click_count: bigint;
-      favorite_count: bigint;
-      stock_notification_count: bigint;
-      created_at: Date;
-    };
-
-    const topListingRowsPromise = prisma.$queryRaw<TopListingRow[]>`
-      WITH scoped_listing_stats AS (
-        SELECT
-          l.id,
-          l.title,
-          l."createdAt" AS created_at,
-          COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END), 0) AS total_revenue,
-          COALESCE(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0) AS units_sold,
-          COALESCE(
-            SUM(CASE WHEN o.id IS NOT NULL THEN oi."priceCents" * oi.quantity ELSE 0 END)
-            / NULLIF(SUM(CASE WHEN o.id IS NOT NULL THEN oi.quantity ELSE 0 END), 0),
-            0
-          ) AS avg_price,
-          CASE
-            WHEN ${range} = 'alltime' THEN l."viewCount"::bigint
-            ELSE COALESCE((
-              SELECT SUM(lvd.views)::bigint
-              FROM "ListingViewDaily" lvd
-              WHERE lvd."listingId" = l.id
-                AND lvd.date >= ${startDate}
-                AND lvd.date ${rangeEndSql}
-            ), 0)
-          END AS view_count,
-          CASE
-            WHEN ${range} = 'alltime' THEN l."clickCount"::bigint
-            ELSE COALESCE((
-              SELECT SUM(lvd.clicks)::bigint
-              FROM "ListingViewDaily" lvd
-              WHERE lvd."listingId" = l.id
-                AND lvd.date >= ${startDate}
-                AND lvd.date ${rangeEndSql}
-            ), 0)
-          END AS click_count,
-          (
-            SELECT COUNT(*)::bigint
-            FROM "Favorite" f
-            WHERE f."listingId" = l.id
-              AND f."createdAt" >= ${startDate}
-              AND f."createdAt" ${rangeEndSql}
-          ) AS favorite_count,
-          (
-            SELECT COUNT(*)::bigint
-            FROM "StockNotification" sn
-            WHERE sn."listingId" = l.id
-              AND sn."createdAt" >= ${startDate}
-              AND sn."createdAt" ${rangeEndSql}
-          ) AS stock_notification_count
-        FROM "Listing" l
-        LEFT JOIN "OrderItem" oi ON oi."listingId" = l.id
-        LEFT JOIN "Order" o ON o.id = oi."orderId"
-          ${PAID_STRIPE_ORDER_SQL}
-          AND o."sellerRefundId" IS NULL
-          AND o."paymentRefundBlocked" = false
-          AND o."createdAt" >= ${startDate}
-          AND o."createdAt" ${rangeEndSql}
-        WHERE l."sellerId" = ${sellerId}
-        GROUP BY l.id, l.title, l."createdAt", l."viewCount", l."clickCount"
-      )
-      SELECT
-        scoped.id,
-        scoped.title,
-        (SELECT p.url FROM "Photo" p WHERE p."listingId" = scoped.id ORDER BY p."sortOrder" ASC LIMIT 1) AS image_url,
-        scoped.total_revenue,
-        scoped.units_sold,
-        scoped.avg_price,
-        scoped.view_count,
-        scoped.click_count,
-        scoped.favorite_count,
-        scoped.stock_notification_count,
-        scoped.created_at
-      FROM scoped_listing_stats scoped
-      WHERE scoped.total_revenue > 0
-        OR scoped.units_sold > 0
-        OR scoped.view_count > 0
-        OR scoped.click_count > 0
-        OR scoped.favorite_count > 0
-        OR scoped.stock_notification_count > 0
-      ORDER BY scoped.total_revenue DESC, scoped.view_count DESC, scoped.click_count DESC, scoped.id ASC
-      LIMIT 8
-    `;
+    const chartOrderRowsPromise = readSellerOrderAnalyticsBuckets({
+      actorUserId: me.id,
+      startDate,
+      endDate,
+      endExclusive,
+      grouping: chartGrouping,
+    });
+    const topListingRowsPromise = readSellerOrderTopListings({
+      actorUserId: me.id,
+      startDate,
+      endDate,
+      endExclusive,
+      allTime: range === "alltime",
+    });
 
     type RatingRow = { bucket: Date; avg_rating: number; review_count: bigint };
     const ratingRowsPromise = prisma.$queryRaw<RatingRow[]>`
@@ -460,30 +256,24 @@ export async function GET(req: Request) {
     });
 
     const [
-      overviewRows,
+      orderSummary,
       activeListingCount,
       rangeViewAgg,
       profileViewAgg,
       favoritesCount,
       stockNotificationSubs,
-      cartAbandonmentRows,
-      buyerRows,
-      processingRows,
       dailyViewData,
       chartOrderRows,
       topListingRows,
       ratingRows,
       existingMetrics,
     ] = await Promise.all([
-      overviewRowsPromise,
+      orderSummaryPromise,
       activeListingCountPromise,
       rangeViewAggPromise,
       profileViewAggPromise,
       favoritesCountPromise,
       stockNotificationSubsPromise,
-      cartAbandonmentPromise,
-      buyerRowsPromise,
-      processingRowsPromise,
       dailyViewDataPromise,
       chartOrderRowsPromise,
       topListingRowsPromise,
@@ -491,8 +281,11 @@ export async function GET(req: Request) {
       existingMetricsPromise,
     ]);
 
-    const totalRevenueCents = Number(overviewRows[0]?.total_revenue ?? 0);
-    const totalOrders = Number(overviewRows[0]?.total_orders ?? 0);
+    if (!orderSummary || orderSummary.sellerProfileId !== sellerId) {
+      throw new Error("Seller Order analytics authority returned no matching seller");
+    }
+    const totalRevenueCents = orderSummary.totalRevenueCents;
+    const totalOrders = orderSummary.totalOrders;
     const avgOrderValueCents = totalOrders > 0 ? Math.round(totalRevenueCents / totalOrders) : 0;
 
     const totalViews = rangeViewAgg._sum.views ?? 0;
@@ -512,14 +305,13 @@ export async function GET(req: Request) {
         ? totalClicks === 0 ? 0 : null
         : Math.min((totalClicks / totalViews) * 100, 100);
 
-    const cartAbandonment = Number(cartAbandonmentRows[0]?.count ?? 0);
+    const cartAbandonment = orderSummary.cartAbandonment;
 
-    const totalBuyers = buyerRows.length;
-    const repeatBuyers = buyerRows.filter((r) => Number(r.cnt) > 1).length;
+    const totalBuyers = orderSummary.totalBuyers;
+    const repeatBuyers = orderSummary.repeatBuyers;
     const repeatBuyerRate = totalBuyers > 0 ? (repeatBuyers / totalBuyers) * 100 : 0;
 
-    const avgProcessingHours: number | null =
-      processingRows[0]?.avg_hours != null ? Number(processingRows[0].avg_hours) : null;
+    const avgProcessingHours = orderSummary.avgProcessingHours;
 
     const dailyMap = new Map<string, { views: number; clicks: number }>();
     for (const dv of dailyViewData) {
@@ -538,10 +330,10 @@ export async function GET(req: Request) {
     }> = [];
 
     if (chartGrouping === "hour") {
-      const dbRows = chartOrderRows as OrderRowHour[];
+      const dbRows: SellerOrderAnalyticsBucket[] = chartOrderRows;
       const byHour = new Map<number, { revenue: number; orders: number }>();
       for (const r of dbRows) {
-        byHour.set(Number(r.bucket), { revenue: Number(r.revenue), orders: Number(r.orders) });
+        byHour.set(r.bucket.getUTCHours(), { revenue: r.revenue, orders: r.orders });
       }
       // Distribute daily views/clicks evenly across elapsed hours
       const currentHour = new Date().getUTCHours(); // 0-23
@@ -559,11 +351,11 @@ export async function GET(req: Request) {
         return { ...b, revenue: d.revenue, orders: d.orders, views, clicks };
       });
     } else if (chartGrouping === "day") {
-      const dbRows = chartOrderRows as OrderRowDay[];
+      const dbRows: SellerOrderAnalyticsBucket[] = chartOrderRows;
       const byDay = new Map<string, { revenue: number; orders: number }>();
       for (const r of dbRows) {
         const key = new Date(r.bucket).toISOString().slice(0, 10);
-        byDay.set(key, { revenue: Number(r.revenue), orders: Number(r.orders) });
+        byDay.set(key, { revenue: r.revenue, orders: r.orders });
       }
       // "week" range always shows Mon-Sun; other day ranges show actual date range
       const buckets =
@@ -575,11 +367,11 @@ export async function GET(req: Request) {
         return { ...b, revenue: d.revenue, orders: d.orders, views: vc.views, clicks: vc.clicks };
       });
     } else if (chartGrouping === "month") {
-      const dbRows = chartOrderRows as OrderRowMonth[];
+      const dbRows: SellerOrderAnalyticsBucket[] = chartOrderRows;
       const byMonth = new Map<string, { revenue: number; orders: number }>();
       for (const r of dbRows) {
         const key = new Date(r.bucket).toISOString().slice(0, 7); // YYYY-MM
-        byMonth.set(key, { revenue: Number(r.revenue), orders: Number(r.orders) });
+        byMonth.set(key, { revenue: r.revenue, orders: r.orders });
       }
       // Group daily view data by month (YYYY-MM)
       const monthlyViewMap = new Map<string, { views: number; clicks: number }>();
@@ -596,11 +388,11 @@ export async function GET(req: Request) {
         return { ...b, revenue: d.revenue, orders: d.orders, views: vc.views, clicks: vc.clicks };
       });
     } else {
-      const dbRows = chartOrderRows as OrderRowYear[];
+      const dbRows: SellerOrderAnalyticsBucket[] = chartOrderRows;
       const byYear = new Map<string, { revenue: number; orders: number }>();
       for (const r of dbRows) {
         const key = new Date(r.bucket).toISOString().slice(0, 4); // YYYY
-        byYear.set(key, { revenue: Number(r.revenue), orders: Number(r.orders) });
+        byYear.set(key, { revenue: r.revenue, orders: r.orders });
       }
       // Group daily view data by year (YYYY)
       const yearlyViewMap = new Map<string, { views: number; clicks: number }>();
@@ -619,7 +411,7 @@ export async function GET(req: Request) {
     }
 
     const topListings = topListingRows.map((r) => {
-      const activeStartMs = Math.max(startDate.getTime(), new Date(r.created_at).getTime());
+      const activeStartMs = Math.max(startDate.getTime(), r.createdAt.getTime());
       const activeDaysInRange = Math.max(
         1,
         Math.ceil((endDate.getTime() - activeStartMs) / (1000 * 60 * 60 * 24)),
@@ -627,15 +419,15 @@ export async function GET(req: Request) {
       return {
         id: r.id,
         title: r.title,
-        imageUrl: r.image_url,
-        totalRevenueCents: Number(r.total_revenue),
-        unitsSold: Number(r.units_sold),
-        avgPriceCents: Number(r.avg_price),
-        viewCount: Number(r.view_count),
-        clickCount: Number(r.click_count),
-        favoritesCount: Number(r.favorite_count),
-        stockNotificationCount: Number(r.stock_notification_count),
-        revenuePerActiveDayCents: Math.round(Number(r.total_revenue) / activeDaysInRange),
+        imageUrl: r.imageUrl,
+        totalRevenueCents: r.totalRevenueCents,
+        unitsSold: r.unitsSold,
+        avgPriceCents: r.avgPriceCents,
+        viewCount: r.viewCount,
+        clickCount: r.clickCount,
+        favoritesCount: r.favoritesCount,
+        stockNotificationCount: r.stockNotificationCount,
+        revenuePerActiveDayCents: Math.round(r.totalRevenueCents / activeDaysInRange),
       };
     });
 

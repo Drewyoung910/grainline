@@ -203,12 +203,15 @@ describe("seller operational route hardening", () => {
 
     assert.match(recentSales, /ensureUserByClerkId\(userId\)/);
     assert.match(recentSales, /where: \{ userId: me\.id \}/);
-    assert.match(recentSales, /sellerProfileId: sellerProfile\.id/);
+    assert.match(recentSales, /readSellerRecentSales\(me\.id\)/);
     assert.doesNotMatch(recentSales, /items:\s*\{\s*(?:some|every):\s*\{\s*listing:/s);
-    assert.match(recentSales, /sellerRefundId: null/);
-    assert.match(recentSales, /paymentRefundBlocked: false/);
+    const sellerAnalyticsAuthority = source(
+      "prisma/migrations/20260901060000_prepare_order_seller_analytics_authority/migration.sql",
+    );
+    assert.match(sellerAnalyticsAuthority, /source_order\."sellerRefundId" IS NULL/);
+    assert.match(sellerAnalyticsAuthority, /source_order\."paymentRefundBlocked" = false/);
+    assert.match(sellerAnalyticsAuthority, /ORDER BY source_order\."createdAt" DESC, source_order\.id DESC/);
     assert.doesNotMatch(recentSales, /paymentEvents:|blockingRefundLedgerWhere/);
-    assert.match(recentSales, /orderBy: \[\{ createdAt: "desc" \}, \{ id: "desc" \}\]/);
     assert.match(recentSales, /accountAccessErrorResponse\(err\)/);
   });
 
@@ -226,11 +229,12 @@ describe("seller operational route hardening", () => {
     const analytics = source("src/app/api/seller/analytics/route.ts");
     assert.match(analytics, /case "last30":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 29\)/);
     assert.match(analytics, /case "last365":[\s\S]*?setUTCDate\(s\.getUTCDate\(\) - 364\)/);
-    assert.match(analytics, /const dateEndFilter = range === "yesterday" \? \{ lt: endDate \} : \{ lte: endDate \}/);
+    assert.match(analytics, /const endExclusive = range === "yesterday"/);
+    assert.match(analytics, /const dateEndFilter = endExclusive \? \{ lt: endDate \} : \{ lte: endDate \}/);
     assert.match(analytics, /const analyticsDateRange = \{ gte: startDate, \.\.\.dateEndFilter \}/);
     assert.match(
       analytics,
-      /const rangeEndSql = range === "yesterday" \? Prisma\.sql`< \$\{endDate\}` : Prisma\.sql`<= \$\{endDate\}`/,
+      /const rangeEndSql = endExclusive \? Prisma\.sql`< \$\{endDate\}` : Prisma\.sql`<= \$\{endDate\}`/,
     );
     assert.doesNotMatch(analytics, /date: \{ gte: startDate, lte: endDate \}/);
     assert.doesNotMatch(analytics, /createdAt: \{ gte: startDate, lte: endDate \}/);
@@ -244,15 +248,12 @@ describe("seller operational route hardening", () => {
     assert.ok(promiseAllIndex > -1, "seller analytics should await a broad Promise.all block");
 
     for (const promiseName of [
-      "overviewRowsPromise",
+      "orderSummaryPromise",
       "activeListingCountPromise",
       "rangeViewAggPromise",
       "profileViewAggPromise",
       "favoritesCountPromise",
       "stockNotificationSubsPromise",
-      "cartAbandonmentPromise",
-      "buyerRowsPromise",
-      "processingRowsPromise",
       "dailyViewDataPromise",
       "chartOrderRowsPromise",
       "topListingRowsPromise",
@@ -276,19 +277,10 @@ describe("seller operational route hardening", () => {
     assert.doesNotMatch(analytics, /listingId: \{ in: listingIds \}/);
     assert.match(analytics, /prisma\.favorite\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
     assert.match(analytics, /prisma\.stockNotification\.count\(\{\s*where: \{ listing: \{ sellerId \}/s);
-    assert.match(analytics, /const cartAbandonmentPromise = prisma\.\$queryRaw<CountRow\[]>/);
-    assert.match(analytics, /JOIN "Cart" c ON c\.id = ci\."cartId"/);
-    assert.match(analytics, /NOT EXISTS \(\s*SELECT 1\s*FROM "OrderItem" oi/s);
-    assert.match(analytics, /AND o\."buyerId" = c\."userId"/);
-    assert.match(analytics, /AND o\."buyerId" IS NOT NULL/);
-    assert.match(
-      analytics,
-      /FROM "Favorite" f\s+WHERE f\."listingId" = l\.id\s+AND f\."createdAt" >= \$\{startDate\}\s+AND f\."createdAt" \$\{rangeEndSql\}/,
-    );
-    assert.match(
-      analytics,
-      /FROM "StockNotification" sn\s+WHERE sn\."listingId" = l\.id\s+AND sn\."createdAt" >= \$\{startDate\}\s+AND sn\."createdAt" \$\{rangeEndSql\}/,
-    );
+    assert.match(analytics, /readSellerOrderAnalyticsSummary\(\{/);
+    assert.match(analytics, /readSellerOrderAnalyticsBuckets\(\{/);
+    assert.match(analytics, /readSellerOrderTopListings\(\{/);
+    assert.doesNotMatch(analytics, /JOIN "Cart"|FROM "Order"|JOIN "OrderItem"/);
     assert.match(analytics, /import \{[\s\S]*getFreshSellerMetrics[\s\S]*SELLER_METRICS_SELECT[\s\S]*\} from "@\/lib\/metrics"/);
     assert.match(analytics, /const existingMetricsPromise = prisma\.sellerMetrics\.findUnique\(\{[\s\S]*?select: SELLER_METRICS_SELECT/s);
     assert.match(analytics, /const metrics = await getFreshSellerMetrics\(sellerId, 3, existingMetrics\);/);

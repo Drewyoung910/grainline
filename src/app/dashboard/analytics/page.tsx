@@ -779,17 +779,17 @@ export default function AnalyticsPage() {
               {
                 label: "Cart Abandoned",
                 value: data.engagement.cartAbandonment.toLocaleString("en-US"),
-                note: "items added to cart but not purchased · in range",
+                note: "current cart items unpurchased for 24+ hours · added in range",
               },
               {
                 label: "Saved",
                 value: data.engagement.favoritesCount.toLocaleString("en-US"),
-                note: "new saves this period",
+                note: "current saves added this period",
               },
               {
                 label: "Watching",
                 value: data.engagement.stockNotificationSubs.toLocaleString("en-US"),
-                note: "new watchers this period",
+                note: "current watchers added this period",
               },
               {
                 label: "Repeat Buyers",

@@ -2391,6 +2391,21 @@ seller-private analytics, maintenance scoring and mutation state machines in
 later independent authority families. See
 `docs/order-public-aggregate-authority.md`.
 
+### Core Order seller analytics authority decision (2026-09-01)
+
+Do not treat RLS conversion as permission to freeze current dashboard behavior
+without a product audit. Seller Order analytics must use actor-bound aggregate
+or bounded projection functions keyed through the durable Order seller, never
+generic Order reads. Keep refunded Orders excluded until a deliberate net
+partial-refund metric is designed. Define current cart abandonment as an
+unpurchased item aged at least 24 hours, require purchase evidence to postdate
+the cart addition, select recent-sale item context deterministically, and
+aggregate repeat buyers inside PostgreSQL without returning buyer IDs. Label
+Favorite and StockNotification range counts as surviving subscriptions; a
+future immutable engagement ledger is required for complete event-history
+claims. Keep Guild/service scoring and its SellerMetrics write in a later
+maintenance authority family. See `docs/order-seller-analytics-authority.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

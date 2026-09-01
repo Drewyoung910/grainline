@@ -6,9 +6,9 @@ import { accountAccessErrorResponse } from "@/lib/apiAccountAccess";
 import { rateLimitResponse, safeRateLimit, sellerAnalyticsRatelimit } from "@/lib/ratelimit";
 import { privateJson, privateResponse } from "@/lib/privateResponse";
 import { logServerError } from "@/lib/serverErrorLogger";
-import { paidStripeOrderWhere } from "@/lib/orderTrust";
 import { sellerFacingOrderBuyerLabel } from "@/lib/sellerFacingUser";
 import { readHistoricalOrderItemSnapshot } from "@/lib/orderItemSnapshot";
+import { readSellerRecentSales } from "@/lib/orderSellerAnalyticsAuthority";
 
 export const runtime = "nodejs";
 
@@ -40,43 +40,31 @@ export async function GET() {
       );
     }
 
-    const sales = await prisma.order.findMany({
-      where: {
-        sellerProfileId: sellerProfile.id,
-        ...paidStripeOrderWhere(),
-        sellerRefundId: null,
-        paymentRefundBlocked: false,
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 10,
-      select: {
-        id: true,
-        createdAt: true,
-        itemsSubtotalCents: true,
-        shippingAmountCents: true,
-        taxAmountCents: true,
-        giftWrappingPriceCents: true,
-        currency: true,
-        fulfillmentStatus: true,
-        buyerName: true,
-        buyerEmail: true,
-        buyerDataPurgedAt: true,
-        buyer: { select: { deletedAt: true } },
-        items: {
-          take: 1,
-          select: { priceCents: true, listingSnapshot: true },
-        },
-      },
-    });
+    const sales = await readSellerRecentSales(me.id);
 
     return privateJson({
-      sales: sales.map(({ buyerName, buyerEmail, buyerDataPurgedAt, buyer, items, ...sale }) => ({
-        ...sale,
-        items: items.map((item) => ({
-          title: readHistoricalOrderItemSnapshot(item.listingSnapshot, item.priceCents).title,
-        })),
+      sales: sales.map((sale) => ({
+        id: sale.id,
+        createdAt: sale.createdAt,
+        itemsSubtotalCents: sale.itemsSubtotalCents,
+        shippingAmountCents: sale.shippingAmountCents,
+        taxAmountCents: sale.taxAmountCents,
+        giftWrappingPriceCents: sale.giftWrappingPriceCents,
+        currency: sale.currency,
+        fulfillmentStatus: sale.fulfillmentStatus,
+        items: [{
+          title: readHistoricalOrderItemSnapshot(
+            sale.firstItemListingSnapshot,
+            sale.firstItemPriceCents,
+          ).title,
+        }],
         buyerLabel: sellerFacingOrderBuyerLabel(
-          { buyerName, buyerEmail, buyerDataPurgedAt, buyer },
+          {
+            buyerName: sale.buyerName,
+            buyerEmail: sale.buyerEmail,
+            buyerDataPurgedAt: sale.buyerDataPurgedAt,
+            buyer: { deletedAt: sale.buyerDeletedAt },
+          },
           "Buyer",
         ),
       })),
