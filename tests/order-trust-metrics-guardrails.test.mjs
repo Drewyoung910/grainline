@@ -29,10 +29,7 @@ describe("order trust metrics guardrails", () => {
       "src/lib/publicSellerStats.ts",
       "src/lib/metrics.ts",
       "src/app/api/seller/analytics/route.ts",
-      "src/app/api/reviews/route.ts",
-      "src/app/dashboard/verification/page.tsx",
       "src/app/admin/verification/page.tsx",
-      "src/app/api/verification/apply/route.ts",
     ];
 
     for (const path of paths) {
@@ -42,6 +39,12 @@ describe("order trust metrics guardrails", () => {
       assert.doesNotMatch(text, /o\."paidAt" IS NOT NULL/, `${path} should not hand-roll paid checks`);
       assert.doesNotMatch(text, /o\."stripeSessionId" IS NOT NULL/, `${path} should not hand-roll Stripe refs`);
     }
+
+    const eligibility = source(
+      "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
+    );
+    assert.match(eligibility, /source_order\."paidAt" IS NOT NULL/);
+    assert.match(eligibility, /source_order\."stripeSessionId" IS NOT NULL/);
   });
 
   it("requires Prisma marketplace trust metrics to count only Stripe-backed paid orders", () => {

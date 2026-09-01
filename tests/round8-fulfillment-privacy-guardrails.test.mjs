@@ -46,13 +46,16 @@ describe("Round 8 fulfillment fraud-chain guardrails", () => {
 
   it("blocks listing soft-delete for recent terminal orders inside the case window", () => {
     const softDelete = source("src/lib/listingSoftDelete.ts");
+    const eligibility = source(
+      "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
+    );
     const handbook = source("src/app/seller-handbook/page.tsx");
 
     assert.match(softDelete, /import \{ CASE_WINDOW_DAYS \} from "@\/lib\/caseCreateState"/);
     assert.match(softDelete, /LISTING_SOFT_DELETE_TERMINAL_ORDER_BLOCK_DAYS = CASE_WINDOW_DAYS/);
-    assert.match(softDelete, /function listingSoftDeleteOrderBlockerWhere/);
-    assert.match(softDelete, /fulfillmentStatus: "DELIVERED"[\s\S]*deliveredAt: \{ gte: terminalCutoff \}/);
-    assert.match(softDelete, /fulfillmentStatus: "PICKED_UP"[\s\S]*pickedUpAt: \{ gte: terminalCutoff \}/);
+    assert.match(softDelete, /getListingOrderArchiveBlocked/);
+    assert.match(eligibility, /"fulfillmentStatus" = 'DELIVERED'[\s\S]*"deliveredAt" >= terminal_cutoff/);
+    assert.match(eligibility, /"fulfillmentStatus" = 'PICKED_UP'[\s\S]*"pickedUpAt" >= terminal_cutoff/);
     assert.match(softDelete, /Cannot delete a listing with open, active, or recently fulfilled orders inside the case window/);
     assert.doesNotMatch(handbook, /within 90 days/);
     assert.match(handbook, /within the 30-day case window after/);

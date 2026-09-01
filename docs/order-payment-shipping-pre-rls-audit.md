@@ -39,8 +39,8 @@ The exact baseline is:
 
 | Model | Direct-access source files |
 |---|---:|
-| `Order` | 40 |
-| `OrderItem` | 12 |
+| `Order` | 35 |
+| `OrderItem` | 9 |
 | `OrderShippingRateQuote` | 2 |
 | `OrderPaymentEvent` | 2 |
 | `SellerPayoutEvent` | 3 |
@@ -54,10 +54,12 @@ through fixed source-bound authorities or database-maintained `Order`
 projections. The two remaining matches are the intentionally retained fixed
 refund-authority helpers in `orderRefundFinalization.ts` and
 `orderRefundRecordAuthority.ts`; neither grants generic table lookup or write
-authority. The separate 34-file semantic inventory remains authoritative for
+authority. The separate 35-file semantic inventory remains authoritative for
 nested projections, event-identity helpers, fixed Case/Notification functions,
 cron and provider side effects, so this smaller direct-access floor cannot hide
-semantic consumers.
+semantic consumers. It includes the converted application callsites and
+`src/lib/orderEligibilityAuthority.ts`; the direct-access floor no longer counts
+the five consumers routed through its four source-bound functions.
 
 The isolated SellerPayoutEvent and completed CheckoutStockReservation
 conversions now have zero direct delegates under `src`; the table above

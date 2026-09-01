@@ -19,8 +19,6 @@ describe("seller analytics refund guardrails", () => {
     for (const path of [
       "src/app/api/seller/analytics/route.ts",
       "src/lib/metrics.ts",
-      "src/app/api/verification/apply/route.ts",
-      "src/app/dashboard/verification/page.tsx",
       "src/app/admin/verification/page.tsx",
       "src/lib/site-metrics-snapshot.ts",
       "src/lib/quality-score.ts",
@@ -101,11 +99,20 @@ describe("seller analytics refund guardrails", () => {
       /'amountCents', locked_claim\."refundAmountCents"/,
     );
 
-    for (const text of [verificationApplyRoute, dashboardVerification, adminVerification]) {
+    for (const text of [adminVerification]) {
       assert.match(text, /o\."sellerRefundId" IS NULL/);
       assert.match(text, /o\."paymentRefundBlocked" = false/);
       assert.doesNotMatch(text, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
     }
+    for (const text of [verificationApplyRoute, dashboardVerification]) {
+      assert.match(text, /getSellerVerificationOrderSales/);
+      assert.doesNotMatch(text, /(?:FROM|JOIN)\s+"Order"/);
+    }
+    const eligibility = source(
+      "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
+    );
+    assert.match(eligibility, /source_order\."sellerRefundId" IS NULL/);
+    assert.match(eligibility, /source_order\."paymentRefundBlocked" = false/);
   });
 
   it("orders seller refund and blocked-checkout dispute guards by Stripe event time", () => {

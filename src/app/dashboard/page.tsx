@@ -126,7 +126,7 @@ async function deleteListing(
 
   // Archive: preserve order history, remove current shopping intent records.
   try {
-    await softDeleteListingWithCleanup(listingId);
+    await softDeleteListingWithCleanup(listingId, me.id);
   } catch (err) {
     logServerError(err, {
       source: "seller_listing_archive",

@@ -24,8 +24,8 @@ import {
 import { normalizePublicHttpsUrl } from "@/lib/urlValidation";
 import { formatCurrencyCents } from "@/lib/money";
 import type { Metadata } from "next";
-import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
 import { getCaseSellerVerificationEligibility } from "@/lib/caseSellerAggregateAuthority";
+import { getSellerVerificationOrderSales } from "@/lib/orderEligibilityAuthority";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -55,18 +55,17 @@ async function getGuildMemberEligibility({
   sellerUserId: string;
   accountCreatedAt: Date | null | undefined;
 }) {
-  const [listingCount, salesRows, caseCount] = await Promise.all([
+  const [listingCount, totalSalesCents, caseCount] = await Promise.all([
     prisma.listing.count({ where: { sellerId: sellerProfileId, status: "ACTIVE", isPrivate: false } }),
-    prisma.$queryRaw<Array<{ totalSalesCents: bigint | null }>>`
-      SELECT COALESCE(SUM(oi."priceCents" * oi.quantity), 0)::bigint AS "totalSalesCents"
-      FROM "OrderItem" oi
-      JOIN "Order" o ON o.id = oi."orderId"
-      WHERE o."sellerProfileId" = ${sellerProfileId}
-        ${PAID_STRIPE_ORDER_SQL}
-        AND o."fulfillmentStatus" IN ('DELIVERED', 'PICKED_UP')
-        AND o."sellerRefundId" IS NULL
-        AND o."paymentRefundBlocked" = false
-    `,
+    getSellerVerificationOrderSales({
+      actorUserId: sellerUserId,
+      sellerProfileId,
+    }).then((result) => {
+      if (result == null) {
+        throw new Error("Order seller verification authority denied seller access");
+      }
+      return result;
+    }),
     getCaseSellerVerificationEligibility({
       actorUserId: sellerUserId,
       sellerProfileId,
@@ -78,7 +77,6 @@ async function getGuildMemberEligibility({
     }),
   ]);
 
-  const totalSalesCents = Number(salesRows[0]?.totalSalesCents ?? 0);
   const accountAgeDays = accountCreatedAt
     ? Math.floor((Date.now() - new Date(accountCreatedAt).getTime()) / (1000 * 60 * 60 * 24))
     : 0;

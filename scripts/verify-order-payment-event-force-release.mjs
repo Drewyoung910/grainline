@@ -25,6 +25,7 @@ import {
   verifyOrderPaymentEventActivationRelease,
 } from "./verify-order-payment-event-activation-release.mjs";
 import {
+  ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
   ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
@@ -93,6 +94,7 @@ export function verifyOrderPaymentEventForceRelease(
           ORDER_PARTICIPANT_DETAIL_AUTHORITY_MIGRATION,
           ORDER_STAFF_READ_AUTHORITY_MIGRATION,
           ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
+          ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
         ]
       : [],
   });

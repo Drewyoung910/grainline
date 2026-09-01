@@ -2366,6 +2366,17 @@ and exclude raw shipping-quote/provider retry material. Export derived refund
 state and amount; keep user-facing refund event history in the separately
 protected OrderPaymentEvent export rather than disclosing provider refund IDs.
 
+### Core Order eligibility authority decision (2026-08-31)
+
+Review eligibility, Order-report access, maker-verification sales and listing
+archive blocking must remain distinct fixed operations, not a generic Order
+repository. Bind every operation to the authenticated participant inside
+PostgreSQL; return only the required boolean, aggregate cents or one review
+source pair. Keep the review function volatile and lock the parent Order in the
+same transaction as review creation. Keep seller-private analytics, public
+aggregates and maintenance scoring in later separate authority families. See
+`docs/order-eligibility-authority.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

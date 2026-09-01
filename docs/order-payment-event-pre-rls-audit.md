@@ -248,9 +248,12 @@ then found that the inventory matcher did not include the shared
 silently omitted six genuine aggregate consumers. The transition audit then
 found one additional transitive semantic consumer,
 `src/lib/orderRefundFinalization.ts`, through its local-evidence event identity.
-The corrected semantic inventory is 34 files. This inventory is intentionally broader than the older
-seven-file direct-access floor; semantic wrapper references remain after their
-underlying base-table access is removed.
+The corrected pre-activation semantic inventory was 34 files. The 2026-09-01
+Order eligibility-authority successor adds one shared authority hub while
+retaining every converted callsite, so the current inventory is 35 files. This
+inventory is intentionally broader than the older seven-file direct-access
+floor; semantic wrapper references remain after their underlying base-table
+access is removed.
 
 ### Participant and staff projections
 
@@ -280,6 +283,7 @@ underlying base-table access is removed.
 - `src/lib/homepageStats.ts`
 - `src/lib/listingSoftDelete.ts`
 - `src/lib/metrics.ts`
+- `src/lib/orderEligibilityAuthority.ts`
 - `src/lib/publicSellerStats.ts`
 - `src/lib/quality-score.ts`
 - `src/lib/site-metrics-snapshot.ts`
@@ -326,8 +330,10 @@ The subsequent aggregate-authority candidate converts every file in the
 `Order.paymentRefundBlocked` and, where required,
 `Order.paymentConversionDisputeBlocked`. Database triggers derive and guard
 both facts from the immutable ledger; ordinary runtime receives no projection
-function execution. The semantic inventory deliberately remains 34 files even
-though this group no longer enumerates base rows. See
+function execution. The semantic inventory deliberately remained 34 files at
+that checkpoint even though this group no longer enumerated base rows. The
+later eligibility successor raises it to 35 by recording its fixed authority
+hub rather than dropping converted consumers. See
 `docs/order-payment-event-aggregate-authority.md`.
 
 ## Findings and required disposition
@@ -765,8 +771,9 @@ failed-attempt chronology, correction rationale and cleanup certificate.
 The table is complete only when all of the following are durable:
 
 - all findings above have an accepted disposition;
-- the 34-source semantic baseline converts to zero runtime base-table access
-  while retaining all 34 sources in the semantic inventory;
+- the historical 34-source semantic baseline converts to zero runtime
+  base-table access while the current 35-file inventory also retains the fixed
+  Order eligibility-authority hub;
 - fresh production data is classified with aggregate-only evidence;
 - buyer/seller/staff/service boundaries pass disposable PostgreSQL;
 - signed Stripe and local refund paths pass retry/concurrency proof;

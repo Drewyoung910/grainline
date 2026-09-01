@@ -185,7 +185,7 @@ export async function deleteListingAction(listingId: string) {
   if (blockReason) return { ok: false, error: blockReason };
   // Soft delete: preserve order history, remove current shopping intent records.
   try {
-    await softDeleteListingWithCleanup(listingId);
+    await softDeleteListingWithCleanup(listingId, listing.seller.userId);
   } catch (error) {
     return {
       ok: false,

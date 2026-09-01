@@ -2275,6 +2275,40 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Compatible Order eligibility operations return only actor-bound booleans,
+-- aggregate cents, or the one locked review source pair. Keep PUBLIC closed
+-- and converge ordinary-runtime EXECUTE while predecessor table grants remain.
+WITH order_eligibility_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_review_eligibility_lock"(text, text, bigint)'),
+    ('public."grainline_order_report_target_access"(text, text, text)'),
+    ('public."grainline_order_seller_verification_sales"(text, text)'),
+    ('public."grainline_listing_order_archive_blocked"(text, text, bigint)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_eligibility_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_eligibility_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_review_eligibility_lock"(text, text, bigint)'),
+    ('public."grainline_order_report_target_access"(text, text, text)'),
+    ('public."grainline_order_seller_verification_sales"(text, text)'),
+    ('public."grainline_listing_order_archive_blocked"(text, text, bigint)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_eligibility_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 WITH order_participant_export_authority(function_signature) AS (
   VALUES
     ('public."grainline_order_buyer_export_page"(text, integer, bigint, text)'),

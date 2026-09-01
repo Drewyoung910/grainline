@@ -27,6 +27,12 @@ export const ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION_SHA256 =
   "0afda9317f3b81c7869aa4d0ca7bb4c261d0017c533d808b1411b310c30c6619";
 export const ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION_TREE_SHA256 =
   "c697eff5672fa8a1302e8767417fc44aa3f4608db5578b4bb287032ea635bd3a";
+export const ORDER_ELIGIBILITY_AUTHORITY_MIGRATION =
+  "20260901040000_prepare_order_eligibility_authority";
+export const ORDER_ELIGIBILITY_AUTHORITY_MIGRATION_SHA256 =
+  "fad09e052f6d6c840bc928bdc46c8a9f39169b4cf3b0ed4f2e66e8c0616374f2";
+export const ORDER_ELIGIBILITY_AUTHORITY_MIGRATION_TREE_SHA256 =
+  "c0122c1a9438646ba7302960cc324c3422ef23372d90a6e323dc3820ac2415c2";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_count(text)",
@@ -45,6 +51,12 @@ export const ORDER_STAFF_READ_AUTHORITY_FUNCTIONS = Object.freeze([
 export const ORDER_PARTICIPANT_EXPORT_AUTHORITY_FUNCTIONS = Object.freeze([
   "grainline_order_buyer_export_page(text,integer,bigint,text)",
   "grainline_order_seller_export_page(text,integer,bigint,text)",
+]);
+export const ORDER_ELIGIBILITY_AUTHORITY_FUNCTIONS = Object.freeze([
+  "grainline_order_review_eligibility_lock(text,text,bigint)",
+  "grainline_order_report_target_access(text,text,text)",
+  "grainline_order_seller_verification_sales(text,text)",
+  "grainline_listing_order_archive_blocked(text,text,bigint)",
 ]);
 
 function sha256(value) {
@@ -127,6 +139,25 @@ export function verifyOrderParticipantExportAuthorityMigrationBytes(
   return Object.freeze({ migration, migrationSha256 });
 }
 
+export function verifyOrderEligibilityAuthorityMigrationBytes(
+  root = process.cwd(),
+) {
+  const migrationPath = path.join(
+    root,
+    "prisma/migrations",
+    ORDER_ELIGIBILITY_AUTHORITY_MIGRATION,
+    "migration.sql",
+  );
+  const migration = readFileSync(migrationPath, "utf8");
+  const migrationSha256 = sha256(migration);
+  assert.equal(
+    migrationSha256,
+    ORDER_ELIGIBILITY_AUTHORITY_MIGRATION_SHA256,
+    "Order eligibility-authority migration bytes drifted",
+  );
+  return Object.freeze({ migration, migrationSha256 });
+}
+
 export function appendReviewedOrderParticipantListAuthoritySuccessor({
   root = process.cwd(),
   laterMigrations,
@@ -164,6 +195,15 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderParticipantExportAuthorityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION);
+  }
+  if (laterMigrations.includes(ORDER_ELIGIBILITY_AUTHORITY_MIGRATION)) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_PARTICIPANT_EXPORT_AUTHORITY_MIGRATION,
+      "Order eligibility authority requires the exact export-authority predecessor",
+    );
+    verifyOrderEligibilityAuthorityMigrationBytes(root);
+    reviewedSuccessors.push(ORDER_ELIGIBILITY_AUTHORITY_MIGRATION);
   }
   return true;
 }

@@ -10,13 +10,18 @@ describe("guild and listing-edit audit follow-ups", () => {
   it("keeps dashboard Guild eligibility aligned with the application API", () => {
     const dashboard = source("src/app/dashboard/verification/page.tsx");
     const applyRoute = source("src/app/api/verification/apply/route.ts");
+    const eligibilityAuthority = source(
+      "prisma/migrations/20260901040000_prepare_order_eligibility_authority/migration.sql",
+    );
 
     assert.match(dashboard, /status: "ACTIVE", isPrivate: false/);
     assert.match(applyRoute, /status: "ACTIVE", isPrivate: false/);
     assert.match(applyRoute, /safeRateLimit\(verificationApplyRatelimit, me\.id\)/);
     assert.match(applyRoute, /rateLimitResponse\(reset, "Too many verification applications\."\)/);
-    assert.match(applyRoute, /o\."sellerRefundId" IS NULL/);
-    assert.match(applyRoute, /o\."paymentRefundBlocked" = false/);
+    assert.match(applyRoute, /getSellerVerificationOrderSales/);
+    assert.match(dashboard, /getSellerVerificationOrderSales/);
+    assert.match(eligibilityAuthority, /source_order\."sellerRefundId" IS NULL/);
+    assert.match(eligibilityAuthority, /source_order\."paymentRefundBlocked" = false/);
     assert.doesNotMatch(applyRoute, /BLOCKING_REFUND_LEDGER_SQL|OrderPaymentEvent/);
     assert.match(dashboard, /normalizePublicHttpsUrl\(portfolioRaw\)/);
     assert.match(applyRoute, /normalizePublicHttpsUrl\(verParsed\.portfolioUrl\)/);

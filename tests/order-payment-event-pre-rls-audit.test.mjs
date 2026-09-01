@@ -25,7 +25,7 @@ function sourceFiles(root = "src") {
 
 function paymentSemanticFiles() {
   const reference =
-    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|localRefundEvidence|BLOCKING_REFUND_LEDGER_SQL|paymentRefundBlocked|paymentOpenDisputeBlocked|paymentConversionDisputeBlocked/;
+    /orderPaymentEvent|paymentEvents|OrderPaymentEvent|localRefundEvidence|BLOCKING_REFUND_LEDGER_SQL|paymentRefundBlocked|paymentOpenDisputeBlocked|paymentConversionDisputeBlocked|lockReviewEligibleOrderItem|getSellerVerificationOrderSales|getListingOrderArchiveBlocked/;
   return sourceFiles().filter((file) => reference.test(fs.readFileSync(file, "utf8")));
 }
 
@@ -58,6 +58,7 @@ const expectedSemanticFiles = [
   "src/lib/metrics.ts",
   "src/lib/orderPaymentEventLabels.ts",
   "src/lib/orderPaymentEventReadAuthority.ts",
+  "src/lib/orderEligibilityAuthority.ts",
   "src/lib/orderRefundFinalization.ts",
   "src/lib/publicSellerStats.ts",
   "src/lib/quality-score.ts",
@@ -68,7 +69,7 @@ const expectedSemanticFiles = [
 
 describe("OrderPaymentEvent pre-RLS domain audit", () => {
   it("pins every current semantic source reference", () => {
-    assert.equal(expectedSemanticFiles.length, 34);
+    assert.equal(expectedSemanticFiles.length, 35);
     assert.deepEqual(paymentSemanticFiles(), expectedSemanticFiles);
     for (const file of expectedSemanticFiles) {
       assert.match(audit, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

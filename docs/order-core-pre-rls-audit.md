@@ -122,7 +122,7 @@ The fixed detail projections must accept the authenticated actor, bind buyer or
 durable seller authority in the SQL predicate, and return no row for another
 actor. Direct base-table `SELECT` must then be revoked.
 
-### ORD-A05: 40 source files still touch Order authority directly
+### ORD-A05: 35 source files still touch Order authority directly
 
 The exact current inventory is pinned below. Activation cannot proceed while
 ordinary runtime code can still use these base-table paths. Each file needs one
@@ -159,14 +159,9 @@ Participant/service mutation routes:
 
 Eligibility, analytics and aggregate readers:
 
-- `src/app/api/reviews/route.ts`
 - `src/app/api/seller/analytics/recent-sales/route.ts`
 - `src/app/api/seller/analytics/route.ts`
-- `src/app/api/users/[id]/report/route.ts`
-- `src/app/api/verification/apply/route.ts`
-- `src/app/dashboard/verification/page.tsx`
 - `src/lib/homepageStats.ts`
-- `src/lib/listingSoftDelete.ts`
 - `src/lib/metrics.ts`
 - `src/lib/publicSellerStats.ts`
 - `src/lib/quality-score.ts`
@@ -231,6 +226,15 @@ some cases Listing. These consumers need counts or bounded outcomes, not Order
 rows. Create named aggregate/eligibility functions with fixed return shapes,
 durable seller predicates and explicit paid/refund/dispute rules. They must not
 restore base-table `SELECT` merely to keep a dashboard query working.
+
+2026-08-31 implementation checkpoint: the isolated
+`20260901040000_prepare_order_eligibility_authority` candidate converts review
+eligibility, Order-report target access, seller verification sales and
+listing-archive blocking to four fixed actor-bound functions. Review creation
+retains the parent-Order lock; the other operations return only a boolean or
+aggregate cents. Five source files leave the direct Order inventory, reducing
+it from 40 to 35. Seller-private analytics, public aggregates and maintenance
+scoring remain separate named-operation work; no production state changed.
 
 ### ORD-A09: write conversion must preserve lock and provider semantics
 

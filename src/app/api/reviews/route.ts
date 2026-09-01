@@ -20,7 +20,7 @@ import { filterVerifiedFirstPartyMediaUrlsForUser } from "@/lib/uploadPersistenc
 import { syncReviewDirectUploadReferences } from "@/lib/directUploadLifecycle";
 import { refreshSellerRatingSummary } from "@/lib/sellerRatingSummary";
 import { publicListingPath } from "@/lib/publicPaths";
-import { PAID_STRIPE_ORDER_SQL } from "@/lib/orderTrust";
+import { lockReviewEligibleOrderItem } from "@/lib/orderEligibilityAuthority";
 import { revalidateFeaturedMakerCaches } from "@/lib/searchCache";
 import { sanitizeEmailOutboxError } from "@/lib/emailOutboxSanitize";
 import {
@@ -148,27 +148,10 @@ export async function POST(req: NextRequest) {
   let created;
   try {
     created = await prisma.$transaction(async (tx) => {
-      const [eligibleOrderItem] = await tx.$queryRaw<
-        Array<{ orderItemId: string; sellerProfileId: string }>
-      >`
-        SELECT oi.id AS "orderItemId", oi."sellerProfileId" AS "sellerProfileId"
-          FROM "OrderItem" AS oi
-          JOIN "Order" AS o ON o.id = oi."orderId"
-         WHERE oi."listingId" = ${listingId}
-           AND oi."sellerProfileId" IS NOT NULL
-           AND o."buyerId" = ${me.id}
-           AND o."createdAt" >= ${since}
-           AND o."fulfillmentStatus" IN (
-             'DELIVERED'::"FulfillmentStatus",
-             'PICKED_UP'::"FulfillmentStatus"
-           )
-           AND o."sellerRefundId" IS NULL
-           AND o."paymentRefundBlocked" = false
-           ${PAID_STRIPE_ORDER_SQL}
-         ORDER BY o."createdAt" DESC, oi.id DESC
-         LIMIT 1
-         FOR UPDATE OF o
-      `;
+      const eligibleOrderItem = await lockReviewEligibleOrderItem(
+        { actorUserId: me.id, listingId, since },
+        tx,
+      );
       if (!eligibleOrderItem) return null;
 
       const r = await tx.review.create({
