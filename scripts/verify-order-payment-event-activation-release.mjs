@@ -26,10 +26,16 @@ import {
 import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
 } from "./stage-order-payment-event-force-migration.mjs";
+import {
+  ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+} from "./order-participant-list-authority-catalog.mjs";
 
 export function verifyOrderPaymentEventActivationRelease(
   rootDirectory = process.cwd(),
-  { allowReviewedForceSuccessor = false } = {},
+  {
+    allowReviewedForceSuccessor = false,
+    allowReviewedOrderParticipantListSuccessor = false,
+  } = {},
 ) {
   verifyOrderPaymentEventTransitionAuthorityMigrationBytes(rootDirectory);
   const zeroDirect = verifyOrderPaymentEventZeroDirectAccess(rootDirectory);
@@ -101,9 +107,12 @@ export function verifyOrderPaymentEventActivationRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,
     rootDirectory,
-    omittedReviewedMigrationNames: allowReviewedForceSuccessor
-      ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION]
-      : [],
+    omittedReviewedMigrationNames: [
+      ...(allowReviewedForceSuccessor ? [ORDER_PAYMENT_EVENT_FORCE_MIGRATION] : []),
+      ...(allowReviewedOrderParticipantListSuccessor
+        ? [ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION]
+        : []),
+    ],
   });
   return Object.freeze({
     phase: ORDER_PAYMENT_EVENT_ACTIVATION_PHASE,

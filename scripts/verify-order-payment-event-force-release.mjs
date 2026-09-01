@@ -24,6 +24,9 @@ import {
 import {
   verifyOrderPaymentEventActivationRelease,
 } from "./verify-order-payment-event-activation-release.mjs";
+import {
+  ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION,
+} from "./order-participant-list-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_FORCE_PHASE =
   "order-payment-event-force-reviewed";
@@ -39,9 +42,11 @@ function migrationPrefix(rootDirectory, finalMigration) {
 
 export function verifyOrderPaymentEventForceRelease(
   rootDirectory = process.cwd(),
+  { allowReviewedOrderParticipantListSuccessor = false } = {},
 ) {
   const activation = verifyOrderPaymentEventActivationRelease(rootDirectory, {
     allowReviewedForceSuccessor: true,
+    allowReviewedOrderParticipantListSuccessor,
   });
   if (
     activation.migration !== ORDER_PAYMENT_EVENT_ACTIVATION_MIGRATION
@@ -79,6 +84,9 @@ export function verifyOrderPaymentEventForceRelease(
   const guard = validateCurrentSavedSearchRlsDeployShape({
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,
     rootDirectory,
+    omittedReviewedMigrationNames: allowReviewedOrderParticipantListSuccessor
+      ? [ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION]
+      : [],
   });
   return Object.freeze({
     phase: ORDER_PAYMENT_EVENT_FORCE_PHASE,

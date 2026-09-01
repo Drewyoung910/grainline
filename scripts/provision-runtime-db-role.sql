@@ -2135,6 +2135,56 @@ SELECT format(
  WHERE to_regprocedure(function_signature) IS NOT NULL;
 \gexec
 
+-- Compatible Order participant-list authority. These fixed actor-bound
+-- projections are additive before Order RLS activation and remain the only
+-- intended runtime list/count surface after direct Order reads are retired.
+WITH order_participant_list_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_count"(text)'),
+    ('public."grainline_order_buyer_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_count"(text)'),
+    ('public."grainline_order_seller_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM PUBLIC',
+  function_signature
+)
+  FROM order_participant_list_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_list_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_count"(text)'),
+    ('public."grainline_order_buyer_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_count"(text)'),
+    ('public."grainline_order_seller_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'REVOKE ALL ON FUNCTION %s FROM %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_list_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
+WITH order_participant_list_authority(function_signature) AS (
+  VALUES
+    ('public."grainline_order_buyer_count"(text)'),
+    ('public."grainline_order_buyer_page"(text, integer, bigint, text)'),
+    ('public."grainline_order_seller_count"(text)'),
+    ('public."grainline_order_seller_page"(text, integer, bigint, text)')
+)
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION %s TO %I',
+  function_signature,
+  :'runtime_role'
+)
+  FROM order_participant_list_authority
+ WHERE to_regprocedure(function_signature) IS NOT NULL;
+\gexec
+
 -- OrderPaymentEvent becomes a policyless service ledger at Phase A. The bulk
 -- predecessor grant and the two legacy compatibility entry points above are
 -- intentional only while RLS is off. If provisioning is rerun after ENABLE,

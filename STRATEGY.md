@@ -2319,6 +2319,18 @@ state machine remain explicit later gates; do not hide them inside this UI
 compatibility change. See `docs/order-core-pre-rls-audit.md` and
 `docs/order-core-history-compatibility.md`.
 
+### Core Order participant list authority decision (2026-08-31)
+
+The first fixed-operation slice is buyer/seller Order counts and keyset list
+pages. The four additive SECURITY DEFINER projections bind the actor inside
+PostgreSQL, route seller rows through the durable Order seller key, cap pages
+at 100, expose fixed columns and cross timestamps as UTC epoch milliseconds.
+They deliberately exclude Order items, addresses, provider identifiers,
+staff-review bodies and seller-note bodies. Detail, staff, export, aggregate
+and write families remain in the same continuous Order program; this slice is
+not permission to stop after list conversion. See
+`docs/order-participant-list-authority.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single

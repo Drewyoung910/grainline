@@ -24,6 +24,9 @@ import {
   ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
   verifyOrderPaymentEventForceMigrationBytes,
 } from "./stage-order-payment-event-force-migration.mjs";
+import {
+  appendReviewedOrderParticipantListAuthoritySuccessor,
+} from "./order-participant-list-authority-catalog.mjs";
 
 export const ORDER_PAYMENT_EVENT_TRANSITION_AUTHORITY_PHASE =
   "order-payment-event-transition-authority-reviewed";
@@ -58,6 +61,12 @@ export function verifyOrderPaymentEventTransitionAuthorityRelease(
     verifyOrderPaymentEventForceMigrationBytes(root);
     reviewedSuccessors.push(ORDER_PAYMENT_EVENT_FORCE_MIGRATION);
   }
+  appendReviewedOrderParticipantListAuthoritySuccessor({
+    root,
+    laterMigrations,
+    reviewedSuccessors,
+    expectedPredecessor: ORDER_PAYMENT_EVENT_FORCE_MIGRATION,
+  });
   assert.deepEqual(
     laterMigrations,
     reviewedSuccessors,

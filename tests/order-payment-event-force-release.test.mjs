@@ -28,7 +28,13 @@ const rollback = fs.readFileSync(
 
 test("FORCE release is one exact posture-only successor", () => {
   const candidate = buildOrderPaymentEventForceCandidate();
-  const release = verifyOrderPaymentEventForceRelease();
+  assert.throws(
+    () => verifyOrderPaymentEventForceRelease(),
+    /latest migration|review/u,
+  );
+  const release = verifyOrderPaymentEventForceRelease(process.cwd(), {
+    allowReviewedOrderParticipantListSuccessor: true,
+  });
   assert.equal(release.phase, ORDER_PAYMENT_EVENT_FORCE_PHASE);
   assert.equal(release.migration, ORDER_PAYMENT_EVENT_FORCE_MIGRATION);
   assert.equal(candidate.migrationSha256, ORDER_PAYMENT_EVENT_FORCE_MIGRATION_SHA256);

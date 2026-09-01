@@ -457,10 +457,15 @@ export function assertOrderPaymentEventActivationRuntimeCatalog(
     root = process.cwd(),
   } = {},
 ) {
-  if (expectedForce) verifyOrderPaymentEventForceRelease(root);
+  if (expectedForce) {
+    verifyOrderPaymentEventForceRelease(root, {
+      allowReviewedOrderParticipantListSuccessor: true,
+    });
+  }
   else {
     verifyOrderPaymentEventActivationRelease(root, {
       allowReviewedForceSuccessor: true,
+      allowReviewedOrderParticipantListSuccessor: true,
     });
   }
   const table = snapshot?.table;

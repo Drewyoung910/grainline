@@ -66,7 +66,9 @@ export function parseOrderPaymentEventForceScopeEnvironment(
 export function readOrderPaymentEventForceMigrationCatalog(
   root = process.cwd(),
 ) {
-  const release = verifyOrderPaymentEventForceRelease(root);
+  const release = verifyOrderPaymentEventForceRelease(root, {
+    allowReviewedOrderParticipantListSuccessor: true,
+  });
   const forcePrefix = readSellerPayoutEventForceSealedPrefixCatalog(root);
   const catalog = [
     ...forcePrefix,
