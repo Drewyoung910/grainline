@@ -143,6 +143,14 @@ test("Case invariant proof exercises the high-risk rejection paths", () => {
     /if \(posture\.forced_count === 3\) \{[\s\S]*?forceRollbackBody[\s\S]*?activationRollbackBody[\s\S]*?else if \(posture\.enabled_count === 3\)[\s\S]*?activationRollbackBody/,
   );
   assert.match(proof, /disabled_count: 3/);
+  assert.match(
+    proof,
+    /if \(restoreRetiredHelperGrant\) \{[\s\S]*?GRANT EXECUTE ON FUNCTION[\s\S]*?grainline_case_seller_refund_apply\(text, text\)[\s\S]*?TO grainline_app_runtime/,
+  );
+  assert.match(
+    proof,
+    /await client\.query\(activationRollbackBody\);[\s\S]*?if \(restoreRetiredHelperGrant\) \{[\s\S]*?REVOKE EXECUTE ON FUNCTION[\s\S]*?FROM grainline_app_runtime/,
+  );
 });
 
 test("Case invariant provider fixtures satisfy the current immutable ledger shape", () => {

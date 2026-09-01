@@ -2015,13 +2015,16 @@ async function provePolicylessActivation(
   `);
   const posture = initialPosture.rows[0];
   assert.equal(posture?.table_count, 3);
+  let restoreRetiredHelperGrant = false;
   if (posture.forced_count === 3) {
     await setConstraintsImmediate(client);
     await client.query(forceRollbackBody);
     await client.query(activationRollbackBody);
+    restoreRetiredHelperGrant = true;
   } else if (posture.enabled_count === 3) {
     await setConstraintsImmediate(client);
     await client.query(activationRollbackBody);
+    restoreRetiredHelperGrant = true;
   } else {
     assert.deepEqual(posture, {
       table_count: 3,
@@ -2029,6 +2032,16 @@ async function provePolicylessActivation(
       enabled_count: 0,
       disabled_count: 3,
     });
+  }
+  if (restoreRetiredHelperGrant) {
+    // OrderPaymentEvent Phase A later retired this entry point. The original
+    // Case Phase-A preflight correctly required its then-current grant, so a
+    // current-era replay must restore that one historical grant temporarily.
+    await client.query(`
+      GRANT EXECUTE ON FUNCTION
+        public.grainline_case_seller_refund_apply(text, text)
+        TO grainline_app_runtime
+    `);
   }
 
   await insertParticipantCase(
@@ -2220,6 +2233,13 @@ async function provePolicylessActivation(
   await client.query("RELEASE SAVEPOINT case_force_candidate");
 
   await client.query(activationRollbackBody);
+  if (restoreRetiredHelperGrant) {
+    await client.query(`
+      REVOKE EXECUTE ON FUNCTION
+        public.grainline_case_seller_refund_apply(text, text)
+        FROM grainline_app_runtime
+    `);
+  }
   const rolledBackCatalog = await client.query(`
     SELECT pg_catalog.count(*)::integer AS count
       FROM pg_catalog.pg_class AS class

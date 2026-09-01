@@ -192,3 +192,12 @@ ENABLE back to the pre-activation state before replaying Phase A. The original
 pre-activation invocation remains unchanged, while mixed or unknown posture
 still fails closed. The entire normalization is rolled back and cannot affect
 production.
+
+CI run `33567378660` reached the normalized historical Case activation
+preflight and reported 26 of the 27 original runtime function grants. The
+single absent grant was the same seller-refund helper that `OrderPaymentEvent`
+Phase A intentionally retired after Case activation. A current-era replay now
+restores only that exact historical EXECUTE grant after table-posture
+normalization, runs the original Case Phase-A and FORCE proofs, then revokes it
+again after the activation rollback. The historical pre-activation invocation
+does not use this compatibility branch. Production grants remain unchanged.
