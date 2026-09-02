@@ -293,3 +293,63 @@ Accepted Resend evidence:
 - status `passed`, `acceptanceEligible=true`, and `issueCount=0`;
 - replacement authenticated and original credential rejected; and
 - no secret-shaped credential value in the sanitized evidence.
+
+## Cron bearer family
+
+`CRON_SECRET` is the next application-generated credential family. Every cron
+route and the middleware use the shared timing-safe `verifyCronRequest()`
+boundary. That boundary already accepts `CRON_SECRET_PREVIOUS`, so recovery can
+preserve scheduled and in-flight requests while changing the current bearer.
+
+The production inventory changes the deployment-drain requirement. Vercel
+project `prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp` has deployment protection set to
+`all_except_custom_domains`. Historical generated deployment URLs therefore
+require Vercel SSO and are not publicly callable with the exposed cron bearer
+alone. They are not deleted as part of this credential family. The operator
+must fail if that protection posture changes, and a historical artifact may
+never be promoted as rollback: rollback requires rebuilding its Git source with
+the current credentials.
+
+The restart-safe operator is
+`scripts/cron-secret-credential-exposure-recovery.mjs`. It must:
+
+- bind a clean exact operator commit, successful exact-head CI, the clean
+  unchanged source `b22fa138d84bad792ba206ee00dacb48d475d4a4`, current READY
+  deployment `dpl_7DA9fNtQZV27smqAvSEJ6RrjtnC9`, and all three canonical
+  aliases;
+- pin the exact team-shared `encrypted` all-target `CRON_SECRET` record
+  `env_Z5Adun6D9lSNFwiy53ucs4GK` and require that no previous-secret record
+  already exists;
+- create one temporary shared `CRON_SECRET_PREVIOUS` containing the replacement
+  bearer while current remains old, then deploy and promote a bridge artifact
+  that accepts old plus new;
+- atomically converge the shared pair to current=new and previous=old, update
+  the GitHub repository secret and ignored local file, and compare only SHA-256
+  markers;
+- deploy and promote the unchanged source again with new plus old, proving on the
+  nonexistent `/api/cron/__credential-recovery-probe__` path that current and
+  previous bearers pass middleware to a 404 while a wrong bearer receives 401;
+- retain the dual deployment for 330 seconds, longer than the reviewed maximum
+  request duration, without blocking a process in a long sleep;
+- delete the temporary previous shared variable, remove the local previous
+  value, deploy and promote the unchanged source a third time, and prove current gives
+  404 while both old and wrong bearers give 401 on canonical Production;
+- restore the dual deployment automatically if the final authentication proof
+  fails after promotion;
+- verify homepage and health HTTP 200, reverify deployment protection and
+  alias/source identity, then emit mode-`0600` sanitized evidence and remove the
+  private journal; and
+- contain no migration, RLS, database, broad deployment-removal, raw-secret
+  output, or unrelated provider mutation surface.
+
+The 404/401 probe is deliberately side-effect-free: middleware authenticates
+the `/api/cron/*` namespace before routing, while the named probe route does not
+exist. It proves the bearer boundary without starting a cron run or touching a
+business table. A fresh full authenticated Order smoke remains deferred until
+all exposed credential families have been replaced.
+
+The bridge is intentional. Vercel documents that it sends the configured
+`CRON_SECRET` as the bearer for Production cron invocations and that environment
+changes require redeployment. A bridge artifact containing both values keeps
+scheduled calls valid whether the invocation service observes the deployed or
+newly configured current value during the cutover.
