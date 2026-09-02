@@ -444,12 +444,20 @@ function promoteReplacement(state) {
   normalizeAliasTargets(aliasTargets(), state.replacementDeploymentId);
 }
 
+export function normalizeRejectedCredential(error) {
+  const rejected = [401, 403].includes(error?.statusCode)
+    || (
+      error?.statusCode === 400
+      && error.name === "validation_error"
+      && error.message === "API key is invalid"
+    );
+  if (!rejected) throw new Error("superseded Resend API key still authenticates");
+  return true;
+}
+
 async function expectOldRejected(token) {
   const response = await new Resend(token).apiKeys.list({ limit: 1 });
-  if (!response?.error || ![401, 403].includes(response.error.statusCode)) {
-    throw new Error("superseded Resend API key still authenticates");
-  }
-  return true;
+  return normalizeRejectedCredential(response?.error);
 }
 
 async function liveRoutes() {

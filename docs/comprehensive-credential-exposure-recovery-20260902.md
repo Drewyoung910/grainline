@@ -248,3 +248,13 @@ the exact mode-`0600` `github-updated` journal from commit
 `4b703f9fd0cc7e8a94c745866b401a1ed781dd3f` / CI `33644395842`, after proving
 the journal's exact old and replacement keys still comprise the complete
 provider inventory.
+
+The exact replacement deployment was promoted on 2026-09-02 and the provider
+successfully revoked the original key, but the operator deliberately stopped
+before final evidence because Resend reports a revoked key as the exact response
+`400 validation_error: API key is invalid`; the initial proof admitted only
+HTTP 401 or 403. The replacement remains the sole provider key and authenticates,
+while the original returns that exact invalid-key response. The restart-safe
+correction accepts that one observed 400 tuple in addition to 401/403 and rejects
+every other 400 response, so it can complete evidence without creating another
+key, deployment, promotion, or revocation.

@@ -9,6 +9,7 @@ import {
   normalizeDeployment,
   normalizeJournalRebind,
   normalizeProviderInventory,
+  normalizeRejectedCredential,
   normalizeResolvedSecretSha256,
   normalizeVercelVariableInventory,
   sanitizedEvidence,
@@ -86,6 +87,23 @@ test("validates the one-time replacement credential response", () => {
     token: NEW_TOKEN,
   });
   assert.throws(() => normalizeCreatedKey({ data: { id: "replacement", token: "wrong" } }));
+});
+
+test("accepts only recognized revoked-key responses from Resend", () => {
+  assert.equal(normalizeRejectedCredential({ statusCode: 401 }), true);
+  assert.equal(normalizeRejectedCredential({ statusCode: 403 }), true);
+  assert.equal(normalizeRejectedCredential({
+    statusCode: 400,
+    name: "validation_error",
+    message: "API key is invalid",
+  }), true);
+  assert.throws(() => normalizeRejectedCredential(undefined));
+  assert.throws(() => normalizeRejectedCredential({ statusCode: 200 }));
+  assert.throws(() => normalizeRejectedCredential({
+    statusCode: 400,
+    name: "validation_error",
+    message: "another validation failure",
+  }));
 });
 
 test("extracts one marked Resend hash from Vercel CLI progress output", () => {
