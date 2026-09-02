@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-process.env.SHIPPING_RATE_SECRET = "test-shipping-rate-secret";
+const currentSecret = "test-shipping-rate-secret";
+process.env.SHIPPING_RATE_SECRET = currentSecret;
+delete process.env.SHIPPING_RATE_SECRET_PREVIOUS;
 
 const { shippingRateExpiresAtIsTooFarFuture, signRate, verifyRate } = await import("../src/lib/shipping-token.ts");
 
@@ -15,8 +18,28 @@ const fields = {
   estDays: 3,
   contextId: "seller_123",
   buyerId: "user_123",
+  buyerCity: "Austin",
+  buyerState: "TX",
   buyerPostal: "78701",
+  buyerCountry: "US",
 };
+
+function legacyToken(secret, value, expiresAt) {
+  const input = JSON.stringify([
+    value.objectId,
+    value.amountCents,
+    value.currency.toLowerCase(),
+    value.displayName,
+    value.carrier,
+    value.estDays,
+    value.contextId,
+    value.buyerId,
+    value.buyerPostal,
+    value.subjectHash ?? "",
+    expiresAt,
+  ]);
+  return createHmac("sha256", secret).update(input).digest("hex");
+}
 
 describe("shipping rate tokens", () => {
   it("verifies a token signed for the same buyer and rate fields", () => {
@@ -34,7 +57,7 @@ describe("shipping rate tokens", () => {
     );
   });
 
-  it("rejects tampered amount, currency, context, and postal-code fields", () => {
+  it("rejects tampered amount, currency, context, and destination fields", () => {
     const signed = signRate(fields, 60);
 
     assert.equal(
@@ -53,6 +76,73 @@ describe("shipping rate tokens", () => {
       verifyRate({ ...fields, buyerPostal: "10001" }, signed.token, signed.expiresAt).ok,
       false,
     );
+    assert.equal(
+      verifyRate({ ...fields, buyerCity: "Dallas" }, signed.token, signed.expiresAt).ok,
+      false,
+    );
+    assert.equal(
+      verifyRate({ ...fields, buyerState: "NY" }, signed.token, signed.expiresAt).ok,
+      false,
+    );
+    assert.equal(
+      verifyRate({ ...fields, buyerCountry: "CA" }, signed.token, signed.expiresAt).ok,
+      false,
+    );
+  });
+
+  it("normalizes non-semantic destination casing and whitespace", () => {
+    const signed = signRate(fields, 60);
+
+    assert.deepEqual(
+      verifyRate(
+        {
+          ...fields,
+          buyerCity: "  AUSTIN  ",
+          buyerState: "tx",
+          buyerPostal: "78701",
+          buyerCountry: "us",
+        },
+        signed.token,
+        signed.expiresAt,
+      ),
+      { ok: true },
+    );
+  });
+
+  it("accepts legacy v1 tokens only for the bounded compatibility window", () => {
+    const expiresAt = Math.floor(Date.now() / 1000) + 60;
+    const token = legacyToken(currentSecret, fields, expiresAt);
+
+    assert.deepEqual(verifyRate(fields, token, expiresAt), { ok: true });
+  });
+
+  it("accepts previous-secret v1 and v2 tokens only while the previous key is configured", () => {
+    const previousSecret = "previous-test-shipping-rate-secret";
+    const expiresAt = Math.floor(Date.now() / 1000) + 60;
+    const previousV1 = legacyToken(previousSecret, fields, expiresAt);
+
+    process.env.SHIPPING_RATE_SECRET_PREVIOUS = previousSecret;
+    assert.deepEqual(verifyRate(fields, previousV1, expiresAt), { ok: true });
+
+    process.env.SHIPPING_RATE_SECRET = previousSecret;
+    const previousV2 = signRate(fields, 60);
+    process.env.SHIPPING_RATE_SECRET = currentSecret;
+    assert.deepEqual(
+      verifyRate(fields, previousV2.token, previousV2.expiresAt),
+      { ok: true },
+    );
+
+    delete process.env.SHIPPING_RATE_SECRET_PREVIOUS;
+    assert.equal(verifyRate(fields, previousV1, expiresAt).ok, false);
+    assert.equal(verifyRate(fields, previousV2.token, previousV2.expiresAt).ok, false);
+  });
+
+  it("always signs with the current secret, never the previous secret", () => {
+    process.env.SHIPPING_RATE_SECRET_PREVIOUS = "previous-test-shipping-rate-secret";
+    const signed = signRate(fields, 60);
+    delete process.env.SHIPPING_RATE_SECRET_PREVIOUS;
+
+    assert.deepEqual(verifyRate(fields, signed.token, signed.expiresAt), { ok: true });
   });
 
   it("binds signed rates to the quoted cart or package subject", () => {
@@ -190,5 +280,44 @@ describe("shipping rate tokens", () => {
 
     assert.match(singleCheckout, /allowLocalPickup: true/);
     assert.match(sellerCheckout, /sellerItems\[0\]\.listing\.seller\.allowLocalPickup/);
+  });
+
+  it("binds quote and checkout validation to a supported US destination", () => {
+    const sellerCheckout = readFileSync("src/app/api/cart/checkout-seller/route.ts", "utf8");
+    const singleCheckout = readFileSync("src/app/api/cart/checkout/single/route.ts", "utf8");
+    const quoteRoute = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+
+    assert.match(quoteRoute, /Only US shipping addresses are supported/);
+    assert.match(quoteRoute, /toPostal: z\.string\(\)\.trim\(\)\.regex/);
+    assert.match(quoteRoute, /buyerCity: shipTo\.city/);
+    assert.match(quoteRoute, /buyerState: shipTo\.state/);
+    assert.match(quoteRoute, /buyerCountry: shipTo\.country/);
+
+    for (const source of [sellerCheckout, singleCheckout]) {
+      assert.match(source, /normalizeUsState\(value\) !== ""/);
+      assert.match(source, /buyerCity: shippingAddress\.city/);
+      assert.match(source, /buyerState: shippingAddress\.state/);
+      assert.match(source, /buyerCountry: "US"/);
+    }
+  });
+
+  it("returns the explicit pickup-only warning when Shippo fails", () => {
+    const quoteRoute = readFileSync("src/app/api/shipping/quote/route.ts", "utf8");
+    const catchBranch = quoteRoute.slice(
+      quoteRoute.indexOf('source: "shipping_quote_shippo_fallback"'),
+      quoteRoute.indexOf("let fallbackShippingCents", quoteRoute.indexOf('source: "shipping_quote_shippo_fallback"')),
+    );
+
+    assert.match(catchBranch, /sellerShippingPolicy\.configuredRate === null && sellerAllowsPickup/);
+    assert.match(catchBranch, /return pickupOnlyResponse/);
+  });
+
+  it("refreshes visible shipping rates before their signed tokens expire", () => {
+    const selector = readFileSync("src/components/ShippingRateSelector.tsx", "utf8");
+
+    assert.match(selector, /const earliestExpiry = Math\.min/);
+    assert.match(selector, /earliestExpiry - Math\.floor\(Date\.now\(\) \/ 1000\) - 60/);
+    assert.match(selector, /setRequestRevision\(\(revision\) => revision \+ 1\)/);
+    assert.match(selector, /if \(refreshTimer\) clearTimeout\(refreshTimer\)/);
   });
 });

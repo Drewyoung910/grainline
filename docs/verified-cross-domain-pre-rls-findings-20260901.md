@@ -138,6 +138,39 @@ imprecise for unusually large woodworking orders; replacing it with a
 fail-closed or category/package-aware policy is a separate product decision,
 not something to change silently inside the Order RLS release.
 
+### 2026-09-02 destination binding and expiry follow-up
+
+The credential-exposure recovery re-audited the signed-rate boundary before
+rotating `SHIPPING_RATE_SECRET`. The predecessor HMAC bound the buyer, exact
+rate, seller/listing context, postal code and package/price subject, but not the
+city, state or country used for the provider quote. A direct API caller could
+therefore request a quote under a different destination context sharing the
+same postal text and replay the still-valid rate at checkout. The public UI did
+not make this easy, but security must not depend on that UI.
+
+The corrected `shipping-rate-v2` input binds normalized city, valid US state,
+US ZIP and country as well as every predecessor field. Quote and both checkout
+routes derive and validate the same US destination; changing city, state,
+postal code or country now invalidates the token. Verification keeps the exact
+postal-only v1 shape for already-issued unexpired tokens and may accept one
+distinct `SHIPPING_RATE_SECRET_PREVIOUS` during a bounded rotation. Signing
+always uses the current secret. After a minimum 35-minute TTL/skew drain, the
+previous key must be removed and an exact-source deployment must prove old
+rejection.
+
+Two quote UX defects were corrected in the same narrow boundary. A provider
+exception that leaves pickup as the only option now returns the same explicit
+pickup-only warning as other paths. `ShippingRateSelector` refreshes rates one
+minute before the earliest token expires, avoiding a selected-but-stale quote
+on a checkout page left open longer than 30 minutes.
+
+The economic and packing limitations remain deliberate and visible: the
+bounded platform outage fallback can be imprecise for unusually large work,
+and multi-item quotes use the current one-parcel summed-weight/maximum-dimension
+heuristic rather than a packing engine. Seller label purchase still performs a
+fresh full-address quote before buying a label. Neither limitation justifies
+weakening signed-rate validation or delaying the secret containment work.
+
 ## Reviewer-claim verdicts
 
 | # | Verdict | Current classification | Required action |

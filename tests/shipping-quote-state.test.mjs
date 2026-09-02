@@ -233,7 +233,7 @@ describe("shipping quote state helpers", () => {
     assert.match(route, /if \(sellerAllowsPickup\) \{\s*return pickupOnlyResponse/s);
     assert.match(route, /No shipping rates matched this maker's carrier preferences\./);
     assert.match(route, /if \(out\.length === 0\) \{/);
-    assert.match(route, /out\.unshift\(pickupRate\(\{ currency, contextId, buyerId: me\.id, buyerPostal: shipTo\.postal, subjectHash \}\)\)/);
+    assert.match(route, /out\.unshift\(pickupRate\(\{ currency, contextId, buyerId: me\.id, subjectHash, \.\.\.signedDestination \}\)\)/);
   });
 
   it("keeps shipping quote provider fallback failures observable without raw console errors", () => {

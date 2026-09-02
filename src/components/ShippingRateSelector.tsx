@@ -70,6 +70,7 @@ export default function ShippingRateSelector({
 
   useEffect(() => {
     const ac = new AbortController();
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     async function fetchRates() {
       setLoading(true);
       setError(false);
@@ -118,6 +119,20 @@ export default function ShippingRateSelector({
           ? mapped.find((rate) => rate.objectId === previousSelection.objectId)
           : null;
         onSelect(matchingFreshRate ?? preferredAutomaticShippingRate(mapped));
+
+        // Refresh one minute before the first signed rate expires. A buyer can
+        // legitimately spend longer than 30 minutes reviewing a cart; do not
+        // leave a visibly selected but already-expired token waiting for the
+        // checkout route to reject it.
+        const earliestExpiry = Math.min(...mapped.map((rate) => rate.expiresAt));
+        const refreshDelayMs = Math.max(
+          1_000,
+          (earliestExpiry - Math.floor(Date.now() / 1000) - 60) * 1_000,
+        );
+        refreshTimer = setTimeout(
+          () => setRequestRevision((revision) => revision + 1),
+          refreshDelayMs,
+        );
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
         if ((e as Error).message) setErrorMessage((e as Error).message);
@@ -128,7 +143,10 @@ export default function ShippingRateSelector({
       }
     }
     fetchRates();
-    return () => ac.abort();
+    return () => {
+      ac.abort();
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sellerId, address.postalCode, address.state, address.city, quoteBodyStr, requestRevision]);
 
