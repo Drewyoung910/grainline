@@ -111,7 +111,7 @@ jobs:
             const value = JSON.parse(process.argv[1]);
             if (
               !["order-compatible", "case-corrected"].includes(value.state)
-              || value.orderMigrationCount !== 17
+              || value.orderMigrationCount !== 18
               || value.caseTableCount !== 3
               || value.caseRlsForced !== true
               || value.directRuntimeCrud !== false

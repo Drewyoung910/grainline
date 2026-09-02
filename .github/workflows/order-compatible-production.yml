@@ -119,8 +119,8 @@ jobs:
             if (
               !Number.isInteger(value.migrationPrefixLength)
               || value.migrationPrefixLength < 0
-              || value.migrationPrefixLength > 17
-              || value.migrationCount !== 17
+              || value.migrationPrefixLength > 18
+              || value.migrationCount !== 18
               || value.caseCorrectnessApplied !== false
             ) {
               throw new Error("invalid Order compatible restart state");
@@ -130,7 +130,7 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
       - name: Apply compatible Order authority stack
-        if: steps.scope.outputs.prefix != '17'
+        if: steps.scope.outputs.prefix != '18'
         run: npx prisma migrate deploy
         env:
           DIRECT_URL: ${{ secrets.PRODUCTION_MIGRATION_DIRECT_URL }}

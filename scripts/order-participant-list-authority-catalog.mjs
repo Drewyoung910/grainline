@@ -19,6 +19,10 @@ import {
   ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
   verifyOrderChargedTotalCompatibilityMigrationBytes,
 } from "./order-charged-total-compatibility-catalog.mjs";
+import {
+  ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
+  verifyOrderParticipantListProjectionCorrectionBytes,
+} from "./order-participant-list-projection-correction-catalog.mjs";
 
 export const ORDER_PARTICIPANT_LIST_AUTHORITY_MIGRATION =
   "20260831233000_prepare_order_participant_list_authority";
@@ -578,6 +582,21 @@ export function appendReviewedOrderParticipantListAuthoritySuccessor({
     );
     verifyOrderChargedTotalCompatibilityMigrationBytes(root);
     reviewedSuccessors.push(ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION);
+  }
+  if (
+    laterMigrations.includes(
+      ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
+    )
+  ) {
+    assert.equal(
+      reviewedSuccessors.at(-1),
+      ORDER_CHARGED_TOTAL_COMPATIBILITY_MIGRATION,
+      "Order participant list projection correction requires the exact charged-total predecessor",
+    );
+    verifyOrderParticipantListProjectionCorrectionBytes(root);
+    reviewedSuccessors.push(
+      ORDER_PARTICIPANT_LIST_PROJECTION_CORRECTION_MIGRATION,
+    );
   }
   return true;
 }

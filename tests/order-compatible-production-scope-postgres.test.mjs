@@ -20,7 +20,7 @@ test(
       migrationRole: "ci",
     });
     assert.equal(result.state, "order-compatible");
-    assert.equal(result.migrationPrefixLength, 17);
+    assert.equal(result.migrationPrefixLength, 18);
     assert.equal(result.predecessorRuntimeCrudRetained, true);
   },
 );

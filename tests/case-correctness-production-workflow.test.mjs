@@ -29,7 +29,7 @@ test("workflow requires the complete Order prefix and applies only Case", () => 
   );
   assert.equal((workflow.match(/npx prisma migrate deploy/gu) ?? []).length, 1);
   assert.match(workflow, /\["order-compatible", "case-corrected"\]/u);
-  assert.match(workflow, /value\.orderMigrationCount !== 17/u);
+  assert.match(workflow, /value\.orderMigrationCount !== 18/u);
   assert.match(workflow, /value\.caseRlsForced !== true/u);
   assert.match(workflow, /value\.directRuntimeCrud !== false/u);
   assert.match(workflow, /steps\.scope\.outputs\.state == 'order-compatible'/u);

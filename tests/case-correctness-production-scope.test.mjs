@@ -113,7 +113,7 @@ test("scope accepts exact restart and corrected states", async () => {
     "case-corrected",
   );
   const final = assertCaseCorrectnessProductionScope(snapshot(true), "after");
-  assert.equal(final.orderMigrationCount, 17);
+  assert.equal(final.orderMigrationCount, 18);
   assert.equal(final.directRuntimeCrud, false);
   const verified = await verifyCaseCorrectnessProductionScope(
     { directUrl: URL, stage: "after" },

@@ -95,6 +95,13 @@ jobs:
           mv
           prisma/migrations/20260901160000_correct_case_order_invariants
           "$RUNNER_TEMP/case-order-correctness-release"
+      - name: Verify Order participant list projection correction
+        run: npm run audit:order-participant-list-projection-correction
+      - name: Isolate Order participant list projection correction until charged total passes
+        run: >-
+          mv
+          prisma/migrations/20260901155000_correct_order_participant_list_projection
+          "$RUNNER_TEMP/order-participant-list-projection-correction"
       - name: Verify compatible Order charged-total witness
         run: npm run audit:order-charged-total-compatibility
       - name: Isolate Order charged-total witness until label authority passes
@@ -1270,6 +1277,11 @@ jobs:
           mv
           "$RUNNER_TEMP/order-charged-total-compatibility"
           prisma/migrations/20260901150000_prepare_order_charged_total
+      - name: Restore Order participant list projection correction
+        run: >-
+          mv
+          "$RUNNER_TEMP/order-participant-list-projection-correction"
+          prisma/migrations/20260901155000_correct_order_participant_list_projection
       - name: Re-verify compatible Order participant list authority release
         run: npm run audit:order-participant-list-authority-release
       - name: Re-verify compatible Order participant detail authority release
@@ -1302,6 +1314,8 @@ jobs:
         run: npm run audit:order-label-authority-release
       - name: Re-verify compatible Order charged-total witness
         run: npm run audit:order-charged-total-compatibility
+      - name: Re-verify Order participant list projection correction
+        run: npm run audit:order-participant-list-projection-correction
       - name: Apply compatible Order participant authority
         run: npx prisma migrate deploy
       - name: Converge Order participant runtime grants
@@ -1371,6 +1385,8 @@ jobs:
           tests/order-label-ambiguous-reconciliation-operator.test.mjs
           tests/order-payment-event-aggregate-authority-app.test.mjs
           tests/order-payment-event-transition-authority-app.test.mjs
+          tests/order-participant-list-projection-correction.test.mjs
+          tests/order-participant-list-projection-correction-postgres.test.mjs
       - name: Prove Order compatible production-scope query in disposable PostgreSQL
         run: node --test tests/order-compatible-production-scope-postgres.test.mjs
         env:

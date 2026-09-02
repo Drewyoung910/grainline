@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  ORDER_COMPATIBLE_PRODUCTION_CHARGED_TOTAL_PREFIX_LENGTH,
   ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS,
 } from "../scripts/order-compatible-production-catalog.mjs";
 import {
@@ -41,7 +42,8 @@ function snapshot(prefixLength) {
       runtime_can_delete: true,
       public_has_crud: false,
     },
-    chargedTotalColumns: prefixLength === ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.length
+    chargedTotalColumns:
+      prefixLength >= ORDER_COMPATIBLE_PRODUCTION_CHARGED_TOTAL_PREFIX_LENGTH
       ? [{
           column_name: "chargedTotalCents",
           data_type: "integer",
@@ -56,7 +58,8 @@ test("catalog is ordered, unique, and byte-pinned", () => {
   const names = ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(({ name }) => name);
   assert.deepEqual(names, [...names].sort());
   assert.equal(new Set(names).size, names.length);
-  assert.equal(names.length, 17);
+  assert.equal(names.length, 18);
+  assert.equal(ORDER_COMPATIBLE_PRODUCTION_CHARGED_TOTAL_PREFIX_LENGTH, 17);
   for (const migration of ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS) {
     const sql = readFileSync(
       `prisma/migrations/${migration.name}/migration.sql`,
@@ -124,7 +127,7 @@ test("ledger accepts every exact prefix and rejects drift", () => {
       ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS.map(applied),
       "after",
     ),
-    17,
+    18,
   );
   const gap = [
     applied(ORDER_COMPATIBLE_PRODUCTION_MIGRATIONS[0]),
@@ -165,19 +168,19 @@ test("scope accepts restart prefixes and exact final posture", async () => {
     assert.equal(result.orderRlsEnabled, false);
     assert.equal(result.predecessorRuntimeCrudRetained, true);
   }
-  const final = assertOrderCompatibleProductionScope(snapshot(17), "after");
+  const final = assertOrderCompatibleProductionScope(snapshot(18), "after");
   assert.equal(final.state, "order-compatible");
   const verified = await verifyOrderCompatibleProductionScope(
     { directUrl: URL, stage: "after" },
-    { readSnapshot: async () => snapshot(17) },
+    { readSnapshot: async () => snapshot(18) },
   );
-  assert.equal(verified.migrationCount, 17);
+  assert.equal(verified.migrationCount, 18);
 });
 
 test("scope rejects Order posture and charged-column drift", () => {
   const cases = [];
   const add = (mutate) => {
-    const value = snapshot(17);
+    const value = snapshot(18);
     mutate(value);
     cases.push(value);
   };

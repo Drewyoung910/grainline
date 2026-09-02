@@ -1,14 +1,15 @@
 # Order compatibility production release — 2026-09-01
 
-Status: isolated guarded-release packaging; not merged, dispatched, migrated or
-deployed.
+Status: the original 17-row compatibility prefix is applied in production;
+Order RLS remains off. A narrowly scoped 18th correction is isolated and not
+yet merged or applied. The separate Case correction remains unapplied.
 
 ## Why this is one Order stack and one separate Case correction
 
-The compatible Order program now has 17 ordered, additive migrations from
+The compatible Order program now has 18 ordered, additive migrations from
 `20260831233000_prepare_order_participant_list_authority` through
-`20260901150000_prepare_order_charged_total`. CI already replays them in order
-and proves each fixed-operation family. Splitting those 17 migrations into 17
+`20260901155000_correct_order_participant_list_projection`. CI replays them in
+order and proves each fixed-operation family. Splitting those 18 migrations into 18
 manual production releases would add operational failure surfaces without
 creating a stronger authority boundary. Applying them as an exact byte-pinned
 prefix is proportional because they all preserve `Order` RLS-off posture and
@@ -27,14 +28,14 @@ not be swept into the Order operation merely because it is lexically adjacent.
 - verifies the reviewed direct-owner credential through the shared production
   migration guard;
 - refuses any migration successor after the exact Case correction;
-- byte-verifies all 17 Order migrations and the isolated Case successor;
+- byte-verifies all 18 Order migrations and the isolated Case successor;
 - removes the Case successor from the runner tree before `migrate deploy`;
-- accepts only an exact zero-through-17 applied migration prefix with matching
+- accepts only an exact zero-through-18 applied migration prefix with matching
   checksums, one finished step, no rollback and no gaps;
 - proves `Order` remains RLS off, FORCE off, policyless, and retains predecessor
   runtime CRUD while PUBLIC CRUD stays absent;
-- proves `chargedTotalCents` is absent before its exact final prefix and is one
-  nullable, default-free integer column afterward;
+- proves `chargedTotalCents` is absent before prefix 17 and is one nullable,
+  default-free integer column at prefixes 17 and 18;
 - converges the reviewed runtime function grants, checks migration status while
   the Case successor is isolated, runs the global grant/RLS audit, and repeats
   the read-only final scope proof; and
@@ -51,7 +52,7 @@ Order RLS/grant drift, or charged-column drift fail closed before mutation.
 
 - has the same exact-main, successful-CI, protected-owner and concurrency gates;
 - refuses any successor after the Case correction;
-- requires all 17 Order compatibility rows to be fully and exactly applied;
+- requires all 18 Order compatibility rows to be fully and exactly applied;
 - accepts only an absent or exact applied Case-correction row on restart;
 - proves `Case`, `CaseMessage` and `CaseMessageAttachment` remain owned by the
   migration role with ENABLE plus FORCE, zero policies, and zero direct
@@ -92,8 +93,11 @@ retry paths must be exercised before predecessor drain and Order Phase A.
    passed migration status, the global grant/RLS audit and the final owner-side
    read-only scope proof. `Order` remains RLS off with predecessor CRUD.
 3. Run the distinct pooled-runtime read-only Order postflight. This is a hard
-   evidence boundary, not a repeat of the owner-side catalog check.
-4. Run the separate Case correction workflow from exact green `main`.
+   evidence boundary, not a repeat of the owner-side catalog check. Its first
+   real PostgreSQL run exposed a participant-list projection mismatch; apply
+   the exact 18th correction and rerun this proof before proceeding.
+4. Run the separate Case correction workflow from exact green `main` only
+   after the 18-row Order prefix and pooled-runtime proof are complete.
 5. Deploy the exact compatible application and verify aliases/health/source.
 6. Exercise authenticated buyer quote, seller label/re-quote, fulfillment,
    refund, Case replay and presentation smokes without live-mode purchases.
@@ -125,6 +129,20 @@ calls separately so the corrected run identifies the exact projection instead
 of reporting one compound-query error. Production was not touched by this CI
 failure.
 
+Corrected pull-request CI run `33582323698` localized the PostgreSQL `42804`
+failure to `grainline_order_buyer_page`. A real-schema audit found that the
+predecessor list migration returned `Order.shippingTitle varchar(200)`, and the
+seller list also returned `buyerName varchar(200)` and `buyerEmail varchar(254)`,
+through `RETURNS TABLE ... text` columns without explicit casts. The earlier
+synthetic test declared these columns as `text`, masking PostgreSQL's exact
+return-type requirement. Migration
+`20260901155000_correct_order_participant_list_projection` reproducibly replaces
+only the two list functions with exact `::text` casts and reconverges their
+existing function ACLs. A real-varchar disposable PostgreSQL proof first
+reproduces the predecessor failure and then proves both corrected functions and
+ACLs. The migration does not alter table data, RLS, policies or table grants.
+It is not yet applied to production.
+
 ## Pooled-runtime postflight contract
 
 `scripts/order-compatible-runtime-postflight.mjs` closes the identity gap left
@@ -138,7 +156,7 @@ read, read-only transaction. It verifies:
   RLS/FORCE off, zero policies, runtime CRUD retained, PUBLIC CRUD absent;
 - all 40 reviewed runtime functions and all eight runtime-private functions
   exist with exact owner, SECURITY DEFINER, pinned `search_path`, direct ACL
-  posture and installed-source hashes derived from the 17 byte-pinned
+  posture and installed-source hashes derived from the 18 byte-pinned
   migrations;
 - a fresh absent actor sees zero buyer/seller list results and cannot project a
   sampled Order through the buyer v3 or seller v4 detail functions; and
