@@ -1,6 +1,6 @@
 # Grainline RLS Coverage Matrix
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 
 ## Purpose And Scope
 
@@ -132,16 +132,23 @@ completed alternative.
 > revocation, then FORCE. See
 > `docs/order-payment-event-credential-epoch-drain.md`.
 
-> **Current core Order preparation (2026-09-01):** the current direct source
-> floors are 24 Order files and 4 OrderItem files. The release-time
-> OrderPaymentEvent application semantic inventory remains retained as 33
-> files; its current `src` form is 32 because Guild payment predicates moved
-> into the separately byte-pinned seller-metrics migration. Seven compatible
-> Order read/aggregate cohorts are prepared through the isolated
-> `20260901090000_prepare_order_participant_cursor_authority` candidate. None is production
-> applied, and Order/OrderItem RLS remains off. See
-> `docs/order-core-pre-rls-audit.md` and
-> `docs/order-participant-cursor-authority.md`.
+> **Current core Order preparation (2026-09-02):** the complete 18-migration
+> compatibility prefix is accepted in production from exact main
+> `fb27a5efe9551ceec724b92e2d3c39cd9c50bd87`, CI `33585371689`, and guarded
+> run `33586737852`. It supplies the reviewed buyer, seller, staff, export,
+> eligibility, aggregate, metrics, receipt, fulfillment and label fixed
+> operations plus the exact charged-total witness. The final correction casts
+> real-schema `varchar` projections to the declared `text` return types; it
+> changes no rows, table grants or RLS posture. The distinct actual pooled
+> runtime proof passed all six checks without mutation; retain sanitized
+> mode-`0600` evidence SHA-256
+> `1125e28f4a94140ef82c39e74f6b28279d8eb8c16fb4e24337b5c4a98d8e1d89`.
+> `Order` and `OrderItem` RLS remain off, predecessor Order CRUD is retained,
+> and the separate Case correction is unapplied. Next: Case correction,
+> compatible app deployment and authenticated smokes, predecessor drain,
+> zero-direct-access proof, then separate Order Phase A and FORCE releases.
+> See `docs/order-core-pre-rls-audit.md` and
+> `docs/order-compatible-production-release-20260901.md`.
 
 ## Coverage Matrix
 
