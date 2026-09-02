@@ -1,6 +1,6 @@
 # Order authenticated route smoke plan
 
-Status: **design accepted; operator implementation and production execution pending**  
+Status: **design accepted; deployment-disabled preflight scaffold implemented; route phases and production execution pending**
 Reviewed: 2026-09-02
 
 ## Purpose
@@ -133,6 +133,14 @@ mode-0600 restart journal and stop. A cleanup-only/resume mode must:
 The sanitized evidence may retain exact source/CI/deployment bindings, stage
 booleans, aggregate counts, test/live mode booleans, cleanup booleans and its
 own SHA-256.
+
+The initial isolated scaffold intentionally sets `RELEASE_BINDING = null` and
+contains no database client, provider client or route mutation surface. It
+implements only exact-main/CI/deployment validation, pooled-runtime and owner
+identity checks, Stripe/Shippo test-mode enforcement, marker-derived fixture
+identities, restart-stage validation and sanitized evidence shape. The final
+route phases must be added only after the corrected shipping source has an
+exact successful main CI run and source-attested Production deployment.
 
 ## Release sequence after acceptance
 
