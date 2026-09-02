@@ -84,10 +84,16 @@ retry paths must be exercised before predecessor drain and Order Phase A.
 
 ## Remaining sequence
 
-1. Merge this workflow-only package after full CI.
-2. Run the Order compatible workflow from exact green `main`.
-3. Run the separate Case correction workflow from exact green `main`.
-4. Run the distinct pooled-runtime read-only postflights.
+1. ~~Merge this workflow-only package after full CI.~~ Completed in merge
+   `004ebddf49c28489644234cff9180743584ea994`; exact push CI
+   `33579332247` passed.
+2. ~~Run the Order compatible workflow from exact green `main`.~~ Production
+   run `33580353283` applied the exact 17-row prefix, converged runtime grants,
+   passed migration status, the global grant/RLS audit and the final owner-side
+   read-only scope proof. `Order` remains RLS off with predecessor CRUD.
+3. Run the distinct pooled-runtime read-only Order postflight. This is a hard
+   evidence boundary, not a repeat of the owner-side catalog check.
+4. Run the separate Case correction workflow from exact green `main`.
 5. Deploy the exact compatible application and verify aliases/health/source.
 6. Exercise authenticated buyer quote, seller label/re-quote, fulfillment,
    refund, Case replay and presentation smokes without live-mode purchases.
@@ -110,3 +116,28 @@ returned `42704 role "PUBLIC" does not exist`. Both scope readers now inspect
 PUBLIC table authority through `aclexplode(...).grantee = 0`, and a class-wide
 test rejects the invalid role-name form. No database, deployment or provider
 state changed in the failed run.
+
+## Pooled-runtime postflight contract
+
+`scripts/order-compatible-runtime-postflight.mjs` closes the identity gap left
+by the owner-run workflow. It connects only through the reviewed pooled
+`grainline_app_runtime` URL and executes inside an engine-attested repeatable
+read, read-only transaction. It verifies:
+
+- the actual session/runtime role is login-capable, NOSUPERUSER, NOBYPASSRLS,
+  NOINHERIT and is not a member of the migration owner;
+- `Order` is still the compatible pre-activation predecessor: owner-held,
+  RLS/FORCE off, zero policies, runtime CRUD retained, PUBLIC CRUD absent;
+- all 40 reviewed runtime functions and all eight runtime-private functions
+  exist with exact owner, SECURITY DEFINER, pinned `search_path`, direct ACL
+  posture and installed-source hashes derived from the 17 byte-pinned
+  migrations;
+- a fresh absent actor sees zero buyer/seller list results and cannot project a
+  sampled Order through the buyer v3 or seller v4 detail functions; and
+- the dormant staff projection is directly denied with PostgreSQL `42501`.
+
+The proof emits only booleans, counts of reviewed catalog objects and release
+bindings to a fresh mode-0600 evidence file. It does not export production row
+identifiers or mutate production. CI reruns the same proof against the real
+ordinary runtime login after applying the exact compatible stack in disposable
+PostgreSQL.

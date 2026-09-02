@@ -1375,6 +1375,10 @@ jobs:
         run: node --test tests/order-compatible-production-scope-postgres.test.mjs
         env:
           ORDER_COMPATIBLE_PRODUCTION_SCOPE_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
+      - name: Prove Order compatible postflight through the runtime login
+        run: npm run audit:rls-order-compatible-runtime-postflight
+        env:
+          ORDER_COMPATIBLE_RUNTIME_POSTFLIGHT_PROOF_DATABASE_URL: ${{ env.DIRECT_URL }}
       - name: Restore additive Case and Order correctness release
         run: >-
           mv
