@@ -261,3 +261,23 @@ isolation and direct denial of the dormant staff projection inside an
 engine-attested repeatable-read/read-only transaction. It recorded
 `productionChangedByPostflight=false`. Retain sanitized evidence SHA-256
 `1125e28f4a94140ef82c39e74f6b28279d8eb8c16fb4e24337b5c4a98d8e1d89`.
+
+## Post-deployment shipping corrections required before smoke acceptance
+
+The first compatible deployment exposed no production RLS change, but the
+fresh authenticated-route review found two application defects that must be
+corrected and redeployed before its smoke can count as release evidence:
+
+- Buy Now omitted quantity from the quote request, causing quantity-above-one
+  package hashes and weight to disagree with checkout; and
+- the quote route ignored seller calculated/flat/free shipping preferences,
+  despite those controls being persisted and documented to sellers.
+
+The quantity bridge is merged. The seller-policy correction uses exact
+server-derived cart or variant pricing, binds pricing/version into the signed
+quote subject, keeps legacy no-flat rows on calculated shipping, and marks
+seller flat/free identities quote-only so label purchase still performs the
+full-address provider re-quote. Neither correction changes database schema,
+RLS, grants or provider state. The retained predecessor must not be drained and
+the authenticated smoke must not be accepted until an exact corrected source
+is deployed and source-proven.

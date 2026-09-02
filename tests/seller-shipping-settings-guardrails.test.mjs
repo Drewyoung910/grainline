@@ -21,6 +21,13 @@ describe("seller shipping settings guardrails", () => {
     );
   });
 
+  it("explains the deployed flat, free, calculated, and provider-fallback precedence", () => {
+    assert.match(sellerSettings, /Use live calculated shipping instead of the flat rate/);
+    assert.match(sellerSettings, /If no flat rate is set, Grainline keeps live calculated shipping as the safe default\./);
+    assert.match(sellerSettings, /The free-shipping threshold applies only when a flat rate is configured\./);
+    assert.match(sellerSettings, /used if the carrier quote provider is temporarily unavailable\./);
+  });
+
   it("drops negative or extreme package defaults before Prisma writes", () => {
     assert.match(sellerSettings, /const MAX_DEFAULT_PACKAGE_DIMENSION_IN = 240/);
     assert.match(sellerSettings, /const MAX_DEFAULT_PACKAGE_WEIGHT_LB = 500/);

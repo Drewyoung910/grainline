@@ -95,6 +95,49 @@ heuristic, not proof that every physical multi-unit arrangement fits one box;
 seller label purchase performs a fresh full-address quote from the retained
 Order snapshot before any label transaction.
 
+### 2026-09-02 seller shipping-policy follow-up
+
+The same pre-RLS audit found a separate product-contract regression. Shop
+Settings persisted `useCalculatedShipping`, `shippingFlatRateCents` and
+`freeShippingOverCents`, and the seller handbook described calculated and
+flat-rate shipping as distinct choices. The current quote route selected none
+of those three fields and always called Shippo. A seller could save a flat
+rate or free-shipping threshold and buyers would still see carrier rates. The
+cart API exposed the settings only as unused display hints.
+
+The isolated correction restores the original precedence without turning old
+default-false seller rows into checkout outages:
+
+1. an explicit calculated-shipping selection uses live Shippo rates;
+2. calculated shipping off plus a valid flat rate uses that rate, with the
+   free-shipping threshold taking precedence once the exact seller subtotal
+   reaches it;
+3. a legacy row with no flat rate remains on calculated shipping, because the
+   historical UI defaulted the checkbox off while the deployed quote route
+   still always used Shippo;
+4. if calculated shipping cannot quote, a configured seller flat/free rate is
+   preferred before the existing platform fallback; and
+5. local pickup remains a separate explicit fulfillment choice and is never
+   silently selected while a shippable rate exists.
+
+Free-shipping eligibility is calculated from server-derived cart prices or
+the server-resolved Buy Now variant price. The quote and checkout subject
+hashes now bind the variant key, unit price and listing price version as well
+as quantity/package state. The synthetic seller flat/free identities use the
+existing `quote-only:` class, so label purchase must perform a fresh
+full-address provider quote rather than treating the buyer charge as a
+purchasable Shippo rate.
+
+Two residual limitations remain explicit. A standalone free-shipping
+threshold without a flat rate is not a valid shipping mode and is ignored in
+favor of the legacy-compatible calculated posture. If neither a seller
+fallback nor pickup is configured and Shippo fails, the existing bounded
+`SiteConfig.fallbackShippingCents` outage rate is still available. That
+platform fallback preserves current availability but can be economically
+imprecise for unusually large woodworking orders; replacing it with a
+fail-closed or category/package-aware policy is a separate product decision,
+not something to change silently inside the Order RLS release.
+
 ## Reviewer-claim verdicts
 
 | # | Verdict | Current classification | Required action |

@@ -559,3 +559,15 @@ the quote route signed quantity one while the single-checkout route verified
 the actual quantity. The isolated correction forwards the quantity and pins
 the bridge in regression coverage. It must be deployed before authenticated
 shipping evidence is accepted; it changes no database or RLS state.
+
+2026-09-02 seller-policy continuation: the audit also proved that the runtime
+quote route ignored all three persisted seller shipping controls. The
+correction restores calculated-versus-flat/free precedence, retains calculated
+shipping for legacy rows with no flat rate, prefers the seller's configured
+rate during provider failure and signs free eligibility against exact
+server-derived cart or variant pricing. Seller flat/free rate identities are
+quote-only, so label purchase continues to re-quote with the retained full
+Order address. The bounded global provider-outage fallback remains a documented
+economic-precision limitation and is not being silently redesigned as part of
+RLS. The corrected compatible application and authenticated smoke are still
+required before predecessor drain or Order activation.

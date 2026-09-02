@@ -6,6 +6,8 @@ export const MAX_FALLBACK_SHIPPING_CENTS = 5000;
 export const MAX_PROVIDER_SHIPPING_CENTS = 500_000;
 export const PICKUP_RATE_OBJECT_ID = "pickup";
 export const SHIPPO_QUOTE_ONLY_RATE_PREFIX = "quote-only:";
+export const SELLER_FLAT_RATE_OBJECT_ID = `${SHIPPO_QUOTE_ONLY_RATE_PREFIX}seller-flat`;
+export const SELLER_FREE_RATE_OBJECT_ID = `${SHIPPO_QUOTE_ONLY_RATE_PREFIX}seller-free`;
 
 export type ShippoQuoteRate = {
   currency?: string | null;
@@ -32,6 +34,74 @@ export function safeProviderShippingCents(value: number | string | null | undefi
     return null;
   }
   return cents;
+}
+
+function safeSellerShippingCents(value: number | null | undefined) {
+  return typeof value === "number"
+    && Number.isSafeInteger(value)
+    && value >= 0
+    && value <= MAX_PROVIDER_SHIPPING_CENTS
+    ? value
+    : null;
+}
+
+export type SellerConfiguredShippingRate = {
+  objectId: typeof SELLER_FLAT_RATE_OBJECT_ID | typeof SELLER_FREE_RATE_OBJECT_ID;
+  amountCents: number;
+  label: "Flat shipping" | "Free shipping";
+  carrier: "seller-flat" | "seller-free";
+  service: "flat" | "free";
+};
+
+/**
+ * Restores the seller-facing shipping contract without breaking legacy shops.
+ * A configured flat rate is authoritative when calculated shipping is off.
+ * Shops with no flat rate retain the historically deployed calculated-rate
+ * behavior even if the old checkbox was never selected. A free-shipping
+ * threshold modifies a configured flat rate; it is not a standalone mode.
+ */
+export function resolveSellerCheckoutShippingPolicy({
+  useCalculatedShipping,
+  flatRateCents,
+  freeShippingOverCents,
+  itemsSubtotalCents,
+}: {
+  useCalculatedShipping: boolean;
+  flatRateCents: number | null | undefined;
+  freeShippingOverCents: number | null | undefined;
+  itemsSubtotalCents: number;
+}) {
+  const flat = safeSellerShippingCents(flatRateCents);
+  const freeOver = safeSellerShippingCents(freeShippingOverCents);
+  const subtotal = Number.isSafeInteger(itemsSubtotalCents) && itemsSubtotalCents >= 0
+    ? itemsSubtotalCents
+    : 0;
+  const freeApplies = flat !== null && freeOver !== null && subtotal >= freeOver;
+  const configuredRate: SellerConfiguredShippingRate | null = flat === null
+    ? null
+    : freeApplies
+      ? {
+          objectId: SELLER_FREE_RATE_OBJECT_ID,
+          amountCents: 0,
+          label: "Free shipping",
+          carrier: "seller-free",
+          service: "free",
+        }
+      : {
+          objectId: SELLER_FLAT_RATE_OBJECT_ID,
+          amountCents: flat,
+          label: "Flat shipping",
+          carrier: "seller-flat",
+          service: "flat",
+        };
+
+  return {
+    // No flat rate is the legacy-compatible calculated-shipping posture. This
+    // avoids turning old default-false seller rows into checkout outages.
+    useCalculatedShipping: useCalculatedShipping || configuredRate === null,
+    configuredRate,
+    ignoredStandaloneFreeThreshold: flat === null && freeOver !== null,
+  };
 }
 
 export function isPickupRateObjectId(value: string | null | undefined) {

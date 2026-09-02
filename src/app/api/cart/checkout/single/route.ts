@@ -225,6 +225,25 @@ export async function POST(req: Request) {
       );
     }
 
+    // Variant validation + price calculation must happen before both rate
+    // verification and stock reservation. Seller-configured free shipping is
+    // derived from this price, so the signed subject binds the exact variant.
+    const variantResolution = resolveListingVariantSelection(
+      listing.variantGroups,
+      body.selectedVariantOptionIds,
+    );
+    if (!variantResolution.ok) {
+      return privateJson({ error: variantResolution.error }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+
+    const selectedVariantLabels = variantResolution.selectedVariantLabels;
+    const selectedVariantsSnapshot = variantResolution.selectedVariantsSnapshot;
+    const unitPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
+    const unitPriceError = validateVariantUnitPriceCents(unitPriceCents);
+    if (unitPriceError) {
+      return privateJson({ error: unitPriceError }, { status: HTTP_STATUS.BAD_REQUEST });
+    }
+
     // Verify every shipping rate, including fallback. Fallback rates must be
     // signed by /api/shipping/quote; clients cannot force the fallback objectId.
     const contextId = body.listingId;
@@ -232,6 +251,9 @@ export async function POST(req: Request) {
       mode: "single",
       listingId: listing.id,
       quantity: body.quantity,
+      variantKey: variantResolution.variantKey,
+      unitPriceCents,
+      priceVersion: listing.priceVersion,
       weight: listing.packagedWeightGrams ?? listing.seller.defaultPkgWeightGrams ?? 0,
       length: listing.packagedLengthCm ?? listing.seller.defaultPkgLengthCm ?? 0,
       width: listing.packagedWidthCm ?? listing.seller.defaultPkgWidthCm ?? 0,
@@ -276,24 +298,6 @@ export async function POST(req: Request) {
         { error: "Local pickup is no longer available for this seller. Please re-select a shipping option." },
         { status: HTTP_STATUS.BAD_REQUEST },
       );
-    }
-
-    // Variant validation + price calculation — MUST come before stock reservation
-    // to avoid stock leaks on validation failures.
-    const variantResolution = resolveListingVariantSelection(
-      listing.variantGroups,
-      body.selectedVariantOptionIds,
-    );
-    if (!variantResolution.ok) {
-      return privateJson({ error: variantResolution.error }, { status: HTTP_STATUS.BAD_REQUEST });
-    }
-
-    const selectedVariantLabels = variantResolution.selectedVariantLabels;
-    const selectedVariantsSnapshot = variantResolution.selectedVariantsSnapshot;
-    const unitPriceCents = listing.priceCents + variantResolution.variantAdjustCents;
-    const unitPriceError = validateVariantUnitPriceCents(unitPriceCents);
-    if (unitPriceError) {
-      return privateJson({ error: unitPriceError }, { status: HTTP_STATUS.BAD_REQUEST });
     }
 
     // Resolve shipping amount from the signed selected rate.

@@ -28,7 +28,7 @@ type Props = {
   // Optional: extra fields merged into quote body.
   // For Buy Now: { mode: "single", listingId: "xxx", quantity: 2 }
   // Omit for cart (default cart behavior preserved).
-  quoteBodyExtra?: Record<string, string | number>;
+  quoteBodyExtra?: Record<string, string | number | string[]>;
 };
 
 function toSelectedRate(r: QuoteRate): SelectedShippingRate {

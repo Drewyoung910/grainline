@@ -7,12 +7,15 @@ const {
   MAX_FALLBACK_SHIPPING_CENTS,
   MAX_PROVIDER_SHIPPING_CENTS,
   MIN_FALLBACK_SHIPPING_CENTS,
+  SELLER_FLAT_RATE_OBJECT_ID,
+  SELLER_FREE_RATE_OBJECT_ID,
   carrierMatchesPreference,
   filterShippoRatesForCheckout,
   isQuoteOnlyRateObjectId,
   normalizeShippoRatesForCheckout,
   preferredAutomaticShippingRate,
   quoteOnlyRateObjectId,
+  resolveSellerCheckoutShippingPolicy,
   safeFallbackShippingCents,
   safeProviderShippingCents,
   safeShippingEstimatedDays,
@@ -38,6 +41,68 @@ describe("shipping quote state helpers", () => {
     assert.equal(safeProviderShippingCents("NaN"), null);
     assert.equal(safeProviderShippingCents(Infinity), null);
     assert.equal(safeProviderShippingCents((MAX_PROVIDER_SHIPPING_CENTS / 100) + 0.01), null);
+  });
+
+  it("honors seller flat and free-shipping settings without breaking legacy calculated shops", () => {
+    assert.deepEqual(resolveSellerCheckoutShippingPolicy({
+      useCalculatedShipping: false,
+      flatRateCents: 1200,
+      freeShippingOverCents: 5000,
+      itemsSubtotalCents: 4900,
+    }), {
+      useCalculatedShipping: false,
+      configuredRate: {
+        objectId: SELLER_FLAT_RATE_OBJECT_ID,
+        amountCents: 1200,
+        label: "Flat shipping",
+        carrier: "seller-flat",
+        service: "flat",
+      },
+      ignoredStandaloneFreeThreshold: false,
+    });
+
+    assert.equal(resolveSellerCheckoutShippingPolicy({
+      useCalculatedShipping: false,
+      flatRateCents: 1200,
+      freeShippingOverCents: 5000,
+      itemsSubtotalCents: 5000,
+    }).configuredRate?.objectId, SELLER_FREE_RATE_OBJECT_ID);
+    assert.equal(resolveSellerCheckoutShippingPolicy({
+      useCalculatedShipping: true,
+      flatRateCents: 1200,
+      freeShippingOverCents: 5000,
+      itemsSubtotalCents: 5000,
+    }).useCalculatedShipping, true);
+
+    const legacyDefault = resolveSellerCheckoutShippingPolicy({
+      useCalculatedShipping: false,
+      flatRateCents: null,
+      freeShippingOverCents: null,
+      itemsSubtotalCents: 5000,
+    });
+    assert.equal(legacyDefault.useCalculatedShipping, true);
+    assert.equal(legacyDefault.configuredRate, null);
+  });
+
+  it("does not treat a standalone free threshold or malformed seller money as a shipping mode", () => {
+    const standaloneFree = resolveSellerCheckoutShippingPolicy({
+      useCalculatedShipping: false,
+      flatRateCents: null,
+      freeShippingOverCents: 5000,
+      itemsSubtotalCents: 9000,
+    });
+    assert.equal(standaloneFree.useCalculatedShipping, true);
+    assert.equal(standaloneFree.configuredRate, null);
+    assert.equal(standaloneFree.ignoredStandaloneFreeThreshold, true);
+
+    for (const invalid of [-1, 1.5, MAX_PROVIDER_SHIPPING_CENTS + 1, Number.NaN]) {
+      assert.equal(resolveSellerCheckoutShippingPolicy({
+        useCalculatedShipping: false,
+        flatRateCents: invalid,
+        freeShippingOverCents: null,
+        itemsSubtotalCents: 1000,
+      }).configuredRate, null);
+    }
   });
 
   it("keeps the singleton SiteConfig seed migration in place", () => {
@@ -155,11 +220,19 @@ describe("shipping quote state helpers", () => {
     assert.match(route, /fallbackRate\(\{\s*amountCents: safeFallbackShippingCents\(fallbackShippingCents\)/s);
     assert.match(route, /const filtered = filterShippoRatesForCheckout\(\{/);
     assert.match(route, /normalizeShippoRatesForCheckout\(filtered\.rates\)/);
+    assert.match(route, /resolveSellerCheckoutShippingPolicy\(\{/);
+    assert.match(route, /if \(!sellerShippingPolicy\.useCalculatedShipping\) \{/);
+    assert.match(route, /sellerConfiguredRate\(\{/);
+    assert.match(route, /if \(out\.length === 0\) \{\s*if \(sellerShippingPolicy\.configuredRate\) \{\s*out\.push\(\.\.\.configuredAndPickupRates\(\)\)/s);
+    assert.match(route, /!out\.some\(\(rate\) => rate\.objectId === PICKUP_RATE_OBJECT_ID\)/);
+    assert.match(route, /shippingFlatRateCents: true/);
+    assert.match(route, /freeShippingOverCents: true/);
+    assert.match(route, /useCalculatedShipping: true/);
     assert.match(route, /preferredCarriers: sellerPreferredCarriers/);
     assert.match(route, /if \(filtered\.blockedByCarrierPreference\) \{/);
     assert.match(route, /if \(sellerAllowsPickup\) \{\s*return pickupOnlyResponse/s);
     assert.match(route, /No shipping rates matched this maker's carrier preferences\./);
-    assert.match(route, /if \(out\.length === 0 && !sellerAllowsPickup\) \{/);
+    assert.match(route, /if \(out\.length === 0\) \{/);
     assert.match(route, /out\.unshift\(pickupRate\(\{ currency, contextId, buyerId: me\.id, buyerPostal: shipTo\.postal, subjectHash \}\)\)/);
   });
 
