@@ -13,6 +13,7 @@
     "ops:separate-db-credential": "node scripts/runtime-db-credential-separation-operator.mjs",
     "ops:recover-exposed-db-credentials": "node scripts/database-credential-exposure-recovery.mjs",
     "ops:recover-exposed-cron-secret": "node scripts/cron-secret-credential-exposure-recovery.mjs",
+    "ops:recover-exposed-shipping-rate-secret": "node scripts/shipping-rate-secret-credential-exposure-recovery.mjs",
     "ops:notification-legacy-inspect": "node scripts/notification-legacy-inspect.mjs",
     "ops:conversation-message-legacy-inspect": "node scripts/conversation-message-legacy-inspect.mjs",
     "ops:case-legacy-inspect": "node scripts/case-case-message-legacy-inspect.mjs",
