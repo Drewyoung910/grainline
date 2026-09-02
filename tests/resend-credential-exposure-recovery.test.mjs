@@ -8,7 +8,9 @@ import {
   normalizeCreatedKey,
   normalizeDeployment,
   normalizeJournalRebind,
+  normalizePostPromotionProviderInventory,
   normalizeProviderInventory,
+  normalizeRejectedCredential,
   normalizeResolvedSecretSha256,
   normalizeVercelVariableInventory,
   sanitizedEvidence,
@@ -80,12 +82,43 @@ test("accepts only the exact reviewed old Resend key and at most one named repla
   }));
 });
 
+test("accepts only the exact post-promotion inventory before or after old-key revocation", () => {
+  const replacement = { id: "new-key-id", name: "grainline-production-recovery-20260902" };
+  const old = { id: OLD_ID, name: "grainline-production" };
+  const payload = (data) => ({ error: null, data: { object: "list", has_more: false, data } });
+  assert.equal(normalizePostPromotionProviderInventory(payload([old, replacement])).old.id, OLD_ID);
+  assert.equal(normalizePostPromotionProviderInventory(payload([replacement])).old, null);
+  assert.throws(() => normalizePostPromotionProviderInventory(payload([old])));
+  assert.throws(() => normalizePostPromotionProviderInventory(payload([replacement, {
+    id: "unknown",
+    name: "unknown",
+  }])));
+  assert.throws(() => normalizePostPromotionProviderInventory(payload([replacement, replacement])));
+});
+
 test("validates the one-time replacement credential response", () => {
   assert.deepEqual(normalizeCreatedKey({ data: { id: "replacement", token: NEW_TOKEN }, error: null }), {
     id: "replacement",
     token: NEW_TOKEN,
   });
   assert.throws(() => normalizeCreatedKey({ data: { id: "replacement", token: "wrong" } }));
+});
+
+test("accepts only recognized revoked-key responses from Resend", () => {
+  assert.equal(normalizeRejectedCredential({ statusCode: 401 }), true);
+  assert.equal(normalizeRejectedCredential({ statusCode: 403 }), true);
+  assert.equal(normalizeRejectedCredential({
+    statusCode: 400,
+    name: "validation_error",
+    message: "API key is invalid",
+  }), true);
+  assert.throws(() => normalizeRejectedCredential(undefined));
+  assert.throws(() => normalizeRejectedCredential({ statusCode: 200 }));
+  assert.throws(() => normalizeRejectedCredential({
+    statusCode: 400,
+    name: "validation_error",
+    message: "another validation failure",
+  }));
 });
 
 test("extracts one marked Resend hash from Vercel CLI progress output", () => {
@@ -145,6 +178,31 @@ test("rebinds only the exact journaled provider-created release boundary", () =>
   assert.throws(() => normalizeJournalRebind({ ...stopped, stage: "provider-created" }, config, inventory));
   assert.throws(() => normalizeJournalRebind(stopped, { ...config, rebindFromOperatorCiRunId: 1 }, inventory));
   assert.throws(() => normalizeJournalRebind(stopped, config, { ...inventory, replacement: { id: "wrong" } }));
+
+  const promoted = {
+    stage: "promoted",
+    operatorCommit: "b8cfb03e76f0f2d6a06d3ed91dde8e782122b09b",
+    operatorCiRunId: 33647162942,
+    oldKeyId: OLD_ID,
+    newKeyId: "new-key-id",
+  };
+  const promotedConfig = {
+    operatorCommit: COMMIT,
+    operatorCiRunId: 789,
+    rebindFromOperatorCommit: promoted.operatorCommit,
+    rebindFromOperatorCiRunId: promoted.operatorCiRunId,
+  };
+  assert.deepEqual(normalizeJournalRebind(promoted, promotedConfig, {
+    old: null,
+    replacement: { id: "new-key-id" },
+  }), {
+    operatorCommit: COMMIT,
+    operatorCiRunId: 789,
+  });
+  assert.throws(() => normalizeJournalRebind(promoted, promotedConfig, {
+    old: { id: OLD_ID },
+    replacement: { id: "new-key-id" },
+  }));
 });
 
 test("private state binds token digests and later deployment fields", async () => {
