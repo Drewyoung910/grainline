@@ -8,7 +8,14 @@ import {
   EVIDENCE_DIRECTORY,
   PRODUCTION_ORIGIN,
   RELEASE_BINDING,
+  assertBuyerQuote,
+  assertCheckoutRouteResult,
+  assertFulfillmentRedirect,
   assertGitState,
+  assertLabelPurchase,
+  assertLabelRequote,
+  assertPrivateLabelRedirect,
+  assertReceiptRedirect,
   assertReleaseBinding,
   buildFixtureIds,
   parseDatabaseUrls,
@@ -95,6 +102,91 @@ test("restart state is marker-bound, exact-release-bound and monotonic", () => {
   assert.equal(state.stageIndex, 2);
   assert.throws(() => validateRestartState({ ...state, stage: "unknown" }, binding));
   assert.throws(() => validateRestartState({ ...state, fixtureIds: { ...fixtureIds, listingId: "drift" } }, binding));
+});
+
+test("route-result contracts bind the exact noncharging buyer quote and retry", () => {
+  const subjectHash = "S".repeat(32);
+  const rate = assertBuyerQuote({ rates: [{
+    objectId: "quote-only:test-rate",
+    amountCents: 1234,
+    currency: "usd",
+    subjectHash,
+    token: "a".repeat(64),
+    expiresAt: 2_000_000_000,
+  }] }, subjectHash);
+  assert.equal(rate.amountCents, 1234);
+  assert.throws(() => assertBuyerQuote({ rates: [{ ...rate, subjectHash: "X".repeat(32) }] }, subjectHash));
+  const sessionId = "cs_test_exact";
+  assert.equal(assertCheckoutRouteResult({
+    body: { reused: true, sessionId },
+    expectedSessionId: sessionId,
+    status: 200,
+  }), sessionId);
+  assert.throws(() => assertCheckoutRouteResult({
+    body: { reused: false, sessionId },
+    expectedSessionId: sessionId,
+    status: 200,
+  }));
+});
+
+test("seller label contracts reject synthetic rates and require private fresh download proof", () => {
+  const fixedRate = assertLabelRequote({
+    body: {
+      requiresRateSelection: true,
+      rates: [{ objectId: "shippo-fixed-rate", amountCents: 999, currency: "usd" }],
+    },
+    status: 202,
+  });
+  assert.equal(fixedRate.objectId, "shippo-fixed-rate");
+  assert.throws(() => assertLabelRequote({
+    body: {
+      requiresRateSelection: true,
+      rates: [{ objectId: "quote-only:bad", amountCents: 999, currency: "usd" }],
+    },
+    status: 202,
+  }));
+  assert.deepEqual(assertLabelPurchase({
+    body: {
+      ok: true,
+      order: {
+        id: "order",
+        labelCarrier: "USPS",
+        labelStatus: "PURCHASED",
+        fulfillmentStatus: "SHIPPED",
+      },
+    },
+    status: 200,
+  }), { fulfillmentStatus: "SHIPPED", labelStatus: "PURCHASED" });
+  assert.deepEqual(assertPrivateLabelRedirect({
+    cacheControl: "private, no-store, max-age=0",
+    location: "https://provider.example/private-label",
+    pragma: "no-cache",
+    status: 302,
+  }), { privateNoStore: true, status: 302 });
+  assert.throws(() => assertPrivateLabelRedirect({
+    cacheControl: "public",
+    location: "https://provider.example/private-label",
+    pragma: "no-cache",
+    status: 302,
+  }));
+});
+
+test("seller fulfillment and buyer receipt redirect only to their exact actor surfaces", () => {
+  assert.deepEqual(assertFulfillmentRedirect({
+    location: `${PRODUCTION_ORIGIN}/dashboard/sales/order-1`,
+    orderId: "order-1",
+    status: 303,
+  }), { orderId: "order-1", status: 303 });
+  assert.deepEqual(assertReceiptRedirect({
+    location: `${PRODUCTION_ORIGIN}/dashboard/orders/order-2`,
+    orderId: "order-2",
+    status: 303,
+  }), { orderId: "order-2", status: 303 });
+  assert.throws(() => assertReceiptRedirect({
+    location: `${PRODUCTION_ORIGIN}/dashboard/sales/order-2`,
+    orderId: "order-2",
+    status: 303,
+  }));
 });
 
 test("sanitized evidence retains only aggregate proof and cleanup posture", () => {

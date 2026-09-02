@@ -276,6 +276,117 @@ export function validateRestartState(state, binding = RELEASE_BINDING) {
   });
 }
 
+export function assertBuyerQuote(body, expectedSubjectHash) {
+  if (
+    !body
+    || !Array.isArray(body.rates)
+    || body.rates.length < 1
+    || body.rates.length > 12
+    || !/^[A-Za-z0-9_-]{32}$/.test(expectedSubjectHash ?? "")
+  ) throw new Error("buyer shipping quote shape drifted");
+  const rate = body.rates.find((candidate) =>
+    candidate?.objectId !== "pickup"
+    && typeof candidate?.objectId === "string"
+    && candidate.objectId.startsWith("quote-only:")
+  );
+  if (
+    !rate
+    || rate.subjectHash !== expectedSubjectHash
+    || !Number.isSafeInteger(rate.amountCents)
+    || rate.amountCents < 0
+    || rate.amountCents > 500_000
+    || rate.currency !== "usd"
+    || !/^[a-f0-9]{64}$/.test(rate.token ?? "")
+    || !Number.isSafeInteger(rate.expiresAt)
+  ) throw new Error("buyer shipping quote did not bind the reviewed package");
+  return Object.freeze({ ...rate });
+}
+
+export function assertCheckoutRouteResult({ body, expectedSessionId = null, status }) {
+  if (
+    status !== 200
+    || !body
+    || typeof body.sessionId !== "string"
+    || !body.sessionId.startsWith("cs_test_")
+    || (expectedSessionId !== null && body.sessionId !== expectedSessionId)
+    || (expectedSessionId !== null && body.reused !== true)
+  ) throw new Error("buyer checkout route result drifted");
+  return body.sessionId;
+}
+
+export function assertLabelRequote({ body, status }) {
+  if (
+    status !== 202
+    || body?.requiresRateSelection !== true
+    || !Array.isArray(body.rates)
+    || body.rates.length < 1
+    || body.rates.length > 4
+  ) throw new Error("seller label re-quote result drifted");
+  for (const rate of body.rates) {
+    if (
+      typeof rate?.objectId !== "string"
+      || !/^[A-Za-z0-9._:-]{1,255}$/.test(rate.objectId)
+      || rate.objectId === "pickup"
+      || rate.objectId === "fallback"
+      || rate.objectId.startsWith("quote-only:")
+      || !Number.isSafeInteger(rate.amountCents)
+      || rate.amountCents < 0
+      || rate.amountCents > 500_000
+      || rate.currency !== "usd"
+    ) throw new Error("seller label re-quote contained an invalid fixed rate");
+  }
+  return Object.freeze({ ...body.rates[0] });
+}
+
+export function assertLabelPurchase({ body, status }) {
+  if (
+    status !== 200
+    || body?.ok !== true
+    || body.order?.labelStatus !== "PURCHASED"
+    || body.order?.fulfillmentStatus !== "SHIPPED"
+    || typeof body.order?.id !== "string"
+    || typeof body.order?.labelCarrier !== "string"
+  ) throw new Error("seller label purchase result drifted");
+  return Object.freeze({
+    fulfillmentStatus: body.order.fulfillmentStatus,
+    labelStatus: body.order.labelStatus,
+  });
+}
+
+export function assertPrivateLabelRedirect({ cacheControl, location, pragma, status }) {
+  let parsed;
+  try {
+    parsed = new URL(location);
+  } catch {
+    throw new Error("seller label download redirect is invalid");
+  }
+  if (
+    status !== 302
+    || parsed.protocol !== "https:"
+    || parsed.username
+    || parsed.password
+    || cacheControl !== "private, no-store, max-age=0"
+    || pragma !== "no-cache"
+  ) throw new Error("seller label download privacy boundary drifted");
+  return Object.freeze({ privateNoStore: true, status: 302 });
+}
+
+export function assertFulfillmentRedirect({ location, orderId, status }) {
+  if (
+    status !== 303
+    || location !== `${PRODUCTION_ORIGIN}/dashboard/sales/${orderId}`
+  ) throw new Error("seller fulfillment redirect drifted");
+  return Object.freeze({ orderId, status: 303 });
+}
+
+export function assertReceiptRedirect({ location, orderId, status }) {
+  if (
+    status !== 303
+    || location !== `${PRODUCTION_ORIGIN}/dashboard/orders/${orderId}`
+  ) throw new Error("buyer receipt redirect drifted");
+  return Object.freeze({ orderId, status: 303 });
+}
+
 export function sanitizedEvidence({ binding, cleanup, result, status }) {
   const exact = assertReleaseBinding(binding);
   if (!new Set(["passed", "failed"]).has(status)) {
