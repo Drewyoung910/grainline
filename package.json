@@ -11,6 +11,7 @@
     "guard:local-disk-space": "node scripts/guard-local-disk-headroom.mjs",
     "guard:runtime-db-env": "node scripts/guard-runtime-db-env.mjs",
     "ops:separate-db-credential": "node scripts/runtime-db-credential-separation-operator.mjs",
+    "ops:recover-exposed-db-credentials": "node scripts/database-credential-exposure-recovery.mjs",
     "ops:notification-legacy-inspect": "node scripts/notification-legacy-inspect.mjs",
     "ops:conversation-message-legacy-inspect": "node scripts/conversation-message-legacy-inspect.mjs",
     "ops:case-legacy-inspect": "node scripts/case-case-message-legacy-inspect.mjs",

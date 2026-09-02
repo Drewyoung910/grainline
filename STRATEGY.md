@@ -2588,6 +2588,28 @@ the prerequisite to predecessor drain and Order direct-authority retirement;
 neither the partial first attempt nor its successful cleanup is Order RLS
 evidence.
 
+### 2026-09-02 credential incident temporarily precedes Order RLS
+
+A local key-inventory diagnostic printed secret-bearing ignored environment
+assignments into private agent tool output. The transcript cannot be rewritten,
+so every non-empty authentication secret in that output is being rotated even
+though it did not enter Git, CI, Vercel logs or accepted rollout evidence. The
+preserved failed Order-smoke fixtures were cleaned first from exact main
+`d450b76e822472672c05f850e19828b8830f6783` / CI `33615489208`; retain
+cleanup-only evidence SHA-256
+`17be192e5d9ea0cb2afb807cb8b87f20c676541c72a4ac0cd78d6d4daf171bd7`.
+It proves zero persistent mutable residue but does not prove the route smoke.
+
+Credential recovery now gates further Order RLS work. Rotate the privileged
+owner before the ordinary runtime role, prove both superseded passwords reject,
+redeploy only the exact current application source with replacement runtime
+credentials, drain callable superseded artifacts, then rotate each provider,
+webhook and application-signing family through its own compatibility-aware
+cutover. Do not run migrations or broaden RLS during recovery. After all
+replacement proofs, rerun the full authenticated Order smoke; only then resume
+Order RLS activation. See
+`docs/comprehensive-credential-exposure-recovery-20260902.md`.
+
 ### OrderPaymentEvent credential-epoch drain correction (2026-08-30)
 
 Do not treat the current OrderPaymentEvent deployment boundary as a single
