@@ -26,6 +26,16 @@ export const PRODUCTION_ENDPOINT_ID = "ep-plain-river-aaqg8gj4";
 export const PRODUCTION_DATABASE_NAME = "neondb";
 export const RUNTIME_ROLE = "grainline_app_runtime";
 export const CLERK_FRONTEND_API = "clerk.thegrainline.com";
+export const REVIEWED_PROJECT = Object.freeze({
+  orgId: "team_wvQeQHZGwCSwinC1uB7xbpjr",
+  projectId: "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp",
+});
+export const REQUIRED_ALIASES = Object.freeze([
+  "thegrainline.com",
+  "grainline.vercel.app",
+  "www.thegrainline.com",
+  "grainline-drew-youngs-projects.vercel.app",
+]);
 export const EVIDENCE_DIRECTORY = "/Users/drewyoung/grainline-rollout-evidence";
 export const LOCAL_ENV_PATH = "/Users/drewyoung/grainline/.env.local";
 export const OWNER_ENV_PATH = "/Users/drewyoung/grainline/.env.migration-owner.local";
@@ -34,9 +44,15 @@ export const STATE_PATH = path.join(
   "order-authenticated-route-smoke-state.json",
 );
 
-// Installed only after the corrected shipping source is merged, exact-main CI
-// succeeds and that same source is manually deployed and source-attested.
-export const RELEASE_BINDING = null;
+// Corrected seller-shipping policy application release. This is deliberately
+// distinct from the later operator commit/CI binding: the smoke must execute
+// from its own exact green main while proving this exact deployed application.
+export const RELEASE_BINDING = Object.freeze({
+  commit: "b22fa138d84bad792ba206ee00dacb48d475d4a4",
+  ciRunId: 33595797533,
+  deploymentId: "dpl_6vA4bWrP4KhADtGAXKsisXdmvJBX",
+  origin: PRODUCTION_ORIGIN,
+});
 
 const STAGES = Object.freeze([
   "prepared",
@@ -138,27 +154,58 @@ export function readGitState(cwd = process.cwd()) {
   });
 }
 
-export function assertGitState(state, binding = RELEASE_BINDING) {
-  const exact = assertReleaseBinding(binding);
-  if (state?.branch !== "main" || state.head !== exact.commit || state.status !== "") {
+export function assertGitState(state, operatorCommit) {
+  if (
+    !/^[a-f0-9]{40}$/.test(operatorCommit ?? "")
+    || state?.branch !== "main"
+    || state.head !== operatorCommit
+    || state.status !== ""
+  ) {
     throw new Error("authenticated Order smoke requires exact clean reviewed main");
   }
-  return Object.freeze({ branch: "main", clean: true, head: exact.commit });
+  return Object.freeze({ branch: "main", clean: true, head: operatorCommit });
 }
 
-export function parseGitHubCiRun(raw, binding = RELEASE_BINDING) {
-  const exact = assertReleaseBinding(binding);
+export function parseGitHubCiRun(raw, expectedCommit, expectedRunId) {
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (
-    value?.databaseId !== exact.ciRunId
-    || value.headSha !== exact.commit
+    !/^[a-f0-9]{40}$/.test(expectedCommit ?? "")
+    || !Number.isSafeInteger(expectedRunId)
+    || expectedRunId < 1
+    || value?.databaseId !== expectedRunId
+    || value.headSha !== expectedCommit
     || value.conclusion !== "success"
     || value.status !== "completed"
     || value.workflowName !== "CI"
+    || value.headBranch !== "main"
+    || value.event !== "push"
   ) {
     throw new Error("authenticated Order smoke exact-main CI binding did not pass");
   }
-  return Object.freeze({ exactCommit: true, passed: true, runId: exact.ciRunId });
+  return Object.freeze({ exactCommit: true, passed: true, runId: expectedRunId });
+}
+
+export function parseVercelDeployment(raw, binding = RELEASE_BINDING) {
+  const exact = assertReleaseBinding(binding);
+  const value = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const aliases = value?.alias ?? value?.aliases ?? [];
+  if (
+    value?.id !== exact.deploymentId
+    || value.target !== "production"
+    || value.readyState !== "READY"
+    || value.meta?.gitCommitSha !== exact.commit
+    || value.project?.id !== REVIEWED_PROJECT.projectId
+    || value.team?.id !== REVIEWED_PROJECT.orgId
+    || REQUIRED_ALIASES.some((alias) => !aliases.includes(alias))
+  ) {
+    throw new Error("authenticated Order smoke deployment binding drifted");
+  }
+  return Object.freeze({
+    aliases: Object.freeze([...aliases]),
+    deploymentId: exact.deploymentId,
+    ready: true,
+    sourceCommit: exact.commit,
+  });
 }
 
 export function validateConfiguration(env = process.env, binding = RELEASE_BINDING) {
@@ -166,24 +213,25 @@ export function validateConfiguration(env = process.env, binding = RELEASE_BINDI
   if (env.ORDER_AUTH_ROUTE_SMOKE_CONFIRM !== CONFIRMATION) {
     throw new Error("authenticated Order smoke confirmation is invalid");
   }
-  if (required(env, "ORDER_AUTH_ROUTE_SMOKE_COMMIT") !== exact.commit) {
-    throw new Error("authenticated Order smoke commit binding drifted");
+  const operatorCommit = required(env, "ORDER_AUTH_ROUTE_SMOKE_OPERATOR_COMMIT");
+  if (!/^[a-f0-9]{40}$/.test(operatorCommit)) {
+    throw new Error("authenticated Order smoke operator commit is invalid");
   }
-  if (positiveInteger(env, "ORDER_AUTH_ROUTE_SMOKE_CI_RUN_ID") !== exact.ciRunId) {
-    throw new Error("authenticated Order smoke CI binding drifted");
-  }
-  if (required(env, "ORDER_AUTH_ROUTE_SMOKE_DEPLOYMENT_ID") !== exact.deploymentId) {
-    throw new Error("authenticated Order smoke deployment binding drifted");
-  }
+  const operatorCiRunId = positiveInteger(env, "ORDER_AUTH_ROUTE_SMOKE_OPERATOR_CI_RUN_ID");
   const evidencePath = path.resolve(required(env, "ORDER_AUTH_ROUTE_SMOKE_EVIDENCE_PATH"));
   if (
     path.dirname(evidencePath) !== EVIDENCE_DIRECTORY
-    || path.basename(evidencePath) !== `order-authenticated-route-smoke-${exact.commit}.json`
+    || path.basename(evidencePath) !== `order-authenticated-route-smoke-${operatorCommit}.json`
     || existsSync(evidencePath)
   ) {
     throw new Error("authenticated Order smoke evidence path is not fresh and exact");
   }
-  return Object.freeze({ ...exact, evidencePath });
+  return Object.freeze({
+    evidencePath,
+    operatorCiRunId,
+    operatorCommit,
+    release: exact,
+  });
 }
 
 export function parseDatabaseUrls(localValues, ownerValues) {
@@ -257,13 +305,15 @@ export function buildFixtureIds(marker) {
   });
 }
 
-export function validateRestartState(state, binding = RELEASE_BINDING) {
+export function validateRestartState(state, config, binding = RELEASE_BINDING) {
   const exact = assertReleaseBinding(binding);
   if (
     !state
     || typeof state !== "object"
-    || state.commit !== exact.commit
-    || state.ciRunId !== exact.ciRunId
+    || state.operatorCommit !== config?.operatorCommit
+    || state.operatorCiRunId !== config?.operatorCiRunId
+    || state.deployedCommit !== exact.commit
+    || state.deployedCiRunId !== exact.ciRunId
     || state.deploymentId !== exact.deploymentId
     || !/^[a-f0-9]{32}$/.test(state.marker ?? "")
     || !STAGES.includes(state.stage)
@@ -387,8 +437,13 @@ export function assertReceiptRedirect({ location, orderId, status }) {
   return Object.freeze({ orderId, status: 303 });
 }
 
-export function sanitizedEvidence({ binding, cleanup, result, status }) {
+export function sanitizedEvidence({ binding, cleanup, operator, result, status }) {
   const exact = assertReleaseBinding(binding);
+  if (
+    !/^[a-f0-9]{40}$/.test(operator?.commit ?? "")
+    || !Number.isSafeInteger(operator?.ciRunId)
+    || operator.ciRunId < 1
+  ) throw new Error("authenticated Order smoke operator evidence binding is invalid");
   if (!new Set(["passed", "failed"]).has(status)) {
     throw new Error("authenticated Order smoke evidence status is invalid");
   }
@@ -397,6 +452,7 @@ export function sanitizedEvidence({ binding, cleanup, result, status }) {
     operation: "order-authenticated-route-smoke",
     productionChangedByProof: false,
     release: exact,
+    operator: Object.freeze({ commit: operator.commit, ciRunId: operator.ciRunId }),
     status,
     result: {
       buyerQuantityTwoCheckoutPassed: result?.buyerQuantityTwoCheckoutPassed === true,

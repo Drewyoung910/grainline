@@ -556,9 +556,11 @@ fresh `OrderItem` audit/activation work, followed by
 2026-09-02 quote-audit continuation: the provider-only quote proof did not
 exercise the Buy Now UI bridge. That bridge omitted the selected quantity, so
 the quote route signed quantity one while the single-checkout route verified
-the actual quantity. The isolated correction forwards the quantity and pins
-the bridge in regression coverage. It must be deployed before authenticated
-shipping evidence is accepted; it changes no database or RLS state.
+the actual quantity. The correction forwards the quantity and pins the bridge
+in regression coverage. Exact main `b22fa138d84bad792ba206ee00dacb48d475d4a4`
+and deployment `dpl_6vA4bWrP4KhADtGAXKsisXdmvJBX` now carry it; authenticated
+shipping evidence is still required. The release changed no database or RLS
+state.
 
 2026-09-02 seller-policy continuation: the audit also proved that the runtime
 quote route ignored all three persisted seller shipping controls. The
@@ -569,5 +571,6 @@ server-derived cart or variant pricing. Seller flat/free rate identities are
 quote-only, so label purchase continues to re-quote with the retained full
 Order address. The bounded global provider-outage fallback remains a documented
 economic-precision limitation and is not being silently redesigned as part of
-RLS. The corrected compatible application and authenticated smoke are still
-required before predecessor drain or Order activation.
+RLS. The corrected compatible application is now live at the exact release
+above; authenticated smoke remains required before predecessor drain or Order
+activation.

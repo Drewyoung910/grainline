@@ -7,6 +7,8 @@ import {
   CONFIRMATION,
   EVIDENCE_DIRECTORY,
   PRODUCTION_ORIGIN,
+  REQUIRED_ALIASES,
+  REVIEWED_PROJECT,
   RELEASE_BINDING,
   assertBuyerQuote,
   assertCheckoutRouteResult,
@@ -20,6 +22,7 @@ import {
   buildFixtureIds,
   parseDatabaseUrls,
   parseGitHubCiRun,
+  parseVercelDeployment,
   sanitizedEvidence,
   validateConfiguration,
   validateProviderCredentials,
@@ -32,37 +35,65 @@ const binding = Object.freeze({
   deploymentId: `dpl_${"B".repeat(24)}`,
   origin: PRODUCTION_ORIGIN,
 });
-const evidencePath = `${EVIDENCE_DIRECTORY}/order-authenticated-route-smoke-${binding.commit}.json`;
+const operator = Object.freeze({ commit: "c".repeat(40), ciRunId: 67890 });
+const operatorConfig = Object.freeze({
+  operatorCommit: operator.commit,
+  operatorCiRunId: operator.ciRunId,
+});
+const evidencePath = `${EVIDENCE_DIRECTORY}/order-authenticated-route-smoke-${operator.commit}.json`;
 const runtimeUrl = "postgresql://grainline_app_runtime:runtime@ep-plain-river-aaqg8gj4-pooler.westus3.azure.neon.tech/neondb?sslmode=verify-full&channel_binding=require";
 const ownerUrl = "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech/neondb?sslmode=verify-full&channel_binding=require";
 
-test("operator remains deployment-disabled until the exact corrected release exists", () => {
-  assert.equal(RELEASE_BINDING, null);
-  assert.throws(() => assertReleaseBinding(), /deployment-disabled/);
+test("operator pins the exact corrected application release separately from itself", () => {
+  assert.deepEqual(assertReleaseBinding(), RELEASE_BINDING);
   assert.deepEqual(assertReleaseBinding(binding), binding);
+  assert.notEqual(RELEASE_BINDING.commit, operator.commit);
 });
 
 test("configuration pins exact clean main, CI, deployment and fresh evidence", () => {
-  assert.deepEqual(assertGitState({ branch: "main", head: binding.commit, status: "" }, binding), {
+  assert.deepEqual(assertGitState({ branch: "main", head: operator.commit, status: "" }, operator.commit), {
     branch: "main",
     clean: true,
-    head: binding.commit,
+    head: operator.commit,
   });
-  assert.throws(() => assertGitState({ branch: "feature", head: binding.commit, status: "" }, binding));
+  assert.throws(() => assertGitState({ branch: "feature", head: operator.commit, status: "" }, operator.commit));
   assert.deepEqual(parseGitHubCiRun({
-    databaseId: binding.ciRunId,
-    headSha: binding.commit,
+    databaseId: operator.ciRunId,
+    headSha: operator.commit,
     conclusion: "success",
     status: "completed",
     workflowName: "CI",
-  }, binding), { exactCommit: true, passed: true, runId: binding.ciRunId });
+    headBranch: "main",
+    event: "push",
+  }, operator.commit, operator.ciRunId), { exactCommit: true, passed: true, runId: operator.ciRunId });
   assert.deepEqual(validateConfiguration({
     ORDER_AUTH_ROUTE_SMOKE_CONFIRM: CONFIRMATION,
-    ORDER_AUTH_ROUTE_SMOKE_COMMIT: binding.commit,
-    ORDER_AUTH_ROUTE_SMOKE_CI_RUN_ID: String(binding.ciRunId),
-    ORDER_AUTH_ROUTE_SMOKE_DEPLOYMENT_ID: binding.deploymentId,
+    ORDER_AUTH_ROUTE_SMOKE_OPERATOR_COMMIT: operator.commit,
+    ORDER_AUTH_ROUTE_SMOKE_OPERATOR_CI_RUN_ID: String(operator.ciRunId),
     ORDER_AUTH_ROUTE_SMOKE_EVIDENCE_PATH: evidencePath,
-  }, binding), { ...binding, evidencePath });
+  }, binding), {
+    evidencePath,
+    operatorCiRunId: operator.ciRunId,
+    operatorCommit: operator.commit,
+    release: binding,
+  });
+});
+
+test("Vercel binding proves project, source, READY production and every alias", () => {
+  const deployment = {
+    id: binding.deploymentId,
+    target: "production",
+    readyState: "READY",
+    aliases: [...REQUIRED_ALIASES],
+    meta: { gitCommitSha: binding.commit },
+    project: { id: REVIEWED_PROJECT.projectId },
+    team: { id: REVIEWED_PROJECT.orgId },
+  };
+  assert.equal(parseVercelDeployment(deployment, binding).sourceCommit, binding.commit);
+  assert.throws(() => parseVercelDeployment({
+    ...deployment,
+    aliases: REQUIRED_ALIASES.slice(1),
+  }, binding));
 });
 
 test("database and provider identities refuse owner-runtime or live-mode drift", () => {
@@ -92,16 +123,18 @@ test("restart state is marker-bound, exact-release-bound and monotonic", () => {
   const marker = "f".repeat(32);
   const fixtureIds = buildFixtureIds(marker);
   const state = validateRestartState({
-    commit: binding.commit,
-    ciRunId: binding.ciRunId,
+    operatorCommit: operator.commit,
+    operatorCiRunId: operator.ciRunId,
+    deployedCommit: binding.commit,
+    deployedCiRunId: binding.ciRunId,
     deploymentId: binding.deploymentId,
     marker,
     stage: "seller-label",
     fixtureIds,
-  }, binding);
+  }, operatorConfig, binding);
   assert.equal(state.stageIndex, 2);
-  assert.throws(() => validateRestartState({ ...state, stage: "unknown" }, binding));
-  assert.throws(() => validateRestartState({ ...state, fixtureIds: { ...fixtureIds, listingId: "drift" } }, binding));
+  assert.throws(() => validateRestartState({ ...state, stage: "unknown" }, operatorConfig, binding));
+  assert.throws(() => validateRestartState({ ...state, fixtureIds: { ...fixtureIds, listingId: "drift" } }, operatorConfig, binding));
 });
 
 test("route-result contracts bind the exact noncharging buyer quote and retry", () => {
@@ -192,6 +225,7 @@ test("seller fulfillment and buyer receipt redirect only to their exact actor su
 test("sanitized evidence retains only aggregate proof and cleanup posture", () => {
   const evidence = sanitizedEvidence({
     binding,
+    operator,
     cleanup: {
       canaryRestored: true,
       clerkSessionsRevoked: true,
@@ -214,12 +248,12 @@ test("sanitized evidence retains only aggregate proof and cleanup posture", () =
   assert.doesNotMatch(JSON.stringify(evidence), /ord-smoke-|postgresql:|sk_test_|shippo_test_/);
 });
 
-test("scaffold has no reachable provider, database mutation or RLS surface", () => {
+test("release binding is installed while route mutations remain deployment-disabled", () => {
   const source = readFileSync(
     new URL("../scripts/order-authenticated-route-smoke.mjs", import.meta.url),
     "utf8",
   );
-  assert.match(source, /export const RELEASE_BINDING = null/);
+  assert.match(source, /b22fa138d84bad792ba206ee00dacb48d475d4a4/);
   assert.match(source, /route phases are not installed yet/);
   assert.doesNotMatch(source, /new Client\(/);
   assert.doesNotMatch(source, /new Stripe\(/);

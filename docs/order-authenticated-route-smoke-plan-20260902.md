@@ -1,7 +1,30 @@
 # Order authenticated route smoke plan
 
-Status: **design accepted; deployment-disabled preflight scaffold implemented; route phases and production execution pending**
+Status: **corrected application deployed and source-attested; exact release binding installed; route phases and production execution pending**
 Reviewed: 2026-09-02
+
+## Corrected application release accepted
+
+Exact main `b22fa138d84bad792ba206ee00dacb48d475d4a4` passed CI run
+`33595797533`, including the full migration/RLS proof stack, TypeScript, lint,
+3,905 passing tests, dependency audit and production build. The same clean
+detached source was built as Production-target Vercel deployment
+`dpl_6vA4bWrP4KhADtGAXKsisXdmvJBX`, whose provider metadata reports the exact
+Git SHA, reviewed Grainline project/team, `READY` state and Production target.
+
+After staged health passed, the deployment was promoted. `thegrainline.com`,
+`www.thegrainline.com`, `grainline.vercel.app` and
+`grainline-drew-youngs-projects.vercel.app` all resolve to that deployment;
+the first three passed public health (including canonical redirect handling)
+and the Vercel-protected project alias passed authenticated Vercel health.
+READY predecessor `dpl_3GTnqQGHGjGPSkCnEMq65yFAU91u` remains retained.
+This release changed application source only: no migration, RLS, grant,
+credential or provider-variable state changed.
+
+The operator now keeps two independent exact identities: the application
+release above, and the eventual operator `main` commit/CI run. Conflating those
+would make it impossible for the finished operator to run from its own reviewed
+main commit, so tests fail closed if either identity drifts.
 
 ## Purpose
 
