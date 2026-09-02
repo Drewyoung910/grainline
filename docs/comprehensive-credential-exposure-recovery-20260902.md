@@ -1,6 +1,7 @@
 # Comprehensive credential exposure recovery — 2026-09-02
 
-Status: active containment and reviewed recovery preparation. No credential value,
+Status: active recovery. The database owner/runtime family is complete; provider
+and application families remain open. No credential value,
 raw provider response, connection string, PIN, signing secret, token, or private
 restart journal belongs in this document, a commit, a pull request, a CI artifact,
 or ordinary terminal output.
@@ -175,3 +176,50 @@ The implementation must pass focused tests and an independent post-patch
 security review, then be committed as an implementation checkpoint. A separate
 one-file release commit must pin the implementation SHA-256 and successful
 exact-head pull-request CI before execution.
+
+## Completed database family
+
+The database recovery completed on 2026-09-02. Both superseded passwords reject
+with the exact PostgreSQL authentication-failure class, the replacement owner and
+runtime identities match the reviewed role posture, the read-only global grant/RLS
+audit passed, and all canonical aliases point to READY replacement deployment
+`dpl_AmW64aR14Yk47HK54kwiMSiKwkJD` built from unchanged application source
+`b22fa138d84bad792ba206ee00dacb48d475d4a4`. No migration ran. The private
+restart journal was removed only after mode-`0600` sanitized evidence finalized.
+
+Accepted database evidence:
+
+- path: `database-credential-recovery-20260902.json`;
+- SHA-256:
+  `318a5ffe0cac56b0be2478d22201aa28ee13d89d0991192727fb0b29fb717587`;
+- replacement deployment:
+  `dpl_AmW64aR14Yk47HK54kwiMSiKwkJD`; and
+- exact unchanged application source:
+  `b22fa138d84bad792ba206ee00dacb48d475d4a4`.
+
+## Resend family
+
+Resend is the first third-party family because provider inventory contains exactly
+one reviewed existing API key, making the revocation target unambiguous. The
+restart-safe operator is `scripts/resend-credential-exposure-recovery.mjs`.
+
+The operator must:
+
+- bind a successful exact-head CI run and a clean operator commit;
+- bind the clean unchanged deployment source and all three canonical aliases;
+- reject incomplete or unexpected provider-key inventories;
+- create one marker-named replacement key and fsync it only to a private
+  mode-`0600` journal;
+- update the GitHub repository secret, the Vercel variable as Sensitive, and the
+  ignored local file without printing the replacement;
+- stage and verify an exact-source production deployment before promotion;
+- prove the replacement can authenticate before revoking the exact old key;
+- accept only an authentication rejection from the superseded key;
+- verify the canonical homepage and health route; and
+- emit sanitized evidence containing credential hashes rather than values.
+
+The first incident-response replacement intentionally preserves the old key's
+`full_access` behavior to avoid coupling credential containment to a permissions
+redesign. Converting the application to a domain-scoped sending-only key is a
+separate least-privilege improvement after recovery, with an email-delivery and
+webhook verification proof of its own.
