@@ -210,11 +210,13 @@ export async function readCaseCorrectnessProductionSnapshot(
            OR pg_catalog.has_table_privilege($1, c.oid, 'UPDATE')
            OR pg_catalog.has_table_privilege($1, c.oid, 'DELETE')
          ) AS runtime_has_crud,
-         (
-           pg_catalog.has_table_privilege('PUBLIC', c.oid, 'SELECT')
-           OR pg_catalog.has_table_privilege('PUBLIC', c.oid, 'INSERT')
-           OR pg_catalog.has_table_privilege('PUBLIC', c.oid, 'UPDATE')
-           OR pg_catalog.has_table_privilege('PUBLIC', c.oid, 'DELETE')
+         EXISTS (
+           SELECT 1
+             FROM pg_catalog.aclexplode(
+               COALESCE(c.relacl, pg_catalog.acldefault('r', c.relowner))
+             ) AS acl
+            WHERE acl.grantee = 0
+              AND acl.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
          ) AS public_has_crud
        FROM pg_catalog.pg_class c
        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace

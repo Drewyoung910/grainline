@@ -69,6 +69,16 @@ test("catalog is ordered, unique, and byte-pinned", () => {
   }
 });
 
+test("scope SQL checks PUBLIC ACLs through the zero grantee", () => {
+  const source = readFileSync(
+    "scripts/verify-order-compatible-production-scope.mjs",
+    "utf8",
+  );
+  assert.match(source, /pg_catalog\.aclexplode/u);
+  assert.match(source, /acl\.grantee = 0/u);
+  assert.doesNotMatch(source, /has_table_privilege\('PUBLIC'/u);
+});
+
 test("environment parser accepts only manual main and the direct owner", () => {
   const env = {
     DIRECT_URL: URL,

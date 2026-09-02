@@ -100,3 +100,13 @@ retry paths must be exercised before predecessor drain and Order Phase A.
 This release does not enable or FORCE Order RLS, revoke predecessor Order CRUD,
 mutate Order row data, run a provider operation, deploy application code, or
 change credentials/provider configuration.
+
+## Validation history
+
+Pull-request CI run `33576956310` failed before any production operation when
+the first real PostgreSQL scope query passed the `PUBLIC` ACL pseudo-role to
+`has_table_privilege` as though it were a login role. PostgreSQL correctly
+returned `42704 role "PUBLIC" does not exist`. Both scope readers now inspect
+PUBLIC table authority through `aclexplode(...).grantee = 0`, and a class-wide
+test rejects the invalid role-name form. No database, deployment or provider
+state changed in the failed run.

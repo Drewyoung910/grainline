@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -16,6 +17,16 @@ import {
 } from "../scripts/verify-case-correctness-production-scope.mjs";
 
 const URL = "postgresql://neondb_owner:owner@ep-plain-river-aaqg8gj4.westus3.azure.neon.tech:5432/neondb?sslmode=verify-full&channel_binding=require";
+
+test("scope SQL checks PUBLIC ACLs through the zero grantee", () => {
+  const source = readFileSync(
+    "scripts/verify-case-correctness-production-scope.mjs",
+    "utf8",
+  );
+  assert.match(source, /pg_catalog\.aclexplode/u);
+  assert.match(source, /acl\.grantee = 0/u);
+  assert.doesNotMatch(source, /has_table_privilege\('PUBLIC'/u);
+});
 
 function applied(migration) {
   return {
