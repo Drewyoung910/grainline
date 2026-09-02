@@ -223,3 +223,12 @@ The first incident-response replacement intentionally preserves the old key's
 redesign. Converting the application to a domain-scoped sending-only key is a
 separate least-privilege improvement after recovery, with an email-delivery and
 webhook verification proof of its own.
+
+The first two Resend execution attempts on 2026-09-02 stopped before journal
+creation or provider mutation. Vercel CLI 58.11.0 writes progress lines to stdout
+before the resolved-environment child process output, while the first operator
+compared that entire stdout value to the expected SHA-256. The corrected operator
+uses one unique, fixed-prefix digest line; it accepts the reviewed CLI progress
+output while rejecting a missing, duplicate, or malformed digest marker. A fresh
+sanitized provider inventory after the stops proved that only the original key
+still existed, so no ambiguous replacement was retried.

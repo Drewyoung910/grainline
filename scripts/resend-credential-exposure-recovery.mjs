@@ -54,6 +54,7 @@ const STAGES = Object.freeze([
   "promoted",
   "provider-revoked",
 ]);
+const RESOLVED_SECRET_HASH_PREFIX = "GRAINLINE_RESEND_SECRET_SHA256:";
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -270,14 +271,26 @@ function updateVercelSecret(value) {
   ], { cwd: ROOT, input: `${value}\n` });
 }
 
+export function normalizeResolvedSecretSha256(output) {
+  if (typeof output !== "string") throw new Error("Vercel Resend secret hash output is invalid");
+  const matches = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith(RESOLVED_SECRET_HASH_PREFIX));
+  if (matches.length !== 1) throw new Error("Vercel Resend secret hash marker is not unique");
+  const digest = matches[0].slice(RESOLVED_SECRET_HASH_PREFIX.length);
+  if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error("Vercel Resend secret hash is malformed");
+  return digest;
+}
+
 function resolvedVercelSecretSha256() {
-  return run(process.execPath, [
+  return normalizeResolvedSecretSha256(run(process.execPath, [
     VERCEL_CLI,
     "env", "run", "--environment", "production",
     "--project", PROJECT.name, "--scope", PROJECT.scope, "--no-color",
     "--", process.execPath, "-e",
-    "const c=require('node:crypto');const v=process.env.RESEND_API_KEY;if(!v)process.exit(42);process.stdout.write(c.createHash('sha256').update(v).digest('hex'))",
-  ], { cwd: SOURCE });
+    `const c=require('node:crypto');const v=process.env.RESEND_API_KEY;if(!v)process.exit(42);process.stdout.write('${RESOLVED_SECRET_HASH_PREFIX}'+c.createHash('sha256').update(v).digest('hex'))`,
+  ], { cwd: SOURCE }));
 }
 
 function readDeployment(idOrUrl) {
