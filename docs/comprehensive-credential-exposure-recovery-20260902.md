@@ -363,3 +363,6 @@ dependency, broad update, `npm audit fix`, or force upgrade. The exact local
 dependency gate then reported no high or critical vulnerability. The remaining
 moderate-only Tiptap and `qs` advisories are a separate dependency-security
 follow-up; they do not weaken or reorder the exposed-credential recovery.
+Replacement CI run `33665768385` then failed only because the fail-closed
+dependency-hygiene contract still pinned the reviewed predecessor `3.1.5`;
+the contract is intentionally advanced to the exact patched `3.1.7` release.

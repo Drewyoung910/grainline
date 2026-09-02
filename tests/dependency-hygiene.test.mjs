@@ -102,7 +102,7 @@ describe("dependency hygiene guardrails", () => {
     );
     assert.equal(
       lock.packages?.["node_modules/fast-uri"]?.version,
-      "3.1.5",
+      "3.1.7",
     );
     assert.equal(
       lock.packages?.["node_modules/nanoid"]?.version,
