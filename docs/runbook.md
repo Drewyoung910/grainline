@@ -1,12 +1,20 @@
 # Grainline Operations Runbook
 
-Last updated: 2026-08-15
+Last updated: 2026-09-02
 
 This runbook covers the minimum operational steps for production incidents, deploy rollback, secret rotation, webhook recovery, database restore drills, and public support/legal request handling.
 
 For a plain-English map of RLS operators, deploy phases, common fail-closed
 errors, evidence locations, and safe operation without agent context, read
 `docs/rls-operator-guide.md` before preparing or dispatching an RLS migration.
+
+Vercel staged Production deployment note: do not treat `vercel deploy --prod
+--skip-domain` as proof that the new deployment has no aliases. During the
+2026-09-02 compatible Order release, Vercel attached the project-level
+`grainline-drew-youngs-projects.vercel.app` alias while leaving the other three
+canonical aliases on the predecessor. Inspect the deployment's actual alias
+set before smoke testing or promotion, and explicitly verify all canonical
+aliases again after `vercel promote`.
 
 Completed CheckoutStockReservation source-consistency postflight:
 
