@@ -18,6 +18,7 @@ import {
   inspectLocalRuntimeCredentialSource,
   normalizeCandidateDeployment,
   normalizeCanonicalAliasTargets,
+  normalizeCanonicalPredecessorTargets,
   normalizeGithubRun,
   normalizePriorDeployment,
   normalizeRecoveryStateReleaseHandoff,
@@ -215,12 +216,41 @@ test("canonical alias proof accepts only the exact predecessor or replacement", 
   assert.equal(normalizeCanonicalAliasTargets(
     targets(Array(3).fill(deploymentId)), deploymentId,
   ).stage, "promoted");
+  assert.equal(normalizeCanonicalAliasTargets(
+    targets(Array(3).fill(PRIOR_DEPLOYMENT_ID)), deploymentId,
+  ).stage, "unpromoted");
   assert.throws(() => normalizeCanonicalAliasTargets(
     targets([deploymentId, PRIOR_DEPLOYMENT_ID, PRIOR_DEPLOYMENT_ID]), deploymentId,
   ), /partial/);
   assert.throws(() => normalizeCanonicalAliasTargets(
     targets(Array(3).fill("dpl_Unreviewed123")), deploymentId,
   ), /unreviewed/);
+});
+
+test("fresh recovery preflight accepts only the exact canonical predecessor", () => {
+  const hosts = ["thegrainline.com", "www.thegrainline.com", "grainline.vercel.app"];
+  const targets = (ids) => hosts.map((hostname, index) => ({
+    hostname,
+    deployment: {
+      id: ids[index],
+      projectId: "prj_O2S8qcYFFWXn6nnrV0DkLyqMprIp",
+      readyState: "READY",
+      target: "production",
+    },
+  }));
+  assert.equal(normalizeCanonicalPredecessorTargets(
+    targets(Array(3).fill(PRIOR_DEPLOYMENT_ID)),
+  ).stage, "predecessor");
+  assert.throws(() => normalizeCanonicalPredecessorTargets(
+    targets([PRIOR_DEPLOYMENT_ID, "dpl_Unreviewed123", PRIOR_DEPLOYMENT_ID]),
+  ), /moved from the reviewed predecessor/);
+  assert.throws(() => normalizeCanonicalPredecessorTargets(
+    targets(Array(3).fill(PRIOR_DEPLOYMENT_ID)).map((target, index) => (
+      index === 1
+        ? { ...target, deployment: { ...target.deployment, readyState: "ERROR" } }
+        : target
+    )),
+  ), /inventory drifted/);
 });
 
 test("owner proof requires the complete reviewed attributes and membership options", () => {
